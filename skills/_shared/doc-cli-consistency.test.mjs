@@ -148,6 +148,9 @@ const VERB_SCAN_EXCLUSIONS = [
   // contract reference is a guaranteed false red (probe-verified).
   'skills/war/references/schemas.md',
   'skills/war/references/auditor-teach.md',         // no shell-out prose for the scanned modules
+  // vale-custom-interview.md phrases only war-config.mjs flags (empty-by-design verb set, the
+  // schemas.md precedent) and the external `vale` CLI — no scanned-module verbs.
+  'skills/war-room/references/vale-custom-interview.md',
   // budget-rebaseline.md is the operator budget re-baseline pass; its only command prose
   // targets prompt-surface-budgets.test.mjs and assert-budget-raise-cited.sh — neither is a
   // scanned module, and it phrases no verb for any scanned module.
