@@ -3,7 +3,7 @@
 Run this only when the operator picks `custom` for `hooks.valeStyle`. The deliverable is a
 self-contained project-side profile at `.claude/war/vale/.vale.ini` (plus any style files it
 needs under `.claude/war/vale/styles/`), and `hooks.valeStyle: "custom"` written to
-`.claude/war/config.json`. The vale-md hook fail-opens to `googleFork` until the profile
+`.claude/war/config.json`. The vale-md hook fail-opens to `workAuditRefine` until the profile
 file exists, so a half-finished interview breaks nothing.
 
 ## Step 0 — launch the pattern miner FIRST, non-blocking
@@ -26,8 +26,8 @@ then, proceed without it and reconcile when it lands — never block the operato
 
 Grill one dimension at a time, offering the mined-or-default value in brackets:
 
-1. **Base**: start from one of the vendored styles (`house`, `googleFork`, `microsoftFork`,
-   `writeGood`, `proselint`, `alex`, `readability`, `redhat`) or from nothing. A vendored base
+1. **Base**: start from one of the vendored styles (`house`, `workAuditRefine`, `google`,
+   `microsoftFork`, `writeGood`, `proselint`, `alex`, `readability`, `redhat`) or from nothing. A vendored base
    is COPIED, not referenced (Step 3), so the custom profile survives plugin updates.
 2. **Sentence limit**: max words per sentence (house default 25). 0 = rule off.
 3. **Passive voice**: flag it or not.
@@ -50,7 +50,7 @@ on every plugin update).
 
 1. `mkdir -p .claude/war/vale/styles`
 2. For a vendored base: copy the base style directory (and, for a Fork base, the
-   `ReplyStandard` house style) from `${CLAUDE_PLUGIN_ROOT}/hooks/vale-md/styles/` into
+   `WorkAuditRefine` house style) from `${CLAUDE_PLUGIN_ROOT}/hooks/vale-md/styles/` into
    `.claude/war/vale/styles/`, LICENSE files included.
 3. Author the operator's custom rules as YAML under `.claude/war/vale/styles/Custom/`
    (existence rules for banned words, an `occurrence` rule for the sentence limit), and the
@@ -67,4 +67,4 @@ on every plugin update).
    (`war-config.mjs --stdin --fill-defaults`), like every other override.
 
 Remind the operator: the profile directory is theirs to commit or gitignore; the hook reads
-it either way, and deleting it simply fail-opens the hook back to `googleFork`.
+it either way, and deleting it simply fail-opens the hook back to `workAuditRefine`.

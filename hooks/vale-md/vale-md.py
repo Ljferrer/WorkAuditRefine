@@ -5,7 +5,7 @@ via per-handler `if` rules (`Edit(**/*.md)` / `Write(**/*.md)` — one rule may
 name only one tool), so non-Markdown edits never spawn a process at all; the
 extension check below is the in-script backstop. Lints only `.md` files, with a
 self-contained profile beside this script, chosen by `hooks.valeStyle`
-(default `googleFork`); every vendored style ships in the plugin, so no
+(default `workAuditRefine`, the repo's tuned fork; `google` is raw upstream); every vendored style ships in the plugin, so no
 remote packages and no network at lint time. A `custom` style reads the
 project's own `.claude/war/vale/.vale.ini` instead (written by the
 /war-room interview), falling back to the default when absent.
@@ -21,7 +21,7 @@ Toggles in the project's `.claude/war/config.json`, both fail-open (no config,
 unreadable JSON, a malformed `hooks` block, or `null` all mean the default):
 `hooks.valeMarkdown` (default on — only an explicit `false` disables) and
 `hooks.valeStyle` (a known style name selects its profile; absent, `null`,
-or an unknown value mean the default `googleFork`). A missing `vale` binary,
+or an unknown value mean the default `workAuditRefine`). A missing `vale` binary,
 a non-Markdown path, unreadable stdin, or a Vale failure each mean a silent
 exit 0.
 """
@@ -38,7 +38,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 # war-config.mjs VALE_STYLES — change both together. "custom" is handled separately.
 STYLES = {
     "house": ".vale.ini",
-    "googleFork": ".vale-google.ini",
+    "workAuditRefine": ".vale-workauditrefine.ini",
+    "google": ".vale-google.ini",
     "microsoftFork": ".vale-microsoft.ini",
     "writeGood": ".vale-write-good.ini",
     "proselint": ".vale-proselint.ini",
@@ -46,14 +47,14 @@ STYLES = {
     "readability": ".vale-readability.ini",
     "redhat": ".vale-redhat.ini",
 }
-DEFAULT_STYLE = "googleFork"
+DEFAULT_STYLE = "workAuditRefine"
 
 
 def profile():
     """The Vale config for this run, or None when the hook is toggled off.
 
     hooks.valeMarkdown (default ON): only an explicit false disables.
-    hooks.valeStyle picks the profile from STYLES (default googleFork); the
+    hooks.valeStyle picks the profile from STYLES (default workAuditRefine); the
     value "custom" reads the project-side .claude/war/vale/.vale.ini, falling
     back to the default profile when that file does not exist. Fail-open
     throughout: absent, null, unreadable, or unknown all mean the default.

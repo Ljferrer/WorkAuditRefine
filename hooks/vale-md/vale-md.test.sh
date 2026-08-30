@@ -20,7 +20,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cp "$HERE/vale-md.sh" "$HERE/vale-md.py" "$HERE"/.vale*.ini "$TMP/"
 mkdir -p "$TMP/styles"
-cp -R "$HERE/styles/ReplyStandard" "$HERE/styles/Google" "$TMP/styles/"
+cp -R "$HERE/styles/WorkAuditRefine" "$HERE/styles/Google" "$TMP/styles/"
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.claude/war"
 export CLAUDE_PROJECT_DIR="$PROJ"
@@ -33,7 +33,7 @@ printf '%s\n' "$@" > "${STUB_ARGS:-/dev/null}"
 if [ "${STUB_EMPTY:-}" = "1" ]; then
   printf '{}'
 else
-  printf '{"doc.md":[{"Check":"ReplyStandard.SentenceLength","Severity":"warning","Line":1,"Message":"long"},{"Check":"ReplyStandard.SlopWords","Severity":"warning","Line":2,"Message":"slop"}]}'
+  printf '{"doc.md":[{"Check":"WorkAuditRefine.SentenceLength","Severity":"warning","Line":1,"Message":"long"},{"Check":"WorkAuditRefine.SlopWords","Severity":"warning","Line":2,"Message":"slop"}]}'
 fi
 STUB
 chmod +x "$TMP/bin/vale"
@@ -52,7 +52,7 @@ case "$out" in
   *) fail "case1 default on: emits advisory context (out=$out)" ;;
 esac
 [ "$rc" -eq 0 ] && pass 'case1 exit 0' || fail "case1 exit 0 (rc=$rc)"
-if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case1 vale invoked with the default google profile'; else fail 'case1 vale invoked with the default google profile'; fi
+if grep -Fq '.vale-workauditrefine.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case1 vale invoked with the default workAuditRefine profile'; else fail 'case1 vale invoked with the default workAuditRefine profile'; fi
 
 # Case 2: hooks.valeMarkdown false — gated off, silent, vale never invoked, exit 0.
 printf '{"hooks":{"valeMarkdown":false}}' > "$PROJ/.claude/war/config.json"
@@ -113,14 +113,14 @@ if [ -z "$out" ] && [ "$rc" -eq 0 ] && [ ! -e "$STUB_ARGS" ]; then pass 'case11 
 printf '{"hooks":{"valeStyle":"house"}}' > "$PROJ/.claude/war/config.json"
 rm -f "$STUB_ARGS"
 out="$(run_hook "$DOC")"
-if grep -q '\.vale\.ini' "$STUB_ARGS" 2>/dev/null && ! grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case12 valeStyle house: house profile'; else fail 'case12 valeStyle house: house profile'; fi
+if grep -q '\.vale\.ini' "$STUB_ARGS" 2>/dev/null && ! grep -Fq '.vale-workauditrefine.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case12 valeStyle house: house profile'; else fail 'case12 valeStyle house: house profile'; fi
 
 # Case 13: valeStyle null or unknown — fail-open to the default (google fork).
 for v in 'null' '"chicago"'; do
   printf '{"hooks":{"valeStyle":%s}}' "$v" > "$PROJ/.claude/war/config.json"
   rm -f "$STUB_ARGS"
   out="$(run_hook "$DOC")"
-  if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass "case13 valeStyle $v: default google profile"; else fail "case13 valeStyle $v: default google profile"; fi
+  if grep -Fq '.vale-workauditrefine.ini' "$STUB_ARGS" 2>/dev/null; then pass "case13 valeStyle $v: default workAuditRefine profile"; else fail "case13 valeStyle $v: default workAuditRefine profile"; fi
 done
 
 # Case 14: valeStyle custom — the project-side profile wins when present, default otherwise.
@@ -132,7 +132,7 @@ out="$(run_hook "$DOC")"
 if grep -Fq "$PROJ/.claude/war/vale/.vale.ini" "$STUB_ARGS" 2>/dev/null; then pass 'case14 custom: project profile selected'; else fail 'case14 custom: project profile selected'; fi
 rm -f "$PROJ/.claude/war/vale/.vale.ini" "$STUB_ARGS"
 out="$(run_hook "$DOC")"
-if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case14 custom absent: default google profile'; else fail 'case14 custom absent: default google profile'; fi
+if grep -Fq '.vale-workauditrefine.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case14 custom absent: default workAuditRefine profile'; else fail 'case14 custom absent: default workAuditRefine profile'; fi
 rm -f "$PROJ/.claude/war/config.json"
 
 # Case 15: zero findings — silent, exit 0.

@@ -676,9 +676,9 @@ test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, n
 // hooks.valeStyle — the vale-md profile selector enum, consumed by hooks/vale-md/vale-md.py
 // (fail-open; subordinate to valeMarkdown). Delete-the-feature: drop the DEFAULTS entry and
 // the default assertion fails; drop the validate() line and the rejection case fails.
-test('hooks.valeStyle defaults googleFork, every VALE_STYLES value validates, null is unset, unknown rejected', () => {
-  assert.equal(DEFAULTS.hooks.valeStyle, 'googleFork', 'the tuned Google fork is the default profile')
-  assert.equal(fillDefaults({}).hooks.valeStyle, 'googleFork')
+test('hooks.valeStyle defaults workAuditRefine, every VALE_STYLES value validates, null is unset, unknown rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeStyle, 'workAuditRefine', 'the WorkAuditRefine fork is the default profile')
+  assert.equal(fillDefaults({}).hooks.valeStyle, 'workAuditRefine')
   for (const s of VALE_STYLES) assert.equal(validate({ hooks: { valeStyle: s } }).valid, true, s)
   assert.equal(validate({ hooks: { valeStyle: null } }).valid, true,
     'null = unset (the overrides.* convention) — vale-md.py reads null as the default, and the validator must not disagree')
