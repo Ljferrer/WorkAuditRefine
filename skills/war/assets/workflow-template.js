@@ -62,8 +62,9 @@ export const meta = {
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     run:    { roundLimit, maxParallel, afk },                        // roundLimit used here; afk gates recordAced's
 //                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
-//                                     // maxParallel (optional positive integer) throttles every fan-out site into
-//                                     // groups of n via batched(); absent/null ⇒ one parallel() call, byte-identical fan-out
+//                                     // maxParallel (optional positive integer) is the GLOBAL ceiling on agent dispatches
+//                                     // in flight across the whole run, held by one counting semaphore at the leaf dispatch
+//                                     // seam; absent/null ⇒ agent() is called straight through, a byte-identical dispatch path
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
 //                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
@@ -408,23 +409,50 @@ const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 // only up to roundLimit − 2 of it (2 slots stay reserved for the merge-floor retry loop), so the
 // priced depth-2 descent is bounded accordingly.
 const roundLimit = run.roundLimit ?? 6
-// maxParallel (#1722): per-group fan-out throttle for rate-limited accounts — threaded exactly like
-// roundLimit from run.maxParallel, but with NO numeric fallback: absent/null/malformed ⇒ null ⇒
-// batched() below delegates straight to ONE parallel(thunks) call, a byte-identical fan-out
-// (binding guardrail — an unconfigured run pays nothing).
+// maxParallel (#1722, reshaped #1897): the GLOBAL agent-dispatch ceiling for rate-limited accounts —
+// threaded exactly like roundLimit from run.maxParallel, but with NO numeric fallback:
+// absent/null/malformed ⇒ null ⇒ dispatch() below calls agent() straight through, a byte-identical
+// dispatch path (binding guardrail — an unconfigured run pays nothing). Set ⇒ at most maxParallel
+// agent dispatches are in flight at once ACROSS THE WHOLE RUN, not per fan-out site: the old per-site
+// throttle composed multiplicatively across nested fan-outs (wave × audit roster ⇒ ~N² in flight).
 const maxParallel = (Number.isInteger(run.maxParallel) && run.maxParallel > 0) ? run.maxParallel : null
-// batched(thunks, n): slice the thunk list into groups of n, awaiting EACH GROUP via the live sandbox
-// `parallel(group)` — NEVER Promise.all: the live parallel NULLS a rejected thunk (the #742 invariant's
-// mechanism), so a rejection inside a throttled group yields a null slot in that group's result, never
-// a group-wide rejection that would drop completed siblings and re-dispatch them every wave. Results
-// return in input order with rejected slots null, exactly like an unthrottled parallel(thunks).
-// n absent/null ⇒ delegate to one parallel(thunks) call (the byte-identical path). Group k+1 starts
-// only after group k settles, so at most n dispatches are ever in flight.
-async function batched(thunks, n) {
-  if (!(Number.isInteger(n) && n > 0)) return parallel(thunks)
-  const out = []
-  for (let i = 0; i < thunks.length; i += n) out.push(...await parallel(thunks.slice(i, i + n)))
-  return out
+// makeSemaphore(n): a hand-rolled counting semaphore (free-permit counter + FIFO waiter queue) — the
+// sandbox cannot import. n absent/null/malformed ⇒ every acquire resolves immediately and release is a
+// no-op, so the unconfigured path never touches the counter. release() hands the permit STRAIGHT to the
+// head waiter when one is queued (never back to the pool), so permits + in-flight is invariant and a
+// waiter can never be passed over. permits/waiting are read-only views for the drain assertions.
+function makeSemaphore(n) {
+  const cap = (Number.isInteger(n) && n > 0) ? n : null
+  let permits = cap
+  const waiters = []
+  return {
+    get permits() { return permits },
+    get waiting() { return waiters.length },
+    acquire() {
+      if (cap === null) return Promise.resolve()
+      if (permits > 0) { permits--; return Promise.resolve() }
+      return new Promise(resolve => waiters.push(resolve))
+    },
+    release() {
+      if (cap === null) return
+      const next = waiters.shift()
+      if (next) next()
+      else permits++
+    },
+  }
+}
+const dispatchSemaphore = makeSemaphore(maxParallel)
+// dispatch(prompt, opts): the ONE leaf agent-dispatch seam (PIN-4). EVERY agent() call in this file
+// goes through here — workers, auditors, aces, fix workers, refiners, servitors, gate-audit seats — so
+// one counter caps them all. The permit is taken immediately around the leaf agent() call and released
+// in a `finally`, so a rejected or thrown dispatch never leaks one (a leaked permit lowers the observed
+// peak, so a peak ≤ N assertion alone cannot catch it — the tests assert the drain too). No enclosing
+// slot (wave thunk, merge slot, audit round) ever holds a permit while it awaits a nested dispatch
+// (PIN-15), so the ceiling can never deadlock a run whose wave width exceeds it.
+async function dispatch(prompt, opts) {
+  if (maxParallel === null) return agent(prompt, opts)
+  await dispatchSemaphore.acquire()
+  try { return await agent(prompt, opts) } finally { dispatchSemaphore.release() }
 }
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
 // Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
@@ -1234,7 +1262,7 @@ const blockedReason = r => !r ? 'worker returned no result'
 // untagged by construction.)
 const INFRA_DEATH_RE = /session limit|rate limit|quota|overloaded|529|econnreset|econnrefused|etimedout|socket hang up|api connection|transport error/i
 const dispatchAgent = async (prompt, opts) => {
-  try { return await agent(prompt, opts) }
+  try { return await dispatch(prompt, opts) }
   catch (err) {
     const e = err instanceof Error ? err : new Error(String(err))
     e.warDispatchDeath = true   // structural provenance: the throw originated at the agent() dispatch layer
@@ -1610,16 +1638,17 @@ async function auditRound(task, peers, workerTests, pin, extra) {
   // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
   const roster = task.roster
   const expected = roster.length
-  const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
+  const runSeat = seat => dispatch(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-  // Initial fan-out (throttled into groups of maxParallel when set; one parallel() call otherwise)
-  let results = await batched(roster.map(seat => () => runSeat(seat)), maxParallel)
+  // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
+  // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).
+  let results = await parallel(roster.map(seat => () => runSeat(seat)))
   // Re-run only the dropped (null) seats — re-keyed on roster entries (lens+depth) — up to 2 retry passes
   for (let retry = 0; retry < 2; retry++) {
     const dropped = roster.filter((_, i) => results[i] == null)
     if (!dropped.length) break
-    const retried = await batched(dropped.map(seat => () => runSeat(seat)), maxParallel)
+    const retried = await parallel(dropped.map(seat => () => runSeat(seat)))
     let ri = 0
     results = results.map(r => r != null ? r : retried[ri++])
   }
@@ -1830,8 +1859,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
-  // ---- WORK + AUDIT each task in the wave concurrently (at most maxParallel at once when set) ----
-  const results = await batched(wave.map(task => async () => {
+  // ---- WORK + AUDIT each task in the wave concurrently (the global dispatch semaphore caps the
+  // agent dispatches underneath at maxParallel when set; this slot itself holds no permit, PIN-15) ----
+  const results = await parallel(wave.map(task => async () => {
     // Wave-loop invariant (spec constraint 4, #742): a task dispatched into a work wave MUST terminate
     // in exactly ONE collected result — it may never re-enter the wave because of an engine-side throw.
     // The live `parallel` NULLS a rejected thunk, so results.filter(Boolean) drops it → done.add never
@@ -1955,7 +1985,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         : ''
       return { task, verdict: 'escalate', seats: [], expected: 0, blocked: `engine error during work/audit: ${err.message}` + ptHint }
     }
-  }), maxParallel)
+  }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   // ponytail: guard the agent-emitted pin at the copy site, not via a schema `pattern` —
@@ -2136,7 +2166,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // normalized (#1813) so a `./`-form report never mints a trailer diverging from its bare twin.
       const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => aceRelPath(f.file)))].sort().join(',')
       const revertStep = aceRevertStep(r.task.worktree, pendingRevert)
-      const sw = await agent(
+      const sw = await dispatch(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
         + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
@@ -2227,7 +2257,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // successive re-entry rounds over the same file set stay distinct across resume replays.
       const trailer = r.task.id + ':reentry:r' + (r.task.fixRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
       const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
-      const rw = await agent(
+      const rw = await dispatch(
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + aceRevertStep(r.task.worktree, pendingRevert)
         + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
@@ -2306,7 +2336,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // Sits at the TOP of the approve branch, BEFORE the merge dispatch.
       let aceSha = null
       if (blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
-        const ace = await agent(
+        const ace = await dispatch(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
@@ -2403,7 +2433,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`\`git -C ${r.task.worktree} revert --no-edit ${r.aceReverted}\` (forward-only, classifier-safe — it is the clean inverse of the task-branch tip, cannot conflict) `
           + pt`BEFORE the rebase step (a), so the merge runs on the reverted-to-approved tip. Do NOT reset --hard. The approved work still lands.\n`
         : ''
-      const mr = routedMr(await agent(
+      const mr = routedMr(await dispatch(
         pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + aceRevertClause
         + reattachClause(refineryPath)
@@ -2500,7 +2530,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
-          const floorFix = await agent(
+          const floorFix = await dispatch(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
@@ -2540,7 +2570,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           }
 
           // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + budget-raise + done-when).
-          floorMr = routedMr(await agent(
+          floorMr = routedMr(await dispatch(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
@@ -2635,7 +2665,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // 'environment' classification) is HARD via the existing reason 'escalate': an approved task
           // must never be silently dropped from a landed phase by a transient. Bounded at ONE — no
           // chaining (a 2nd result classified 'baseline' routes as 'introduced'), no enum change.
-          const ep = await agent(
+          const ep = await dispatch(
             pt`ENVIRONMENT-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
@@ -2670,7 +2700,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // baseline-proceed re-merge naming the classified ids. Route its result normally; a 2nd
           // gate_failed routes by class with 'baseline' treated as 'introduced' (bounded — no 2nd re-dispatch).
           recordBaselineDebt(mr.gate_failing_ids, mr.gate_base_sha)
-          const bp = await agent(
+          const bp = await dispatch(
             pt`BASELINE-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the phase integration base, NOT introduced by this task: ${(mr.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
@@ -2813,7 +2843,7 @@ if (endStateCheckRows.length > 0) {
       + pt`Provision steps must leave the worktree CLEAN before any check runs: restore tracked files via \`git -C ${refineryPath} checkout -- .\` after any step that mutates them (untracked build output is fine) — the land dispatch merges and checks out in this SAME shared _refinery worktree, so the do-NOT-edit-tracked-files rule above holds at the end of provisioning too.\n`
     : ''
   log(`endstate-check: dispatching the land-barrier check — ${endStateCheckRows.length} claimed check:-tagged End-state condition(s) execute ONCE at the integrated tip, before any gate-audit seat spawns (D2/F5).`)
-  await agent(
+  await dispatch(
     pt`ENDSTATE-CHECK DISPATCH for WAR phase ${ph.id} (the land-barrier check; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
@@ -2882,7 +2912,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
     // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
     preMergeTip: m.preMergeTip || phaseBaseCmd }))
-  const evidence = await agent(
+  const evidence = await dispatch(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
@@ -2915,7 +2945,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
   // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch failed/produced no
   // token) ⇒ fall back to gateHeadSha (fail-open — today's behavior).
-  await batched(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
@@ -2952,7 +2982,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // nested pt-tagged interior (first-class census entry): ${guardEvidence} is ternary-guarded.
       ? pt`\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? pt` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
       : ''
-    const gateAuditVerdict = await agent(
+    const gateAuditVerdict = await dispatch(
       pt`POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
       + pt`${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.\n`
@@ -3039,7 +3069,7 @@ if (mergedTasksForGateAudit.length > 0) {
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
       }
     }
-  }), maxParallel)
+  }))
   // ---- D4 — authoritative integrated-tip seat (intra-phase same-repo dep phase only) ----
   // On an intra-dep phase the evidence dispatch re-ran the FULL gate at the final integration tip; that
   // captured output is LAND-AUTHORITATIVE over the per-branch gates for the dep-crossing tasks (their
@@ -3076,7 +3106,7 @@ if (mergedTasksForGateAudit.length > 0) {
         + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
         + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
-    const authVerdict = await agent(
+    const authVerdict = await dispatch(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
       + pt`Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
@@ -3118,7 +3148,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
   // phase cannot skip its own claimed conditions. The per-task pass's cost saving stands.
   log(`gate-audit: mergedTasksForGateAudit is empty but this phase claims ${endStateClaims.length} End-state condition(s) — spawning ONE End-state-only seat at the confirmed tip (D7 cost saving preserved for the per-task pass).`)
-  const esVerdict = await agent(
+  const esVerdict = await dispatch(
     pt`END-STATE-ONLY GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence). `
     + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
     + pt`${refineryPath} (the _refinery worktree).\n`
@@ -3332,7 +3362,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       // fail-open DISCARDS (the pre-polish tip lands unchanged — see the discard arm below), so no
       // gate-failure classification is dispatched here. The idempotent _refinery re-attach IS still
       // included (hygiene — heals a prior dispatch that died mid-classification detached).
-      pmr = await agent(
+      pmr = await dispatch(
         pt`Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
@@ -3432,7 +3462,7 @@ if (landDecision === 'landed') {
     + pt`Never use --force push. Never merge or push from the Lead's main checkout.`
     + submodLandNote
     + segmentedLandClause
-  landResult = await agent(landPrompt,
+  landResult = await dispatch(landPrompt,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
   // ---- SEGMENTED-LAND BOUNDED RE-DISPATCH (Phase 6 Task 1 (a), A6 REVISED) ----
   // The land dispatch survives a gate outrunning the tool timeout via the in-band
@@ -3446,7 +3476,7 @@ if (landDecision === 'landed') {
   while (landResult && landResult.land_segment === 'incomplete' && landSegments < roundLimit) {
     landSegments++
     log('Phase ' + ph.id + ': segmented land — the land dispatch returned the in-band land_segment:\'incomplete\' marker (' + (typeof landResult.segment_note === 'string' && landResult.segment_note ? landResult.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (landSegments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-    landResult = await agent(
+    landResult = await dispatch(
       pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + landPrompt,
       // label is concatenation-built (census-safe — #931): the registry lives in Task 2's file.
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'land:phase-' + ph.id + ':segment-' + (landSegments + 1), schema: MERGE_RESULT, ...spawn('refiner') })
@@ -3480,7 +3510,7 @@ if (landDecision === 'landed') {
     // 'environment' classification) falls back to today's reason 'env-blocked' + held:land-failed, with
     // the retry provably spent — the Lead re-runs the land. Bounded at ONE: no chaining into
     // baseline-proceed. No enum change; every landDecision literal below is already emitted.
-    const reLand = await agent(
+    const reLand = await dispatch(
       pt`ENVIRONMENT-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
@@ -3526,7 +3556,7 @@ if (landDecision === 'landed') {
     // dispatch ONE baseline-proceed re-land naming the classified ids. Route its result normally (a 2nd
     // gate_failed routes by class with 'baseline' treated as 'introduced' — bounded, no 2nd re-dispatch).
     recordBaselineDebt(landResult.gate_failing_ids, landResult.gate_base_sha)
-    const reLand = await agent(
+    const reLand = await dispatch(
       pt`BASELINE-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
@@ -3618,7 +3648,7 @@ const landedTipAnchor = tipSha || 'landed tip unrecorded — ground via the gate
 // is deliberately NOT in this condition anymore: it is the read-path repo root, not a servitor write path.
 let servitorResult = null
 if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
-  servitorResult = await agent(
+  servitorResult = await dispatch(
     pt`Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
     + pt`Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
     + pt`Your ONLY writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the local memory root): ${memoryLocalRoot}.\n`
@@ -3751,7 +3781,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   }
   let filingOut = null
   try {
-    filingOut = await agent(
+    filingOut = await dispatch(
       pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`

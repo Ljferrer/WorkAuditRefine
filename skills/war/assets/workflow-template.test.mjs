@@ -10772,94 +10772,178 @@ test('Task 2.1(g) #1410 — `never a dropped seat` retired from both surfaces; t
 })
 
 // ---------------------------------------------------------------------------
-// Task 1.1 (#1722) — batched(thunks, n) fan-out throttle + run.maxParallel threading (End states 1–2)
+// Task 1.1 (#1897) — the GLOBAL dispatch semaphore at the leaf agent seam (End states 1–2).
+// Supersedes the retired per-site batched(thunks, n) throttle (#1722), which composed
+// multiplicatively across nested fan-outs (wave × audit roster ⇒ ~N² agents in flight).
 // ---------------------------------------------------------------------------
 
-// Extract the batched helper from src and bind it to a stub `parallel` that mimics the live sandbox
-// semantics: run the group concurrently, NULL a rejected thunk (the #742 invariant's mechanism).
-const batchedBlock = (() => {
-  const m = src.match(/async function batched\(thunks, n\) \{[\s\S]*?\n\}/)
+// Extract makeSemaphore + dispatch from src and bind them to a stub `agent`, so the tests drive the
+// SHIPPED source, and can read the counter directly for the drain assertion (a leaked permit lowers
+// the observed peak, so a peak ≤ N assertion alone cannot catch it).
+const semBlock = (() => {
+  const m = src.match(/function makeSemaphore\(n\) \{[\s\S]*?\n\}/)
   return m ? m[0] : null
 })()
-const makeBatched = (parallel) => new Function('parallel', `${batchedBlock}\nreturn batched`)(parallel)
-const liveishParallel = (record) => async (thunks) => {
-  if (record) record.push(thunks)
-  return Promise.all(thunks.map((t) => Promise.resolve().then(t).catch(() => null)))
-}
+const dispatchBlock = (() => {
+  const m = src.match(/async function dispatch\(prompt, opts\) \{[\s\S]*?\n\}/)
+  return m ? m[0] : null
+})()
+const makeDispatch = (agent, maxParallel) => new Function('agent', 'maxParallel', `
+  ${semBlock}
+  const dispatchSemaphore = makeSemaphore(maxParallel)
+  ${dispatchBlock}
+  return { dispatch, dispatchSemaphore }
+`)(agent, maxParallel)
 
-test('batched: deterministic batching — at most N in flight, group k+1 starts only after group k settles, input order preserved', async () => {
-  assert.ok(batchedBlock, 'the batched(thunks, n) helper is locatable in workflow-template.js (feature-presence guard)')
-  const batched = makeBatched(liveishParallel(null))
-  let active = 0, maxActive = 0, settled = 0
-  const startedAtSettled = []           // per thunk: how many thunks had SETTLED when this one started
-  const thunks = Array.from({ length: 7 }, (_, i) => async () => {
-    active++; maxActive = Math.max(maxActive, active)
-    startedAtSettled[i] = settled
-    await new Promise((r) => setTimeout(r, 1))   // hold the whole group in flight together
-    active--; settled++
-    return i
-  })
-  const out = await batched(thunks, 3)
-  assert.deepEqual(out, [0, 1, 2, 3, 4, 5, 6], 'results return in input order (7 thunks, n=3 → groups 3/3/1)')
-  assert.equal(maxActive, 3, 'at most N=3 thunks are ever concurrently in flight')
-  // Group boundaries: a thunk in group k+1 starts only after ALL of group k settled.
-  assert.deepEqual(startedAtSettled.slice(0, 3), [0, 0, 0], 'group 1 starts with nothing settled')
-  assert.deepEqual(startedAtSettled.slice(3, 6), [3, 3, 3], 'group 2 starts only after all 3 of group 1 settled')
-  assert.deepEqual(startedAtSettled.slice(6), [6], 'group 3 starts only after all 6 prior thunks settled')
+test('semaphore: at most N agent dispatches in flight globally, permits hand FIFO to waiters, results unchanged', async () => {
+  assert.ok(semBlock, 'the makeSemaphore(n) helper is locatable in workflow-template.js (feature-presence guard)')
+  assert.ok(dispatchBlock, 'the dispatch(prompt, opts) leaf seam is locatable in workflow-template.js (feature-presence guard)')
+  let active = 0, peak = 0
+  const started = []
+  const agent = async (prompt) => {
+    active++; peak = Math.max(peak, active)
+    started.push(prompt)
+    await new Promise((r) => setTimeout(r, 2))
+    active--
+    return prompt
+  }
+  const { dispatch, dispatchSemaphore } = makeDispatch(agent, 3)
+  const out = await Promise.all(Array.from({ length: 9 }, (_, i) => dispatch(i, {})))
+  assert.equal(peak, 3, 'at most N=3 agent dispatches are ever concurrently in flight (9 dispatches, N=3)')
+  assert.deepEqual(out, [0, 1, 2, 3, 4, 5, 6, 7, 8], 'every dispatch resolves with its own agent() result')
+  assert.deepEqual(started, [0, 1, 2, 3, 4, 5, 6, 7, 8], 'queued dispatches start in FIFO order — no waiter is passed over')
+  assert.equal(dispatchSemaphore.permits, 3, 'the counter drains back to N when the run settles')
+  assert.equal(dispatchSemaphore.waiting, 0, 'the waiter queue is empty when the run settles')
 })
 
-test('batched: a rejecting thunk inside a throttled group yields a NULL slot, never a group-wide rejection (#742 invariant)', async () => {
-  const batched = makeBatched(liveishParallel(null))
-  const thunks = [async () => 'a', async () => { throw new Error('boom') }, async () => 'c', async () => 'd']
-  const out = await batched(thunks, 2)   // the rejection lands mid-group-1
-  assert.deepEqual(out, ['a', null, 'c', 'd'],
-    'rejected slot is null IN PLACE; its group sibling AND the later group both survive (no Promise.all group-wide rejection)')
+test('semaphore: a REJECTED dispatch releases its permit in the finally — the counter drains back to N (leak guard)', async () => {
+  const agent = async (prompt) => {
+    await new Promise((r) => setTimeout(r, 1))
+    if (prompt % 2 === 1) throw new Error(`boom ${prompt}`)
+    return prompt
+  }
+  const { dispatch, dispatchSemaphore } = makeDispatch(agent, 2)
+  const settled = await Promise.all(Array.from({ length: 6 }, (_, i) => dispatch(i, {}).catch(() => null)))
+  assert.deepEqual(settled, [0, null, 2, null, 4, null], 'the rejection propagates to the caller unchanged (classification untouched)')
+  assert.equal(dispatchSemaphore.permits, 2, 'after a run with three REJECTED dispatches the counter is back at N (no leaked permit)')
+  assert.equal(dispatchSemaphore.waiting, 0, 'the waiter queue is empty (no dispatch is stranded behind a leaked permit)')
 })
 
-test('batched: source NEVER awaits groups via Promise.all — only the live sandbox parallel()', () => {
-  assert.ok(batchedBlock, 'helper present (presence guard)')
-  assert.ok(!/Promise\.all/.test(batchedBlock), 'batched body contains no Promise.all (the live parallel NULLs rejections; Promise.all would reject group-wide)')
-  assert.match(batchedBlock, /await parallel\(thunks\.slice\(/, 'each group is awaited via the sandbox parallel()')
-})
-
-test('batched call-site census: all four fan-out sites dispatch through batched(..., maxParallel) and no bare parallel() call site remains', () => {
-  // The four sites (End state 1): seat-roster fan-out, its dropped-seat retry, the per-wave
-  // work+audit fan-out, and the post-merge gate-audit pass.
-  assert.ok(src.includes('await batched(roster.map(seat => () => runSeat(seat)), maxParallel)'),
-    'site 1: the seat-roster fan-out dispatches through batched')
-  assert.ok(src.includes('await batched(dropped.map(seat => () => runSeat(seat)), maxParallel)'),
-    'site 2: the dropped-seat retry dispatches through batched')
-  assert.ok(src.includes('await batched(wave.map(task => async () => {'),
-    'site 3: the per-wave work+audit fan-out dispatches through batched')
-  assert.ok(src.includes('await batched(mergedTasksForGateAudit.map('),
-    'site 4: the gate-audit pass dispatches through batched')
-  // Default-deny half: with line comments stripped, the ONLY code-level parallel() calls left are the
-  // two inside the batched helper body itself — no fan-out site bypasses the throttle. (Line-comment
-  // strip only, mirroring the Task 4 gate-audit structural test: the resolveGate glob literals break a
-  // naive block-comment strip, and these tokens live only in executable code.)
-  const code = src.replace(/\/\/[^\n]*/g, '')
-  const parallelCalls = (code.match(/\bparallel\s*\(/g) || []).length
-  assert.equal(parallelCalls, 2, 'exactly the two batched-internal parallel() calls remain (delegate path + group loop)')
-  const batchedCalls = (code.match(/\bawait batched\(/g) || []).length
-  assert.equal(batchedCalls, 4, 'exactly four batched() call sites (default-deny census)')
-  assert.equal((code.match(/, maxParallel\)/g) || []).length, 4, 'every batched call site threads maxParallel')
-})
-
-test('maxParallel-absent: the absent-knob path takes no batching branch — one parallel() call with the untouched thunk array (End state 2)', async () => {
+test('maxParallel-absent: dispatch calls agent() straight through and never touches the counter (End state 2)', async () => {
   // run.maxParallel absent ⇒ the threading const resolves null (no hand-mirrored numeric fallback,
-  // unlike roundLimit) ⇒ batched delegates the VERY SAME thunks array to a single parallel() call:
-  // byte-identical fan-out, no slicing, no batching branch.
+  // unlike roundLimit) ⇒ dispatch takes the byte-identical path: one bare agent(prompt, opts) call,
+  // no acquire, no release, no counter state.
   assert.ok(src.includes('const maxParallel = (Number.isInteger(run.maxParallel) && run.maxParallel > 0) ? run.maxParallel : null'),
     'run.maxParallel threads to null when absent/malformed — never a numeric default')
+  assert.match(dispatchBlock, /if \(maxParallel === null\) return agent\(prompt, opts\)/,
+    'the absent-knob branch is the FIRST statement of the seam — the semaphore is never entered')
   for (const n of [null, undefined, 0, -1, 2.5, '3']) {
-    const record = []
-    const batched = makeBatched(liveishParallel(record))
-    const thunks = [async () => 1, async () => 2, async () => 3]
-    const out = await batched(thunks, n)
-    assert.equal(record.length, 1, `n=${String(n)}: exactly ONE parallel() call (no batching branch)`)
-    assert.strictEqual(record[0], thunks, `n=${String(n)}: the untouched input array itself is delegated (no slice)`)
-    assert.deepEqual(out, [1, 2, 3], `n=${String(n)}: results pass through unchanged`)
+    const seen = []
+    const agent = async (prompt, opts) => { seen.push({ prompt, opts }); return prompt }
+    // maxParallel is threaded exactly as the template computes it, so a malformed knob reaches null.
+    const threaded = (Number.isInteger(n) && n > 0) ? n : null
+    const { dispatch, dispatchSemaphore } = makeDispatch(agent, threaded)
+    const opts = { agentType: 'x' }
+    const out = await Promise.all([dispatch('a', opts), dispatch('b', opts), dispatch('c', opts)])
+    assert.deepEqual(out, ['a', 'b', 'c'], `n=${String(n)}: results pass through unchanged`)
+    assert.equal(seen.length, 3, `n=${String(n)}: every dispatch reached agent()`)
+    assert.strictEqual(seen[0].opts, opts, `n=${String(n)}: the opts object itself is delegated untouched`)
+    assert.equal(dispatchSemaphore.permits, null, `n=${String(n)}: the counter stays inert (cap null) — no throttle state exists`)
+    assert.equal(dispatchSemaphore.waiting, 0, `n=${String(n)}: nothing ever queues on the absent-knob path`)
   }
+})
+
+test('dispatch-seam census: every agent() call is inside the leaf seam, the four fan-out sites call parallel() bare, and batched() is retired', () => {
+  // Line-comment strip only, mirroring the Task 4 gate-audit structural test: the resolveGate glob
+  // literals break a naive block-comment strip, and these tokens live only in executable code.
+  const code = src.replace(/\/\/[^\n]*/g, '')
+  // (a) Default-deny half: the ONLY code-level agent() calls in the whole template are the two inside
+  // the dispatch body (the absent-knob straight-through call and the permit-held call). Any new bare
+  // agent() call site — one that bypasses the global ceiling — reds this census.
+  const agentCalls = (code.match(/\bagent\s*\(/g) || []).length
+  const seamAgentCalls = (dispatchBlock.match(/\bagent\s*\(/g) || []).length
+  assert.equal(seamAgentCalls, 2, 'the seam itself holds exactly two agent() calls (absent-knob branch + permit-held branch)')
+  assert.equal(agentCalls, seamAgentCalls, 'no agent() call site exists outside the dispatch seam (PIN-4: one counter for all seats)')
+  // (b) The permit is taken and released exactly once, at the seam — never by an enclosing slot (PIN-15).
+  assert.equal((code.match(/dispatchSemaphore\.acquire\(\)/g) || []).length, 1, 'exactly one acquire() — at the leaf seam')
+  assert.equal((code.match(/dispatchSemaphore\.release\(\)/g) || []).length, 1, 'exactly one release() — in the seam finally')
+  assert.match(dispatchBlock, /finally \{ dispatchSemaphore\.release\(\) \}/, 'the release rides a finally, so a thrown dispatch never leaks a permit')
+  // (c) The four fan-out sites now call the sandbox parallel() bare — the per-site slicing is retired.
+  assert.ok(src.includes('await parallel(roster.map(seat => () => runSeat(seat)))'),
+    'site 1: the seat-roster fan-out calls parallel() bare')
+  assert.ok(src.includes('await parallel(dropped.map(seat => () => runSeat(seat)))'),
+    'site 2: the dropped-seat retry calls parallel() bare')
+  assert.ok(src.includes('await parallel(wave.map(task => async () => {'),
+    'site 3: the per-wave work+audit fan-out calls parallel() bare')
+  assert.ok(src.includes('await parallel(mergedTasksForGateAudit.map('),
+    'site 4: the gate-audit pass calls parallel() bare')
+  assert.equal((code.match(/\bparallel\s*\(/g) || []).length, 4, 'exactly four parallel() call sites (default-deny census)')
+  // (d) The retired helper is gone: no batched() call and no batched() definition survives.
+  assert.equal((code.match(/\bbatched\s*\(/g) || []).length, 0, 'batched() is retired — no call site and no definition remains')
+  assert.ok(!/, maxParallel\)/.test(code), 'no fan-out site threads maxParallel any more — the ceiling lives at the seam')
+  // (e) #742 invariant: the template never awaits a fan-out through Promise.all (the live parallel
+  // NULLS a rejected thunk; Promise.all would reject group-wide and drop completed siblings).
+  assert.ok(!/Promise\.all/.test(code), 'the template never uses Promise.all — only the sandbox parallel()')
+  // (f) The in-file comment surfaces carry the GLOBAL wording, not the retired per-site wording.
+  assert.ok(!/per-group fan-out throttle/.test(src), 'OLD-absent: the args-contract/#1722 per-group wording is retired')
+  assert.ok(!/throttles every fan-out site/.test(src), 'OLD-absent: the args-contract per-site wording is retired')
+  assert.ok(!/groups of n via batched/.test(src), 'OLD-absent: the args-contract batched() reference is retired')
+  assert.ok(!/throttled into groups of maxParallel/.test(src), 'OLD-absent: the seat-roster site comment is retired')
+  assert.ok(!/at most maxParallel at once when set/.test(src), 'OLD-absent: the wave site comment is retired')
+  assert.match(src, /GLOBAL ceiling on agent dispatches/, 'NEW-present: the args-contract line states the global ceiling')
+  assert.match(src, /GLOBAL agent-dispatch ceiling/, 'NEW-present: the threading comment states the global ceiling')
+  assert.match(src, /not per fan-out site/, 'NEW-present: the threading comment names the retired per-site semantics')
+  assert.match(src, /the ONE leaf agent-dispatch seam \(PIN-4\)/, 'NEW-present: the seam comment names the single dispatch seam')
+  assert.ok((src.match(/PIN-15/g) || []).length >= 3, 'NEW-present: the enclosing-slot sites state that they hold no permit (PIN-15)')
+})
+
+test('global ceiling end-to-end: a live phase at wave width > N never exceeds N agents in flight, and completes (PIN-15)', async () => {
+  // Three dep-free tasks in ONE wave: without the knob the nested wave × roster fan-outs overlap
+  // freely; with the knob the single counter caps the whole run.
+  const TASKS = [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] },
+    { id: 't3', issue: 103, title: 'Task three', planSlice: 'slice 3', roster: [{ lens: 'correctness' }] },
+  ]
+  // A liveish parallel: run the group concurrently and NULL a rejected thunk (the #742 mechanism).
+  const liveish = async (thunks) => Promise.all(thunks.map((t) => Promise.resolve().then(t).catch(() => null)))
+  const runInstrumented = async (args, agentImpl) => {
+    let active = 0, peak = 0
+    const fn = build()
+    const agent = async (prompt, opts = {}) => {
+      active++; peak = Math.max(peak, active)
+      await new Promise((r) => setTimeout(r, 1))    // hold overlapping dispatches in flight together
+      try { return agentImpl(prompt, opts) } finally { active-- }
+    }
+    const out = await fn(agent, liveish, async () => [], () => {}, () => {}, args, { total: null })
+    return { out, peak }
+  }
+  const capped = await runInstrumented(PROVISION_ARGS({ tasks: TASKS, run: { maxParallel: 2 } }), defaultImpl)
+  assert.ok(capped.peak <= 2, `with run.maxParallel: 2 the whole run never exceeds 2 agents in flight (observed ${capped.peak})`)
+  assert.ok(capped.out && capped.out.handoff, 'the run COMPLETES at wave width 3 > N=2 — the ceiling never deadlocks it (PIN-15)')
+  assert.deepEqual([...(capped.out.landed || [])].sort(), ['t1', 't2', 't3'], 'all three tasks still land — the ceiling changes timing, never outcomes')
+  // Both-ways: the assertion is not vacuous — the SAME phase without the knob overlaps past 2.
+  const free = await runInstrumented(PROVISION_ARGS({ tasks: TASKS }), defaultImpl)
+  assert.ok(free.peak > 2, `without the knob the same phase overlaps past 2 in flight (observed ${free.peak}) — the cap is what holds it`)
+  assert.deepEqual([...(free.out.landed || [])].sort(), ['t1', 't2', 't3'], 'the unconfigured run lands the same three tasks')
+})
+
+test('global ceiling end-to-end: a rejecting dispatch inside a capped run stays a per-task escalate, never a group-wide drop (#742)', async () => {
+  const TASKS = [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] },
+  ]
+  const liveish = async (thunks) => Promise.all(thunks.map((t) => Promise.resolve().then(t).catch(() => null)))
+  const fn = build()
+  const agent = async (prompt, opts = {}) => {
+    await new Promise((r) => setTimeout(r, 1))
+    if (seatOf(opts) === 'war-worker' && opts.phase === 'Work' && /Task one/.test(String(prompt))) throw new Error('boom')
+    return defaultImpl(prompt, opts)
+  }
+  const out = await fn(agent, liveish, async () => [], () => {}, () => {}, PROVISION_ARGS({ tasks: TASKS, run: { maxParallel: 1 } }), { total: null })
+  assert.ok(out && out.handoff, 'the capped run still completes despite a rejected dispatch (no stranded permit)')
+  assert.ok((out.escalated || []).some((e) => e && e.task === 't1'), 't1 escalates on its own')
+  assert.ok((out.landed || []).includes('t2'), 't2 still lands — the sibling is never dropped with it')
 })
 
 // ---------------------------------------------------------------------------
