@@ -264,7 +264,9 @@ export function validate(input) {
   const hk = c.hooks
   if (!isObj(hk)) { errors.push('hooks must be an object') }
   else {
-    if (typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean')
+    // null = unset (the overrides.* convention): the gate reads null as ON — the DEFAULTS value —
+    // so the validator accepts it rather than disagreeing with the key's other consumer.
+    if (hk.replyStandard !== null && typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean or null')
     for (const k of Object.keys(hk)) {
       if (!['replyStandard'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard) — run /war-room to regenerate the config`)
     }

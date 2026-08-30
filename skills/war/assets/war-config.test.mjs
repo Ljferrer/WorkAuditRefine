@@ -652,6 +652,8 @@ test('hooks.replyStandard defaults ON, explicit false validates, non-boolean rej
   assert.equal(DEFAULTS.hooks.replyStandard, true, 'Reply Standard hooks are on by default')
   assert.equal(fillDefaults({}).hooks.replyStandard, true)
   assert.equal(validate({ hooks: { replyStandard: false } }).valid, true)
+  assert.equal(validate({ hooks: { replyStandard: null } }).valid, true,
+    'null = unset (the overrides.* convention) — the gate reads null as ON, and the validator must not disagree')
   const r = validate({ hooks: { replyStandard: 'off' } })
   assert.equal(r.valid, false)
   assert.match(r.errors.join('\n'), /hooks\.replyStandard must be a boolean/)
