@@ -4,6 +4,11 @@ Emits the documented JSON output shape — hookSpecificOutput.additionalContext 
 adds to the subagent's context before its first prompt (plain stdout does nothing on this event).
 Agent-type scoping lives in hooks.json's matcher; the config toggle lives in gate.py, which runs
 this script only while hooks.replyStandard is not false. Always exits 0.
+
+Payload contract anchor: the `agent_type` field name (plus `agent_id`) was confirmed against a
+live SubagentStart payload on Claude Code 2.1.251 (scratch-project probe, 2026-08-29) — the
+gate.test.sh fixtures mirror that observed shape, not an assumption. If a future harness renames
+the field, the symptom is every seat receiving the blanket card with no addendum.
 """
 import json
 import pathlib

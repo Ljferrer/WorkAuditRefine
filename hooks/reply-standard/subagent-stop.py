@@ -5,6 +5,11 @@ module-level runtime block) — no duplicated regexes, and the upstream file sta
 Rows carry agent_type/agent_id so /war-review can tally faults per seat. A separate log keeps
 card.py's main-loop feedback prefix free of subagent rows. Never blocks, prints nothing,
 always exits 0.
+
+Payload contract anchor: `last_assistant_message`, `agent_type`, and `agent_id` were confirmed
+against a live SubagentStop payload on Claude Code 2.1.251 (scratch-project probe, 2026-08-29) —
+the gate.test.sh fixtures mirror that observed shape. If a future harness renames a field, the
+symptom is an empty (or attribution-null) subagent-meter.log with the suite still green.
 """
 import json
 import pathlib
