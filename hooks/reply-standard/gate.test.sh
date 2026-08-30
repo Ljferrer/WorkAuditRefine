@@ -18,7 +18,8 @@ command -v python3 >/dev/null 2>&1 || { echo 'SKIP gate.test.sh (no python3 — 
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-cp "$HERE/gate.sh" "$HERE/gate.py" "$HERE/card.py" "$HERE/card.md" "$HERE/meter.py" "$TMP/"
+cp "$HERE/gate.sh" "$HERE/gate.py" "$HERE/card.py" "$HERE/card.md" "$HERE/meter.py" \
+   "$HERE/subagent-start.py" "$HERE/subagent-stop.py" "$HERE/subagent-card.md" "$TMP/"
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.claude/war"
 export CLAUDE_PROJECT_DIR="$PROJ"
@@ -85,5 +86,23 @@ case "$out" in *"REPLY STANDARD"*) pass 'case14 mid-prompt /war mention: card ru
 rm -f "$TMP/meter.log"
 printf '{"last_assistant_message":"Phase 1 landed.","session_id":"t"}' | sh "$TMP/gate.sh" meter.py
 if [ -s "$TMP/meter.log" ]; then pass 'case15 meter unaffected by the card skip rule'; else fail 'case15 meter unaffected by the card skip rule'; fi
+
+# Cases 16-20: the subagent pair — SubagentStart card injection and SubagentStop metering.
+SUB='{"agent_type":"work-audit-refine:war-auditor","agent_id":"a1","session_id":"t","last_assistant_message":"We should simply leverage this; it is robust."}'
+rm -f "$PROJ/.claude/war/config.json"
+out="$(printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-start.py)"
+case "$out" in '{"hookSpecificOutput"'*'SEAT EDITION'*) pass 'case16 subagent-start: additionalContext JSON with the seat card' ;; *) fail "case16 subagent-start: additionalContext JSON with the seat card (out=$out)" ;; esac
+printf '{"hooks":{"replyStandard":false}}' > "$PROJ/.claude/war/config.json"
+out="$(printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-start.py)"; rc=$?
+if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case17 subagent-start gated off: silent, exit 0'; else fail "case17 subagent-start gated off (rc=$rc out=$out)"; fi
+rm -f "$PROJ/.claude/war/config.json" "$TMP/subagent-meter.log" "$TMP/meter.log"
+printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-stop.py
+if [ -s "$TMP/subagent-meter.log" ] && grep -q '"agent_type": "work-audit-refine:war-auditor"' "$TMP/subagent-meter.log" && grep -q '"banned_modal": 1' "$TMP/subagent-meter.log"; then pass 'case18 subagent-stop: scored row with seat attribution'; else fail 'case18 subagent-stop: scored row with seat attribution'; fi
+if [ ! -e "$TMP/meter.log" ]; then pass 'case19 log separation: subagent rows never touch meter.log'; else fail 'case19 log separation: subagent rows never touch meter.log'; fi
+printf '{"hooks":{"replyStandard":false}}' > "$PROJ/.claude/war/config.json"
+rm -f "$TMP/subagent-meter.log"
+printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-stop.py
+if [ ! -e "$TMP/subagent-meter.log" ]; then pass 'case20 subagent-stop gated off: writes nothing'; else fail 'case20 subagent-stop gated off: writes nothing'; fi
+rm -f "$PROJ/.claude/war/config.json"
 
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi

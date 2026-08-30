@@ -46,6 +46,22 @@
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/gate.sh\" meter.py", "timeout": 10 }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "^work-audit-refine:war-",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/gate.sh\" subagent-start.py", "timeout": 10 }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^work-audit-refine:war-",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/gate.sh\" subagent-stop.py", "timeout": 10 }
+        ]
+      }
     ]
   }
 }
