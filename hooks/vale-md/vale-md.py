@@ -3,9 +3,11 @@
 Registered in hooks/hooks.json on Edit|Write, harness-filtered to `.md` files
 via per-handler `if` rules (`Edit(**/*.md)` / `Write(**/*.md)` — one rule may
 name only one tool), so non-Markdown edits never spawn a process at all; the
-extension check below is the in-script backstop. Lints only `.md` files, with the
-self-contained profile beside this script (`.vale.ini` + `styles/ReplyStandard/`
-— no packages, no network, no `vale sync`). Advisory only: it never blocks and
+extension check below is the in-script backstop. Lints only `.md` files, with a
+self-contained profile beside this script — `.vale-google.ini` (house rules +
+the vendored, tuned Google style) by default, `.vale.ini` (house rules only)
+when `hooks.valeGoogleFork` is false; no remote packages, no network, no
+`vale sync` either way. Advisory only: it never blocks and
 always exits 0. When Vale reports findings, the hook returns one
 `additionalContext` line so the editing agent sees the count and the top rules.
 
@@ -16,8 +18,8 @@ skills see the same advisory line.
 Toggles in the project's `.claude/war/config.json`, both fail-open (no config,
 unreadable JSON, a malformed `hooks` block, or `null` all mean the default):
 `hooks.valeMarkdown` (default on — only an explicit `false` disables) and
-`hooks.valeGoogle` (default off — only an explicit `true` swaps the profile to
-`.vale-google.ini`, the house rules plus the vendored, tuned Google style). A missing `vale` binary, a non-Markdown
+`hooks.valeGoogleFork` (default on — only an explicit `false` swaps the profile
+from `.vale-google.ini` back to the house-only `.vale.ini`). A missing `vale` binary, a non-Markdown
 path, unreadable stdin, or a Vale failure each mean a silent exit 0.
 """
 import json
@@ -34,9 +36,9 @@ def profile():
     """The Vale config for this run, or None when the hook is toggled off.
 
     hooks.valeMarkdown (default ON): only an explicit false disables.
-    hooks.valeGoogle (default OFF): only an explicit true selects the
-    house + vendored-Google profile (.vale-google.ini) over the house-only
-    default (.vale.ini). Both reads are fail-open.
+    hooks.valeGoogleFork (default ON): only an explicit false swaps the default
+    house + vendored-Google profile (.vale-google.ini) back to the house-only
+    profile (.vale.ini). Both reads are fail-open.
     """
     hooks = {}
     try:
@@ -48,9 +50,9 @@ def profile():
         pass
     if hooks.get("valeMarkdown") is False:
         return None
-    if hooks.get("valeGoogle") is True:
-        return HERE / ".vale-google.ini"
-    return HERE / ".vale.ini"
+    if hooks.get("valeGoogleFork") is False:
+        return HERE / ".vale.ini"
+    return HERE / ".vale-google.ini"
 
 
 def main():
