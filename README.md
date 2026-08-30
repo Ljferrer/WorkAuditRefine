@@ -13,7 +13,7 @@ Sixty seconds, five commands:
 /snipe 3 correctness,security,auto     # 3 seats: two pinned lenses + one Lead-picked
 ```
 
-- **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#usage)), verdicts reported straight in chat. No plan, no worktrees, no side effects — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
+- **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#quick-audit-snipe)), verdicts reported straight in chat. No plan, no worktrees, no side effects — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
 - **The real thing** — `/war-strategy` interviews you into a merged plan, `/red-team` adversarially proves it, `/war <plan>` executes it with fresh workers, independent auditors, and a serial merge queue, checking in at every phase boundary. The first two stand alone, too: a `/war-strategy` plan is a complete, evidence-tagged decision record any agent (or human) can implement — you don't have to run a full war to get value from the interview.
 - **Overnight** — `/war-campaign` queues plans and plows them into stacked PRs while you sleep; `/aftermath` sweeps up after the merge.
 - **Tuning** — `/war-room` writes the run config (models, effort, audit roster); `/lessons-learned` keeps the compounding memory honest.
@@ -83,7 +83,7 @@ Other plugins run happily alongside WAR — no part of the pipeline depends on t
 
 ## Usage
 
-The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
+The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest. Standing apart from the pipeline: **`/snipe`**, the one-shot quick audit you can fire at any moment, no plan required.
 
 ### Get oriented (`/war-help`)
 
@@ -96,6 +96,34 @@ New to WAR, or just want a refresher? Run the orientation card:
 It prints a one-screen map — what WAR is, the command set, the five roles, how a run flows, and the
 prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Doctrine:
 [`skills/war-help/SKILL.md`](skills/war-help/SKILL.md).
+
+### Quick audit (`/snipe`)
+
+The lightest skill in the plugin: convene 1–5 of WAR's own read-only auditor seats against whatever you have right now, get their verdicts in chat, done. No plan, no worktrees, no merge queue, no filing — the audit machinery alone, on demand.
+
+```
+/snipe [<target>] [<seats 1-5>] [<lens[,lens...]>]
+```
+
+```
+/snipe                                  # 1 seat, lens picked by the Lead for the diff's shape
+/snipe 3                                # 3 seats, all Lead-picked
+/snipe correctness,security             # exactly those 2 seats
+/snipe 3 correctness,auto               # 3 seats: correctness pinned + 2 Lead-picked
+/snipe origin/master..HEAD 2 security   # explicit range, 2 seats, security pinned + 1 Lead-picked
+```
+
+**Arguments** (both trailing, order-tolerant — anything before them is the target):
+
+- **Seat count** — a trailing integer `1`–`5`; default `1`. Effective seats = `min(5, max(integer, lens tokens, 1))` — a lens list longer than the integer wins.
+- **Lenses** — trailing comma-separated list; `auto` entries are seats whose lens the Lead picks itself, with a one-line rationale each. Default all-`auto`. Duplicate lenses and the reserved built-ins (`execution-evidence`, `pin-validity`) are refused. A bare single word counts as a lens only when it's `auto` or a catalog lens — `master` is a target, `correctness` is a lens.
+- **Target** — a ref range, PR number, or path list. Default: the current branch against its merge-base with the default branch. A dirty working tree (with no explicit target) is audited as-is and the whole report is marked **advisory** — there's no stable SHA to pin.
+
+**Seats** spawn in parallel as the same read-only `war-auditor` agents a phase convenes — standing card, `agent_type` guard confinement, severity + disposition vocabulary — always at `deep` depth, at the model/effort from your run config: `agents.snipe` (default `opus`/`high`), falling back to `agents.auditor` on an explicit `null`. Override it via `/war-room` or by hand in `.claude/war/config.json`.
+
+**The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. `/snipe` never fixes, never files; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
+
+Never auto-invoked. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
 
 ### Configure a run (`/war-room`)
 
