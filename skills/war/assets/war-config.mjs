@@ -20,7 +20,7 @@ export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
 export const PROVISION_SOURCES = ['explicit', 'manifest', 'ci', 'onboarding', 'structural', 'none']
 // vale-md profile names (hooks.valeStyle). Hand-mirrored in hooks/vale-md/vale-md.py STYLES
 // (+ 'custom', handled there as the project-side profile) — change both together.
-export const VALE_STYLES = ['house', 'googleFork', 'microsoftFork', 'writeGood', 'proselint', 'alex', 'readability', 'redhat', 'custom']
+export const VALE_STYLES = ['house', 'workAuditRefine', 'google', 'microsoftFork', 'writeGood', 'proselint', 'alex', 'readability', 'redhat', 'custom']
 
 export const DEFAULTS = {
   version: 1,
@@ -75,11 +75,12 @@ export const DEFAULTS = {
   // mirror. Advisory only (one additionalContext line, never a block); a machine without the vale
   // binary silently no-ops. Only an explicit `false` disables; absent, null, or unreadable mean on.
   // hooks.valeStyle: profile selector for the vale-md hook, one of VALE_STYLES. Default
-  // 'googleFork' (house rules + the vendored, tuned Google style); the other vendored
-  // styles ship in hooks/vale-md/styles/; 'custom' reads the project-side
+  // 'workAuditRefine' — the repo's own fork (house rules + a tuned cut of Google);
+  // 'google' is raw upstream Google; the other vendored styles ship in
+  // hooks/vale-md/styles/; 'custom' reads the project-side
   // .claude/war/vale/.vale.ini written by the /war-room interview (fail-open to the
   // default when absent). Subordinate to valeMarkdown: when that is false, nothing runs.
-  hooks: { replyStandard: true, valeMarkdown: true, valeStyle: 'googleFork' },
+  hooks: { replyStandard: true, valeMarkdown: true, valeStyle: 'workAuditRefine' },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not

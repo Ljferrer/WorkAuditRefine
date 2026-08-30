@@ -676,9 +676,9 @@ test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, n
 // hooks.valeStyle — the vale-md profile selector enum, consumed by hooks/vale-md/vale-md.py
 // (fail-open; subordinate to valeMarkdown). Delete-the-feature: drop the DEFAULTS entry and
 // the default assertion fails; drop the validate() line and the rejection case fails.
-test('hooks.valeStyle defaults googleFork, every VALE_STYLES value validates, null is unset, unknown rejected', () => {
-  assert.equal(DEFAULTS.hooks.valeStyle, 'googleFork', 'the tuned Google fork is the default profile')
-  assert.equal(fillDefaults({}).hooks.valeStyle, 'googleFork')
+test('hooks.valeStyle defaults workAuditRefine, every VALE_STYLES value validates, null is unset, unknown rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeStyle, 'workAuditRefine', 'the WorkAuditRefine fork is the default profile')
+  assert.equal(fillDefaults({}).hooks.valeStyle, 'workAuditRefine')
   for (const s of VALE_STYLES) assert.equal(validate({ hooks: { valeStyle: s } }).valid, true, s)
   assert.equal(validate({ hooks: { valeStyle: null } }).valid, true,
     'null = unset (the overrides.* convention) — vale-md.py reads null as the default, and the validator must not disagree')
@@ -698,6 +698,36 @@ test('agents.snipe defaults opus/high, validates as a tier, null accepted as uns
   assert.match(bad.errors.join('\n'), /agents\.snipe\.model/)
   const extra = validate({ agents: { snipe: { model: 'opus', effort: 'high', depth: 'deep' } } })
   assert.equal(extra.valid, false, 'unknown sub-keys rejected like any tier')
+})
+
+// valeStyle mirror + profile-resolution drift guard: VALE_STYLES is hand-mirrored in
+// hooks/vale-md/vale-md.py STYLES (the land-decision.mjs / workflow-template.js precedent) and
+// divergence is silent in the dangerous direction (a value that validates but is absent from
+// STYLES lints with the wrong ruleset); and a typo'd profile path, BasedOnStyles name, or
+// disabled-rule name ships as a silent lint outage (vale-md.py fails open on a dead profile).
+// Deterministic — no vale binary needed. Both audit seats at 80172df demanded this guard.
+test('valeStyle mirror: vale-md.py STYLES = VALE_STYLES minus custom, and every profile resolves', () => {
+  const testDir = dirname(fileURLToPath(import.meta.url))
+  const hookDir = join(testDir, '..', '..', '..', 'hooks', 'vale-md')
+  const py = readFileSync(join(hookDir, 'vale-md.py'), 'utf8')
+  const start = py.indexOf('STYLES = {')
+  const block = py.slice(start, py.indexOf('}', start))
+  const entries = [...block.matchAll(/"([^"]+)": "([^"]+)"/g)].map(m => [m[1], m[2]])
+  assert.deepEqual(entries.map(e => e[0]).sort(), VALE_STYLES.filter(s => s !== 'custom').sort(),
+    'vale-md.py STYLES keys must equal VALE_STYLES minus custom — change both together')
+  const styleDirs = readdirSync(join(hookDir, 'styles'))
+  for (const [style, ini] of entries) {
+    const text = readFileSync(join(hookDir, ini), 'utf8') // throws if the mapped profile is missing
+    const based = text.match(/^BasedOnStyles = (.+)$/m)
+    assert.ok(based, `${ini} (${style}) declares BasedOnStyles`)
+    for (const name of based[1].split(',').map(s => s.trim())) {
+      assert.ok(styleDirs.includes(name), `${ini}: BasedOnStyles names a real style dir (${name})`)
+    }
+    for (const m of text.matchAll(/^([A-Za-z-]+)\.([A-Za-z-]+) = NO$/gm)) {
+      assert.ok(readFileSync(join(hookDir, 'styles', m[1], m[2] + '.yml'), 'utf8').length > 0,
+        `${ini}: disabled rule ${m[1]}.${m[2]} resolves to a vendored rule file`)
+    }
+  }
 })
 
 test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
