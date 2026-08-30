@@ -61,7 +61,12 @@ export const DEFAULTS = {
   // hooks/reply-standard/gate.py wrapper in the project the hook fires in — never by the phase
   // engine, so no workflow-template.js mirror. Only an explicit `false` disables; absent, null
   // hooks block, or an unreadable config all mean on.
-  hooks: { replyStandard: true },
+  // hooks.valeMarkdown: the plugin-shipped advisory Vale Markdown lint (hooks/vale-md/vale-md.py
+  // on PostToolUse Edit|Write, .md files only). Default ON. Self-gated fail-open by the script
+  // itself in the project the hook fires in — never by the phase engine, so no workflow-template.js
+  // mirror. Advisory only (one additionalContext line, never a block); a machine without the vale
+  // binary silently no-ops. Only an explicit `false` disables; absent, null, or unreadable mean on.
+  hooks: { replyStandard: true, valeMarkdown: true },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -258,17 +263,19 @@ export function validate(input) {
   }
 
   // hooks.* — session-level plugin-hook toggles, defaulted in DEFAULTS. Consumed fail-open by
-  // hooks/reply-standard/gate.py (the Reply Standard UserPromptSubmit/Stop pair), never by the
-  // phase engine — no workflow-template.js mirror. Unknown keys are courtesy errors (the memory.*
-  // precedent, so a typo never silently runs the default).
+  // the hook scripts themselves (hooks/reply-standard/gate.py for replyStandard — the Reply
+  // Standard UserPromptSubmit/Stop pair; hooks/vale-md/vale-md.py for valeMarkdown), never by
+  // the phase engine — no workflow-template.js mirror. Unknown keys are courtesy errors (the
+  // memory.* precedent, so a typo never silently runs the default).
   const hk = c.hooks
   if (!isObj(hk)) { errors.push('hooks must be an object') }
   else {
     // null = unset (the overrides.* convention): the gate reads null as ON — the DEFAULTS value —
     // so the validator accepts it rather than disagreeing with the key's other consumer.
     if (hk.replyStandard !== null && typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean or null')
+    if (hk.valeMarkdown !== null && typeof hk.valeMarkdown !== 'boolean') errors.push('hooks.valeMarkdown must be a boolean or null')
     for (const k of Object.keys(hk)) {
-      if (!['replyStandard'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard) — run /war-room to regenerate the config`)
+      if (!['replyStandard', 'valeMarkdown'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown) — run /war-room to regenerate the config`)
     }
   }
 
