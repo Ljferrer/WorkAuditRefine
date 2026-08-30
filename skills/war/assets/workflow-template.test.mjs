@@ -12351,6 +12351,20 @@ test('#1913 End states 4 + 6 — a footprint-SUBSET ace diff re-runs only the or
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
+test('#1913 — audit-round provenance stays ace-free: auditLog fixRounds is the captured preAceRounds, not the ace-incremented budget', async () => {
+  // A successful wave-side ace round charges the shared fixRounds budget (task.fixRounds becomes 1
+  // here), but the filed-issue "audit round" provenance must record the PRE-ace round count. The
+  // wave thunk captures r.preAceRounds right after the audit loop exits (0 fix rounds — the Nit
+  // approves on round 1) and BEFORE aceStage(r) runs; the collection loop reads it via
+  // `fixRounds: r.preAceRounds ?? r.task.fixRounds`. Delete the preAceRounds capture and the
+  // ace-incremented budget (1) leaks into the log, reding this.
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()))
+  assert.ok((out.aced || []).some(a => a && a.sha === 'ace00001'), 'the wave-side ace round really succeeded')
+  const row = (out.auditLog || []).find(a => a && a.task === 't1')
+  assert.ok(row, 't1 has an auditLog row')
+  assert.equal(row.fixRounds, 0, 'auditLog records the pre-ace round count (0), not the ace-charged task.fixRounds (1)')
+})
+
 test('#1913 End state 4 (PIN-18) — every fail-closed arm re-runs the FULL panel: no git set, a file outside the footprint, a files_changed mismatch, and a seat-detected breach', async () => {
   const finding = nit({ file: ACE_FILE })
   const arms = [

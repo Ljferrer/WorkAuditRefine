@@ -4229,7 +4229,7 @@ return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinT
   // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
   // teardown is NOT run (git state kept for resume/inspection). NO handoff block here (ADR 0013):
   // infra death has no trustworthy return to render — the ledger + issues are the record.
-  return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, landResult: null,
+  return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
            // recovery (D9, spec §9): an ADDITIVE field naming the sanctioned retry — held:workflow-error is
