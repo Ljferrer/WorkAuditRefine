@@ -70,6 +70,11 @@
     "topK": 10,
     "commitLearnings": true
   },
+  "hooks": {
+    "replyStandard": true,
+    "valeMarkdown": true,
+    "valeStyle": "workAuditRefine"
+  },
   "overrides": {
     "gate": null,
     "workingBranch": null,
