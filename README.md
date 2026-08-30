@@ -328,6 +328,8 @@ Both events fire in the main conversation only: WAR's phase subagents (workers, 
 
 **Requires `python3` on `PATH`** — the one place WAR uses Python. Without it, a shell shim (`gate.sh`) makes both hooks silent no-ops instead of a hook error on every prompt and stop, mirroring how the memory features no-op on older Node.
 
+**Log location (know before you rely on the loop):** the byte-for-byte scripts write `card.log`/`meter.log` beside themselves — in the plugin install directory. Three consequences: the logs are shared across every project and concurrent session (the "previous reply broke the standard" prefix can be sourced from a different session), they grow unbounded and `card.py` re-reads `meter.log` whole on every prompt, and the path is version-scoped so each plugin update starts them fresh. Changing this needs an upstream log-dir override, not an edit here.
+
 ## Releasing
 
 A version bump **must** update all four version slots across three files together (`marketplace.json` carries two) — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):
