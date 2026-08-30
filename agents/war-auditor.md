@@ -137,6 +137,17 @@ Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`
 
 Set `confidence` honestly (`low` on a lone seat union-widens the roster). You review independently — do not assume other seats agree.
 
+## Pin transfer (#1913)
+
+Your approval can be accounted at a SHA you did not personally re-review. That is **pin transfer**, and it is mechanical, never a judgment call you are asked to make:
+
+- **Seat-approval transfer.** After an advisory-polish (`--ace`) commit, the orchestrator compares the commit's git-derived changed-file list against the file set of the findings the panel already judged. When the change stays inside that footprint, only the seats that raised those findings re-run; every other seat's approval transfers to the new sha unchanged.
+- **Rebase pin transfer.** At the merge slot the whole panel's pin transfers to the rebased tip when a conflict-free rebase leaves `git patch-id --stable` of the task's own diff identical before and after. A mismatch re-convenes the full panel in the lock instead.
+
+Two duties follow when you are a re-running seat on a delta-scaled round. First, your prompt names the files the ace worker CLAIMS it touched: run `git diff --name-only <sha>^ <sha>` yourself and compare. Any changed file outside that claimed set means the claim is wrong, so set `scopeBreach: true` and name the file — the transfer is refused and the full panel re-runs. Never widen the claimed set on trust; you are the independent check, because both file lists come from the same agent. Second, judge the new sha on its own merits: a transfer is a statement about the other seats' footprint, never a reason to soften your own review.
+
+No approval — yours or a transferred one — is ever accounted at a SHA the task gate did not pass; the orchestrator runs that gate before any of this.
+
 ## Widening nomination (`widen`, D4)
 When your verdict carries a **Critical** finding or `confidence: 'low'` **and you are a lone seat**, you MAY set the optional `widen` field to name the catalog lenses your finding calls for — e.g. `widen: ["security", "cascading-impact"]` ("this touches a trust boundary; convene those"). The orchestrator then re-audits with the nominated lenses (each at `deep`, joined to your seat, deduped, capped at 5):
 - **A valid nomination** is a **non-empty array of distinct, non-empty lens names, none reserved** (`execution-evidence`/`pin-validity` are never nominable — they are built-in passes). Validity is strict **whole-field**: one bad entry rejects the whole nomination (no partial salvage).

@@ -36,7 +36,12 @@ const FILE_BUDGETS = {
   // post-shrink 22,216 B @ c6a05fb → hard ×1.25 ceil-KB = 28,672; advisory ×1.10 ceil-KB = 24,576
   'agents/war-auditor.md': { hard: 28672, advisory: 24576 },
   // post-shrink 27,109 B @ c6a05fb → hard ×1.25 ceil-KB = 34,816; advisory ×1.10 ceil-KB = 30,720
-  'agents/war-refiner.md': { hard: 34816, advisory: 30720 },
+  // RAISED +2,048 B (34,816 → 36,864) under the engine-concurrency-and-pin-transfer plan's
+  // pre-ratified PIN-17 / ADJ-1 row (operator, 2026-08-30): the card's merge-task steps must state the
+  // pin-transfer probe's legs (pre-rebase patch-id, git cherry, the already_upstream arm), which is
+  // tier-1 operative merge doctrine, and the card had 14 B of headroom at the task base fb18598 after
+  // eviction. Trailer: Budget-Raise: ADR-0042 agents/war-refiner.md +2048
+  'agents/war-refiner.md': { hard: 36864, advisory: 30720 },
   // post-shrink 15,531 B @ c6a05fb → hard ×1.25 ceil-KB = 19,456; advisory ×1.10 ceil-KB = 17,408
   'agents/war-servitor.md': { hard: 19456, advisory: 17408 },
   // No shrink task targeted this surface (adjudication M: unchanged is not failed) —
@@ -94,7 +99,13 @@ const FILE_BUDGETS = {
 // tip — the measuring tree's own base; the pre-rewrite base 521a312 measures 61,920 B / 134
 // blocks and never carried this figure) → hard ×1.25 ceil-KB = 79,872; advisory ×1.10 ceil-KB
 // = 70,656
-const WORKFLOW_LITERAL_BUDGET = { hard: 79872, advisory: 70656 };
+// RAISED +2,048 B (79,872 → 81,920) under the engine-concurrency-and-pin-transfer plan's pre-ratified
+// PIN-17 / ADJ-1 row (operator, 2026-08-30). The wave-side ace stage adds three dispatched surfaces the
+// sandbox cannot move to references/: the PIN-12 gate check at the ace tip, the delta-scale charge on
+// the re-audit prompt, and the merge slot's pin-transfer probe. Eviction ran first — the new fragments
+// were compressed by ~700 B in-task — and the share measures 81,505 B at the task base fb18598, inside
+// the raised ceiling. Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +2048
+const WORKFLOW_LITERAL_BUDGET = { hard: 81920, advisory: 70656 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
 const MIN_BLOCK_BYTES = 200;

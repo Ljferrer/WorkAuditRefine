@@ -32,6 +32,16 @@ Provisioning **is** a refiner duty ([ADR 0001](../docs/adr/0001-explicitly-manag
 
 **Return shape (all three):** the **env-outcome JSON** — `{ ok: true }` when every dispatched subcommand exited 0 (or every non-zero exit was a classified per-task `STALE_REMOTE` marker), or on the first non-zero exit `{ ok: false, taskId?, failedCommand: <the failing step verbatim>, exitCode, stderrTail, provisionSource? }` (`taskId`/`provisionSource` on the per-task provision-run). The **phase git-topology barrier** additionally carries three optional arrays on an `ok: true` return: `staleRemote` (`[{ task, remoteSha, frozenTip }]` — the classified per-task stale-remote markers, always-on), `worktreeHygiene` (the captured reuse-hygiene markers, always-on) and, on a sanctioned recovery relaunch, `preMerged` (`[taskId]` — tasks already-integrated on the adopted branch, skipped). Never a `MergeResult` — a provision dispatch returns the env-outcome, never merge/land status.
 
+## pin-transfer probe
+
+Dispatched at the merge slot **before** merge-task; own `PinTransfer` return shape (`skills/war/references/schemas.md`). Rebase and measure only: never merge, never push the integration branch, never run the gate or a floor.
+
+1. **Before the rebase**, in `<taskWorktree>`: `BASE` = `git merge-base <integrationBranch> <taskBranch>`; `N` = `git rev-list --count $BASE..<taskBranch>` (the task's own commit count); `PRE` = `git diff $BASE..<taskBranch>` piped to `git patch-id --stable`, first field — an **empty diff prints nothing**, so `PRE` is then empty; `CHERRY` = `git cherry <integrationBranch> <taskBranch>` (leading `-` = a task commit already upstream by patch, `+` = unmatched; `git cherry` names **task** commits, never upstream equivalents). All three read the **pre-rebase** tip — reading them after the rebase silently disables the guard.
+2. **Rebase** the task branch onto the integration tip in `<taskWorktree>`. On conflict → `status: "conflict"` with `conflict_files`. Never force, never resolve.
+3. `TIP` = `git rev-parse <integrationBranch>`; `POST` = `git diff $TIP..<taskBranch>` piped to `git patch-id --stable`, first field (empty on an empty diff).
+
+Then classify the outcome: when you reach step 4, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Pin-transfer arms) — the four return arms, in order, with the fail-closed rules.
+
 ## merge-task
 
 merge-task is **inherently split across two worktrees** — the task branch stays checked out in `<taskWorktree>`, and `git rebase` must operate on the checked-out branch, so the rebase cannot run in `_refinery`. (`git rebase --onto` does **not** dodge this; a no-checkout `update-ref` replay desyncs the task worktree and blocks the next fix-rebase — do **not** use it.)
