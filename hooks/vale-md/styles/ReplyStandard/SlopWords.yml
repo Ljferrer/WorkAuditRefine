@@ -21,4 +21,5 @@ tokens:
   - myriad
   - delve
   - crucial
-  - pivotal
+  # 'pivotal' is deliberately absent: '## Pivotal constraints' is a mandated merged-plan
+  # heading (CLAUDE.md plan shape), so the token would misfire on every plan edit.

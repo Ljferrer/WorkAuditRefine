@@ -9,6 +9,8 @@ set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
+command -v python3 >/dev/null 2>&1 || { echo 'SKIP vale-md.test.sh (no python3 — vale-md.sh no-ops the hook)'; exit 0; }
+
 fails=0
 n=0
 pass() { n=$((n + 1)); printf 'ok %d - %s\n' "$n" "$1"; }
@@ -69,8 +71,10 @@ printf 'x = 1\n' > "$TMP/code.py"
 out="$(run_hook "$TMP/code.py")"; rc=$?
 if [ -z "$out" ] && [ "$rc" -eq 0 ] && [ ! -e "$STUB_ARGS" ]; then pass 'case4 non-md: silent'; else fail "case4 non-md: silent (rc=$rc out=$out)"; fi
 
-# Case 5: no vale on PATH — silent no-op, exit 0 (python3 still reachable via /usr/bin:/bin).
-out="$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$DOC" | PATH="/usr/bin:/bin" sh "$TMP/vale-md.sh")"; rc=$?
+# Case 5: no vale on PATH — silent no-op, exit 0. python3's own directory stays on PATH so
+# the case proves the shutil.which("vale") branch, not the shim's python3 guard.
+PY_DIR="$(dirname "$(command -v python3)")"
+out="$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$DOC" | PATH="$PY_DIR:/usr/bin:/bin" sh "$TMP/vale-md.sh")"; rc=$?
 if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case5 no vale binary: silent, exit 0'; else fail "case5 no vale binary: silent, exit 0 (rc=$rc out=$out)"; fi
 
 # Case 6: malformed stdin — silent, exit 0.
@@ -83,8 +87,12 @@ out="$(run_hook "$DOC")"
 case "$out" in *additionalContext*) pass 'case7 malformed config: fail-open' ;; *) fail 'case7 malformed config: fail-open' ;; esac
 rm -f "$PROJ/.claude/war/config.json"
 
-# Case 8: zero findings — silent, exit 0.
+# Case 8: the repo copy of the shim is executable — hooks.json invokes it directly (no
+# leading interpreter), so a 100644 mode kills the hook on every edit. Assert the real file.
+if [ -x "$HERE/vale-md.sh" ]; then pass 'case8 repo shim is executable'; else fail 'case8 repo shim is executable (hooks.json invokes it directly)'; fi
+
+# Case 9: zero findings — silent, exit 0.
 out="$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$DOC" | STUB_EMPTY=1 PATH="$TMP/bin:$PATH" sh "$TMP/vale-md.sh")"; rc=$?
-if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case8 zero findings: silent'; else fail "case8 zero findings: silent (rc=$rc out=$out)"; fi
+if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case9 zero findings: silent'; else fail "case9 zero findings: silent (rc=$rc out=$out)"; fi
 
 if [ "$fails" -eq 0 ]; then printf 'PASS vale-md.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL vale-md.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi

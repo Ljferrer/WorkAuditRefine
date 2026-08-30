@@ -263,9 +263,10 @@ export function validate(input) {
   }
 
   // hooks.* — session-level plugin-hook toggles, defaulted in DEFAULTS. Consumed fail-open by
-  // hooks/reply-standard/gate.py (the Reply Standard UserPromptSubmit/Stop pair), never by the
-  // phase engine — no workflow-template.js mirror. Unknown keys are courtesy errors (the memory.*
-  // precedent, so a typo never silently runs the default).
+  // the hook scripts themselves (hooks/reply-standard/gate.py for replyStandard — the Reply
+  // Standard UserPromptSubmit/Stop pair; hooks/vale-md/vale-md.py for valeMarkdown), never by
+  // the phase engine — no workflow-template.js mirror. Unknown keys are courtesy errors (the
+  // memory.* precedent, so a typo never silently runs the default).
   const hk = c.hooks
   if (!isObj(hk)) { errors.push('hooks must be an object') }
   else {
