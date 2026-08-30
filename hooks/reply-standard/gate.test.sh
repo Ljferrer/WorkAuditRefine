@@ -19,7 +19,8 @@ command -v python3 >/dev/null 2>&1 || { echo 'SKIP gate.test.sh (no python3 — 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cp "$HERE/gate.sh" "$HERE/gate.py" "$HERE/card.py" "$HERE/card.md" "$HERE/meter.py" \
-   "$HERE/subagent-start.py" "$HERE/subagent-stop.py" "$HERE/subagent-card.md" "$TMP/"
+   "$HERE/subagent-start.py" "$HERE/subagent-stop.py" "$HERE"/subagent-card.*.md \
+   "$HERE/subagent-card.md" "$TMP/"
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.claude/war"
 export CLAUDE_PROJECT_DIR="$PROJ"
@@ -104,6 +105,13 @@ rm -f "$TMP/subagent-meter.log"
 printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-stop.py
 if [ ! -e "$TMP/subagent-meter.log" ]; then pass 'case20 subagent-stop gated off: writes nothing'; else fail 'case20 subagent-stop gated off: writes nothing'; fi
 rm -f "$PROJ/.claude/war/config.json"
+
+# Cases 21a-21b: per-seat addendum — a known role appends its card, an unknown role gets the blanket alone.
+rm -f "$PROJ/.claude/war/config.json"
+out="$(printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"w1"}' | sh "$TMP/gate.sh" subagent-start.py)"
+case "$out" in *'SEAT EDITION'*'WORKER ADDENDUM'*) pass 'case21a worker seat: blanket + worker addendum' ;; *) fail 'case21a worker seat: blanket + worker addendum' ;; esac
+out="$(printf '{"agent_type":"work-audit-refine:war-scout","agent_id":"x1"}' | sh "$TMP/gate.sh" subagent-start.py)"
+case "$out" in *'ADDENDUM'*) fail 'case21b unknown role: blanket card alone' ;; *'SEAT EDITION'*) pass 'case21b unknown role: blanket card alone' ;; *) fail 'case21b unknown role: blanket card alone' ;; esac
 
 # Cases 21-22: JSON-aware scoring — a JSON final message is scored on its string fields only.
 rm -f "$TMP/subagent-meter.log"

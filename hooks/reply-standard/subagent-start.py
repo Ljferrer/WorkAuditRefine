@@ -9,9 +9,21 @@ import json
 import pathlib
 import sys
 
+HERE = pathlib.Path(__file__).resolve().parent
+
 try:
-    sys.stdin.buffer.read()  # drain the payload; the matcher already filtered the agent type
-    card = (pathlib.Path(__file__).resolve().parent / "subagent-card.md").read_text(encoding="utf-8")
+    raw = sys.stdin.buffer.read()
+    card = (HERE / "subagent-card.md").read_text(encoding="utf-8")
+    # Per-seat addendum: agent_type "work-audit-refine:war-worker" selects
+    # subagent-card.war-worker.md when present; an unknown role gets the blanket card alone.
+    try:
+        agent_type = json.loads(raw.decode("utf-8", "replace")).get("agent_type") or ""
+        role = pathlib.Path(str(agent_type).split(":")[-1]).name
+        extra = HERE / ("subagent-card." + role + ".md")
+        if role and extra.is_file():
+            card = card + "\n" + extra.read_text(encoding="utf-8")
+    except (ValueError, AttributeError):
+        pass
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": card}}))
 except Exception:
     pass
