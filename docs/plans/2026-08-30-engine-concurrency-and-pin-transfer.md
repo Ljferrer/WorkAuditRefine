@@ -160,10 +160,10 @@ rebase pin transfer, global semaphore semantics.
      `node --test skills/war/assets/workflow-template.test.mjs`.
   7. The new ADR file exists and names all three transfer forms · check:
      `grep -l 'seat-approval transfer' docs/adr/*.md` (prints the file path).
-  8. The old per-site wording is absent from the four live surfaces and the new global wording
-     is present · check: a both-ways script that asserts its extracted input is non-empty,
-     matches wrap-aware (a match spanning a source line break still counts), and prints
-     `OLD-ABSENT` and `NEW-PRESENT`.
+  8. The old per-site wording is absent from the four doc surfaces and the new global wording
+     is present, proven by the committed both-ways guard (input non-empty, wrap-aware, lesson
+     accepted at hot path or `archive/`); engine-comment wording is pinned by task 1.1's census
+     tests · check: `node --test skills/war/assets/doc-semantics.test.mjs`.
   9. The transfer rule appears in both prompt layers · check:
      `grep -q 'pin transfer' agents/war-auditor.md && echo CARD-OK`, and
      `grep -q 'pin transfer' skills/war/assets/workflow-template.js && echo PROMPT-OK`
@@ -195,14 +195,19 @@ Phase 1 (global semaphore, #1897) → Phase 2 (wave-side ace and pin transfer, #
 - target repo: superproject
 
 ### Task 1.2: Doc sweep for the semantics flip
-- Files: `CONTEXT.md`, `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`, `docs/learnings/per-site-fanout-throttle-composes-multiplicatively-across-nested-call-sites.md`
+- Files: `CONTEXT.md`, `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`, `docs/learnings/per-site-fanout-throttle-composes-multiplicatively-across-nested-call-sites.md`, `skills/war/assets/doc-semantics.test.mjs`
 - Plan slice: rewrite the Batching helper glossary entry, the war-room knob line, and the two
-  schemas.md lines to the global-ceiling semantics; assert the OLD per-site wording absent
-  across all three doc files (End state 8's both-ways script). Add a dated RESOLVED note to the
-  per-site lesson pointing at the global semaphore (the lesson's own closing line already names
-  this fix). CHANGELOG history and `skills/red-team/SKILL.md` stay untouched (D5, non-goals).
-- Done when: None — doc-only sweep; End state 8's both-ways script is the validator
-- requiresTest: false
+  schemas.md lines to the global-ceiling semantics. Add a dated RESOLVED note to the per-site
+  lesson pointing at the global semaphore (the lesson's own closing line already names this
+  fix). Author `doc-semantics.test.mjs` as the standing both-ways guard: OLD per-site wording
+  absent, NEW global wording present, extracted input asserted non-empty, wrap-aware matching.
+  The test scopes to THIS task's four doc files only — never `workflow-template.js`, whose
+  rewording rides task 1.1's census tests (frozen phase base: 1.1's edits are absent in 1.2's
+  worktree). The test accepts the lesson at either its hot path or `docs/learnings/archive/`
+  (archiving is a move, the test must survive it). CHANGELOG history and
+  `skills/red-team/SKILL.md` stay untouched (D5, non-goals).
+- Done when: `node --test skills/war/assets/doc-semantics.test.mjs`
+- requiresTest: true
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
