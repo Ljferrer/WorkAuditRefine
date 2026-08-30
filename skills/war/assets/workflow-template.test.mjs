@@ -12582,3 +12582,146 @@ test('#1913 PIN-13 — the merge-slot fixRounds seed never LOWERS the wave-side 
   assert.match(src, /r\.task\.fixRounds = Math\.max\(/, 'the merge-slot seed is a never-lowering Math.max, not a re-seed')
   assert.match(src, /task\.fixRounds = round\n/, 'the wave thunk seeds the budget where the audit loop exits, before the hoisted ace')
 })
+
+// ---- #1935 / #1944 / #1939 / #1940: post-land fidelity fixes on the pin-transfer path ----
+// All four use the file's extract-and-eval idiom (#393) so each assertion exercises the SHIPPED
+// expression, not a re-implementation of it. Each carries its own negative control: delete the
+// feature from the source and the extraction fails or the case flips.
+
+test('#1935 — the ace gate-check COMPARES its echoed head_sha: only a green gate naming this tip licenses the transfer', () => {
+  const block = src.match(/const aceGateGreen = async \(r, sha\) => \{[\s\S]*?\n  \}/)
+  assert.ok(block, 'src must contain the aceGateGreen definition')
+  const cond = block[0].match(/if \(([\s\S]*?)\) return true/)
+  assert.ok(cond, 'aceGateGreen must gate its `return true` on a condition')
+  assert.match(cond[1], /head_sha/, 'the licensing condition must READ head_sha — a requested-but-uncompared echo is #1935')
+  // Reuse the shipped sha helpers rather than re-implementing them.
+  const isShaSrc = src.match(/const isSha = (s => [^\n]+)/)
+  const pmSrc = src.match(/const pinMismatch = (\(auditSha, pin\) => \{[\s\S]*?\n\})/)
+  assert.ok(isShaSrc && pmSrc, 'src must contain isSha and pinMismatch')
+  // eslint-disable-next-line no-new-func
+  const isSha = new Function(`return (${isShaSrc[1]})`)()
+  // eslint-disable-next-line no-new-func
+  const pinMismatch = new Function('isSha', `return (${pmSrc[1]})`)(isSha)
+  // eslint-disable-next-line no-new-func
+  const licenses = new Function('g', 'sha', 'isSha', 'pinMismatch', `return (${cond[1]})`)
+  const TIP = 'abc1234def5678abc1234def5678abc1234def56'
+  const run = g => !!licenses(g, TIP, isSha, pinMismatch)
+  assert.equal(run({ gate_green: true, head_sha: TIP }), true, 'green gate echoing THIS tip licenses the transfer')
+  assert.equal(run({ gate_green: true, head_sha: TIP.slice(0, 8) }), true,
+    'an abbreviated echo names the same commit and must still license (pinMismatch prefix rule)')
+  assert.equal(run({ gate_green: true, head_sha: 'f00dbabef00dbabef00dbabef00dbabef00dbabe' }), false,
+    'a green gate echoing a DIFFERENT commit licenses nothing — the gate ran somewhere else')
+  // RULED RESIDUAL (not a bug): GATE_CHECK requires only gate_green, so a schema-compliant refiner
+  // may omit head_sha and the red arm legitimately does. Failing closed on absence would turn a
+  // legal reply into a false RED and forward-revert a good ace on a path PIN-2 keeps fail-open.
+  // The comparison closes what #1935 named — a requested-but-uncompared echo — and no more.
+  assert.equal(run({ gate_green: true }), true,
+    'an ABSENT head_sha stays uncomparable and still licenses — closing this half needs a schema change, not a comparison')
+  assert.equal(run({ gate_green: true, head_sha: 'not-a-sha' }), true,
+    'a MALFORMED echo is likewise uncomparable (pinMismatch fails open on a non-sha), same residual')
+  assert.match(src, /RESIDUAL, deliberate: an ABSENT head_sha does not fail closed/,
+    'and the residual is documented at the construct, never left for a reader to infer')
+  assert.equal(run({ gate_green: false, head_sha: TIP }), false, 'a red gate never licenses')
+  assert.equal(run(null), false, 'a dead/absent result never licenses')
+})
+
+test('#1944 — recordAcedTouched records aced only what the ace commit touched, and demotes the rest', () => {
+  const m = src.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
+  assert.ok(m, 'src must contain the recordAcedTouched helper (#1944)')
+  const relPath = src.match(/const aceRelPath = (p => [^\n]+)/)
+  const relSet = src.match(/const aceRelSet = (arr => [^\n]+)/)
+  assert.ok(relPath && relSet, 'src must contain aceRelPath and aceRelSet')
+  // eslint-disable-next-line no-new-func
+  const aceRelPath = new Function(`return (${relPath[1]})`)()
+  // eslint-disable-next-line no-new-func
+  const aceRelSet = new Function('aceRelPath', `return (${relSet[1]})`)(aceRelPath)
+  const build = () => {
+    const aced = [], demoted = []
+    // eslint-disable-next-line no-new-func
+    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'recordAced', 'citationOf', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
+      aceRelSet, aceRelPath,
+      (f, to, why) => demoted.push({ f, to, why }),
+      (f, sha) => aced.push({ f, sha }),
+      () => null)
+    return { fn, aced, demoted }
+  }
+  const SHA = 'deadbee'
+  // The issue's own case: a multi-file batch whose commit fixed only one of the two files.
+  {
+    const { fn, aced, demoted } = build()
+    const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
+    fn([hit, miss], SHA, { ace_diff_files: ['./a.js'] })
+    assert.deepEqual(aced.map(x => x.f.title), ['fixed'], 'only the touched finding is recorded aced')
+    assert.deepEqual(demoted.map(x => x.f.title), ['untouched'], 'the untouched finding demotes instead')
+    assert.equal(demoted[0].to, 'follow-up', 'it demotes one step, to follow-up — never dropped')
+    assert.match(demoted[0].why, /never touched b\.js/, 'the reason names the file the commit never reached')
+    assert.match(demoted[0].why, /partial batch fix/, 'the reason names the failure class')
+  }
+  // Evidence gate: demotion needs POSITIVE proof, never a missing git set.
+  {
+    const { fn, aced, demoted } = build()
+    fn([{ title: 'x', file: 'a.js' }], SHA, { ace_diff_files: [] })
+    assert.equal(demoted.length, 0, 'an EMPTY git set is missing evidence, not proof of a miss')
+    assert.equal(aced.length, 1, 'so the finding keeps the pre-#1944 behaviour')
+  }
+  {
+    const { fn, aced, demoted } = build()
+    fn([{ title: 'x', file: 'a.js' }], SHA, undefined)
+    assert.equal(demoted.length, 0, 'an ABSENT worker result is missing evidence too')
+    assert.equal(aced.length, 1)
+  }
+  {
+    const { fn, aced, demoted } = build()
+    fn([{ title: 'fileless' }], SHA, { ace_diff_files: ['a.js'] })
+    assert.equal(demoted.length, 0, 'a FILELESS finding cannot be checked against a file set')
+    assert.equal(aced.length, 1, 'it keeps its own ladder rung (a fileless absorb takes its severity default)')
+  }
+  // ./-normalisation must not manufacture a false miss.
+  {
+    const { fn, demoted } = build()
+    fn([{ title: 'x', file: './a.js' }], SHA, { ace_diff_files: ['a.js'] })
+    assert.equal(demoted.length, 0, 'aceRelPath normalises both sides — ./a.js and a.js are the same file')
+  }
+})
+
+test('#1944 — every ace-family recordAced site routes through the touched-file check (default-deny census)', () => {
+  const code = src.replace(/^\s*\/\/.*$/gm, '')
+  const direct = (code.match(/for \(const f of (?:sub\.findings|batch|aceable)\) recordAced\(/g) || [])
+  assert.equal(direct.length, 0,
+    'no ace-family site may loop recordAced over its whole batch — that is #1944 (found: ' + direct.join(' | ') + ')')
+  assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
+    'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
+  assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
+})
+
+test('#1939 — the auditLog fixRounds stamp is ACE-FREE: filed-issue provenance keeps its historic meaning', () => {
+  const m = src.match(/auditLog\.push\(\{ task: r\.task\.id, verdict: r\.verdict,[^\n]*fixRounds: ([^}]+) \}\)/)
+  assert.ok(m, 'src must contain the task auditLog.push carrying a fixRounds stamp')
+  // eslint-disable-next-line no-new-func
+  const stamp = new Function('r', `return (${m[1].trim()})`)
+  assert.equal(stamp({ preAceRounds: 2, task: { fixRounds: 5 } }), 2,
+    'when the wave-side ace charged rounds, the stamp reports the PRE-ace count, not the ace-inclusive one')
+  assert.equal(stamp({ task: { fixRounds: 3 } }), 3,
+    'an ace-free task has no preAceRounds and falls back to the live count — byte-identical to pre-hoist behaviour')
+  assert.equal(stamp({ preAceRounds: 0, task: { fixRounds: 4 } }), 0,
+    'ZERO is a real pre-ace count and must survive the ?? fallback (a || would swallow it)')
+  assert.match(src, /r\.preAceRounds = round/, 'the wave thunk captures the pre-ace count where the audit loop exits')
+})
+
+test('#1940 — PIN-13 seed: a behavioural resume simulation, not a source-shape assertion', () => {
+  const m = src.match(/r\.task\.fixRounds = (Math\.max\([^\n]+\))/)
+  assert.ok(m, 'src must contain the merge-slot fixRounds seed')
+  // eslint-disable-next-line no-new-func
+  const seed = new Function('r', `return (${m[1]})`)
+  // The wave ran in-process and the ace charged rounds: the merge slot must NOT lower it.
+  assert.equal(seed({ task: { fixRounds: 4 }, round: 1 }), 4,
+    'a wave-side ace charge survives the merge-slot seed — re-seeding to r.round is the clobber PIN-13 forbids')
+  // The resume shape: the merge queue is entered without the wave running in this process.
+  assert.equal(seed({ task: {}, round: 2 }), 2,
+    'on resume fixRounds is undefined and the seed supplies r.round — never undefined')
+  const bare = seed({ task: {}, round: undefined })
+  assert.equal(bare, 0, 'with neither source the seed is 0, never NaN')
+  assert.equal(bare < 6, true,
+    'and 0 opens the ace gate — `undefined < 6` is false, the exact defect that made the hoisted ace never dispatch')
+  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:r<n>` never renders rNaN')
+})

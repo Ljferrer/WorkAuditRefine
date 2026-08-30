@@ -2029,8 +2029,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${sha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
         label: 'ace-gate:' + r.task.id + ':r' + r.task.fixRounds, schema: GATE_CHECK, ...spawn('refiner') })
-    if (g && g.gate_green === true) return true
-    log('ace-gate ' + r.task.id + ': RED at ace tip ' + sha + ' — ' + ((g && g.gate_output) || 'no usable gate_green evidence returned') + '. No re-audit runs and no approval transfers (PIN-12); the ace tip is forward-reverted and the approved pre-ace tip merges (PIN-2).')
+    // #1935: the echoed head_sha is EVIDENCE, not decoration — compare it. The prompt above asks the
+    // refiner to confirm HEAD and echo the sha it gated, so an echo naming a DIFFERENT commit means the
+    // gate ran somewhere else and licenses nothing. Reuses pinMismatch, so abbreviated-vs-full names
+    // the same commit and still compares equal.
+    // RESIDUAL, deliberate: an ABSENT head_sha does not fail closed, because GATE_CHECK requires only
+    // gate_green — the schema lets a compliant refiner omit it, and the red arm legitimately does.
+    // Failing closed on absence would turn a schema-legal reply into a false RED and forward-revert a
+    // good ace on a path PIN-2 keeps fail-open. Closing that half means making head_sha required on the
+    // green arm, a contract change with its own blast radius, not a comparison fix.
+    if (g && g.gate_green === true && !pinMismatch(g.head_sha, sha)) return true
+    const gateWhy = !g || g.gate_green !== true
+      ? ((g && g.gate_output) || 'no usable gate_green evidence returned')
+      : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
+    log('ace-gate ' + r.task.id + ': RED at ace tip ' + sha + ' — ' + gateWhy + '. No re-audit runs and no approval transfers (PIN-12); the ace tip is forward-reverted and the approved pre-ace tip merges (PIN-2).')
     return false
   }
   // ---- DELTA-SCALED RE-AUDIT + SEAT-APPROVAL TRANSFER (D3, PIN-10, PIN-18) ----
@@ -2054,6 +2066,23 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (!sub.length) return { roster: null, why: 'no roster seat matched an originating lens' }
     if (sub.length === (r.task.roster || []).length) return { roster: null, why: 'every roster seat originated a finding inside the ace footprint' }
     return { roster: sub, why: 'the git-derived ace file set is a subset of the findings footprint — only the originating seat(s) re-run' }
+  }
+  // #1944: an ace commit can fix only SOME of its batch's findings (partial worker compliance), yet
+  // every listed finding used to be recorded aced — and an aced finding is NEVER filed as a follow-up,
+  // so the untouched one's defect went untracked. That is the silent-finding-loss class, in the
+  // bookkeeping path rather than the routing path. Demotion is gated on POSITIVE evidence only: a
+  // non-empty git-derived file set that lacks this finding's file. An absent/empty git set, or a
+  // fileless finding, keeps today's behaviour — the full panel already re-approved that tip, and
+  // demoting on missing evidence would manufacture follow-ups instead of recording real misses.
+  const recordAcedTouched = (findings, sha, w) => {
+    const git = aceRelSet(w && w.ace_diff_files)
+    for (const f of findings) {
+      if (git.size && typeof f.file === 'string' && f.file && !git.has(aceRelPath(f.file))) {
+        demote(f, 'follow-up', 'failed absorb — the ace commit at ' + sha + ' never touched ' + aceRelPath(f.file) + ' (partial batch fix); a finding is never recorded aced without evidence the commit reached its file')
+        continue
+      }
+      recordAced(f, sha, citationOf(f) ? { citation: citationOf(f) } : null)
+    }
   }
   // Seat-detected excess (PIN-18): the two file arrays come from the SAME agent, so the independent
   // checker is the re-audit seat — it re-runs the diff itself (read-only git, inside the auditor guard)
@@ -2179,7 +2208,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (allApprove(subSeats, subExpected) && blockingOf(subSeats).length === 0) {
         r.seats = subSeats                               // merge proceeds on this approved subset tip
         r.aceSha = subSha
-        for (const f of sub.findings) recordAced(f, subSha, citationOf(f) ? { citation: citationOf(f) } : null)
+        recordAcedTouched(sub.findings, subSha, sw)   // #1944: only what the subset commit touched
         // Route the re-audit round's OWN Minor/Nits (never drop silently): a fresh absorb born at
         // this subset re-audit queues for budget-bounded RE-ENTRY (aceReentry runs after the
         // bisection resolves — D1, #1731).
@@ -2273,7 +2302,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (allApprove(reS, reE) && blockingOf(reS).length === 0) {
         r.seats = reS                                    // merge proceeds on this approved re-entry tip
         r.aceSha = reSha
-        for (const f of batch) recordAced(f, reSha, citationOf(f) ? { citation: citationOf(f) } : null)
+        recordAcedTouched(batch, reSha, rw)           // #1944: only what the re-entry commit touched
         routeReauditMinors(r, reS)                       // fresh absorbs born HERE re-enter (loop continues)
       } else {
         pendingRevert = reSha                            // reverted by the NEXT dispatch, or the merge clause if final
@@ -2372,7 +2401,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
             // classify-at-collection never eagerly filed them. A citation-resolved finding's aced
             // record carries the citation (D6).
-            for (const f of aceable) recordAced(f, aceSha, citationOf(f) ? { citation: citationOf(f) } : null)
+            recordAcedTouched(aceable, aceSha, ace)  // #1944: only what the ace commit touched
             // Route the re-audit round's OWN Minor/Nits too (never drop silently): a fresh absorb
             // born at this re-audit queues for budget-bounded RE-ENTRY (D1, #1731 — the ladder
             // re-opens; aceReentry dispatches it below).
