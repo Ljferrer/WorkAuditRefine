@@ -4,6 +4,21 @@
 
 It's a portable, dependency-free re-imagining of [Steve Yegge's Gas Town](https://github.com/gastownhall/gastown), built on Claude Code's own primitives — `Agent`, the `Workflow` tool, git worktrees, and GitHub issues — with **no Go binary, no Dolt, no beads**. WAR keeps Gas Town's worker / auditor / refinery roles, **absorbs the witness's live coordination into the Workflow itself**, and adds a **servitor** that records each phase's learnings.
 
+## TL;DR
+
+Sixty seconds, five commands:
+
+```
+/snipe                                 # quick audit of your current branch — 1 read-only seat, lens picked for the diff
+/snipe 3 correctness,security,auto     # 3 seats: two pinned lenses + one Lead-picked
+```
+
+- **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#usage)), verdicts reported straight in chat. No plan, no worktrees, no side effects — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
+- **The real thing** — `/war-strategy` interviews you into a merged plan, `/red-team` adversarially proves it, `/war <plan>` executes it with fresh workers, independent auditors, and a serial merge queue, checking in at every phase boundary. The first two stand alone, too: a `/war-strategy` plan is a complete, evidence-tagged decision record any agent (or human) can implement — you don't have to run a full war to get value from the interview.
+- **Overnight** — `/war-campaign` queues plans and plows them into stacked PRs while you sleep; `/aftermath` sweeps up after the merge.
+- **Tuning** — `/war-room` writes the run config (models, effort, audit roster); `/lessons-learned` keeps the compounding memory honest.
+- **Lost?** — `/war-help` prints the orientation card.
+
 ## Why WAR
 
 Multi-agent parallelism is table stakes now. WAR's bet is different: **verification discipline you can reproduce.**
