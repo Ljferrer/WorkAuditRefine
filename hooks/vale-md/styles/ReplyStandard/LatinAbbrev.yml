@@ -1,0 +1,9 @@
+# The meter's LATIN rule: Latin abbreviations read worse than their plain expansions.
+extends: existence
+message: "Use 'for example' / 'that is' / 'and so on' instead of '%s'."
+level: suggestion
+nonword: true
+tokens:
+  - '\be\.g\.'
+  - '\bi\.e\.'
+  - '\betc\.'

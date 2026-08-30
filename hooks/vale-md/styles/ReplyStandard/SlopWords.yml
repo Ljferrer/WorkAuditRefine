@@ -1,0 +1,24 @@
+# The Reply Standard card's banned-word list (hooks/reply-standard/card.md "Plain word over
+# formal" plus the meter's SLOP set), as a Vale existence rule.
+extends: existence
+message: "Slop word '%s': use a plain word instead."
+level: warning
+ignorecase: true
+tokens:
+  - leverage[sd]?
+  - leveraging
+  - utili[sz]e[sd]?
+  - utili[sz]ing
+  - robust
+  - seamless(?:ly)?
+  - comprehensive
+  - effortlessly
+  - blazingly
+  - streamlin\w+
+  - facilitat\w+
+  - performant
+  - plethora
+  - myriad
+  - delve
+  - crucial
+  - pivotal

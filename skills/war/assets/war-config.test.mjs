@@ -659,6 +659,20 @@ test('hooks.replyStandard defaults ON, explicit false validates, non-boolean rej
   assert.match(r.errors.join('\n'), /hooks\.replyStandard must be a boolean/)
 })
 
+// hooks.valeMarkdown — the advisory Vale Markdown-lint toggle, consumed by hooks/vale-md/vale-md.py
+// (self-gated, fail-open), never the phase engine. Delete-the-feature: drop the DEFAULTS entry and
+// the default-ON assertion fails; drop the validate() line and the rejection case fails.
+test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, non-boolean rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeMarkdown, true, 'vale-md hook is on by default')
+  assert.equal(fillDefaults({}).hooks.valeMarkdown, true)
+  assert.equal(validate({ hooks: { valeMarkdown: false } }).valid, true)
+  assert.equal(validate({ hooks: { valeMarkdown: null } }).valid, true,
+    'null = unset (the overrides.* convention) — vale-md.py reads null as ON, and the validator must not disagree')
+  const r = validate({ hooks: { valeMarkdown: 'off' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /hooks\.valeMarkdown must be a boolean/)
+})
+
 test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
   const rNull = validate({ hooks: null })
   assert.equal(rNull.valid, false)
