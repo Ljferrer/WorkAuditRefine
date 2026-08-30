@@ -12430,6 +12430,41 @@ test('#1913 End state 5 (PIN-16 negative, #1895) — an empty diff with zero tas
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds rather than completing without the task')
 })
 
+// PIN-10 destination convention at the MERGE slot. A seat row's `sha` is the sha the approval is now
+// accounted AT — the rebased tip — in every mode, mirroring aceSeatRows. The pre-rebase origin survives
+// under `approvedAt` on a transferred row. A row recording the OLD audit_sha under `sha` would claim
+// the approval still sits at a sha that is no longer the merged content.
+test('#1913 End state 6 (PIN-10, merge slot) — every merge-slot seat row records the REBASED tip as its sha, keeping the pre-rebase audit sha under approvedAt', async () => {
+  for (const [mode, probe] of [
+    ['transferred', { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' }],
+    ['already_upstream', { status: 'already_upstream', rebased_tip: 'facade01', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
+  ]) {
+    const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
+    const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+    assert.ok(row && row.seats.length, mode + ': the merge-slot row carries seat rows')
+    for (const s of row.seats) {
+      assert.equal(s.outcome, 'transferred', mode + ': the seat transferred rather than re-ran')
+      assert.equal(s.sha, row.rebasedTip, mode + ': the seat sha is the REBASED tip, not the pre-rebase audit_sha')
+      assert.equal(s.approvedAt, 'ace00001', mode + ': the pre-rebase origin survives under approvedAt')
+      assert.notEqual(s.approvedAt, s.sha, mode + ': origin and destination are distinct fields')
+    }
+  }
+})
+
+test('#1913 End state 6 (PIN-10, merge slot) — a MISMATCH row is built from the freshly re-audited seats and records the rebased tip', async () => {
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2' },
+  })
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+  assert.equal(row.mode, 'mismatch')
+  assert.equal(row.seats.length, 2, 'both re-ran seats are recorded')
+  for (const s of row.seats) {
+    assert.equal(s.outcome, 're-ran', 'no approval transfers on a mismatch')
+    assert.equal(s.sha, 'beef0001', 'the re-ran seat is accounted at the rebased tip it re-audited')
+    assert.ok(!('approvedAt' in s), 'a re-ran seat has no earlier origin to preserve')
+  }
+})
+
 test('#1913 End state 9 — the pin-transfer rule is on BOTH prompt layers: the standing auditor card AND a pt-tagged dispatched prompt literal (never a comment only)', () => {
   assert.match(auditorMd, /pin[- ]transfer/i, 'the standing auditor card carries the transfer rule')
   assert.match(auditorMd, /scopeBreach/, 'and the card names the seat-detected refusal field the engine reads')

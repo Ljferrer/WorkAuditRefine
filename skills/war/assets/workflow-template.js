@@ -2643,18 +2643,27 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
         + pt`  (3) TIP=rev-parse ${ph.integrationBranch} (the integration tip the rebase landed on); POST=diff $TIP..${r.task.branch} piped to git patch-id --stable, first field (empty on an empty diff).\n`
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge.\n`
-        + pt`  (5) Post-rebase diff EMPTY but N is 0, or any CHERRY line starts '+', or PRE is EMPTY: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
+        + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
         + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the ordinary merge dispatch then runs unchanged.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           label: 'pin-transfer:' + r.task.id, schema: PIN_TRANSFER, ...spawn('refiner') })   // concatenation-built (census-safe)
       const probeStatus = (pinProbe && typeof pinProbe.status === 'string') ? pinProbe.status : 'error'
-      const probeRow = mode => ({ task: r.task.id, kind: 'merge', mode,
+      // PIN-10 destination convention, mirroring aceSeatRows: a row's `sha` is the sha the approval is
+      // now accounted AT — the probe's rebased integration tip, in EVERY mode. It is never the seat's
+      // pre-rebase audit_sha; that origin rides `approvedAt` on a transferred row, exactly as
+      // aceSeatRows keeps `transferredFrom` there. A re-ran row carries no `approvedAt`: it was
+      // re-audited at that same rebased tip, so it has no earlier origin to preserve.
+      // `seatsSrc` lets the 'mismatch' arm pass the FRESHLY-returned rbSeats; every other arm falls
+      // back to the pre-rebase panel in r.seats, whose approvals are the ones transferring.
+      const probeRow = (mode, seatsSrc) => ({ task: r.task.id, kind: 'merge', mode,
         reauditedTip: r.aceSha || (r.seats || []).map(s => s.audit_sha).find(isSha) || null,
         rebasedTip: pinProbe && pinProbe.rebased_tip || null,
         prePatchId: pinProbe && pinProbe.pre_rebase_patch_id || null,
         postPatchId: pinProbe && pinProbe.post_rebase_patch_id || null,
-        seats: (r.seats || []).map(s => ({ seat: s.seat, lens: s.lens, outcome: mode === 'mismatch' ? 're-ran' : 'transferred', sha: mode === 'mismatch' ? (pinProbe && pinProbe.rebased_tip) || null : auditShaOrSentinel(s.audit_sha) })) })
+        seats: (seatsSrc || r.seats || []).map(s => mode === 'mismatch'
+          ? ({ seat: s.seat, lens: s.lens, outcome: 're-ran', sha: (pinProbe && pinProbe.rebased_tip) || null })
+          : ({ seat: s.seat, lens: s.lens, outcome: 'transferred', sha: (pinProbe && pinProbe.rebased_tip) || null, approvedAt: auditShaOrSentinel(s.audit_sha) })) })
       if (probeStatus === 'conflict') {
         escalated.push({ task: r.task.id, reason: 'conflict', detail: { note: 'the pin-transfer rebase conflicted — the task branch cannot replay onto the integration tip', conflict_files: (pinProbe && pinProbe.conflict_files) || [] } })
         auditLog.push({ task: r.task.id, verdict: 'conflict', findings: [], fixRounds: r.task.fixRounds })
@@ -2680,7 +2689,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // The FULL panel re-audits the rebased tip IN the lock, exactly as the pre-#1913 engine did.
         log('pin-transfer ' + r.task.id + ': patch-id MISMATCH (' + (pinProbe.pre_rebase_patch_id || '(empty)') + ' → ' + (pinProbe.post_rebase_patch_id || '(empty)') + ') — the full panel re-audits the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' in the lock before the merge (PIN-1).')
         const { seats: rbSeats, expected: rbExpected } = await auditRound(r.task, null, null, pinProbe.rebased_tip)
-        pinTransfers.push(probeRow('mismatch'))
+        pinTransfers.push(probeRow('mismatch', rbSeats))
         if (allApprove(rbSeats, rbExpected) && blockingOf(rbSeats).length === 0) {
           r.seats = rbSeats
         } else {
