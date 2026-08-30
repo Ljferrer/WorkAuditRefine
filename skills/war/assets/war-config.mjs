@@ -18,6 +18,9 @@ export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
 // 'none' = no steps / not yet scouted. See provisioning Part-B plan.
 export const PROVISION_SOURCES = ['explicit', 'manifest', 'ci', 'onboarding', 'structural', 'none']
+// vale-md profile names (hooks.valeStyle). Hand-mirrored in hooks/vale-md/vale-md.py STYLES
+// (+ 'custom', handled there as the project-side profile) — change both together.
+export const VALE_STYLES = ['house', 'googleFork', 'microsoftFork', 'writeGood', 'proselint', 'alex', 'readability', 'redhat', 'custom']
 
 export const DEFAULTS = {
   version: 1,
@@ -71,12 +74,12 @@ export const DEFAULTS = {
   // itself in the project the hook fires in — never by the phase engine, so no workflow-template.js
   // mirror. Advisory only (one additionalContext line, never a block); a machine without the vale
   // binary silently no-ops. Only an explicit `false` disables; absent, null, or unreadable mean on.
-  // hooks.valeGoogleFork: profile selector for the vale-md hook. Default ON — .vale-google.ini,
-  // the house rules plus the vendored, tuned Google developer-documentation style
-  // (styles/Google, errata-ai/Google v0.7.1, MIT); an explicit `false` swaps back to the
-  // house-only .vale.ini. Subordinate to valeMarkdown: when that is false, nothing runs
-  // regardless of this key.
-  hooks: { replyStandard: true, valeMarkdown: true, valeGoogleFork: true },
+  // hooks.valeStyle: profile selector for the vale-md hook, one of VALE_STYLES. Default
+  // 'googleFork' (house rules + the vendored, tuned Google style); the other vendored
+  // styles ship in hooks/vale-md/styles/; 'custom' reads the project-side
+  // .claude/war/vale/.vale.ini written by the /war-room interview (fail-open to the
+  // default when absent). Subordinate to valeMarkdown: when that is false, nothing runs.
+  hooks: { replyStandard: true, valeMarkdown: true, valeStyle: 'googleFork' },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -287,9 +290,9 @@ export function validate(input) {
     // so the validator accepts it rather than disagreeing with the key's other consumer.
     if (hk.replyStandard !== null && typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean or null')
     if (hk.valeMarkdown !== null && typeof hk.valeMarkdown !== 'boolean') errors.push('hooks.valeMarkdown must be a boolean or null')
-    if (hk.valeGoogleFork !== null && typeof hk.valeGoogleFork !== 'boolean') errors.push('hooks.valeGoogleFork must be a boolean or null')
+    if (hk.valeStyle !== null && !VALE_STYLES.includes(hk.valeStyle)) errors.push(`hooks.valeStyle must be one of ${VALE_STYLES.join('|')} or null`)
     for (const k of Object.keys(hk)) {
-      if (!['replyStandard', 'valeMarkdown', 'valeGoogleFork'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown|valeGoogleFork) — run /war-room to regenerate the config`)
+      if (!['replyStandard', 'valeMarkdown', 'valeStyle'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown|valeStyle) — run /war-room to regenerate the config`)
     }
   }
 

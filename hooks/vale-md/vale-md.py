@@ -4,10 +4,12 @@ Registered in hooks/hooks.json on Edit|Write, harness-filtered to `.md` files
 via per-handler `if` rules (`Edit(**/*.md)` / `Write(**/*.md)` — one rule may
 name only one tool), so non-Markdown edits never spawn a process at all; the
 extension check below is the in-script backstop. Lints only `.md` files, with a
-self-contained profile beside this script — `.vale-google.ini` (house rules +
-the vendored, tuned Google style) by default, `.vale.ini` (house rules only)
-when `hooks.valeGoogleFork` is false; no remote packages, no network, no
-`vale sync` either way. Advisory only: it never blocks and
+self-contained profile beside this script, chosen by `hooks.valeStyle`
+(default `googleFork`); every vendored style ships in the plugin, so no
+remote packages and no network at lint time. A `custom` style reads the
+project's own `.claude/war/vale/.vale.ini` instead (written by the
+/war-room interview), falling back to the default when absent.
+Advisory only: it never blocks and
 always exits 0. When Vale reports findings, the hook returns one
 `additionalContext` line so the editing agent sees the count and the top rules.
 
@@ -18,9 +20,10 @@ skills see the same advisory line.
 Toggles in the project's `.claude/war/config.json`, both fail-open (no config,
 unreadable JSON, a malformed `hooks` block, or `null` all mean the default):
 `hooks.valeMarkdown` (default on — only an explicit `false` disables) and
-`hooks.valeGoogleFork` (default on — only an explicit `false` swaps the profile
-from `.vale-google.ini` back to the house-only `.vale.ini`). A missing `vale` binary, a non-Markdown
-path, unreadable stdin, or a Vale failure each mean a silent exit 0.
+`hooks.valeStyle` (a known style name selects its profile; absent, `null`,
+or an unknown value mean the default `googleFork`). A missing `vale` binary,
+a non-Markdown path, unreadable stdin, or a Vale failure each mean a silent
+exit 0.
 """
 import json
 import os
@@ -31,28 +34,49 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 
+# hooks.valeStyle -> profile file beside this script. Enum mirrored (hand-kept) in
+# war-config.mjs VALE_STYLES — change both together. "custom" is handled separately.
+STYLES = {
+    "house": ".vale.ini",
+    "googleFork": ".vale-google.ini",
+    "microsoftFork": ".vale-microsoft.ini",
+    "writeGood": ".vale-write-good.ini",
+    "proselint": ".vale-proselint.ini",
+    "alex": ".vale-alex.ini",
+    "readability": ".vale-readability.ini",
+    "redhat": ".vale-redhat.ini",
+}
+DEFAULT_STYLE = "googleFork"
+
 
 def profile():
     """The Vale config for this run, or None when the hook is toggled off.
 
     hooks.valeMarkdown (default ON): only an explicit false disables.
-    hooks.valeGoogleFork (default ON): only an explicit false swaps the default
-    house + vendored-Google profile (.vale-google.ini) back to the house-only
-    profile (.vale.ini). Both reads are fail-open.
+    hooks.valeStyle picks the profile from STYLES (default googleFork); the
+    value "custom" reads the project-side .claude/war/vale/.vale.ini, falling
+    back to the default profile when that file does not exist. Fail-open
+    throughout: absent, null, unreadable, or unknown all mean the default.
     """
+    project = pathlib.Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
     hooks = {}
     try:
-        cfg = pathlib.Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()) / ".claude" / "war" / "config.json"
-        parsed = json.loads(cfg.read_text(encoding="utf-8")).get("hooks")
+        parsed = json.loads((project / ".claude" / "war" / "config.json").read_text(encoding="utf-8")).get("hooks")
         if isinstance(parsed, dict):
             hooks = parsed
     except (OSError, ValueError, AttributeError):
         pass
     if hooks.get("valeMarkdown") is False:
         return None
-    if hooks.get("valeGoogleFork") is False:
-        return HERE / ".vale.ini"
-    return HERE / ".vale-google.ini"
+    style = hooks.get("valeStyle")
+    if style == "custom":
+        custom = project / ".claude" / "war" / "vale" / ".vale.ini"
+        if custom.is_file():
+            return custom
+        style = DEFAULT_STYLE
+    if style not in STYLES:
+        style = DEFAULT_STYLE
+    return HERE / STYLES[style]
 
 
 def main():
