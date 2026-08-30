@@ -41,8 +41,7 @@ const fakeParallel = async (thunks) => Promise.all(thunks.map((t) => t()))
 // them a shape they cannot read. The harness normalizes ONLY non-conforming answers: a fixture that
 // returns a conforming shape drives the seat exactly as it wrote it, and every other fixture gets the
 // neutral default — a green ace gate, and a fail-open pin-transfer probe whose ordinary merge dispatch
-// then runs unchanged. PIN_TRANSFER's status enum is mirrored here; the drift-guard test below pins it.
-const PIN_TRANSFER_STATUSES = ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error']
+// then runs unchanged.
 const NEW_SEAT_DEFAULTS = {
   // A green gate at the ace tip, and a fail-open pin-transfer probe whose caller then runs the
   // ordinary merge dispatch unchanged — so every pre-#1913 fixture behaves exactly as it did.
@@ -12407,7 +12406,7 @@ test('#1913 End state 4 (PIN-18) — every fail-closed arm re-runs the FULL pane
   }
 })
 
-test('#1913 End states 5 + 7 — the merge slot TRANSFERS the pin on patch-id equality, recording reauditedTip, rebasedTip and BOTH patch-ids', async () => {
+test('#1913 End state 5 (PIN-7 + PIN-14) — the merge slot TRANSFERS the pin on patch-id equality, recording reauditedTip, rebasedTip and BOTH patch-ids', async () => {
   const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
     'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' },
   })
