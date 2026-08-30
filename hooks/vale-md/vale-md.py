@@ -1,6 +1,9 @@
 """PostToolUse hook: advisory Vale prose lint for Markdown edits.
 
-Registered in hooks/hooks.json on Edit|Write. Lints only `.md` files, with the
+Registered in hooks/hooks.json on Edit|Write, harness-filtered to `.md` files
+via per-handler `if` rules (`Edit(**/*.md)` / `Write(**/*.md)` — one rule may
+name only one tool), so non-Markdown edits never spawn a process at all; the
+extension check below is the in-script backstop. Lints only `.md` files, with the
 self-contained profile beside this script (`.vale.ini` + `styles/ReplyStandard/`
 — no packages, no network, no `vale sync`). Advisory only: it never blocks and
 always exits 0. When Vale reports findings, the hook returns one

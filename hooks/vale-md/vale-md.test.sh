@@ -91,8 +91,14 @@ rm -f "$PROJ/.claude/war/config.json"
 # leading interpreter), so a 100644 mode kills the hook on every edit. Assert the real file.
 if [ -x "$HERE/vale-md.sh" ]; then pass 'case8 repo shim is executable'; else fail 'case8 repo shim is executable (hooks.json invokes it directly)'; fi
 
-# Case 9: zero findings — silent, exit 0.
+# Case 9: the registration keeps its per-tool `if` filters — they are what stops a
+# python3 spawn on every non-Markdown edit; collapsing the two handlers into one loses
+# either Write or Edit coverage (one `if` rule may name only one tool).
+HJ="$HERE/../hooks.json"
+if grep -Fq 'Edit(**/*.md)' "$HJ" && grep -Fq 'Write(**/*.md)' "$HJ"; then pass 'case9 hooks.json carries both if filters'; else fail 'case9 hooks.json carries both if filters'; fi
+
+# Case 10: zero findings — silent, exit 0.
 out="$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$DOC" | STUB_EMPTY=1 PATH="$TMP/bin:$PATH" sh "$TMP/vale-md.sh")"; rc=$?
-if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case9 zero findings: silent'; else fail "case9 zero findings: silent (rc=$rc out=$out)"; fi
+if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case10 zero findings: silent'; else fail "case10 zero findings: silent (rc=$rc out=$out)"; fi
 
 if [ "$fails" -eq 0 ]; then printf 'PASS vale-md.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL vale-md.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi
