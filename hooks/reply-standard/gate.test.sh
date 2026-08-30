@@ -105,4 +105,12 @@ printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-stop.py
 if [ ! -e "$TMP/subagent-meter.log" ]; then pass 'case20 subagent-stop gated off: writes nothing'; else fail 'case20 subagent-stop gated off: writes nothing'; fi
 rm -f "$PROJ/.claude/war/config.json"
 
+# Cases 21-22: JSON-aware scoring — a JSON final message is scored on its string fields only.
+rm -f "$TMP/subagent-meter.log"
+printf '{"agent_type":"work-audit-refine:war-auditor","agent_id":"a2","session_id":"t","last_assistant_message":"{\\"verdict\\":\\"approve\\",\\"findings\\":[{\\"evidence\\":\\"We should simply leverage this pattern everywhere.\\"}]}"}' | sh "$TMP/gate.sh" subagent-stop.py
+if grep -q '"shape": "json"' "$TMP/subagent-meter.log" && grep -q '"banned_modal": 1' "$TMP/subagent-meter.log"; then pass 'case21 JSON message: prose fields scored, shape recorded'; else fail 'case21 JSON message: prose fields scored, shape recorded'; fi
+rm -f "$TMP/subagent-meter.log"
+printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"a3","session_id":"t","last_assistant_message":"{\\"status\\":\\"merged\\",\\"note\\":\\"The gate ran green at the tip.\\"}"}' | sh "$TMP/gate.sh" subagent-stop.py
+if grep -q '"violations_total": 0' "$TMP/subagent-meter.log"; then pass 'case22 clean JSON message: zero violations, syntax never counted'; else fail 'case22 clean JSON message: zero violations, syntax never counted'; fi
+
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi

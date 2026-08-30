@@ -12,6 +12,30 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 
+
+def prose_of(text):
+    """A seat's final message is often bare JSON. Score the prose inside its string
+    fields (titles, evidence, rationales), not the syntax. Non-JSON passes through."""
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return text, "text"
+    parts = []
+
+    def walk(v):
+        if isinstance(v, str):
+            parts.append(v)
+        elif isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+
+    walk(doc)
+    return "\n".join(parts), "json"
+
+
 try:
     data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
     text = data.get("last_assistant_message") or ""
@@ -20,7 +44,9 @@ try:
         defs = src.split("\nHERE = ")[0]  # definitions only — the runtime block reads stdin and writes meter.log
         ns = {}
         exec(compile(defs, str(HERE / "meter.py"), "exec"), ns)
-        row = ns["lint"](text, "descriptive")
+        prose, shape = prose_of(text)
+        row = ns["lint"](prose, "descriptive")
+        row["shape"] = shape
         row["agent_type"] = data.get("agent_type")
         row["agent_id"] = data.get("agent_id")
         row["session_id"] = data.get("session_id")
