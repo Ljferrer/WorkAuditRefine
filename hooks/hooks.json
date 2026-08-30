@@ -23,6 +23,20 @@
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/inject-campaign-state.sh" }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/card.py\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/meter.py\"", "timeout": 10 }
+        ]
+      }
     ]
   }
 }
