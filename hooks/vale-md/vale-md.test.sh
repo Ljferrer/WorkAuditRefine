@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # vale-md.py — the advisory Vale Markdown lint hook (PostToolUse, Edit|Write, .md only).
-# Cases: default on emits one additionalContext line (via a stub vale, so the test never
-# needs the real binary), explicit false is silent, null is unset (on), non-.md paths and
-# a missing vale binary are silent, malformed stdin/config fail open, zero findings are
-# silent, and every path exits 0. bash-3.2-safe, cwd-independent; runs against a temp
+# Cases: default on emits one additionalContext line with the WorkAuditRefine fork profile
+# (via a stub vale, so the test never needs the real binary), valeMarkdown false is silent
+# and beats valeStyle, per-style selection (microsoftFork, house, custom present/absent,
+# null/unknown fail-open to the default), non-.md paths and a missing vale binary are
+# silent, malformed stdin/config fail open, zero findings are silent, the repo shim keeps
+# its exec bit, hooks.json keeps both if filters, and every path exits 0. bash-3.2-safe, cwd-independent; runs against a temp
 # copy so the repo tree stays clean.
 set -u
 
@@ -115,7 +117,7 @@ rm -f "$STUB_ARGS"
 out="$(run_hook "$DOC")"
 if grep -q '\.vale\.ini' "$STUB_ARGS" 2>/dev/null && ! grep -Fq '.vale-workauditrefine.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case12 valeStyle house: house profile'; else fail 'case12 valeStyle house: house profile'; fi
 
-# Case 13: valeStyle null or unknown — fail-open to the default (google fork).
+# Case 13: valeStyle null or unknown — fail-open to the default (the WorkAuditRefine fork).
 for v in 'null' '"chicago"'; do
   printf '{"hooks":{"valeStyle":%s}}' "$v" > "$PROJ/.claude/war/config.json"
   rm -f "$STUB_ARGS"
