@@ -121,4 +121,14 @@ rm -f "$TMP/subagent-meter.log"
 printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"a3","session_id":"t","last_assistant_message":"{\\"status\\":\\"merged\\",\\"note\\":\\"The gate ran green at the tip.\\"}"}' | sh "$TMP/gate.sh" subagent-stop.py
 if grep -q '"violations_total": 0' "$TMP/subagent-meter.log"; then pass 'case22 clean JSON message: zero violations, syntax never counted'; else fail 'case22 clean JSON message: zero violations, syntax never counted'; fi
 
+# Fenced JSON verdict — scored as JSON, not deleted by strip_code's fence rule.
+rm -f "$TMP/subagent-meter.log"
+printf '{"agent_type":"work-audit-refine:war-auditor","agent_id":"a4","session_id":"t","last_assistant_message":"```json\\n{\\"evidence\\":\\"We should simply leverage this pattern.\\"}\\n```"}' | sh "$TMP/gate.sh" subagent-stop.py
+if grep -q '"shape": "json"' "$TMP/subagent-meter.log" && grep -q '"banned_modal": 1' "$TMP/subagent-meter.log"; then pass 'fenced JSON verdict: unfenced, scored as json'; else fail 'fenced JSON verdict: unfenced, scored as json'; fi
+
+# Raw-vs-prose divergence — a semicolon in a JSON KEY scores raw but never on the prose path.
+rm -f "$TMP/subagent-meter.log"
+printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"a5","session_id":"t","last_assistant_message":"{\\"k;ey\\":\\"x\\",\\"note\\":\\"All findings were addressed here.\\"}"}' | sh "$TMP/gate.sh" subagent-stop.py
+if grep -q '"semicolon": 0' "$TMP/subagent-meter.log"; then pass 'JSON syntax divergence: key semicolon never counted'; else fail 'JSON syntax divergence: key semicolon never counted'; fi
+
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi

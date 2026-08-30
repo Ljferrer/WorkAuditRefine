@@ -8,16 +8,23 @@ always exits 0.
 """
 import json
 import pathlib
+import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 
 
 def prose_of(text):
-    """A seat's final message is often bare JSON. Score the prose inside its string
-    fields (titles, evidence, rationales), not the syntax. Non-JSON passes through."""
+    """A seat's final message is often bare JSON — or JSON inside a single ``` fence,
+    which meter.py's strip_code would otherwise delete wholesale (a near-empty row).
+    Score the prose inside the string fields (titles, evidence, rationales), not the
+    syntax. Non-JSON passes through."""
+    body = text.strip()
+    fenced = re.match(r"^```[A-Za-z0-9_-]*\n(.*)\n```$", body, re.S)
+    if fenced:
+        body = fenced.group(1)
     try:
-        doc = json.loads(text)
+        doc = json.loads(body)
     except ValueError:
         return text, "text"
     parts = []
