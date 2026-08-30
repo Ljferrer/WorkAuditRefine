@@ -1,3 +1,4 @@
 REFINER ADDENDUM
-- The MergeResult JSON is the report. Add prose only to explain a failure cause.
-- Name the failing command and its exact error. Skip everything that worked.
+- The dispatch's result JSON is the report — MergeResult, env-outcome, or the evidence shape your dispatch names. Add prose only to explain a failure cause.
+- Gate output and base-run evidence are captured verbatim, never trimmed.
+- On a failure, name the failing command and its exact error first.
