@@ -60,4 +60,17 @@ printf 'raise RuntimeError("boom")\n' > "$TMP/boom.py"
 out="$(printf '{}' | sh "$TMP/gate.sh" boom.py 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$out" ]; then pass 'case7 wrapped raise: contained, exit 0'; else fail "case7 wrapped raise: contained, exit 0 (rc=$rc out=$out)"; fi
 
+# Cases 8-10: only an explicit JSON false disables — every other value stays ON.
+# The string "false", 0, and null are all truthy-adjacent traps that `is False` must not match.
+for v in '"false"' '0' 'null'; do
+  printf '{"hooks":{"replyStandard":%s}}' "$v" > "$PROJ/.claude/war/config.json"
+  out="$(run_card)"
+  case "$out" in *"REPLY STANDARD"*) pass "case8-10 replyStandard=$v: stays on" ;; *) fail "case8-10 replyStandard=$v: stays on" ;; esac
+done
+
+# Case 11: a config whose top level is not an object (array) — fail-open, runs.
+printf '[]' > "$PROJ/.claude/war/config.json"
+out="$(run_card)"
+case "$out" in *"REPLY STANDARD"*) pass 'case11 array config: fail-open, card runs' ;; *) fail 'case11 array config: fail-open, card runs' ;; esac
+
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi
