@@ -79,5 +79,10 @@ def main():
     }))
 
 
-main()
+# Containment (the gate.py shape): no internal failure — including an unexpected
+# vale output shape — may surface as a hook error on an edit.
+try:
+    main()
+except BaseException:
+    pass
 sys.exit(0)

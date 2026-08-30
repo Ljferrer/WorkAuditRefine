@@ -341,7 +341,7 @@ Both events fire in the main conversation only: WAR's phase subagents (workers, 
 
 **Toggle:** on by default; a thin gate wrapper (`gate.py`) in front of the byte-for-byte scripts reads the WAR run config of the project the session runs in, so `{"hooks": {"replyStandard": false}}` in `.claude/war/config.json` turns the pair off. The read is fail-open (no config, or an unreadable one, means on), and `/war-room` can write the key like any other override.
 
-**Requires `python3` on `PATH`** — the one place WAR uses Python. Without it, a shell shim (`gate.sh`) makes both hooks silent no-ops instead of a hook error on every prompt and stop, mirroring how the memory features no-op on older Node.
+**Requires `python3` on `PATH`** — Python is used only by these plugin hooks (this pair and the Vale hook below). Without it, a shell shim (`gate.sh`) makes both hooks silent no-ops instead of a hook error on every prompt and stop, mirroring how the memory features no-op on older Node.
 
 **Log location (know before you rely on the loop):** the byte-for-byte scripts write `card.log`/`meter.log` beside themselves — in the plugin install directory. Three consequences: the logs are shared across every project and concurrent session (the "previous reply broke the standard" prefix can be sourced from a different session), they grow unbounded and `card.py` re-reads `meter.log` whole on every prompt, and the path is version-scoped so each plugin update starts them fresh. Changing this needs an upstream log-dir override, not an edit here.
 
