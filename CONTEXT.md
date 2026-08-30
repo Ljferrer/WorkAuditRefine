@@ -823,8 +823,7 @@ never split; each subset commit charges one `fixRounds` slot (reverts uncharged)
 while `fixRounds < roundLimit − 2`, the **floor-retry reserve** that holds two slots back for the
 merge-floor retry loop. Reaching it mid-bisection stops the ladder and the remaining subsets demote to
 `follow-up`, logged and by design; the reserve bounds subset commits only, not the whole ace path (the
-batch ace keeps its own `< roundLimit` gate). The reserve's `phaseClose: true` → sweep rung belongs to **Re-entry** (a fresh
-absorb born at a re-audit), never to a queued bisection subset. Failed subset tips are
+batch ace keeps its own `< roundLimit` gate). Failed subset tips are
 forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
 mergeable task.
 _Avoid_: whole-batch demotion (retired); conflating this ladder's reserve stop (the remaining subsets
@@ -832,18 +831,20 @@ demote) with **Re-entry**'s reserve rung (routes `phaseClose: true` to the sweep
 finding-subset re-application, not a history search).
 
 **Re-entry**:
-The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned finding born at ANY
-re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another ace-style batch
-on the same machinery (canonical: `aceReentry` in `skills/war/assets/workflow-template.js`), **never
-a new round type or status member**. The **floor-retry reserve** (`fixRounds < roundLimit − 2`,
-#1562's merge-floor retry slots) is the SOLE bound — no echo cap, no shrinking rule, no second
-budget. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
-sweep-discard ⇒ `follow-up`; a
-forward-reverted finding never re-enters (the oscillation bound); every demotion is logged. Re-entry
-rounds inherit the **Ace-Subset trailer** discipline and the tip-preflight idempotency verbatim
+The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned finding born at a
+WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another
+ace-style batch on the same machinery (canonical: `aceReentry` in
+`skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
+**floor-retry reserve** (`fixRounds < roundLimit − 2`, #1562's merge-floor retry slots) is their
+SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
+its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
+budget-gated. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
+sweep-discard ⇒ `follow-up`; a forward-reverted finding never re-enters (the oscillation bound);
+every demotion is logged. Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
+tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
-_Avoid_: a new round type or a second budget; treating the reserve as a soft target (it is the stop
-condition); re-entering a forward-reverted finding.
+_Avoid_: a second budget; treating the reserve as a soft target (it is the stop condition);
+reading it as bounding the merge-slot source.
 
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and
