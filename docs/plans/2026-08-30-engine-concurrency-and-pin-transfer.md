@@ -47,11 +47,11 @@ is shared between the ace ladder and the merge-floor retry loop and stays shared
 |---|----------|------------|--------|----------------------|
 | D1 | Throttle scope | one global counting semaphore at the agent dispatch seam; per-site `batched()` retires or sits under it, never beside it | (user) | PIN-4 · guardrail |
 | D2 | Pin-transfer predicate | conflict-free rebase (stated precondition) AND `git patch-id --stable` equality of the task's own diff, computed dispatchBase→tip before the rebase and integration-tip→tip after; mismatch ⇒ in-lock full-panel re-audit for that task only | (user) | PIN-1 · guardrail ‡, PIN-7, PIN-14 · end-state |
-| D3 | Re-audit delta scale | file-level: ace `changed_files[]` ⊆ findings' file set ⇒ originating seat(s) only, else full panel | (user) | slice |
+| D3 | Re-audit delta scale | file-level: the git-derived ace file set (`git diff --name-only <preAceTip> <aceSha>`) ⊆ findings' file set ⇒ originating seat(s) only, else full panel; the agent's `files_changed` is a cross-check only | (user) | PIN-18 · slice |
 | D4 | Floor-retry loop | unchanged, in-lock, full panel — floor trips are born at the merge slot and are not findings-driven | (user) | non-goal |
 | D5 | Doc sweep | OLD per-site wording absent from four enumerated doc surfaces — `CONTEXT.md`, `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`, `skills/war/references/design.md` — each with a per-path decisive OLD token; engine comments ride task 1.1's census; CHANGELOG and `skills/red-team/SKILL.md` untouched; the lesson is OLD-absent-exempt and gains a RESOLVED stamp on frontmatter `description` (terse) and body | (user) | end-state |
 | D6 | Doctrine record | one ADR covering seat-approval transfer, rebase pin transfer, global semaphore semantics; ADR file has an owning task; transfer rule mirrored into both prompt layers in one commit | (user) | PIN-9 · slice, PIN-10 · end-state, PIN-11 · slice ‡ |
-| D7 | Gate at ace tip | the task gate runs green at the ace tip before re-audit and transfer; a red gate blocks transfer and routes to the normal fix path | (user) | PIN-12 · guardrail ‡ |
+| D7 | Gate at ace tip | the task gate runs green at the ace tip before re-audit and transfer; a red gate forward-reverts the ace commit (the existing `r.aceReverted` clause), the task merges its approved pre-ace tip, findings demote per their dispositions — never a fix loop, never a hold (PIN-2 preserved) | (user) | PIN-12 · guardrail ‡ |
 | D8 | Direction authority | directions 1+2 combined, 3+4 rejected, fix-path baseline is the calibration floor | (verified: issue #1913 comment (2026-08-28)) | context |
 | D9 | Run-behaviour invariants | fail-open ace, byte-identical unconfigured paths, shared `fixRounds` charge, no soft markers, journal-clean resume | (user) | PIN-2, PIN-3, PIN-5, PIN-6, PIN-8 · guardrail ‡ |
 
@@ -86,12 +86,24 @@ Ratified pins (operator, interview 2026-08-30):
 - PIN-15 — no code path holds a permit while it awaits a nested dispatch; `batched()` survives
   only permit-free; checked by a completion test at wave width ≥ N (assert completion, never
   peak — a hung run passes any peak ≤ N assertion).
-- PIN-16 — `already_upstream` requires at least one task commit
-  (`git rev-list --count <dispatchBase>..<taskTip>` > 0) and every one cherry-matched upstream,
-  with the matched upstream commits recorded; zero commits escalates, never `merged` (#1895).
+- PIN-16 — `already_upstream` requires at least one task commit at the PRE-rebase task tip
+  (`git rev-list --count <dispatchBase>..<preRebaseTaskTip>` > 0) and every one cherry-matched
+  (`git cherry <integrationTip> <preRebaseTaskTip>` — pre-rebase head, post-rebase reading
+  silently disables the guard), with the matched task commits recorded (`git cherry` names task
+  commits, never upstream equivalents); zero commits escalates, never `merged` (#1895). The
+  PIN-16 arm runs BEFORE the patch-id equality test, and an empty pre-rebase patch-id fails
+  closed to escalation — `git patch-id --stable` prints nothing on an empty diff, so
+  empty-equals-empty must never transfer a pin.
 - PIN-17 — ALL ceiling constants CAN be increased by +2,048 B IF evicting stale prose first
-  does not provide enough budget; every raise is cited to this row via the `Budget-Raise`
-  commit trailer (`assert-budget-raise-cited.sh` form). Pre-ratified: operator, 2026-08-30.
+  does not provide enough budget; every raise carries the floor's accepted trailer form
+  `Budget-Raise: ADR-0042 <surface> +<bytes>`; the ADR 0048 exception is carried by
+  adjudication row ADJ-1 below, never by the trailer.
+
+Operator adjudications (Part 1, ADR 0017 vehicle — ruled rows, not prose waivers):
+
+- ADJ-1 — operator overrules ADR 0048 §1/§2 for this plan (dated 2026-08-30): a writing task
+  that cannot fit after eviction raises that surface's ceiling by at most +2,048 B, cited with
+  the floor's accepted trailer form. The floor script stays untouched.
 - PIN-18 — the delta-scale file set comes from git, never from the agent's self-report alone;
   mismatch routes to the full panel.
 
@@ -128,7 +140,9 @@ rebase pin transfer, global semaphore semantics.
   `batched()` calls under it. Move the ace batch, its re-audit, and the bisection ladder to the
   wave side. They run per task at the panel-approved tip, concurrent across tasks. Before any
   re-audit or transfer, the task gate runs at the ace tip and must pass; a red gate at the ace
-  tip blocks transfer and routes to the normal fix path (PIN-12). Scale each re-audit by the ace
+  tip forward-reverts the ace commit via the existing `r.aceReverted` clause, the task merges
+  its approved pre-ace tip, and findings demote per their dispositions — never a hold (PIN-12,
+  PIN-2). Scale each re-audit by the ace
   diff: when the changed-file list is a subset of the findings' file set, only the originating
   seats re-run, otherwise the full panel re-runs. Approvals from seats that did not re-run
   transfer to the new SHA under that same subset rule, with per-seat provenance (PIN-10). At the
@@ -140,7 +154,9 @@ rebase pin transfer, global semaphore semantics.
   upstream, record the task `merged` with an `already_upstream` provenance field naming the
   matched upstream commits, no panel, no content merge, `rebasedTip` = the integration tip
   (PIN-16); an empty diff with zero task commits or unmatched patches escalates instead. The
-  merge-floor retry loop stays in-lock and full-panel, unchanged. One new ADR records seat-approval transfer, rebase pin transfer, and the global
+  arm's git legs run against the PRE-rebase task tip, it precedes the patch-id equality test,
+  and an empty pre-rebase patch-id fails closed to escalation. The merge-floor retry loop stays
+  in-lock and full-panel, unchanged. One new ADR records seat-approval transfer, rebase pin transfer, and the global
   semaphore semantics, with an owning task (PIN-9). The transfer rule lands in the standing
   auditor card and the dispatched prompts in one commit (PIN-11). The old per-site wording is
   removed from the four live doc surfaces, and the published per-site lesson gains a dated
@@ -151,7 +167,7 @@ rebase pin transfer, global semaphore semantics.
   git-derived file set on the ace result, script versus inline git steps for the patch-id
   check, the RESOLVED note's wording, and structure-test shapes. Substituting any of these mechanisms while the End states and binding guardrails hold
   is not a plan deviation and warrants no issue.
-- **Binding guardrails:** PIN-1 to PIN-12 verbatim. Unanimity survives in transferred form:
+- **Binding guardrails:** PIN-1 to PIN-18 verbatim. Unanimity survives in transferred form:
   every seat approval is accounted for at the merged SHA, per seat. The ace stays fail-open
   (PIN-2). Unconfigured paths stay byte-identical (PIN-3). A wave-side ace round still charges
   the shared `fixRounds` budget (PIN-5). Pin-transfer outcomes never ride an in-band field that
@@ -182,7 +198,10 @@ rebase pin transfer, global semaphore semantics.
      `node --test skills/war/assets/workflow-template.test.mjs`.
   5. The merge slot transfers the pin on `git patch-id --stable` equality after a conflict-free
      rebase and falls back to the in-lock full-panel re-audit on mismatch, with a positive test
-     of the recorded `reauditedTip`, `rebasedTip`, and both patch-ids (PIN-7, PIN-14) · check:
+     of the recorded `reauditedTip`, `rebasedTip`, and both patch-ids (PIN-7, PIN-14), a
+     positive `already_upstream` fixture (empty diff, cherry-matched pre-rebase commits,
+     matched task commits recorded), and a negative fixture where a zero-commit branch or an
+     empty pre-rebase patch-id escalates (PIN-16) · check:
      `node --test skills/war/assets/workflow-template.test.mjs`.
   6. The record names each seat as transferred or re-ran, with its SHA (PIN-10) · check:
      `node --test skills/war/assets/workflow-template.test.mjs`.
@@ -233,11 +252,16 @@ Phase 1 (global semaphore, #1897) → Phase 2 (wave-side ace and pin transfer, #
 ### Task 1.2: Doc sweep for the semantics flip
 - Files: `CONTEXT.md`, `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`, `skills/war/references/design.md`, `skills/war/assets/skill-doc-contracts.test.mjs`, `docs/learnings/per-site-fanout-throttle-composes-multiplicatively-across-nested-call-sites.md`, `skills/war/assets/doc-semantics.test.mjs`
 - Plan slice: rewrite the four sweep surfaces to the global-ceiling semantics, each with its
-  decisive OLD token: `CONTEXT.md` Batching helper entry ("slices each fan-out") becomes a
-  Dispatch semaphore entry, `skills/war-room/SKILL.md` knob line ("per fan-out site"), the
-  schemas.md `maxParallel` comment line ("batching helper" — the shape key list row carries no
-  semantics and needs no edit), and `skills/war/references/design.md` §8 ("slices each
-  fan-out"). The rewritten wording is construct-free: it states the contract (one global
+  decisive OLD-token LIST (every stale phrasing on the rewritten line, not one token):
+  `CONTEXT.md` Batching helper entry ("slices each fan-out", "batched()") becomes a Dispatch
+  semaphore entry, `skills/war-room/SKILL.md` knob line ("per fan-out site", "in flight per
+  fan-out", "batching helper"), the schemas.md `maxParallel` comment line ("batching helper" —
+  the shape key list row carries no semantics and needs no edit), and
+  `skills/war/references/design.md` §8 ("slices each fan-out", "batching helper").
+  `doc-semantics.test.mjs` asserts absence of every listed token per path. The NEW wording is
+  scoped to the /war engine: the schemas.md and war-room lines keep one qualifier sentence for
+  the red-team scaffold's own group slicing, which stays a ratified non-goal, and the
+  NEW-present tokens are authored to match this scoping (D5). The rewritten wording is construct-free: it states the contract (one global
   counting semaphore caps agent dispatches in flight) and never names `batched()` or any
   engine-internal helper — and the NEW-present tokens in `doc-semantics.test.mjs` are
   construct-free too, or the test re-imports the coupling this ruling removes. design.md literals
@@ -252,7 +276,7 @@ Phase 1 (global semaphore, #1897) → Phase 2 (wave-side ace and pin transfer, #
   test scopes to THIS task's surfaces only — never `workflow-template.js`, whose rewording
   rides task 1.1's census tests (frozen phase base: 1.1's edits are absent in 1.2's worktree).
   CHANGELOG history and `skills/red-team/SKILL.md` stay untouched (D5, non-goals). Budget
-  clause (PIN-17): `CONTEXT.md` headroom is ~1,460 B at the plan's base — measure at the task
+  clause (PIN-17): `CONTEXT.md` headroom is ~941 B at the merged base d3624aa — measure at the task
   base, evict stale prose first, net growth within headroom, else the pre-ratified ≤ +2,048 B
   cited raise.
 - Done when: `node --test skills/war/assets/doc-semantics.test.mjs`
@@ -271,8 +295,13 @@ Phase 1 (global semaphore, #1897) → Phase 2 (wave-side ace and pin transfer, #
   path (PIN-12). The delta-scale file set comes from `git diff --name-only <preAceTip> <aceSha>`,
   emitted by the ace dispatch that holds git; the existing `files_changed` self-report is a
   cross-check only, and absent, empty, or mismatched routes to the full panel (A3, PIN-18) —
-  no new schema field. Apply the file-level subset rule (D3), over `aceRelPath`-normalised
-  paths, to choose originating-seat-only vs full-panel re-audit;
+  no new schema field. Build the PIN-16 `already_upstream` arm at the merge slot: pre-rebase
+  legs (`git rev-list --count <dispatchBase>..<preRebaseTaskTip>` > 0,
+  `git cherry <integrationTip> <preRebaseTaskTip>` matching every task commit), matched task
+  commits recorded, the arm before the equality test, empty pre-rebase patch-id fails closed;
+  positive and negative fixtures (zero-commit branch escalates). Apply the file-level subset
+  rule (D3), over `aceRelPath`-normalised paths, to choose originating-seat-only vs full-panel
+  re-audit;
   record per seat: transferred or re-ran, at which SHA (PIN-10). At the merge slot, emit
   refiner steps for the patch-equality check (D2); store `reauditedTip` and `rebasedTip` with a
   positive test (PIN-7); mismatch ⇒ in-lock full-panel re-audit for that task only (PIN-1).
@@ -287,7 +316,9 @@ Phase 1 (global semaphore, #1897) → Phase 2 (wave-side ace and pin transfer, #
   ~2,376 B of headroom at the plan's base — measure at the task base, evict stale prose first,
   net growth within headroom, else the pre-ratified ≤ +2,048 B cited raise. Add the
   `**Pin transfer**` glossary entry to `CONTEXT.md` (phase 2, no collision with task 1.2's
-  phase-1 edit). Land the transfer rule's wording in BOTH prompt layers here — the
+  phase-1 edit). `CONTEXT.md` headroom is ~941 B at the merged base d3624aa and task 1.2 spends part
+  of it first — re-measure at this task's base and fund the entry by eviction under the same
+  budget clause. Land the transfer rule's wording in BOTH prompt layers here — the
   dispatched prompts and `agents/war-auditor.md` — one commit (PIN-11). Structure tests for End
   states 3–6 and 9.
 - Done when: `node --test skills/war/assets/workflow-template.test.mjs`
