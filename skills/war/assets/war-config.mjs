@@ -64,8 +64,11 @@ export const DEFAULTS = {
   // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published
   // lessons are lint-scrubbed and ride each phase PR, human-reviewed like code; all presets inherit off).
   memory: { retrieval: true, topK: 10, commitLearnings: false },
-  // hooks.replyStandard: the plugin-shipped Reply Standard hook pair (hooks/reply-standard/ —
-  // card.py on UserPromptSubmit, meter.py on Stop). Default ON. Consumed fail-open by the
+  // hooks.replyStandard: the plugin-shipped Reply Standard hook family (hooks/reply-standard/):
+  // card.py on UserPromptSubmit + meter.py on Stop (main loop), and the WAR-seat pair —
+  // subagent-start.py injects the seat-edition card via SubagentStart additionalContext and
+  // subagent-stop.py meters seats into subagent-meter.log, both matched to
+  // work-audit-refine:war-* agent types. Default ON. Consumed fail-open by the
   // hooks/reply-standard/gate.py wrapper in the project the hook fires in — never by the phase
   // engine, so no workflow-template.js mirror. Only an explicit `false` disables; absent, null
   // hooks block, or an unreadable config all mean on.
