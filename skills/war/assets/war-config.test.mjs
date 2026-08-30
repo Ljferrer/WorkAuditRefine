@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES,
+  DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
@@ -643,6 +643,100 @@ test('memory.commitLearnings non-boolean rejected', () => {
   const r = validate({ memory: { commitLearnings: 1 } })
   assert.equal(r.valid, false)
   assert.match(r.errors.join('\n'), /memory\.commitLearnings must be a boolean/)
+})
+
+// hooks.replyStandard — the Reply Standard hook-pair toggle, consumed by hooks/reply-standard/gate.py
+// (fail-open), never the phase engine. Delete-the-feature: drop the DEFAULTS.hooks block and the
+// default-ON assertion fails; drop the validate() block and the rejection cases fail.
+test('hooks.replyStandard defaults ON, explicit false validates, non-boolean rejected', () => {
+  assert.equal(DEFAULTS.hooks.replyStandard, true, 'Reply Standard hooks are on by default')
+  assert.equal(fillDefaults({}).hooks.replyStandard, true)
+  assert.equal(validate({ hooks: { replyStandard: false } }).valid, true)
+  assert.equal(validate({ hooks: { replyStandard: null } }).valid, true,
+    'null = unset (the overrides.* convention) — the gate reads null as ON, and the validator must not disagree')
+  const r = validate({ hooks: { replyStandard: 'off' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /hooks\.replyStandard must be a boolean/)
+})
+
+// hooks.valeMarkdown — the advisory Vale Markdown-lint toggle, consumed by hooks/vale-md/vale-md.py
+// (self-gated, fail-open), never the phase engine. Delete-the-feature: drop the DEFAULTS entry and
+// the default-ON assertion fails; drop the validate() line and the rejection case fails.
+test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, non-boolean rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeMarkdown, true, 'vale-md hook is on by default')
+  assert.equal(fillDefaults({}).hooks.valeMarkdown, true)
+  assert.equal(validate({ hooks: { valeMarkdown: false } }).valid, true)
+  assert.equal(validate({ hooks: { valeMarkdown: null } }).valid, true,
+    'null = unset (the overrides.* convention) — vale-md.py reads null as ON, and the validator must not disagree')
+  const r = validate({ hooks: { valeMarkdown: 'off' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /hooks\.valeMarkdown must be a boolean/)
+})
+
+// hooks.valeStyle — the vale-md profile selector enum, consumed by hooks/vale-md/vale-md.py
+// (fail-open; subordinate to valeMarkdown). Delete-the-feature: drop the DEFAULTS entry and
+// the default assertion fails; drop the validate() line and the rejection case fails.
+test('hooks.valeStyle defaults workAuditRefine, every VALE_STYLES value validates, null is unset, unknown rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeStyle, 'workAuditRefine', 'the WorkAuditRefine fork is the default profile')
+  assert.equal(fillDefaults({}).hooks.valeStyle, 'workAuditRefine')
+  for (const s of VALE_STYLES) assert.equal(validate({ hooks: { valeStyle: s } }).valid, true, s)
+  assert.equal(validate({ hooks: { valeStyle: null } }).valid, true,
+    'null = unset (the overrides.* convention) — vale-md.py reads null as the default, and the validator must not disagree')
+  const r = validate({ hooks: { valeStyle: 'chicago' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /hooks\.valeStyle must be one of/)
+})
+
+// agents.snipe — /snipe's one-shot seat tier (#1920): defaulted opus/high, validated like
+// redteam when present, explicit null accepted as unset (snipeTier's auditor fallback).
+test('agents.snipe defaults opus/high, validates as a tier, null accepted as unset', () => {
+  assert.deepEqual(DEFAULTS.agents.snipe, { model: 'opus', effort: 'high' }, 'operator-set /snipe default tier')
+  assert.equal(validate({ agents: { snipe: { model: 'haiku', effort: 'low' } } }).valid, true)
+  assert.equal(validate({ agents: { snipe: null } }).valid, true, 'explicit null = unset')
+  const bad = validate({ agents: { snipe: { model: 'gpt', effort: 'high' } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.snipe\.model/)
+  const extra = validate({ agents: { snipe: { model: 'opus', effort: 'high', depth: 'deep' } } })
+  assert.equal(extra.valid, false, 'unknown sub-keys rejected like any tier')
+})
+
+// valeStyle mirror + profile-resolution drift guard: VALE_STYLES is hand-mirrored in
+// hooks/vale-md/vale-md.py STYLES (the land-decision.mjs / workflow-template.js precedent) and
+// divergence is silent in the dangerous direction (a value that validates but is absent from
+// STYLES lints with the wrong ruleset); and a typo'd profile path, BasedOnStyles name, or
+// disabled-rule name ships as a silent lint outage (vale-md.py fails open on a dead profile).
+// Deterministic — no vale binary needed. Both audit seats at 80172df demanded this guard.
+test('valeStyle mirror: vale-md.py STYLES = VALE_STYLES minus custom, and every profile resolves', () => {
+  const testDir = dirname(fileURLToPath(import.meta.url))
+  const hookDir = join(testDir, '..', '..', '..', 'hooks', 'vale-md')
+  const py = readFileSync(join(hookDir, 'vale-md.py'), 'utf8')
+  const start = py.indexOf('STYLES = {')
+  const block = py.slice(start, py.indexOf('}', start))
+  const entries = [...block.matchAll(/"([^"]+)": "([^"]+)"/g)].map(m => [m[1], m[2]])
+  assert.deepEqual(entries.map(e => e[0]).sort(), VALE_STYLES.filter(s => s !== 'custom').sort(),
+    'vale-md.py STYLES keys must equal VALE_STYLES minus custom — change both together')
+  const styleDirs = readdirSync(join(hookDir, 'styles'))
+  for (const [style, ini] of entries) {
+    const text = readFileSync(join(hookDir, ini), 'utf8') // throws if the mapped profile is missing
+    const based = text.match(/^BasedOnStyles = (.+)$/m)
+    assert.ok(based, `${ini} (${style}) declares BasedOnStyles`)
+    for (const name of based[1].split(',').map(s => s.trim())) {
+      assert.ok(styleDirs.includes(name), `${ini}: BasedOnStyles names a real style dir (${name})`)
+    }
+    for (const m of text.matchAll(/^([A-Za-z-]+)\.([A-Za-z-]+) = NO$/gm)) {
+      assert.ok(readFileSync(join(hookDir, 'styles', m[1], m[2] + '.yml'), 'utf8').length > 0,
+        `${ini}: disabled rule ${m[1]}.${m[2]} resolves to a vendored rule file`)
+    }
+  }
+})
+
+test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
+  const rNull = validate({ hooks: null })
+  assert.equal(rNull.valid, false)
+  assert.match(rNull.errors.join('\n'), /hooks must be an object/)
+  const rTypo = validate({ hooks: { replyStandart: true } })
+  assert.equal(rTypo.valid, false)
+  assert.match(rTypo.errors.join('\n'), /hooks\.replyStandart is not a known key/)
 })
 
 // --- Doc-claim drift guard (Task 3.1 / End-state 6): no surface reasserts the retired ------------

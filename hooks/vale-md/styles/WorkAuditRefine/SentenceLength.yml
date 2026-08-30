@@ -1,0 +1,9 @@
+# The card's length rule, at its descriptive-prose limit (25 words). Vale counts per
+# sentence; code fences, inline code, and front matter are excluded by Vale's own
+# Markdown scoping, so this only ever fires on prose.
+extends: occurrence
+message: "Sentence longer than 25 words: split it."
+level: warning
+scope: sentence
+max: 25
+token: \b(\w+)\b

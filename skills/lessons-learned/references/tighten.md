@@ -75,6 +75,12 @@ Five steps, strict order:
      gotcha — a stale active account on a multi-account machine silently drops the PR onto the wrong
      identity), then push and open the PR. Skip every bullet in this step when nothing `[repo]`-marked
      was struck.
+   - **If either `archive` call exits 1** it refused at least one slug on an occupied `archive/`
+     destination (#1924, the count is on stderr). Nothing was overwritten and nothing is half-written.
+     Stop the pass at that point, reconcile each named pair by hand, then re-run the refused slugs.
+     On the **repo** half specifically the local swap has already landed, so do not commit or push a
+     partial move set: the report's before/after byte figures would contradict the strike list. A
+     refused slug is not "struck" — drop it from the report's struck list, or re-run it and re-check.
    - *(Why local-then-repo: `archive`'s prefer-local rule — the fix for the recorded "archiving a dupe's
      local copy frees zero projection bytes" incident — always resolves a slug hot in both roots to its
      local copy; no flag forces the repo copy while a local hot copy survives. A struck `dupe: true`

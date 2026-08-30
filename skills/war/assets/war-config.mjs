@@ -18,6 +18,9 @@ export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
 // 'none' = no steps / not yet scouted. See provisioning Part-B plan.
 export const PROVISION_SOURCES = ['explicit', 'manifest', 'ci', 'onboarding', 'structural', 'none']
+// vale-md profile names (hooks.valeStyle). Hand-mirrored in hooks/vale-md/vale-md.py STYLES
+// (+ 'custom', handled there as the project-side profile) — change both together.
+export const VALE_STYLES = ['house', 'workAuditRefine', 'google', 'microsoftFork', 'writeGood', 'proselint', 'alex', 'readability', 'redhat', 'custom']
 
 export const DEFAULTS = {
   version: 1,
@@ -34,6 +37,11 @@ export const DEFAULTS = {
     // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/high,
     // overridden by thorough/economy. Consumed only when /red-team runs against this repo.
     redteam:  { model: 'opus',   effort: 'high' },
+    // snipe: the model/effort /snipe spawns its one-shot auditor seats at (#1920). NOT a phase
+    // role (never in ROLES/agentMatrix). Ladder at consumption (snipe-args.mjs snipeTier):
+    // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Operator-set
+    // default: opus/high.
+    snipe:    { model: 'opus',   effort: 'high' },
   },
   audit: {
     roster: [
@@ -56,6 +64,26 @@ export const DEFAULTS = {
   // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published
   // lessons are lint-scrubbed and ride each phase PR, human-reviewed like code; all presets inherit off).
   memory: { retrieval: true, topK: 10, commitLearnings: false },
+  // hooks.replyStandard: the plugin-shipped Reply Standard hook family (hooks/reply-standard/):
+  // card.py on UserPromptSubmit + meter.py on Stop (main loop), and the WAR-seat pair —
+  // subagent-start.py injects the seat-edition card via SubagentStart additionalContext and
+  // subagent-stop.py meters seats into subagent-meter.log, both matched to
+  // work-audit-refine:war-* agent types. Default ON. Consumed fail-open by the
+  // hooks/reply-standard/gate.py wrapper in the project the hook fires in — never by the phase
+  // engine, so no workflow-template.js mirror. Only an explicit `false` disables; absent, null
+  // hooks block, or an unreadable config all mean on.
+  // hooks.valeMarkdown: the plugin-shipped advisory Vale Markdown lint (hooks/vale-md/vale-md.py
+  // on PostToolUse Edit|Write, .md files only). Default ON. Self-gated fail-open by the script
+  // itself in the project the hook fires in — never by the phase engine, so no workflow-template.js
+  // mirror. Advisory only (one additionalContext line, never a block); a machine without the vale
+  // binary silently no-ops. Only an explicit `false` disables; absent, null, or unreadable mean on.
+  // hooks.valeStyle: profile selector for the vale-md hook, one of VALE_STYLES. Default
+  // 'workAuditRefine' — the repo's own fork (house rules + a tuned cut of Google);
+  // 'google' is raw upstream Google; the other vendored styles ship in
+  // hooks/vale-md/styles/; 'custom' reads the project-side
+  // .claude/war/vale/.vale.ini written by the /war-room interview (fail-open to the
+  // default when absent). Subordinate to valeMarkdown: when that is false, nothing runs.
+  hooks: { replyStandard: true, valeMarkdown: true, valeStyle: 'workAuditRefine' },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -212,7 +240,10 @@ export function validate(input) {
   // agentMatrix stays four roles). Defaulted in DEFAULTS (balanced opus/high, preset-overridden); a config
   // that omits it still validates and red-team then inherits the session.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam']
+  // agents.snipe — /snipe's one-shot seat tier (#1920), validated like redteam when present and
+  // non-null (explicit null = unset: snipeTier falls back to agents.auditor).
+  if (c.agents.snipe != null) validateAgentTier(c.agents.snipe, 'agents.snipe', errors)
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe']
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }
@@ -248,6 +279,24 @@ export function validate(input) {
     // No accepted-but-ignored keys: an unknown memory key is a config error, not silently kept.
     for (const k of Object.keys(mem)) {
       if (!['retrieval', 'topK', 'commitLearnings'].includes(k)) errors.push(`memory.${k} is not a known key (retrieval|topK|commitLearnings) — run /war-room to regenerate the config`)
+    }
+  }
+
+  // hooks.* — session-level plugin-hook toggles, defaulted in DEFAULTS. Consumed fail-open by
+  // the hook scripts themselves (hooks/reply-standard/gate.py for replyStandard — the Reply
+  // Standard UserPromptSubmit/Stop pair; hooks/vale-md/vale-md.py for valeMarkdown), never by
+  // the phase engine — no workflow-template.js mirror. Unknown keys are courtesy errors (the
+  // memory.* precedent, so a typo never silently runs the default).
+  const hk = c.hooks
+  if (!isObj(hk)) { errors.push('hooks must be an object') }
+  else {
+    // null = unset (the overrides.* convention): the gate reads null as ON — the DEFAULTS value —
+    // so the validator accepts it rather than disagreeing with the key's other consumer.
+    if (hk.replyStandard !== null && typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean or null')
+    if (hk.valeMarkdown !== null && typeof hk.valeMarkdown !== 'boolean') errors.push('hooks.valeMarkdown must be a boolean or null')
+    if (hk.valeStyle !== null && !VALE_STYLES.includes(hk.valeStyle)) errors.push(`hooks.valeStyle must be one of ${VALE_STYLES.join('|')} or null`)
+    for (const k of Object.keys(hk)) {
+      if (!['replyStandard', 'valeMarkdown', 'valeStyle'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown|valeStyle) — run /war-room to regenerate the config`)
     }
   }
 

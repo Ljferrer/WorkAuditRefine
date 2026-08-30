@@ -103,6 +103,27 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
   slugs, so the old noun would be false. Advisory, non-blocking, exit 0: unchanged. The quote in item 2
   stands as the historical record (superseded, never rewritten).
 
+- **2026-08-29 — the archive mover fails closed on an occupied `archive/` destination (#1924).** The
+  rejected option below ("Add an `rm`-blocker or delete verb to `war-memory` — nothing to guard")
+  rested on a premise that was false in the code: the pipeline *did* delete. `fs.renameSync` replaces
+  its destination, and the repo arm's `git mv` (no `-f`) refuses an occupied destination and falls
+  through to that same rename, so archiving a slug already present in `archive/` destroyed the
+  archived copy and still printed the ordinary `archived <slug> → <dst>` success line. Observed once
+  in a live `/lessons-learned tighten` pass on 2026-08-29, caught only by hand-reconciling file
+  counts. The rejected option's *conclusion* stands — no delete verb was added — but its rationale is
+  superseded: what needed guarding was the **move**, not an `rm`. As of #1924 both archiving verbs
+  route through one mover, `archiveRecord`, which tests the destination **before** appending the
+  archive note, so a refused record keeps its hot file byte-intact. This gives `archive` its **first
+  non-zero exit route**: a refused slug is skipped, both paths are named on stderr, the rest of the
+  batch still moves, the projection is still re-rendered, and the verb then exits **1** with a count.
+  `migrate --apply` carries the identical contract (ADR 0031 — the guard covers the equivalence
+  class, not the instance that bit us), and additionally now appends the same archive note its
+  sibling always did. The hub WARN is untouched: advisory, non-blocking, exit 0. The collision is
+  **same-root** by construction — `archiveRecord` scopes the destination to the record's own root, so
+  the cross-root `supersedes_repo_copy` shape (hot in one root, cold in the other) never collides.
+  Callers: `skills/lessons-learned/SKILL.md` Phase 5 and `references/tighten.md` Execute step 4 now
+  document the refusal route.
+
 ## References
 
 - Design spec:

@@ -60,6 +60,21 @@ const FILE_BUDGETS = {
   // Phase-1 placeholder values exactly — computed hard does not exceed the placeholder,
   // so no flag).
   'CLAUDE.md': { hard: 16384, advisory: 14336 },
+  // Reply Standard seat cards (0.21.6): injected via SubagentStart additionalContext into
+  // EVERY work-audit-refine:war-* spawn — a prompt-bearing surface with wider reach than any
+  // single agent card, so the five files join the census. Tiny-file deviation from the pure
+  // ×1.25/×1.10 ceil-KB formula: rounding would collapse hard and advisory onto one KB step,
+  // and checkBudget requires advisory < hard, so advisory takes the 0.75×hard step instead.
+  // post-shrink 1,009 B @ d959346 → hard ×1.25 ceil-KB = 2048; advisory pinned below at 1536
+  'hooks/reply-standard/subagent-card.md': { hard: 2048, advisory: 1536 },
+  // post-shrink 269 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
+  'hooks/reply-standard/subagent-card.war-auditor.md': { hard: 1024, advisory: 768 },
+  // post-shrink 318 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
+  'hooks/reply-standard/subagent-card.war-refiner.md': { hard: 1024, advisory: 768 },
+  // post-shrink 304 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
+  'hooks/reply-standard/subagent-card.war-servitor.md': { hard: 1024, advisory: 768 },
+  // post-shrink 325 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
+  'hooks/reply-standard/subagent-card.war-worker.md': { hard: 1024, advisory: 768 },
 };
 
 // The prompt-literal share of workflow-template.js — measured by the PINNED extraction
@@ -203,7 +218,13 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
     .filter((f) => f.endsWith('.md'))
     .map((f) => `agents/${f}`);
   assert.ok(agentCards.length > 0, 'non-vacuity: no agents/*.md cards discovered');
-  const expected = [...EXPECTED_NON_AGENT_SURFACES, ...agentCards].sort();
+  // Seat cards are discovered live too (same default-deny posture): a sixth
+  // subagent-card*.md cannot land unbudgeted, and a removed one reds the census.
+  const seatCards = readdirSync(join(repoRoot, 'hooks', 'reply-standard'))
+    .filter((f) => f.startsWith('subagent-card') && f.endsWith('.md'))
+    .map((f) => `hooks/reply-standard/${f}`);
+  assert.ok(seatCards.length > 0, 'non-vacuity: no subagent-card*.md seat cards discovered');
+  const expected = [...EXPECTED_NON_AGENT_SURFACES, ...agentCards, ...seatCards].sort();
   const actual = Object.keys(FILE_BUDGETS).sort();
   assert.deepEqual(
     actual,

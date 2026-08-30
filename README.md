@@ -4,6 +4,21 @@
 
 It's a portable, dependency-free re-imagining of [Steve Yegge's Gas Town](https://github.com/gastownhall/gastown), built on Claude Code's own primitives — `Agent`, the `Workflow` tool, git worktrees, and GitHub issues — with **no Go binary, no Dolt, no beads**. WAR keeps Gas Town's worker / auditor / refinery roles, **absorbs the witness's live coordination into the Workflow itself**, and adds a **servitor** that records each phase's learnings.
 
+## TL;DR
+
+Sixty seconds, five commands:
+
+```
+/snipe                                 # quick audit of your current branch — 1 read-only seat, lens picked for the diff
+/snipe 3 correctness,security,auto     # 3 seats: two pinned lenses + one Lead-picked
+```
+
+- **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#quick-audit-snipe)), verdicts reported straight in chat. No plan, no worktrees, no side effects — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
+- **The real thing** — `/war-strategy` interviews you into a merged plan, `/red-team` adversarially proves it, `/war <plan>` executes it with fresh workers, independent auditors, and a serial merge queue, checking in at every phase boundary. The first two stand alone, too: a `/war-strategy` plan is a complete, evidence-tagged decision record any agent (or human) can implement — you don't have to run a full war to get value from the interview.
+- **Overnight** — `/war-campaign` queues plans and plows them into stacked PRs while you sleep; `/aftermath` sweeps up after the merge.
+- **Tuning** — `/war-room` writes the run config (models, effort, audit roster); `/lessons-learned` keeps the compounding memory honest.
+- **Lost?** — `/war-help` prints the orientation card.
+
 ## Why WAR
 
 Multi-agent parallelism is table stakes now. WAR's bet is different: **verification discipline you can reproduce.**
@@ -68,7 +83,7 @@ Other plugins run happily alongside WAR — no part of the pipeline depends on t
 
 ## Usage
 
-The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
+The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest. Standing apart from the pipeline: **`/snipe`**, the one-shot quick audit you can fire at any moment, no plan required.
 
 ### Get oriented (`/war-help`)
 
@@ -81,6 +96,34 @@ New to WAR, or just want a refresher? Run the orientation card:
 It prints a one-screen map — what WAR is, the command set, the five roles, how a run flows, and the
 prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Doctrine:
 [`skills/war-help/SKILL.md`](skills/war-help/SKILL.md).
+
+### Quick audit (`/snipe`)
+
+The lightest skill in the plugin: convene 1–5 of WAR's own read-only auditor seats against whatever you have right now, get their verdicts in chat, done. No plan, no worktrees, no merge queue, no filing — the audit machinery alone, on demand.
+
+```
+/snipe [<target>] [<seats 1-5>] [<lens[,lens...]>]
+```
+
+```
+/snipe                                  # 1 seat, lens picked by the Lead for the diff's shape
+/snipe 3                                # 3 seats, all Lead-picked
+/snipe correctness,security             # exactly those 2 seats
+/snipe 3 correctness,auto               # 3 seats: correctness pinned + 2 Lead-picked
+/snipe origin/master..HEAD 2 security   # explicit range, 2 seats, security pinned + 1 Lead-picked
+```
+
+**Arguments** (both trailing, order-tolerant — anything before them is the target):
+
+- **Seat count** — a trailing integer `1`–`5`; default `1`. Effective seats = `min(5, max(integer, lens tokens, 1))` — a lens list longer than the integer wins.
+- **Lenses** — trailing comma-separated list; `auto` entries are seats whose lens the Lead picks itself, with a one-line rationale each. Default all-`auto`. Duplicate lenses and the reserved built-ins (`execution-evidence`, `pin-validity`) are refused. A bare single word counts as a lens only when it's `auto` or a catalog lens — `master` is a target, `correctness` is a lens.
+- **Target** — a ref range, PR number, or path list. Default: the current branch against its merge-base with the default branch. A dirty working tree (with no explicit target) is audited as-is and the whole report is marked **advisory** — there's no stable SHA to pin.
+
+**Seats** spawn in parallel as the same read-only `war-auditor` agents a phase convenes — standing card, `agent_type` guard confinement, severity + disposition vocabulary — always at `deep` depth, at the model/effort from your run config: `agents.snipe` (default `opus`/`high`), falling back to `agents.auditor` on an explicit `null`. Override it via `/war-room` or by hand in `.claude/war/config.json`.
+
+**The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. `/snipe` never fixes, never files; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
+
+Never auto-invoked. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
 
 ### Configure a run (`/war-room`)
 
@@ -315,6 +358,32 @@ WAR runs on the generally-available `Workflow` + `Agent` tools — **not** Claud
 
 Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or interactive coordination → Teams.** Full rationale: [design.md §2](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature).
 
+## Reply Standard hooks
+
+The plugin ships a family of output-discipline hooks (`hooks/reply-standard/`). The core pair — `card.py`, `meter.py`, and `card.md` — was created by [@kem_glitch](https://www.instagram.com/kem_glitch) on Instagram ([original Claude artifact](https://claude.ai/code/artifact/7e14d97c-7d12-421e-ad68-1f1f4c22b954)) and those three files are included byte-for-byte per their instructions; the seat pair and the gate wrappers are WAR-authored:
+
+- `card.py` (`UserPromptSubmit`) prints the Reply Standard card (`card.md`) beside each prompt you submit — the whole card, the Shape half, or one line, routed deterministically by the prompt's shape — and opens by naming the previous reply's violations when the meter recorded any.
+- `meter.py` (`Stop`) scores each finished main-loop reply with SimpleEnglish's STE counters ([AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish), MIT) plus two house counts, appending one JSON row per turn to `meter.log` beside the script. It never blocks.
+
+The card and meter above fire in the main conversation only — `UserPromptSubmit` does not fire for a subagent's spawn prompt, and a subagent's turn-end is `SubagentStop`, not `Stop`. WAR's phase seats get their own pair instead: a `SubagentStart` hook hands each spawning `work-audit-refine:war-*` agent the **seat edition** of the card (`subagent-card.md` — the Prose half plus an exactness-overrides-style clause; the main-loop Shape rules are dropped because they fight WAR contracts) via the documented `additionalContext` JSON output. Each seat also receives a role addendum when `subagent-card.war-<role>.md` exists — worker, auditor, refiner, and servitor ship one — and a `SubagentStop` hook scores the seat's final reply into `subagent-meter.log` with `agent_type` attribution, reusing `meter.py`'s counters byte-for-byte. Separate log, so the main-loop feedback prefix never quotes a seat row. The WAR **Lead** does run in the main conversation, so the gate also skips the card for any prompt whose first token is a WAR command (`/war`, the `/war-*` family, `/red-team`, `/survey-corps`, `/aftermath`, `/lessons-learned`) — orchestration turns are never style-pressured; the meter still scores them.
+
+**Toggle:** on by default; a thin gate wrapper (`gate.py`) in front of the byte-for-byte scripts reads the WAR run config of the project the session runs in, so `{"hooks": {"replyStandard": false}}` in `.claude/war/config.json` turns the whole family off. The read is fail-open (no config, or an unreadable one, means on), and `/war-room` can write the key like any other override.
+
+**Requires `python3` on `PATH`** — Python is used only by these plugin hooks (this family and the Vale hook below). Without it, a shell shim (`gate.sh`) makes both hooks silent no-ops instead of a hook error on every prompt and stop, mirroring how the memory features no-op on older Node.
+
+**Log location (know before you rely on the loop):** the scripts write `card.log`/`meter.log` (and the seat meter `subagent-meter.log`) beside themselves — in the plugin install directory. Three consequences: the logs are shared across every project and concurrent session (the "previous reply broke the standard" prefix can be sourced from a different session), they grow unbounded and `card.py` re-reads `meter.log` whole on every prompt, and the path is version-scoped so each plugin update starts them fresh. Changing this needs an upstream log-dir override, not an edit here.
+
+### Vale Markdown lint (`hooks/vale-md/`)
+
+The same simplification aim, carried onto Markdown surfaces — and unlike the card/meter pair, this one reaches WAR's phase subagents: `PostToolUse` fires inside subagents, so a worker editing a plan, doc, or skill sees the same advisory line the operator would.
+
+- `vale-md.py` (`PostToolUse` on `Edit`/`Write`, harness-filtered to `.md` paths by per-handler `if` rules so non-Markdown edits never spawn a process) runs [Vale](https://vale.sh) over the edited file when its path ends in `.md`, using a self-contained profile beside the script, chosen by `hooks.valeStyle` (default `workAuditRefine`); every style is vendored in the plugin, so no synced packages and no network at lint time. When Vale reports findings, the hook returns one `additionalContext` line naming the count and the top three rules. It never blocks, and the line itself cautions the agent never to reword ratified, byte-pinned, or drift-guarded literals to satisfy a style rule.
+- The house rules are the Reply Standard card's, recast for docs: `SentenceLength` (over 25 words), `SlopWords`, `LatinAbbrev`, and `Dashes` (shipped but disabled in every profile that carries the house rules — em dashes are this repo's own house style).
+
+**Toggle:** on by default; `{"hooks": {"valeMarkdown": false}}` in `.claude/war/config.json` turns it off, read fail-open by the script itself (`null` = unset, the default applies). **Requires the `vale` binary** (`brew install vale`) — without it, or without `python3`, the hook is a silent no-op.
+
+**Styles (`hooks.valeStyle`):** nine profiles ship vendored — `workAuditRefine` (the default: this repo's own fork, the four house rules plus a tuned cut of the Google style — sixteen Google rules disabled: thirteen that judged entrenched repo voice in the prototype sweep, plus `Google.Spelling` since the card mandates British, `Google.Latin` as a house twin, and `Google.WordList`, a substitution list that fires on ratified vocabulary like "CLI"), `google` (raw upstream Google, untouched), `microsoftFork` (house rules plus a Microsoft Writing Style Guide cut tuned on the same rationale — including `Microsoft.Contractions`, which recommends the contractions the card bans), `house` (the four house rules alone), and `writeGood`, `proselint`, `alex`, `readability`, `redhat` (house rules plus that package, near-stock). Each vendored-standard profile header pins its upstream source, version, and license (`styles/<Name>/LICENSE`). A tenth value, `custom`, reads the project's own `.claude/war/vale/.vale.ini` (written by the `/war-room` interview) and fail-opens to `workAuditRefine` when absent. Unknown values also mean the default; subordinate to `valeMarkdown` — when that is `false`, nothing runs.
+
 ## Releasing
 
 A version bump **must** update all four version slots across three files together (`marketplace.json` carries two) — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):
@@ -361,12 +430,7 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.0** — in-run finding resolution (plan `2026-08-27-in-run-finding-resolution`): a mechanical, fully-specified finding identified during a run is now fixed during that run instead of demoting to a filed `war-followup` issue — findings born at a re-audit re-enter the ace ladder as another ace-style batch on the existing machinery while `fixRounds < roundLimit − 2` (the floor-retry reserve is the sole re-entry bound; a forward-reverted finding never re-enters; reserve-blocked or spent routes `phaseClose: true` to the sweep, sweep-discard demotes to follow-up, every demotion on that ladder logged), and the auditor disposition doctrine widens on both prompt layers (the dispatched DISPOSITION block and the standing `disposition-eligibility.md`): a re-audit-born mechanical finding defaults `absorb`, a new-test addition in a task-owned test file is ace-eligible, and a fully-specified fix with a nameable trade-off routes `ask`. Retired by this run: the four enhancement issues (#1731, #1838, #1845, #1846), the four ask-machinery folds (#1810, #1789, #1790, #1813), and the #1812 boundary-prose cascade its doc-mirror slice closes — nine issues. Release scope: 0.21.0 lands on 0.20.1; 0.20.2 (the balanced-profile retune) landed independently on master mid-run and is absorbed by this branch's merge of master — see the 0.20.2 changelog entry. The 0.20.1 → 0.21.0 window carries this plan's engine, fixture, and prompt-layer work plus its own plan, red-team report, and phase-1 `docs(learnings)` commit; the window also absorbed unbumped docs-only ride-alongs from the surrounding campaign — the two 2026-08-25 survey-corps design specs and their converted plans (`authoring-doctrine-and-lint-coherence`, `doc-truth-and-drift-guard-debt`, the latter including its fold-batch-2 amendment merged with this plan's own plan file in PR #1849), the survey-debt campaign roadmap Rev 2, that campaign's round-1 red-team report mirror, the prior plan's `docs(learnings): phase 9` commit, and #1844's correction to the 0.20.1 blurb — and no code change rode along unbumped; the plan's doc-mirror slice (the ADR 0013 amendment, #1812's boundary-prose homes, the CONTEXT.md glossary terms, the war-review telemetry row, and the SKILL.md Checkpoint ruled-ask-execution prose) landed **after** this bump commit but inside the same window, as phase 3 — the re-run of the slice a recovery derive-and-skip defect (#1895) had silently skipped and falsely recorded as merged — so #1812 closes with this release; that phase also byte-funded the SKILL.md card by evicting the Run-manifest per-stamp field detail to `references/run-manifest.md` (ADR 0042).
-
-- **Budget-bounded re-entry (#1731)** — a fresh `absorb` born at any re-audit (plain approve-branch, bisection-subset, or a re-entry batch's own re-audit) dispatches another ace-style batch on the same machinery — same eligibility, same `Ace-Subset` trailer discipline, same tip-preflight idempotency, same forward-revert posture — behind a new `fixRounds < roundLimit − 2` re-entry gate (the existing batch-ace `< roundLimit` gate deliberately untouched); reserve-blocked or spent routes the finding `phaseClose: true` to the phase-close sweep rather than `minorsFiled`, the oscillation bound holds (a forward-reverted finding never re-enters), and fixtures close both `aced` ∩ `minorsFiled` directions and the drain-time re-entry window.
-- **Ask channel: widened routing + absorb-by-citation (#1838, #1845, #1846)** — the three disposition widenings land on both prompt layers in the same commits; a parked ask matching a standing adjudication row resolves to an executed absorb under `--afk` only, with row-id + one-line match rationale stamped into the ace commit message and the `aced` record and the re-audit panel explicitly charged with citation soundness (unsound ⇒ blocking, batch reverts, finding demotes naming the mismatch); interactively the citation-matched ask stays parked and surfaces on the Checkpoint strike list with a `citationPrefill` (matched row, rationale, recommended ruling) — never auto-unparked past a present operator; both modes write the aced record's citation stamp (the `/war-review` telemetry channel); the final-phase polish-style ruled-ask dispatch arm is fixture-proven (`ruled-ask-absorb`).
-- **Ask-machinery folds (#1810, #1789, #1790, #1813)** — cross-round ask/finding identity moves from object identity to a content key floored on the property (stable across rounds for the same finding, distinct same-task findings never collapse — fixtures assert both directions); the three structurally identical ask-drop guards each merge a content-dedup collision as corroboration or log it — never silent (one parametrized fixture over the three sites plus a no-silent-discard negative control); lens extraction keys on the family prefix — a seat label whose first segment is `gate-audit` yields `execution-evidence`, with the `:rebut` strip retained and a wrong-yield negative control — on both the dispatched filing clause and `file-followups.md`; `aceGroups()` and the `Ace-Subset` trailer key on normalized paths, so a `./`-form and bare-form pair of the same file lands in one subset.
-- **Phase-2 hardening (#1879)** — citation self-resolution gated to `--afk` per D6 (interactive matches surface with a pre-filled ruling); `ruledAsks` joins the args-provenance floor with required source coordinates; ruled-ask recovery seeds S1–S3, intake-ordering and container-loudness absorb fixes, and mode-split fixture repairs.
+**0.21.6** — Reply Standard reaches the WAR seats: two new hooks under `hooks/reply-standard/` extend the family to subagents, matched to `work-audit-refine:war-*` agent types only. `subagent-start.py` (`SubagentStart`) hands each spawning seat the **seat edition** of the card (`subagent-card.md` — the Prose half plus an exactness-overrides-style clause; the main-loop Shape rules are deliberately dropped because they fight WAR result contracts), extended per seat by a role addendum (`subagent-card.war-<role>.md` — worker report shape, auditor finding discipline, refiner terseness, servitor description caps; an unknown role gets the blanket card alone) via the documented `additionalContext` JSON output; `subagent-stop.py` (`SubagentStop`) scores the seat's `last_assistant_message` into `subagent-meter.log` with `agent_type`/`agent_id` attribution, reusing `meter.py`'s counters byte-for-byte by exec-ing its definitions — the upstream byte-for-byte files stay untouched, and the separate log keeps the main-loop feedback prefix free of seat rows. Both route through the existing `gate.sh` python3 shim and `gate.py` fail-open toggle, so the one `hooks.replyStandard` key now governs the whole family (doc rows updated on the README section, `war-config.mjs` comment, `/war-room` override list, and schemas.md). Motivation: the operator's five-question benchmark showed the style cut words, tokens, and time on 4 of 5 measures; the seat meter exists to test that transfer on real runs. Gate suite grows to 30 cases. Beyond the two hook files, the seat card and its role addenda, the gate.test.sh cases, the hooks.json registrations, the named doc rows, and the version slots, no engine, guard, skill, or agent surface changed in this window.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 

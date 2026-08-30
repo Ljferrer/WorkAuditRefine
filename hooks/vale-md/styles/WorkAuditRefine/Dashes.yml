@@ -1,0 +1,10 @@
+# The card's dash rule ("Commas, colons or brackets in place of dashes"). Shipped but
+# disabled in .vale.ini — this repo's docs use em dashes as house style. Enable per project.
+extends: existence
+message: "Dash: use a comma, colon, or brackets instead."
+level: suggestion
+nonword: true
+tokens:
+  - '—'
+  - '–'
+  - ' -- '
