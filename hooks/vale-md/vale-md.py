@@ -6,7 +6,7 @@ name only one tool), so non-Markdown edits never spawn a process at all; the
 extension check below is the in-script backstop. Lints only `.md` files, with a
 self-contained profile beside this script — `.vale-google.ini` (house rules +
 the vendored, tuned Google style) by default, `.vale.ini` (house rules only)
-when `hooks.valeGoogle` is false; no remote packages, no network, no
+when `hooks.valeGoogleFork` is false; no remote packages, no network, no
 `vale sync` either way. Advisory only: it never blocks and
 always exits 0. When Vale reports findings, the hook returns one
 `additionalContext` line so the editing agent sees the count and the top rules.
@@ -18,7 +18,7 @@ skills see the same advisory line.
 Toggles in the project's `.claude/war/config.json`, both fail-open (no config,
 unreadable JSON, a malformed `hooks` block, or `null` all mean the default):
 `hooks.valeMarkdown` (default on — only an explicit `false` disables) and
-`hooks.valeGoogle` (default on — only an explicit `false` swaps the profile
+`hooks.valeGoogleFork` (default on — only an explicit `false` swaps the profile
 from `.vale-google.ini` back to the house-only `.vale.ini`). A missing `vale` binary, a non-Markdown
 path, unreadable stdin, or a Vale failure each mean a silent exit 0.
 """
@@ -36,7 +36,7 @@ def profile():
     """The Vale config for this run, or None when the hook is toggled off.
 
     hooks.valeMarkdown (default ON): only an explicit false disables.
-    hooks.valeGoogle (default ON): only an explicit false swaps the default
+    hooks.valeGoogleFork (default ON): only an explicit false swaps the default
     house + vendored-Google profile (.vale-google.ini) back to the house-only
     profile (.vale.ini). Both reads are fail-open.
     """
@@ -50,7 +50,7 @@ def profile():
         pass
     if hooks.get("valeMarkdown") is False:
         return None
-    if hooks.get("valeGoogle") is False:
+    if hooks.get("valeGoogleFork") is False:
         return HERE / ".vale.ini"
     return HERE / ".vale-google.ini"
 

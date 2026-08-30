@@ -71,12 +71,12 @@ export const DEFAULTS = {
   // itself in the project the hook fires in — never by the phase engine, so no workflow-template.js
   // mirror. Advisory only (one additionalContext line, never a block); a machine without the vale
   // binary silently no-ops. Only an explicit `false` disables; absent, null, or unreadable mean on.
-  // hooks.valeGoogle: profile selector for the vale-md hook. Default ON — .vale-google.ini,
+  // hooks.valeGoogleFork: profile selector for the vale-md hook. Default ON — .vale-google.ini,
   // the house rules plus the vendored, tuned Google developer-documentation style
   // (styles/Google, errata-ai/Google v0.7.1, MIT); an explicit `false` swaps back to the
   // house-only .vale.ini. Subordinate to valeMarkdown: when that is false, nothing runs
   // regardless of this key.
-  hooks: { replyStandard: true, valeMarkdown: true, valeGoogle: true },
+  hooks: { replyStandard: true, valeMarkdown: true, valeGoogleFork: true },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -287,9 +287,9 @@ export function validate(input) {
     // so the validator accepts it rather than disagreeing with the key's other consumer.
     if (hk.replyStandard !== null && typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean or null')
     if (hk.valeMarkdown !== null && typeof hk.valeMarkdown !== 'boolean') errors.push('hooks.valeMarkdown must be a boolean or null')
-    if (hk.valeGoogle !== null && typeof hk.valeGoogle !== 'boolean') errors.push('hooks.valeGoogle must be a boolean or null')
+    if (hk.valeGoogleFork !== null && typeof hk.valeGoogleFork !== 'boolean') errors.push('hooks.valeGoogleFork must be a boolean or null')
     for (const k of Object.keys(hk)) {
-      if (!['replyStandard', 'valeMarkdown', 'valeGoogle'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown|valeGoogle) — run /war-room to regenerate the config`)
+      if (!['replyStandard', 'valeMarkdown', 'valeGoogleFork'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown|valeGoogleFork) — run /war-room to regenerate the config`)
     }
   }
 

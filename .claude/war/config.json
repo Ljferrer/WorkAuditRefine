@@ -73,7 +73,7 @@
   "hooks": {
     "replyStandard": true,
     "valeMarkdown": true,
-    "valeGoogle": true
+    "valeGoogleFork": true
   },
   "overrides": {
     "gate": null,

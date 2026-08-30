@@ -673,18 +673,18 @@ test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, n
   assert.match(r.errors.join('\n'), /hooks\.valeMarkdown must be a boolean/)
 })
 
-// hooks.valeGoogle — the vale-md profile selector, consumed by hooks/vale-md/vale-md.py
+// hooks.valeGoogleFork — the vale-md profile selector, consumed by hooks/vale-md/vale-md.py
 // (fail-open; subordinate to valeMarkdown). Delete-the-feature: drop the DEFAULTS entry and
 // the default-ON assertion fails; drop the validate() line and the rejection case fails.
-test('hooks.valeGoogle defaults ON, explicit false validates, null is unset, non-boolean rejected', () => {
-  assert.equal(DEFAULTS.hooks.valeGoogle, true, 'the Google profile is the default')
-  assert.equal(fillDefaults({}).hooks.valeGoogle, true)
-  assert.equal(validate({ hooks: { valeGoogle: false } }).valid, true)
-  assert.equal(validate({ hooks: { valeGoogle: null } }).valid, true,
+test('hooks.valeGoogleFork defaults ON, explicit false validates, null is unset, non-boolean rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeGoogleFork, true, 'the Google profile is the default')
+  assert.equal(fillDefaults({}).hooks.valeGoogleFork, true)
+  assert.equal(validate({ hooks: { valeGoogleFork: false } }).valid, true)
+  assert.equal(validate({ hooks: { valeGoogleFork: null } }).valid, true,
     'null = unset (the overrides.* convention) — vale-md.py reads null as the default (on), and the validator must not disagree')
-  const r = validate({ hooks: { valeGoogle: 'on' } })
+  const r = validate({ hooks: { valeGoogleFork: 'on' } })
   assert.equal(r.valid, false)
-  assert.match(r.errors.join('\n'), /hooks\.valeGoogle must be a boolean/)
+  assert.match(r.errors.join('\n'), /hooks\.valeGoogleFork must be a boolean/)
 })
 
 // agents.snipe — /snipe's one-shot seat tier (#1920): defaulted opus/high, validated like

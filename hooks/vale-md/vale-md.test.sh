@@ -97,29 +97,29 @@ if [ -x "$HERE/vale-md.sh" ]; then pass 'case8 repo shim is executable'; else fa
 HJ="$HERE/../hooks.json"
 if grep -Fq 'Edit(**/*.md)' "$HJ" && grep -Fq 'Write(**/*.md)' "$HJ"; then pass 'case9 hooks.json carries both if filters'; else fail 'case9 hooks.json carries both if filters'; fi
 
-# Case 10: hooks.valeGoogle true — vale runs with the house+Google profile.
-printf '{"hooks":{"valeGoogle":true}}' > "$PROJ/.claude/war/config.json"
+# Case 10: hooks.valeGoogleFork true — vale runs with the house+Google profile.
+printf '{"hooks":{"valeGoogleFork":true}}' > "$PROJ/.claude/war/config.json"
 rm -f "$STUB_ARGS"
 out="$(run_hook "$DOC")"
-if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case10 valeGoogle true: google profile selected'; else fail 'case10 valeGoogle true: google profile selected'; fi
+if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case10 valeGoogleFork true: google profile selected'; else fail 'case10 valeGoogleFork true: google profile selected'; fi
 
-# Case 11: valeGoogle true but valeMarkdown false — the master toggle wins, silent.
-printf '{"hooks":{"valeMarkdown":false,"valeGoogle":true}}' > "$PROJ/.claude/war/config.json"
+# Case 11: valeGoogleFork true but valeMarkdown false — the master toggle wins, silent.
+printf '{"hooks":{"valeMarkdown":false,"valeGoogleFork":true}}' > "$PROJ/.claude/war/config.json"
 rm -f "$STUB_ARGS"
 out="$(run_hook "$DOC")"; rc=$?
-if [ -z "$out" ] && [ "$rc" -eq 0 ] && [ ! -e "$STUB_ARGS" ]; then pass 'case11 valeMarkdown false beats valeGoogle true'; else fail "case11 valeMarkdown false beats valeGoogle true (rc=$rc out=$out)"; fi
+if [ -z "$out" ] && [ "$rc" -eq 0 ] && [ ! -e "$STUB_ARGS" ]; then pass 'case11 valeMarkdown false beats valeGoogleFork true'; else fail "case11 valeMarkdown false beats valeGoogleFork true (rc=$rc out=$out)"; fi
 
-# Case 12: valeGoogle false — the house-only profile is selected.
-printf '{"hooks":{"valeGoogle":false}}' > "$PROJ/.claude/war/config.json"
+# Case 12: valeGoogleFork false — the house-only profile is selected.
+printf '{"hooks":{"valeGoogleFork":false}}' > "$PROJ/.claude/war/config.json"
 rm -f "$STUB_ARGS"
 out="$(run_hook "$DOC")"
-if grep -q '\.vale\.ini' "$STUB_ARGS" 2>/dev/null && ! grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case12 valeGoogle false: house profile'; else fail 'case12 valeGoogle false: house profile'; fi
+if grep -q '\.vale\.ini' "$STUB_ARGS" 2>/dev/null && ! grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case12 valeGoogleFork false: house profile'; else fail 'case12 valeGoogleFork false: house profile'; fi
 
-# Case 13: valeGoogle null — unset means the default (google profile).
-printf '{"hooks":{"valeGoogle":null}}' > "$PROJ/.claude/war/config.json"
+# Case 13: valeGoogleFork null — unset means the default (google profile).
+printf '{"hooks":{"valeGoogleFork":null}}' > "$PROJ/.claude/war/config.json"
 rm -f "$STUB_ARGS"
 out="$(run_hook "$DOC")"
-if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case13 valeGoogle null: default google profile'; else fail 'case13 valeGoogle null: default google profile'; fi
+if grep -Fq '.vale-google.ini' "$STUB_ARGS" 2>/dev/null; then pass 'case13 valeGoogleFork null: default google profile'; else fail 'case13 valeGoogleFork null: default google profile'; fi
 rm -f "$PROJ/.claude/war/config.json"
 
 # Case 14: zero findings — silent, exit 0.
