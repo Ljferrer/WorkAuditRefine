@@ -35,11 +35,39 @@ const fakeParallel = async (thunks) => Promise.all(thunks.map((t) => t()))
 
 // agentImpl(prompt, opts) returns the role's result. Defaults: worker implemented, auditor approve,
 // refiner merged/landed, servitor a result — so the in-flow land + wrap-up both fire.
-async function runPhase(args, agentImpl) {
+// #1913 seat defaults. The wave-side ace tip's PIN-12 gate check (dispatchKind 'ace-gate') and the
+// merge slot's pin-transfer probe (dispatchKind 'pin-transfer') are refiner seats with their OWN
+// schemas, so the many fixtures that answer "any Refine-phase refiner" with a MergeResult would feed
+// them a shape they cannot read. The harness normalizes ONLY non-conforming answers: a fixture that
+// returns a conforming shape drives the seat exactly as it wrote it, and every other fixture gets the
+// neutral default — a green ace gate, and a fail-open pin-transfer probe whose ordinary merge dispatch
+// then runs unchanged. PIN_TRANSFER's status enum is mirrored here; the drift-guard test below pins it.
+const PIN_TRANSFER_STATUSES = ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error']
+const NEW_SEAT_DEFAULTS = {
+  // A green gate at the ace tip, and a fail-open pin-transfer probe whose caller then runs the
+  // ordinary merge dispatch unchanged — so every pre-#1913 fixture behaves exactly as it did.
+  'ace-gate': { gate_green: true },
+  'pin-transfer': { status: 'error' },
+}
+// runPhase(args, agentImpl, seats): `seats` drives the two #1913 refiner seats — a value, or a
+// (prompt, opts) function. They are answered from `seats`, never from agentImpl, precisely because the
+// existing fixtures answer "any Refine-phase refiner" with a MergeResult (several by COUNTING merge
+// calls); routing the new seats through them would feed a shape they cannot read and consume their
+// counters. The dispatches are still recorded in `calls`, so ordering and prompt assertions see them.
+const answerNewSeat = (seats, prompt, opts) => {
+  const o = seats[opts.dispatchKind]
+  return typeof o === 'function' ? o(prompt, opts) : (o ?? NEW_SEAT_DEFAULTS[opts.dispatchKind])
+}
+
+async function runPhase(args, agentImpl, seats = {}) {
   const calls = []
   const logs = []
   const fn = build()
-  const agent = async (prompt, opts = {}) => { calls.push({ prompt, opts }); return agentImpl(prompt, opts) }
+  const agent = async (prompt, opts = {}) => {
+    calls.push({ prompt, opts })
+    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer') return answerNewSeat(seats, prompt, opts)
+    return agentImpl(prompt, opts)
+  }
   const log = (m) => logs.push(m)
   const out = await fn(agent, fakeParallel, async () => [], log, () => {}, args, { total: null })
   return { out, calls, logs }
@@ -437,8 +465,15 @@ test('empty phase returns the augmented shape and the NAMED no-merge hold', asyn
 const isProvisionTopology = (c) =>
   c.opts.phase === 'Provision' && seatOf(c.opts) === 'war-refiner' &&
   !/^provision-run:/.test(c.opts.label || '')
+// A merge-task dispatch is a Refine-phase refiner seat that is NOT one of the phase's other
+// Refine-phase refiner dispatches: the post-merge evidence seat, the phase-close polish worktree, and
+// the #1913 pin-transfer probe (which rebases and measures patch-ids but never merges). Keyed on
+// dispatchKind, the stable discriminator, never a label-prefix regex.
 const isMergeTask = (c) =>
-  seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine'
+  seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
+  !['pin-transfer', 'polish-worktree', 'evidence'].includes(c.opts.dispatchKind)
+const isPinTransfer = (c) => c.opts.dispatchKind === 'pin-transfer'
+const isAceGate = (c) => c.opts.dispatchKind === 'ace-gate'
 const isLand = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Land'
 
@@ -7559,14 +7594,15 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
   // never anchored on the lagging local follower.
   assert.match(refinerRecoveryMd, /NEVER the local follower/, 'refiner-recovery.md pins the discrimination to origin, never the lagging local follower')
-  // the card still ROUTES to the standing copy: all three markdown trigger pointers (submodule
-  // provisioning, land step 3, 2A/2B land arms) must survive, each in the ratified
+  // the card still ROUTES to the standing copy: all four markdown trigger pointers (submodule
+  // provisioning, land step 3, 2A/2B land arms, and the #1913 pin-transfer arms) must survive, each in the ratified
   // plugin-root-anchored family shape — a ](${CLAUDE_PLUGIN_ROOT}/skills/war/references/<file>)
   // target resolving against the plugin install root regardless of the dispatched seat's cwd
   // (ADR 0047, agent-card-pointer-skeleton-plugin-root-anchored; adjudication O(1) still
   // stands: a pointer is best-effort enrichment, decisive rules stay inline). Count-pinned:
   // presence-only would stay green if two pointers were dropped, orphaning their evicted sections.
-  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 3, 'all three plugin-root-anchored trigger pointers to refiner-recovery.md survive')
+  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 4, 'all four plugin-root-anchored trigger pointers to refiner-recovery.md survive')
+  assert.match(refinerRecoveryMd, /## Pin-transfer arms/, 'the evicted pin-transfer arms section landed at the destination')
   assert.ok(!/\((?:\.\.\/)+[^)]*refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses a forbidden ../-prefixed path, at any depth')
   // Fourth, plain-text pointer — the fixed-shape ADR 0042 trigger line left by the
   // references-pointer-integrity Task 1.2 (h2) budget eviction of the § Base re-run +
@@ -12198,4 +12234,215 @@ test('ruled-ask intake (S3, container level): a present-but-non-array args.ruled
     'the ignored container gets one log line naming the received type')
   assert.equal(logs.filter(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)')).length, 0,
     'zero records queue from a non-array container')
+})
+
+// ---------------------------------------------------------------------------
+// #1913 — wave-side ace stage, delta-scaled re-audit, and pin transfer.
+// The ace batch, its PIN-12 gate check, its re-audit and the bisection/re-entry
+// ladders moved OUT of the serial merge queue into the wave thunk; the merge slot
+// gained a mechanical pin-transfer probe. Covers End states 3, 4, 5, 6 and 9.
+// ---------------------------------------------------------------------------
+
+// Two-seat roster so a delta-scaled round can re-run ONE lens and transfer the other.
+const PT_ARGS = (over = {}) => PROVISION_ARGS({
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+    roster: [{ lens: 'correctness' }, { lens: 'security' }] }],
+  run: { ace: true },
+  ...over,
+})
+// An approving seat carrying `findings`, echoing the pin it was dispatched at.
+const seatAt = (label, lens, sha, findings = []) => ({ seat: label, lens, audit_sha: sha, verdict: 'approve', findings, confidence: 'high' })
+// The two-seat impl: round 1 raises `first` from the correctness seat only; every later round approves
+// clean. `aceResult` is what the ace worker returns (head_sha + the git-derived ace_diff_files).
+const ptImpl = (first, aceResult, over = {}) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+  if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+  if (seat === 'war-worker') return aceResult
+  if (seat === 'war-auditor') {
+    const lens = /security/.test(opts.label || '') ? 'security' : 'correctness'
+    const sha = /ace00001/.test(prompt) ? 'ace00001' : 'deadbeef'
+    const findings = (sha === 'deadbeef' && lens === 'correctness') ? first : []
+    return { ...seatAt(opts.label, lens, sha, findings), ...(over.seatOver ? over.seatOver(lens, sha) : {}) }
+  }
+  if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+const ACE_FILE = 'skills/war/assets/x.js'
+const aceOk = (over = {}) => ({ task_id: 't1', status: 'implemented', head_sha: 'ace00001',
+  ace_diff_files: [ACE_FILE], files_changed: [ACE_FILE], tests: { unit: 1 }, ...over })
+const lensesOf = (calls, sha) => calls.filter(c => isAuditor(c) && c.prompt.includes(sha))
+  .map(c => (c.opts.label || '').split(':').pop()).sort()
+
+test('#1913 End state 3 — the ace batch, its gate check and its re-audit all dispatch on the WAVE side, before the first merge-task', async () => {
+  // Two independent tasks, both acing. Every ace-family dispatch must precede EVERY merge-task
+  // dispatch: the merge lock no longer pays for a re-audit. Delete the hoist and a merge lands
+  // between one task's ace and the next task's, reding this.
+  const args = PROVISION_ARGS({
+    tasks: [
+      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+      { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] },
+    ],
+    run: { ace: true },
+  })
+  const { out, calls } = await runPhase(args, aceBase([nit()]))
+  const aceIdx = calls.map((c, i) => [c, i]).filter(([c]) => isAce(c) || isAceGate(c)).map(([, i]) => i)
+  const mergeIdx = calls.map((c, i) => [c, i]).filter(([c]) => isMergeTask(c)).map(([, i]) => i)
+  assert.equal(aceIdx.length, 4, 'both tasks dispatch an ace worker and its gate check (2 tasks × 2)')
+  assert.equal(mergeIdx.length, 2, 'both tasks reach the merge queue')
+  assert.ok(Math.max(...aceIdx) < Math.min(...mergeIdx),
+    'every ace-family dispatch precedes every merge-task dispatch — the whole ace path is wave-side')
+  assert.deepEqual(out.landed.sort(), ['t1', 't2'], 'both tasks land')
+})
+
+test('#1913 End state 3 (PIN-5/PIN-13) — a wave-side ace round charges the SHARED fixRounds budget, so an ace run exhausts the floor-retry loop one round earlier', async () => {
+  // A permanently-red no-test floor drains run.roundLimit. With --ace ON the batch ace has already
+  // charged one slot wave-side, so exactly ONE FEWER add-test fix round is dispatched before
+  // exhaustion. If the merge-slot seed re-seeded from r.round (rather than never-lowering), the two
+  // runs would spend identical budgets and this goes red.
+  const floorImpl = (findings) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'ace00001', ace_diff_files: [ACE_FILE], files_changed: [ACE_FILE], tests: { unit: 1 } }
+    if (seat === 'war-auditor') return approveWith(opts.label, /ace00001/.test(prompt) ? [] : findings)
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'no-test' }
+    if (seat === 'war-refiner') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const addTests = (calls) => calls.filter(c => seatOf(c.opts) === 'war-worker' && /^add-test:/.test(c.opts.label || '')).length
+  const withAce = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 4 } }), floorImpl([nit()]))
+  const noAce = await runPhase(ACE_ARGS({ run: { roundLimit: 4 } }), floorImpl([nit()]))
+  assert.ok(withAce.calls.some(isAce), 'the --ace run really dispatched a wave-side ace')
+  assert.ok(!noAce.calls.some(isAce), 'the control run dispatched no ace')
+  assert.equal(addTests(withAce.calls), addTests(noAce.calls) - 1,
+    'the ace round charged one slot of the SHARED budget: exactly one fewer floor-retry fix round')
+  assert.ok((withAce.out.escalated || []).some(e => e && e.reason === 'no-test'), 'the floor still exhausts to the no-test escalation')
+})
+
+test('#1913 PIN-12/PIN-2 — a RED gate at the ace tip blocks the re-audit and the transfer: the ace commit is forward-reverted, the finding demotes, the task still lands', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': { gate_green: false, gate_output: 'FAIL: 1 test failed' } })
+  assert.ok(calls.some(isAce), 'the ace worker ran')
+  assert.ok(!calls.some(c => isAuditor(c) && c.prompt.includes('ace00001')), 'no re-audit is dispatched at a gate-red ace tip')
+  assert.ok(!(out.aced || []).length, 'nothing is aced at a sha the gate never passed (PIN-12)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'tidy import'), 'the finding demotes to follow-up, never dropped')
+  const merge = calls.find(isMergeTask)
+  assert.match(merge.prompt, /FORWARD-REVERT/, 'the merge dispatch forward-reverts the gate-red ace tip')
+  assert.ok(out.landed.includes('t1'), 'the approved pre-ace tip still merges — the ace never holds a task (PIN-2)')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'a red ace gate is never an escalation')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED')), 'the red gate is logged, never silent')
+})
+
+test('#1913 End states 4 + 6 — a footprint-SUBSET ace diff re-runs only the originating seat and TRANSFERS the other seat, with per-seat provenance', async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()))
+  assert.deepEqual(lensesOf(calls, 'ace00001'), ['correctness'],
+    'only the seat that raised the finding re-runs at the ace sha — the security seat does not')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace')
+  assert.ok(row, 'the ace round records a pin-transfer row')
+  assert.equal(row.mode, 'subset', 'the row records the subset mode')
+  const byLens = Object.fromEntries(row.seats.map(s => [s.lens, s]))
+  assert.equal(byLens.correctness.outcome, 're-ran', 'the originating seat is recorded as re-ran')
+  assert.equal(byLens.security.outcome, 'transferred', 'the non-originating seat is recorded as transferred')
+  assert.equal(byLens.security.sha, 'ace00001', 'the transferred approval is accounted AT the new sha (PIN-10)')
+  assert.equal(byLens.security.approvedAt, 'deadbeef', 'and it names the sha the seat actually reviewed')
+  assert.ok((out.aced || []).some(a => a && a.sha === 'ace00001'), 'the finding aces on the transferred unanimity')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('#1913 End state 4 (PIN-18) — every fail-closed arm re-runs the FULL panel: no git set, a file outside the footprint, a files_changed mismatch, and a seat-detected breach', async () => {
+  const finding = nit({ file: ACE_FILE })
+  const arms = [
+    ['absent git set', aceOk({ ace_diff_files: undefined }), {}],
+    ['empty git set', aceOk({ ace_diff_files: [] }), {}],
+    ['a file outside the findings footprint', aceOk({ ace_diff_files: [ACE_FILE, 'skills/war/assets/other.js'], files_changed: [ACE_FILE, 'skills/war/assets/other.js'] }), {}],
+    ['a files_changed cross-check mismatch', aceOk({ files_changed: [ACE_FILE, 'skills/war/assets/other.js'] }), {}],
+    ['a seat-detected file outside the claimed set', aceOk(), { seatOver: (lens, sha) => (sha === 'ace00001' ? { scopeBreach: true } : {}) }],
+  ]
+  for (const [why, aceResult, over] of arms) {
+    const { out, calls } = await runPhase(PT_ARGS(), ptImpl([finding], aceResult, over))
+    assert.deepEqual(lensesOf(calls, 'ace00001').filter((l, i, a) => a.indexOf(l) === i).sort(), ['correctness', 'security'],
+      `${why} ⇒ the FULL panel re-runs`)
+    const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace')
+    assert.equal(row.mode, 'full-panel', `${why} ⇒ the row records the full-panel mode`)
+    assert.ok(!row.seats.some(s => s.outcome === 'transferred'), `${why} ⇒ no approval transfers`)
+  }
+})
+
+test('#1913 End states 5 + 7 — the merge slot TRANSFERS the pin on patch-id equality, recording reauditedTip, rebasedTip and BOTH patch-ids', async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' },
+  })
+  const probe = calls.find(isPinTransfer)
+  assert.ok(probe, 'a pin-transfer probe is dispatched at the merge slot')
+  assert.match(probe.prompt, /patch-id --stable/, 'the probe prompt names the patch-id measurement')
+  assert.ok(calls.findIndex(isPinTransfer) < calls.findIndex(isMergeTask), 'the probe precedes the merge dispatch')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+  assert.ok(row, 'a merge-slot pin-transfer row is recorded')
+  assert.equal(row.mode, 'transferred')
+  assert.equal(row.rebasedTip, 'beef0001', 'rebasedTip is recorded (PIN-7)')
+  assert.equal(row.reauditedTip, 'ace00001', 'reauditedTip is recorded (PIN-7)')
+  assert.equal(row.prePatchId, 'p1'); assert.equal(row.postPatchId, 'p1')   // PIN-14: re-verifiable without replaying the rebase
+  assert.ok(!calls.some(c => isAuditor(c) && c.prompt.includes('beef0001')), 'no panel re-convenes in the lock on a transfer')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('#1913 End state 5 (PIN-1) — a patch-id MISMATCH degrades to the in-lock FULL-panel re-audit of the rebased tip, then merges', async () => {
+  const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2' },
+  })
+  const reaudit = calls.filter(c => isAuditor(c) && c.prompt.includes('beef0001'))
+  assert.equal(reaudit.length, 2, 'the FULL two-seat panel re-audits the rebased tip')
+  assert.ok(calls.findIndex(c => isAuditor(c) && c.prompt.includes('beef0001')) < calls.findIndex(isMergeTask),
+    'the in-lock re-audit precedes the merge dispatch')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+  assert.equal(row.mode, 'mismatch')
+  assert.ok(row.seats.every(s => s.outcome === 're-ran'), 'no approval transfers on a mismatch — every seat re-ran')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('patch-id MISMATCH')), 'the mismatch is logged')
+  assert.ok(out.landed.includes('t1'), 't1 still lands after the in-lock re-audit approves')
+})
+
+test('#1913 End state 5 (PIN-16 positive) — an empty post-rebase diff whose task commits all cherry-match upstream records already_upstream: no panel, no content merge', async () => {
+  const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', pre_rebase_patch_id: 'p1',
+      post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1', 'c0ffee2'] },
+  })
+  assert.ok(!calls.some(isMergeTask), 'no merge-task dispatch — there is no content to merge')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+  assert.equal(row.mode, 'already_upstream')
+  assert.deepEqual(row.alreadyUpstreamCommits, ['c0ffee1', 'c0ffee2'], 'the matched TASK commits are recorded')
+  assert.equal(row.rebasedTip, 'facade01', 'rebasedTip is the integration tip')
+  assert.ok(out.landed.includes('t1'), 't1 is recorded merged')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'a genuinely-upstream task is not an escalation')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('already_upstream')), 'the arm is logged with its matched commits')
+})
+
+test('#1913 End state 5 (PIN-16 negative, #1895) — an empty diff with zero task commits or an empty pre-rebase patch-id ESCALATES, never merged', async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'empty-unmatched', detail: 'rev-list --count returned 0 — the task branch has no commits of its own' },
+  })
+  assert.ok(!calls.some(isMergeTask), 'no merge is dispatched')
+  assert.ok(!out.landed.includes('t1'), 'a zero-commit branch is NEVER recorded merged (a never-started branch is vacuously an ancestor)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalates')
+  assert.equal(esc.reason, 'escalate', 'the refusal is HARD — a hard escalation is never downgraded by an in-band field (PIN-6)')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds rather than completing without the task')
+})
+
+test('#1913 End state 9 — the pin-transfer rule is on BOTH prompt layers: the standing auditor card AND a pt-tagged dispatched prompt literal (never a comment only)', () => {
+  assert.match(auditorMd, /pin[- ]transfer/i, 'the standing auditor card carries the transfer rule')
+  assert.match(auditorMd, /scopeBreach/, 'and the card names the seat-detected refusal field the engine reads')
+  // scanTemplateLiterals-based census: the token must sit inside a pt-TAGGED literal head — the
+  // dispatched prompt text itself. A source-comment-only landing carries no tagged literal and reds.
+  const tagged = scanTemplateLiterals(src).literals.filter(l => l.tagged && /pin[- ]transfer/i.test(l.head))
+  assert.ok(tagged.length >= 2,
+    'at least two pt-tagged dispatched-prompt literals name the pin transfer (the merge-slot probe and the delta-scaled re-audit charge)')
+  // Runtime floor: the token really reaches a dispatched prompt, not just the source.
+  assert.match(refinerMd, /pin-transfer probe/, 'the refiner card documents the probe it is dispatched to run')
+})
+
+test('#1913 PIN-13 — the merge-slot fixRounds seed never LOWERS the wave-side count, and the wave thunk owns the seed', () => {
+  assert.match(src, /r\.task\.fixRounds = Math\.max\(/, 'the merge-slot seed is a never-lowering Math.max, not a re-seed')
+  assert.match(src, /task\.fixRounds = round\n/, 'the wave thunk seeds the budget where the audit loop exits, before the hoisted ace')
 })

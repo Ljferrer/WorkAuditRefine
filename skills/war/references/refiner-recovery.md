@@ -76,3 +76,12 @@ When `target repo` is a submodule **and** it is **not** declared WAR-owned, WAR 
 Trigger: a gate-failure classification requires the base re-run (merge-task or land-phase). "That base" below is the per-site classification base the card's § Gate-failure classification names.
 
 - **Base re-run + re-attach:** detach `_refinery` at that base (`git -C <_refinery> checkout --detach <base>`), re-run ONLY the failing gate there, then **RE-ATTACH `_refinery` to the integration branch before you return** (`git -C <_refinery> checkout <integrationBranch>`). Every merge/land dispatch also **begins** with that same idempotent re-attach (the re-attached-by-default `_refinery`), so a dispatch that died mid-classification cannot strand the queue detached.
+
+## Pin-transfer arms
+
+The merge slot's pin-transfer probe (see `agents/war-refiner.md` § pin-transfer probe for steps 1-3, which produce `BASE`, `N`, `PRE`, `CHERRY`, `TIP`, `POST`). Take the arms in this order:
+
+4. **`already_upstream` first.** Post-rebase diff empty **and** `N > 0` **and** every `CHERRY` line starting `-` **and** `PRE` non-empty → `status: "already_upstream"` with `rebased_tip`, both patch-ids, `already_upstream_commits` (the SHAs `CHERRY` listed). Already upstream: nothing to merge, no panel.
+5. **Fail closed.** Post-rebase diff empty but `N` is 0, or any `CHERRY` line starts `+`, or `PRE` is empty → `status: "empty-unmatched"`, `detail` naming the failing leg. Never `already_upstream`, never a transfer: empty-equals-empty is not equality, and a zero-commit branch is vacuously an ancestor.
+6. **Otherwise compare patch-ids**, returning `rebased_tip` and both ids either way: `PRE` non-empty and `PRE == POST` → `status: "transferred"` (the rebase carried the task's own diff unchanged, so the pin transfers); `PRE != POST` → `status: "mismatch"` (the Workflow re-audits the rebased tip full-panel, in the lock, before the merge).
+7. Any unclassifiable git/env error → `status: "error"` with `detail`; merge-task then runs unchanged — the probe is fail-open.

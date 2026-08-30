@@ -804,16 +804,26 @@ The grind backstop's load-bearing property: an ambiguous reading routes to #1664
 instrumentation-first refinement (a per-round `auditLog` row), never to a silent "no grinding".
 _Avoid_: reading ambiguity as absence of grinding.
 
+**Pin transfer**:
+An audit approval carried to a new SHA by a mechanical predicate, not a re-convened panel (canonical:
+`pinTransfers` in `workflow-template.js`). *Seat-approval transfer*: a wave-side ace whose git-derived
+file set (`ace_diff_files`) is a subset of the findings' file set re-runs only the originating seats;
+the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a conflict-free rebase plus
+`git patch-id --stable` equality of the task's own diff, before and after, carries the panel pin to the
+rebased tip. Neither accounts an approval at a SHA the task gate
+never passed; a mismatch degrades to the in-lock full-panel re-audit for that task alone. Arms and
+shape: `references/schemas.md`.
+
 **Ace bisection**:
 The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
-`skills/war/assets/workflow-template.js`): named culprits are excised (demoted, logged) and the
-remainder re-applies as ONE subset; blind halving is reserved for ambiguous attribution; subsets apply
-serially at the tip, depth ≤ 2, same-file findings never split; each subset commit charges one
-`fixRounds` slot (reverts uncharged) and dispatches only while `fixRounds < roundLimit − 2`, the **floor-retry
-reserve** that holds two slots back for the merge-floor retry loop. Reaching it mid-bisection stops
-the ladder and the remaining subsets demote to `follow-up`, logged and by design;
-the reserve bounds subset commits only, not the whole ace path (the batch ace keeps its own
-`< roundLimit` gate). The reserve's `phaseClose: true` → sweep rung belongs to **Re-entry** (a fresh
+`skills/war/assets/workflow-template.js`, dispatched wave-side per task, never inside the merge lock):
+named culprits are excised (demoted, logged) and the remainder re-applies as ONE subset; blind halving
+is reserved for ambiguous attribution; subsets apply serially at the tip, depth ≤ 2, same-file findings
+never split; each subset commit charges one `fixRounds` slot (reverts uncharged) and dispatches only
+while `fixRounds < roundLimit − 2`, the **floor-retry reserve** that holds two slots back for the
+merge-floor retry loop. Reaching it mid-bisection stops the ladder and the remaining subsets demote to
+`follow-up`, logged and by design; the reserve bounds subset commits only, not the whole ace path (the
+batch ace keeps its own `< roundLimit` gate). The reserve's `phaseClose: true` → sweep rung belongs to **Re-entry** (a fresh
 absorb born at a re-audit), never to a queued bisection subset. Failed subset tips are
 forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
 mergeable task.
