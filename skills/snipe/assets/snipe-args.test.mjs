@@ -77,12 +77,15 @@ test('seat count outside 1-5 and duplicate/reserved lenses are refused', () => {
 
 // --- tier ladder: agents.snipe → agents.auditor → DEFAULTS (#1920) --------
 
-test('snipeTier ladder: snipe tier wins, else auditor, else DEFAULTS auditor', () => {
+test('snipeTier ladder: config snipe tier wins; the operator-set default is opus/high', () => {
   assert.deepEqual(snipeTier({ agents: { snipe: { model: 'haiku', effort: 'low' } } }), { model: 'haiku', effort: 'low' })
-  assert.deepEqual(snipeTier({ agents: { auditor: { model: 'opus', effort: 'high' } } }), { model: 'opus', effort: 'high' })
-  const d = snipeTier({})
-  assert.equal(d.model, DEFAULTS.agents.auditor.model)
-  assert.equal(d.effort, DEFAULTS.agents.auditor.effort === 'default' ? undefined : DEFAULTS.agents.auditor.effort)
+  assert.deepEqual(DEFAULTS.agents.snipe, { model: 'opus', effort: 'high' }, 'operator-set default tier')
+  assert.deepEqual(snipeTier({}), { model: 'opus', effort: 'high' })
+})
+
+test('snipeTier: explicit null snipe tier falls back to the auditor tier', () => {
+  const r = snipeTier({ agents: { snipe: null, auditor: { model: 'haiku', effort: 'low' } } })
+  assert.deepEqual(r, { model: 'haiku', effort: 'low' })
 })
 
 test('snipeTier omits effort when default (spawnOpts shape)', () => {
