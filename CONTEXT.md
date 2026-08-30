@@ -686,14 +686,15 @@ first pass with a faster fable/`low` fixer. Absent = fix work inherits the base 
 _Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
 knob covers both).
 
-**Batching helper**:
-The engine's group-serial fan-out throttle: with `run.maxParallel` set, `batched()` in
-`workflow-template.js` slices each fan-out (wave, roster, dropped-seat retry, gate-audit) into
-groups of that size, awaiting each group via the sandbox `parallel()`; group k+1 starts after
-group k settles. Knob absent ⇒ the single-`parallel()` path, byte-identical. Shape/default:
-`war-config.mjs` `validate()`.
+**Dispatch semaphore**:
+The /war engine's global agent ceiling: with `run.maxParallel` set, one global counting semaphore
+caps agent dispatches in flight across the whole run at that many — workers, auditors, aces, fix
+workers and gate-audit seats share the one counter, so nested fan-outs cannot exceed it. A permit
+is taken at each leaf dispatch, released in a `finally`. Knob absent ⇒ the unthrottled path,
+byte-identical. Shape/default: `war-config.mjs` `validate()`.
 _Avoid_: `Promise.all` (the live `parallel` NULLS a rejected thunk — the #742 invariant); a
-wall-clock pacing guarantee (batching orders groups, nothing more).
+wall-clock pacing guarantee (the ceiling bounds concurrency, nothing more); a per-site cap (nested
+sites multiply — issue #1897, the reason there is one counter).
 
 ### Diagnosis discipline
 

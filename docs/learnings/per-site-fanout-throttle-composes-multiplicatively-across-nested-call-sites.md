@@ -1,6 +1,6 @@
 ---
 name: per-site-fanout-throttle-composes-multiplicatively-across-nested-call-sites
-description: "A single pacing knob applied independently at each nested fan-out site (wave, then per-task audit roster) yields N² worst-case concurrent agents, not N — doc surfaces must say 'per fan-out site', never a global ceiling"
+description: "RESOLVED (2026-08-30-engine-concurrency-and-pin-transfer, #1897): a pacing knob applied independently at each nested fan-out site yields N² concurrent agents, not N; the fix is one global counting semaphore at the dispatch seam"
 metadata: 
   node_type: memory
   type: project
@@ -27,6 +27,13 @@ metadata:
 ---
 
 # A per-fan-out-site throttle nests multiplicatively, not additively
+
+**RESOLVED (2026-08-30, plan `2026-08-30-engine-concurrency-and-pin-transfer`, issue #1897):**
+the per-site group slicing this lesson describes is retired. `run.maxParallel` is now a true
+global ceiling: one global counting semaphore at the leaf dispatch seam caps agent dispatches in
+flight across the whole run, so nested fan-outs cannot exceed N. The durable rule below still
+holds for any *new* multi-site pacing knob; the doc surfaces it names now carry the global
+wording, pinned by `skills/war/assets/doc-semantics.test.mjs`.
 
 **Found (code-verified at landed tip `6cfe09a2a475755010c98446389e706171f36c65` on
 `dev/2026-08-25-engine-reliability-and-filing-fidelity`, worktree
