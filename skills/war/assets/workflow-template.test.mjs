@@ -465,12 +465,15 @@ const isProvisionTopology = (c) =>
   c.opts.phase === 'Provision' && seatOf(c.opts) === 'war-refiner' &&
   !/^provision-run:/.test(c.opts.label || '')
 // A merge-task dispatch is a Refine-phase refiner seat that is NOT one of the phase's other
-// Refine-phase refiner dispatches: the post-merge evidence seat, the phase-close polish worktree, and
-// the #1913 pin-transfer probe (which rebases and measures patch-ids but never merges). Keyed on
-// dispatchKind, the stable discriminator, never a label-prefix regex.
+// Refine-phase refiner dispatches: the land-barrier endstate-check, the post-merge evidence seat, the
+// phase-close polish worktree, and the #1913 pin-transfer probe (which rebases and measures patch-ids
+// but never merges). Keyed on dispatchKind, the stable discriminator, never a label-prefix regex.
+// #1937: the exclusion list is a completeness claim, so the census test below derives the real set
+// from the template source and fails when a new Refine-phase refiner dispatch is added without it.
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
-  !['pin-transfer', 'polish-worktree', 'evidence'].includes(c.opts.dispatchKind)
+  !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
 const isPinTransfer = (c) => c.opts.dispatchKind === 'pin-transfer'
 const isAceGate = (c) => c.opts.dispatchKind === 'ace-gate'
 const isLand = (c) =>
@@ -12724,4 +12727,25 @@ test('#1940 — PIN-13 seed: a behavioural resume simulation, not a source-shape
   assert.equal(bare < 6, true,
     'and 0 opens the ace gate — `undefined < 6` is false, the exact defect that made the hoisted ace never dispatch')
   assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:r<n>` never renders rNaN')
+})
+
+test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase refiner dispatchKind is named (default-deny census)', () => {
+  // The list is a completeness CLAIM about the template, so derive the real set from the template
+  // rather than restating it: a new Refine-phase refiner dispatch added without updating
+  // MERGE_TASK_EXCLUDES would otherwise be silently misclassified as a merge-task by every test
+  // that calls isMergeTask. That is exactly how 'endstate-check' went missing (#1937).
+  const found = new Set()
+  for (const m of src.matchAll(/dispatchKind: '([a-z-]+)'/g)) {
+    const w = src.slice(Math.max(0, m.index - 260), m.index + 120)
+    if (/phase: 'Refine'/.test(w) && /war-refiner/.test(w)) found.add(m[1])
+  }
+  assert.ok(found.size >= 4, 'the scan must find the Refine-phase refiner dispatches (found: ' + [...found].join(', ') + ')')
+  assert.ok(found.has('endstate-check'),
+    "the land-barrier endstate-check is a Refine-phase refiner dispatch — the omission #1937 named")
+  const missing = [...found].filter(k => !MERGE_TASK_EXCLUDES.includes(k)).sort()
+  assert.deepEqual(missing, [],
+    'every Refine-phase refiner dispatchKind must be excluded from isMergeTask (missing: ' + missing.join(', ') + ')')
+  const stale = MERGE_TASK_EXCLUDES.filter(k => !found.has(k)).sort()
+  assert.deepEqual(stale, [],
+    'and the list carries no kind the template no longer dispatches (stale: ' + stale.join(', ') + ')')
 })

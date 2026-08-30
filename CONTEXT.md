@@ -806,13 +806,13 @@ _Avoid_: reading ambiguity as absence of grinding.
 
 **Pin transfer**:
 An audit approval carried to a new SHA by a mechanical predicate, not a re-convened panel (canonical:
-`pinTransfers` in `workflow-template.js`). *Seat-approval transfer*: a wave-side ace whose git-derived
-file set (`ace_diff_files`) is a subset of the findings' file set re-runs only the originating seats;
-the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a conflict-free rebase plus
-`git patch-id --stable` equality of the task's own diff, before and after, carries the panel pin to the
-rebased tip. Neither accounts an approval at a SHA the task gate
-never passed; a mismatch degrades to the in-lock full-panel re-audit for that task alone. Arms and
-shape: `references/schemas.md`.
+`pinTransfers` in `skills/war/assets/workflow-template.js`). *Seat-approval transfer*: a wave-side
+ace whose git-derived file set (`ace_diff_files`) is a subset of the findings' file set re-runs only
+the originating seats; the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a
+conflict-free rebase plus `git patch-id --stable` equality of the task's own diff, before and after,
+carries the panel pin to the rebased tip. Neither accounts an approval at a SHA the gate never
+passed; a mismatch degrades to the in-lock full panel for that task alone.
+Arms and shape: `skills/war/references/schemas.md`.
 
 **Ace bisection**:
 The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
