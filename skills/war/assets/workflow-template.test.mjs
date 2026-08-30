@@ -12365,6 +12365,29 @@ test('#1913 — audit-round provenance stays ace-free: auditLog fixRounds is the
   assert.equal(row.fixRounds, 0, 'auditLog records the pre-ace round count (0), not the ace-charged task.fixRounds (1)')
 })
 
+test('#1913 (19f9326) — the held:workflow-error catch return preserves pinTransfers rows pushed before the throw', async () => {
+  // 19f9326 added pinTransfers to the top-level catch's held:workflow-error return, mirroring the
+  // happy-path return. Force that catch AFTER a wave-side ace round pushed a pin-transfer row: the
+  // serial merge-task dispatch (outside the work thunk) throws, and the returned envelope must still
+  // carry the row. Drop pinTransfers from the catch return and this reds.
+  const base = ptImpl([nit({ file: ACE_FILE })], aceOk())
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' &&
+        !['pin-transfer', 'polish-worktree', 'evidence'].includes(opts.dispatchKind)) {
+      throw new Error('injected-merge-throw-after-ace')
+    }
+    return base(prompt, opts)
+  }
+  const { out } = await runPhase(PT_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:workflow-error',
+    `the injected merge throw must reach the top-level catch; got: ${JSON.stringify(out.landDecision)}`)
+  assert.ok(out.workflowError && out.workflowError.message.includes('injected-merge-throw-after-ace'),
+    'the envelope surfaces the injected error')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace')
+  assert.ok(row, 'the catch return preserves the ace pin-transfer row pushed before the throw (19f9326)')
+  assert.equal(row.mode, 'subset', 'the preserved row is intact, not a re-minted stub')
+})
+
 test('#1913 End state 4 (PIN-18) — every fail-closed arm re-runs the FULL panel: no git set, a file outside the footprint, a files_changed mismatch, and a seat-detected breach', async () => {
   const finding = nit({ file: ACE_FILE })
   const arms = [
