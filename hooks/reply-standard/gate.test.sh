@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# gate.py — the war-config toggle in front of the byte-for-byte Reply Standard scripts.
-# Cases: absent config (on), explicit false (off), explicit true (on), malformed JSON
-# (fail-open on), and the meter path gated off writes no meter.log.
+# gate.py — the war-config toggle in front of the Reply Standard scripts.
+# Cases: config toggle arms (on/off/fail-open), WAR-command card skip, wrapped-failure
+# containment, the SubagentStart card + per-role addenda, and SubagentStop metering
+# (attribution, log separation, JSON-aware prose scoring).
 # bash-3.2-safe, cwd-independent; runs against a temp copy so the repo tree stays clean.
 set -u
 
@@ -106,20 +107,20 @@ printf '%s' "$SUB" | sh "$TMP/gate.sh" subagent-stop.py
 if [ ! -e "$TMP/subagent-meter.log" ]; then pass 'case20 subagent-stop gated off: writes nothing'; else fail 'case20 subagent-stop gated off: writes nothing'; fi
 rm -f "$PROJ/.claude/war/config.json"
 
-# Cases 21a-21b: per-seat addendum — a known role appends its card, an unknown role gets the blanket alone.
+# Cases 21-22: per-seat addendum — a known role appends its card, an unknown role gets the blanket alone.
 rm -f "$PROJ/.claude/war/config.json"
 out="$(printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"w1"}' | sh "$TMP/gate.sh" subagent-start.py)"
-case "$out" in *'SEAT EDITION'*'WORKER ADDENDUM'*) pass 'case21a worker seat: blanket + worker addendum' ;; *) fail 'case21a worker seat: blanket + worker addendum' ;; esac
+case "$out" in *'SEAT EDITION'*'WORKER ADDENDUM'*) pass 'case21 worker seat: blanket + worker addendum' ;; *) fail 'case21 worker seat: blanket + worker addendum' ;; esac
 out="$(printf '{"agent_type":"work-audit-refine:war-scout","agent_id":"x1"}' | sh "$TMP/gate.sh" subagent-start.py)"
-case "$out" in *'ADDENDUM'*) fail 'case21b unknown role: blanket card alone' ;; *'SEAT EDITION'*) pass 'case21b unknown role: blanket card alone' ;; *) fail 'case21b unknown role: blanket card alone' ;; esac
+case "$out" in *'ADDENDUM'*) fail 'case22 unknown role: blanket card alone' ;; *'SEAT EDITION'*) pass 'case22 unknown role: blanket card alone' ;; *) fail 'case22 unknown role: blanket card alone' ;; esac
 
-# Cases 21-22: JSON-aware scoring — a JSON final message is scored on its string fields only.
+# Cases 23-24: JSON-aware scoring — a JSON final message is scored on its string fields only.
 rm -f "$TMP/subagent-meter.log"
 printf '{"agent_type":"work-audit-refine:war-auditor","agent_id":"a2","session_id":"t","last_assistant_message":"{\\"verdict\\":\\"approve\\",\\"findings\\":[{\\"evidence\\":\\"We should simply leverage this pattern everywhere.\\"}]}"}' | sh "$TMP/gate.sh" subagent-stop.py
-if grep -q '"shape": "json"' "$TMP/subagent-meter.log" && grep -q '"banned_modal": 1' "$TMP/subagent-meter.log"; then pass 'case21 JSON message: prose fields scored, shape recorded'; else fail 'case21 JSON message: prose fields scored, shape recorded'; fi
+if grep -q '"shape": "json"' "$TMP/subagent-meter.log" && grep -q '"banned_modal": 1' "$TMP/subagent-meter.log"; then pass 'case23 JSON message: prose fields scored, shape recorded'; else fail 'case23 JSON message: prose fields scored, shape recorded'; fi
 rm -f "$TMP/subagent-meter.log"
 printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"a3","session_id":"t","last_assistant_message":"{\\"status\\":\\"merged\\",\\"note\\":\\"The gate ran green at the tip.\\"}"}' | sh "$TMP/gate.sh" subagent-stop.py
-if grep -q '"violations_total": 0' "$TMP/subagent-meter.log"; then pass 'case22 clean JSON message: zero violations, syntax never counted'; else fail 'case22 clean JSON message: zero violations, syntax never counted'; fi
+if grep -q '"violations_total": 0' "$TMP/subagent-meter.log"; then pass 'case24 clean JSON message: zero violations, syntax never counted'; else fail 'case24 clean JSON message: zero violations, syntax never counted'; fi
 
 # Every shipped role addendum appends — a missing or misnamed addendum file goes red here.
 for role in war-worker war-auditor war-refiner war-servitor; do
