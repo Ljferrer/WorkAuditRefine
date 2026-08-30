@@ -105,7 +105,7 @@ Operator adjudications (Part 1, ADR 0017 vehicle — ruled rows, not prose waive
   that cannot fit after eviction raises that surface's ceiling by at most +2,048 B, cited with
   the floor's accepted trailer form. The floor script stays untouched.
 - PIN-18 — the delta-scale file set comes from git, never from the agent's self-report alone;
-  mismatch routes to the full panel.
+  field mismatch or seat-detected excess routes to the full panel.
 
 ## Assumptions ledger
 
@@ -113,7 +113,7 @@ Operator adjudications (Part 1, ADR 0017 vehicle — ruled rows, not prose waive
 |----|-----------|-------|----------------------|-------|
 | A1 | `aceBisect` and `aceReentry` hoist wave-side with the ace (they close over merge-queue scope today) | [assumed: hoist plus the PIN-13 seed rule — if wrong: bisection stays in-lock and the wall-clock win shrinks] | silent accounting break if the merge-slot `fixRounds` seed is left unruled (red-team probe, 2026-08-30) | End state 3's tests, incl. the ace-plus-floor budget test |
 | A2 | the ~22-minute measurement holds at the current tip | [assumed: dated snapshot at issue #1913's base — if wrong: priority drops, design stands] | none to correctness | backstop row 1 |
-| A3 | the delta-scale file set is `git diff --name-only <preAceTip> <aceSha>`, computed by the dispatch that holds git; the agent's `files_changed` is a cross-check only — absent, empty, or mismatched ⇒ full panel (PIN-18) | (user) | wall-clock only on false mismatch | End state 4's test |
+| A3 | the delta-scale file set is `git diff --name-only <preAceTip> <aceSha>`, carried on the declared `ace_diff_files` property; the agent's `files_changed` is a cross-check and the re-audit seat re-runs the diff itself — absent, empty, mismatched, or seat-detected excess ⇒ full panel (PIN-18) | (user) | wall-clock only on false mismatch | End state 4's test |
 | A4 | the census-test rewrite keeps #742 null-invariant coverage | (verified: `workflow-template.test.mjs` census block at current tip) | a rejected thunk could reject a group | End state 1's tests |
 
 ## Non-goals / deferred
@@ -152,10 +152,12 @@ rebase pin transfer, global semaphore semantics.
   re-audit, today's behaviour (PIN-1). One arm precedes the fallback: if the post-rebase task
   diff is empty, the task had at least one commit, and `git cherry` matches every task commit
   upstream, record the task `merged` with an `already_upstream` provenance field naming the
-  matched upstream commits, no panel, no content merge, `rebasedTip` = the integration tip
-  (PIN-16); an empty diff with zero task commits or unmatched patches escalates instead. The
-  arm's git legs run against the PRE-rebase task tip, it precedes the patch-id equality test,
-  and an empty pre-rebase patch-id fails closed to escalation. The merge-floor retry loop stays
+  matched task commits (`git cherry` names task commits, never upstream equivalents), no
+  panel, no content merge, `rebasedTip` = the integration tip
+  (PIN-16); an empty diff with zero task commits or unmatched patches escalates instead, and
+  the provenance field names the matched task commits (`git cherry` names task commits, never
+  upstream equivalents). The arm's git legs run against the PRE-rebase task tip, it precedes
+  the patch-id equality test, and an empty pre-rebase patch-id fails closed to escalation. The merge-floor retry loop stays
   in-lock and full-panel, unchanged. One new ADR records seat-approval transfer, rebase pin transfer, and the global
   semaphore semantics, with an owning task (PIN-9). The transfer rule lands in the standing
   auditor card and the dispatched prompts in one commit (PIN-11). The old per-site wording is
@@ -194,7 +196,8 @@ rebase pin transfer, global semaphore semantics.
      order plus the budget behaviour test).
   4. Re-audit scale follows the file-level subset rule over the git-derived file set, full
      panel on any file outside the findings' set, and full panel when the git set is absent or
-     empty or the `files_changed` cross-check mismatches (PIN-18) · check:
+     empty, the `files_changed` cross-check mismatches, or the re-audit seat detects a file
+     outside the claimed set (PIN-18, seat-detected fixture included) · check:
      `node --test skills/war/assets/workflow-template.test.mjs`.
   5. The merge slot transfers the pin on `git patch-id --stable` equality after a conflict-free
      rebase and falls back to the in-lock full-panel re-audit on mismatch, with a positive test
@@ -206,9 +209,10 @@ rebase pin transfer, global semaphore semantics.
   6. The record names each seat as transferred or re-ran, with its SHA (PIN-10) · check:
      `node --test skills/war/assets/workflow-template.test.mjs`.
   7. The new ADR file exists and names all three transfer forms · check:
-     `f=$(grep -lim1 'seat-approval transfer' docs/adr/*.md) && grep -qi 'patch-id' "$f" && grep -qi 'semaphore' "$f" && grep -qF '**Pin transfer**' CONTEXT.md && echo ADR-OK GLOSSARY-OK "$f"`
-     (case-insensitive per transfer form, the glossary leg matches the literal entry marker
-     `**Pin transfer**` so prompt prose cannot satisfy it, prints the file path).
+     `f=$(for a in docs/adr/*.md; do tr '\n' ' ' < "$a" | tr -s ' ' | grep -qi 'seat-approval transfer' && echo "$a"; done | head -1) && grep -qi 'patch-id' "$f" && grep -qi 'semaphore' "$f" && grep -qiF '**Pin transfer**' CONTEXT.md && echo ADR-OK GLOSSARY-OK "$f"`
+     (wrap-aware selector, first match only, case-insensitive throughout, the glossary leg
+     matches the literal entry marker `**Pin transfer**` so prompt prose cannot satisfy it,
+     prints the file path).
   8. The per-path OLD tokens are absent from the four enumerated doc surfaces (`CONTEXT.md`,
      `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`,
      `skills/war/references/design.md`) and the new global wording plus the lesson's
@@ -217,9 +221,10 @@ rebase pin transfer, global semaphore semantics.
      1.1's census tests · check: `node --test skills/war/assets/doc-semantics.test.mjs`.
   9. The transfer rule appears in both prompt layers · check:
      `grep -qiE 'pin[- ]transfer' agents/war-auditor.md && grep -qiE 'pin[- ]transfer' skills/war/assets/workflow-template.js && echo BOTH-LAYERS-OK`
-     (one command, case-insensitive, variant-tolerant). The whole-file grep is the floor: task
-     2.1's tests add a `scanTemplateLiterals`-based census row asserting the token inside a
-     dispatched prompt literal, so a source-comment-only landing is red.
+     (one command, case-insensitive, variant-tolerant; task 2.1 authors the landed wording
+     unwrapped — `pin transfer` on one line on both surfaces). The whole-file grep is the
+     floor: task 2.1's tests add a `scanTemplateLiterals`-based census row asserting the token
+     inside a dispatched prompt literal, so a source-comment-only landing is red.
   10. Full gates green and release slots bumped in lock-step · gate:
      `node --test 'skills/**/*.test.mjs'` plus the shell floor suite via the self-discovery gate.
 
@@ -288,18 +293,31 @@ Phase 1 (global semaphore, #1897) → Phase 2 (wave-side ace and pin transfer, #
 ## Phase 2 — Wave-side ace and pin transfer
 
 ### Task 2.1: Hoist the ace path wave-side, pin transfer at the merge slot
-- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `CONTEXT.md`
+- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `agents/war-refiner.md`, `skills/war/references/schemas.md`, `CONTEXT.md`
 - Plan slice: move the ace batch dispatch, its re-audit, `aceBisect`, and `aceReentry` from the
   serial merge queue into the wave thunk, per task at the panel-approved tip (A1). Run the task
-  gate at the ace tip before re-audit; red gate blocks transfer and routes to the normal fix
-  path (PIN-12). The delta-scale file set comes from `git diff --name-only <preAceTip> <aceSha>`,
-  emitted by the ace dispatch that holds git; the existing `files_changed` self-report is a
-  cross-check only, and absent, empty, or mismatched routes to the full panel (A3, PIN-18) —
-  no new schema field. Build the PIN-16 `already_upstream` arm at the merge slot: pre-rebase
+  gate at the ace tip before re-audit or transfer; a red gate blocks transfer, sets
+  `r.aceReverted` to the ace tip so the existing merge-dispatch forward-revert clause fires,
+  the task merges its approved pre-ace tip, and findings demote per their dispositions — never
+  a fix loop, never a hold (PIN-12, PIN-2), with a red-gate fixture in the tests. The
+  delta-scale file set comes from `git diff --name-only <preAceTip> <aceSha>`,
+  carried on a new declared WORKER_RESULT property, `ace_diff_files: { type: 'array' }` (name
+  is latitude, the `mappedTests` precedent), filled by the ace dispatch from that command; the
+  existing `files_changed` self-report is a cross-check, and absent, empty, or mismatched
+  routes to the full panel (A3, PIN-18). Both arrays come from the same agent, so the
+  independent checker is the re-audit seat: the delta-scaled re-audit prompt instructs the
+  seat to run `git diff --name-only <preAceTip> <aceSha>` itself (read-only git, within the
+  auditor guard) and escalate to the full panel if any file falls outside the claimed set —
+  the seat-detected arm keeps PIN-18 live even when the two fields collapse. Build the PIN-16 `already_upstream` arm at the merge slot: pre-rebase
   legs (`git rev-list --count <dispatchBase>..<preRebaseTaskTip>` > 0,
   `git cherry <integrationTip> <preRebaseTaskTip>` matching every task commit), matched task
   commits recorded, the arm before the equality test, empty pre-rebase patch-id fails closed;
-  positive and negative fixtures (zero-commit branch escalates). Apply the file-level subset
+  positive and negative fixtures (zero-commit branch escalates). The MergeResult return shape
+  and merge-task steps for the PIN-14/PIN-16 legs land in `agents/war-refiner.md` and the
+  merge-task rows of `skills/war/references/schemas.md` in this same commit (the PIN-11
+  same-commit rule, applied to the refiner layer); the PIN-17 budget clause extends to
+  `agents/war-refiner.md` (14 B headroom at the merged base — the ADJ-1 raise is the expected
+  route there). Apply the file-level subset
   rule (D3), over `aceRelPath`-normalised paths, to choose originating-seat-only vs full-panel
   re-audit;
   record per seat: transferred or re-ran, at which SHA (PIN-10). At the merge slot, emit
