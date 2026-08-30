@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "profile": "balanced",
+  "agents": {
+    "worker": {
+      "model": "opus",
+      "effort": "default",
+      "docs": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "fix": {
+        "model": "fable",
+        "effort": "low"
+      }
+    },
+    "auditor": {
+      "model": "sonnet",
+      "effort": "max"
+    },
+    "refiner": {
+      "model": "sonnet",
+      "effort": "high"
+    },
+    "servitor": {
+      "model": "sonnet",
+      "effort": "xhigh"
+    },
+    "redteam": {
+      "model": "opus",
+      "effort": "high"
+    }
+  },
+  "audit": {
+    "roster": [
+      {
+        "lens": "correctness",
+        "depth": "deep"
+      },
+      {
+        "lens": "cascading-impact",
+        "depth": "deep"
+      },
+      {
+        "lens": "plan-faithfulness",
+        "depth": "deep"
+      },
+      {
+        "lens": "simplicity",
+        "depth": "deep"
+      },
+      {
+        "lens": "performance",
+        "depth": "deep"
+      }
+    ],
+    "rosterPolicy": "auto",
+    "autoEscalate": true
+  },
+  "run": {
+    "roundLimit": 6,
+    "afk": false,
+    "ace": true,
+    "provision": [],
+    "provisionSource": "structural",
+    "provisionAuto": true
+  },
+  "memory": {
+    "retrieval": true,
+    "topK": 10,
+    "commitLearnings": true
+  },
+  "hooks": {
+    "replyStandard": true,
+    "valeMarkdown": true,
+    "valeGoogle": true
+  },
+  "overrides": {
+    "gate": null,
+    "workingBranch": null,
+    "landingBranch": null,
+    "learningsTarget": null,
+    "testPattern": null,
+    "ghUser": "Ljferrer"
+  }
+}

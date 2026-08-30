@@ -71,11 +71,12 @@ export const DEFAULTS = {
   // itself in the project the hook fires in — never by the phase engine, so no workflow-template.js
   // mirror. Advisory only (one additionalContext line, never a block); a machine without the vale
   // binary silently no-ops. Only an explicit `false` disables; absent, null, or unreadable mean on.
-  // hooks.valeGoogle: profile selector for the vale-md hook. Default OFF (house ReplyStandard
-  // rules only); an explicit `true` swaps to .vale-google.ini — the house rules plus the
-  // vendored, tuned Google developer-documentation style (styles/Google, errata-ai/Google, MIT).
-  // Subordinate to valeMarkdown: when that is false, nothing runs regardless of this key.
-  hooks: { replyStandard: true, valeMarkdown: true, valeGoogle: false },
+  // hooks.valeGoogle: profile selector for the vale-md hook. Default ON — .vale-google.ini,
+  // the house rules plus the vendored, tuned Google developer-documentation style
+  // (styles/Google, errata-ai/Google v0.7.1, MIT); an explicit `false` swaps back to the
+  // house-only .vale.ini. Subordinate to valeMarkdown: when that is false, nothing runs
+  // regardless of this key.
+  hooks: { replyStandard: true, valeMarkdown: true, valeGoogle: true },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
