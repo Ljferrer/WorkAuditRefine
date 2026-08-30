@@ -73,4 +73,17 @@ printf '[]' > "$PROJ/.claude/war/config.json"
 out="$(run_card)"
 case "$out" in *"REPLY STANDARD"*) pass 'case11 array config: fail-open, card runs' ;; *) fail 'case11 array config: fail-open, card runs' ;; esac
 
+# Cases 12-14: WAR-command prompts skip the card (Lead-audit ruling, option a) —
+# but only when the command is the FIRST token, and the meter is never skipped.
+rm -f "$PROJ/.claude/war/config.json"
+out="$(printf '{"prompt":"/war docs/plans/x.md --afk"}' | sh "$TMP/gate.sh" card.py)"; rc=$?
+if [ -z "$out" ] && [ "$rc" -eq 0 ]; then pass 'case12 /war prompt: card skipped, exit 0'; else fail "case12 /war prompt: card skipped, exit 0 (rc=$rc out=$out)"; fi
+out="$(printf '{"prompt":"/war-campaign a.md b.md"}' | sh "$TMP/gate.sh" card.py)"
+if [ -z "$out" ]; then pass 'case13 /war-* prompt: card skipped'; else fail 'case13 /war-* prompt: card skipped'; fi
+out="$(printf '{"prompt":"explain /war to me"}' | sh "$TMP/gate.sh" card.py)"
+case "$out" in *"REPLY STANDARD"*) pass 'case14 mid-prompt /war mention: card runs' ;; *) fail 'case14 mid-prompt /war mention: card runs' ;; esac
+rm -f "$TMP/meter.log"
+printf '{"last_assistant_message":"Phase 1 landed.","session_id":"t"}' | sh "$TMP/gate.sh" meter.py
+if [ -s "$TMP/meter.log" ]; then pass 'case15 meter unaffected by the card skip rule'; else fail 'case15 meter unaffected by the card skip rule'; fi
+
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi
