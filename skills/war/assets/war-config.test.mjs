@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES,
+  DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
@@ -673,18 +673,18 @@ test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, n
   assert.match(r.errors.join('\n'), /hooks\.valeMarkdown must be a boolean/)
 })
 
-// hooks.valeGoogleFork — the vale-md profile selector, consumed by hooks/vale-md/vale-md.py
+// hooks.valeStyle — the vale-md profile selector enum, consumed by hooks/vale-md/vale-md.py
 // (fail-open; subordinate to valeMarkdown). Delete-the-feature: drop the DEFAULTS entry and
-// the default-ON assertion fails; drop the validate() line and the rejection case fails.
-test('hooks.valeGoogleFork defaults ON, explicit false validates, null is unset, non-boolean rejected', () => {
-  assert.equal(DEFAULTS.hooks.valeGoogleFork, true, 'the Google profile is the default')
-  assert.equal(fillDefaults({}).hooks.valeGoogleFork, true)
-  assert.equal(validate({ hooks: { valeGoogleFork: false } }).valid, true)
-  assert.equal(validate({ hooks: { valeGoogleFork: null } }).valid, true,
-    'null = unset (the overrides.* convention) — vale-md.py reads null as the default (on), and the validator must not disagree')
-  const r = validate({ hooks: { valeGoogleFork: 'on' } })
+// the default assertion fails; drop the validate() line and the rejection case fails.
+test('hooks.valeStyle defaults googleFork, every VALE_STYLES value validates, null is unset, unknown rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeStyle, 'googleFork', 'the tuned Google fork is the default profile')
+  assert.equal(fillDefaults({}).hooks.valeStyle, 'googleFork')
+  for (const s of VALE_STYLES) assert.equal(validate({ hooks: { valeStyle: s } }).valid, true, s)
+  assert.equal(validate({ hooks: { valeStyle: null } }).valid, true,
+    'null = unset (the overrides.* convention) — vale-md.py reads null as the default, and the validator must not disagree')
+  const r = validate({ hooks: { valeStyle: 'chicago' } })
   assert.equal(r.valid, false)
-  assert.match(r.errors.join('\n'), /hooks\.valeGoogleFork must be a boolean/)
+  assert.match(r.errors.join('\n'), /hooks\.valeStyle must be one of/)
 })
 
 // agents.snipe — /snipe's one-shot seat tier (#1920): defaulted opus/high, validated like
