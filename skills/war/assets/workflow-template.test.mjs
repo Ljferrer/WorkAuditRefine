@@ -12465,6 +12465,71 @@ test('#1913 End state 6 (PIN-10, merge slot) — a MISMATCH row is built from th
   }
 })
 
+// The merge-slot MISMATCH re-audit is a re-audit like any other, so its OWN fresh Minor/Nits must
+// walk the same disposition ladder the six wave-side ace-family call sites use. Before #1931 the
+// mismatch arm called auditRound and never routed: every fresh Minor/Nit it raised was dropped on
+// the floor. The absorb arm needs the noReentry opt — aceReentry is wave-side only, so the merge
+// slot's r.reentryQueue has no drain left and a queued absorb would strand just as silently.
+// Seats echo the pin they were dispatched at, so no finding is stripped by the pin-mismatch guard.
+const ptMismatchImpl = (reFindings) => (prompt, opts) => {
+  if (seatOf(opts) !== 'war-auditor') return ptImpl([], aceOk())(prompt, opts)
+  const lens = /security/.test(opts.label || '') ? 'security' : 'correctness'
+  const sha = /beef0001/.test(prompt) ? 'beef0001' : 'deadbeef'
+  return seatAt(opts.label, lens, sha, (sha === 'beef0001' && lens === 'correctness') ? reFindings : [])
+}
+
+test('#1913 PIN-1 (#1931) — the merge-slot MISMATCH re-audit routes its OWN fresh Minor/Nits by disposition: note, follow-up and ask each land, and the absorb takes the sweep (never the drainless re-entry queue)', async () => {
+  const F = [
+    { severity: 'Nit',   title: 'ms note',     file: ACE_FILE, disposition: 'note',      rationale: 'cosmetic' },
+    { severity: 'Minor', title: 'ms followup', file: ACE_FILE, disposition: 'follow-up', rationale: 'later' },
+    { severity: 'Minor', title: 'ms ask',      file: ACE_FILE, disposition: 'ask',       rationale: 'trade-off',
+      ask: { question: 'which way at the merge slot?', fork: ['a', 'b'] } },
+    { severity: 'Nit',   title: 'ms absorb',   file: ACE_FILE, disposition: 'absorb', autoFixable: true, rationale: 'tidy' },
+  ]
+  const { out, logs } = await runPhase(PT_ARGS(), ptMismatchImpl(F), {
+    'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2' },
+  })
+  // Delete-and-trace: drop the routeReauditMinors call from the mismatch arm and all four fail.
+  assert.ok((out.notes || []).some(n => n && n.title === 'ms note'),
+    "the mismatch re-audit's note-disposition Nit reaches notes")
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'ms followup'),
+    "its follow-up-disposition Minor is filed")
+  assert.ok((out.asks || []).some(a => a && a.question === 'which way at the merge slot?'),
+    "its ask-disposition Minor parks for the Checkpoint — an ask is never dropped")
+  const sweepLog = (logs || []).filter(l => typeof l === 'string' && l.includes('ms absorb') && l.includes('phaseClose sweep'))
+  assert.equal(sweepLog.length, 1, 'the absorb-disposition Nit routes to the phase-close sweep, exactly once')
+  assert.match(sweepLog[0], /wave side is over/i,
+    'the sweep routing names WHY re-entry is unavailable at the merge slot (logged, never silent)')
+  assert.ok(out.landed.includes('t1'), 't1 still lands — routing the findings never holds the task')
+})
+
+test('#1913 PIN-1 (#1931) — the merge-slot MISMATCH re-audit routes its findings on the ESCALATE path too: a blocking finding holds the task, and the round\'s Minor/Nits are still accounted', async () => {
+  // The route sits BEFORE the approve/escalate branch, so no exit path drops a finding.
+  const F = [
+    { severity: 'Critical', title: 'ms blocker',  file: ACE_FILE, rationale: 'broken' },
+    { severity: 'Nit',      title: 'ms esc note', file: ACE_FILE, disposition: 'note', rationale: 'cosmetic' },
+  ]
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) !== 'war-auditor') return ptImpl([], aceOk())(prompt, opts)
+    const lens = /security/.test(opts.label || '') ? 'security' : 'correctness'
+    if (/beef0001/.test(prompt)) {
+      return { seat: opts.label, lens, audit_sha: 'beef0001', verdict: 'request_changes',
+        findings: lens === 'correctness' ? F : [], confidence: 'high' }
+    }
+    return seatAt(opts.label, lens, 'deadbeef', [])
+  }
+  const { out } = await runPhase(PT_ARGS(), impl, {
+    'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2' },
+  })
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1'),
+    'the failed in-lock re-audit escalates the task (blocking findings still own the hold)')
+  assert.ok(!out.landed.includes('t1'), 't1 does not land')
+  assert.ok((out.notes || []).some(n => n && n.title === 'ms esc note'),
+    "the escalating round's own Nit is STILL routed — the escalate path drops nothing")
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'ms blocker'),
+    'the blocking finding is untouched by the routing — it is the escalation input, not a Minor/Nit')
+})
+
 test('#1913 End state 9 — the pin-transfer rule is on BOTH prompt layers: the standing auditor card AND a pt-tagged dispatched prompt literal (never a comment only)', () => {
   assert.match(auditorMd, /pin[- ]transfer/i, 'the standing auditor card carries the transfer rule')
   assert.match(auditorMd, /scopeBreach/, 'and the card names the seat-detected refusal field the engine reads')

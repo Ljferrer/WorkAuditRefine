@@ -1219,10 +1219,11 @@ const routeToSweep = (f, why) => {
 }
 // Re-audit-born finding routing (D1/D2/D3, #1731 — replaces the retired "the ladder never opens
 // for fresh findings" demotions): fresh Minor/Nits raised at ANY re-audit (the plain batch
-// re-audit, a bisection subset's re-audit, or a re-entry batch's own re-audit) route by
-// disposition; a fresh ELIGIBLE absorb queues on r.reentryQueue for budget-bounded RE-ENTRY
-// (aceReentry dispatches it while fixRounds < roundLimit − 2). phaseClose/release-slot absorbs
-// route to the sweep. BOTH the follow-up and absorb arms consult the content-key registries
+// re-audit, a bisection subset's re-audit, a re-entry batch's own re-audit, or the merge-slot
+// pin-transfer MISMATCH re-audit) route by disposition; a fresh ELIGIBLE absorb queues on
+// r.reentryQueue for budget-bounded RE-ENTRY (aceReentry dispatches it while fixRounds <
+// roundLimit − 2). phaseClose/release-slot absorbs route to the sweep, and so does EVERY absorb
+// under the noReentry opt (the merge-slot caller, whose re-entry queue has no drain left). BOTH the follow-up and absorb arms consult the content-key registries
 // (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
 // never re-enters (its demoted follow-up record in minorsFiled stands) and never files twice.
@@ -1258,7 +1259,12 @@ const corroborateSurvivor = f => {
   const ref = seatRefOf(f)
   if (!hit.seats.includes(ref)) hit.seats.push(ref)
 }
-const routeReauditMinors = (r, seats) => {
+const routeReauditMinors = (r, seats, opts) => {
+  // noReentry (#1931): the caller is PAST the wave side, so r.reentryQueue has no drain left —
+  // aceReentry is wave-side only. The absorb-eligible arm then routes to the phase-close sweep
+  // instead of the re-entry queue, with the caller's reason. Every other arm is unchanged, so a
+  // merge-slot re-audit's findings walk the SAME disposition ladder every wave-side site uses.
+  const noReentry = (opts && opts.noReentry) || null
   r.reentryQueue = r.reentryQueue || []
   for (const f of minorsOf(seats).map(x => ({ task: r.task.id, ...x }))) {
     const d = dispositionOf(f)
@@ -1272,7 +1278,10 @@ const routeReauditMinors = (r, seats) => {
     else if (b) { log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).'); corroborateSurvivor(f) }
     else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
     else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
-    else if (!f.phaseClose && aceEligible(f)) { queuedKeys.add(remintKey(f)); r.reentryQueue.push(f) }   // born at a re-audit — re-enters (D1)
+    else if (!f.phaseClose && aceEligible(f)) {
+      if (noReentry) routeToSweep(f, noReentry)                                                          // no drain left — the sweep is the vehicle
+      else { queuedKeys.add(remintKey(f)); r.reentryQueue.push(f) }                                      // born at a re-audit — re-enters (D1)
+    }
     else routeToSweep(f, 'phaseClose/release-slot absorb born at a re-audit — the sweep is its vehicle')
   }
 }
@@ -2690,6 +2699,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log('pin-transfer ' + r.task.id + ': patch-id MISMATCH (' + (pinProbe.pre_rebase_patch_id || '(empty)') + ' → ' + (pinProbe.post_rebase_patch_id || '(empty)') + ') — the full panel re-audits the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' in the lock before the merge (PIN-1).')
         const { seats: rbSeats, expected: rbExpected } = await auditRound(r.task, null, null, pinProbe.rebased_tip)
         pinTransfers.push(probeRow('mismatch', rbSeats))
+        // Route this re-audit's OWN Minor/Nits by disposition, on BOTH exit paths (#1931), exactly
+        // as the six wave-side ace re-audit sites do — an ask parks, a follow-up files, a note
+        // records, an absorb routes. Placed before the approve/escalate branch so no exit path
+        // drops a finding. noReentry: the merge queue is past the wave side, so aceReentry can
+        // never drain r.reentryQueue again; an absorb-eligible finding takes the phase-close sweep
+        // instead. Blocking findings stay untouched — the escalate arm below owns them.
+        routeReauditMinors(r, rbSeats, { noReentry: 'merge-slot pin-transfer mismatch re-audit — the wave side is over, so re-entry can never dispatch; the sweep is the vehicle' })
         if (allApprove(rbSeats, rbExpected) && blockingOf(rbSeats).length === 0) {
           r.seats = rbSeats
         } else {
