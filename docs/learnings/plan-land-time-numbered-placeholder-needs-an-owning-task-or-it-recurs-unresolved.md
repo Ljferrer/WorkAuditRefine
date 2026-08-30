@@ -15,9 +15,12 @@ metadata:
     - unowned cascade
     - phase-close polish
     - A5
+    - owning task never ran
+    - engine bug blocks placeholder resolution
+    - artifact entirely missing not just misnamed
   provenance: agent-unverified
   slug: plan-land-time-numbered-placeholder-needs-an-owning-task-or-it-recurs-unresolved
-  phase: 2026-08-25-engine-reliability-and-filing-fidelity/2.3
+  phase: "2026-08-25-engine-reliability-and-filing-fidelity/2.3; addendum 2026-08-30-engine-concurrency-and-pin-transfer/phase-2 task 2.2"
   tags: 
     - war
     - plan-authoring
@@ -25,7 +28,7 @@ metadata:
     - process
   created: 2026-08-26
   originSessionId: 46a4dbcd-fa2b-416c-87f8-931f5c3c90b5
-  modified: 2026-08-26T10:20:13.580Z
+  modified: 2026-08-30T14:50:40.048Z
 ---
 
 # A plan's land-time-numbered placeholder (e.g. `docs/adr/00NN-...`) needs an explicit owning step
@@ -72,3 +75,28 @@ has literally nowhere left to land.
 recurring, check `docs/adr/` for any `00NN-*` or otherwise non-sequential filename via
 `ls docs/adr/` (or the plan's own Files list) before trusting a plan's placeholder-resolution
 prose.
+
+## Recurrence — sharper sub-mode: the owning task never even ran, so there is no placeholder to
+## rename, `2026-08-30-engine-concurrency-and-pin-transfer`/phase-2 task 2.2 (landed
+## `dev/2026-08-30-engine-concurrency-and-pin-transfer` @ `ad440fc0b65dfbfdf797b8f8b83f44b0d4531b50`,
+## 2026-08-30)
+
+**Code-verified** — same landed-tip grounding as the sibling entry below
+(`_refinery38` worktree, `HEAD` equal to the threaded tip). The plan's task 2.2 named
+`docs/adr/00NN-pin-transfer-and-proportional-re-audit.md` as its land-time-numbered placeholder
+(PIN-9, Commander's Intent End-state 7) with an explicit owning task — the plan-authoring
+discipline this lesson recommends. That should have been sufficient. It was not: task 2.2's
+branch never received a single commit (an unrelated engine bug — the `preMerged`
+derive-and-skip vacuous-ancestor defect — falsely marked the never-dispatched task
+`recovered:pre-merged`; see
+[[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]] for the
+full mechanism). `docs/adr/` at the landed tip contains only `0001`-`0048`; no placeholder file
+was ever even created to rename.
+
+**Sharpens the pattern:** naming an explicit owning task is necessary but not sufficient — a
+plan-authoring mitigation for this pattern cannot defend against an orthogonal engine bug that
+prevents the owning task from running at all. A servitor/Lead verifying an ADR-placeholder
+End-state should confirm the artifact FILE exists, not merely that a task was assigned to own it.
+
+**Locate-cue:** none — process/plan-authoring evidence; see the code-verified locate-cue in
+[[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]].
