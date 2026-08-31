@@ -399,3 +399,17 @@ work *out* of the issue backlog and into the run that found it.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
+
+## Amendment (2026-08-31) — a fourth re-audit source that never re-enters
+
+The 2026-08-27 amendment above enumerates three re-audit sources (a plain approve-branch
+re-audit, a bisection subset's, a re-entry batch's own) and names the floor-retry reserve their
+sole bound. ADR 0049's merge-slot pin-transfer **mismatch** re-audit is a **fourth source**, and
+it takes a different route: its absorb-eligible findings never re-enter — they route straight to
+the phase-close sweep via `routeReauditMinors`' `noReentry` opt, unconditional on budget headroom
+(the merge slot sits inside the integration lock, and a re-entry there would re-open the ladder
+the wave side already closed). The reserve therefore bounds the three wave-side sources only.
+The three living-doc homes (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Re-entry**
+row, `design.md` §18) already carry the scoped wording; this amendment records it as law.
+
+This amendment leaves all pre-existing text above byte-unchanged.
