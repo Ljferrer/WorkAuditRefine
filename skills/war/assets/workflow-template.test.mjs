@@ -12859,11 +12859,15 @@ test('#1951 — a green ace-gate reply with NO usable head_sha is RED end-to-end
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED') && l.includes('no usable head_sha')),
       label + ': the new gateWhy arm names the unplaced gate, logged never silent')
     // The ace tip in this fixture is 'deadbeef' (aceBase's worker echo), the same sha as the
-    // work-wave round — so count auditor dispatches instead of grepping for a sha: exactly ONE
-    // audit call means the work-wave round ran and the ace re-audit did not. (A sha-grep for
-    // 'ace00001' was inert here: that literal appears in no prompt of this fixture.)
-    const audits = calls.filter(c => isAuditor(c))
-    assert.equal(audits.length, 1, label + ': only the work-wave audit ran — no re-audit at the unplaced ace tip')
+    // work-wave round — a sha-grep is inert here. The falsifiable form is a WINDOW assert: the
+    // re-audit would dispatch between the ace worker and the merge, so that window must hold
+    // zero auditor calls (the work-wave audit precedes the ace; the gate-audit seat follows the
+    // merge — neither sits in the window).
+    const aceIdx = calls.findIndex(isAce)
+    const mergeIdx = calls.findIndex(isMergeTask)
+    assert.ok(aceIdx !== -1 && mergeIdx > aceIdx, label + ': the ace ran and the merge followed it')
+    const windowAudits = calls.slice(aceIdx + 1, mergeIdx).filter(c => isAuditor(c))
+    assert.equal(windowAudits.length, 0, label + ': no re-audit dispatches at the unplaced ace tip')
     assert.ok(!(out.aced || []).length, label + ': nothing is recorded aced')
     const merge = calls.find(isMergeTask)
     assert.match(merge.prompt, /FORWARD-REVERT/, label + ': the merge dispatch forward-reverts the unplaced ace tip (PIN-2)')
