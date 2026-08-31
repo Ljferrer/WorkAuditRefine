@@ -2081,6 +2081,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // a path-dialect disagreement (git disjoint from every f.file — the intersection empties and the
     // whole approved batch would demote), and a legitimate cross-file fix (finding on A, fix in B).
     // Inside the subset, a finding whose file the commit never reached is a genuine partial miss.
+    // RESIDUAL, ruled: the non-subset arm records aced on the full panel's re-approval alone — a
+    // panel approving the tip does not verify each queued finding was fixed (the sweep polish
+    // arm's ruled residual, same shape).
     const footprint = aceRelSet(findings.map(f => f.file))
     const subset = git.size > 0 && [...git].every(p => footprint.has(p))
     for (const f of findings) {
