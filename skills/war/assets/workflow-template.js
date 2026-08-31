@@ -2033,7 +2033,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // refiner to confirm HEAD and echo the sha it gated, so an echo naming a DIFFERENT commit means the
     // gate ran somewhere else and licenses nothing. Reuses pinMismatch, so abbreviated-vs-full names
     // the same commit and still compares equal.
-    // RESIDUAL, deliberate: an ABSENT head_sha does not fail closed, because GATE_CHECK requires only
+    // RESIDUAL, deliberate (#1951): an ABSENT or MALFORMED head_sha does not fail closed, because GATE_CHECK requires only
     // gate_green — the schema lets a compliant refiner omit it, and the red arm legitimately does.
     // Failing closed on absence would turn a schema-legal reply into a false RED and forward-revert a
     // good ace on a path PIN-2 keeps fail-open. Closing that half means making head_sha required on the
