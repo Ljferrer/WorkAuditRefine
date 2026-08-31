@@ -12685,6 +12685,28 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
     fn([{ title: 'x', file: './a.js' }], SHA, { ace_diff_files: ['a.js'] })
     assert.equal(demoted.length, 0, 'aceRelPath normalises both sides — ./a.js and a.js are the same file')
   }
+  // Subset gate (snipe seats correctness + test-fidelity): outside the footprint the full panel
+  // already re-ran, and demotion there manufactures follow-ups for done work.
+  {
+    const { fn, aced, demoted } = build()
+    fn([{ title: 'dialect', file: 'a.js' }], SHA, { ace_diff_files: ['/abs/other/a.js'] })
+    assert.equal(demoted.length, 0, 'a path-DIALECT disagreement (disjoint git set) is not proof of a miss — the whole batch keeps aced')
+    assert.equal(aced.length, 1)
+  }
+  {
+    const { fn, aced, demoted } = build()
+    fn([{ title: 'cross-file', file: 'a.js' }], SHA, { ace_diff_files: ['b.js'] })
+    assert.equal(demoted.length, 0, 'a legitimate CROSS-FILE fix (finding on a.js, fix in b.js) never demotes — the full panel re-ran and approved it')
+    assert.equal(aced.length, 1)
+  }
+  {
+    const { fn, aced, demoted } = build()
+    const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
+    fn([hit, miss], SHA, { ace_diff_files: ['a.js'] })
+    assert.equal(demoted.length, 1, 'INSIDE the footprint subset, the genuine partial miss still demotes')
+    assert.equal(demoted[0].f.title, 'untouched')
+    assert.deepEqual(aced.map(x => x.f.title), ['fixed'])
+  }
 })
 
 test('#1944 — recordAced call-site census: every occurrence is a NAMED legitimate site, never a batch loop (default-deny)', () => {

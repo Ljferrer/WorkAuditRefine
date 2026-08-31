@@ -2076,8 +2076,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // demoting on missing evidence would manufacture follow-ups instead of recording real misses.
   const recordAcedTouched = (findings, sha, w) => {
     const git = aceRelSet(w && w.ace_diff_files)
+    // Demotion needs the git set to be a SUBSET of the batch's own footprint. Outside that subset
+    // the full panel already re-ran (aceScope's fallback) and two known false-positive shapes live:
+    // a path-dialect disagreement (git disjoint from every f.file — the intersection empties and the
+    // whole approved batch would demote), and a legitimate cross-file fix (finding on A, fix in B).
+    // Inside the subset, a finding whose file the commit never reached is a genuine partial miss.
+    const footprint = aceRelSet(findings.map(f => f.file))
+    const subset = git.size > 0 && [...git].every(p => footprint.has(p))
     for (const f of findings) {
-      if (git.size && typeof f.file === 'string' && f.file && !git.has(aceRelPath(f.file))) {
+      if (subset && typeof f.file === 'string' && f.file && !git.has(aceRelPath(f.file))) {
         demote(f, 'follow-up', 'failed absorb — the ace commit at ' + sha + ' never touched ' + aceRelPath(f.file) + ' (partial batch fix); a finding is never recorded aced without evidence the commit reached its file')
         continue
       }
