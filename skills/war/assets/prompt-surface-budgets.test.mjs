@@ -120,6 +120,12 @@ const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
 // #1952: 0 — every top-level template literal counts. The old 200 floor is the recorded blind
 // spot; a non-zero value here needs its own re-baseline pass and derivation comment.
 const MIN_BLOCK_BYTES = 0;
+// #1955: the zero floor made the old block-count non-vacuity assert a no-op (any non-empty list
+// passed). The floor is now a minimum TOTAL: half the measured share at the re-baseline commit
+// (109,289 B @ 3b919f0 ÷ 2, floored to KB = 54,272 B). Deliberately loose — normal shrinkage
+// never trips it; a scanner desync that silently drops most blocks does. Re-derive alongside
+// any future re-baseline of WORKFLOW_LITERAL_BUDGET.
+const WORKFLOW_LITERAL_MIN_TOTAL = 54272;
 
 // Non-agent surfaces are budgeted by this fixed list; agents/*.md rows are checked
 // against a live readdir census below (default-deny: every agent card is budgeted).
@@ -414,12 +420,13 @@ test(`surface budget — ${WORKFLOW_TEMPLATE} prompt-literal share (pinned extra
   const measured = blocks
     .map((b) => Buffer.byteLength(b))
     .filter((bytes) => bytes >= MIN_BLOCK_BYTES);
-  assert.ok(
-    measured.length > 0,
-    `${WORKFLOW_TEMPLATE}: zero template-literal blocks >= ${MIN_BLOCK_BYTES} B extracted — `
-      + 'the measurement is vacuous (extraction broke or the literals moved); fail closed',
-  );
   const total = measured.reduce((s, b) => s + b, 0);
+  assert.ok(
+    total >= WORKFLOW_LITERAL_MIN_TOTAL,
+    `${WORKFLOW_TEMPLATE}: extracted prompt-literal total ${total} B is below the `
+      + `${WORKFLOW_LITERAL_MIN_TOTAL} B non-vacuity floor (#1955) — the measurement is vacuous `
+      + '(extraction broke or the literals moved); fail closed',
+  );
   checkBudget(
     `${WORKFLOW_TEMPLATE} prompt-literal share (${measured.length} blocks)`,
     total,
