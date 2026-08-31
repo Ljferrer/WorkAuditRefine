@@ -411,8 +411,9 @@ it takes a different route: its absorb-eligible findings never re-enter — they
 the phase-close sweep via `routeReauditMinors`' `noReentry` opt, unconditional on budget headroom
 (the merge slot sits inside the integration lock, and a re-entry there would re-open the ladder
 the wave side already closed). The reserve therefore bounds the three wave-side sources only.
-The three living-doc homes (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Re-entry**
-row, `design.md` §18) already carry the scoped wording; this amendment records it as law.
+The four living-doc homes (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Re-entry**
+row, `design.md` §18, and `schemas.md`'s `aced` comment) carry the scoped wording; this
+amendment records it as law.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
