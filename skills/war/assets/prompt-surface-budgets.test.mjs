@@ -36,7 +36,12 @@ const FILE_BUDGETS = {
   // post-shrink 22,216 B @ c6a05fb → hard ×1.25 ceil-KB = 28,672; advisory ×1.10 ceil-KB = 24,576
   'agents/war-auditor.md': { hard: 28672, advisory: 24576 },
   // post-shrink 27,109 B @ c6a05fb → hard ×1.25 ceil-KB = 34,816; advisory ×1.10 ceil-KB = 30,720
-  'agents/war-refiner.md': { hard: 34816, advisory: 30720 },
+  // RAISED +2,048 B (34,816 → 36,864) under the engine-concurrency-and-pin-transfer plan's
+  // pre-ratified PIN-17 / ADJ-1 row (operator, 2026-08-30): the card's merge-task steps must state the
+  // pin-transfer probe's legs (pre-rebase patch-id, git cherry, the already_upstream arm), which is
+  // tier-1 operative merge doctrine, and the card had 14 B of headroom at the task base fb18598 after
+  // eviction. Trailer: Budget-Raise: ADR-0042 agents/war-refiner.md +2048
+  'agents/war-refiner.md': { hard: 36864, advisory: 30720 },
   // post-shrink 15,531 B @ c6a05fb → hard ×1.25 ceil-KB = 19,456; advisory ×1.10 ceil-KB = 17,408
   'agents/war-servitor.md': { hard: 19456, advisory: 17408 },
   // No shrink task targeted this surface (adjudication M: unchanged is not failed) —
@@ -79,8 +84,9 @@ const FILE_BUDGETS = {
 
 // The prompt-literal share of workflow-template.js — measured by the PINNED extraction
 // algorithm below so engine-code growth never trips a prose budget. Derivation
-// (adjudication C): the pinned algorithm yields 112 top-level blocks >= 200 B /
-// 52,636 B at Task 1.2's base (762a7e4, file 227,469 B), and reproduces exactly
+// (adjudication C, 200 B-floor metric — SUPERSEDED by the #1952 re-baseline below): the then-live
+// pinned algorithm yielded 112 top-level blocks >= 200 B /
+// 52,636 B at Task 1.2's base (762a7e4, file 227,469 B), and reproduced exactly
 // 108 blocks / 50,648 B at fa3c838 — the spec §1 row's 164,234 B / 238 blocks / 74%
 // is unreproducible (~3× the file's total template-literal content) and is superseded.
 // post-shrink 49,864 B (113 blocks, file 225,911 B) @ c6a05fb → hard ×1.25 ceil-KB
@@ -94,10 +100,32 @@ const FILE_BUDGETS = {
 // tip — the measuring tree's own base; the pre-rewrite base 521a312 measures 61,920 B / 134
 // blocks and never carried this figure) → hard ×1.25 ceil-KB = 79,872; advisory ×1.10 ceil-KB
 // = 70,656
-const WORKFLOW_LITERAL_BUDGET = { hard: 79872, advisory: 70656 };
+// RAISED +2,048 B (79,872 → 81,920) under the engine-concurrency-and-pin-transfer plan's pre-ratified
+// PIN-17 / ADJ-1 row (operator, 2026-08-30). The wave-side ace stage adds three dispatched surfaces the
+// sandbox cannot move to references/: the PIN-12 gate check at the ace tip, the delta-scale charge on
+// the re-audit prompt, and the merge slot's pin-transfer probe. Eviction ran first — the new fragments
+// were compressed by ~700 B in-task — and the share measures 81,505 B at the task base fb18598, inside
+// the raised ceiling. Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +2048
+// RE-BASELINED (#1952, operator-gated pass, 2026-08-31): MIN_BLOCK_BYTES 200 → 0. The floor hid
+// every prompt built from small pt-fragment concatenations, and sub-floor growth moved the
+// measured share not at all. The metric now sums EVERY top-level template literal — 27,666 B
+// (25%) more than the floored metric, mostly pt prompt fragments plus the file's smaller log()
+// and path literals; same source bytes, measured without a floor. Constants re-derived per ADR 0042 D5 from the fresh full measurement:
+// post-shrink 109,289 B (467 blocks, zero-floor metric) @ 3b919f0 → hard ×1.25 ceil-KB
+// = 137,216; advisory ×1.10 ceil-KB = 120,832
+// Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +55296
+const WORKFLOW_LITERAL_BUDGET = { hard: 137216, advisory: 120832 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
-const MIN_BLOCK_BYTES = 200;
+// #1952: 0 — every top-level template literal counts. The old 200 floor is the recorded blind
+// spot; a non-zero value here needs its own re-baseline pass and derivation comment.
+const MIN_BLOCK_BYTES = 0;
+// #1955: the zero floor made the old block-count non-vacuity assert a no-op (any non-empty list
+// passed). The floor is now a minimum TOTAL: half the measured share at the re-baseline commit
+// (109,289 B @ 3b919f0 ÷ 2, floored to KB = 54,272 B). Deliberately loose — normal shrinkage
+// never trips it; a scanner desync that silently drops most blocks does. Re-derive alongside
+// any future re-baseline of WORKFLOW_LITERAL_BUDGET.
+const WORKFLOW_LITERAL_MIN_TOTAL = 54272;
 
 // Non-agent surfaces are budgeted by this fixed list; agents/*.md rows are checked
 // against a live readdir census below (default-deny: every agent card is budgeted).
@@ -360,9 +388,13 @@ test('pinned extraction — fixture witnesses the four pinned behaviors (adjudic
   // into its parent block (block COUNT stays 2, and the parent spans it byte-for-byte).
   // Removing any skip branch changes the block list and fails this deepEqual.
   assert.deepEqual(blocks, ['`tiny`', '`' + pad + '${ `inner` }end`']);
-  // (d) the measuring test's >= MIN_BLOCK_BYTES filter drops the tiny block.
+  // (d) #1952: the floor is 0 — NO block is dropped, so sub-200 B prompt growth moves the
+  // measured share. The old 200 floor hid 25% of real dispatched prompt bytes.
   const kept = blocks.filter((b) => Buffer.byteLength(b) >= MIN_BLOCK_BYTES);
-  assert.deepEqual(kept, [blocks[1]]);
+  assert.deepEqual(kept, blocks, 'the zero floor keeps every block — a dropped block would re-open #1952');
+  const share = (bs) => bs.reduce((a, b) => a + Buffer.byteLength(b), 0);
+  assert.equal(share(kept) - share([blocks[1]]), Buffer.byteLength('`tiny`'),
+    'a sub-200 B literal contributes its exact bytes to the share (#1952 close-when)');
 });
 
 test('placeholder marker retired — zero occurrences remain in this suite (Task 7.1 OLD-absent)', () => {
@@ -388,12 +420,13 @@ test(`surface budget — ${WORKFLOW_TEMPLATE} prompt-literal share (pinned extra
   const measured = blocks
     .map((b) => Buffer.byteLength(b))
     .filter((bytes) => bytes >= MIN_BLOCK_BYTES);
-  assert.ok(
-    measured.length > 0,
-    `${WORKFLOW_TEMPLATE}: zero template-literal blocks >= ${MIN_BLOCK_BYTES} B extracted — `
-      + 'the measurement is vacuous (extraction broke or the literals moved); fail closed',
-  );
   const total = measured.reduce((s, b) => s + b, 0);
+  assert.ok(
+    total >= WORKFLOW_LITERAL_MIN_TOTAL,
+    `${WORKFLOW_TEMPLATE}: extracted prompt-literal total ${total} B is below the `
+      + `${WORKFLOW_LITERAL_MIN_TOTAL} B non-vacuity floor (#1955) — either the extraction broke, `
+      + 'or a genuine mass shrink landed; a real shrink re-baselines the floor (ADR 0048 §2), never patches around it',
+  );
   checkBudget(
     `${WORKFLOW_TEMPLATE} prompt-literal share (${measured.length} blocks)`,
     total,

@@ -16,7 +16,9 @@ description; see the amendment below; amended 2026-08-27 — budget-bounded ace 
 floor-retry reserve is the ladder's sole stop condition, superseding the 2026-08-20 amendment's
 budget-exhaustion narration), three disposition widenings, the absorb-by-citation arm, and
 in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
-trigger — filing parity itself untouched); see the amendment below)
+trigger — filing parity itself untouched); see the amendment below; amended 2026-08-31 — the
+merge-slot pin-transfer mismatch re-audit is a fourth re-audit source that never re-enters; see
+the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -396,6 +398,22 @@ Decision 4's routing semantics are otherwise untouched: the disposition set is s
 `absorb` · `follow-up` · `note` · `ask`, `absorb` and `ask` are still never defaulted, and the
 Consequences bullet "Issues become affirmative acts" holds a fortiori — every widening here moves
 work *out* of the issue backlog and into the run that found it.
+
+This amendment leaves all pre-existing body text above — beyond the Status currency line —
+byte-unchanged.
+
+## Amendment (2026-08-31) — a fourth re-audit source that never re-enters
+
+The 2026-08-27 amendment above enumerates three re-audit sources (a plain approve-branch
+re-audit, a bisection subset's, a re-entry batch's own) and names the floor-retry reserve their
+sole bound. ADR 0049's merge-slot pin-transfer **mismatch** re-audit is a **fourth source**, and
+it takes a different route: its absorb-eligible findings never re-enter — they route straight to
+the phase-close sweep via `routeReauditMinors`' `noReentry` opt, unconditional on budget headroom
+(the merge slot sits inside the integration lock, and a re-entry there would re-open the ladder
+the wave side already closed). The reserve therefore bounds the three wave-side sources only.
+The four living-doc homes (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Re-entry**
+row, `design.md` §18, and `schemas.md`'s `aced` comment) carry the scoped wording; this
+amendment records it as law.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.

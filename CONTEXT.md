@@ -686,14 +686,15 @@ first pass with a faster fable/`low` fixer. Absent = fix work inherits the base 
 _Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
 knob covers both).
 
-**Batching helper**:
-The engine's group-serial fan-out throttle: with `run.maxParallel` set, `batched()` in
-`workflow-template.js` slices each fan-out (wave, roster, dropped-seat retry, gate-audit) into
-groups of that size, awaiting each group via the sandbox `parallel()`; group k+1 starts after
-group k settles. Knob absent ⇒ the single-`parallel()` path, byte-identical. Shape/default:
-`war-config.mjs` `validate()`.
+**Dispatch semaphore**:
+The /war engine's global agent ceiling: with `run.maxParallel` set, one global counting semaphore
+caps agent dispatches in flight across the whole run at that many — workers, auditors, aces, fix
+workers and gate-audit seats share the one counter, so nested fan-outs cannot exceed it. A permit
+is taken at each leaf dispatch, released in a `finally`. Knob absent ⇒ the unthrottled path,
+byte-identical. Shape/default: `war-config.mjs` `validate()`.
 _Avoid_: `Promise.all` (the live `parallel` NULLS a rejected thunk — the #742 invariant); a
-wall-clock pacing guarantee (batching orders groups, nothing more).
+wall-clock pacing guarantee (the ceiling bounds concurrency, nothing more); a per-site cap (nested
+sites multiply — issue #1897, the reason there is one counter).
 
 ### Diagnosis discipline
 
@@ -803,17 +804,26 @@ The grind backstop's load-bearing property: an ambiguous reading routes to #1664
 instrumentation-first refinement (a per-round `auditLog` row), never to a silent "no grinding".
 _Avoid_: reading ambiguity as absence of grinding.
 
+**Pin transfer**:
+An audit approval carried to a new SHA by a mechanical predicate, not a re-convened panel (canonical:
+`pinTransfers` in `skills/war/assets/workflow-template.js`). *Seat-approval transfer*: a wave-side
+ace whose git-derived file set (`ace_diff_files`) is a subset of the findings' file set re-runs only
+the originating seats; the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a
+conflict-free rebase plus `git patch-id --stable` equality of the task's own diff, before and after,
+carries the panel pin to the rebased tip. Neither accounts an approval at a SHA the gate never
+passed; a mismatch degrades to the in-lock full panel for that task alone.
+Arms and shape: `skills/war/references/schemas.md`.
+
 **Ace bisection**:
 The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
-`skills/war/assets/workflow-template.js`): named culprits are excised (demoted, logged) and the
-remainder re-applies as ONE subset; blind halving is reserved for ambiguous attribution; subsets apply
-serially at the tip, depth ≤ 2, same-file findings never split; each subset commit charges one
-`fixRounds` slot (reverts uncharged) and dispatches only while `fixRounds < roundLimit − 2`, the **floor-retry
-reserve** that holds two slots back for the merge-floor retry loop. Reaching it mid-bisection stops
-the ladder and the remaining subsets demote to `follow-up`, logged and by design;
-the reserve bounds subset commits only, not the whole ace path (the batch ace keeps its own
-`< roundLimit` gate). The reserve's `phaseClose: true` → sweep rung belongs to **Re-entry** (a fresh
-absorb born at a re-audit), never to a queued bisection subset. Failed subset tips are
+`skills/war/assets/workflow-template.js`, dispatched wave-side per task, never inside the merge lock):
+named culprits are excised (demoted, logged) and the remainder re-applies as ONE subset; blind halving
+is reserved for ambiguous attribution; subsets apply serially at the tip, depth ≤ 2, same-file findings
+never split; each subset commit charges one `fixRounds` slot (reverts uncharged) and dispatches only
+while `fixRounds < roundLimit − 2`, the **floor-retry reserve** that holds two slots back for the
+merge-floor retry loop. Reaching it mid-bisection stops the ladder and the remaining subsets demote to
+`follow-up`, logged and by design; the reserve bounds subset commits only, not the whole ace path (the
+batch ace keeps its own `< roundLimit` gate). Failed subset tips are
 forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
 mergeable task.
 _Avoid_: whole-batch demotion (retired); conflating this ladder's reserve stop (the remaining subsets
@@ -821,18 +831,20 @@ demote) with **Re-entry**'s reserve rung (routes `phaseClose: true` to the sweep
 finding-subset re-application, not a history search).
 
 **Re-entry**:
-The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned finding born at ANY
-re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another ace-style batch
-on the same machinery (canonical: `aceReentry` in `skills/war/assets/workflow-template.js`), **never
-a new round type or status member**. The **floor-retry reserve** (`fixRounds < roundLimit − 2`,
-#1562's merge-floor retry slots) is the SOLE bound — no echo cap, no shrinking rule, no second
-budget. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
-sweep-discard ⇒ `follow-up`; a
-forward-reverted finding never re-enters (the oscillation bound); every demotion is logged. Re-entry
-rounds inherit the **Ace-Subset trailer** discipline and the tip-preflight idempotency verbatim
+The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned finding born at a
+WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another
+ace-style batch on the same machinery (canonical: `aceReentry` in
+`skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
+**floor-retry reserve** (`fixRounds < roundLimit − 2`, #1562's merge-floor retry slots) is their
+SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
+its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
+budget-gated. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
+sweep-discard ⇒ `follow-up`; a forward-reverted finding never re-enters (the oscillation bound);
+every demotion is logged. Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
+tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
-_Avoid_: a new round type or a second budget; treating the reserve as a soft target (it is the stop
-condition); re-entering a forward-reverted finding.
+_Avoid_: a second budget; treating the reserve as a soft target (it is the stop condition);
+reading it as bounding the merge-slot source.
 
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and
@@ -873,22 +885,7 @@ all discovered suites); the D7 enumeration-conditional treats post-abort mapped 
 cannot-confirm, never HARD.
 
 **Retired-token sweep**:
-A Lead-run, judgment-triggered check at every landed phase close (manual completions via the §4.3
-escalation-completion recipe included) — never plan-declared, judged from the **mandatory**
-landed-phase diff plus the plan slice / Commander's Intent: did this phase retire, rename, or
-consolidate a land, merge, or escalation mechanism? Runs **two hot-only nets** over both memory roots
-— a tip-true `git grep` of `origin/<working>` (a completeness floor, not a ceiling) plus the
-fully-flagged ranked `war-memory query --local <root> --repo <root>` — then a bounded hand-scan,
-adjudicating every hit **load-bearing** (a no-longer-sanctioned recipe step) or **exempt** (narration,
-or still-live-in-context), never via an allowlist. Repo-root load-bearing hits route to one
-dedup-checked consolidated `war-followup` issue per triggering phase; local-root hits are counts only
-on gh-mirrored surfaces, slugs in the uncommitted ledger notes. Every landed phase carries a mandatory
-`retired-token sweep:` record line. The clause lives under `## Per phase (in DAG order)` in
-`skills/war/SKILL.md` (*defined-but-not-yet-emitted; produced in Task 1.1, same phase*).
-_Avoid_: conflating with **Phase-close coherence sweep** (findings-queue-driven, engine-dispatched,
-fail-open polish; [ADR 0012](docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md)); treating
-it as a gate (it never blocks or holds a land); an exemption allowlist (adjudication is per-hit);
-assuming it edits lesson bodies (it only files debt and records).
+when a landed phase closes and the retired-token judgment fires (a land/merge/escalation mechanism was retired, renamed, or consolidated), read skills/war/references/glossary-cold.md
 
 **Dep-wave visibility**:
 The mechanism by which a task's declared `deps` grant **code visibility**, not just ordering: the
@@ -983,15 +980,7 @@ a full re-audit, and escalates hard only on budget exhaustion.
 _Avoid_: gate-failed (the suite is green; the *image manifest* lags the diff).
 
 **done-unmet route**:
-The blocking floor route for a red `Done when:` — after the gate, the refiner runs the task's own
-acceptance command in the task worktree via `assert-done-when.sh` (file-threaded via `--cmd-file`,
-never interpolated; timeout-bounded; exit 2 is a git/env error and never collapses into the floor
-status). Exit 1 returns `MergeResult.status: "done-unmet"` and routes a bounded "make this command
-pass" fix sub-loop sharing `run.roundLimit` (the `no-test` pattern); exhaustion escalates via the
-`done-unmet` member of `HARD_ESCALATION_REASONS` — the two-slot widening (result status + escalation
-reason), per ADR 0005 enum discipline.
-_Avoid_: gate-failed (the suite is green; the task's own `Done when:` command is red); a new land
-decision (the route reuses the existing floor-family slots, like `no-test`/`unpackaged`).
+when `assert-done-when.sh` returns the `done-unmet` floor route, read skills/war/references/glossary-cold.md
 
 **`mappedTests`** (`MergeResult.mappedTests`):
 The mechanical definition of "mapped test": every test path `assert-test-in-diff.sh` matched in the

@@ -151,3 +151,34 @@ on against master; snapped to master's canonical copy by `snap-shared-docs.sh` (
 `--force`). ADR 0011 stack-and-plow is the primary recurrence reducer; the snap is the residual fallback.
 _Avoid_: rebasing or force-pushing a docs-only conflict; `--theirs`-ing a code-touching doc outside the
 pathspec.
+
+## Retired-token sweep
+
+A Lead-run, judgment-triggered check at every landed phase close (manual completions via the §4.3
+escalation-completion recipe included) — never plan-declared, judged from the **mandatory**
+landed-phase diff plus the plan slice / Commander's Intent: did this phase retire, rename, or
+consolidate a land, merge, or escalation mechanism? Runs **two hot-only nets** over both memory roots
+— a tip-true `git grep` of `origin/<working>` (a completeness floor, not a ceiling) plus the
+fully-flagged ranked `war-memory query --local <root> --repo <root>` — then a bounded hand-scan,
+adjudicating every hit **load-bearing** (a no-longer-sanctioned recipe step) or **exempt** (narration,
+or still-live-in-context), never via an allowlist. Repo-root load-bearing hits route to one
+dedup-checked consolidated `war-followup` issue per triggering phase; local-root hits are counts only
+on gh-mirrored surfaces, slugs in the uncommitted ledger notes. Every landed phase carries a mandatory
+`retired-token sweep:` record line. The clause lives under `## Per phase (in DAG order)` in
+`skills/war/SKILL.md` (*defined-but-not-yet-emitted; produced in Task 1.1, same phase*).
+_Avoid_: conflating with **Phase-close coherence sweep** (findings-queue-driven, engine-dispatched,
+fail-open polish; [ADR 0012](../../../docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md)); treating
+it as a gate (it never blocks or holds a land); an exemption allowlist (adjudication is per-hit);
+assuming it edits lesson bodies (it only files debt and records).
+
+## done-unmet route
+
+The blocking floor route for a red `Done when:` — after the gate, the refiner runs the task's own
+acceptance command in the task worktree via `assert-done-when.sh` (file-threaded via `--cmd-file`,
+never interpolated; timeout-bounded; exit 2 is a git/env error and never collapses into the floor
+status). Exit 1 returns `MergeResult.status: "done-unmet"` and routes a bounded "make this command
+pass" fix sub-loop sharing `run.roundLimit` (the `no-test` pattern); exhaustion escalates via the
+`done-unmet` member of `HARD_ESCALATION_REASONS` — the two-slot widening (result status + escalation
+reason), per ADR 0005 enum discipline.
+_Avoid_: gate-failed (the suite is green; the task's own `Done when:` command is red); a new land
+decision (the route reuses the existing floor-family slots, like `no-test`/`unpackaged`).
