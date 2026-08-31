@@ -12766,9 +12766,14 @@ test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase re
   // rather than restating it: a new Refine-phase refiner dispatch added without updating
   // MERGE_TASK_EXCLUDES would otherwise be silently misclassified as a merge-task by every test
   // that calls isMergeTask. That is exactly how 'endstate-check' went missing (#1937).
+  // Comment-stripped like the #1944 census — the source carries commented dispatchKind literals
+  // that must stay inert. KNOWN BLIND SPOT, by construction: a Refine-phase refiner dispatch that
+  // carries NO dispatchKind at all (the shape of every merge-task dispatch) is invisible here —
+  // this census guards a repeat of #1937 and nothing wider.
+  const code1937 = src.replace(/^\s*\/\/.*$/gm, '')
   const found = new Set()
-  for (const m of src.matchAll(/dispatchKind: '([a-z-]+)'/g)) {
-    const w = src.slice(Math.max(0, m.index - 260), m.index + 120)
+  for (const m of code1937.matchAll(/dispatchKind: '([a-z-]+)'/g)) {
+    const w = code1937.slice(Math.max(0, m.index - 260), m.index + 120)
     if (/phase: 'Refine'/.test(w) && /war-refiner/.test(w)) found.add(m[1])
   }
   assert.ok(found.size >= 4, 'the scan must find the Refine-phase refiner dispatches (found: ' + [...found].join(', ') + ')')
