@@ -12759,3 +12759,19 @@ test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase re
   assert.deepEqual(stale, [],
     'and the list carries no kind the template no longer dispatches (stale: ' + stale.join(', ') + ')')
 })
+
+test('#1941 — the rebase-skip predicate: authoritative on the refiner card, pointed at by all four merge prompts (both-surfaces anchor)', () => {
+  // The mechanical test lives ONCE, on the standing card every merge dispatch spawns under; the
+  // dispatched prompts carry a pointer naming the card's merge-base test. This row anchors both
+  // surfaces so the pair cannot drift apart silently (the standing-vs-dispatched split lesson).
+  const card = readFileSync(new URL('../../../agents/war-refiner.md', import.meta.url), 'utf8')
+  assert.match(card, /skip the rebase when `git -C <taskWorktree> merge-base --is-ancestor <integration-tip> <taskBranch>` exits 0/,
+    'the card carries the full mechanical predicate (#1941)')
+  assert.match(card, /Skip on NO other signal/,
+    'and the card forbids skipping on any other signal — "the probe ran" is not the test')
+  const pointers = (src.match(/skip ONLY per your card step 1 merge-base test/g) || []).length
+  assert.equal(pointers, 4,
+    'all four merge prompts (primary, floor-retry, environment-proceed, baseline-proceed) point at the card test — found ' + pointers)
+  assert.equal((src.match(/\(#1941\): git -C \$\{r\.task\.worktree\} rebase \$\{ph\.integrationBranch\}/g) || []).length, 4,
+    'each pointer sits on a rebase line that still spells the rebase command itself')
+})
