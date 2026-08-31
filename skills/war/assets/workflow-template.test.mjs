@@ -12591,7 +12591,7 @@ test('#1913 PIN-13 — the merge-slot fixRounds seed never LOWERS the wave-side 
 // expression, not a re-implementation of it. Each carries its own negative control: delete the
 // feature from the source and the extraction fails or the case flips.
 
-test('#1935 — the ace gate-check COMPARES its echoed head_sha: only a green gate naming this tip licenses the transfer', () => {
+test('#1935 — the ace gate-check compares its echoed head_sha: a green gate naming a DIFFERENT tip licenses nothing; an absent or malformed echo stays uncomparable (#1951)', () => {
   const block = src.match(/const aceGateGreen = async \(r, sha\) => \{[\s\S]*?\n  \}/)
   assert.ok(block, 'src must contain the aceGateGreen definition')
   const cond = block[0].match(/if \(([\s\S]*?)\) return true/)
@@ -12622,7 +12622,7 @@ test('#1935 — the ace gate-check COMPARES its echoed head_sha: only a green ga
     'an ABSENT head_sha stays uncomparable and still licenses — closing this half needs a schema change, not a comparison')
   assert.equal(run({ gate_green: true, head_sha: 'not-a-sha' }), true,
     'a MALFORMED echo is likewise uncomparable (pinMismatch fails open on a non-sha), same residual')
-  assert.match(src, /RESIDUAL, deliberate: an ABSENT head_sha does not fail closed/,
+  assert.match(src, /RESIDUAL, deliberate \(#1951\): an ABSENT or MALFORMED head_sha does not fail closed/,
     'and the residual is documented at the construct, never left for a reader to infer')
   assert.equal(run({ gate_green: false, head_sha: TIP }), false, 'a red gate never licenses')
   assert.equal(run(null), false, 'a dead/absent result never licenses')
