@@ -12923,7 +12923,9 @@ const evalSchema = (schema, v) => {
   if (schema.minLength !== undefined && typeof v === 'string' && v.length < schema.minLength) return false
   if (schema.minItems !== undefined && Array.isArray(v) && v.length < schema.minItems) return false
   if (schema.items && Array.isArray(v) && !v.every(x => evalSchema(schema.items, x))) return false
-  if (schema.required && (typeof v !== 'object' || v === null || !schema.required.every(k => k in v))) return false
+  // required applies to OBJECTS only (draft-07) — a non-object instance ignores it; rejecting it
+  // here was a latent false RED for any future type-less subschema (snipe, absorb Minor).
+  if (schema.required && typeof v === 'object' && v !== null && !Array.isArray(v) && !schema.required.every(k => k in v)) return false
   // properties bind ONLY when the field is present (draft-07) — pinned by its own case below.
   if (schema.properties && v && typeof v === 'object') {
     for (const [k, sub] of Object.entries(schema.properties)) if (k in v && !evalSchema(sub, v[k])) return false
@@ -12964,6 +12966,16 @@ test('#1956 — default-deny keyword census: every keyword in the evaluated sche
     const rogue = found.filter(k => !SCHEMA_KEYWORDS_SUPPORTED.has(k)).sort()
     assert.deepEqual(rogue, [], name + ' uses keyword(s) [' + rogue.join(', ') + '] outside the evaluator\'s supported set [' + [...SCHEMA_KEYWORDS_SUPPORTED].sort().join(', ') + '] — grow evalSchema BEFORE using the keyword')
   }
+  // Positive membership from the REAL walk (snipe test-fidelity — an under-walking census is the
+  // regex-only gap in new clothes). Discriminator choice matters: if/then/minLength ALSO live in
+  // AUDIT_VERDICT's top-level escalate-boundary conditional, so only minItems (items →
+  // ask.fork) proves the ITEMS recursion, and 'required' inside the top-level then proves the
+  // if/then recursion. Verified by dropping each position: minItems disappears without items
+  // recursion; the full set shrinks without if/then recursion.
+  const avKeywords = schemaKeywords(grabSchema('AUDIT_VERDICT'))
+  for (const k of ['if', 'then', 'items', 'minLength', 'minItems']) {
+    assert.ok(avKeywords.has(k), 'the census walk reaches the ' + k + ' keyword in AUDIT_VERDICT')
+  }
   // The census's own negative control: an unsupported keyword is caught, by name.
   const rogue = [...schemaKeywords({ type: 'object', properties: { x: { type: 'string', pattern: '^a' } } })].filter(k => !SCHEMA_KEYWORDS_SUPPORTED.has(k))
   assert.deepEqual(rogue, ['pattern'], 'a scratch schema carrying `pattern` fails the census')
@@ -12976,6 +12988,14 @@ test('#1956 — vendored evaluator semantics pins: a failed `if` skips `then`, a
   const props = { properties: { n: { type: 'number' } } }
   assert.equal(evalSchema(props, {}), true, 'pin (b): an absent field binds no properties constraint')
   assert.equal(evalSchema(props, { n: 'not-a-number' }), false, 'a present field binds it')
+  // Rejection controls for the four arms the schema fixtures only ever ACCEPT through — deleting
+  // any of these arms went unseen (snipe test-fidelity, absorb Minor).
+  assert.equal(evalSchema({ type: 'string' }, 5), false, 'type rejects a mismatched primitive')
+  assert.equal(evalSchema({ enum: ['a'] }, 'b'), false, 'enum rejects an out-of-set value')
+  assert.equal(evalSchema({ minLength: 1 }, ''), false, 'minLength rejects a short string')
+  assert.equal(evalSchema({ minItems: 2 }, ['a']), false, 'minItems rejects a short array')
+  // And draft-07's required-on-non-objects: ignored, never a false RED.
+  assert.equal(evalSchema({ required: ['x'] }, 'a string'), true, 'required is ignored for a non-object instance (draft-07)')
 })
 
 test('#1956 — GATE_CHECK validator semantics: green requires head_sha, red stays sha-free (the #1951 belt, evaluated not regexed)', () => {

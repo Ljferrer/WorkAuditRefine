@@ -3711,6 +3711,9 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       polishStatus = 'merged'
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
       log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
+      // RESIDUAL, ruled (#1944-class): every queued finding is recorded aced on the panel's
+      // re-approval alone — no per-finding evidence the polish commit reached its file. The
+      // recordAcedTouched comment cross-references this ruling.
       for (const f of phaseCloseQueue.splice(0)) recordAced(f, polishSha)
       // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
       // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later
