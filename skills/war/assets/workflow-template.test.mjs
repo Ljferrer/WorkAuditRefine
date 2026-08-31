@@ -12687,11 +12687,21 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
   }
 })
 
-test('#1944 — every ace-family recordAced site routes through the touched-file check (default-deny census)', () => {
+test('#1944 — recordAced call-site census: every occurrence is a NAMED legitimate site, never a batch loop (default-deny)', () => {
+  // The first census here was a three-name denylist (sub.findings|batch|aceable) — a new whole-batch
+  // loop under any other iterable name sailed past it, and one already existed: the phase-close
+  // sweep's polish arm (snipe seat test-fidelity). This census counts EVERY comment-stripped
+  // `recordAced(` occurrence and names each legitimate site, so any new direct call — whatever its
+  // loop variable — moves the total and goes red until it is either routed through
+  // recordAcedTouched or ruled here by name.
   const code = src.replace(/^\s*\/\/.*$/gm, '')
-  const direct = (code.match(/for \(const f of (?:sub\.findings|batch|aceable)\) recordAced\(/g) || [])
-  assert.equal(direct.length, 0,
-    'no ace-family site may loop recordAced over its whole batch — that is #1944 (found: ' + direct.join(' | ') + ')')
+  const total = (code.match(/recordAced\(/g) || []).length
+  assert.equal(total, 2, 'exactly 2 recordAced( occurrences — the recordAcedTouched interior and the sweep polish arm; a new one must be ruled here')
+  const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
+  assert.ok(helper, 'the recordAcedTouched helper exists')
+  assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
+  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) recordAced\(f, polishSha\)/,
+    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction, though the #1944 partial-fix shape applies to it too (a queued finding the polish commit never touched is still recorded aced; ruled a known residual, not silently)")
   assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
     'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
   assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
