@@ -1608,6 +1608,17 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     ['residual-set verification', '## residual-set verification'],
     ['churny shared docs', '## churny shared docs'],
     ['patch-equivalence probe', '## patch-equivalence probe'],
+    // Wave 3 — the #1953 eviction pass (2026-08-31) restored CONTEXT.md headroom from 1 B to
+    // ~3 KB under the unchanged ceiling. Coldness per the header criterion: each body is fully
+    // narrated in its own operative home — the retired-token sweep in skills/war/SKILL.md's
+    // phase-close paragraph, the strategy-verifier seat in
+    // skills/war/SKILL.md's phase-close paragraph, the done-unmet route on
+    // agents/war-refiner.md's floor section plus assert-done-when.sh's own header. The
+    // Strategy-verifier seat was CONSIDERED and rejected: D36 guard-binds it inline as one of the
+    // eight authoring-side-verification mirror terms. Never a ceiling raise; these rows are the
+    // lock-step re-anchor the eviction owes.
+    ['Retired-token sweep', '## Retired-token sweep'],
+    ['done-unmet route', '## done-unmet route'],
   ]) {
     // Mirror D26's idiom: escape the term before building the pattern.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
