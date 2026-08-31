@@ -105,10 +105,20 @@ const FILE_BUDGETS = {
 // the re-audit prompt, and the merge slot's pin-transfer probe. Eviction ran first — the new fragments
 // were compressed by ~700 B in-task — and the share measures 81,505 B at the task base fb18598, inside
 // the raised ceiling. Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +2048
-const WORKFLOW_LITERAL_BUDGET = { hard: 81920, advisory: 70656 };
+// RE-BASELINED (#1952, operator-gated pass, 2026-08-31): MIN_BLOCK_BYTES 200 → 0. The floor hid
+// every prompt built from small pt-fragment concatenations — 27,666 B (25%) of real dispatched
+// prompt bytes were invisible to this budget, and sub-floor growth moved the measured share not
+// at all. The metric now sums EVERY top-level template literal; same source bytes, measured
+// honestly. Constants re-derived per ADR 0042 D5 from the fresh full measurement:
+// post-shrink 109,289 B (467 blocks, zero-floor metric) @ 3b919f0 → hard ×1.25 ceil-KB
+// = 137,216; advisory ×1.10 ceil-KB = 120,832
+// Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +55296
+const WORKFLOW_LITERAL_BUDGET = { hard: 137216, advisory: 120832 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
-const MIN_BLOCK_BYTES = 200;
+// #1952: 0 — every top-level template literal counts. The old 200 floor is the recorded blind
+// spot; a non-zero value here needs its own re-baseline pass and derivation comment.
+const MIN_BLOCK_BYTES = 0;
 
 // Non-agent surfaces are budgeted by this fixed list; agents/*.md rows are checked
 // against a live readdir census below (default-deny: every agent card is budgeted).
@@ -371,9 +381,13 @@ test('pinned extraction — fixture witnesses the four pinned behaviors (adjudic
   // into its parent block (block COUNT stays 2, and the parent spans it byte-for-byte).
   // Removing any skip branch changes the block list and fails this deepEqual.
   assert.deepEqual(blocks, ['`tiny`', '`' + pad + '${ `inner` }end`']);
-  // (d) the measuring test's >= MIN_BLOCK_BYTES filter drops the tiny block.
+  // (d) #1952: the floor is 0 — NO block is dropped, so sub-200 B prompt growth moves the
+  // measured share. The old 200 floor hid 25% of real dispatched prompt bytes.
   const kept = blocks.filter((b) => Buffer.byteLength(b) >= MIN_BLOCK_BYTES);
-  assert.deepEqual(kept, [blocks[1]]);
+  assert.deepEqual(kept, blocks, 'the zero floor keeps every block — a dropped block would re-open #1952');
+  const share = (bs) => bs.reduce((a, b) => a + Buffer.byteLength(b), 0);
+  assert.equal(share(kept) - share([blocks[1]]), Buffer.byteLength('`tiny`'),
+    'a sub-200 B literal contributes its exact bytes to the share (#1952 close-when)');
 });
 
 test('placeholder marker retired — zero occurrences remain in this suite (Task 7.1 OLD-absent)', () => {
