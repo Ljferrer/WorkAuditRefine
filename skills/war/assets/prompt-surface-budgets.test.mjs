@@ -84,8 +84,9 @@ const FILE_BUDGETS = {
 
 // The prompt-literal share of workflow-template.js — measured by the PINNED extraction
 // algorithm below so engine-code growth never trips a prose budget. Derivation
-// (adjudication C): the pinned algorithm yields 112 top-level blocks >= 200 B /
-// 52,636 B at Task 1.2's base (762a7e4, file 227,469 B), and reproduces exactly
+// (adjudication C, 200 B-floor metric — SUPERSEDED by the #1952 re-baseline below): the then-live
+// pinned algorithm yielded 112 top-level blocks >= 200 B /
+// 52,636 B at Task 1.2's base (762a7e4, file 227,469 B), and reproduced exactly
 // 108 blocks / 50,648 B at fa3c838 — the spec §1 row's 164,234 B / 238 blocks / 74%
 // is unreproducible (~3× the file's total template-literal content) and is superseded.
 // post-shrink 49,864 B (113 blocks, file 225,911 B) @ c6a05fb → hard ×1.25 ceil-KB
@@ -106,10 +107,10 @@ const FILE_BUDGETS = {
 // were compressed by ~700 B in-task — and the share measures 81,505 B at the task base fb18598, inside
 // the raised ceiling. Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +2048
 // RE-BASELINED (#1952, operator-gated pass, 2026-08-31): MIN_BLOCK_BYTES 200 → 0. The floor hid
-// every prompt built from small pt-fragment concatenations — 27,666 B (25%) of real dispatched
-// prompt bytes were invisible to this budget, and sub-floor growth moved the measured share not
-// at all. The metric now sums EVERY top-level template literal; same source bytes, measured
-// honestly. Constants re-derived per ADR 0042 D5 from the fresh full measurement:
+// every prompt built from small pt-fragment concatenations, and sub-floor growth moved the
+// measured share not at all. The metric now sums EVERY top-level template literal — 27,666 B
+// (25%) more than the floored metric, mostly pt prompt fragments plus the file's smaller log()
+// and path literals; same source bytes, measured without a floor. Constants re-derived per ADR 0042 D5 from the fresh full measurement:
 // post-shrink 109,289 B (467 blocks, zero-floor metric) @ 3b919f0 → hard ×1.25 ceil-KB
 // = 137,216; advisory ×1.10 ceil-KB = 120,832
 // Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +55296
