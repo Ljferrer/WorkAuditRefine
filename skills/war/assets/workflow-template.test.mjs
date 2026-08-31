@@ -45,7 +45,10 @@ const fakeParallel = async (thunks) => Promise.all(thunks.map((t) => t()))
 const NEW_SEAT_DEFAULTS = {
   // A green gate at the ace tip, and a fail-open pin-transfer probe whose caller then runs the
   // ordinary merge dispatch unchanged — so every pre-#1913 fixture behaves exactly as it did.
-  'ace-gate': { gate_green: true },
+  // #1951: the green arm now requires head_sha (schema if/then + engine isSha guard), so the
+  // default echoes the dispatched tip parsed from the prompt — the shape a live validator-retried
+  // refiner returns.
+  'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
 }
 // runPhase(args, agentImpl, seats): `seats` drives the two #1913 refiner seats — a value, or a
@@ -55,7 +58,8 @@ const NEW_SEAT_DEFAULTS = {
 // counters. The dispatches are still recorded in `calls`, so ordering and prompt assertions see them.
 const answerNewSeat = (seats, prompt, opts) => {
   const o = seats[opts.dispatchKind]
-  return typeof o === 'function' ? o(prompt, opts) : (o ?? NEW_SEAT_DEFAULTS[opts.dispatchKind])
+  const r = o ?? NEW_SEAT_DEFAULTS[opts.dispatchKind]
+  return typeof r === 'function' ? r(prompt, opts) : r
 }
 
 async function runPhase(args, agentImpl, seats = {}) {
@@ -3266,16 +3270,16 @@ test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born 
       bApprove(),                           // the re-entry batch's own re-audit approves clean
     ],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],
-    'ace:t1:r3': [bWorker('sub00002')],
-    'ace:t1:r4': [bWorker('reen0001')],
+    'ace:t1:r2': [bWorker('5ab00001')],
+    'ace:t1:r3': [bWorker('5ab00002')],
+    'ace:t1:r4': [bWorker('2ee20001')],
   }, aceBase([f1, f2]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 4, 'batch + two subsets + ONE re-entry batch (the subset-born absorb re-entered)')
   assert.ok(aces[3].prompt.includes('ACE RE-ENTRY BATCH') && aces[3].prompt.includes('subset-born nit'),
     'the fourth dispatch is the re-entry vehicle carrying the subset-born finding')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'subset-born nit' && a.sha === 'reen0001'),
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'subset-born nit' && a.sha === '2ee20001'),
     'the subset-born absorb aced at the re-entry sha')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'subset-born nit'), 'the subset-born absorb is NOT filed')
   assert.ok(out.landed.includes('t1'), 't1 lands')
@@ -3405,7 +3409,7 @@ test('bisection — culprit-first excision: a named culprit demotes, the remaind
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js'), bApprove()],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],
+    'ace:t1:r2': [bWorker('5ab00001')],
   }, aceBase([fa, fb]))
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3414,7 +3418,7 @@ test('bisection — culprit-first excision: a named culprit demotes, the remaind
     'the remainder subset re-applies ONLY the non-culprit findings')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'culprit nit'), 'the named culprit demotes to follow-up')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('culprit-first excision')), 'the culprit demotion is logged with the excision reason')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === 'sub00001'),
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === '5ab00001'),
     'the salvaged remainder aces at its subset sha')
   assert.match(aces[1].prompt, /revert --no-edit ace00001/, 'the subset dispatch forward-reverts the failed batch commit at the tip (in-loop)')
   const merge = calls.find(isMergeTask)
@@ -3442,8 +3446,8 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
     // regression names a file NO aceable finding touches ⇒ ambiguous ⇒ blind halving
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],
-    'ace:t1:r3': [bWorker('sub00002')],
+    'ace:t1:r2': [bWorker('5ab00001')],
+    'ace:t1:r3': [bWorker('5ab00002')],
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3465,10 +3469,10 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   assert.ok(aces[1].prompt.includes('fa nit') && !aces[1].prompt.includes('fb nit'), 'half 1 carries only its findings')
   assert.ok(aces[2].prompt.includes('fb nit') && !aces[2].prompt.includes('fa nit'), 'half 2 carries only its findings')
   // both halves approved ⇒ both aced at their own shas (handoff grouping by sha still works)
-  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'half 1 aced at its sha')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'fb nit' && a.sha === 'sub00002'), 'half 2 aced at its sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'half 1 aced at its sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fb nit' && a.sha === '5ab00002'), 'half 2 aced at its sha')
   // half 2's dispatch carries NO revert step (half 1 approved — nothing pending)
-  assert.ok(!/revert --no-edit sub00001/.test(aces[2].prompt), 'an approved subset is never reverted')
+  assert.ok(!/revert --no-edit 5ab00001/.test(aces[2].prompt), 'an approved subset is never reverted')
   assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'no merge revert clause — the final tip is approved')
 })
 
@@ -3493,10 +3497,10 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
       bApprove(),                    // [f4,f5] approves
     ],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],   // [f1,f2,f3]
-    'ace:t1:r3': [bWorker('sub00002')],   // [f1,f2]
-    'ace:t1:r4': [bWorker('sub00003')],   // [f3]
-    'ace:t1:r5': [bWorker('sub00004')],   // [f4,f5]
+    'ace:t1:r2': [bWorker('5ab00001')],   // [f1,f2,f3]
+    'ace:t1:r3': [bWorker('5ab00002')],   // [f1,f2]
+    'ace:t1:r4': [bWorker('5ab00003')],   // [f3]
+    'ace:t1:r5': [bWorker('5ab00004')],   // [f4,f5]
   }, aceBase([f1, f2, f3, f4, f5]))
   // roundLimit 9: the ladder is budget-unconstrained here so the depth mechanics alone are under test.
   const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 9 } }), impl)
@@ -3507,16 +3511,16 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
   assert.ok(aces[2].prompt.includes('f1 nit') && aces[2].prompt.includes('f2 nit') && !aces[2].prompt.includes('f3 nit'),
     'the regressing depth-1 subset split into [f1,f2] and [f3]')
   // in-loop reverts: [f1,f2]'s dispatch reverts the failed [f1,f2,f3] commit; [f3]'s dispatch reverts the failed [f1,f2] commit
-  assert.match(aces[2].prompt, /revert --no-edit sub00001/, 'the next dispatch reverts the failed depth-1 subset at the tip')
-  assert.match(aces[3].prompt, /revert --no-edit sub00002/, 'the next dispatch reverts the failed depth-2 subset at the tip')
+  assert.match(aces[2].prompt, /revert --no-edit 5ab00001/, 'the next dispatch reverts the failed depth-1 subset at the tip')
+  assert.match(aces[3].prompt, /revert --no-edit 5ab00002/, 'the next dispatch reverts the failed depth-2 subset at the tip')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing depth-2 subset demotes (f1)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f2 nit'), 'the finally-failing depth-2 subset demotes (f2)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('f1 nit') && l.includes('depth/split floor')),
     'f1\'s demotion is logged with the depth/split-floor reason')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('f2 nit') && l.includes('depth/split floor')),
     'f2\'s demotion is logged with the depth/split-floor reason')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'f3 nit' && a.sha === 'sub00003'), 'the sibling subset still aces — only finally-failing subsets demote')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'f4 nit' && a.sha === 'sub00004'), 'the untouched depth-1 half still aces')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'f3 nit' && a.sha === '5ab00003'), 'the sibling subset still aces — only finally-failing subsets demote')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'f4 nit' && a.sha === '5ab00004'), 'the untouched depth-1 half still aces')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
@@ -3526,16 +3530,16 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],   // half 1 approves
-    'ace:t1:r3': [bWorker('sub00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
+    'ace:t1:r2': [bWorker('5ab00001')],   // half 1 approves
+    'ace:t1:r3': [bWorker('5ab00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const merge = calls.find(isMergeTask)
-  assert.match(merge.prompt, /revert\s+--no-edit\s+sub00002/, 'the merge revert clause names the final failed subset tip')
+  assert.match(merge.prompt, /revert\s+--no-edit\s+5ab00002/, 'the merge revert clause names the final failed subset tip')
   assert.ok(merge.prompt.includes('rev-parse HEAD'), 'the merge revert is HEAD-guarded (idempotent — a sha is never reverted twice)')
-  assert.ok(!merge.prompt.includes('revert --no-edit ace00001') && !merge.prompt.includes('revert --no-edit sub00001'),
+  assert.ok(!merge.prompt.includes('revert --no-edit ace00001') && !merge.prompt.includes('revert --no-edit 5ab00001'),
     'no other sha rides the merge revert clause (in-loop reverts already handled the batch; the approved half is never reverted)')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'the approved half stays aced — the merge runs on a tip whose failed subsets are reverted')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'the approved half stays aced — the merge runs on a tip whose failed subsets are reverted')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the finally-failing half demotes')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
@@ -3546,14 +3550,14 @@ test('bisection — budget: each subset COMMIT charges one fixRounds slot; the f
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove()],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],
+    'ace:t1:r2': [bWorker('5ab00001')],
   }, aceBase([fa, fb]))
   // roundLimit 4 ⇒ subset boundary roundLimit − 2 = 2 (Open decision 4): batch charges slot 1,
   // subset 1 charges slot 2 — subset 2 finds the reserve line reached (2 slots kept for the
   // merge-floor retry loop).
   const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 4 } }), impl)
   assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (floor-retry reserve reached)')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'the committed subset aces')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'the committed subset aces')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the un-dispatched remainder demotes to follow-up')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserved for the merge-floor retry loop')), 'the reserve-exhausted branch logs why the ladder stopped')
   assert.ok(out.landed.includes('t1'), 't1 lands')
@@ -3579,8 +3583,8 @@ test('bisection — same-file findings never split across subsets (D3): two find
   const groupedImpl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([s1, s2, o1]), bRegress('zz.js'), bApprove(), bApprove()],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],
-    'ace:t1:r3': [bWorker('sub00002')],
+    'ace:t1:r2': [bWorker('5ab00001')],
+    'ace:t1:r3': [bWorker('5ab00002')],
   }, aceBase([s1, s2, o1]))
   const grouped = await runPhase(ACE_ARGS(), groupedImpl)
   const gAces = grouped.calls.filter(isAce)
@@ -3627,8 +3631,8 @@ test('bisection ace-trailer — a sibling strict-prefix trailer pair never match
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],
-    'ace:t1:r3': [bWorker('sub00002')],
+    'ace:t1:r2': [bWorker('5ab00001')],
+    'ace:t1:r3': [bWorker('5ab00002')],
   }, aceBase([f1, f2]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3649,8 +3653,8 @@ test('bisection ace-trailer — a sibling strict-prefix trailer pair never match
       'the commit instruction mandates the Ace-Subset trailer as its own blank-line-separated final paragraph (git parses trailers only in a distinct final block)')
   }
   // Both halves ace at their own shas — the strict-prefix pair resolved to distinct commits.
-  assert.ok((out.aced || []).some(a => a.finding.title === 'aa nit' && a.sha === 'sub00001'), 'half 1 aced at its sha')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'bak nit' && a.sha === 'sub00002'), 'half 2 aced at its sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'aa nit' && a.sha === '5ab00001'), 'half 1 aced at its sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'bak nit' && a.sha === '5ab00002'), 'half 2 aced at its sha')
 })
 
 test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regression path and a bare aceable path attribute identically, in BOTH directions, and the audit prompt mandates repo-relative finding paths', async () => {
@@ -3661,7 +3665,7 @@ test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regress
     return buildSeqImpl({
       'audit:t1:correctness': [bApprove([fa, fb]), bRegress(regressFile), bApprove()],
       'ace:t1:r1': [bWorker('ace00001')],
-      'ace:t1:r2': [bWorker('sub00001')],
+      'ace:t1:r2': [bWorker('5ab00001')],
     }, aceBase([fa, fb]))
   }
   for (const [aceFile, regressFile, dir] of [
@@ -3675,7 +3679,7 @@ test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regress
       `${dir}: culprit-first excision fires (batch + ONE remainder subset — never blind halving)`)
     assert.ok((out.minorsFiled || []).some(m => m && m.title === 'culprit nit'),
       `${dir}: the path-form-drifted culprit still demotes to follow-up`)
-    assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === 'sub00001'),
+    assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === '5ab00001'),
       `${dir}: the non-culprit remainder still aces`)
     // The re-audit dispatches carry the source-side mandate closing the drift class at origin
     // (auditPrompt seats only — the gate-audit family builds its own prompt, out of scope here).
@@ -3702,8 +3706,8 @@ test('bisection ace-trailer — floor-retry reserve (Open decision 4): the subse
       bApprove(),                    // [f1] approves — the third and final charged slot
     ],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],   // [f1,f2]
-    'ace:t1:r3': [bWorker('sub00002')],   // [f1]
+    'ace:t1:r2': [bWorker('5ab00001')],   // [f1,f2]
+    'ace:t1:r3': [bWorker('5ab00002')],   // [f1]
   }, aceBase([f1, f2, f3, f4]))
   const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 5 } }), impl)
   // Without the reserve (a bare < roundLimit gate) [f2] would dispatch a 4th ace call.
@@ -3711,7 +3715,7 @@ test('bisection ace-trailer — floor-retry reserve (Open decision 4): the subse
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('reached roundLimit−2 (3)')
     && l.includes('2 slots stay reserved for the merge-floor retry loop')),
     'the reserve-exhausted branch logs the boundary value and why the ladder stopped')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f1 nit' && a.sha === 'sub00002'),
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f1 nit' && a.sha === '5ab00002'),
     'the subset committed inside the budget still aces')
   assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => (out.minorsFiled || []).some(m => m && m.title === t)),
     'the mid-queue remainder — the split sibling AND the untouched half — demotes to follow-up')
@@ -3753,8 +3757,8 @@ test('bisection ace-trailer — fold (#1694): an ask raised by a FAILING bisecti
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), subRegressWithAsk, bApprove()],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],   // [f1] — regresses with the ask riding the re-audit
-    'ace:t1:r3': [bWorker('sub00002')],   // [f2] — approves
+    'ace:t1:r2': [bWorker('5ab00001')],   // [f1] — regresses with the ask riding the re-audit
+    'ace:t1:r3': [bWorker('5ab00002')],   // [f2] — approves
   }, aceBase([f1, f2]))
   const { out } = await runPhase(ACE_ARGS(), impl)
   const parked = (out.asks || []).find(a => a && a.question === 'split further?')
@@ -3766,7 +3770,7 @@ test('bisection ace-trailer — fold (#1694): an ask raised by a FAILING bisecti
     'the ask is neither demoted into minorsFiled nor dropped into notes')
   // The failing-subset arm's own mechanics are untouched by the routing.
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing singleton subset still demotes at the depth/split floor')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f2 nit' && a.sha === 'sub00002'), 'the sibling subset still aces')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f2 nit' && a.sha === '5ab00002'), 'the sibling subset still aces')
   assert.ok(out.landed.includes('t1'), 't1 still lands')
 })
 
@@ -12602,7 +12606,7 @@ test('#1913 PIN-13 — the merge-slot fixRounds seed never LOWERS the wave-side 
 // expression, not a re-implementation of it. Each carries its own negative control: delete the
 // feature from the source and the extraction fails or the case flips.
 
-test('#1935 — the ace gate-check compares its echoed head_sha: a green gate naming a DIFFERENT tip licenses nothing; an absent or malformed echo stays uncomparable (#1951)', () => {
+test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed head_sha names THIS tip: different, absent, and malformed echoes all fail closed', () => {
   const block = src.match(/const aceGateGreen = async \(r, sha\) => \{[\s\S]*?\n  \}/)
   assert.ok(block, 'src must contain the aceGateGreen definition')
   const cond = block[0].match(/if \(([\s\S]*?)\) return true/)
@@ -12625,16 +12629,17 @@ test('#1935 — the ace gate-check compares its echoed head_sha: a green gate na
     'an abbreviated echo names the same commit and must still license (pinMismatch prefix rule)')
   assert.equal(run({ gate_green: true, head_sha: 'f00dbabef00dbabef00dbabef00dbabef00dbabe' }), false,
     'a green gate echoing a DIFFERENT commit licenses nothing — the gate ran somewhere else')
-  // RULED RESIDUAL (not a bug): GATE_CHECK requires only gate_green, so a schema-compliant refiner
-  // may omit head_sha and the red arm legitimately does. Failing closed on absence would turn a
-  // legal reply into a false RED and forward-revert a good ace on a path PIN-2 keeps fail-open.
-  // The comparison closes what #1935 named — a requested-but-uncompared echo — and no more.
-  assert.equal(run({ gate_green: true }), true,
-    'an ABSENT head_sha stays uncomparable and still licenses — closing this half needs a schema change, not a comparison')
-  assert.equal(run({ gate_green: true, head_sha: 'not-a-sha' }), true,
-    'a MALFORMED echo is likewise uncomparable (pinMismatch fails open on a non-sha), same residual')
-  assert.match(src, /RESIDUAL, deliberate \(#1951\): an ABSENT or MALFORMED head_sha does not fail closed/,
-    'and the residual is documented at the construct, never left for a reader to infer')
+  // #1951 CLOSED: the schema's if/then re-asks a terse green reply at the validator, and the
+  // engine's isSha guard fails closed on whatever slips past — an unplaced green gate licenses
+  // nothing.
+  assert.equal(run({ gate_green: true }), false,
+    'an ABSENT head_sha fails closed — nothing places the gate at this ace tip (#1951)')
+  assert.equal(run({ gate_green: true, head_sha: 'zzzz' }), false,
+    'a MALFORMED echo fails closed the same way (#1951)')
+  assert.match(src, /Closed by #1951 — the schema retries terseness/,
+    'and the closure is documented at the construct')
+  assert.match(src, /then: { required: \['gate_green', 'head_sha'\] }/,
+    "GATE_CHECK's green arm requires head_sha at the validator (the schema half of #1951)")
   assert.equal(run({ gate_green: false, head_sha: TIP }), false, 'a red gate never licenses')
   assert.equal(run(null), false, 'a dead/absent result never licenses')
 })
@@ -12832,4 +12837,29 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
     'exactly 5 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge — a new one must be ruled here')
   assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 1,
     'the one pointer-free site is the polish merge, by name')
+})
+
+test('#1951 — a green ace-gate reply with NO usable head_sha is RED end-to-end: no re-audit, no transfer, the ace forward-reverts and the approved pre-ace tip merges', async () => {
+  for (const [label, gate] of [
+    ['absent', { gate_green: true }],
+    ['malformed', { gate_green: true, head_sha: 'zzzz' }],
+  ]) {
+    const { out, calls, logs } = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': gate })
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED') && l.includes('no usable head_sha')),
+      label + ': the new gateWhy arm names the unplaced gate, logged never silent')
+    const reaudits = calls.filter(c => isAuditor(c) && c.prompt.includes('ace00001'))
+    assert.equal(reaudits.length, 0, label + ': no re-audit runs at the unplaced ace tip')
+    assert.ok(!(out.aced || []).length, label + ': nothing is recorded aced')
+    const merge = calls.find(isMergeTask)
+    assert.match(merge.prompt, /FORWARD-REVERT/, label + ': the merge dispatch forward-reverts the unplaced ace tip (PIN-2)')
+    assert.ok(out.landed.includes('t1'), label + ': the approved pre-ace tip still merges — never a hold')
+  }
+})
+
+test('#1951 red-arm control — { gate_green: false } with no head_sha stays schema-legal and RED for the gate reason, not the sha reason', async () => {
+  const { logs } = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': { gate_green: false, gate_output: 'FAIL: 1 test failed' } })
+  const red = (logs || []).find(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED'))
+  assert.ok(red, 'the red gate is logged')
+  assert.match(red, /FAIL: 1 test failed/, 'the reason is the gate output')
+  assert.ok(!/no usable head_sha/.test(red), 'the sha arm never fires on a red reply — the red arm stays sha-free')
 })

@@ -225,12 +225,16 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   segment_note: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
-// GATE_CHECK (#1913, PIN-12): the read-only gate run at an ace tip. No audit approval — re-run or
-// transferred — is ever accounted at a SHA the gate never passed, so every ace-family commit is gated
-// BEFORE its re-audit. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and fail-OPEN on the
-// task (a red gate forward-reverts the ace tip and the approved pre-ace tip still merges, PIN-2).
+// GATE_CHECK (#1913, PIN-12; arm-split #1951): the read-only gate run at an ace tip. No audit
+// approval — re-run or transferred — is ever accounted at a SHA the gate never passed, so every
+// ace-family commit is gated BEFORE its re-audit. The GREEN arm requires head_sha at the validator
+// (if/then): a terse green reply is re-asked at the tool layer, never reverted. The red arm stays
+// sha-free. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and fail-OPEN on the task
+// (a red gate forward-reverts the ace tip and the approved pre-ace tip still merges, PIN-2).
 const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
-  gate_green: { type: 'boolean' }, head_sha: { type: 'string' }, gate_output: { type: 'string' } } }
+  gate_green: { type: 'boolean' }, head_sha: { type: 'string' }, gate_output: { type: 'string' } },
+  if: { properties: { gate_green: { const: true } } },
+  then: { required: ['gate_green', 'head_sha'] } }
 
 // PIN_TRANSFER (#1913, D2/PIN-1/PIN-7/PIN-14/PIN-16): the merge slot's mechanical pin-transfer probe —
 // a conflict-free rebase plus `git patch-id --stable` equality of the TASK'S OWN diff, computed
@@ -2033,15 +2037,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // refiner to confirm HEAD and echo the sha it gated, so an echo naming a DIFFERENT commit means the
     // gate ran somewhere else and licenses nothing. Reuses pinMismatch, so abbreviated-vs-full names
     // the same commit and still compares equal.
-    // RESIDUAL, deliberate (#1951): an ABSENT or MALFORMED head_sha does not fail closed, because GATE_CHECK requires only
-    // gate_green — the schema lets a compliant refiner omit it, and the red arm legitimately does.
-    // Failing closed on absence would turn a schema-legal reply into a false RED and forward-revert a
-    // good ace on a path PIN-2 keeps fail-open. Closing that half means making head_sha required on the
-    // green arm, a contract change with its own blast radius, not a comparison fix.
-    if (g && g.gate_green === true && !pinMismatch(g.head_sha, sha)) return true
+    // Closed by #1951 — the schema retries terseness (GATE_CHECK's if/then makes head_sha required on
+    // the green arm, so the validator re-asks a bare green reply), and the engine fails closed on
+    // whatever slips past (belt and braces; the PIN-2 forward-revert only fires on a reply the
+    // validator already re-asked for). pinMismatch stays fail-open by contract (D2) — isSha carries
+    // the presence half here, never a pinMismatch change.
+    if (g && g.gate_green === true && isSha(g.head_sha) && !pinMismatch(g.head_sha, sha)) return true
     const gateWhy = !g || g.gate_green !== true
       ? ((g && g.gate_output) || 'no usable gate_green evidence returned')
-      : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
+      : !isSha(g.head_sha)
+        ? 'gate_green was true but no usable head_sha was echoed — nothing places the gate at this ace tip'
+        : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
     log('ace-gate ' + r.task.id + ': RED at ace tip ' + sha + ' — ' + gateWhy + '. No re-audit runs and no approval transfers (PIN-12); the ace tip is forward-reverted and the approved pre-ace tip merges (PIN-2).')
     return false
   }
