@@ -2076,18 +2076,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // demoting on missing evidence would manufacture follow-ups instead of recording real misses.
   const recordAcedTouched = (findings, sha, w) => {
     const git = aceRelSet(w && w.ace_diff_files)
-    // Demotion needs the git set to be a SUBSET of the batch's own footprint. Outside that subset
-    // the full panel already re-ran (aceScope's fallback) and two known false-positive shapes live:
-    // a path-dialect disagreement (git disjoint from every f.file — the intersection empties and the
-    // whole approved batch would demote), and a legitimate cross-file fix (finding on A, fix in B).
-    // Inside the subset, a finding whose file the commit never reached is a genuine partial miss.
-    // RESIDUAL, ruled: the non-subset arm records aced on the full panel's re-approval alone — a
-    // panel approving the tip does not verify each queued finding was fixed (the sweep polish
-    // arm's ruled residual, same shape).
+    // Demotion needs a non-empty INTERSECTION between the git set and the batch's own footprint
+    // (#1954 — containment reopened the #1944 loss on a MIXED footprint: findings a+c, commit
+    // touching a+b left c recorded aced). An empty intersection is missing evidence, and both
+    // known false-positive shapes live exactly there: a path-dialect disagreement (git disjoint
+    // from every f.file) and a legitimate pure cross-file fix (finding on A, fix in B). A partial
+    // intersection proves the dialect matches and the commit reached part of the batch, so a
+    // finding whose file it never reached is a genuine partial miss.
+    // RESIDUAL, ruled: the no-intersection arm records aced on the full panel's re-approval
+    // alone — a panel approving the tip does not verify each queued finding was fixed (the sweep
+    // polish arm's ruled residual, same shape).
     const footprint = aceRelSet(findings.map(f => f.file))
-    const subset = git.size > 0 && [...git].every(p => footprint.has(p))
+    const overlap = git.size > 0 && [...git].some(p => footprint.has(p))
     for (const f of findings) {
-      if (subset && typeof f.file === 'string' && f.file && !git.has(aceRelPath(f.file))) {
+      if (overlap && typeof f.file === 'string' && f.file && !git.has(aceRelPath(f.file))) {
         demote(f, 'follow-up', 'failed absorb — the ace commit at ' + sha + ' never touched ' + aceRelPath(f.file) + ' (partial batch fix); a finding is never recorded aced without evidence the commit reached its file')
         continue
       }

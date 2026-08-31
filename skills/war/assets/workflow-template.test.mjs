@@ -12703,9 +12703,19 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
     const { fn, aced, demoted } = build()
     const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
     fn([hit, miss], SHA, { ace_diff_files: ['a.js'] })
-    assert.equal(demoted.length, 1, 'INSIDE the footprint subset, the genuine partial miss still demotes')
+    assert.equal(demoted.length, 1, 'INSIDE the footprint, the genuine partial miss still demotes')
     assert.equal(demoted[0].f.title, 'untouched')
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'])
+  }
+  // #1954 — the MIXED footprint: the commit reaches part of the batch AND a companion file.
+  // Containment read this as no-evidence and silently aced the untouched finding.
+  {
+    const { fn, aced, demoted } = build()
+    const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'c.js' }
+    fn([hit, miss], SHA, { ace_diff_files: ['a.js', 'b.js'] })
+    assert.equal(demoted.length, 1, 'a non-empty intersection is evidence — the untouched finding demotes (#1954)')
+    assert.equal(demoted[0].f.title, 'untouched')
+    assert.deepEqual(aced.map(x => x.f.title), ['fixed'], 'the reached finding still aces')
   }
 })
 
