@@ -2753,7 +2753,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + aceRevertClause
         + reattachClause(refineryPath)
         + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-        + pt`  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+        + pt`  (a) REBASE in the TASK worktree, per your card step 1 — skip when already rebased (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
@@ -2889,7 +2889,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-            + pt`  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + pt`  (a) REBASE in the TASK worktree, per your card step 1 — skip when already rebased (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
             + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
             + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
