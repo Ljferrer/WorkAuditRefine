@@ -12801,4 +12801,14 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
     'all four merge prompts (primary, floor-retry, environment-proceed, baseline-proceed) point at the card test — found ' + pointers)
   assert.equal((src.match(/\(#1941\): git -C \$\{r\.task\.worktree\} rebase \$\{ph\.integrationBranch\}/g) || []).length, 4,
     'each pointer sits on a rebase line that still spells the rebase command itself')
+  // Default-deny population census (snipe: the pointer count alone was a denylist — a fifth
+  // mode=merge-task rebase prompt could arrive pointer-free and stay green). Count every REBASE
+  // prompt line and rule each: 4 task-branch rebases carry the pointer; the 5th is the polish
+  // merge, DELIBERATELY pointer-free — the pin-transfer probe never rebases the polish worktree,
+  // so the skip predicate cannot apply there.
+  const rebasePrompts = (src.replace(/^\s*\/\/.*$/gm, '').match(/\(a\) REBASE in the (?:TASK|POLISH) worktree/g) || [])
+  assert.equal(rebasePrompts.length, 5,
+    'exactly 5 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge — a new one must be ruled here')
+  assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 1,
+    'the one pointer-free site is the polish merge, by name')
 })
