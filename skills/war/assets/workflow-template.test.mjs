@@ -12858,8 +12858,12 @@ test('#1951 — a green ace-gate reply with NO usable head_sha is RED end-to-end
     const { out, calls, logs } = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': gate })
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED') && l.includes('no usable head_sha')),
       label + ': the new gateWhy arm names the unplaced gate, logged never silent')
-    const reaudits = calls.filter(c => isAuditor(c) && c.prompt.includes('ace00001'))
-    assert.equal(reaudits.length, 0, label + ': no re-audit runs at the unplaced ace tip')
+    // The ace tip in this fixture is 'deadbeef' (aceBase's worker echo), the same sha as the
+    // work-wave round — so count auditor dispatches instead of grepping for a sha: exactly ONE
+    // audit call means the work-wave round ran and the ace re-audit did not. (A sha-grep for
+    // 'ace00001' was inert here: that literal appears in no prompt of this fixture.)
+    const audits = calls.filter(c => isAuditor(c))
+    assert.equal(audits.length, 1, label + ': only the work-wave audit ran — no re-audit at the unplaced ace tip')
     assert.ok(!(out.aced || []).length, label + ': nothing is recorded aced')
     const merge = calls.find(isMergeTask)
     assert.match(merge.prompt, /FORWARD-REVERT/, label + ': the merge dispatch forward-reverts the unplaced ace tip (PIN-2)')
