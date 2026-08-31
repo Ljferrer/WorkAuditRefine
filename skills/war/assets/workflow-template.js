@@ -2084,11 +2084,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const git = aceRelSet(w && w.ace_diff_files)
     // Demotion needs a non-empty INTERSECTION between the git set and the batch's own footprint
     // (#1954 — containment reopened the #1944 loss on a MIXED footprint: findings a+c, commit
-    // touching a+b left c recorded aced). An empty intersection is missing evidence, and both
-    // known false-positive shapes live exactly there: a path-dialect disagreement (git disjoint
-    // from every f.file) and a legitimate pure cross-file fix (finding on A, fix in B). A partial
-    // intersection proves the dialect matches and the commit reached part of the batch, so a
-    // finding whose file it never reached is a genuine partial miss.
+    // touching a+b left c recorded aced). An empty intersection is missing evidence — the
+    // whole-batch dialect disagreement and the PURE cross-file fix (finding on A, fix in B) both
+    // land there and never demote. RESIDUAL, ruled (#1954): the overlap arm accepts two known
+    // false positives — a MIXED cross-file fix (A fixed in place, C genuinely fixed in companion
+    // file B) and a per-seat path dialect (f.file comes from different seats, one form can miss
+    // while another matches). Both over-file a follow-up for done work; a spurious follow-up is
+    // preferred to a silent aced miss, never lost work.
     // RESIDUAL, ruled: the no-intersection arm records aced on the full panel's re-approval
     // alone — a panel approving the tip does not verify each queued finding was fixed (the sweep
     // polish arm's ruled residual, same shape).

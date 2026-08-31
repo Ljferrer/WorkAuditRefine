@@ -12733,6 +12733,17 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
     assert.equal(demoted[0].f.title, 'untouched')
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'], 'the reached finding still aces')
   }
+  // #1954 RESIDUAL, pinned: the MIXED cross-file shape — A fixed in place, C genuinely fixed in
+  // companion file B. The overlap arm demotes C (a spurious follow-up for done work), the ruled
+  // conservative direction: over-filing beats the silent aced miss containment produced.
+  {
+    const { fn, aced, demoted } = build()
+    const inPlace = { title: 'fixed in place', file: 'a.js' }, crossFile = { title: 'fixed in companion', file: 'c.js' }
+    fn([inPlace, crossFile], SHA, { ace_diff_files: ['a.js', 'b.js'] })
+    assert.deepEqual(demoted.map(x => x.f.title), ['fixed in companion'],
+      'the mixed cross-file fix demotes — the RULED false positive, a follow-up rather than a silent ace')
+    assert.deepEqual(aced.map(x => x.f.title), ['fixed in place'])
+  }
 })
 
 test('#1944 — recordAced call-site census: every occurrence is a NAMED legitimate site, never a batch loop (default-deny)', () => {
