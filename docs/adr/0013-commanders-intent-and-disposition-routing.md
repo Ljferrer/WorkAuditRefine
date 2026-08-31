@@ -16,7 +16,9 @@ description; see the amendment below; amended 2026-08-27 — budget-bounded ace 
 floor-retry reserve is the ladder's sole stop condition, superseding the 2026-08-20 amendment's
 budget-exhaustion narration), three disposition widenings, the absorb-by-citation arm, and
 in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
-trigger — filing parity itself untouched); see the amendment below)
+trigger — filing parity itself untouched); see the amendment below; amended 2026-08-31 — the
+merge-slot pin-transfer mismatch re-audit is a fourth re-audit source that never re-enters; see
+the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -412,4 +414,5 @@ the wave side already closed). The reserve therefore bounds the three wave-side 
 The three living-doc homes (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Re-entry**
 row, `design.md` §18) already carry the scoped wording; this amendment records it as law.
 
-This amendment leaves all pre-existing text above byte-unchanged.
+This amendment leaves all pre-existing body text above — beyond the Status currency line —
+byte-unchanged.
