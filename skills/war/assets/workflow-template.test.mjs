@@ -12263,6 +12263,12 @@ const ptImpl = (first, aceResult, over = {}) => (prompt, opts) => {
   if (seat === 'war-worker') return aceResult
   if (seat === 'war-auditor') {
     const lens = /security/.test(opts.label || '') ? 'security' : 'correctness'
+    // #1942: a beef0001-pinned dispatch is the merge-slot MISMATCH re-audit — mark its seat name
+    // so a pinTransfers row built from the FRESH panel is observably distinct from one built
+    // from the stale pre-rebase r.seats (whose seat names carry no mark).
+    if (/beef0001/.test(prompt)) {
+      return { ...seatAt('reaudit:' + opts.label, lens, 'beef0001', []), ...(over.seatOver ? over.seatOver(lens, 'beef0001') : {}) }
+    }
     const sha = /ace00001/.test(prompt) ? 'ace00001' : 'deadbeef'
     const findings = (sha === 'deadbeef' && lens === 'correctness') ? first : []
     return { ...seatAt(opts.label, lens, sha, findings), ...(over.seatOver ? over.seatOver(lens, sha) : {}) }
@@ -12501,6 +12507,11 @@ test('#1913 End state 6 (PIN-10, merge slot) — a MISMATCH row is built from th
     assert.equal(s.outcome, 're-ran', 'no approval transfers on a mismatch')
     assert.equal(s.sha, 'beef0001', 'the re-ran seat is accounted at the rebased tip it re-audited')
     assert.ok(!('approvedAt' in s), 'a re-ran seat has no earlier origin to preserve')
+    // #1942: the row must be built from the FRESHLY re-audited panel (probeRow('mismatch',
+    // rbSeats)), never the stale pre-rebase r.seats. The fixture marks fresh seats; reverting the
+    // engine to probeRow('mismatch') repopulates the row from r.seats and this assert goes red.
+    assert.match(String(s.seat), /^reaudit:/,
+      'the seat row comes from the fresh beef0001 panel, not the stale pre-rebase panel (#1942)')
   }
 })
 
