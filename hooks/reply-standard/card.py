@@ -36,7 +36,7 @@ if QUESTION.search(prompt) or words > 12:
     print(CARD)
 elif words <= 6:
     mode = "one line"
-    print("REPLY STANDARD: one line back, plain words, British spelling, no preamble.")
+    print("REPLY STANDARD: one line back, plain words, American spelling, no preamble.")
 else:
     mode = "shape half"
     prose, shape = CARD.split("Shape:", 1)
