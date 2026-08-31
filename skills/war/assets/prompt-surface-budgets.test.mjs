@@ -424,8 +424,8 @@ test(`surface budget — ${WORKFLOW_TEMPLATE} prompt-literal share (pinned extra
   assert.ok(
     total >= WORKFLOW_LITERAL_MIN_TOTAL,
     `${WORKFLOW_TEMPLATE}: extracted prompt-literal total ${total} B is below the `
-      + `${WORKFLOW_LITERAL_MIN_TOTAL} B non-vacuity floor (#1955) — the measurement is vacuous `
-      + '(extraction broke or the literals moved); fail closed',
+      + `${WORKFLOW_LITERAL_MIN_TOTAL} B non-vacuity floor (#1955) — either the extraction broke, `
+      + 'or a genuine mass shrink landed; a real shrink re-baselines the floor (ADR 0048 §2), never patches around it',
   );
   checkBudget(
     `${WORKFLOW_TEMPLATE} prompt-literal share (${measured.length} blocks)`,

@@ -12511,9 +12511,10 @@ test('#1913 End state 6 (PIN-10, merge slot) — a MISMATCH row is built from th
     assert.equal(s.outcome, 're-ran', 'no approval transfers on a mismatch')
     assert.equal(s.sha, 'beef0001', 'the re-ran seat is accounted at the rebased tip it re-audited')
     assert.ok(!('approvedAt' in s), 'a re-ran seat has no earlier origin to preserve')
-    // #1942: the row must be built from the FRESHLY re-audited panel (probeRow('mismatch',
-    // rbSeats)), never the stale pre-rebase r.seats. The fixture marks fresh seats; reverting the
-    // engine to probeRow('mismatch') repopulates the row from r.seats and this assert goes red.
+    // #1942: the row's seats[] must come from the FRESHLY re-audited panel (probeRow('mismatch',
+    // rbSeats)), never the stale pre-rebase r.seats. One field legitimately still reads r.seats:
+    // reauditedTip records the PRE-rebase origin by design. The fixture marks fresh seats;
+    // reverting the engine to probeRow('mismatch') repopulates seats[] from r.seats — red.
     assert.match(String(s.seat), /^reaudit:/,
       'the seat row comes from the fresh beef0001 panel, not the stale pre-rebase panel (#1942)')
   }
@@ -12843,11 +12844,22 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
   // prompt line and rule each: 4 task-branch rebases carry the pointer; the 5th is the polish
   // merge, DELIBERATELY pointer-free — the pin-transfer probe never rebases the polish worktree,
   // so the skip predicate cannot apply there.
+  // Census scope: the merge prompts' `(a)`-labelled rebase step. The pin-transfer probe's own
+  // rebase is spelled `(2) REBASE` and is the RULED exclusion — it IS the skip's origin, so the
+  // predicate cannot apply to it. A merge prompt labelling its rebase differently escapes this
+  // census; keep the `(a)` form when adding one.
   const rebasePrompts = (src.replace(/^\s*\/\/.*$/gm, '').match(/\(a\) REBASE in the (?:TASK|POLISH) worktree/g) || [])
   assert.equal(rebasePrompts.length, 5,
     'exactly 5 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge — a new one must be ruled here')
   assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 1,
     'the one pointer-free site is the polish merge, by name')
+})
+
+test('#1951 anchor — the ace-gate prompt still carries the tip phrase the harness default parses', () => {
+  // NEW_SEAT_DEFAULTS['ace-gate'] parses /at the ace tip ([0-9a-f]{7,40})/ out of the prompt. A
+  // prompt reword would turn ~30 ace fixtures gate-RED with a message that never names the
+  // cause; this anchor fails at one named site instead.
+  assert.match(src, /at the ace tip \$\{sha\}/, "aceGateGreen's prompt names the tip in the phrase the harness default parses")
 })
 
 test('#1951 — a green ace-gate reply with NO usable head_sha is RED end-to-end: no re-audit, no transfer, the ace forward-reverts and the approved pre-ace tip merges', async () => {
