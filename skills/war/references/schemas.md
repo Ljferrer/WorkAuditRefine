@@ -122,9 +122,10 @@ The probe rebases and measures; it never merges, never pushes the integration br
 
 ## GateCheck — `war-refiner` (at an ace tip, read-only)
 ```jsonc
-{ gate_green: true | false, head_sha?, gate_output? }
+{ gate_green: true, head_sha, gate_output? }   // green arm — head_sha REQUIRED at the validator (#1951)
+{ gate_green: false, head_sha?, gate_output? } // red arm — sha-free
 ```
-The task gate (and the task's `Done when:` command) run at an ace-family commit **before** its re-audit, so no approval — re-run or transferred — is ever accounted at a SHA the gate never passed. **Fail-closed on the evidence:** absent, malformed, or a dead dispatch is not green. **Fail-open on the task:** a red gate forward-reverts the ace tip, the approved pre-ace tip merges, and the findings demote per their dispositions — never a fix loop, never a hold.
+The task gate (and the task's `Done when:` command) run at an ace-family commit **before** its re-audit, so no approval — re-run or transferred — is ever accounted at a SHA the gate never passed. The schema arm-splits (`if`/`then`): a bare green reply is re-asked at the tool layer, and the engine additionally fails closed on an absent, malformed, or mismatched echo. **Fail-closed on the evidence:** absent, malformed, or a dead dispatch is not green. **Fail-open on the task:** a red gate forward-reverts the ace tip, the approved pre-ace tip merges, and the findings demote per their dispositions — never a fix loop, never a hold.
 
 ## Gate rule (applied over AuditVerdicts)
 - any open **Critical/Major** (any seat) → **blocks** → batched `FIX_NEEDED`
