@@ -12894,3 +12894,114 @@ test('#1951 red-arm control — { gate_green: false } with no head_sha stays sch
   assert.match(red, /FAIL: 1 test failed/, 'the reason is the gate output')
   assert.ok(!/no usable head_sha/.test(red), 'the sha arm never fires on a red reply — the red arm stays sha-free')
 })
+
+// ---- #1956: validator-semantics fixtures for the dispatch schemas' conditionals ----
+// The #1951 arm-split was asserted only by a source-shape regex; nothing exercised validation
+// semantics (runPhase's fake dispatch ignores `schema`). These fixtures evaluate the SHIPPED
+// schema objects against a vendored draft-07-subset evaluator.
+// HARNESS RULING (recorded): vendored, zero dependencies — the repo's no-package.json property
+// is load-bearing, so no ajv. The evaluator implements EXACTLY the keyword union of the schemas
+// it evaluates (enumerated 2026-08-31): type, properties, required, if, then, const, enum,
+// items, minItems, minLength — a deliberate subset, grown only via the census below.
+// SEMANTIC ANCHOR: live probe 2026-08-31, Claude Code 2.1.251 — a bare {"gate_green": true}
+// reply was rejected with: root: must have required property 'head_sha', root: must match
+// "then" schema — and the agent retried with the sha. These fixtures prove the vendored
+// evaluator agrees with that observed behaviour on the same reply shapes.
+// RESIDUAL: a future harness divergence from draft-07 conditionals is invisible to in-repo
+// tests — re-probe live on harness upgrades.
+const SCHEMA_KEYWORDS_SUPPORTED = new Set(['type', 'properties', 'required', 'if', 'then', 'const', 'enum', 'items', 'minItems', 'minLength'])
+const evalSchema = (schema, v) => {
+  if (!schema || typeof schema !== 'object') return true
+  if ('const' in schema && v !== schema.const) return false
+  if (schema.enum && !schema.enum.includes(v)) return false
+  if (schema.type) {
+    const t = schema.type
+    if (t === 'object' && (typeof v !== 'object' || v === null || Array.isArray(v))) return false
+    if (t === 'array' && !Array.isArray(v)) return false
+    if ((t === 'string' || t === 'boolean' || t === 'number') && typeof v !== t) return false
+  }
+  if (schema.minLength !== undefined && typeof v === 'string' && v.length < schema.minLength) return false
+  if (schema.minItems !== undefined && Array.isArray(v) && v.length < schema.minItems) return false
+  if (schema.items && Array.isArray(v) && !v.every(x => evalSchema(schema.items, x))) return false
+  if (schema.required && (typeof v !== 'object' || v === null || !schema.required.every(k => k in v))) return false
+  // properties bind ONLY when the field is present (draft-07) — pinned by its own case below.
+  if (schema.properties && v && typeof v === 'object') {
+    for (const [k, sub] of Object.entries(schema.properties)) if (k in v && !evalSchema(sub, v[k])) return false
+  }
+  // if/then: an instance failing the `if` subschema SKIPS `then` (draft-07) — pinned below.
+  if (schema.if) { if (evalSchema(schema.if, v) && schema.then && !evalSchema(schema.then, v)) return false }
+  return true
+}
+// Census scope = the schemas the evaluator evaluates. GROWTH RULE: evaluate a schema before
+// listing it here — a listed-but-unevaluated schema is exactly the regex-only gap #1956 closed.
+const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT']
+const grabSchema = (name) => {
+  const i = src.indexOf('const ' + name + ' = {')
+  assert.ok(i >= 0, name + ' schema found in the template source')
+  let d = 0
+  const j = src.indexOf('{', i)
+  for (let k = j; k < src.length; k++) {
+    if (src[k] === '{') d++
+    if (src[k] === '}') { d--; if (d === 0) return new Function('return (' + src.slice(j, k + 1) + ')')() }
+  }
+  throw new Error('unbalanced ' + name)
+}
+// Walk ONLY schema-bearing positions: the bare schema, `properties` VALUES (never its keys),
+// `items`, `if`, `then`.
+const schemaKeywords = (node, out = new Set()) => {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return out
+  for (const [k, v] of Object.entries(node)) {
+    out.add(k)
+    if (k === 'properties' && v && typeof v === 'object') for (const sub of Object.values(v)) schemaKeywords(sub, out)
+    else if (['items', 'if', 'then'].includes(k)) schemaKeywords(v, out)
+  }
+  return out
+}
+
+test('#1956 — default-deny keyword census: every keyword in the evaluated schemas is one the vendored evaluator implements', () => {
+  for (const name of EVALUATED_SCHEMAS) {
+    const found = [...schemaKeywords(grabSchema(name))]
+    const rogue = found.filter(k => !SCHEMA_KEYWORDS_SUPPORTED.has(k)).sort()
+    assert.deepEqual(rogue, [], name + ' uses keyword(s) [' + rogue.join(', ') + '] outside the evaluator\'s supported set [' + [...SCHEMA_KEYWORDS_SUPPORTED].sort().join(', ') + '] — grow evalSchema BEFORE using the keyword')
+  }
+  // The census's own negative control: an unsupported keyword is caught, by name.
+  const rogue = [...schemaKeywords({ type: 'object', properties: { x: { type: 'string', pattern: '^a' } } })].filter(k => !SCHEMA_KEYWORDS_SUPPORTED.has(k))
+  assert.deepEqual(rogue, ['pattern'], 'a scratch schema carrying `pattern` fails the census')
+})
+
+test('#1956 — vendored evaluator semantics pins: a failed `if` skips `then`, and `properties` bind only when present', () => {
+  const cond = { if: { properties: { x: { const: true } } }, then: { required: ['y'] } }
+  assert.equal(evalSchema(cond, { x: false }), true, 'pin (a): the instance fails the if subschema, so then is SKIPPED')
+  assert.equal(evalSchema(cond, { x: true }), false, 'and when if holds, then binds')
+  const props = { properties: { n: { type: 'number' } } }
+  assert.equal(evalSchema(props, {}), true, 'pin (b): an absent field binds no properties constraint')
+  assert.equal(evalSchema(props, { n: 'not-a-number' }), false, 'a present field binds it')
+})
+
+test('#1956 — GATE_CHECK validator semantics: green requires head_sha, red stays sha-free (the #1951 belt, evaluated not regexed)', () => {
+  const GATE = grabSchema('GATE_CHECK')
+  assert.equal(evalSchema(GATE, { gate_green: true }), false, 'green WITHOUT head_sha is rejected — the live probe\'s exact shape')
+  assert.equal(evalSchema(GATE, { gate_green: false, gate_output: 'FAIL' }), true, 'red WITHOUT head_sha stays schema-legal')
+  assert.equal(evalSchema(GATE, { gate_green: true, head_sha: 'abc1234' }), true, 'green WITH head_sha is accepted')
+  // Negative control — mis-author the conditional. Draft-07 subtlety, pinned deliberately: a
+  // WRONG PROPERTY NAME in `if` does NOT flip the outcome (the absent field binds vacuously, if
+  // passes, then still applies); the mis-authoring that silently disarms the arm is a wrong
+  // CONST, which flips `then` onto the red arm.
+  const wrongName = { ...GATE, if: { properties: { NOT_A_FIELD: { const: true } } } }
+  assert.equal(evalSchema(wrongName, { gate_green: true }), false, 'wrong property name in if: green-without-sha stays rejected (vacuous-if trap, documented)')
+  const wrongConst = { ...GATE, if: { properties: { gate_green: { const: false } } } }
+  assert.equal(evalSchema(wrongConst, { gate_green: true }), true, 'wrong const in if FLIPS the case to accepted — the disarm this fixture exists to catch')
+})
+
+test('#1956 — AUDIT_VERDICT items-level conditional: an ask-disposition finding requires its ask field', () => {
+  const AV = grabSchema('AUDIT_VERDICT')
+  const verdict = (finding) => ({ seat: 's', lens: 'correctness', verdict: 'approve', findings: [finding], confidence: 'high' })
+  const bare = { severity: 'Minor', title: 't', disposition: 'ask' }
+  assert.equal(evalSchema(AV, verdict(bare)), false, 'an ask-disposition finding WITHOUT ask is rejected')
+  assert.equal(evalSchema(AV, verdict({ ...bare, ask: { question: 'q', fork: ['a', 'b'] } })), true, 'with question+fork it is accepted')
+  assert.equal(evalSchema(AV, verdict({ severity: 'Minor', title: 't', disposition: 'note' })), true, 'a note-disposition finding needs no ask')
+  // Mis-author control: point the items-level if at a different disposition and the bare-ask case flips.
+  const items = { ...AV.properties.findings.items, if: { properties: { disposition: { const: 'note' } }, required: ['disposition'] } }
+  const wrong = { ...AV, properties: { ...AV.properties, findings: { ...AV.properties.findings, items } } }
+  assert.equal(evalSchema(wrong, verdict(bare)), true, 'mis-authored conditional flips the bare-ask case to accepted — reds this fixture if shipped')
+})
