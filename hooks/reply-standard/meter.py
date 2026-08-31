@@ -1,7 +1,7 @@
 """Stop hook: score the reply that just finished and write one line to meter.log, beside this file. Never blocks, prints nothing.
 
 The counter is SimpleEnglish's ste_lint.py (AminBlg/SimpleEnglish, MIT), unchanged in what it counts, plus two house rules
-reported beside the STE total (British spelling, no dashes). A regex pass, not a grammar parser: the same for every reply.
+reported beside the STE total (American spelling, no dashes). A regex pass, not a grammar parser: the same for every reply.
 """
 import json
 import pathlib
@@ -22,9 +22,13 @@ ROTATION_SETS = [
     ("check-verify", re.compile(r"\b(check|verify|confirm|validate|ensure)\w*\b", re.I)),
     ("config-settings", re.compile(r"\b(config|configuration|settings)\b", re.I)),
 ]
-# ours
-AMERICAN = re.compile(
-    r"\b(\w+iz(e|es|ed|ing|ation|ations)|colors?|behaviors?|favors?|centers?|analyz(e|ed|ing)|catalog)\b", re.I)
+# ours. The -ise arm is stem-listed, not \w+is\w*: a bare \w+ would flag American words
+# like wise, otherwise, exercise, promise. "analyses" stays unflagged (valid American noun).
+BRITISH = re.compile(
+    r"\b((?:organ|recogn|real|apolog|initial|normal|optim|priorit|minim|maxim|summar|"
+    r"standard|custom|serial|synchron|categor|special|author|item)is(e|es|ed|ing|ation|ations)|"
+    r"colours?|behaviours?|favours?|flavours?|honours?|neighbours?|centres?|metres?|litres?|"
+    r"analys(e|ed|ing)|catalogue|licence|defence|offence|artefacts?|grey|whilst|amongst)\b", re.I)
 DASH = re.compile("[—–]| -- ")
 LIMITS = {"procedural": 20, "descriptive": 25}
 
@@ -68,7 +72,7 @@ def lint(text, text_type="descriptive"):
     words = max(1, len(body.split()))
     ste_total = sum(counts.values())
     # ours, reported beside the STE total, never inside it
-    house = {"american_spelling": len(AMERICAN.findall(body)), "dash": len(DASH.findall(body))}
+    house = {"british_spelling": len(BRITISH.findall(body)), "dash": len(DASH.findall(body))}
     return {
         "type": text_type,
         "words": words,
