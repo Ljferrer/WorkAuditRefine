@@ -20,6 +20,7 @@ const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'ut
 // 2A/2B submodule land arms from the card into this reference file — presence keys over the moved text
 // relocate their read here; every OLD-absent key over the card scans it too.
 const refinerRecoveryMd = readFileSync(join(here, '../references/refiner-recovery.md'), 'utf8')
+const fileFollowupsMd = readFileSync(join(here, '../references/file-followups.md'), 'utf8')
 // UNION surface (prompt-surface simplification, adjudication I): Task 5.1 evicted the worker/servitor
 // tier>=2 blocks from the cards into this reference file — every OLD-absent key over the card scans it too.
 const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
@@ -7646,6 +7647,68 @@ test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the 
 })
 
 // ---------------------------------------------------------------------------
+// FILE-FOLLOWUPS PAIRED PINS (#1587) — the standing/dispatched coverage split made mechanical for
+// this dispatch class, on the (h2) precedent of the refiner-recovery pair above.
+// Two legs, pinned together so neither half can move alone:
+//   (a) agents/war-refiner.md § File-followups dispatch keeps its ADR 0042 trigger pointer to
+//       references/file-followups.md — plugin-root-anchored, count-pinned, never `../`-relative.
+//       A dropped pointer orphans the destination; a presence-only assert would not see it.
+//   (b) the DESTINATION BODY's procedure clauses appear VERBATIM in the dispatched file-followups
+//       prompt built in workflow-template.js — preflight, dedup, cluster, and the return contract.
+//       These are the decisive rules; per ADR 0047 adjudication O(1) the reference file is
+//       best-effort enrichment, so the prompt is the carrier and the two must never drift.
+// The five anchors below are markup-free plain-text byte-runs (no backtick or bold inside the span)
+// so a raw includes() matches byte-for-byte on BOTH surfaces.
+// ---------------------------------------------------------------------------
+const FF_PREFLIGHT = 'exit 2 (tooling error) or exit 3 (account mismatch)'          // B1: the preflight abort condition
+const FF_DEDUP_CMD = 'gh issue list --label war-followup --state open'              // B2: the dedup query
+const FF_DEDUP_RULE = 'never a new issue'                                           // B3: dedup writes a corroboration comment
+const FF_CLUSTER_KEY = 'by file + root cause'                                       // B4: the clustering key
+const FF_RETURN = '{ filed: [{ n, issue }], clusters: [{ ordinals, issue }] }'      // B5: the return contract
+
+test('file-followups paired pins (#1587) (a) — the refiner card keeps its trigger pointer to references/file-followups.md, and the destination exists', () => {
+  // Trigger-bearing pointer skeleton (ADR 0042/0047): `when <trigger>, read <plugin-root link>`. A
+  // pointer without its trigger is a defect, so the trigger clause is pinned with the link.
+  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/file-followups\.md\)/g) || []).length, 1,
+    'war-refiner.md carries exactly one plugin-root-anchored trigger pointer to file-followups.md (count-pinned — presence-only stays green when the pointer is dropped alongside a second one)')
+  assert.ok(refinerMd.includes('When dispatched a file-followups run, read [file-followups.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/file-followups.md)'),
+    'the pointer carries its TRIGGER clause on the same line (a trigger-less pointer is an ADR 0042 defect)')
+  assert.ok(!/\((?:\.\.\/)+[^)]*file-followups\.md\)/.test(refinerMd),
+    'no file-followups.md pointer uses a forbidden ../-prefixed path, at any depth')
+  assert.match(refinerMd, /^## File-followups dispatch$/m,
+    'the card section the pointer lives in survives under its own heading')
+  // The card keeps the DECISIVE rules inline — the pointer is enrichment, never the sole carrier.
+  assert.ok(refinerMd.includes('never out-of-mode: do not decline it'),
+    'the never-decline rule stays inline on the card (decisive rule, never evicted behind the pointer)')
+  assert.ok(refinerMd.includes('FOLLOWUP_FILING_RESULT'),
+    'the return-shape name stays inline on the card (decisive rule, never evicted behind the pointer)')
+  assert.match(fileFollowupsMd, /^# File-followups dispatch/m,
+    'the destination file exists and opens with its own heading (a live pointer target)')
+})
+
+test('file-followups paired pins (#1587) (b) — the destination body and the dispatched prompt carry the byte-identical procedure clauses', async () => {
+  const { calls } = await runPhase(HANDOFF_ARGS(), handoffImpl({ filed: [{ n: 1, issue: 77 }], clusters: [{ ordinals: [1], issue: 77 }] }))
+  const fp = (calls.find(c => c.opts.dispatchKind === 'file-followups') || {}).prompt
+  assert.ok(fp, 'the file-followups dispatch is reached and captured (presence guard — a skipped dispatch would make every pin below vacuous)')
+  for (const [name, anchor] of [
+    ['preflight abort condition', FF_PREFLIGHT],
+    ['dedup query', FF_DEDUP_CMD],
+    ['dedup writes a corroboration comment', FF_DEDUP_RULE],
+    ['clustering key', FF_CLUSTER_KEY],
+    ['return contract', FF_RETURN],
+  ]) {
+    assert.ok(fp.includes(anchor),
+      `the dispatched file-followups prompt carries the ${name} VERBATIM (dispatched leg — the decisive carrier)`)
+    assert.ok(fileFollowupsMd.includes(anchor),
+      `references/file-followups.md carries the ${name} VERBATIM (standing leg — the two surfaces cannot drift)`)
+  }
+  // The dedup rule's two halves are complementary: the corroboration-comment instruction alone
+  // would stay green if "never a new issue" were dropped and duplicates started being filed.
+  assert.ok(fp.includes('corroboration comment') && fileFollowupsMd.includes('corroboration comment'),
+    'both surfaces name the corroboration comment as the dedup write (the positive half of the rule)')
+})
+
+// ---------------------------------------------------------------------------
 // audit-gate-verdict-fidelity Task 1.3 — pin-equality gate (D2) + verdict-hard (D8)
 // End-state criteria 3 (mismatch demotion) and 9 (finding-less escalate is HARD at both sites),
 // plus the auditPrompt AUDIT-PIN-line presence/fail-open assert and the auditRound (work-wave)
@@ -8995,13 +9058,59 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   }
   // Default-deny census (D6, #1334-4): the sweep above only reaches prompts its fixtures drive, so a
   // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
-  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; the
-  // keep-the-gate-green comment mentions are hyphenated and deliberately non-hits). Pin re-measured
+  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; comment
+  // mentions are blanked out below, so their hyphenated form no longer carries the exclusion alone).
+  // The census regex
+  // carries the sweep matcher's own word boundary (\b parity, #1686) so the two halves cannot key on
+  // different phrase sets. Pin re-measured
   // at task time: 8 (the ace bisection subset prompt joined via realized-absorb-rate Task 1.1; the
   // ace RE-ENTRY batch prompt joined via in-run-finding-resolution Task 1.1 — its fixture rides
   // the sweep above).
-  assert.equal((src.match(/keep the gate/gi) || []).length, 8,
+  // Line comments are blanked to SPACES, never deleted, so every index below still addresses the
+  // real source (the established `//`-strip idiom in this file, made index-preserving). Blanking is
+  // fail-CLOSED for this pin: an over-blanked line loses its occurrence and reds the count.
+  const censusSrc = src.replace(/\/\/[^\n]*/g, m => ' '.repeat(m.length))
+  const census = [...censusSrc.matchAll(/keep the gate\b/gi)]
+  assert.equal(census.length, 8,
     'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
+  // Per-occurrence membership (#1686) — the count alone is RELOCATION-blind: an occurrence that
+  // moves out of a dispatched prompt into a comment, or into a dispatch site no fixture drives,
+  // keeps the total at 8 and the pin above stays green
+  // (memory: count-only-source-census-pin-is-blind-to-relocation-not-just-addition). So every match
+  // must also fall inside a fixture-reachable dispatch site's byte range. Each range is derived from
+  // the site's NAMED constructs — its prompt-header anchor through its own `label:` dispatch option,
+  // which is exactly the span that is dispatched — never a line number. `reachedBy` names the label
+  // class the sweep above already captured, so "fixture-reachable" is mechanical, not prose.
+  const KEEP_GREEN_SITES = [
+    { site: 'ace bisection subset (ACE BISECTION SUBSET)', from: 'pt`ACE BISECTION SUBSET for WAR task', reachedBy: /^ace:/ },
+    { site: 'ace re-entry batch (ACE RE-ENTRY BATCH)', from: 'pt`ACE RE-ENTRY BATCH for WAR task', reachedBy: /^ace:/ },
+    { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:/ },
+    { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
+    { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
+    { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
+  ]
+  const keepGreenRanges = KEEP_GREEN_SITES.map(s => {
+    const start = censusSrc.indexOf(s.from)
+    assert.ok(start >= 0,
+      `dispatch-site anchor for "${s.site}" resolves in the template source (extraction floor — a renamed construct reds this pin, never silently skips the site)`)
+    assert.equal(censusSrc.indexOf(s.from, start + 1), -1,
+      `dispatch-site anchor for "${s.site}" is UNIQUE (a duplicated anchor would make the range arbitrary)`)
+    const end = censusSrc.indexOf('label:', start)
+    assert.ok(end > start,
+      `dispatch-site "${s.site}" terminates at its own label: dispatch option (range floor)`)
+    assert.ok(keepGreen.some(c => s.reachedBy.test(c.opts.label || '')),
+      `dispatch-site "${s.site}" is fixture-reachable — a keep-green prompt of class ${s.reachedBy} was captured above`)
+    return { ...s, start, end }
+  })
+  for (const m of census) {
+    const home = keepGreenRanges.find(r => m.index >= r.start && m.index < r.end)
+    assert.ok(home,
+      `the keep-the-gate-green occurrence at source index ${m.index} sits inside a fixture-reachable dispatch site — an occurrence relocated into a comment, or into a site no fixture drives, is a keep-green claim the sweep above never checks`)
+  }
+  for (const r of keepGreenRanges) {
+    assert.ok(census.some(m => m.index >= r.start && m.index < r.end),
+      `dispatch-site "${r.site}" still owns at least one keep-the-gate-green occurrence (anti-vacuity — a range that stops matching is a moved or dropped clause, never a silent pass)`)
+  }
 })
 
 // A1 (D9) — the RETIRED plan-slice-criteria framing, asserted absent from the standing worker card
