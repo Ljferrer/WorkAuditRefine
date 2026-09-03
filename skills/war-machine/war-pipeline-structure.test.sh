@@ -10,7 +10,9 @@
 # ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
 # (2026-08-25, ask-disposition Task 2.6) the two war-review telemetry rows — the asks tally
 # and the grind-measurement row. Also pins (2026-09-02, D13) the drafter evidence clause's
-# split degraded arms — absent section, unreachable issue.
+# split degraded arms — absent section, unreachable issue. Also pins (2026-09-03, #1656) the
+# two war-review flip pairs — the ratified-rows count and the grind row's coarseness split —
+# each as an OLD-absent + NEW-present twin.
 # grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
@@ -704,6 +706,21 @@ has   "$WAR_REVIEW" 'decision-shaped language in `minorsFiled` rationales'
 has_i "$WAR_REVIEW" 'round-level attribution does not exist'
 has_i "$WAR_REVIEW" "routes to #1664's instrumentation-first refinement"
 has_i "$WAR_REVIEW" 'never to a silent "no grinding"'
+
+printf '\n# war-review flip pairs (Task 5, #1656) — OLD-absent + NEW-present twins\n'
+# The three→four ratified-rows flip (dbca140, the waive-rate row's arrival) landed with a
+# presence pin only, and this suite is its only possible host. Both halves are case-insensitive:
+# the retirement needle is PROSE, and a case-sensitive absence assert silently passes on a
+# benign re-casing ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]).
+has_i   "$WAR_REVIEW" 'four ratified rows'
+lacks_i "$WAR_REVIEW" 'three ratified rows'
+# Survey-derived correction from the same hand-scan of this block: the grind row's coarseness
+# split (7b56c12) retired the over-claim "every source is a per-task terminal read" and also
+# landed presence-only. The surviving `round-level attribution does not exist` pin above is a
+# shared prefix of both wordings, so it cannot discriminate the corrected clause — pin the split
+# claim NEW-present and the retired over-claim OLD-absent.
+has_i   "$WAR_REVIEW" '`fixRounds` is a per-phase dispatch count'
+lacks_i "$WAR_REVIEW" 'every source is a per-task terminal read'
 
 printf '\n# Authoring-side verification (Task 3.1) — ADR decision-record pins (End state 10 decisive pair)\n'
 # Never a bare token grep (the plan's own rule for this pair). The 0044 half is

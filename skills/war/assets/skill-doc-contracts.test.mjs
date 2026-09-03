@@ -103,6 +103,22 @@ const verifierCharterMd = readFileSync(
   join(HERE, '..', '..', 'war-strategy', 'references', 'strategy-verifier.md'),
   'utf8',
 )
+// (D36, re-bind #1652/#1676) The Evidence-artifacts duty's THREE normative homes, all landed since
+// the row was first authored against the consumption surface alone: ADR 0044's `### Evidence-duty
+// home` section (the decision record), `/survey-corps` Step 0.3's issue template, and the clustered
+// filing prompt's emission clause in the engine template (the /war filing site). The recorded
+// [[guard-duty-authored-in-an-earlier-phase-cannot-bind-a-normative-home-landing-in-a-later-phase]]
+// lesson is exactly this row's history — the homes landed a phase later, so the binding is made
+// here, not left on the one generic consumption-surface key.
+const adr0044 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0044-authoring-contract-and-merged-artifact.md'),
+  'utf8',
+)
+const surveyCorpsSkillMd = readFileSync(
+  join(HERE, '..', '..', 'survey-corps', 'SKILL.md'),
+  'utf8',
+)
+const workflowTemplateSrc = readFileSync(join(HERE, 'workflow-template.js'), 'utf8')
 // (D37–D42) The ask-disposition surfaces (#1550; plan 2026-08-25-ask-disposition, Task 2.3):
 // ADR 0013's dated amendment is the canonical decision record the new CONTEXT.md glossary terms
 // restate; ADR 0012 carries the one-line cross-ref; design.md + file-followups.md carry the
@@ -496,8 +512,14 @@ test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline d
 // sites: the definition-body producer enumeration (which now names the Checkpoint's ask rulings as
 // the third producer, minted at the strike-list gate) and the `_Avoid_` count line D19 guards
 // (now "the three named producers"). OLD-absent per PIN-8's law: the retired literal "two named
-// producers" was verified present at this task's base (it is the very literal D19's block comment
-// quotes) — never a count word on a never-present value. Same extraction construct as D19.
+// producers" was verified present at this task's base — its base carrier is CONTEXT.md's own
+// `_Avoid_` count line ("rows come only from the two named producers"), the byte-run this widening
+// rewrote in place. It is NOT quoted by D19's block comment above: that comment was rewritten in
+// the companion commit that completed the same task (the widening landed in fbadb88, the D19
+// comment rewrite in the immediately-following 13a83a4) and now reads "two at this row's
+// authoring; three since the #1550 ask-ruling widening", so citing it as the carrier would name
+// a byte-run the D19 comment rewrite removed. Never a count word on a never-present value. Same extraction
+// construct as D19.
 test('D19a — CONTEXT.md **Adjudication** producer enumeration is widened two → three, old count literal retired (#1550)', () => {
   const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
   assert.ok(
@@ -692,7 +714,18 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // outside the flow this row polices. Markup-tolerant on the emphasis
 // spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
 //
-// ONE ordered key, shared by the live row and its EIGHT negative references — all nine must never
+// The do-not-push refusal and the leading `docs(learnings): phase N` anchor (#1521/#1689): both
+// were load-bearing fragments with zero test signal — every reference (a)-(h) carried them, so
+// deleting either from the key left this row green. References (i) and (j) below close that gap.
+// (i) keeps the whole flow live-shaped and swaps only the refusal clause for a report-and-continue
+// sentence — a probe that finds a condemned path and pushes anyway is the exact defect the clause
+// states — so deleting the refusal fragment greens (i) and reds the row.
+// (j) paraphrases the commit step's subject away, keeping every later arm live-shaped, so the
+// leading anchor is its only gap — delete that fragment from the key and (j) matches, reding the
+// row. A reference differing at TWO points cannot prove the anchor: the key would reject it at the
+// second gap and the drill would read green. Verified by scratch deletion at this task's base.
+//
+// ONE ordered key, shared by the live row and its TEN negative references — all eleven must never
 // drift apart.
 const D22_ORDERED_SPAN =
   /docs\(learnings\): phase N[\s\S]*?git[\s*`]{0,4}fetch\s+origin[\s\S]*?git[\s*`]{0,4}log\s+--name-only[\s\S]*?\.\.HEAD[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?This\s+reverts\s+commit[\s\S]*?reset[\s*`]{0,4}--hard[\s*`]{0,4}HEAD~1[\s\S]*?git[\s*`]{0,4}revert[\s\S]*?provision-worktrees\.sh[\s*`]{0,4}ensure-origin/
@@ -850,6 +883,46 @@ const D22_REGION_WITHOUT_EXEMPTION =
   'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
   '`git revert --abort` + escalate. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+// (i) The DO-NOT-PUSH gap (#1521/#1689): the probe still enumerates the range and still names the
+// condemned paths, but the refusal clause is replaced by report-and-continue — the shape where a
+// condemned commit is reported and pushed anyway. Everything else is live-shaped, so the refusal
+// is the ONLY designated gap. Red at the refusal arm; without this reference the
+// `do **not** push` fragment carried zero test signal.
+const D22_REGION_WITHOUT_REFUSAL =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — report the condemned paths in the phase report and continue. ' +
+  '**Neutralized-pair exemption:** a commit is *not* condemned when a later commit in the same ' +
+  "range reverts it — linked by git's own `This reverts commit <sha>.` body token. " +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
+  '`git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+// (j) The LEADING-ANCHOR gap (#1521/#1689): the commit step paraphrases its subject instead of
+// spelling the `docs(learnings): phase N` message, everything after it live-shaped — the anchor is
+// the ONLY designated gap. Red at the span's left boundary. This is what proves the anchor
+// POSITIONS the ordered match after the commit step rather than merely decorating it: delete the
+// fragment from the key and every remaining arm matches this string, so the row reds.
+const D22_REGION_WITHOUT_COMMIT_ANCHOR =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit the phase learnings in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — do **not** push. **Neutralized-pair exemption:** a commit is *not* condemned ' +
+  "when a later commit in the same range reverts it — linked by git's own `This reverts commit " +
+  '<sha>.` body token. ' +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
+  '`git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
 test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unpushed-range probe, its do-not-push clause, the neutralized-pair exemption, the tip-undo carve-out and the revert routing between commit and push invocation (#1083, #1136, #1192, #1288, #1287)', () => {
   const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
   assert.ok(
@@ -931,6 +1004,18 @@ test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unp
       'the exemption arm no longer discriminates — a region that drops the neutralized-pair ' +
         'exemption satisfies it',
     ],
+    [
+      '(i) refusal replaced by report-and-continue',
+      D22_REGION_WITHOUT_REFUSAL,
+      'the do-not-push arm no longer discriminates — a region that reports condemned paths and ' +
+        'pushes anyway satisfies it',
+    ],
+    [
+      '(j) commit-message anchor paraphrased',
+      D22_REGION_WITHOUT_COMMIT_ANCHOR,
+      'the leading `docs(learnings): phase N` anchor no longer positions the span — a region ' +
+        'whose commit step never names the docs commit satisfies it',
+    ],
   ]) {
     assert.doesNotMatch(
       negative,
@@ -951,8 +1036,12 @@ test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unp
 // and a NEW token reds — designed friction: legitimate growth must update this map AND the D22
 // census comment in the SAME diff (the Gate-2 freshness insert was itself authored under a
 // no-new-`ensure-origin` constraint so these counts held). Population: skills/war/SKILL.md plus
-// EVERY file under skills/war/references/ — a new reference file carrying the token cannot appear
-// silently. Counts are occurrence counts (a dated snapshot, measured 2026-08-18), never line
+// every file DIRECTLY under skills/war/references/ — the walk is a FLAT `readdirSync`, not
+// recursive, so a file inside a subdirectory would be invisible to it. That hole is closed by
+// assertion rather than by recursion: the walk also asserts the directory holds NO subdirectory
+// (true at this row's base — the directory is flat), so a new nested carrier surface cannot appear
+// silently either. Add a recursive walk, and rewrite this sentence with it, if a subdirectory is
+// ever wanted. Counts are occurrence counts (a dated snapshot, measured 2026-08-18), never line
 // counts.
 test('D33 — `ensure-origin` token census: SKILL.md and every references/ file carry exactly the recorded occurrence counts (#1287, #1288)', () => {
   const count = (src) => src.split('ensure-origin').length - 1
@@ -982,8 +1071,18 @@ test('D33 — `ensure-origin` token census: SKILL.md and every references/ file 
   // ZERO.
   const refDir = join(HERE, '..', 'references')
   const expectedRefCounts = { 'resume-and-recovery.md': 2 }
-  const seen = readdirSync(refDir, { withFileTypes: true }).filter((e) => e.isFile())
+  const entries = readdirSync(refDir, { withFileTypes: true })
+  const seen = entries.filter((e) => e.isFile())
   assert.ok(seen.length > 0, 'non-vacuity: the references/ walk discovered no files at all')
+  // The flat walk's claim, made true by assertion (#1525): a subdirectory would hide carrier files
+  // from the census below. Adding one is a lock-step change — make the walk recursive and rewrite
+  // the census comment in the SAME diff, never delete this assert to land the directory.
+  assert.deepEqual(
+    entries.filter((e) => !e.isFile()).map((e) => e.name),
+    [],
+    'skills/war/references/ gained a subdirectory, which the FLAT readdirSync census below cannot ' +
+      'see — make the walk recursive and update the D22/D33 census comments in the SAME diff',
+  )
   for (const name of ['resume-and-recovery.md', 'setup.md']) {
     assert.ok(
       seen.some((e) => e.name === name),
@@ -1890,7 +1989,8 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 // (D31) The Decompose step's done-when intake sub-bullet — the authoring contract's done-when law
 // (ADR 0044) made mechanical on the /war side (plan 2026-08-05-precision-chain-and-loop-breaker,
 // Task 1.1; red-team F8 converted End state 1's judge tag into this row, so the guard rides its
-// fact's own task). Two clauses are load-bearing and easy to lose in a reword:
+// fact's own task). Four clauses are load-bearing and easy to lose in a reword — (a) and (b) from
+// Task 1.1, (c) and (d) added by the #1332 intake landing and pinned by the keys below:
 //   (a) the FULL-BULLET parse — soft-wrapped physical lines joined with single spaces until the
 //       next `- ` bullet or a blank line. The authoring template wraps its bullets, so a
 //       first-line-only parse truncates the staged command mid-token and the truncated command
@@ -1899,7 +1999,11 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 //       interactive runs surface it at the approval gate; under --afk the Lead refuses
 //       dispatch; the Lead never invents an acceptance command. The SKILL.md
 //       `Legacy arm (checked first)` clause gates the rule — a plan with no `Done when:`
-//       bullets anywhere stages unchanged and the intake-defect rule does not fire.
+//       bullets anywhere stages unchanged and the intake-defect rule does not fire;
+//   (c) the VALUE boundary (#1332) — the staged command is the text AFTER the `Done when:` key,
+//       never the key itself, so a parse that keeps the label stages an unrunnable command;
+//   (d) the BACKTICK-STRIPPING boundary (#1332) — backticks are markup and are stripped, so the
+//       staged command is the code span's text, never a string carrying backtick characters.
 // Also pinned: the template's no-command arm (`None — <basis>`) stages `doneWhen: null` — without
 // that arm the intake would stage the literal "None — <basis>" prose as an executable command —
 // and the legacy arm (no `Done when:` bullets anywhere ⇒ stages unchanged, byte-identical
@@ -1930,15 +2034,18 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 // through an interactive-style review to the approval gate while interactive runs get the
 // refusal, the other arm's trigger token sitting inside one key's gap). Shared by the live row
 // and both negative references below — the uses must never drift apart.
-// RESIDUAL, recorded rather than waived — one fragment has no both-ways proof: the AFK key's
-// negated gap is proven by the COLLIDED reference (deleting `(?!interactive)` reds it — the
-// measured `--afk` → `refuses dispatch` gap is 111 chars, inside the {0,120} bound), and the
-// interactive key's LIVE-TOKEN ANCHOR is proven by the same reference (deleting `\s+runs` reds
-// it at the `interactive-style` token) — but the interactive key's `(?!--afk)` gap is NOT:
-// SWAPPED's `interactive runs` → `approval gate` distance is 165 chars, already over the {0,80}
-// bound, and COLLIDED carries no `approval gate` after its `interactive runs` token, so deleting
-// that fragment reds nothing here — measured, not assumed. Closing it needs a third reference
-// (`interactive runs` … `--afk` … `approval gate` inside the 80-char bound).
+// EVERY fragment now has a both-ways proof — the residual this comment once recorded is CLOSED
+// (#1521/#1689). The AFK key's negated gap is proven by the COLLIDED reference (deleting
+// `(?!interactive)` reds it — the measured `--afk` → `refuses dispatch` gap is 111 chars, inside
+// the {0,120} bound), and the interactive key's LIVE-TOKEN ANCHOR is proven by the same reference
+// (deleting `\s+runs` reds it at the `interactive-style` token). The interactive key's `(?!--afk)`
+// gap needed a THIRD reference, because neither of the first two can reach it: SWAPPED's
+// `interactive runs` → `approval gate` distance is 165 chars, already over the {0,80} bound, and
+// COLLIDED carries no `approval gate` after its `interactive runs` token. D31_ARMS_AFK_IN_GAP
+// below is that reference — `interactive runs` … `--afk` … `approval gate` with a measured 53-char
+// gap, well inside the bound — so deleting `(?!--afk)` greens a reference asserted red and the row
+// reds. Measured by scratch deletion at this task's base, not assumed; re-measure the gap after
+// ANY reword of that reference.
 const D31_INTERACTIVE_ARM = /interactive\s+runs(?:(?!--afk)[\s\S]){0,80}approval\s+gate/i
 const D31_AFK_ARM = /--afk(?:(?!interactive)[\s\S]){0,120}refuses\s+dispatch/i
 // Unwired negative reference (both-ways proof, zero fixture files — D22/D9's idiom): a
@@ -1964,6 +2071,18 @@ const D31_ARMS_COLLIDED =
   'A `requiresTest: true` task without a `Done when:` command is an **intake defect**: under ' +
   '`--afk` it rides an interactive-style review to the **approval gate**; interactive runs get ' +
   'the refusal — the Lead **refuses dispatch** and never invents an acceptance command.'
+// Third unwired negative reference (#1521/#1689) — the AFK-IN-GAP reword: interactive runs are
+// routed to the approval gate (the inverted routing), and the `--afk` token sits INSIDE the
+// interactive key's gap, 53 chars from `interactive runs` to `approval gate` — inside the {0,80}
+// bound, so the key without `(?!--afk)` matches. This is the ONLY reference that exercises that
+// fragment: the SWAPPED gap is 165 chars (over the bound) and COLLIDED has no `approval gate`
+// after its interactive token. Both keys must red on it — the interactive key at the negated gap,
+// the afk key because no `refuses dispatch` follows `--afk` at all. SKILL.md itself is never
+// edited to prove a guard.
+const D31_ARMS_AFK_IN_GAP =
+  'A `requiresTest: true` task without a `Done when:` command is an **intake defect**: on ' +
+  'interactive runs the Lead defers to `--afk` and surfaces it at the **approval gate**; the ' +
+  '`--afk` path instead stages the task unchanged.'
 test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse clause and the requiresTest-without-Done-when intake-defect rule (F8, Task 1.1)', () => {
   const decompose = skillMd.match(/^## Decompose \+ approve[\s\S]*?(?=\n## )/m)
   assert.ok(
@@ -2033,6 +2152,7 @@ test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse cl
   for (const [negName, negative] of [
     ['arms-swapped', D31_ARMS_SWAPPED],
     ['arms-collided (#1375)', D31_ARMS_COLLIDED],
+    ['afk-in-gap (#1521/#1689)', D31_ARMS_AFK_IN_GAP],
   ]) {
     for (const [key, why] of [
       [
@@ -2134,9 +2254,17 @@ test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired fo
 // zero mechanical coverage — this row is the same-commit-family guard the file's own D26/D29
 // precedent mandates (ADR 0025: a new mirror ships its drift guard). Extraction is BY CONSTRUCT
 // on both surfaces — the bolded glossary term → next bolded term or `###` heading, and rule 8's
-// numbered bullet → the next numbered rule or `##` heading — never a whole-file scan (the
-// trichotomy tokens also live in ADR 0025 and references/touched-doc-accuracy.md, which End
-// states 3/10 pin elsewhere). Keys are token-anchored `\s+`-wrapped forms, never sentence bytes —
+// numbered bullet → the next numbered rule or `##` heading — never a whole-file scan, because
+// war-strategy/SKILL.md repeats this row's tokens OUTSIDE rule 8: at this task's base it carries
+// three `de-mirror` hits and four `plan defect` hits, one and two of them outside rule 8 (a
+// dated count snapshot), so a whole-file key would green with rule 8 itself deleted. It also
+// carries two `explicitly defer` hits, both inside rule 8 itself — included for the full
+// token-count picture, not as evidence of outside-rule-8 repetition. (The trichotomy's two
+// OTHER homes — docs/adr/0025 and skills/war/references/touched-doc-accuracy.md — are not read by
+// this row at all, and no End state of the source plan pins their tokens; the earlier "End states
+// 3/10 pin elsewhere" citation was wrong on both counts: End state 3 pins the CANONICAL rule 8
+// tokens through war-strategy-structure.test.sh, End state 10 pins the ADR 0044 amendment, and
+// End state 7 is this row's own.) Keys are token-anchored `\s+`-wrapped forms, never sentence bytes —
 // sanctioned rewording latitude on either surface must not false-red; a one-sided edit reds.
 test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strategy rule 8 on both surfaces (#1603)', () => {
   const entry = contextMd.match(
@@ -2185,114 +2313,220 @@ test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strateg
 // (D36) THE EIGHT AUTHORING-SIDE-VERIFICATION GLOSSARY TERMS (plan 2026-08-24, Task 2.3) — each
 // new CONTEXT.md entry restates doctrine whose canonical home is a war-strategy authoring
 // surface (the interview doctrine, the strategy-verifier charter, or SKILL.md §2) — except the
-// Evidence-artifacts-duty row, deliberately bound to the CONSUMPTION surface (plan-interview.md)
-// because its normative homes (the survey-corps issue template, the clustered filing prompt)
-// land in Task 2.2 / Task 3.2 and cannot be bound from this task's frozen base — and per the
-// recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
+// Evidence-artifacts-duty row, whose normative homes are the FILING surfaces and are bound here
+// for the first time (#1652/#1676): ADR 0044's `### Evidence-duty home` section (the decision
+// record), `/survey-corps` Step 0.3's issue template, and the clustered filing prompt's emission
+// clause in `workflow-template.js`. That row shipped bound to the CONSUMPTION surface
+// (plan-interview.md) with ONE generic section-name key, because its three normative homes landed
+// a phase after the row — the recorded
+// [[guard-duty-authored-in-an-earlier-phase-cannot-bind-a-normative-home-landing-in-a-later-phase]]
+// lesson is this row's own history. The re-bind is what makes a deletion at any home red here.
+// Per the recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
 // lesson a glossary mirror is guarded ONLY when its row is authored deliberately — these are
-// those rows, landing in the commit that creates the mirrors. Extraction is BY CONSTRUCT per
-// term (D26's idiom, term escaped, colon not required after the bold marker — two headers carry
-// a parenthesized token before it); every entry must span its own `_Avoid_` line (non-vacuity).
-// Keys are token-anchored `\s+`-wrapped `/…/i` forms asserted on BOTH surfaces — sanctioned
-// rewording latitude must not false-red; a one-sided edit (glossary reworded away from the
-// doctrine, or the canonical clause dropped) reds.
-test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mirror their canonical war-strategy surfaces', () => {
-  for (const [term, canonicalName, canonicalText, keys] of [
+// those rows.
+//
+// Extraction is BY CONSTRUCT on BOTH sides (#1683 — D35's idiom; the canonical side was a
+// whole-file scan until this task). Glossary side: the bolded term escaped, colon not required
+// after the bold marker — exactly ONE of the eight headers carries a parenthesized token before
+// its colon (`**Ratified-pin ledger** (`PIN-<n>`):`), a dated count measured at this task's base;
+// the retired "two headers" claim was a miscount (#1653) — and every entry must span its own
+// `_Avoid_` line (non-vacuity). Canonical side: each home names the SECTION, NUMBERED STEP or
+// PROMPT LINE that owns the doctrine, and the extracted span is asserted strictly shorter than its
+// file, so a construct regex that silently degrades into a whole-file match reds instead of
+// greening a deleted clause.
+//
+// Keys are token-anchored `\s+`-wrapped `/…/i` forms. A key is MIRRORED by default — asserted on
+// the glossary entry AND on its canonical span, so a one-sided edit reds. A key listed under
+// `canonicalOnly` states procedure the glossary deliberately summarizes away (the glossary defines
+// the term; the filing surfaces carry the steps) and is asserted on the canonical span alone —
+// never dropped from that side to make a reword pass.
+const D36_ROWS = [
+  [
+    'Run-history recon lane',
     [
-      'Run-history recon lane',
-      'references/plan-interview.md',
-      planInterviewMd,
-      [
-        [/run\s+manifests/i, 'the run-manifests corpus class'],
-        [/epic\s+phase\s+reports/i, 'the epic-phase-reports corpus class'],
-        [/war-followup\s+corpus/i, 'the war-followup corpus class'],
-        [/Evidence\s+artifacts[`*_]{0,2}\s+section/i, 'the issue-linked evidence-artifacts read'],
-        [/fail-open/i, 'the fail-open posture'],
-      ],
-    ],
-    [
-      'Strategy-verifier seat',
-      'references/strategy-verifier.md',
-      verifierCharterMd,
-      [
-        [/wrong\s+branch\s+surfaces\s+only\s+at\s+run\s+time/i, 'the arming principle sentence'],
-        [/caught\s+by:/i, 'the `caught by:` half of the output contract'],
-        [/NOTHING/, 'the `caught by: NOTHING` legal answer'],
-        [/re-arms?\s+once/i, 'the amend-and-re-arm-once refute bound'],
-        [/live\s+fork/i, 'the unresolved-refute = live-fork terminal'],
-        [/corpus-empty/, 'the corpus-empty degraded stamp'],
-        [/corpus-partial/, 'the corpus-partial degraded stamp'],
-        [/unavailable/i, 'the unavailable degraded stamp'],
-      ],
-    ],
-    [
-      'Ratified-pin ledger',
-      'references/plan-interview.md',
-      planInterviewMd,
-      [
-        [
-          /lands\s+in\s+the\s+artifact,\s+not\s+the\s+transcript/i,
-          'the artifact-borne-state principle sentence (verbatim on both surfaces)',
+      {
+        name: 'references/plan-interview.md (Stage 0 — silent recon)',
+        text: planInterviewMd,
+        construct: /\*\*Stage 0 — silent recon\.\*\*[\s\S]*?(?=\n\*\*Stage 1)/,
+        keys: [
+          [/run\s+manifests/i, 'the run-manifests corpus class'],
+          [/epic\s+phase\s+reports/i, 'the epic-phase-reports corpus class'],
+          [/war-followup\s+corpus/i, 'the war-followup corpus class'],
+          [/Evidence\s+artifacts[`*_]{0,4}\s+section/i, 'the issue-linked evidence-artifacts read'],
+          [/fail-open/i, 'the fail-open posture'],
         ],
-        [/digits-only/i, 'the digits-only token grammar'],
-        [/right-delimited/i, 'the right-delimited match rule'],
-        [/letter\s+suffixes/i, 'the no-letter-suffixes rule'],
-        [/landing-class\s+cell/i, 'the per-pin landing-class cell'],
-        [/single-class\s+cell\s+covers\s+all\s+row\s+pins/i, 'the single-class-cell coverage rule'],
-        [/enumerate-aloud/i, "gate 1's enumerate-aloud hard half of the inseparable pair"],
-      ],
+      },
     ],
+  ],
+  [
+    'Strategy-verifier seat',
     [
-      'WAIVE channel',
-      'references/strategy-verifier.md',
-      verifierCharterMd,
-      [
-        [/operator\s+utterances/i, 'the skips-are-operator-utterances rule'],
-        [/fired\s+arm/i, 'the fired-arming-arm row field'],
-        [/armed-by-rule\s+unwaived/i, 'the AFK armed-by-rule-unwaived statement'],
-        [/defect/i, 'the WAIVE-row-in-an-AFK-plan-is-a-defect consequence'],
-        [/waive-rate-per-arm/i, 'the /war-review telemetry consumer'],
-      ],
+      {
+        // The charter's doctrine span — arming principle → refute charter → refute-flow bounds →
+        // degraded modes, terminated at `## WAIVE semantics` (the WAIVE channel row's own home
+        // below). The worked example and the leak-shape section sit outside it deliberately.
+        name: 'references/strategy-verifier.md (arming principle → degraded modes)',
+        text: verifierCharterMd,
+        construct: /## The arming principle and its four arms[\s\S]*?(?=\n## WAIVE semantics)/,
+        keys: [
+          [/wrong\s+branch\s+surfaces\s+only\s+at\s+run\s+time/i, 'the arming principle sentence'],
+          [/caught\s+by:/i, 'the `caught by:` half of the output contract'],
+          [/NOTHING/, 'the `caught by: NOTHING` legal answer'],
+          [/re-arms?\s+once/i, 'the amend-and-re-arm-once refute bound'],
+          [/live\s+fork/i, 'the unresolved-refute = live-fork terminal'],
+          [/corpus-empty/, 'the corpus-empty degraded stamp'],
+          [/corpus-partial/, 'the corpus-partial degraded stamp'],
+          [/unavailable/i, 'the unavailable degraded stamp'],
+        ],
+      },
     ],
+  ],
+  [
+    'Ratified-pin ledger',
     [
-      'Evidence-artifacts duty',
-      'references/plan-interview.md',
-      planInterviewMd,
-      [
-        [/Evidence\s+artifacts[`*_]{0,2}\s+section/i, 'the `## Evidence artifacts` section name'],
-      ],
+      {
+        name: 'references/plan-interview.md (## The ratified-pin ledger + the WAIVE channel)',
+        text: planInterviewMd,
+        construct: /## The ratified-pin ledger \+ the WAIVE channel[\s\S]*?(?=\n## )/,
+        keys: [
+          [
+            /lands\s+in\s+the\s+artifact,\s+not\s+the\s+transcript/i,
+            'the artifact-borne-state principle sentence (verbatim on both surfaces)',
+          ],
+          [/digits-only/i, 'the digits-only token grammar'],
+          [/right-delimited/i, 'the right-delimited match rule'],
+          [/letter\s+suffixes/i, 'the no-letter-suffixes rule'],
+          [/landing-class\s+cell/i, 'the per-pin landing-class cell'],
+          [/single-class\s+cell\s+covers\s+all\s+row\s+pins/i, 'the single-class-cell coverage rule'],
+          [/enumerate-aloud/i, "gate 1's enumerate-aloud hard half of the inseparable pair"],
+        ],
+      },
     ],
+  ],
+  [
+    'WAIVE channel',
     [
-      'Evidence consumed block',
-      'references/plan-interview.md',
-      planInterviewMd,
-      [
-        [/one\s+row\s+per\s+linked\s+artifact/i, 'the one-row-per-artifact form'],
-        [/unread-with-reason/i, 'the read-or-unread-with-reason arm'],
-        [/never\s+a\s+new\s+required\s+H2/i, 'the never-a-new-required-H2 law'],
-      ],
+      {
+        name: 'references/strategy-verifier.md (## WAIVE semantics)',
+        text: verifierCharterMd,
+        construct: /## WAIVE semantics \(the skip channel\)[\s\S]*?(?=\n## )/,
+        keys: [
+          [/operator\s+utterances/i, 'the skips-are-operator-utterances rule'],
+          [/fired\s+arm/i, 'the fired-arming-arm row field'],
+          [/armed-by-rule\s+unwaived/i, 'the AFK armed-by-rule-unwaived statement'],
+          [/defect/i, 'the WAIVE-row-in-an-AFK-plan-is-a-defect consequence'],
+          [/waive-rate-per-arm/i, 'the /war-review telemetry consumer'],
+        ],
+      },
     ],
+  ],
+  [
+    // The re-bind (#1652/#1676): three normative homes, one row. The consumption surface
+    // (plan-interview.md) is NOT read here — it is the **Run-history recon lane** row's home, and
+    // binding the filing-side duty to it is what left the duty guarded by a single generic key.
+    'Evidence-artifacts duty',
     [
-      'Omittability probe',
-      'references/plan-interview.md',
-      planInterviewMd,
-      [
-        [/omit\s+it\s+silently/i, 'the could-the-run-omit-it-silently question'],
-        [/no\s+check\s+at\s+all/i, 'the outcome-with-no-check-at-all contrast'],
-        [/delete-the-feature/i, "the delete-the-feature probe (the probe's dual)"],
-      ],
+      {
+        name: 'docs/adr/0044 (### Evidence-duty home)',
+        text: adr0044,
+        construct: /### Evidence-duty home[\s\S]*?(?=\n#{2,3} )/,
+        keys: [
+          [/Evidence\s+artifacts[`*_]{0,4}\s+section/i, 'the `## Evidence artifacts` section name'],
+          [/survey-corps/, 'the /survey-corps issue-template home'],
+          [/clustered\s+filing\s+prompt/i, "the /war clustered filing prompt's emission home"],
+          [/amendment\s+records\s+the\s+decision/i, 'the ADR-records-the-decision division of labour'],
+        ],
+        canonicalOnly: [
+          [
+            /normative\s+where\s+their\s+authors\s+actually\s+work/i,
+            'the evidence-duty-home rule (an ADR-only duty is invisible to every producer it binds)',
+          ],
+        ],
+      },
+      {
+        name: 'skills/survey-corps/SKILL.md (Step 0.3 item 3 — Draft the issue)',
+        text: surveyCorpsSkillMd,
+        construct: /^3\. \*\*Draft the issue\.\*\*[\s\S]*?(?=\n\d+\. \*\*|\n## )/m,
+        keys: [
+          [/Evidence\s+artifacts[`*_]{0,4}\s+section/i, 'the required `## Evidence artifacts` section'],
+          [/named\s+gap/i, 'the consumed-issue-without-the-section named gap'],
+          [/never\s+a\s+blocker/i, 'the never-a-blocker consequence of that gap'],
+        ],
+        canonicalOnly: [
+          [/never\s+empty/i, 'the never-empty rule (no readable evidence means the draft says why)'],
+        ],
+      },
+      {
+        // A one-line construct (D31's lead-in idiom): the emission clause is one `pt` template
+        // line inside the file-followups dispatch, and the span assert below proves the extraction
+        // narrowed to it rather than reading the whole engine template.
+        name: 'skills/war/assets/workflow-template.js (clustered filing prompt — emission clause)',
+        text: workflowTemplateSrc,
+        construct: /^\s*\+ pt`EACH filed issue's body additionally ends with[^\n]*$/m,
+        keys: [
+          [/Evidence\s+artifacts[`*_\\]{0,4}\s+section/i, 'the `## Evidence artifacts` section name'],
+        ],
+        canonicalOnly: [
+          [
+            /ends\s+with\s+an\s+[\\`]{0,2}##\s+Evidence\s+artifacts/i,
+            'the ends-with-the-section mandate on each filed issue body',
+          ],
+          [
+            /copied\s+verbatim\s+from\s+the\s+candidate\s+rows/i,
+            'the values-copied-verbatim rule (the filing agent never reconstructs evidence)',
+          ],
+        ],
+      },
     ],
+  ],
+  [
+    'Evidence consumed block',
     [
-      'Oracle duality',
-      'SKILL.md §2 (oracle-duality bullet)',
-      warStrategySkillMd,
-      [
-        [/decisive\s+printed\s+token/i, 'the decisive-printed-token requirement'],
-        [/exit\s+status/i, 'the in-addition-to-exit-status clause'],
-        [/single-signal-oracle/i, "the advisory lint's single-signal-oracle rule name"],
-      ],
+      {
+        name: 'references/plan-interview.md (Stage 0 lane 2 — the run-history recon lane bullet)',
+        text: planInterviewMd,
+        construct: /^2\. \*\*The run-history recon lane\*\*[\s\S]*?(?=\n\d+\. \*\*|\n\n)/m,
+        keys: [
+          [/one\s+row\s+per\s+linked\s+artifact/i, 'the one-row-per-artifact form'],
+          [/unread-with-reason/i, 'the read-or-unread-with-reason arm'],
+          [/never\s+a\s+new\s+required\s+H2/i, 'the never-a-new-required-H2 law'],
+        ],
+      },
     ],
-  ]) {
+  ],
+  [
+    'Omittability probe',
+    [
+      {
+        name: 'references/plan-interview.md (Stage 1 falsifier list — the omittability-probe bullet)',
+        text: planInterviewMd,
+        construct: /^- \*\*the omittability probe\*\*[\s\S]*?(?=\n- \*\*|\n\n)/m,
+        keys: [
+          [/omit\s+it\s+silently/i, 'the could-the-run-omit-it-silently question'],
+          [/no\s+check\s+at\s+all/i, 'the outcome-with-no-check-at-all contrast'],
+          [/delete-the-feature/i, "the delete-the-feature probe (the probe's dual)"],
+        ],
+      },
+    ],
+  ],
+  [
+    'Oracle duality',
+    [
+      {
+        name: 'skills/war-strategy/SKILL.md §2 (the oracle-duality bullet)',
+        text: warStrategySkillMd,
+        construct: /^- \*\*Oracle duality \(#1628\):\*\*[\s\S]*?(?=\n- \*\*|\n## )/m,
+        keys: [
+          [/decisive\s+printed\s+token/i, 'the decisive-printed-token requirement'],
+          [/exit\s+status/i, 'the in-addition-to-exit-status clause'],
+          [/single-signal-oracle/i, "the advisory lint's single-signal-oracle rule name"],
+        ],
+      },
+    ],
+  ],
+]
+test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mirror their canonical war-strategy surfaces', () => {
+  for (const [term, canonicals] of D36_ROWS) {
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const block = contextMd.match(
       new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'),
@@ -2307,16 +2541,42 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
       /_Avoid_/,
       `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
     )
-    for (const [key, what] of keys) {
-      for (const [surface, text] of [
-        [`CONTEXT.md **${term}** entry (mirror)`, norm(block[0])],
-        [`skills/war-strategy/${canonicalName} (canonical home)`, norm(canonicalText)],
-      ]) {
+    const mirror = norm(block[0])
+    for (const { name, text, construct, keys, canonicalOnly = [] } of canonicals) {
+      const span = text.match(construct)
+      assert.ok(
+        span,
+        `could not locate the canonical construct for **${term}** in ${name} ` +
+          `(${construct}) — the extraction construct rotted; re-anchor BOTH surfaces together`,
+      )
+      // Non-vacuity of the narrowing itself (#1683): a construct that matched the whole file would
+      // reinstate the whole-file scan this row replaced, silently.
+      assert.ok(
+        span[0].length > 0 && span[0].length < text.length,
+        `the canonical construct for **${term}** in ${name} extracted the whole file (or nothing) ` +
+          '— the span must be a proper construct, never a whole-file scan',
+      )
+      const canonical = norm(span[0])
+      for (const [key, what] of keys) {
+        for (const [surface, textUnderTest] of [
+          [`CONTEXT.md **${term}** entry (mirror)`, mirror],
+          [`${name} (canonical home)`, canonical],
+        ]) {
+          assert.match(
+            textUnderTest,
+            key,
+            `${surface} must carry ${what} (ADR 0025 mirror registry). Correct this row to a ` +
+              'sanctioned rewording, never drop the clause on one surface to make it pass',
+          )
+        }
+      }
+      for (const [key, what] of canonicalOnly) {
         assert.match(
-          text,
+          canonical,
           key,
-          `${surface} must carry ${what} (ADR 0025 mirror registry). Correct this row to a ` +
-            'sanctioned rewording, never drop the clause on one surface to make it pass',
+          `${name} (canonical home, **${term}**) must carry ${what} — the glossary summarizes it ` +
+            'away by design, so this surface is its only anchor; correct this row to a sanctioned ' +
+            'rewording, never drop the clause to make it pass',
         )
       }
     }
@@ -2353,10 +2613,15 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // required — several headers carry a parenthesized token before it); every entry must span its own
 // `_Avoid_` line (non-vacuity); keys are token-anchored `\s+`-wrapped `/…/i` forms asserted on
 // BOTH surfaces so sanctioned rewording latitude never false-reds and a one-sided edit reds. The
-// two SKILL.md-homed terms assert their canonical half against the `## Checkpoint` region (the
-// same construct extraction D41 uses), not the whole file — whole-file keys like /absolute/i or
-// /consolidation/i match unrelated SKILL.md prose (Gate-2's absolute `memoryLocalRoot`, the
-// follow-up filing floor) and would pass with the ask-ruling-gate bullet deleted.
+// two SKILL.md-homed terms assert their canonical half against the ASK-RULING-GATE BULLET itself
+// (#1705), not the whole file and not the `## Checkpoint` region D41 extracts. The region was the
+// row's first narrowing and it is not enough: the region's SIBLING follow-up-filing-floor bullet
+// carries `consolidation` and the `file-followups` dispatch token, so the two Never-filed-unruled
+// keys that name them pass with the ask-ruling-gate bullet DELETED — measured by scratch deletion
+// at this task's base, not assumed. SKILL.md keeps one Checkpoint bullet per physical line, so the
+// bullet is taken as the single line carrying the `**Ask ruling gate` bold lead-in, uniqueness
+// asserted (D31's lead-in idiom). Whole-file keys are worse again: /absolute/i matches Gate-2's
+// absolute `memoryLocalRoot` and /consolidation/i the filing floor.
 test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their canonical homes (#1550)', () => {
   const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
   assert.ok(
@@ -2364,6 +2629,16 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     'could not locate the `## Checkpoint` section in SKILL.md — construct rotted (D41 shares ' +
       'this extraction)',
   )
+  // #1705: narrow from the region to the bullet that actually owns the two duties.
+  const askGateLines = checkpoint[0].split('\n').filter((l) => l.includes('**Ask ruling gate'))
+  assert.equal(
+    askGateLines.length,
+    1,
+    'expected exactly one `**Ask ruling gate` lead-in line in the SKILL.md `## Checkpoint` ' +
+      `region, found ${askGateLines.length} — the extraction construct rotted (the bullet moved ` +
+      'out of Checkpoint, was duplicated, split across lines, or the lead-in was reworded)',
+  )
+  const askGate = askGateLines[0]
   for (const [term, canonicalName, canonicalText, keys] of [
     [
       'Ask disposition',
@@ -2402,8 +2677,8 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     ],
     [
       'Never-filed-unruled',
-      'skills/war/SKILL.md (## Checkpoint region — the ask ruling gate)',
-      checkpoint[0],
+      'skills/war/SKILL.md (the ask-ruling-gate bullet)',
+      askGate,
       [
         [/unruled\s+ask/i, 'the unruled-ask subject'],
         [/consolidation/i, 'the consolidation exclusion'],
@@ -2413,8 +2688,8 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     ],
     [
       'Strike-list ruling gate',
-      'skills/war/SKILL.md (## Checkpoint region — the ask ruling gate)',
-      checkpoint[0],
+      'skills/war/SKILL.md (the ask-ruling-gate bullet)',
+      askGate,
       [
         [/parked\s+asks\s+in\s+a\s+single\s+pass/i, 'the one-gate-single-pass form'],
         [/absolute/i, 'the absolute advance floor'],
@@ -2692,14 +2967,29 @@ test('D39 — tour step 8 is retyped to the disposition ladder; touched steps ca
 // this task's base by merged dep Task 2.2 — each absence assert guards against a revert of that
 // widening, never a never-present value (PIN-8): the pre-widening enum tail
 // `"note" — auditor-owned` and the `**Two producers**` count literal.
+//
+// The never-filed-unruled key is CONSTRUCT-SCOPED (#1706), not whole-file: the phrase has TWO
+// carriers in schemas.md — the `## GitHub conventions` routing bullet this row means, and the
+// AuditVerdict `ask?` field comment far above it — so a whole-file key passes with the named
+// GitHub-conventions clause deleted (measured by scratch deletion at this task's base, not
+// assumed). The bullet is one physical line, extracted by its
+// `- **Minor/Nit** findings route by **disposition**` lead-in.
 test('D40 — schemas.md carries the widened enum/field/return/handoff/producer shapes, old literals retired (#1550)', () => {
+  const routingBullet = schemasMd.match(
+    /^- \*\*Minor\/Nit\*\* findings route by \*\*disposition\*\*[^\n]*$/m,
+  )
+  assert.ok(
+    routingBullet,
+    'could not locate the `## GitHub conventions` disposition-routing bullet in ' +
+      'references/schemas.md (`- **Minor/Nit** findings route by **disposition**` lead-in) — the ' +
+      'extraction construct rotted',
+  )
   for (const [re, what] of [
     [/"absorb"\|"follow-up"\|"note"\|"ask"/, 'the four-member disposition enum comment'],
     [/ask\?,\s+\/\/ \{ question, fork \} — MANDATORY on a disposition:'ask' finding/, 'the mandatory ask field row (question+fork)'],
     [/asks: \[ \{ task, seat, sha, question, fork, finding \} \]/, 'the top-level return `asks` row (full finding kept)'],
     [/asks: \[ \{ task, seat, sha, question, fork \} \]/, 'the handoff ninth `asks` row (lossy projection)'],
     [/NINTH handoff key, ADDITIVE/, "the ninth key's additive law (no exact-key validator)"],
-    [/never filed unruled/i, 'the never-filed-unruled GitHub-conventions clause'],
     [/refuses an ask/i, "demote()'s ask refusal in the routing sentence"],
     [/Three producers/i, 'the widened Three-producers adjudications paragraph'],
   ]) {
@@ -2710,6 +3000,14 @@ test('D40 — schemas.md carries the widened enum/field/return/handoff/producer 
         'rewording, never drop the shape on this surface to make it pass',
     )
   }
+  assert.match(
+    routingBullet[0],
+    /never filed unruled/i,
+    'the `## GitHub conventions` disposition-routing bullet must carry the never-filed-unruled ' +
+      'clause (#1550, #1706) — scoped to this bullet because the AuditVerdict `ask?` field comment ' +
+      'carries the same phrase; correct this row to a sanctioned rewording, never widen the key ' +
+      'back to the whole file to make it pass',
+  )
   for (const [re, what] of [
     [/"note" — auditor-owned/, 'the pre-widening three-member enum tail'],
     [/\*\*Two producers\*\*/, 'the pre-widening producer count literal'],
@@ -2982,4 +3280,77 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
       'makes the surviving 2026-08-20 clause readable as history rather than current doctrine ' +
       '(the exemption above is only sound while this note stands)',
   )
+})
+
+// (D44) THE INTENT-CEILING LATITUDE MIRROR (#1513) — CONTEXT.md's **Intent ceiling / plan floor**
+// glossary entry restates the `Mechanism latitude:` reading whose canonical decision record is
+// ADR 0013's `## Amendment (2026-08-17): the latitude-clause reading`. The entry landed with no
+// mechanical coverage of that half: D38 binds only the 2026-08-25 ask amendment, D43 the #1812
+// reserve rows, and no other row reads this pair — so a rewrite of either surface alone shipped
+// silent, which is exactly the [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
+// class ADR 0025 makes a same-commit duty. The clause is a standing latitude fence every worker
+// and auditor prompt threads, so the mirror is load-bearing at run time, not decorative.
+//
+// Extraction is BY CONSTRUCT on both surfaces (the D35 idiom): the bolded glossary term → next
+// bolded term or `###` heading, and the dated amendment heading → the next `## ` heading — never a
+// whole-file scan, because ADR 0013 carries several dated amendments and CONTEXT.md's neighbouring
+// **Disposition** entry shares this vocabulary. Each extraction must span its own tail marker (the
+// `_Avoid_` line; the amendment's never-waives bullet) so a truncated read reds instead of passing
+// vacuously. Anchor literals are copied from the post-plan-A, post-Phase-1-eviction tree — Phase 1
+// Task 5 kept the latitude clause HOT in CONTEXT.md, so these are live bytes, not evicted ones.
+// Keys are token-anchored `\s+`-wrapped forms asserted on BOTH surfaces: a one-sided edit reds,
+// and sanctioned rewording latitude on either surface must not false-red.
+test("D44 — CONTEXT.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026-08-17 latitude-clause amendment (#1513)", () => {
+  const entry = contextMd.match(
+    /^\*\*Intent ceiling \/ plan floor\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m,
+  )
+  assert.ok(
+    entry,
+    'could not locate the `**Intent ceiling / plan floor**` glossary entry in CONTEXT.md (bolded ' +
+      'term → next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  assert.match(
+    norm(entry[0]),
+    /_Avoid_/,
+    'the extracted **Intent ceiling / plan floor** entry must span its `_Avoid_` line — ' +
+      'extraction truncated',
+  )
+  const amendment = adr0013.match(
+    /## Amendment \(2026-08-17\): the latitude-clause reading[\s\S]*?(?=\n## )/,
+  )
+  assert.ok(
+    amendment,
+    "could not locate ADR 0013's `## Amendment (2026-08-17): the latitude-clause reading` section " +
+      '(heading → next `## ` heading) — the canonical home rotted; re-anchor BOTH surfaces together',
+  )
+  const canonical = norm(amendment[0])
+  assert.match(
+    canonical,
+    /never\s+waives\s+a\s+check,\s+gate,\s+or\s+backstop/i,
+    'the extracted 2026-08-17 amendment must span its never-waives bullet — extraction truncated ' +
+      '(a short read would satisfy the keys below vacuously)',
+  )
+  for (const [key, what] of [
+    [/Mechanism\s+latitude/i, 'the `Mechanism latitude:` clause name'],
+    [/Binding\s+guardrails/i, 'the paired `Binding guardrails:` list'],
+    [/floor/i, 'the plan-slice-is-the-floor half of the pair'],
+    [/ceiling/i, 'the intent-is-the-ceiling half of the pair'],
+    [/contradicts\s+the\s+slice/i, 'the re-read of "contradicts the slice" against the guardrails'],
+    [/in-band/i, 'the in-band reading of a licensed mechanism substitution'],
+    [/End\s+states/i, 'the End-states half of the blocking floor'],
+    [/never\s+waives\s+a\s+check,\s+gate,\s+or\s+backstop/i, 'the never-waives-a-check floor'],
+    [/ADR[-\s]0017/i, 'the ADR 0017 citation carrying that floor'],
+  ]) {
+    for (const [surface, text] of [
+      ['CONTEXT.md **Intent ceiling / plan floor** entry (mirror)', norm(entry[0])],
+      ['docs/adr/0013 `## Amendment (2026-08-17)` (canonical home)', canonical],
+    ]) {
+      assert.match(
+        text,
+        key,
+        `${surface} must carry ${what} (ADR 0025 mirror registry, #1513). Correct this row to a ` +
+          'sanctioned rewording, never drop the clause on one surface to make it pass',
+      )
+    }
+  }
 })
