@@ -399,8 +399,10 @@ export const SHAPE_RULES = [
       const hits = [];
       for (const { pin, classes } of doc.designPins) {
         const re = pinRe(pin);
+        // Anywhere-citation fallback, shared by the class-less arm and the bare-`slice` arm (D5).
+        const fallback = () => { if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} defined but never cited`); };
         if (classes === null) {
-          if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} defined but never cited`);
+          fallback();
           continue;
         }
         for (const c of classes) {
@@ -413,7 +415,7 @@ export const SHAPE_RULES = [
             // D5: a `slice` cell that names no task carries no per-task target. It degrades to
             // the anywhere-citation fallback (the class-less arm) — never a fan-out over every
             // task in the plan, which would report one hit per uncited task block.
-            if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} defined but never cited`);
+            fallback();
             continue;
           } else {
             targets = c.tasks.map((id) => ({ text: doc.taskMap.get(id) ?? null, desc: `Task ${id}'s slice` }));
