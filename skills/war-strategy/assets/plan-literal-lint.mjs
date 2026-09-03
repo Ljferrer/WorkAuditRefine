@@ -221,7 +221,7 @@ function parseClasses(expr) {
 // (`guardrail ‡`), and the arrow pair (`PIN-3‡→guardrail`, which would otherwise drop the pin
 // entirely: the arrow regex's `(?!\w)\s*(?:→|->)` never matches across `‡`). Marks are recorded
 // as they are stripped: `marked` holds arrow-pair-marked pin ids, `markedBare` says a bare part
-// carried the marker (it covers every pin of the row, like the bare class expression itself).
+// carried the marker (it applies only to pins that fall back to the bare class expression).
 function parseLandingCell(cell) {
   const map = new Map();
   const bare = [];
@@ -271,7 +271,7 @@ function parseDesignTree(sectionLines) {
       pins.push({
         pin: id,
         classes: map.get(id) ?? (bare.length ? bare : null),
-        marked: markedBare || marked.has(id) || srcMarked.has(id),
+        marked: (map.has(id) ? marked.has(id) : markedBare) || srcMarked.has(id),
       });
     }
   }
@@ -484,14 +484,16 @@ export const SHAPE_RULES = [
     slot: '`WAIVE-<n>` rows (five fields: id · beat · fired arm · scope · reason — right-delimited id, D7)',
     scan: (doc) => {
       const hits = [];
-      const ROW = /^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+/;
+      // One prefix match; the capture is the first `\w` after the digit-run (greedy `\d+` already
+      // exhausts digits), so a non-empty capture is always a letter or `_` — the malformed arm.
+      const ROW = /^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+(\w?)/;
       for (const line of doc.lines) {
-        // A digit-run followed by a letter or `_` — `WAIVE-12` never backtracks into this arm.
-        if (ROW.test(line) && /^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+[A-Za-z_]/.test(line)) {
+        const m = ROW.exec(line);
+        if (!m) continue;
+        if (m[1]) {
           hits.push(`${bulletHead(line)} — malformed WAIVE id — letter suffixes are illegal`);
           continue;
         }
-        if (!/^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+(?!\w)/.test(line)) continue;
         const fields = line.replace(/^\s*(?:[-*]\s+|\|\s*)/, '').split('·').map((s) => s.trim()).filter(Boolean);
         if (fields.length < 5) hits.push(`${bulletHead(line)} — ${fields.length} of 5 fields (id · beat · fired arm · scope · reason)`);
       }
