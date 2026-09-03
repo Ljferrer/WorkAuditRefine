@@ -16,10 +16,11 @@
 #     still slips, because the ref-diff half is deliberately local-only.
 #   • Pattern-slipping refs that PREDATE the first baselined run: already present when
 #     the snapshot is taken, so the diff baselines them as legitimate.
-#   • Gitignored leak paths: `git status --porcelain` does not report ignored files, so
-#     such a leak is invisible to check (a), to the snapshot-mode pre-run refusal, and
-#     to the ref-diff alike — pinned by the gitignored-ceiling case as a documented
-#     false negative.
+#   • Gitignored leaks WITHOUT a --baseline, and ignored files that PREDATE the
+#     snapshot. Check (d) diffs the live ignored FILE set against the baselined one, so
+#     a new ignored file reds (cases 29 and 32) — but a baseline is required, residue
+#     already present at snapshot time is baselined as legitimate (case 33), and a path
+#     under the run-authored allowlist is never reported (case 31).
 #
 # Cases:
 #   CHECK MODE — pre-existing behavior (byte-equivalent without --baseline):
@@ -69,8 +70,23 @@
 #       (an infra fault is never preempted by an escape conclusion)
 #   28. zero-byte --baseline file -> exit 2, asserted explicitly != 1 — the awk
 #       NR==FNR degeneracy pin, case 26's missing-file sibling
-#   29. gitignored-path leak with --baseline -> exit 0 — ponytail ceiling 3,
-#       pinned as a DOCUMENTED FALSE NEGATIVE (#1369's back-compat pin)
+#   29. gitignored-path leak with --baseline -> exit 1 naming the leaked path — the
+#       check (d) ignored-file diff (this case's ceiling pin was FLIPPED by the
+#       widening; it asserted exit 0 before)
+#   30. ORDERING PIN: a zero-byte --baseline on a repo that WOULD escape on check (b1)
+#       -> exit 2 with the zero-byte message — arg-parse infra validation outranks
+#       escape detection, which case 28's non-escaping `rogue` fixture cannot pin
+#   IGNORED-FILE DIFF (check (d), --baseline only):
+#   31. ALLOWLIST CONTROL: the only new ignored file sits under a run-authored
+#       allowlist pattern (.claude/red-team/) -> exit 0
+#   32. a NEW file inside a directory the baseline ALREADY listed files under -> exit 1
+#       naming the new file (the `git status --porcelain --ignored` blind spot)
+#   33. PRE-EXISTING RESIDUE CONTROL: an ignored file present BEFORE the snapshot ->
+#       snapshot exits 0 (residue is baselined, never refused) and check stays exit 0
+#   34. BACK-COMPAT CONTROL: an OLD-FORMAT baseline with no ignored section makes the
+#       ignored half vacuous -> exit 0 even with a live leak
+#   35. SOURCE LOCK: the ignored half's three git/read failure paths each die with their
+#       own message (unreachable behaviorally — `git status` dies first on a non-repo)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -664,9 +680,10 @@ fi
 # stays green even if the validation moves down to the ref-diff (where awk's own read
 # failure still yields 2). Move it down and THIS case flips 2 -> 1, because (b1)
 # reaches its escape first. Measured: with the arg-parse validation block deleted the
-# rest of the suite stays green and only this case and case 28 red (case 28 for the
-# zero-byte arm: awk opens the empty file, every live ref lands in base[] while
-# live[] stays empty, exit 1 against an expected 2).
+# rest of the suite stays green and only this case, case 28 and case 30 red (case 28
+# for the zero-byte arm: awk opens the empty file, every live ref lands in base[] while
+# live[] stays empty, exit 1 against an expected 2; case 30 is this ordering pin's
+# zero-byte twin).
 # ---------------------------------------------------------------------------
 R27="$(setup_repo)"
 git -C "$R27" branch redteam-would-escape 2>/dev/null
@@ -688,7 +705,9 @@ fi
 # "removed" — the inverted removed-every-ref verdict. Non-vacuity: the fixture carries a `rogue` branch, so the degeneracy
 # has refs to invert. Delete-and-trace: drop the `-s` check from the guard and
 # this case reds at exit 1 with that inverted removed-every-ref message (a
-# truncated-write infra fault laundered into an escape).
+# truncated-write infra fault laundered into an escape). ORDERING is NOT pinned
+# here — `rogue` slips the (b1) junk pattern, so this fixture would exit 0 on its
+# own merits. Case 30 is the ordering twin, with an escaping fixture.
 # ---------------------------------------------------------------------------
 R28="$(setup_repo)"
 git -C "$R28" branch rogue 2>/dev/null
@@ -709,16 +728,15 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 29: GITIGNORED-PATH LEAK -> exit 0 — ponytail ceiling 3, pinned as a
-# DOCUMENTED FALSE NEGATIVE (#1369's back-compat pin). `git status --porcelain`
-# does not report ignored files, so a probe write landing only under a gitignored
-# pattern, with no ref change, is invisible to check (a), to the snapshot-mode
-# pre-run refusal, and to the ref-diff alike. This case does NOT assert the leak
-# is caught — it pins today's blind spot so any future `--ignored` widening
-# announces itself: flipping this case red is the deliberate FIRST ACT of that
-# widening, alongside its ruling on legitimately-ignored dirs. FIXTURE-ORDERING
-# TRAP: the .gitignore is committed BEFORE the snapshot — left untracked, it
-# would fire the snapshot-mode pre-run porcelain refusal and never reach the pin.
+# Case 29: GITIGNORED-PATH LEAK -> exit 1 naming the leaked path. This case used
+# to pin the opposite — ponytail ceiling 3 as a documented false negative — and the
+# ignored-file widening FLIPPED it, which was the deliberate first act of that
+# widening. `git status --porcelain` still never reports an ignored file, so check
+# (a) is byte-unchanged; check (d) catches the leak by diffing the live ignored FILE
+# set against the set the snapshot recorded. FIXTURE-ORDERING TRAP: the .gitignore is
+# committed BEFORE the snapshot — left untracked, it would fire the snapshot-mode
+# pre-run porcelain refusal and never reach the assertion.
+# Red-at-base: against the unwidened guard this case exits 0 (no check (d) at all).
 # ---------------------------------------------------------------------------
 R29="$(setup_repo)"
 printf '*.log\n' > "$R29/.gitignore"
@@ -731,11 +749,184 @@ printf 'probe leak\n' > "$R29/probe-residue.log"  # lands only under the ignored
 # ignored, this case degenerates into case 19's clean-repo green and pins nothing.
 [ -f "$R29/probe-residue.log" ] || fail "case 29: FIXTURE — leak file was not written"
 git -C "$R29" check-ignore -q probe-residue.log || fail "case 29: FIXTURE — the leak path is not ignored"
-rc29="$(run_guard_args --repo "$R29" --baseline "$SNAP29")"
-if [ "$rc29" -eq 0 ]; then
-  pass "case 29: gitignored-path leak -> exit 0 (ceiling 3 pinned as documented false negative)"
+ERR29="$(artifact_path stderr29.txt)"
+rc29="$(run_guard_err "$ERR29" --repo "$R29" --baseline "$SNAP29")"
+if [ "$rc29" -eq 1 ]; then
+  if grep -qF -- 'probe-residue.log' "$ERR29"; then
+    pass "case 29: gitignored-path leak -> exit 1 naming the leaked path (check (d))"
+  else
+    fail "case 29: exit 1 but stderr does not name the leaked path (another check supplied the 1?); stderr was: $(cat "$ERR29")"
+  fi
 else
-  fail "case 29: gitignored-path leak -> expected exit 0 (the pinned ceiling), got $rc29"
+  fail "case 29: gitignored-path leak -> expected exit 1, got $rc29 (check (d) not detecting)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 30: ORDERING PIN — a ZERO-BYTE --baseline on a repo that WOULD escape.
+# Case 27 pins the same law for a MISSING baseline; case 28 pins the zero-byte
+# refusal itself but cannot pin ordering, because its `rogue` branch slips the (b1)
+# junk pattern and so never reaches an escape. This fixture carries a
+# `refs/heads/redteam-*` branch, which (b1) DOES match, so the two answers diverge:
+# arg-parse validation first -> 2, check (b1) first -> 1.
+# This case is green at HEAD; it is a PIN, not a red-at-base case. Non-vacuity by
+# delete-and-trace (case 27/28 convention): move the baseline validation block below
+# check (b1) in a scratch copy of the guard and this case flips 2 -> 1.
+# ---------------------------------------------------------------------------
+R30="$(setup_repo)"
+git -C "$R30" branch redteam-would-escape 2>/dev/null
+EMPTY30="$(artifact_path zero-byte-baseline.txt)"
+: > "$EMPTY30"                       # exists, regular, readable — and zero bytes
+ERR30="$(artifact_path stderr30.txt)"
+rc30="$(run_guard_err "$ERR30" --repo "$R30" --baseline "$EMPTY30")"
+if [ "$rc30" -eq 2 ]; then
+  if grep -qF -- 'zero bytes (a truncated or failed snapshot write' "$ERR30"; then
+    pass "case 30: zero-byte --baseline outranks a live (b1) escape -> exit 2 naming the zero-byte baseline"
+  else
+    fail "case 30: exit 2 but stderr does not carry the -s die's 'zero bytes' message; stderr was: $(cat "$ERR30")"
+  fi
+elif [ "$rc30" -eq 1 ]; then
+  fail "case 30: zero-byte --baseline + escaping repo -> got 1 (infra preempted by escape detection)"
+else
+  fail "case 30: zero-byte --baseline + escaping repo -> expected exit 2, got $rc30"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 31: ALLOWLIST CONTROL — the only new ignored file lands under a run-authored
+# allowlist pattern (.claude/red-team/), so check (d) stays clean. Every /red-team run
+# writes its verification scaffold there, so without the allowlist the guard would red
+# on every real run of its own home repo. Delete-and-trace: drop the ignored_allowed
+# arm from the guard and this case alone flips 0 -> 1, while case 29 stays green.
+# ---------------------------------------------------------------------------
+R31="$(setup_repo)"
+printf '.claude/\n' > "$R31/.gitignore"
+git -C "$R31" add .gitignore
+git -C "$R31" commit -qm "ignore .claude"       # committed BEFORE the snapshot
+SNAP31="$(artifact_path snap.txt)"
+take_snapshot "$R31" "$SNAP31" "case 31"
+mkdir -p "$R31/.claude/red-team"
+printf 'scaffold\n' > "$R31/.claude/red-team/run-2026-09-02.js"
+git -C "$R31" check-ignore -q .claude/red-team/run-2026-09-02.js \
+  || fail "case 31: FIXTURE — the allowlisted path is not ignored"
+rc31="$(run_guard_args --repo "$R31" --baseline "$SNAP31")"
+if [ "$rc31" -eq 0 ]; then
+  pass "case 31: new ignored file under the run-authored allowlist -> exit 0"
+else
+  fail "case 31: allowlisted ignored file -> expected exit 0, got $rc31 (allowlist not honoured)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 32: a NEW file INSIDE a directory the baseline already listed files under
+# -> exit 1 naming the new file. This is the case that rules out
+# `git status --porcelain --ignored` as the snapshot mechanism: porcelain collapses
+# a pre-existing ignored directory into ONE `!!` entry, so both snapshot and live
+# would read `node_modules/` and the diff would be empty. Recording the ignored set
+# at FILE level is what makes the new file visible.
+# Red-at-base: against the unwidened guard this case exits 0.
+# ---------------------------------------------------------------------------
+R32="$(setup_repo)"
+printf 'node_modules/\n' > "$R32/.gitignore"
+git -C "$R32" add .gitignore
+git -C "$R32" commit -qm "ignore node_modules"  # committed BEFORE the snapshot
+mkdir -p "$R32/node_modules/pkg"
+printf 'first\n' > "$R32/node_modules/pkg/first.js"   # present BEFORE the snapshot
+SNAP32="$(artifact_path snap.txt)"
+take_snapshot "$R32" "$SNAP32" "case 32"
+printf 'second\n' > "$R32/node_modules/pkg/second.js" # the leak, inside a baselined dir
+git -C "$R32" check-ignore -q node_modules/pkg/second.js \
+  || fail "case 32: FIXTURE — the leak path is not ignored"
+grep -qF -- 'node_modules/pkg/first.js' "$SNAP32" \
+  || fail "case 32: FIXTURE — the baseline did not record the pre-existing ignored file"
+ERR32="$(artifact_path stderr32.txt)"
+rc32="$(run_guard_err "$ERR32" --repo "$R32" --baseline "$SNAP32")"
+if [ "$rc32" -eq 1 ]; then
+  if grep -qF -- 'node_modules/pkg/second.js' "$ERR32"; then
+    pass "case 32: new ignored file inside a baselined directory -> exit 1 naming it"
+  else
+    fail "case 32: exit 1 but stderr does not name the new file; stderr was: $(cat "$ERR32")"
+  fi
+else
+  fail "case 32: new ignored file inside a baselined directory -> expected exit 1, got $rc32"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 33: PRE-EXISTING RESIDUE CONTROL — an ignored file present BEFORE the
+# snapshot. Snapshot mode BASELINES it (exit 0, never a pre-run refusal) and check
+# mode stays clean. This is the ratified routing OD-2 half: this repo carries its own
+# `!!` entries through a machine-local `.git/info/exclude`, so refusing pre-existing
+# ignored residue would dead-lock the guard on its own home repo. Delete-and-trace:
+# make snapshot mode refuse ignored residue and this case reds at the FIXTURE line.
+# ---------------------------------------------------------------------------
+R33="$(setup_repo)"
+printf '*.log\n' > "$R33/.gitignore"
+git -C "$R33" add .gitignore
+git -C "$R33" commit -qm "ignore logs"          # committed BEFORE the snapshot
+printf 'old residue\n' > "$R33/pre-existing.log"  # ignored, present BEFORE the snapshot
+git -C "$R33" check-ignore -q pre-existing.log \
+  || fail "case 33: FIXTURE — the residue path is not ignored"
+SNAP33="$(artifact_path snap.txt)"
+take_snapshot "$R33" "$SNAP33" "case 33"        # fails the case if snapshot refuses
+rc33="$(run_guard_args --repo "$R33" --baseline "$SNAP33")"
+if [ "$rc33" -eq 0 ]; then
+  pass "case 33: ignored residue predating the snapshot -> baselined, check exit 0"
+else
+  fail "case 33: pre-existing ignored residue -> expected exit 0, got $rc33"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 34: BACK-COMPAT CONTROL — an OLD-FORMAT baseline, written before the
+# ignored-file widening, carries no `# ignored-files` section. The ignored half then
+# goes vacuous and check (d) passes, even with a live leak that case 29 proves is
+# otherwise caught. Fail-open by design: a pre-widening baseline must not read as an
+# escape. The old-format file is derived from a REAL new-format snapshot by stripping
+# the section, so the ref half stays exact and only the ignored half differs.
+# ---------------------------------------------------------------------------
+R34="$(setup_repo)"
+printf '*.log\n' > "$R34/.gitignore"
+git -C "$R34" add .gitignore
+git -C "$R34" commit -qm "ignore logs"          # committed BEFORE the snapshot
+SNAP34="$(artifact_path snap.txt)"
+take_snapshot "$R34" "$SNAP34" "case 34"
+OLD34="$(artifact_path old-format-baseline.txt)"
+grep -v '^ignored ' "$SNAP34" | grep -v '^# ignored-files' > "$OLD34"
+grep -qF -- '# ignored-files' "$OLD34" \
+  && fail "case 34: FIXTURE — the old-format baseline still carries the ignored section"
+[ -s "$OLD34" ] || fail "case 34: FIXTURE — the old-format baseline is empty (would exit 2 on -s)"
+printf 'probe leak\n' > "$R34/probe-residue.log"
+git -C "$R34" check-ignore -q probe-residue.log \
+  || fail "case 34: FIXTURE — the leak path is not ignored"
+rc34="$(run_guard_args --repo "$R34" --baseline "$OLD34")"
+if [ "$rc34" -eq 0 ]; then
+  pass "case 34: old-format baseline (no ignored section) -> ignored half vacuous, exit 0"
+else
+  fail "case 34: old-format baseline -> expected exit 0 (fail-open back-compat), got $rc34"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 35: SOURCE LOCK — the ignored-half's three git/read failure paths each die
+# with a distinct message AND an explicit exit 2. They are SECONDARY defensive
+# branches: in both modes a `git status` call runs first and dies on a non-repo or
+# unreadable path, so no fixture can reach a bare `git ls-files` failure. A source
+# lock is therefore the only available coverage, and it is the point that matters —
+# an ignored-half git fault must classify as infra (2), never collapse into escape
+# (1) or a silent pass. Case 10's standing call-site lock already proves the
+# explicit code; this case names the three messages so a rewrite cannot drop one
+# silently. Delete-and-trace: remove any one die from the guard and this reds.
+# ---------------------------------------------------------------------------
+ign_die_missing=""
+for _msg in \
+  "git ls-files (ignored-file dump) failed for repo '" \
+  "git ls-files (ignored-file diff) failed for repo '" \
+  "failed to read the ignored-file section of the baseline '"
+do
+  if ! grep -qF -- "$_msg" "$SCRIPT"; then
+    ign_die_missing="$ign_die_missing
+    $_msg"
+  fi
+done
+if [ -z "$ign_die_missing" ]; then
+  pass "case 35: the three ignored-half failure paths each die with their own message (exit 2 per case 10)"
+else
+  fail "case 35: ignored-half die message(s) missing from the guard:$ign_die_missing"
 fi
 
 # ---------------------------------------------------------------------------

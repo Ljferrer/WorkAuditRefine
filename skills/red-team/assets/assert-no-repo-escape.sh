@@ -32,15 +32,29 @@
 #   (b1) junk pattern. A hit is exit 1, refusing to baseline pre-existing residue
 #   or dirt (the #1244 cross-run collision shape, caught before launch) rather
 #   than laundering it into the baseline. Deliberately LOCAL-only: origin is not
-#   polled pre-run, so (b2) stays a check-mode floor. Then the full local ref set
-#   (`for-each-ref '%(refname) %(objectname)'`) is written to the file; exit 0.
+#   polled pre-run, so (b2) stays a check-mode floor. Then the file is written
+#   with TWO sections and exit 0: the full local ref set
+#   (`for-each-ref '%(refname) %(objectname)'`), then a `# ignored-files v1`
+#   marker line followed by the ignored FILE set (`git ls-files --others
+#   --ignored --exclude-standard`), one `ignored <path>` line each.
+#   The ignored set is recorded at FILE level on purpose. `git status
+#   --porcelain --ignored` collapses a pre-existing ignored DIRECTORY into one
+#   `!!` entry, so it cannot see a new file appearing inside `node_modules/` or
+#   inside an already-baselined `.claude/red-team/` (proven at red-team
+#   2026-09-02). Pre-existing ignored residue is BASELINED here, never refused:
+#   this repo carries `!!` entries of its own (`.claude/red-team/` via a
+#   machine-local `.git/info/exclude`), and every /red-team run writes its own
+#   scaffold under `.claude/red-team/`, so a static-allowlist-plus-refusal design
+#   would dead-lock the guard on its own home repo (ratified routing OD-2).
 #   A git failure or an unwritable file is 2.
 #
 # CHECK MODE (default). Checks, given --repo <abs>:
 #   (a) `git -C <repo> status --porcelain` must be EMPTY — no stray working-tree
 #       files a probe left behind. This half is EXACT for tracked and
-#       untracked-but-not-ignored paths (porcelain does not report ignored ones —
-#       see the third ceiling in the ponytail below).
+#       untracked-but-not-ignored paths, and is BYTE-UNCHANGED by the ignored-file
+#       widening: porcelain still never reports an ignored path. Ignored leaks are
+#       caught by check (d) below, which needs a --baseline; without one, ignored
+#       paths remain invisible (ponytail item 3).
 #   (b1) no local ref (`for-each-ref`) and (b2) no remote head (`ls-remote
 #       --heads origin`, only when an `origin` remote is configured) matches the
 #       throwaway-sandbox junk pattern: `refs/heads/redteam-*` or `*-sandbox-*`.
@@ -58,25 +72,45 @@
 #       (validated at arg-parse time, so an infra fault can never be preempted
 #       by, or collapse into, an escape conclusion), never 1 and never a silent
 #       pass.
+#   (d) WITH --baseline only: the ignored-FILE diff. The live ignored file set
+#       (`git ls-files --others --ignored --exclude-standard`) is compared with
+#       the set the baseline recorded. A NEW ignored file that no allowlist
+#       pattern covers is residue — exit 1, naming it, the same route as check
+#       (a)'s untracked residue. A file the baseline already listed is
+#       pre-existing residue and stays clean; a NEW file inside a directory the
+#       baseline already listed files under is still NEW, and reds. The in-script
+#       allowlist (IGNORED_ALLOWLIST) covers run-authored legitimate paths only —
+#       today `.claude/red-team/*`, where every /red-team run writes its own
+#       scaffold. Extend it by adding one glob to that array, and only for a path
+#       the run itself authors by design. A baseline with no `# ignored-files`
+#       section is an OLD-FORMAT snapshot: this half goes vacuous and check (d)
+#       passes (fail-open back-compat). A git failure here is 2, like every other
+#       git call in this script.
 #   Without --baseline, check mode is byte-equivalent to the pre-ref-diff script
 #   in exit codes, stdout, and check behavior; the only delta is exactly one
 #   stderr advisory naming the heuristic ceiling and the --baseline upgrade.
 #
-# ponytail: with --baseline the ref half is EXACT, not a heuristic — three
-# detection ceilings remain.
+# ponytail: with --baseline the ref half AND the ignored-file half are both exact
+# baseline diffs, not heuristics — three detection ceilings remain.
 #   1. b2 origin-side: a probe pushing an invented (non-pattern) ref name to
 #      origin still slips, because the ref-diff half is deliberately LOCAL — a
 #      pre-run `ls-remote` would put network flake inside a floor script.
 #   2. Refs that predate the first baselined run: a pattern-slipping ref already
 #      present when the snapshot is taken is baselined as legitimate. Snapshot
 #      mode cannot see it and the pre-run refusal cannot pattern-match it.
-#   3. Gitignored leak paths: `git status --porcelain` does not report ignored
-#      files, so a probe writing into `node_modules/`, `*.log`, `screenshots/`,
-#      `.claude/teams/`, or `war-memory-queries.jsonl` is invisible to check (a),
-#      invisible to the snapshot-mode pre-run refusal, and adds no ref for the
-#      diff to see. Widening (a) to `--ignored` needs its own back-compat pin and
-#      a ruling on legitimately-ignored dirs; it is recorded as the
-#      gitignored-leak-paths backstop, not taken here.
+#   3. Gitignored leak paths WITHOUT a --baseline, and pre-existing ignored
+#      residue. Check (d) now DETECTS a gitignored leak — a probe writing into
+#      `node_modules/`, `*.log`, `screenshots/`, `.claude/teams/`, or
+#      `war-memory-queries.jsonl` is a new ignored FILE versus the snapshot, so
+#      check (d) exits 1 naming it, even when the write lands inside a directory
+#      the baseline already listed files under. The mechanism is a BASELINE DIFF,
+#      not a static refusal (ratified routing OD-2): ignored files already present
+#      at snapshot time are baselined as legitimate and never reported, so residue
+#      that predates the run is a real miss — the ignored-set twin of ceiling 2.
+#      Run-authored paths under IGNORED_ALLOWLIST (`.claude/red-team/*`) are
+#      likewise never reported. And without --baseline there is nothing to diff
+#      against, so the whole ignored half is off: the name-heuristic ref checks and
+#      the porcelain check are all that run.
 # Two things are NOT among those three and must not be counted as ceilings:
 #   • OVER-detection — a local branch or tag another session or worktree creates
 #     during the run window is a real delta the namespace scoping cannot remove.
@@ -90,9 +124,11 @@
 #
 # Exit codes (load-bearing floor-family contract; sibling: assert-test-in-diff.sh,
 # assert-no-submodule-mutation.sh — the 1-vs-2 boundary routes differently):
-#   0 — clean (no stray files, no junk ref, no ref delta) / snapshot written
+#   0 — clean (no stray files, no junk ref, no ref delta, no new ignored file) /
+#       snapshot written
 #   1 — escape detected (stray working-tree file OR junk sandbox ref OR a ref
-#       added/removed/moved vs the baseline) / snapshot-mode pre-run residue
+#       added/removed/moved vs the baseline OR a new non-allowlisted ignored file
+#       vs the baseline) / snapshot-mode pre-run residue
 #   2 — git error / non-repo / usage or containment error / unreadable or
 #       zero-byte baseline — a NON-clean, NON-escape signal the caller must
 #       never collapse into 1 or treat as a pass.
@@ -109,6 +145,38 @@ PROG="assert-no-repo-escape"
 # assert-no-repo-escape.test.sh (source default lock + negative call-site lock).
 die()    { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-2}"; }
 escape() { printf '%s: escape detected — %s\n' "$PROG" "$1" >&2; exit 1; }
+
+# Marker opening the snapshot file's ignored-file section. A baseline WITHOUT this
+# line is an old-format snapshot: check (d) then goes vacuous (fail-open
+# back-compat), and only the ref half of the diff runs.
+IGNORED_SECTION_MARKER="# ignored-files v1"
+
+# Run-authored ignored paths check (d) tolerates. Plain indexed array plus a
+# case/glob match — bash 3.2 has no associative arrays. Each entry is a glob
+# matched against the repo-relative path git reports. Keep this to paths a run
+# authors BY DESIGN: every /red-team run writes its verification scaffold to
+# `.claude/red-team/<run>.js`, so that directory would otherwise red every check.
+# Adding an entry widens the blind spot — add one only for a run-authored path,
+# never to silence a leak you have not explained.
+# The array is plain and INDEXED (bash 3.2 has no associative arrays) and must
+# stay non-empty: `"${arr[@]}"` on an empty array is an unbound-variable error
+# under `set -u` in bash 3.2.
+IGNORED_ALLOWLIST=(
+  ".claude/red-team/*"
+)
+
+# ignored_allowed <path>: 0 when an allowlist glob covers the path, else 1. Each
+# entry is quoted on expansion so the glob text survives word splitting, then left
+# UNQUOTED inside `case` so it matches as a pattern.
+ignored_allowed() {
+  _cand="$1"
+  for _glob in "${IGNORED_ALLOWLIST[@]}"; do
+    case "$_cand" in
+      $_glob) return 0 ;;
+    esac
+  done
+  return 1
+}
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -223,7 +291,20 @@ PRE_REFS
   snap_out=""
   snap_out="$(git -C "$repo_dir" for-each-ref --format='%(refname) %(objectname)' 2>/dev/null)" \
     || die "git for-each-ref (ref-set dump) failed for repo '$repo_dir'" 2
-  if ! { printf '%s\n' "$snap_out" > "$snapshot_file"; } 2>/dev/null; then
+
+  # The ignored FILE set, at file granularity. `git status --porcelain --ignored`
+  # is NOT usable here: it collapses a pre-existing ignored directory into one
+  # `!!` line, so a later file inside that directory produces no new entry to
+  # diff against. Pre-existing residue is recorded, never refused (routing OD-2).
+  snap_ign=""
+  snap_ign="$(git -C "$repo_dir" ls-files --others --ignored --exclude-standard 2>/dev/null)" \
+    || die "git ls-files (ignored-file dump) failed for repo '$repo_dir'" 2
+
+  if ! {
+    printf '%s\n' "$snap_out"
+    printf '%s\n' "$IGNORED_SECTION_MARKER"
+    printf '%s\n' "$snap_ign" | awk 'NF { print "ignored " $0 }'
+  } > "$snapshot_file" 2>/dev/null; then
     die "failed to write the snapshot file (unwritable path?): $snapshot_file" 2
   fi
   exit 0
@@ -338,6 +419,48 @@ if [ -n "$baseline_file" ]; then
     escape "ref-diff vs baseline '$baseline_file' — ref(s) under refs/heads/ or refs/tags/ changed during the run:
 $delta"
   fi
+
+  # -------------------------------------------------------------------------
+  # Check (d): the ignored-FILE diff (only with --baseline). A NEW ignored file
+  # versus the baseline is residue, routed exactly like check (a)'s untracked
+  # residue. Pre-existing ignored files are baselined, never reported (routing
+  # OD-2) — this repo ignores `.claude/red-team/` through a machine-local
+  # `.git/info/exclude`, so a refusal design would dead-lock on its own home repo.
+  # -------------------------------------------------------------------------
+  if grep -Fq -- "$IGNORED_SECTION_MARKER" "$baseline_file"; then
+    base_ignored=""
+    base_ignored="$(sed -n 's/^ignored //p' "$baseline_file")" \
+      || die "failed to read the ignored-file section of the baseline '$baseline_file'" 2
+
+    live_ignored=""
+    live_ignored="$(git -C "$repo_dir" ls-files --others --ignored --exclude-standard 2>/dev/null)" \
+      || die "git ls-files (ignored-file diff) failed for repo '$repo_dir'" 2
+
+    new_ignored=""
+    while IFS= read -r ipath; do
+      [ -n "$ipath" ] || continue
+      # Baseline membership. The awk drains its whole input and decides in END —
+      # a `grep -Fxq` here would exit early and SIGPIPE the producing printf
+      # under `set -o pipefail`.
+      if printf '%s\n' "$base_ignored" \
+        | awk -v p="$ipath" 'BEGIN { f = 0 } $0 == p { f = 1 } END { exit f ? 0 : 1 }'; then
+        continue
+      fi
+      if ignored_allowed "$ipath"; then
+        continue
+      fi
+      new_ignored="$new_ignored
+$ipath"
+    done <<LIVE_IGNORED
+$live_ignored
+LIVE_IGNORED
+
+    if [ -n "$new_ignored" ]; then
+      escape "new gitignored file(s) vs baseline '$baseline_file' — a probe wrote into an IGNORED path during the run (not covered by the run-authored allowlist):${new_ignored}"
+    fi
+  fi
+  # A baseline with no marker line is an OLD-FORMAT snapshot: check (d) is
+  # vacuous there, fail-open, so a pre-widening baseline still checks clean.
 fi
 
 # ---------------------------------------------------------------------------
