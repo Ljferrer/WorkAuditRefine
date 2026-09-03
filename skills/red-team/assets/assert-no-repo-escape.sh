@@ -430,7 +430,15 @@ $delta"
   # OD-2) — this repo ignores `.claude/red-team/` through a machine-local
   # `.git/info/exclude`, so a refusal design would dead-lock on its own home repo.
   # -------------------------------------------------------------------------
-  if grep -Fq -- "$IGNORED_SECTION_MARKER" "$baseline_file"; then
+  # The marker probe's exit code is captured outside the `if`: rc=1 is the
+  # legitimate old-format baseline (no marker, vacuous half), rc=2 is a read
+  # error and must die as infra, never fall through to the old-format pass.
+  _mrc=0
+  grep -Fq -- "$IGNORED_SECTION_MARKER" "$baseline_file" || _mrc=$?
+  if [ "$_mrc" -ge 2 ]; then
+    die "failed to check the baseline for the ignored-file section marker '$baseline_file'" 2
+  fi
+  if [ "$_mrc" -eq 0 ]; then
     base_ignored=""
     base_ignored="$(sed -n 's/^ignored //p' "$baseline_file")" \
       || die "failed to read the ignored-file section of the baseline '$baseline_file'" 2

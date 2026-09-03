@@ -908,19 +908,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 35: SOURCE LOCK — the ignored-half's four git/read failure paths each die
+# Case 35: SOURCE LOCK — the ignored-half's five git/read failure paths each die
 # with a distinct message AND an explicit exit 2. They are SECONDARY defensive
 # branches: in both modes a `git status` call runs first and dies on a non-repo or
 # unreadable path, so no fixture can reach a bare `git ls-files` failure. A source
 # lock is therefore the only available coverage, and it is the point that matters —
 # an ignored-half git fault must classify as infra (2), never collapse into escape
 # (1) or a silent pass. Case 10's standing call-site lock already proves the
-# explicit code; this case names the four messages so a rewrite cannot drop one
+# explicit code; this case names the five messages so a rewrite cannot drop one
 # silently. Delete-and-trace: remove any one die from the guard and this reds.
 # ---------------------------------------------------------------------------
 ign_die_missing=""
 for _msg in \
   "git ls-files (ignored-file dump) failed for repo '" \
+  "failed to check the baseline for the ignored-file section marker '" \
   "git ls-files (ignored-file diff) failed for repo '" \
   "failed to read the ignored-file section of the baseline '" \
   "ignored-file diff failed while reading the baseline '"
@@ -931,7 +932,7 @@ do
   fi
 done
 if [ -z "$ign_die_missing" ]; then
-  pass "case 35: the four ignored-half failure paths each die with their own message (exit 2 per case 10)"
+  pass "case 35: the five ignored-half failure paths each die with their own message (exit 2 per case 10)"
 else
   fail "case 35: ignored-half die message(s) missing from the guard:$ign_die_missing"
 fi
