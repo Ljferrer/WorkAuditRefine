@@ -37,7 +37,7 @@ Given a plan like [docs/plans/2026-06-18-war-room.md](https://github.com/Ljferre
 1. **Decompose** the plan into one or more phase(s) → task DAG and propose it to you as GitHub issues — all phase **epics up front**, task **sub-issues just-in-time** per phase. *You approve before anything spawns.*
 2. For each phase, run a **Workflow** that:
    - **Works** — fresh worker agents implement each task in isolated git worktrees, writing the plan's mapped tests.
-   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). Each task convenes its own **roster** of 1–5 distinct-lens seats, each at its own depth; the default roster is the quartet (`correctness`, `cascading-impact`, `plan-faithfulness`, `security`) at `deep`.
+   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). Each task convenes its own **roster** of 1–5 distinct-lens seats, each at its own depth; the default roster is the five-seat set in `DEFAULTS.audit.roster` (`correctness`, `cascading-impact`, `plan-faithfulness`, `simplicity`, `performance`) at `deep`.
    - **Refines** — a serial merge queue rebases, re-runs the gate (`tests/lint`), and lands approved tasks on a per-phase integration branch.
    - **Records** — after the phase lands, a write-scoped servitor captures durable learnings into memory (and at each phase's launch the Lead prefetches the most relevant prior lessons into the worker/auditor prompts).
 3. **Lands** each phase onto your working branch as one `--no-ff` commit, pushes, and **checks in with you**.
@@ -335,7 +335,7 @@ Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (una
 |---|---|---|
 | Lead (your chat) | Mayor | the main Claude Code session |
 | Worker | Polecat | `war-worker` — `Agent` (sonnet) in a git worktree |
-| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (opus); file tools plus a fail-closed guard restricting Bash to read-only git |
+| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (sonnet on `max` by default); file tools plus a fail-closed guard restricting Bash to read-only git |
 | Refinery (merge queue) | Refinery | `war-refiner` — `Agent` + the serial Workflow merge loop |
 | Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (sonnet); records per-phase learnings to memory |
 | -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
