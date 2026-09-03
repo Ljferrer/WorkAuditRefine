@@ -145,7 +145,8 @@ const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
  * directory (for a root-level file entry that directory IS the repo root, so its relative
  * targets resolve repo-root-relative); an agents/ target additionally resolves repo-root-relative; and a target
  * beginning with the literal plugin-root placeholder resolves its remainder against
- * REPO_ROOT (plugin root ≡ repo root in this repo), from either scan dir. Link SHAPE
+ * REPO_ROOT (plugin root ≡ repo root in this repo), from any scanned file, dir or
+ * root-level entry alike. Link SHAPE
  * enforcement stays per-card in workflow-template.test.mjs — a scan-wide shape assert here
  * is out of this sweep's scope.
  */
@@ -159,13 +160,13 @@ function resolutionRoots(file, target) {
   };
 }
 
-test('reference link integrity — every markdown link target under agents/ and skills/war/references/ resolves to a real file', () => {
+test('reference link integrity — every markdown link target on every scanned prose surface (agents/, skills/war/references/, README.md) resolves to a real file', () => {
   // Non-vacuity floor: an empty scan would satisfy every assert below without checking
   // anything (delete-the-feature test: the sweep must be observably running).
   for (const dir of SCAN_UNITS) {
     assert.ok(
       SCANNED.some((f) => f.dir === dir),
-      `scan of ${dir}/ found no *.md files — every assert in this suite would pass vacuously`,
+      `scan unit ${dir} found no *.md files — every assert in this suite would pass vacuously`,
     );
   }
 
