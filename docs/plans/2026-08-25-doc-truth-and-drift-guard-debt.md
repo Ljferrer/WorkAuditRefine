@@ -456,10 +456,11 @@ None proposed (spec §6/§7). Existing ADRs amended in place: 0018 (amendment ro
       "rows stay raw" absolutes falsified by the landed filing-on-held behavior), and
       the manifest suite stays green ·
       check: ! grep -F 'absent = unthrottled fan-out' skills/war/references/schemas.md && ! grep -F 'rows stay raw' skills/war/references/schemas.md && echo SCHEMAS-FOLD-CLEAN prints SCHEMAS-FOLD-CLEAN (1 and 2 hits respectively at the plan-1 landed tip, so both zeros are decisive; the seven remaining fold rows are non-literal requalifications proven by the Task 7 done report's per-issue before/after list plus bash skills/war/references/schemas-manifest.test.sh green).
-  24. The retired ace-budget boundary ("remainder demotes on budget exhaustion") is
-      absent from all four prose homes — the floor-retry reserve (roundLimit − 2) is
-      the stated stop condition (#1812) ·
-      check: ! grep -F 'demotes on budget' docs/adr/0013-commanders-intent-and-disposition-routing.md && ! grep -F 'exhaustion demotes the remainder' skills/war/SKILL.md CONTEXT.md && ! grep -F 'budget-exhausted remainder' skills/war/references/design.md && echo ACE-BOUNDARY-RETIRED prints ACE-BOUNDARY-RETIRED (each needle ≥ 1 hit in its home at the plan-1 landed tip — re-measure at the rebased base; ADR 0013's fix is a dated qualification note, ratified text untouched, so its needle retires via the note's superseding restatement adjacent to a strikethrough-free original ONLY if the amendment-append convention permits; where it does not, the worker records the reachable form and the End state is satisfied by the three non-ADR homes plus the ADR note present — the done report states which arm ran).
+  24. The retired ace-budget boundary ("remainder demotes on budget exhaustion") stays
+      absent from the three rewritable prose homes and ADR 0013 carries the
+      floor-retry-reserve amendment — a NO-REGRESS floor: plan 2 landed all four homes
+      (#1812), verified at the plan-4 base `a8a9391` at the 2026-09-03 re-amendment ·
+      check: ! grep -F 'exhaustion demotes the remainder' skills/war/SKILL.md CONTEXT.md && ! grep -F 'budget-exhausted remainder' skills/war/references/design.md && grep -q 'floor-retry reserve' docs/adr/0013-commanders-intent-and-disposition-routing.md && echo ACE-BOUNDARY-RETIRED prints ACE-BOUNDARY-RETIRED (green at base by design — the ADR's 2026-08-20 rows keep their ratified text under the amendment-append convention, so the ADR needle is the amendment's presence, never the old rows' absence).
   25. The three decisive engine-comment staleness literals are retired from
       `workflow-template.js` (fold batch 2: the "THREE problem classes" header
       miscount, the "six-site" order-census remnant, the "plus the seven" ragged
@@ -645,14 +646,13 @@ commit, never loosened.
   "Whole-pass absence stays all-`deferred`" absolute now carries the landed vacuous-
   phase carve-out (zero-tasks-landed note channel); addendum form, ratified text
   untouched, same convention as the #1695 correction note above (verified: issue
-  #1772 (2026-08-26)). (#1812, this task's two homes) retire the pre-reserve ace-budget
-  boundary narration: ADR 0013's 2026-08-20 amendment rows ("the remainder demotes on
-  budget exhaustion"; "consumes slots from the same budget") gain a dated
-  qualification note stating the landed floor-retry-reserve stop condition
-  (roundLimit − 2), and `design.md` §18's "(or a budget-exhausted remainder) demote"
-  clause is rewritten in place to the reserve boundary — End state 24's needles
-  (verified: issue #1812 (2026-08-26); the CONTEXT.md and SKILL.md homes ride Tasks 5
-  and 8). (#1804) extend `resume-and-recovery.md`'s pre-launch ref-holder enumeration
+  #1772 (2026-08-26)). (#1812, this task's two homes — RETIRED at the 2026-09-03 re-amendment: plan 2
+  (in-run-finding-resolution, 0.21.0) landed ADR 0013's dated 2026-08-27 amendment,
+  which names the floor-retry reserve as the ladder's sole stop condition and
+  supersedes the 2026-08-20 rows (their ratified text stays byte-untouched by the
+  amendment-append convention), and rewrote `design.md` §18 to the reserve boundary;
+  verified at the plan-4 base `a8a9391`. No edit here — the worker re-verifies End
+  state 24's needles at its rebased base and records the reading). (#1804) extend `resume-and-recovery.md`'s pre-launch ref-holder enumeration
   bullet with the foreign-plan never-free guardrail its engine twin (`holderFreeClause`)
   carries — scope the free to "this plan's own refs", never a foreign plan's holder
   (verified: issue #1804 (2026-08-26)). Engine comment-lag trio + two qualifications
@@ -711,15 +711,10 @@ commit, never loosened.
   on `held:land-failed` the follow-up filing dispatch still runs, or the handoff
   carries an explicit unfiled-followups block) falsifies the row's stricter claim; the
   `resume-and-recovery.md` sentence is the TRUE side and stays byte-untouched here
-  (verified: issue #1801 (2026-08-26)). (#1812, CONTEXT home) rewrite the
-  **Ace bisection** glossary row's "exhaustion demotes the remainder" boundary to the
-  landed floor-retry reserve (roundLimit − 2) — End state 24's CONTEXT needle; check
-  the D37-pinned spans first and keep every pinned byte-run untouched (the row is
-  glossary prose adjacent to pinned ask terms — if the boundary phrase itself proves
-  pinned by any live key, stop and route the pin move to Phase 2 Task 2 instead of
-  rewording under a red pin) (verified: issue #1812 (2026-08-26)). Both edits are
-  byte-additive-neutral or negative — they must not undo this task's eviction
-  arithmetic (re-run wc -c after them).
+  (verified: issue #1801 (2026-08-26)). (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
+  floor-retry-reserve wording in CONTEXT.md's **Ace bisection** row; verified at the
+  plan-4 base `a8a9391`, no edit here). The #1801 edit is byte-additive-neutral or
+  negative — it must not undo this task's eviction arithmetic (re-run wc -c after it).
 - Done when: node --test skills/war/assets/prompt-surface-budgets.test.mjs
 - requiresTest: false
 - requiresPackaging: false
@@ -817,13 +812,9 @@ commit, never loosened.
   section at the task base before editing. Touched-doc treatment (rule 8): the
   routing fact is pinned by the moved D37/D41 keys (guard exists, moved lock-step);
   End state 20's OLD-absent grep is the retirement floor.
-  Fold batch 2 (operator-ratified 2026-08-27): (#1812, SKILL home) rewrite the `--ace`
-  bullet's "each subset commit charges one `fixRounds` slot … (exhaustion demotes the
-  remainder — logged, by design)" boundary to the landed floor-retry reserve
-  (roundLimit − 2) — End state 24's SKILL needle; same budget discipline as the main
-  slice (the file carries a `prompt-surface-budgets.test.mjs` row), and the same
-  lock-step rule: if any contracts-suite key reads the rewritten phrase, move it in the
-  same commit (verified: issue #1812 (2026-08-26)).
+  Fold batch 2 (operator-ratified 2026-08-27): (#1812, SKILL home — RETIRED at the
+  2026-09-03 re-amendment: plan 2 landed the `--ace` bullet's floor-retry-reserve
+  wording; verified at the plan-4 base `a8a9391`, no edit here).
 - Done when: node --test skills/war/assets/skill-doc-contracts.test.mjs
 - requiresTest: false
 - requiresPackaging: false
@@ -1166,8 +1157,9 @@ pin ships with a both-ways proof (fixture or scratch-deletion trace in the done 
   #1812(SKILL home) → Phase 1 Task 8; #1737/#1740/#1741/#1742/#1743 → NEW Phase 1
   Task 9; #1832/#1841/#1842/#1843 → NEW Phase 1 Task 10. End-state numbering stayed
   append-only (23–26 new, none renumbered); the addressed-issues enumeration grew
-  45 → 72. #1812 is a cross-task fold (four prose homes, four owning tasks) — it
-  closes only when all four homes land; End state 24 is its aggregate needle.
+  45 → 72. #1812 was a cross-task fold (four prose homes, four owning tasks); plan 2
+  (in-run-finding-resolution, 0.21.0) landed all four homes, so its rows were retired
+  at the 2026-09-03 re-amendment and End state 24 became a no-regress floor.
   **Deliberate exclusions from the fold** (recorded so red-team does not re-litigate):
   #1816 and #1803 — verified ALREADY FIXED at the plan-1 landed tip (the phase-7
   absorb commit corrected the census comment; the CONTEXT Budget-Raise appositive was
