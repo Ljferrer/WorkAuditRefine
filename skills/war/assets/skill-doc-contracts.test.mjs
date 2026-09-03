@@ -515,9 +515,11 @@ test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline d
 // producers" was verified present at this task's base — its base carrier is CONTEXT.md's own
 // `_Avoid_` count line ("rows come only from the two named producers"), the byte-run this widening
 // rewrote in place. It is NOT quoted by D19's block comment above: that comment was rewritten in
-// the same commit as the widening and now reads "two at this row's authoring; three since the
-// #1550 ask-ruling widening", so citing it as the carrier would name a byte-run the commit
-// removed. Never a count word on a never-present value. Same extraction construct as D19.
+// the companion commit that completed the same task (the widening landed in fbadb88, the D19
+// comment rewrite in the immediately-following 13a83a4) and now reads "two at this row's
+// authoring; three since the #1550 ask-ruling widening", so citing it as the carrier would name
+// a byte-run the widening removed. Never a count word on a never-present value. Same extraction
+// construct as D19.
 test('D19a — CONTEXT.md **Adjudication** producer enumeration is widened two → three, old count literal retired (#1550)', () => {
   const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
   assert.ok(
@@ -2254,8 +2256,10 @@ test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired fo
 // on both surfaces — the bolded glossary term → next bolded term or `###` heading, and rule 8's
 // numbered bullet → the next numbered rule or `##` heading — never a whole-file scan, because
 // war-strategy/SKILL.md repeats this row's tokens OUTSIDE rule 8: at this task's base it carries
-// three `de-mirror` hits, three `plan defect` hits and two `explicitly defer` hits (a dated count
-// snapshot), so a whole-file key would green with rule 8 itself deleted. (The trichotomy's two
+// three `de-mirror` hits and three `plan defect` hits, one and two of them outside rule 8 (a
+// dated count snapshot), so a whole-file key would green with rule 8 itself deleted. It also
+// carries two `explicitly defer` hits, both inside rule 8 itself — included for the full
+// token-count picture, not as evidence of outside-rule-8 repetition. (The trichotomy's two
 // OTHER homes — docs/adr/0025 and skills/war/references/touched-doc-accuracy.md — are not read by
 // this row at all, and no End state of the source plan pins their tokens; the earlier "End states
 // 3/10 pin elsewhere" citation was wrong on both counts: End state 3 pins the CANONICAL rule 8
