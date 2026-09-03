@@ -264,15 +264,26 @@ function specCitations(path, text) {
     // BEFORE the carve-out tests keeps a composite wrapper from smuggling its markdown
     // metacharacters into the glob/placeholder tests below.
     const cut = rest.search(/[`\])]/)
+    // #1687: the truncated-away tail is markdown plumbing for the HEAD's path, but a
+    // link carries a SECOND citation in its target half — `[docs/specs/](docs/specs/x.md)`.
+    // The greedy \S* run swallows that target, so a carved-out head (bare mention, glob,
+    // placeholder) used to hide a real spec citation. Keep the tail and re-scan it
+    // whenever the head carves out; a flagged head already reports the whole run.
+    const tail = cut >= 0 ? rest.slice(cut) : ''
     if (cut >= 0) rest = rest.slice(0, cut)
     // A paired emphasis wrapper (**bold** / _italic_) is decoration, not a glob: strip the
     // trailing marker run only when the char before the match opens it — anchoring to the
     // paired leading marker keeps an unpaired trailing glob (docs/specs/2026-*) carved out.
     const before = stripped[m.index - 1]
     if (before === '*' || before === '_') rest = rest.replace(/[*_]+$/, '')
-    if (rest === '') continue          // bare output-directory mention (survey-corps)
-    if (/[<*…]/.test(rest)) continue   // placeholder / glob path-shape
-    if (/yyyy/i.test(rest)) continue   // date-placeholder path-shape
+    // carve-outs: bare output-directory mention (survey-corps), placeholder / glob
+    // path-shape, date-placeholder path-shape
+    const carved = rest === '' || /[<*…]/.test(rest) || /yyyy/i.test(rest)
+    if (carved) {
+      // the head is mechanics; the swallowed tail may still hold a real citation
+      if (/docs\/specs\//i.test(tail)) out.push(...specCitations(path, tail))
+      continue
+    }
     out.push({ path, cite: m[0] })
   }
   return out
@@ -408,6 +419,15 @@ test('spec-posterity carve-outs: input-shape mechanics excluded by pattern; conc
   assert.equal(specCitations('FIXTURE', 'see **`docs/specs/2026-01-01-x-design.md`** §3').length, 1, 'a bold-wrapped code-span citation must be flagged, not carved as a glob')
   assert.ok(specCitations('FIXTURE', 'see **[`docs/specs/2026-01-01-x-design.md`](docs/specs/2026-01-01-x-design.md)** §3').length >= 1, 'a bold-link composite citation must be flagged')
   assert.deepEqual(specCitations('FIXTURE', 'sweep `docs/specs/2026-*` for that year'), [], 'a date-prefix glob keeps its carve-out (the emphasis trim needs a paired leading marker)')
+  // #1687: a link whose TEXT half carves out (bare mention, glob, placeholder) but whose
+  // TARGET half is a real spec path must still be flagged — the greedy \S* run swallows
+  // the target, so the carve-out re-scans the truncated-away tail. Revert the tail re-scan
+  // and each of these three returns [] (both-ways proof).
+  assert.equal(specCitations('FIXTURE', 'see [docs/specs/](docs/specs/2026-01-01-x-design.md) §2').length, 1, 'a bare-mention link text must not hide a real spec target')
+  assert.equal(specCitations('FIXTURE', 'see [docs/specs/*.md](docs/specs/2026-01-01-x-design.md) §2').length, 1, 'a glob link text must not hide a real spec target')
+  assert.equal(specCitations('FIXTURE', 'see [docs/specs/<slug>](docs/specs/2026-01-01-x-design.md) §2').length, 1, 'a placeholder link text must not hide a real spec target')
+  // the carve-out still holds when BOTH halves are mechanics
+  assert.deepEqual(specCitations('FIXTURE', 'see [docs/specs/](docs/specs/<slug>-design.md) here'), [], 'a link with mechanics on both halves keeps its carve-out')
   // carve-outs: bare output dir, globs, placeholders, ellipsis, date placeholder, fenced examples
   assert.deepEqual(specCitations('FIXTURE', 'synthesizes one spec per group into `docs/specs/` — then verifies.'), [], 'the bare output directory is input-shape mechanics')
   assert.deepEqual(specCitations('FIXTURE', 'Scan `docs/specs/*.md` and `docs/specs/*-design.md` for orphans.'), [], 'glob patterns are input-shape mechanics')
