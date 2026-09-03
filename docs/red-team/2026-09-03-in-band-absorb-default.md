@@ -1,13 +1,15 @@
 # Red Team — 2026-09-03-in-band-absorb-default (2026-09-03)
-**Verdict:** BLOCKED — round 2 (full 12-probe re-run against the round-1 patched plan) returned 29 blockers and 14 needsDecision rows across seven new roots; the gate emitted `routeUpstream: true` at rounds 2 of 3, so the run terminates here and the residual questions go back to the interview (block below)
-**Rounds:** 2
+**Verdict:** BLOCKED — round 3 (fresh entry seeded at 2, full 12-probe run against the round-2 regrilled plan at `e7a3505`) returned 24 blockers and 5 needsDecision rows across fourteen roots; the round limit is reached, the gate emitted `routeUpstream: true`, and the residual questions go back to the interview (block below)
+**Rounds:** 3
 <!-- Cumulative grill sweeps: the Step-1 seed + this run's sweeps. Strict form — the next run's seeding re-reads exactly this line; an integer, nothing else. -->
 
 Artifact kind: `impl-plan`. Source of truth: the plan's own Part 1 (merged arm). Repo under test: a `git clone --no-hardlinks` of the plan branch at `5362295` (clean; the real worktree carried an uncommitted run-config edit). Model: opus / high from the run config. Round limit 3. Prior report: none, seed 0.
 
 ## Attack surface
 Spine: claims-vs-reality, executable-proof, coverage-vs-source, consistency-placeholders, dependency-feasibility, intent-vs-plan. Bespoke: `default-flip-old-absent` (executed, mandatory drift-guard probe), `baseline-repro` (executed), `command-diff` (executed), `ledger-files-field` (analyzed), `anchor-check` (analyzed), `enum-mirror-guard` (analyzed). Lead-run: `unguarded-new-mirror` pass, `guard-split-deps-edge` pass, `touched-doc-fact-coverage` two gaps patched pre-run, backstop-legitimacy pass, `judge:` grading vacuous, `ff-topology` not triggered (no merge-topology anchor in the plan). Executed in sandbox: four probes. 12 of 12 probes on target, none dropped.
-Fallback: none. Escape guard: exit 0 before and after round 1, after the re-verify, and before and after round 2 (fresh snapshot at `cabd25b`).
+Fallback: none. Escape guard: exit 0 before and after every round (fresh snapshots at `cabd25b` and `e7a3505`).
+
+Round 3 (fresh entry, plan at `e7a3505`): six spine lenses plus `default-flip-old-absent`, `baseline-repro`, `command-diff`, `floor-placement`, `enum-mirror-guard`, `anchor-check`. 12 of 12 on target, one pass (`command-diff`: every End-state check red at base, row 6 and row 13 absence clauses flip, Done-when suites green), eleven fail.
 
 Round 2 (this run's second sweep, plan at `cabd25b`): the same six spine lenses plus six bespoke probes aimed at the round-1 additions (`default-flip-old-absent`, `baseline-repro`, `command-diff`, `extractfiles-union`, `enum-mirror-guard`, `anchor-check`). 12 of 12 on target, one pass (`command-diff`: every End-state check red at base, row 8 green, row 6 clause flips, Done-when suites green), ten fail, one warn.
 
@@ -19,7 +21,26 @@ Round 2 (this run's second sweep, plan at `cabd25b`): the same six spine lenses 
 - `command-diff` (re-verify, round 1, attempt 2) → rows 1 to 7 and 9 to 11 red at base, row 8 green (19 tests), row 6's `! grep -qi` clause exits 1 at base and 0 after the merged-arm line is removed, all referenced non-deliverable files exist, four Done-when suites green at base. One Major: rows 2 and 3 still used the bare `grep -c … prints at least N` form, so row 3's floor of 4 was not enforced. Patched to the `test "$(grep -c …)" -ge N` form and stamped adjudicated (re-verify attempts exhausted).
 
 ## Findings
-Round 1: the gate returned 40 blockers and 29 `needsDecision` rows across 12 probes. They collapse to twelve roots, all patched or ruled (below). Round 2: 29 blockers and 14 `needsDecision` rows, seven roots. Five need a ruling and are the Route-upstream agenda; the rest are factual and are patched on re-entry.
+Round 1: 40 blockers and 29 `needsDecision` rows, twelve roots, all patched or ruled. Round 2: 29 blockers and 14 `needsDecision` rows, seven roots, five ruled at the regrill and the rest patched. Round 3: 24 blockers and 5 `needsDecision` rows, fourteen roots. Four need a ruling and are the Route-upstream agenda; ten are enumeration misses of the same class as rounds 1 and 2 (surfaces, pins, and call sites the plan under-counted) and are patched on re-entry.
+
+### Round 3 roots
+- [Major, needsDecision] `DEMOTE_REASONS` census: two `demote` sites build the reason head from a runtime variable (`provDrainCause`, `sweepDrainCause`) and two route to `follow-up` through a severity ternary. A static literal census cannot read the first pair or see the second. Agenda.
+- [Major, needsDecision] `run.absorbRounds: null`: the `run.roundLimit` validator hard-rejects null, and `deepMerge` copies an explicit null over the default, so "null reads as unset" resolves to null, not 6. Agenda.
+- [Major, needsDecision] Two Lead-side filing lanes (the `--afk` no-match ask demotion and ruled-ask filing) carry neither a `barrier` tag nor a `DEMOTE_REASONS` prefix, so the Purpose sentence is unsatisfied by any End state. Agenda.
+- [Major, needsDecision] Gate-audit-family seats sink their Minor/Nits into `auditLog` only; the Purpose's "found by a seat" reaches them and nothing routes them. Agenda.
+- [Major] `D41` in `skill-doc-contracts.test.mjs` pins the retired conjunction present on `skills/war/SKILL.md`; a third pin the plan never named.
+- [Major] Four emitted strings state `roundLimit − 2`, not two; `workflow-template.js` is missing from that OLD-absent row.
+- [Major] `war-config.test.mjs`'s `meta-guard(F07)` pins exactly five mirror markers in `workflow-template.js` and keeps the mirror registries; Task 1.2 adds three markers and does not own the file.
+- [Major] README.md states the economy-ace fact twice; the `economy-ace-flip` anchor "economy preset" misses line 140 and `war-room` line 14; `schemas.md` line 283 has no authoring slice.
+- [Major] The polish task's integration-branch `absorbCharges` clause maps to no task.
+- [Major] The re-entry `Ace-Subset` trailer's distinctness rides the `fixRounds` index the plan stops advancing.
+- [Major] The `absorb … never a default` shape matches a lawful rewrite and hits no living surface; the normalization must strip single quotes to reach the two `workflow-template.js` comments.
+- [Major] ADR 0013 states the reserve arithmetic at three sites; the arithmetic row neither includes nor exempts it and the amendment omits the supersession note.
+- [Major] Five inbound references target the evicted `## Gate-failure classification` heading (three in-card anchors, `budget-raise-floor.md`, `refiner-recovery.md`).
+- [Major] A floor reroute never removes the row from `minorsFiled` or its key from `filedKeys`, so the finding both absorbs and files.
+- [Minor] `MIRROR_REGISTRY`'s `behavioral` mode already expresses a scalar; the barrier prompt forbids free git reads and needs an explicit allowance for the trailer read; five paths reach filed rows without a merge result; `files-union` count is 4 not 5; the ace-off terminal-pass fixture belongs to Task 2.1; `terminal pass` and `carried queue` glossary terms are double-assigned to Tasks 1.3 and 2.2; the row 6 and row 13 absence greps are case-sensitive or miss a wrapped comment copy.
+
+### Round 2 roots
 
 ### Round 2 roots
 - [Critical, needsDecision] D4 floor placement: at the file-followups dispatch every absorb vehicle has closed (`phaseCloseQueue` is spliced empty by the sweep, the ace ladder is wave-side, the land has run). A reroute to `absorb` there has no lane. Also `minorsFiled` mixes seat rows with engine `demote()` rows that carry no `barrier`. Agenda.
@@ -86,7 +107,14 @@ Round 1: the gate returned 40 blockers and 29 `needsDecision` rows across 12 pro
 
 ## Route upstream
 **Regrill:** `/war-strategy /Users/ljf/GitHub/WorkAuditRefine/docs/plans/2026-09-03-in-band-absorb-default.md` — run the interview on the agenda below; it patches the plan.
-**Agenda (residual questions):**
+**Agenda (residual questions), round 3:**
+- `DEMOTE_REASONS` enforcement: (a) runtime, `demote()` validates or prepends the prefix on every reason it writes, census asserts the boundary plus a call-site count that includes the ternary shape; (b) static, rewrite the two variable-head sites and widen the matcher to the ternary shape.
+- `run.absorbRounds: null`: (a) normalize null to `DEFAULTS.run.absorbRounds` after `fillDefaults`, fixture asserts the resolved value is 6; (b) drop the null carve-out and mirror `run.roundLimit`'s hard reject.
+- Lead-side ask filings: (a) narrow the Purpose to engine- and seat-filed issues and record Lead-side ask filings under Non-goals; (b) extend an End state to bind those two lanes to a prefix.
+- Gate-audit-family Minor/Nits: (a) Non-goals line, the `auditLog`-only sink stays; (b) an End state and Task 1.2 arm routing that lane into the phase-close queue under the exclusion set.
+- Plan shape: split Task 1.2 across sequential phases so each red-team round and each auditor roster reads one mechanism family.
+
+**Agenda (residual questions), round 2 (ruled at the regrill, kept for the record):**
 - D4 floor placement: (a) run the floor per task in the serial merge queue right after the merge dispatch returns `diff_files`, both reroutes go `phaseClose:true` to the sweep, seat rows only (engine `demote()` rows carry an `engineFiled` stamp the floor skips); (b) keep it at filing and route reroutes into `carriedPhaseClose`; (c) keep it at filing as a filing-only reroute that files nothing. The gate saw a Critical: option-less as written.
 - Refiner card headroom (113 B): (a) evict a cold refiner-card block to `references/` under ADR 0042 in Task 1.2, sized for the `diff_files` clause; (b) a second operator-ratified Budget-Raise trailer.
 - `absorbRounds` relaunch source: (a) every ace-side commit carries an `Ace-Charge:` trailer and the phase-start git-topology barrier dispatch returns a per-task count; (b) the Lead threads `args.absorbRoundsSeed` per task; (c) accept a per-run reset with a log. The plan's "the way `fixRounds` is re-derived" anchor does not exist.
@@ -101,4 +129,5 @@ Round 1: the gate returned 40 blockers and 29 `needsDecision` rows across 12 pro
 - A Workflow that throws before returning loses `carriedPhaseClose`. The Lead re-derives from transcripts (recorded residual, Task 3.1).
 - The study rerun backstop needs two live runs after the release.
 - The patched End-state checks were re-verified red at base by the round-1 `command-diff` re-run; rows 2 and 3's final form and every other patched blocker are adjudicated, not re-proven.
-- Round-2 gate at terminal: 12 of 12 probes on target, 29 blockers and 14 needsDecision rows unstamped, 14 minors, `routeUpstream: true` at rounds 2 of limit 3.
+- Round-3 gate at terminal: 12 of 12 probes on target, 24 blockers and 5 needsDecision rows unstamped, 21 minors, `routeUpstream: true` at rounds 3 of limit 3.
+- Pattern across three rounds: every round's new roots were enumeration misses on the surfaces the previous round's patches touched (pins, call sites, doc restatements). The plan's Task 1.2 bundles seven mechanisms in one engine diff, which is why each round finds the next layer.
