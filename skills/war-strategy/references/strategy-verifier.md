@@ -111,7 +111,7 @@ inferences:
   utter a skip, so no waive can exist there: every arming beat arms, every dispatch happens
   (or stamps a degraded mode). A `WAIVE-<n>` row in an AFK-authored plan is a defect.
 
-## The three leak shapes + the duty-class twice-read rule
+## The three leak shapes + the ‡ twice-read rule
 
 Ratified interview state leaks between beats and gates in three recorded shapes — the
 checklist the echo-back reconciliation reads:
@@ -126,11 +126,14 @@ checklist the echo-back reconciliation reads:
    lens "already reads/joins" the artifact in question, with the claim never checked against
    that seat's actual charter.
 
-**Duty-class twice-read rule**: pins whose landing class is a duty or fence (marked ‡ in the
-design tree) are read **twice** at echo-back reconciliation — once in the echo-back's own
-sweep, once against the floor list. Motivating instances, from the very interview that
+**‡-marked twice-read rule**: the operator marks a pin ‡ in the design tree when its
+content is a standing duty or a fence. ‡ is an orthogonal row marker, never a landing
+class. Its grammar is defined once in the ratified-pin ledger of
+[plan-interview.md](plan-interview.md). ‡-marked pins are
+read **twice** at echo-back reconciliation — once in the echo-back's own sweep, once
+against the floor list. Motivating instances, from the very interview that
 ratified this charter: **echo-back 1 of the authoring-side-verification interview shipped
-four duty/fence-class pin leaks**, caught only by operator reconciliation; **echo-back 2,
+four pin leaks of duty/fence content**, caught only by operator reconciliation; **echo-back 2,
 run under the ledger machinery, shipped zero** — the field trial is its own before/after.
 
 ## Worked example: the six-beat incident table (arming calibration)
