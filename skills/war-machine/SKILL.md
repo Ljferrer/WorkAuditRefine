@@ -80,7 +80,12 @@ file footprints of the plans already authored (honest contention).
 1. **Spawn in parallel:** a **drafter** agent (authors the merged-shape plan from the spec +
    codebase, per the `/war-strategy` §2 merged plan template and code-boundary decomposition
    rule; when the spec cites source issues, reads each cited issue's `## Evidence artifacts`
-   section — the recon inputs the issue author staged — before drafting; offers the intent's
+   section — the recon inputs the issue author staged — before drafting. Split degraded arms:
+   a cited issue whose `## Evidence artifacts` section is absent ⇒ the read is **vacuously
+   satisfied** for that issue (nothing to read is a pass, not a gap); a cited issue that is
+   **unreachable** (gh/network/auth failure, incl. an exogenous account flip) ⇒ a **named note**
+   in the drafted plan identifying that issue — never silent, never a stall, and fail-open
+   under `--afk`. Offers the intent's
    two optional sub-bullets on every conversion — `Mechanism latitude:` enumerating which
    mechanisms named in Method are implementer's choice, `Binding guardrails:` the real floor —
    the offer is unconditional; only the per-row `AI-declared` markers are `--afk`-scoped, per

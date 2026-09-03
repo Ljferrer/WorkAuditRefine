@@ -22,8 +22,11 @@
 # section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
 # D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
 # per surface, then compared against the canonical SKILL.md §2 bytes — tag-set by keyword
-# sequence, D14 by marker presence), the both-ways lacks_i / lacks_doc_i
-# positive controls — one per assembled absence pattern (#1308: each proven ALIVE against
+# sequence over an in-fence-bounded SKILL-side window, D14 by marker presence), the
+# #1967 ‡ trio (doctrine · charter · SKILL.md presence pins plus the class-keyed OLD-absent
+# twins), the both-ways lacks_i / lacks_doc_i / lacks_char_i
+# positive controls — one per assembled absence pattern, each reporting under the helper it
+# controls (#1308: each proven ALIVE against
 # an independent re-cased fixture, and its -i proven load-bearing), and — case-insensitive —
 # the ABSENCE of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
 # template-internal headings are checked as verbatim full lines: an arrow annotation /
@@ -105,6 +108,21 @@ lacks_doc_i() { # fixed string (vs references/plan-interview.md)
     fails=$((fails + 1))
   else
     printf 'ok - doctrine lacks :: %s (correct, case-insensitive)\n' "$1"
+  fi
+}
+# Case-INSENSITIVE fixed-string ABSENCE in the CHARTER — the charter-side twin of
+# lacks_doc_i() above (#1967: the ‡ rewording retired class-keyed phrases on BOTH doctrine
+# surfaces, and a presence pin closes only the drop-‡ direction). Same conventions:
+# patterns assembled at call sites from split fragments; positive controls via ctl() prove
+# each assembled pattern alive and its -i load-bearing. Vacuous-pass-on-missing-file is
+# excluded by the charter file-exists check and the char_f presence pins on the same
+# surface (the paired-positive rule).
+lacks_char_i() { # fixed string (vs references/strategy-verifier.md)
+  if grep -qiF -e "$1" -- "$CHARTER"; then
+    printf 'not ok - charter UNEXPECTEDLY has :: %s (case-insensitive)\n' "$1"
+    fails=$((fails + 1))
+  else
+    printf 'ok - charter lacks :: %s (correct, case-insensitive)\n' "$1"
   fi
 }
 # Case-INSENSITIVE fixed-string ABSENCE in SKILL.md — the retired-wording guard. Insensitive
@@ -197,6 +215,11 @@ check_f 'decisive printed token in addition to exit status'
 check_f '**Design-tree pin columns (the ratified-pin ledger):**'
 check_f 'landing-class column is floored; where the id sits within a row is latitude'
 check_f 'letter suffixes are illegal'
+# #1967 (D9): the template law's ‡ mirror sentence (Phase 1 Task 2) — third surface of the
+# ‡ trio, pinned lock-step with the doctrine-side and charter-side pins. Its neighbouring
+# pin-column bullet is already pinned sentence-by-sentence; an unpinned mirror sentence is
+# the same one-sided gap here.
+check_f '‡-marked pins are read twice at echo-back reconciliation'
 check_f '**Evidence consumed block:**'
 check_f 'read or unread-with-reason'
 check_f 'never a new required H2'
@@ -353,11 +376,19 @@ doc_f '[references/strategy-verifier.md](strategy-verifier.md)'
 # enumeration duty.
 doc_f 'run the omittability probe over the drafted End-state enumeration'
 doc_f 'enumerate the Evidence consumed block aloud'
-# Gate-1 pair duty (D2) + the duty-class twice-read rule (PIN-25).
+# Gate-1 pair duty (D2) + the ‡-marked twice-read rule (PIN-25).
 doc_f 'Echo-back 1 is **gate 1**'
 doc_f 'lint stays exit-0 report-only ↔ gate 1 carries the hard **enumerate-aloud** duty'
 doc_f 'fix-or-waive on the record before the confirm counts'
 doc_f 'read **twice** at echo-back reconciliation'
+# #1967 (D9): the gate-1 SCOPE clause — which findings the enumerate-aloud duty covers.
+# The pins above bind the duty's existence and its fix-or-waive close, never its scope: the
+# two gap classes and the one-shot/standing WAIVE reach could each be dropped with every
+# neighbouring pin green. Anchors are mid-clause and lowercase (never sentence-initial, so a
+# re-cased sentence opener cannot red them) and each sits wholly on ONE live line — doc_f is
+# a line-scoped `grep -qF`, so an anchor spanning the paragraph's wrap point never matches.
+doc_f 'pin-rule gap and Evidence-consumed gap the lint reports'
+doc_f 'one-shot and standing alike'
 # The ratified-pin ledger + WAIVE channel (D1 · D7) + the verbatim artifact-borne principle
 # sentence (D8 · PIN-13).
 doc_f '## The ratified-pin ledger + the WAIVE channel'
@@ -370,8 +401,18 @@ doc_f "slice → the named task's"
 doc_f 'end-state → the End state list · backstop →'
 doc_f 'context / non-goal → the definition row'
 doc_f 'anywhere-citation'
+# #1967 (D9): the ‡ definition clause — the marker's grammar, defined once and normatively
+# in this ledger section (Phase 1 Task 1). The anchor carries the ‡ character itself, so
+# dropping the marker from the definition reds here; it is mid-clause, so a re-wrap or
+# re-casing of the latitude-granted wording around it cannot.
+doc_f '`‡` is appended to the pin id'
 doc_f '`WAIVE-<n>` is the skip token'
 doc_f 'id · beat · fired arm · scope · reason'
+# #1967 (D9): the WAIVE row's right-delimited-id clause. The row-shape pin above stops at
+# the field list; the id-grammar half and the inherited placement law were unpinned. The
+# clause wraps after `Evidence`, so the anchor stops there — a longer literal reaching
+# `consumed block's` spans the wrap point and can never match a line-scoped grep.
+doc_f 'right-delimited id, inheriting the Evidence'
 doc_f 'reconciliation join keys only'
 doc_f 'never-a-new-required-H2 law by name'
 doc_f 'the class scope in the scope field and the utterance point in beat'
@@ -384,7 +425,7 @@ doc_f '## Evidence + slot law (shared with the template)'
 # Strategy-verifier charter (references/strategy-verifier.md, End state 2) — presence +
 # content pins: the arming principle and its four arms, the refute output contract and
 # flow bounds, the three inline degraded-mode stamps, WAIVE semantics with arm recording,
-# the explicit AFK-unwaived statement, the three leak shapes + the duty-class twice-read
+# the explicit AFK-unwaived statement, the three leak shapes + the ‡-marked twice-read
 # rule, and the six-beat worked-example calibration table.
 if [ -f "$CHARTER" ]; then
   printf 'ok - references/strategy-verifier.md exists\n'
@@ -416,6 +457,11 @@ char_f '**Half-floored pair**'
 char_f '**Ratified-but-homeless deliverable**'
 char_f '**Unvalidated join-executor claim**'
 char_f 'read **twice** at echo-back reconciliation'
+# #1967 (D9): the charter-side ‡ pin, lock-step with the doctrine-side one above. The
+# twice-read pin just above survives the ‡ rewording verbatim, so on its own the charter
+# could drop ‡ from the rule entirely with the whole suite green. This anchor carries the
+# marker itself.
+char_f '‡-marked pins'
 char_f 'six-beat incident table'
 
 # ---------------------------------------------------------------------------------------
@@ -442,6 +488,12 @@ extract_range() { # $1=file  $2=anchor (fixed substring)  $3=bound ERE — emits
 # Generic bound: next column-0 bullet opener / heading (fence-internal ## lines included —
 # they bound the template End-state slot) / fence delimiter / blank line.
 MEQ_BOUND='^- |^#|^```|^[[:space:]]*$'
+# In-fence variant (#1967, D11): the MEQ_BOUND arms plus an INDENTED sibling-bullet arm. The
+# merged-template fence indents its intent bullets, so a column-0 bound runs an in-fence
+# extraction straight through any sibling bullet that follows. Used at ONE call site — the
+# tag-set atom's SKILL-side extraction — and nowhere else; MEQ_BOUND stays byte-untouched
+# and every other atom's window is unchanged.
+MEQ_BOUND_INFENCE='^- |^#|^```|^[[:space:]]*$|^[[:space:]]+- '
 mirror_eq() { # $1=atom name  $2=SKILL-side extract  $3=doctrine-side extract
   local eq_ready=1
   if [ -z "$2" ]; then
@@ -525,7 +577,7 @@ project_tags() { # stdin: one normalized line -> encounter-ordered keyword seque
     }
   '
 }
-meq_skill="$(extract_range "$SKILL" '- End state: <numbered list' "$MEQ_BOUND" | project_tags)"
+meq_skill="$(extract_range "$SKILL" '- End state: <numbered list' "$MEQ_BOUND_INFENCE" | project_tags)"
 meq_doc="$(extract_range "$DOCTRINE" '- **Done-when law (D5):**' "$MEQ_BOUND" | project_tags)"
 meq_skill_n="$(printf '%s\n' "$meq_skill" | awk -F' > ' '{ print ($0 == "" ? 0 : NF) }')"
 meq_doc_n="$(printf '%s\n' "$meq_doc" | awk -F' > ' '{ print ($0 == "" ? 0 : NF) }')"
@@ -590,6 +642,18 @@ r7a='rules 5'
 r7b='–7'
 lacks_doc_i "$r7a$r7b"
 doc_f 'rules 5–8'
+# r8 / r9 (#1967, D9): the retired class-keyed twice-read phrases. The ‡ rewording keys the
+# rule on the marker, so the class-keyed selector is gone from BOTH doctrine surfaces and
+# the charter's old rule label with it. Presence pins close only the drop-‡ direction —
+# with every ‡ pin above installed, re-introducing these phrases stays green without these
+# twins (proven at red-team 2026-09-02). Paired positives: the ‡ pins on the same surfaces.
+r8a='landing class '
+r8b='is a duty'
+lacks_doc_i "$r8a$r8b"
+lacks_char_i "$r8a$r8b"
+r9a='duty-class '
+r9b='twice-read'
+lacks_char_i "$r9a$r9b"
 
 # Positive controls for each assembled absence pattern (#1308, D8/D11). The assembled
 # literals are unfindable by any grep, so a one-character fragment typo would leave a
@@ -601,9 +665,14 @@ doc_f 'rules 5–8'
 # variables — deriving a fixture from rN makes the control tautological; a fragment typo
 # must be able to desynchronize pattern and fixture. Fixture fragments stay split for the
 # same repo-sweep reason as the rN fragments above.
+# $4 (optional, default `lacks_i`) names the absence helper the pattern controls, so a
+# doctrine- or charter-scoped control never reports under the SKILL-scoped helper's name
+# (#1967, D10). Bash-3.2-safe default via ${4:-…}; both TAP lines carry the same name.
 ctl() { # $1=pattern number  $2=fixture (re-cased restatement)  $3=assembled rN pattern
+        # $4=helper name (optional)
+  h="${4:-lacks_i}"
   if printf '%s\n' "$2" | grep -qiF -e "$3" --; then
-    printf 'ok - lacks_i pattern %s is alive (re-cased fixture fires under -i)\n' "$1"
+    printf 'ok - %s pattern %s is alive (re-cased fixture fires under -i)\n' "$h" "$1"
   else
     printf 'not ok - pattern %s is dead\n' "$1"
     fails=$((fails + 1))
@@ -612,7 +681,7 @@ ctl() { # $1=pattern number  $2=fixture (re-cased restatement)  $3=assembled rN 
     printf 'not ok - pattern %s: -i is decorative (case-sensitive composition also fires)\n' "$1"
     fails=$((fails + 1))
   else
-    printf 'ok - lacks_i pattern %s: -i load-bearing (case-sensitive composition misses)\n' "$1"
+    printf 'ok - %s pattern %s: -i load-bearing (case-sensitive composition misses)\n' "$h" "$1"
   fi
 }
 f1a='Never Authors'
@@ -632,10 +701,16 @@ f5b='Elsewhere'
 ctl 5 "$f5a$f5b" "$r5a$r5b"
 f6a="Query '<Slug> "
 f6b="Plan-Authoring'"
-ctl 6 "$f6a$f6b" "$r6a$r6b"
+ctl 6 "$f6a$f6b" "$r6a$r6b" lacks_doc_i
 f7a='Rules 5'
 f7b='–7'
-ctl 7 "$f7a$f7b" "$r7a$r7b"
+ctl 7 "$f7a$f7b" "$r7a$r7b" lacks_doc_i
+f8a='Landing Class '
+f8b='Is A Duty'
+ctl 8 "$f8a$f8b" "$r8a$r8b" lacks_doc_i/lacks_char_i
+f9a='Duty-Class '
+f9b='Twice-Read'
+ctl 9 "$f9a$f9b" "$r9a$r9b" lacks_char_i
 
 # Commander's Intent sits BEFORE ## Build order inside the merged plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template
