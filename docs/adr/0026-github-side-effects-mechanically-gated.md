@@ -74,6 +74,44 @@ bookkeeping intent, for which no run-`ledger.json` validator exists in this repo
 is **human ledger review at Decompose** (the Lead reads the ledger's `tasks[]` against the plan's task
 list before dispatch), not a mechanical gate. No claim of mechanical validation.
 
+## Addendum (2026-08-25): the dispatched-refiner `file-followups` gh-write class
+
+Decision **(D)** says every `gh` write stays Lead-side. That is no longer literally true: the engine
+now dispatches a refiner to file follow-ups. This addendum records the class and why it holds the
+boundary the decision actually drew. The ratified text above is byte-untouched.
+
+**The class.** After a phase's land decision resolves, `workflow-template.js` dispatches ONE
+`file-followups:phase-<id>` run (`dispatchKind: file-followups`, `agentType` `war-refiner`, phase
+`Land`, schema `FOLLOWUP_FILING_RESULT`) carrying the phase's unabsorbed `follow-up`-routed findings.
+The refiner files one `war-followup` issue per cluster and returns
+`{ filed: [{ n, issue }], clusters: [{ ordinals, issue }] }`. The card
+(`agents/war-refiner.md`) and `references/file-followups.md` carry the procedure; the dispatch is
+**never out-of-mode** — declining it is silent non-filing.
+
+**Why it does not breach the decision.** The boundary (D) drew was *no unpreflighted, unbounded gh
+surface, and no hook-gated agent handed a `gh` verb* — not *no agent but the Lead ever runs `gh`*.
+
+- **(A) still gates it.** The dispatched prompt's FIRST instruction is `gh-preflight.sh "<ghUser>"`,
+  with the ratified exit contract: empty arg ⇒ documented no-op; exit 2 (tooling) or exit 3 (account
+  mismatch) ⇒ **file NOTHING and return what you have**. The batch-preflight discipline is honored,
+  not bypassed.
+- **No confinement is widened (C2).** The refiner is not a capability-confined agent under
+  [ADR 0002](0002-scope-by-agent-type.md) — its Bash is fail-open advisory, exactly like the Lead's.
+  No hook denied it `gh` before; none is loosened now. The auditor, worker, and servitor are
+  untouched.
+- **The write is bounded and typed.** One batch per phase, one dispatch, a fixed row set assembled by
+  the engine, a schema-validated return. Dedup is mandatory: an open `war-followup` match gets a
+  corroboration comment, never a duplicate issue.
+- **(B) remains the authority.** Filing is **fail-open** by design — a dead dispatch, a thrown
+  dispatch, or a non-conforming return leaves every row `issue: null` and never converts a resolved
+  land decision into `held:workflow-error`. What makes that safe is the Checkpoint floor: the
+  ledger-keyed follow-up filing floor blocks the DAG advance on any null `issue`. The mechanism that
+  *verifies* filing is still Lead-side and still keys on the ledger; only the labor moved.
+
+**Named residual.** The pre-existing `ponytail:` limitation is unchanged and now has a sibling: a
+finding the engine never routed into `minorsFiled` is invisible to both the dispatch and the floor.
+The forcing function stays the same — the audit disposition routing, not a `gh`-side validator.
+
 ## Relationship to prior ADRs
 
 - **Operates within [ADR 0002](0002-scope-by-agent-type.md) — capability-first confinement is
