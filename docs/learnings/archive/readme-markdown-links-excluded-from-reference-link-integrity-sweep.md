@@ -16,6 +16,10 @@ metadata:
     - markdown link sweep
     - dead link
     - relative link
+    - SCAN_FILES
+    - SCAN_UNITS
+    - gap closed
+    - README joins sweep
   provenance: code-verified
   slug: readme-markdown-links-excluded-from-reference-link-integrity-sweep
   phase: "2026-08-06-war-strategy-mirror-guards/phase-3 (Release, task 3.1)"
@@ -27,7 +31,7 @@ metadata:
     - test-coverage
   created: 2026-08-18
   originSessionId: db0604c4-3009-475d-8db8-5d92ff291ce2
-  modified: 2026-08-18T08:56:28.194Z
+  modified: 2026-09-03T19:12:15.298Z
 ---
 
 # README's own markdown links are outside every mechanical link-integrity sweep
@@ -64,3 +68,21 @@ every existing guard silently.
   over README's own links at all.
 
 > archived 2026-08-30: resolved — moved to archive
+
+## Correction (2026-09-03, #1673)
+
+The coverage gap this lesson describes is closed. Task 2.1 of plan
+`2026-08-25-doc-truth-and-drift-guard-debt` (phase 2), landed tip
+`6a7a46d7f2262575bf624a78be47f4dc5042ce28` on `dev/2026-08-25-doc-truth-and-drift-guard-debt`,
+added a `SCAN_FILES = ['README.md']` union member and a `SCAN_UNITS = [...SCAN_DIRS, ROOT_DIR]`
+array to `skills/war/assets/reference-link-integrity.test.mjs` (code-verified at the landed tip).
+Every floor in the file iterates `SCAN_UNITS`, not the bare `SCAN_DIRS` this lesson's body quotes —
+README.md's relative links are now inside the mechanical sweep, by a UNION extension (SCAN_DIRS
+itself is untouched and still scans only `agents/` and `skills/war/references/`; README joins
+alongside it, not by widening it).
+
+The "known, standing risk" framing above, and the "hand-verify each link target" discipline it
+recommends, no longer apply to README — a dead relative link in a `## Status` blurb now fails
+`node --test skills/war/assets/reference-link-integrity.test.mjs`. This section is a correction,
+not a rewrite: the frozen body above stays exactly as landed, since it correctly described the gap
+at the time this lesson was authored (2026-08-18).

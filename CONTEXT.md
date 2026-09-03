@@ -900,7 +900,8 @@ The end-state a phase owes the next: a tip whose quality debt is **zero or enume
 — every finding absorbed (commit-cited), filed (issue + why-not-absorbable), noted (report), or parked
 as an ask (question + fork — ruled at the Checkpoint strike-list gate, never filed unruled) — plus a
 machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, notes, endState,
-intentPresent, backstops }`) emitted on `landed` and `held:escalation` for the next phase's decompose.
+intentPresent, backstops }`) emitted on `landed`, `held:escalation` and `held:land-failed` for the
+next phase's decompose — a held land forfeits the land, not the filing fidelity.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
 
@@ -1182,162 +1183,31 @@ when a red-team gate returns `routeUpstream: true` or a campaign halts `redteam-
 
 ### Guard coverage by equivalence class (ADR 0031)
 
-**Traversal equivalence class**:
-The full set of `..`-bearing path shapes a scope guard must reject: bare `..`, leading `../*`, embedded
-`*/../*`, and trailing `*/..`. A guard covering a proper subset has a latent sandbox-escape hole even
-when downstream branches incidentally deny the rest.
-_Avoid_: rejecting only the shape that bit us (`*/../*|*/..`) — the class, not the instance, is what the
-guard covers; the reject arm stays pre-`case` so it binds every agent type (ADR 0002 D5).
-
-**Verb equivalence class (absence guard)**:
-The set of git verbs that express one forbidden behavior (e.g. `checkout` and `switch` both re-attach a
-branch). A git-surface absence guard enumerates the class in a comment and scans every verb; scanning
-one verb is false coverage the moment the surface adopts an equivalent.
-_Avoid_: scanning one verb and trusting review to remember the rest — a new equivalent verb is added to
-both the enumerating comment and the scan.
-
-**Subtree-anchored search root**:
-A guard test's grep/find root resolved to the narrowest subtree from `$SCRIPT_DIR` (never the repo root),
-so it cannot scan stale `.claude/worktrees/**` checkouts. A repo-root scan that omits a `.claude/`
-exclusion is environment-dependent and a green worktree run does not prove it correct.
-_Avoid_: a bare repo-root `grep -r`/`find` without a `.claude` exclusion — enforced by the
-`hooks/guard-conventions.test.sh` search-root lint (a deliberate exception carries an inline
-`# guard-conventions: allow <reason>` tag).
-
-**Floor⊆gate parity**:
-The tested (not inspected) equality between the test floor's discovery predicates
-(`assert-test-in-diff.sh`) and the gate's (`resolveGate` in `war-config.mjs`). Any asymmetry over- or
-under-credits test presence.
-_Avoid_: hand-mirroring the exclusion set (`node_modules`, `.git`, `.claude`) and the name globs across
-the two mechanisms with no cross-check — the parity test asserts against `resolveGate`'s *output string*,
-so a semantics-preserving refactor cannot break it.
-
-**Precondition marker**:
-A specific loud stderr token (e.g. `REL_GUARD_PRECONDITION_FAILED`) a guard emits when its environment is
-non-isolatable. A `gate_failed` carrying one is classified `environment`, never `introduced` — the reader
-consults stderr markers, not just TAP stdout.
-_Avoid_: classifying a marker-bearing `gate_failed` as `introduced` (blaming the code for a
-non-isolatable environment); the marker is carried in `gate_output` uncurated.
+**Traversal equivalence class**, **Verb equivalence class (absence guard)**, **Subtree-anchored
+search root**, **Floor⊆gate parity**, **Precondition marker**:
+when scoping a guard to the class of shapes rather than the one instance that bit us, read
+skills/war/references/glossary-cold.md
 
 ### Live artifacts over stack-fragile literals (ADR 0030)
 
-**Construct locator**:
-A plan/prompt reference by enclosing symbol or comment header (plus a change description) rather than a
-`:N-M` line range — stable across integration churn because the symbol name survives the serial merge
-queue where a line number does not.
-_Avoid_: a raw line-range literal (stale on any prior land); reserve `:N-M` for a flat config file with
-no named construct, and then qualify it as approximate against a named base sha.
-
-**Stack-fragile literal**:
-Any plan/prompt value pinned to the drafting base that rots the instant an earlier stacked task lands —
-line ranges, `*.test.sh` enumerations, suite counts, mirrored-constant final arrays, hardcoded version
-bumps, flat-key abbreviations of nested paths. The authoritative form is always the live artifact (the
-construct, the self-discovery gate, the canonical export, the worktree baseline).
-_Avoid_: restating a value the live artifact already carries — reference the artifact and let the drift
-guard or the self-discovery gate be the arbiter.
-
-**Defined-but-not-yet-emitted slice**:
-A foundation task's constant/field/prose-ref added *before* its emitter task lands; benign **iff** the
-plan carries a "produced in Task N" cross-link. Without the link, auditors misgrade the inert slice as
-dead code or an omission.
-_Avoid_: shipping a mirrored constant/schema/prose-ref whose emitter is a later task without the
-cross-link — and, as an auditor, holding an inert slice that the cross-link explains.
-
-**Grep as floor**:
-A token sweep is a completeness *floor*, not a *ceiling*: it must be backed by a manual same-scope
-title/comment survey, because same-meaning siblings encode the concept in different words and survive
-the sweep silently. (Extends the existing floor/ceiling language.)
-_Avoid_: treating "grep X, handle every match" as a completeness proof; call out each straggler the
-manual survey catches as a survey-derived correction.
-
-**Stale-looking-but-correct calibration**:
-The auditor discipline of demoting a plan↔candidate divergence to Nit **only** when the live artifact
-confirms benignity — done once per pattern in the standing auditor surface rather than re-litigated per
-seat, per pass.
-_Avoid_: a blanket amnesty — a demonstrably-untrue claim still blocks; the demotion is gated on
-live-artifact confirmation, never unconditional.
+**Construct locator**, **Stack-fragile literal**, **Defined-but-not-yet-emitted slice**, **Grep as
+floor**, **Stale-looking-but-correct calibration**:
+when a plan or prompt restates a value the live artifact already carries, read
+skills/war/references/glossary-cold.md
 
 ### Engine ingest guards & provision exit-code contract (ADR 0034)
 
-**Ingest guard**:
-A defensive check at an engine trust boundary (config file, Workflow `args`, session cwd, a relaunch's git
-state) that converts imperfect input into a *named* clean error, never a raw `TypeError` / crash. The
-`overrides` object guard, the args non-null-object guard, and the undefined-render guard are all ingest
-guards.
-_Avoid_: input sanitizer (implies mutation; these reject, not clean).
-
-**Undefined-render guard**:
-The `pt` tagged prompt template's identity check that no interpolated **value** entering a dispatched
-prompt is `undefined`; a missing prompt input throws at build time (before spawn, naming the adjacent
-literal fragment) instead of silently sending garbage to a sub-agent. Checks value identity, never prompt
-text — quoted prose "undefined" can never trip it (revised 2026-07-10, Option B).
-_Avoid_: prompt validator (too broad — this checks one signature).
-
-**Provision exit-code catalogue**:
-The named-constant table in `provision-worktrees.sh` (`EX_FOREIGN=3`, `EX_DIVERGED=7`, …) that is the
-single source of the script's non-zero exit meanings; the surfacing contract is "any non-zero = halt."
-_Avoid_: error codes (undifferentiated from git's own).
-
-**Empty-orphan reclaim**:
-The opt-in, evidence-gated self-heal by which the Provision barrier deletes and re-cuts a half-run's
-orphaned integration branch **only** after proving it carries no unique commits and is absent from origin.
-Distinct from ADR 0021's owned-file-continuity recovery relaunch (which *reuses* a branch carrying landed
-commits).
-_Avoid_: force reclaim, branch cleanup (neither names the two proofs).
-
-**Dispatch kind**:
-The stable `opts.dispatchKind` discriminator (`provision-barrier`, `provision-run`, `polish-worktree`, …)
-that identifies *which* engine dispatch a call is, so handlers/mocks/audits key on it rather than parsing
-`label` prefixes or matching on `phase` alone.
-_Avoid_: dispatch type (collides with `agent_type`).
-
-**Deliberately-unwired marker**:
-The recognized `ponytail:` / `deliberately-unwired:` comment naming *why* a construct is intentionally
-uncalled; the audit lens does not raise dead-code findings against it.
-_Avoid_: dead-code exemption (sounds like a suppression list).
+**Ingest guard**, **Undefined-render guard**, **Provision exit-code catalogue**, **Empty-orphan
+reclaim**, **Dispatch kind**, **Deliberately-unwired marker**:
+when a hand-built dispatch renders wrong, or a provision exit code needs reading, read
+skills/war/references/glossary-cold.md
 
 ### Gate composition & spec-truth guards (ADR 0036)
 
-**Gate composition point**:
-The single site in `workflow-template.js`, immediately after entry validation, where `plan.gate` is
-normalized once, in place — idempotently, via a hand-mirrored inline `resolveGate` (the
-sandbox-cannot-import rule), drift-guarded by its D2 mirror-registry row — to its self-discovering
-form; every gate-bearing dispatch site downstream renders the composed string without itself changing.
-Distinct from the Lead's Setup `--resolve-gate` pre-resolution, now the belt to this composition
-point's suspenders ([ADR 0036](docs/adr/0036-gate-self-discovery-composition-engine-owned.md)).
-_Avoid_: conflating it with `resolveGate` itself (the canonical function this point calls inline);
-expecting composition per dispatch site — it fires once, upstream of them all.
-
-**Spec-truth guard**:
-_Superseded 2026-08-16 by [ADR 0046](docs/adr/0046-specs-are-posterity-skills-cite-maintained-surfaces.md):
-emitted as rows D15–D17 (locking prose-drift-corrected spec sentences), then frozen — never
-extended. The posterity rule retires the growth premise: "only a guarded claim is drift-proof"
-inverts to "specs are frozen, so locked sentences cannot rot". The rows stay as historical locks;
-the entry below (its "defined-but-not-yet-emitted" claim now stale) is kept for archaeology._
-
-A per-claim, construct-anchored doc-contract row in `skill-doc-contracts.test.mjs` locking a
-`docs/specs/` (or SKILL.md) code-fact sentence to the mechanics it actually describes — the
-`docs/specs/` sibling of the file's existing SKILL.md rows (D10/D12 style: locate by construct, extract
-by regex, assert the truth-bearing tokens). A **defined-but-not-yet-emitted slice** as of this entry:
-its first rows are produced in Task 2.1 of the
-[gate-evidence-and-prose-truth plan](docs/plans/2026-07-14-gate-evidence-and-prose-truth.md).
-_Avoid_: a blanket markdown/AST parser over every `docs/specs/*.md` file (the ratified ceiling stays
-per-claim, not per-file); treating an unguarded spec claim as verified — only a guarded claim is
-drift-proof.
-
-**Posterity corpus**:
-The directory-scanned live-surface set the ADR 0046 citation rule sweeps — every `skills/*/SKILL.md`,
-every `skills/*/references/*.md`, every `agents/*.md`, plus `README.md` — derived from the tree,
-never from an editable in-file list; maintained by `posterityCorpus()` in
-`skills/_shared/doc-cli-consistency.test.mjs`.
-_Avoid_: conflating it with the verb-rule corpus (enumerated, deliberately narrower).
-
-**Verb-scan placement census**:
-The default-deny partition assert making every `skills/*/references/*.md` file either verb-scanned
-(`EVICTION_DESTINATIONS`) or reason-excluded (`VERB_SCAN_EXCLUSIONS`); a new references file is red
-until consciously placed; both lists live in `skills/_shared/doc-cli-consistency.test.mjs`.
-_Avoid_: "exclusion" as suppression — an excluded entry carries a stated reason and is still
-posterity-scanned.
+**Gate composition point**, **Spec-truth guard**, **Posterity corpus**, **Verb-scan placement
+census**:
+when composing a gate string, or guarding a doc claim against its spec, read
+skills/war/references/glossary-cold.md
 
 ### Run-scoped staged phase scripts (ADR 0037)
 
@@ -1489,38 +1359,10 @@ lesson-less, logged.
 _Avoid_: agents querying at spawn time (only workers may, mid-task, as an extra); a shared identical
 memory block for all seats.
 
-**Graduation candidate**:
-A durable lesson whose recurrence trail shows **≥2 re-triggers** and whose content describes a
-**machine-checkable invariant** (a greppable pattern, a diff property, an enum mirror), flagged by the
-`/lessons-learned` housekeeping pass for promotion from prose to machine enforcement (hook, floor,
-drift-guard test, or lint) with a one-line proposed enforcement shape. Flag-only: the operator decides
-what, if anything, is filed or built.
-_Avoid_: auto-filed issue, auto-built hook (the flag never implements); treating every recurring lesson
-as a candidate (only machine-checkable ones qualify).
-
-**Concept hub**:
-A lesson that is dead as a bug warning yet load-bearing as a vocabulary anchor (≥2 inbound `[[links]]`
-from siblings citing it as "same family as …"). Archived only with an explicit hub WARN; when its rule
-is resolved it is downgraded to a compressed `RESOLVED — kept as concept anchor` stub that retains its
-hot index row rather than removed ([ADR 0028](docs/adr/0028-memory-store-integrity-tool-enforced.md)).
-_Avoid_: treating inbound-ref count as staleness (a hub is stale as a warning, live as vocabulary);
-dropping the hot index row on archive (the stub keeps it).
-
-**Link trichotomy (HOT / COLD / MISSING)**:
-The three-way classification of a `[[wikilink]]` target — HOT (`<root>/<slug>.md`, keep), COLD
-(`<root>/archive/<slug>.md`, keep — a legal cold link into the queryable-forever archive), MISSING
-(neither — the only removal candidate). Adjudicated centrally by the archive-aware `safe-swap verify`,
-never by a hot-only `ls <staging>/<slug>.md` in a fan-out verifier.
-_Avoid_: calling a cold link dangling (it resolves via `resolves_in()`); a verifier recommending removal
-from a hot-only `ls` (the central check is the sole authority).
-
+**Graduation candidate**, **Concept hub**, **Link trichotomy (HOT / COLD / MISSING)**,
 **Non-destructive default (`--candidates`)**:
-A flag that reads like a query and *lists* like a query: `war-memory archive --candidates` reports the
-ranked candidate set and mutates nothing (a dry-run); archiving requires an explicit `--apply` or an
-explicit slug list (`archive <slug>…`). The mechanical replacement for the "never run `--candidates`"
-prose gotcha ([ADR 0028](docs/adr/0028-memory-store-integrity-tool-enforced.md)).
-_Avoid_: a query-shaped flag that mutates by default (the retired footgun — `--candidates` archived the
-whole ranked set); assuming `--candidates` alone still moves files.
+when running the `/lessons-learned` housekeeping pass over a memory store, read
+skills/war/references/glossary-cold.md
 
 **Finding-match check**:
 The servitor's obligation to re-confirm that an audit finding's *named construct* (the specific defect,
@@ -1542,35 +1384,9 @@ _Avoid_: grepping the dirty working tree as the sole basis (a reverted edit lies
 tree); assuming `git log -S` answers "is the token present at the path" (it answers "when did the count
 change").
 
-**Seed set**:
-The capped, manifest-mirrored portable-lesson corpus shipped at `docs/seed/seed.tar.gz` — the initial 29
-scrubbed war-game lessons, each redaction-lint-clean and free of `[[wikilinks]]`. Packed, verified, and
-evicted by `seed-pack.mjs`; capped on both axes at ≤ 50 members and ≤ 1,500,000 B uncompressed
-([ADR 0039](docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md)). A portable, plugin-shipped
-source corpus, not a per-repo store — distinct from either **Memory root**.
-_Avoid_: seed render (the Phase-0 `MEMORY.md` projection of lessons a repo already has); "corpus" left
-unqualified (name the seed set explicitly so it is never read as a repo's own memory).
-
-**Seed candidate**:
-A portable lesson nominated for the seed set. The bare `/lessons-learned` pass adds one directly inside
-`WorkAuditRefine` (gated, re-packed); from any other repo it travels as a `seed-candidate` GitHub issue
-on `Ljferrer/WorkAuditRefine` carrying the full lesson body, filed only after both-states slug dedup and
-a fail-closed redaction lint on the drafted issue.
-_Avoid_: memory-mined (a different mining loop over a repo's own defect-shaped lessons, filed under that
-label instead of `seed-candidate`).
-
-**Warm-seed**:
-Injecting the seed set into a repo's chosen memory root via `/lessons-learned seed`: unpack, ask the
-destination (`docs/learnings/` vs the local root), skip any slug already present in either root, and
-stamp each placed member's frontmatter with `metadata.seededFrom`.
-_Avoid_: seed render (that projects lessons a root already has — warm-seed instead *adds* new ones);
-sync (re-running `seed` only tops up; nothing tracks or updates a downstream repo's copy afterward).
-
-**Seed archive**:
-The overflow tier at `docs/seed/archive/` — capped at ≤ 500 members and ≤ 100 MB, grown only by
-`seed-pack.mjs evict` (append-only, never deletes), pruned only by hand.
-_Avoid_: the memory roots' cold `archive/` tier (per-repo eviction of a repo's own live lessons — a
-different mechanism with different caps; see **Hot set** / **Cold set**).
+**Seed set**, **Seed candidate**, **Warm-seed**, **Seed archive**:
+when packing, nominating for, or warm-seeding the portable `docs/seed/` corpus, read
+skills/war/references/glossary-cold.md
 
 ### Prompt-surface budgets (ADR 0042)
 
@@ -1610,9 +1426,9 @@ install root regardless of the dispatched seat's cwd (Bash-capable seats expand 
 their own shell; the auditor falls back to the card's strip-the-prefix resolution line). Supersedes
 the owner-relative agent-card skeleton (ADR 0047); remains best-effort enrichment under
 adjudication O(1) — decisive rules stay inline.
-_Avoid_: treating the pointer as the sole carrier of a blocking rule; `skills/*/SKILL.md`'s own
-owner-relative `references/<file>` skeleton (skill surfaces are read in-plugin — the supersession
-is agent-cards only).
+_Avoid_: treating the pointer as the sole carrier of a blocking rule; anchoring `skills/*/SKILL.md`
+— not the SKILL.md owner-relative `references/<file>` skeleton, which ADR 0047 point 1 leaves
+untouched (skill surfaces are read in-plugin — the supersession is agent-cards only).
 
 ### State & resume
 
@@ -1698,17 +1514,10 @@ when a stacked branch conflicts on `docs/plans` / `docs/specs` / `docs/roadmaps`
 
 ### Campaigns (multi-plan orchestration)
 
-**Roadmap**:
-The ordered **index of plans** (a meta-plan, not a plan). Its load-bearing parts are the **dependency
-spine** (strict landing order) and the **shared-file contention table** — **Code-boundary decomposition**
-applied one level up: plans touching a shared file (or the four release-slot files) **serialize** in
-queue order; file-independent plans are free-ordered (usually by version/severity). Authored via the
-`/war-strategy` template. An **authoring input and on-demand snapshot** of a campaign: `/war-campaign`
-ingests it to seed the **Campaign ledger**, and can render the ledger back out as a committable roadmap
-(machine switches, review). It is **not** the live feed — the running queue never lives in git, so two
-writers can never merge-conflict on it.
-_Avoid_: a generic product roadmap; treating it as a plan `/war` can execute directly (it indexes
-plans); treating the committed file as live campaign state (that's the **Campaign ledger**).
+**Roadmap**, **Inbox**, **Hopper**, **Write-ahead checkpoint**, **CAMPAIGN-STATE.md**,
+**Post-compact re-injection**:
+when running or resuming a `/war-campaign` stack-and-plow campaign, read
+skills/war/references/glossary-cold.md
 
 **Plan-index table**:
 The **first table** in a **Roadmap** — its ordered plan rows (`| # | Plan | Files owned | Ver | Depends on |`).
@@ -1727,46 +1536,6 @@ Lead), written atomically (temp file + rename), owned by `campaign-ledger.mjs`. 
 re-invoked campaign re-reads ledger + **Inbox** and continues; on resume the Lead reconciles the ledger
 *toward git* (`git ls-remote`, `gh pr view`) before trusting it.
 _Avoid_: committing it (that's the **Roadmap** snapshot's job); editing it by hand mid-run.
-
-**Inbox**:
-The multi-writer add path of a campaign: `.claude/campaigns/<id>/inbox/`, one file per added plan
-(maildir-style — atomic by construction, no locks). Any chat, human, or cron drops a plan reference in;
-the **Hopper** sweeps the inbox at every plan boundary, runs the shared-file contention check against
-the remaining queue, and inserts in dependency-safe order.
-_Avoid_: writing the queue directly from a second chat (single-writer ledger); using git as the add
-transport (the conflict surface the inbox exists to remove). A drop whose resolved plan path already has a ledger entry — **any** status, `landed` included — is **not** queued a second time: `sweep` refreshes that entry's `files` and reports it under `skipped`, so a re-add can never mint an undrainable duplicate.
-
-**Hopper**:
-The autonomous loop that executes a campaign — one chat running `/red-team <plan>` then
-`/war <plan> … --afk --ace` over each plan in **Campaign-ledger** queue order, driven by the
-`/war-campaign` skill. Default AFK model is **stack-and-plow**: plan N's working branch bases off plan
-N-1's landed tip and its PR targets plan N-1's branch (stacked PRs, merged bottom-up; deleting each
-merged branch cascades the next onto master). `--wait-for-merge` switches to **base-off-master** (wait
-for PR N-1 to merge, base plan N off fresh `origin/master`). Live-appendable via the **Inbox**, swept at
-each plan boundary.
-_Avoid_: pointing every stacked PR at master (cumulative diffs → shared-doc conflicts — the stacked PR
-target is plan N-1's branch); assuming Mode A works overnight (it needs a human merging each PR).
-
-**Write-ahead checkpoint**:
-The discipline of updating the resume brief (**CAMPAIGN-STATE.md**) *before* dispatching the thing you'll
-wait on — each `/red-team` launch, each `/war` phase, each `--wait-for-merge` wait, and every plan boundary.
-Freshness never depends on when compaction fires: the brief already describes *now* before the Lead blocks.
-_Avoid_: writing the checkpoint *after* the wait (compaction can strike mid-wait); treating it as
-code-enforced (it is a Lead prompt directive — the code-enforced half is **Post-compact re-injection**).
-
-**CAMPAIGN-STATE.md**:
-The Lead's curated, uncommitted resume brief — a sibling of the ledger at `.claude/campaigns/<id>/`,
-plain markdown, single-writer — carrying queue status, in-flight run/task ids, the continuation sequence,
-and gotchas so a fresh context can resume from *now*.
-_Avoid_: treating it as the authority — it is a brief *toward* git truth, not the ledger (resume still
-reconciles toward git per the ADR 0008 discipline).
-
-**Post-compact re-injection**:
-The campaign-gated `SessionStart(compact|clear|resume)` hook that restores **CAMPAIGN-STATE.md** into a
-fresh window after compaction — the code-enforced half of survival (paired with the **Write-ahead
-checkpoint** prompt directive). Silent and harmless in any session not running a campaign.
-_Avoid_: `PreCompact` blocking or summary-shaping to steer compaction — rejected (no trigger, no sensor,
-blocking rides into the ceiling); see the ADR.
 
 ### Pipeline (outer loop)
 

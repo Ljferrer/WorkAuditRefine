@@ -21,7 +21,9 @@
 # reuse-gap rows RG.1-RG.4 (untracked-files=all, deliberate-git-rm
 # disambiguation + accepted-residual header pin, SIGPIPE regression + env-error
 # arm pin, refinery hygiene arm) and holder-die rows RG.5-RG.6 (`checked out
-# at <path>` in both worktree-add failure dies).
+# at <path>` in the two worktree-add failure dies fix 1 covered: ensure-worktree
+# and ensure-refinery-worktree; ensure-publication-worktree's add-die names no
+# holder and is out of that scope).
 # Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
@@ -2776,9 +2778,14 @@ expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clea
 #
 # ensure-publication-worktree <path> <working-branch> structurally mirrors
 # ensure-refinery-worktree's (a)-(f) with the WORKING branch in place of the
-# integration branch, EXCEPT behavior (b): the publication verb also refuses a
-# DIRTY reuse (#1083, case P.8) — the refinery verb still reuses unconditionally
-# on-branch. remove-publication-worktree <path> is a NO-FORCE,
+# integration branch, less three landed divergences (the script header carries
+# the full set): behavior (b), where the publication verb also refuses a DIRTY
+# reuse (#1083, case P.8) while the refinery verb still reuses unconditionally
+# on-branch; reuse arms (b) and (c), where the refinery verb runs the
+# reuse_hygiene submodule arm and emits its WORKTREE_HYGIENE markers (#1476
+# gap 4) and this verb runs neither; and the worktree-add failure die, which
+# names no branch holder here (unfilled #1712 fix-1 scope — rows RG.5-RG.6 cover
+# the two dies that do). remove-publication-worktree <path> is a NO-FORCE,
 # dirty-guarded removal that NEVER touches the branch ref (the working branch —
 # WAR's land target — must survive; a committed-but-unpushed docs commit lives
 # on it).
