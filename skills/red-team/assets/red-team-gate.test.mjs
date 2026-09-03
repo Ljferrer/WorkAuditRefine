@@ -1026,6 +1026,9 @@ test('doc-guard D11: the retired escape-guard exit-contract wording stays absent
       `${name} exit-1 enumeration lost the new-gitignored-file escape arm`)
     assert.match(text, /snapshot's recorded ignored file set/i,
       `${name} exit-1 enumeration lost the baseline-diff basis for the gitignored arm (the snapshot's recorded ignored file set)`)
+    // Re-entry r2 (Nit): the adjacent without-baseline caveat is pinned on both surfaces too.
+    assert.match(text, /gitignored half does not run at all/i,
+      `${name} lost the without-baseline caveat (the gitignored half does not run at all)`)
   }
   // Each retired needle is built at runtime from split fragments — this row sits inside End
   // state 9's own `grep -rin` scope over skills/red-team/, so a contiguous literal here would
