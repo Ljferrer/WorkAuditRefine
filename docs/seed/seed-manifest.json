@@ -1,6 +1,14 @@
 {
   "seed": [
     {
+      "slug": "a-both-ways-proof-can-be-vacuous-twice-over-normalized-extraction-and-a-wrapped-literal",
+      "bytes": 2343,
+      "sha256": "dbdbef14f54607a7a2d767650782afe42d60ba986c166e6bcc27f0f083c063da",
+      "description": "A construct-scoped assert extracted from norm()-joined text silently yields '', and a scratch-deletion proof whose literal wraps across a source line is a no-op — either one turns a both-ways proof into theatre",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "case-glob-star-crosses-slash-prefix-needs-root-plus-nested",
       "bytes": 2236,
       "sha256": "ad76fe0410c20c809b796d49916cfb849d87ba150348acf7c2a29aabe05c4ec8",
@@ -13,6 +21,14 @@
       "bytes": 3347,
       "sha256": "4a151cd66c931f5002ab8a80bcb071027f28568895565c266ecf8c2f03b83d41",
       "description": "RESOLVED (realpathSync normalization + symlink-invocation regression tests, 2026-07-23): all three run-as-CLI guards now realpath before comparing; the real trigger was symlink invocation, not relative paths",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "compound-tap-helper-label-can-superset-match-a-sibling-labels-count-grep",
+      "bytes": 5042,
+      "sha256": "add50de5a3c8c2c749c0aed0646bc8c07a2474009053ba1d4aa3d3e1d3f0f36b",
+      "description": "A parameterized TAP helper's compound label text can substring-match a sibling label's future grep-count check",
       "type": "project",
       "provenance": "code-verified"
     },
@@ -73,12 +89,28 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "failed-cd-in-a-compound-command-runs-the-rest-in-the-main-checkout",
+      "bytes": 2983,
+      "sha256": "08a7a11d865b66560f32a9ea7151cba1d248d3c1149fcba81af343fe471693d7",
+      "description": "A failed `git worktree add` followed by `cd \\'$P\\'` does NOT stop a compound shell command",
+      "type": "feedback",
+      "provenance": "user-confirmed"
+    },
+    {
       "slug": "git-common-dir-anchor-idiom-fail-open-gotchas",
       "bytes": 4341,
       "sha256": "f349db1ef31ccda6e4afe454bb3822a4d4b4d67ba3566de0fd45114bd0a4c8e9",
       "description": "The ratified `git rev-parse --path-format=absolute --git-common-dir` main-checkout anchor idiom: two fail-open correctness gotchas",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "git-plain-pathspec-cwd-relative-vs-git-show-blob-top-of-tree-relative",
+      "bytes": 4200,
+      "sha256": "2de8d2ae8b19d707073ca3b7f7786b1253ad85db45d030b4d3f73d29e7f79e9c",
+      "description": "A shell floor script that both `git diff -- <path>` filters AND `git show <rev>:<path>` blob-reads the SAME repo-root-relative path string is inconsistent unless the diff pathspec is top-anchored (`:(top)<path>`) — git resolves a plain pathspec against the CURRENT DIRECTORY prefix, while a `rev:path` blob read is always top-of-tree relative, so a subdirectory invocation silently matches nothing on the diff side and the floor exits 0 (bypassed) though the show side would have worked fine",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "git-probing-hook-requires-fixtures-outside-any-git-repo",
@@ -201,12 +233,36 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "semaphore-peak-assertion-alone-cannot-catch-a-leaked-permit-need-drain-plus-callsite-census",
+      "bytes": 4334,
+      "sha256": "bbbb56e64eac6b7fad32652dd8f470c8010aaad01e1e1cc8e353dd9564fd9689",
+      "description": "Testing a counting semaphore needs a drain assertion after rejected dispatches, plus a default-deny call-site census — a peak-only assertion cannot catch a leaked permit, because a leak lowers the peak instead of raising it",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "shell-digit-only-value-extraction-truncates-legal-js-numeric-literal-forms",
+      "bytes": 4410,
+      "sha256": "73f56dc2d71a9a332a58463b8979d5e8377fa683d95b3d06367ce37abe189a99",
+      "description": "A shell floor's numeric-value extraction via `[0-9]+`-only regex (grep/sed) silently truncates at the first non-digit character — a legal JS numeric literal the guarded file may contain (numeric separator `100_000`, hex `0x13880`, exponent `1e5`) reads as only its leading digit run, so a raise that changes trailing digits after the separator/marker is invisible to the comparison and a ceiling-raise floor fails open",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "shell-test-suite-must-sanitize-ambient-env-var-convention-before-fixture-cases",
       "bytes": 2156,
       "sha256": "cbe6e330052cd8cc922743c7133e5e81f693b69d86b5e0f3d5e06e7cac0f5a97",
       "description": "Shell tests of an env-var-triggered code path must unset that var before pre-existing fixture cases — an ambient developer/CI export silently activates it",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "sigpipe-safe-drain-awk-idiom-fix-does-not-propagate-to-sibling-helpers-sharing-the-same-early-exit-pipeline",
+      "bytes": 4139,
+      "sha256": "065c9cfd920ae9ddbdfc67d573b2c932cd0451dae92259acaa726a168cbc6c84",
+      "description": "Fixing one SIGPIPE-fragile `cmd | grep -Fxq` pipeline under `set -o pipefail` (converting it to a draining awk idiom — a flag var + END-block exit, no early return) does not fix a sibling helper built on the identical `git ... | grep -Fxq` shape reading the same corpus; under pipefail a large-enough output makes grep's early exit SIGPIPE the upstream git, the pipeline returns 141, and an `if helper; then` caller reads that as a false negative rather than a git error — multiple auditor seats independently re-flagged the same untouched sibling across a phase without it being fixed, since it sits outside the plan's swept scope.",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "stranded-upstream-makes-safe-branch-d-refuse-a-merged-branch",
