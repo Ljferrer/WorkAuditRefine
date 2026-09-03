@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-import { lint, LINT_PATTERNS, SHAPE_RULES, parsePlanShape } from './plan-literal-lint.mjs';
+import { lint, lintInfo, LINT_PATTERNS, SHAPE_RULES, parsePlanShape } from './plan-literal-lint.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, 'plan-literal-lint.mjs');
@@ -142,16 +142,18 @@ test('combined fixture reports exactly one hit per pattern; compliant rewrite re
 // ===========================================================================
 
 // Every declared shape rule has a name AND slot text naming the merged-template slot it checks.
-test('SHAPE_RULES: nine named rules; each rule text names the merged-template slot it checks', () => {
-  assert.equal(SHAPE_RULES.length, 9);
+test('SHAPE_RULES: ten named rules; each rule text names the merged-template slot it checks', () => {
+  assert.equal(SHAPE_RULES.length, 10);
   assert.deepEqual(
     SHAPE_RULES.map((r) => r.name).sort(),
     [
       'evidence-consumed-form', 'missing-assumptions-ledger', 'pin-citation',
-      'requires-test-without-done-when', 'single-signal-oracle', 'untagged-context-claim',
-      'untagged-end-state', 'vague-end-state', 'waive-row-form',
+      'requires-test-without-done-when', 'single-signal-oracle', 'twice-read-inventory',
+      'untagged-context-claim', 'untagged-end-state', 'vague-end-state', 'waive-row-form',
     ]
   );
+  // Exactly one rule rides the informational channel — the report-only ‡ inventory.
+  assert.deepEqual(SHAPE_RULES.filter((r) => r.channel === 'info').map((r) => r.name), ['twice-read-inventory']);
   const slotAnchor = {
     'untagged-end-state': "## Commander's Intent",
     'vague-end-state': "## Commander's Intent",
@@ -162,6 +164,7 @@ test('SHAPE_RULES: nine named rules; each rule text names the merged-template sl
     'evidence-consumed-form': 'Evidence consumed',
     'single-signal-oracle': 'check:',
     'waive-row-form': 'WAIVE-<n>',
+    'twice-read-inventory': '## Resolved design tree',
   };
   for (const r of SHAPE_RULES) {
     assert.ok(r.slot.includes(slotAnchor[r.name]), `${r.name} slot text must name its merged-template slot`);
@@ -367,6 +370,48 @@ test('pin-citation: slice class requires the citation in EACH named task slice',
   assert.equal(hits[0].match, "PIN-9 uncited in Task 1.2's slice");
 });
 
+// D5: a `slice` cell naming no task has no per-task target — it degrades to anywhere-citation,
+// never a fan-out over every task in the plan. Pre-fix the empty task list fell back to
+// [...doc.taskMap.keys()], so this fixture yielded one hit per uncited task block.
+test('pin-citation: a task-less `slice` cell degrades to anywhere-citation, never a per-task fan-out', () => {
+  const mk = (cited) => [
+    ...tree('| D1 | a | r | (user) · PIN-4 | slice |'),
+    '## Notes',
+    cited ? 'The mechanism rides PIN-4 in prose.' : 'No citation anywhere.',
+    '### Task 1.1: One',
+    '- Plan slice: no pin here',
+    '### Task 1.2: Two',
+    '- Plan slice: no pin here either',
+    '### Task 1.3: Three',
+    '- Plan slice: still no pin',
+  ].join('\n');
+  // Cited anywhere outside the tree: clean. Pre-fix this reported three per-task hits.
+  assert.equal(countOf(lint(mk(true)), 'pin-citation'), 0);
+  // Uncited: at most the single anywhere-fallback outcome, never one hit per task.
+  const hits = lint(mk(false)).filter((h) => h.pattern === 'pin-citation');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].match, 'PIN-4 defined but never cited');
+});
+
+// D8: a NAMED dedicated fixture for the `non-goal` skip arm — deleting the arm reds THIS test,
+// not only the incidental dogfood anchor over the 2026-08-24 plan.
+test('pin-citation: a `non-goal` pin needs no citation — the definition row suffices', () => {
+  const doc = [
+    ...tree('| D1 | a | r | (user) · PIN-11 | non-goal |'),
+    '## Notes',
+    '- nothing cites PIN-11 anywhere, and that is conforming',
+  ].join('\n');
+  // The Notes line does cite it; strip that arm and the class skip is the only thing keeping
+  // this clean.
+  const uncited = [
+    ...tree('| D1 | a | r | (user) · PIN-11 | non-goal |'),
+    '## Notes',
+    '- no citation at all',
+  ].join('\n');
+  assert.equal(countOf(lint(doc), 'pin-citation'), 0);
+  assert.equal(countOf(lint(uncited), 'pin-citation'), 0, 'the non-goal definition row suffices');
+});
+
 test('pin-citation: class-less pin falls back to anywhere-citation; definition-without-citation reported', () => {
   const mk = (cited) => [
     ...tree('| D1 | a | r | (user) · PIN-8 | tbd |'),
@@ -379,8 +424,120 @@ test('pin-citation: class-less pin falls back to anywhere-citation; definition-w
   assert.equal(hits[0].match, 'PIN-8 defined but never cited');
 });
 
+// ---- D3: the ‡ row marker is stripped before every class / arrow-pair match ----
+// ‡ is an operator-applied row marker, never a class. Each marked form must parse into its real
+// class and then be section-checked, and the marker alone must never fire an error-shaped rule.
+const markedDoc = (cellSource, cell) => [
+  ...tree(`| D1 | a | r | ${cellSource} | ${cell} |`),
+  "## Commander's Intent",
+  '- **Binding guardrails:** nothing pinned here',
+  '## Notes',
+  '- PIN-3 is mentioned here, outside its landing-class section',
+].join('\n');
+
+test('D3 ‡: a LEADING-‡ class cell parses as its real class and is section-checked (red at base)', () => {
+  // Pre-fix `‡ guardrail` fails CLASS_TOKEN's `^` anchor, leaving the pin class-less — the
+  // anywhere-citation fallback then found the Notes mention and reported zero hits.
+  const hits = lint(markedDoc('(user) · PIN-3', '‡ guardrail')).filter((h) => h.pattern === 'pin-citation');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].match, 'PIN-3 uncited in Binding guardrails');
+});
+
+test('D3 ‡: the ARROW-PAIR form `PIN-3‡→guardrail` yields the pin and its class (red at base)', () => {
+  // Pre-fix the arrow regex's `(?!\w)\s*(?:→|->)` never matched across `‡`, and the whole cell
+  // then failed CLASS_TOKEN — so the row contributed ZERO design pins.
+  const doc = markedDoc('(user)', 'PIN-3‡→guardrail');
+  assert.equal(parsePlanShape(doc).designPins.length, 1, 'the arrow-pair row defines its pin');
+  const hits = lint(doc).filter((h) => h.pattern === 'pin-citation');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].match, 'PIN-3 uncited in Binding guardrails');
+});
+
+test('D3 ‡: the TRAILING-‡ cell and the Source-cell `PIN-3‡` id parse (no-regress at base)', () => {
+  for (const [src, cell] of [['(user) · PIN-3', 'guardrail ‡'], ['(user) · PIN-3‡', 'guardrail']]) {
+    const hits = lint(markedDoc(src, cell)).filter((h) => h.pattern === 'pin-citation');
+    assert.equal(hits.length, 1, `${src} | ${cell}`);
+    assert.equal(hits[0].match, 'PIN-3 uncited in Binding guardrails');
+  }
+});
+
+test('D3 ‡: the marker alone fires no error-shaped rule — a cited marked pin is clean', () => {
+  const doc = [
+    ...tree('| D1 | a | r | (user) · PIN-3 | guardrail ‡ |'),
+    '## Assumptions ledger',
+    'None.',
+    "## Commander's Intent",
+    '- **Binding guardrails:** the fence holds (PIN-3)',
+  ].join('\n');
+  assert.deepEqual(lint(doc), []);
+  assert.equal(lintInfo(doc).length, 1, 'the marker reports on the informational channel only');
+});
+
+// ---- D3-inventory (OD-1): the report-only ‡ inventory, on its own informational channel ----
+test('twice-read-inventory: exactly one row per ‡-marked pin; an unmarked tree yields none', () => {
+  const marked = [
+    ...tree(
+      '| D1 | a | r | (user) · PIN-1 | guardrail ‡ |',
+      '| D2 | b | r | (user) · PIN-2‡ | context |',
+      '| D3 | c | r | (user) | PIN-3‡→context |',
+      '| D4 | d | r | (user) · PIN-4 | context |',
+    ),
+    "## Commander's Intent",
+    '- **Binding guardrails:** the fence holds (PIN-1)',
+  ].join('\n');
+  assert.deepEqual(
+    lintInfo(marked).map((h) => h.match),
+    [
+      'PIN-1 is ‡-marked — twice-read at echo-back',
+      'PIN-2 is ‡-marked — twice-read at echo-back',
+      'PIN-3 is ‡-marked — twice-read at echo-back',
+    ],
+    'one row per marked pin — the unmarked PIN-4 is absent'
+  );
+  // Every inventory row rides the informational channel only.
+  assert.equal(countOf(lint(marked), 'twice-read-inventory'), 0);
+  const unmarked = marked.split('‡').join('');
+  assert.deepEqual(lintInfo(unmarked), []);
+});
+
 test('pin-citation: silent on a doc with no design tree', () => {
   assert.equal(countOf(lint("## Commander's Intent\n- **Binding guardrails:** none"), 'pin-citation'), 0);
+});
+
+// ---- D7: the intent-bullet marks resolve inside the tracked intent span, not document-wide ----
+test('D7: a decoy bold guardrails/end-state mark before the intent section does not redirect targets', () => {
+  const doc = [
+    '## Context — the gap / problem',
+    '- The charter quotes **Binding guardrails:** and **End state:** as labels here.',
+    '- No pin is cited in this decoy region.',
+    '',
+    ...tree('| D1 | a | r | (user) · PIN-5 | guardrail |', '| D2 | b | r | (user) · PIN-6 | end-state |'),
+    "## Commander's Intent",
+    '- **Binding guardrails:** the fence holds (PIN-5)',
+    '- **End state:**',
+    '  1. It lands (PIN-6) · check: `bash t.sh`',
+  ].join('\n');
+  // Pre-fix the document-wide findIndex captured the Context decoys, so both real citations
+  // were invisible and both pins reported uncited.
+  assert.equal(countOf(lint(doc), 'pin-citation'), 0);
+  const shape = parsePlanShape(doc);
+  assert.match(shape.guardrailText, /the fence holds \(PIN-5\)/);
+  assert.match(shape.endStateText, /It lands \(PIN-6\)/);
+});
+
+test('D7: a doc with no intent heading yields null marks — never a region borrowed from elsewhere', () => {
+  const doc = [
+    '## Notes',
+    '- **Binding guardrails:** a decoy label with no intent section above or below it',
+    '- **End state:** another decoy label',
+  ].join('\n');
+  const shape = parsePlanShape(doc);
+  assert.equal(shape.guardrailText, null);
+  assert.equal(shape.endStateText, null);
+  // A guardrail-class pin then takes the anywhere-citation fallback (fail-open), not the decoy.
+  const withPin = [...tree('| D1 | a | r | (user) · PIN-5 | guardrail |'), doc].join('\n');
+  assert.equal(countOf(lint(withPin), 'pin-citation'), 1);
+  assert.match(lint(withPin).find((h) => h.pattern === 'pin-citation').match, /anywhere fallback failed/);
 });
 
 // The dogfood anchor (Task 1.3): the lint↔doctrine pair shares the plan as its common anchor —
@@ -448,6 +605,23 @@ test('waive-row-form: a five-field row is clean; a short row is flagged with its
   assert.match(hits[0].match, /3 of 5 fields/);
 });
 
+// D6: the id is right-delimited by `(?!\w)`, the sibling PIN-<n> grammar. Pre-fix the `(?!\d)`
+// detector ADMITTED a `WAIVE-1a` row and its five fields passed clean, so the malformed id was
+// never reported. The bare tighten alone would make the row invisible, so the rule gained a
+// malformed-id arm — less advisory signal is not the fix.
+test('waive-row-form: a letter-suffixed `WAIVE-1a` row is reported as malformed (red at base)', () => {
+  const row = '- WAIVE-1a · beat 3 · arm: enforcement-layer · scope: this beat · reason: operator call';
+  const hits = lint(row).filter((h) => h.pattern === 'waive-row-form');
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].match, /malformed WAIVE id — letter suffixes are illegal/);
+  // A multi-digit id is NOT a malformed id — the digit run never backtracks into the arm.
+  assert.equal(countOf(lint('- WAIVE-12 · beat 3 · arm: a · scope: b · reason: c'), 'waive-row-form'), 0);
+  // A short malformed row reports the id defect, not a field count.
+  const short = lint('- WAIVE-2b · beat 3').filter((h) => h.pattern === 'waive-row-form');
+  assert.equal(short.length, 1);
+  assert.match(short[0].match, /malformed WAIVE id/);
+});
+
 test('waive-row-form: a mid-prose mention or the doctrine\'s `WAIVE-<n>` placeholder is not a row', () => {
   assert.equal(countOf(lint('skips are recorded as WAIVE-1 in the fix-or-waive channel'), 'waive-row-form'), 0);
   assert.equal(countOf(lint('- `WAIVE-<n>` is the skip token; five fields: id · beat · arm'), 'waive-row-form'), 0);
@@ -460,7 +634,9 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '## Context — the gap / problem',
     'The stub is a 7-line shim routing elsewhere.',
     '',
-    ...tree('| D1 | a | r | (user) · PIN-7 | guardrail |'),
+    // The ‡-marked row is context-class: its definition row suffices, so it adds an
+    // inventory row on the informational channel and no hit on the defect channel.
+    ...tree('| D1 | a | r | (user) · PIN-7 | guardrail |', '| D2 | b | r | (user) · PIN-8‡ | context |'),
     '',
     "## Commander's Intent",
     '- **Binding guardrails:** nothing pinned here',
@@ -481,8 +657,14 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '- WAIVE-1 · beat 3 · reason: operator call',
   ].join('\n');
   const hits = lint(badPlan);
-  for (const name of SHAPE_RULES.map((r) => r.name)) assert.equal(countOf(hits, name), 1, name);
+  // The inventory rule reports on the informational channel, so it is not in `hits` — the loop
+  // skips it and the hit-count literal stays 9 even though SHAPE_RULES now holds ten rules.
+  for (const name of SHAPE_RULES.filter((r) => r.channel !== 'info').map((r) => r.name)) {
+    assert.equal(countOf(hits, name), 1, name);
+  }
   assert.equal(hits.length, 9, 'no line-rule noise in this fixture');
+  // …and the ‡-marked row surfaces exactly once, on the informational channel only.
+  assert.deepEqual(lintInfo(badPlan).map((h) => h.match), ['PIN-8 is ‡-marked — twice-read at echo-back']);
 
   const goodPlan = [
     '# T — one line',
@@ -515,6 +697,9 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '- WAIVE-1 · beat 3 · arm: enforcement-layer · scope: this beat · reason: operator call',
   ].join('\n');
   assert.deepEqual(lint(goodPlan), []);
+  // The compliant fixture is ‡-free, so the informational channel is empty too.
+  assert.ok(!goodPlan.includes('‡'), 'goodPlan stays ‡-free');
+  assert.deepEqual(lintInfo(goodPlan), []);
 });
 
 // ---- CLI contract: report-and-exit-0 default, --strict non-zero on hits ----
@@ -539,6 +724,21 @@ test('CLI: default exit 0 even with hits; --strict exits 1 on hits; --strict exi
   const strictClean = spawnSync('node', [CLI, clean, '--strict'], { encoding: 'utf8' });
   assert.equal(strictClean.status, 0, '--strict exit 0 when clean');
   assert.match(strictClean.stdout, /clean/);
+});
+
+// D3-inventory channel exclusion: ‡-marking is mandated authoring, never a defect — so an
+// inventory row must not move the exit code, `--strict` included.
+test('CLI: a ‡-marked plan with no other hits reports the inventory row and exits 0 under --strict', () => {
+  const f = writePlan([
+    '## Resolved design tree',
+    '| # | Decision | Resolution | Source | Landing class |',
+    '|---|----------|------------|--------|---------------|',
+    '| D1 | a | r | (user) · PIN-1‡ | context |',
+  ].join('\n'));
+  const strict = spawnSync('node', [CLI, f, '--strict'], { encoding: 'utf8' });
+  assert.equal(strict.status, 0, 'the informational channel never reaches anyHit');
+  assert.match(strict.stdout, /clean/);
+  assert.match(strict.stdout, /info twice-read-inventory: PIN-1 is ‡-marked/);
 });
 
 test('CLI: shape-rule hits print the merged-template slot and still exit 0 without --strict', () => {
