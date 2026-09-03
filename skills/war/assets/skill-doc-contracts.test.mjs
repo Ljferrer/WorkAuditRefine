@@ -2731,6 +2731,9 @@ test('D40 — schemas.md carries the widened enum/field/return/handoff/producer 
 // literals verified present at the plan's implementation base `a60221a` and retired at this task's
 // base by merged dep Task 2.1 — the absence asserts guard against a revert of that widening, never
 // a never-present value (PIN-8): `the two producers above` and `` `absorb` is never defaulted ``.
+// This test also carries the #1708 own-gh-write routing arm for the region's TWO Lead-side filing
+// sites (the ask ruling gate and the sibling follow-up filing floor), pinned per bullet with its
+// own OLD-absent literal — see the block comment beside it.
 test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ruling gate; Decompose producers widened at both sites (#1550)', () => {
   const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
   assert.ok(checkpoint, 'could not locate the `## Checkpoint` section in SKILL.md — construct rotted')
@@ -2768,6 +2771,49 @@ test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ru
   ]) {
     assert.match(cp, re, `the SKILL.md Checkpoint must carry ${what} (#1550, Task 2.1's duty pinned here per rule 7)`)
   }
+  // (#1708) THE TWO LEAD-SIDE FILING SITES EACH EXECUTE AS THEIR OWN PREFLIGHTED gh-write, AFTER
+  // the per-phase batch has closed — the ruled-ask filing site (this gate rules after that batch)
+  // and the sibling follow-up filing floor (it fires at the Checkpoint, likewise after it). The
+  // retired routing sent both writes INTO a batch that is already closed by the time either fires.
+  // Extraction is PER BULLET, never region-wide: both bullets live in this same `## Checkpoint`
+  // region and now share the `gh-write of its own` vocabulary, so a region key would match the
+  // sibling and stay non-discriminating for the bullet it names (the recorded
+  // [[region-scoped-drift-guard-can-stay-vacuous-when-a-sibling-construct-shares-vocabulary-in-the-same-region]]
+  // lesson). Each extraction must span its own tail marker (D26's non-vacuity floor). The
+  // OLD-absent key cites the retired literal `inside the preflighted per-phase gh-write batch`,
+  // verified present TWICE at the plan's measurement base c8c22e5 and retired by this task — the
+  // `## Per phase` section's own legitimate batch line reads `inside the same preflighted
+  // per-phase gh-write batch` and is deliberately not matched (PIN-8).
+  for (const [name, re, tail, tailWhat] of [
+    ['the ask ruling gate bullet', /^- \*\*Ask ruling gate[\s\S]*?(?=\n- \*\*|\n## |$)/m, /never mints one/, 'its `--afk` suppression-row tail'],
+    ['the follow-up filing floor bullet', /^- \*\*Follow-up filing floor[\s\S]*?(?=\n- \*\*|\n## |$)/m, /Never advance over a null/, 'its never-advance-over-a-null-issue tail'],
+  ]) {
+    const bullet = checkpoint[0].match(re)
+    assert.ok(bullet, `could not locate ${name} in the \`## Checkpoint\` section — the extraction construct rotted (#1708)`)
+    const b = norm(bullet[0])
+    assert.match(b, tail, `the extracted ${name} must span ${tailWhat} — extraction truncated (non-vacuity floor)`)
+    assert.match(
+      b,
+      /gh-write of its own/i,
+      `${name} must route its Lead-side filing as its OWN gh-write, not into the per-phase batch (#1708)`,
+    )
+    assert.match(
+      b,
+      /gh-preflight\.sh/,
+      `${name} must name its own \`gh-preflight.sh\` run — an own-site write carries no batch preflight (#1708)`,
+    )
+    assert.match(
+      b,
+      /(?:has already closed|has closed)/i,
+      `${name} must state that the per-phase gh-write batch is already closed when this write fires (#1708)`,
+    )
+  }
+  assert.ok(
+    !/inside the preflighted per-phase gh-write batch/i.test(skillMd),
+    'the retired `inside the preflighted per-phase gh-write batch` routing must be gone from ' +
+      'SKILL.md (OLD-absent, base-verified at c8c22e5; the `## Per phase` batch line reads ' +
+      '`inside the same preflighted per-phase gh-write batch` and is untouched; PIN-8, #1708)',
+  )
   // Decompose step-5 producer widening — both edit sites of the one bullet (D5 · PIN-6).
   const s = norm(skillMd)
   assert.match(s, /the Checkpoint['’]s ask rulings/i, 'Decompose step 5 must enumerate the third producer (edit site 1)')
