@@ -518,7 +518,7 @@ test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline d
 // the companion commit that completed the same task (the widening landed in fbadb88, the D19
 // comment rewrite in the immediately-following 13a83a4) and now reads "two at this row's
 // authoring; three since the #1550 ask-ruling widening", so citing it as the carrier would name
-// a byte-run the widening removed. Never a count word on a never-present value. Same extraction
+// a byte-run the D19 comment rewrite removed. Never a count word on a never-present value. Same extraction
 // construct as D19.
 test('D19a — CONTEXT.md **Adjudication** producer enumeration is widened two → three, old count literal retired (#1550)', () => {
   const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
@@ -2256,7 +2256,7 @@ test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired fo
 // on both surfaces — the bolded glossary term → next bolded term or `###` heading, and rule 8's
 // numbered bullet → the next numbered rule or `##` heading — never a whole-file scan, because
 // war-strategy/SKILL.md repeats this row's tokens OUTSIDE rule 8: at this task's base it carries
-// three `de-mirror` hits and three `plan defect` hits, one and two of them outside rule 8 (a
+// three `de-mirror` hits and four `plan defect` hits, one and two of them outside rule 8 (a
 // dated count snapshot), so a whole-file key would green with rule 8 itself deleted. It also
 // carries two `explicitly defer` hits, both inside rule 8 itself — included for the full
 // token-count picture, not as evidence of outside-rule-8 repetition. (The trichotomy's two
