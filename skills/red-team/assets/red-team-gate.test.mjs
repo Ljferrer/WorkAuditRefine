@@ -943,6 +943,29 @@ test('doc-guard 5.5(d): the retired per-blocker-only ROUNDS accounting wording i
   }
 })
 
+// --- Phase 3 Task 3 (D15, #1971): the End-state-rewrite sweep rule and its Step-5 trigger pointer.
+// Same 5.5(c) shape — anchors are quote-free mid-clause tokens, matched case-insensitively.
+
+test('doc-guard D15: loop-budget.md carries the four-surface End-state-rewrite sweep rule', () => {
+  // Paired, never two presence-anywhere probes: the four named surfaces and the red-at-base
+  // re-execution are one rule. A tree that kept the heading but dropped either half goes red.
+  assert.match(LOOP_BUDGET, /rewrites an end state[\s\S]{0,400}?design-tree row[\s\S]{0,200}?owning task's plan slice[\s\S]{0,200}?`check:` literal/i,
+    'loop-budget.md lost the four-surface sweep (design-tree row, owning task plan slice, End-state condition, check: literal)')
+  assert.match(LOOP_BUDGET, /re-execute the new `check:` at base and confirm it red/i,
+    'loop-budget.md lost the red-at-base re-execution half of the End-state-rewrite rule')
+  assert.match(LOOP_BUDGET, /the grep is a floor, never the whole duty/i,
+    'loop-budget.md lost the grep-is-a-floor hand-scan duty inside the End-state-rewrite rule')
+})
+
+test('doc-guard D15(pointer): SKILL.md Step 5 carries the ADR 0042 trigger pointer for the rewrite rule', () => {
+  // Pointer shape is fixed (ADR 0042): trigger THEN read, one paired regex — a bare link with no
+  // trigger clause, or a drifted target, reds here.
+  const step5 = SKILL.match(/^5\. [\s\S]*?(?=^6\. )/m)?.[0]
+  assert.ok(step5, 'Step 5 must be extractable (a line-anchored "5. " item followed by a "6. " item)')
+  assert.match(step5, /when patching an end state,\s*read\s+\[?references\/loop-budget\.md/i,
+    'SKILL.md Step 5 lost the ADR 0042 trigger pointer (when patching an End state, read references/loop-budget.md)')
+})
+
 // --- Task 1.2 (#1366, D8): blank-line guard rows — the Route-upstream **Re-entry:** line must not
 // lazy-continue into the agenda bullet. Quote-free regex anchors keyed on the Re-entry token and a
 // preceding empty line, tolerant of the line's tail text (doctrine may reword it).
@@ -995,6 +1018,15 @@ test('doc-guard D11: the retired escape-guard exit-contract wording stays absent
     'lenses.md escape-guard bullet lost the widened exit-2 contract enumeration (unreadable or zero-byte baseline)')
   assert.match(LENSES, /an exit 1 routes the verdict/i,
     'lenses.md escape-guard bullet lost the exit-1-scoped routing clause')
+  // Phase 3 Task 3 (D17): the exit-1 enumeration on BOTH doc surfaces mirrors the gitignored-file
+  // arm the escape guard landed (arbiter: assets/assert-no-repo-escape.test.sh). A doc surface that
+  // reverts to the pre-widening enumeration reds here.
+  for (const [name, text] of [['SKILL.md', SKILL], ['references/lenses.md', LENSES]]) {
+    assert.match(text, /new non-allowlisted gitignored file/i,
+      `${name} exit-1 enumeration lost the new-gitignored-file escape arm`)
+    assert.match(text, /snapshot's recorded ignored file set/i,
+      `${name} exit-1 enumeration lost the baseline-diff basis for the gitignored arm (the snapshot's recorded ignored file set)`)
+  }
   // Each retired needle is built at runtime from split fragments — this row sits inside End
   // state 9's own `grep -rin` scope over skills/red-team/, so a contiguous literal here would
   // self-match and permanently false-red that check. Matching is case-insensitive (R1).

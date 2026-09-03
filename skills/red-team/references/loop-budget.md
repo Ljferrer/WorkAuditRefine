@@ -17,6 +17,8 @@ Advisory fast-fail (prose-only pending field data; gate-typing is a deferred bac
 
 **Patches state the final rule; genealogy lives in `## Adjudications`.** A plan patch writes the corrected text as if it had always been so — no "changed from X to Y" narrative, no superseded literal left beside its replacement, no inline changelog. The history of the change — what the patch replaced, who ruled, when — is recorded as rows in the report's `## Adjudications` block, each row carrying its own provenance token (`operator-ratified (<date>)` or `AI-declared`). A plan body that accretes genealogy is itself a patch-cascade signal.
 
+**An End-state rewrite sweeps four surfaces in the same patch.** When a patch rewrites an End state, grep the plan for the old requirement's distinctive wording and fix every hit — the design-tree row, the owning task's plan slice, the End-state condition text, and the `check:` literal — in the same patch. Then re-execute the new `check:` at base and confirm it red before the patch counts; prefer both halves, a new-present check and an old-absent check. The grep is a floor, never the whole duty: after it, hand-scan the plan's design tree, its task slices, and its backstop rows for paraphrases the distinctive-wording grep cannot catch, and fix those in the same patch. A rewrite that lands on one surface only leaves a stale `check:` certifying the wrong outcome as green, and the miss surfaces post-merge at gate-audit rather than here.
+
 ## The `## Route upstream` block
 
 On a route-upstream terminal, Step 6 appends this block to the report — the residual questions phrased as the `/war-strategy` regrill agenda, plus the exact re-entry command:
