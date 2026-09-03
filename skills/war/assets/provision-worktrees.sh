@@ -1567,15 +1567,26 @@ cmd_ensure_refinery_worktree() {
 # ensure-publication-worktree <path> <working-branch>
 #
 # Ensure+re-attach for the Gate-2 learnings-publication worktree (p<N>-publication).
-# Structurally mirrors cmd_ensure_refinery_worktree's six behaviors byte-for-byte
-# EXCEPT that the refinery's reuse paths (b)/(c) additionally run the
-# reuse_hygiene submodule arm (#1476 gap 4), which this publication verb
-# deliberately does not, and EXCEPT behavior (b), which here also refuses a
-# DIRTY reuse (#1083; the refinery
-# counterpart deliberately keeps today's six behaviors — extending the refusal
-# there interacts with the serial merge queue's legitimate in-flight state and is
-# a recorded non-goal), with the WORKING branch in place of the integration
-# branch: the Lead checks out the working branch here to commit
+# Structurally mirrors cmd_ensure_refinery_worktree's six behaviors, with the
+# WORKING branch in place of the integration branch, and with THREE landed
+# divergences. This list is the full set: mirror a change between the two verbs
+# only after reading it.
+#   1. Reuse arms (b) and (c). The refinery verb runs the reuse_hygiene submodule
+#      arm and emits its WORKTREE_HYGIENE markers (#1476 gap 4). This verb runs
+#      neither, because a publication worktree commits docs only, never submodule
+#      content, so no examined submodule state is ever handed on.
+#   2. Behavior (b). This verb also refuses a DIRTY reuse (#1083); the refinery
+#      counterpart deliberately keeps today's six behaviors — extending the
+#      refusal there interacts with the serial merge queue's legitimate in-flight
+#      state and is a recorded non-goal.
+#   3. The worktree-add failure die. The refinery twin names the branch holder
+#      (`checked out at <path>`, #1712 fix 1); this die does not. That is
+#      unfilled #1712 scope, not a decision — the adjudicated row scoped fix 1 to
+#      the two dies the test-file header names. The practical exposure is small:
+#      resolve-working-branch guarantees the working branch is checked out
+#      nowhere, and path (e) prunes a stale registration before the add.
+#
+# The Lead checks out the working branch here to commit
 # `docs(learnings): phase N` before pushing via ensure-origin's CAS. It checks the
 # branch out AS-IS AT THE LOCAL TIP — the land path's land-advance already
 # advanced the local follower ref on every successful land, so REF staleness is
@@ -1586,13 +1597,16 @@ cmd_ensure_refinery_worktree() {
 # A dirty tree (tracked-file modifications) always FAILS LOUD — never reset, never
 # destroy work. Untracked files (e.g. the .war-task marker) do not count as dirty.
 #
-# Behaviors (mirror ensure-refinery-worktree; (b) diverges — dirty refusal):
+# Behaviors (mirror ensure-refinery-worktree, less divergences 1-3 above; (b)
+# diverges by the dirty refusal, (b) and (c) both by the missing hygiene arm):
 #   (a) Not registered / empty dir  -> git worktree add <path> <working-branch>
 #                                       + .war-task marker.
 #   (b) Registered + present + HEAD on the working branch + CLEAN -> reuse
-#                                       (marker only); DIRTY -> FAIL LOUD.
+#                                       (marker only, no reuse_hygiene);
+#                                       DIRTY -> FAIL LOUD.
 #   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to the
-#                                       working branch (re-attach) + marker.
+#                                       working branch (re-attach) + marker,
+#                                       no reuse_hygiene.
 #   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
 #   (e) Stale registry (dir gone)   -> prune + recreate on the working branch.
 #   (f) Non-empty unregistered dir  -> FAIL LOUD (D7).
