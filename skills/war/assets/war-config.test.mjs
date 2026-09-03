@@ -1247,6 +1247,18 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
     ['skills/war/references/design.md',
       /`round_limit=6`/,
       /\bround_limit\s*=\s*3\b/],
+    // Tour arm (#1565): the architect tour's step 7 narrates the fix budget as
+    // `roundLimit` (6). The file is JSON, so both patterns are derived from its
+    // landed JSON-string bytes (backticks are literal there, no escaping).
+    ['.tours/architect-war-system.tour',
+      /up to `roundLimit` \(6\)/,
+      /up to `roundLimit` \(3\)/],
+    // README arm (#1565): the defaults paragraph narrates the same budget in
+    // prose. Guard gap opened by the README rescope — the OLD-absent form is the
+    // prose shape, `3-round`, not the identifier form the rows above watch.
+    ['README.md',
+      /a 6-round fix budget \(`run\.roundLimit`\)/,
+      /\b3-round\b/i],
   ]
   for (const [rel, newPresent, oldAbsent] of surfaces) {
     const text = readDoc(rel)

@@ -87,3 +87,16 @@ stands.**
 - A future plan reverting to a repo-relative or owner-relative card skeleton must supersede this
   ADR explicitly and flip the OLD/NEW assert families in the same diff — the same discipline
   this ADR records.
+
+## Amendment (2026-09-03) — D3 scope, and the scope of item 1's "unchanged"
+
+Appended by plan `2026-08-25-doc-truth-and-drift-guard-debt` Phase 1 Task 1.3 (#1981, #1537,
+#1545, #1678). Every ratified sentence above stays as written; these rows are the corrected
+record.
+
+| # | Amends | Correction |
+|---|---|---|
+| A1 | Item 1, "[ADR 0042](0042-prompt-surface-budgets.md)'s pointer doctrine … is unchanged by this ADR" | Scope qualification. This phase anchored the **path half** of the agent-card pointer, so "unchanged" holds only for the **trigger-grammar half** of ADR 0042's pointer shape — the `when <trigger>, read …` grammar, and the rule that a pointer without a trigger is a defect. ADR 0042's path form on agent cards is superseded by the Decision above, exactly as item 1 already says for O(2)/O(3). |
+| A2 | Item 2, the auditor row's "**fallback-first**" framing | The D3 resolution line is a **plugin-repo-only** path, not a foreign-repo one. It fires only when the repo under review is the plugin itself, as the line's own text says. On a foreign target repo the auditor seat has no D3 resolution at all: resolution rests on harness substitution (recorded unverified-by-construction), and O(1)'s inline decisive rules are the operative carrier. The row's closing sentence — an auditor that resolves nothing on a foreign repo is never worse off than under the prior owner-relative form — is unaffected. |
+| A3 | Item 2, the no-shell seats row ("share the auditor's fallback path: the D3 resolution line, then O(1)'s inline decisive rules") | Same scope correction as A2. The servitor and setup-scout seats reach the D3 line only on the plugin repo; on a foreign target repo they fall straight through to O(1)'s inline decisive rules. |
+| A4 | Consequences, the `worker-servitor-edges.md` bullet | That header was requalified in this pass. It no longer presents the D3 line as a foreign-repo resolution path. Its Bash-capable-seats clause ("expand the placeholder in their own shell … even on a foreign target repo") is true and stays. |

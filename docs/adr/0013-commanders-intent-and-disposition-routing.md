@@ -184,6 +184,18 @@ are two channels, and the seat records both. Ratified by
 (D2/D8, Tasks 1.2/3.1/3.2; red-team F5/F7, operator-ratified 2026-08-05). This amendment leaves the
 ratified body above — beyond the Status currency line — byte-unchanged.
 
+**Qualification (2026-08-25): the vacuous-phase carve-out to all-`deferred`.** The bullet above states
+"Whole-pass absence stays all-`deferred`" as an absolute. It now carries one carve-out, landed with the
+engine's vacuous-phase clamp. A phase that DECLARED tasks but landed zero is vacuous: the tip carries
+no work from the phase, so a `check:` executed at that unchanged tip proves nothing about work never
+done. On such a phase every claimed condition lands **`unverified`** with the zero-tasks-ran note, not
+`deferred` — clamped ahead of both derivation channels, so an end-state-only seat's `met` attestation
+on a vacuous tip can never land green. The absolute stands everywhere else: a non-vacuous phase whose
+gate-audit did not run is still all-`deferred`. Two shapes are deliberately NOT vacuous — a ratified
+zero-task claims-bearing launch (no tasks declared), and a fully pre-merged recovery phase (the
+barrier-recovered `preMerged` ids count as landed). This note is appended, not a retro-edit: the
+ratified bullet above stays byte-unchanged.
+
 ## Amendment (2026-08-17): the latitude-clause reading
 
 Decision 3 made the plan slice the floor and the intent the ceiling, but left the ceiling's shape
@@ -242,6 +254,17 @@ already-landed mechanisms:
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
+
+**Correction (2026-08-25): the absorb-eligibility block's home.** The
+source-derivable-absorb-eligibility row above attributes the clarified `disposition:'absorb'` block to
+"the standing auditor card". That attribution was true when ratified and is stale now: the 0.20.0
+ADR-0042 eviction moved the eligibility block byte-identically to
+[`skills/war/references/disposition-eligibility.md`](../../skills/war/references/disposition-eligibility.md),
+which is its normative home. `agents/war-auditor.md` retains only the trigger pointer into that file.
+The calibration itself is unchanged — mechanical-regardless-of-value-count, "single-file" read on the
+fix's write footprint — and the mirrored DISPOSITION RULE sentences and `auditPrompt()` are still
+untouched. Read the row's "standing auditor card" as naming the reference file today. This note is
+appended, not a retro-edit: the ratified row above stays byte-unchanged.
 
 ## Amendment (2026-08-25): the `ask` disposition — park the finding, rule at the Checkpoint
 
