@@ -1,6 +1,6 @@
 ---
 name: guard-duty-authored-in-an-earlier-phase-cannot-bind-a-normative-home-landing-in-a-later-phase
-description: "A drift-guard row for a glossary/duty entry whose real normative home spans MULTIPLE phases…"
+description: "A phase-N drift guard cannot bind a normative home that lands in phase M; schedule an explicit phase-M task to re-bind the guard row."
 metadata: 
   node_type: memory
   type: project
@@ -28,65 +28,37 @@ metadata:
   modified: 2026-08-25T07:01:40.480Z
 ---
 
-# A guard row can never bind a normative home that lands in a later PHASE — deps edges don't cross phases
+# A guard row cannot bind a normative home that lands in a later PHASE; deps edges do not cross phases
 
-## What happened (code-verified at the landed tip)
+**Rule:** when a plan authors a glossary or guard-row entry in phase N for a mechanism whose
+real normative home lands in a later phase M, the phase-N task's drift guard can only bind the
+phase-N-reachable proxy or consumption surface. A `deps` edge orders waves within one phase
+(CLAUDE.md, "Code-boundary decomposition"); it never reaches a later phase's content, and the
+frozen phase base means the later surface does not exist yet. The worker cannot fix this by
+trying harder. If the full binding matters, the plan must schedule an explicit task in phase M
+or later to widen the guard's key set against the landed surface. Without that task the thin
+binding is permanent and silent, because every End state and check still passes.
 
-Verified at `959d1fa1d69e5fea368ebc4be64d2eab833df15a` on `claude/authoring-side-verification-600a79`
-(read via the `_refinery` worktree at `.claude/war-worktrees/authoring-side-verification-2026-08-24/_refinery`,
-HEAD == the landed tip exactly).
+**What happened:** the D36 test in `skills/war/assets/skill-doc-contracts.test.mjs` mirrors
+CONTEXT.md glossary terms against their canonical authoring-surface homes. The
+`Evidence-artifacts duty` row was authored in Phase 2 (Task 2.3, `deps: []`) on one generic
+key bound to `skills/war-strategy/references/plan-interview.md`, the consumption side. Its real
+homes (the `/survey-corps` issue template, `/war`'s clustered filing prompt, the ADR 0044
+amendment) landed in Phase 3. Both audit seats routed it `note` / `follow-up`, not a hold: the
+gap was a consequence of splitting one entry's guard duty across phases, not a defect in the
+diff. The plan scheduled no Phase-3 task to come back and strengthen the row.
 
-`skills/war/assets/skill-doc-contracts.test.mjs`'s D36 test (~line 2116-2179) mirrors eight new
-CONTEXT.md glossary terms against their canonical war-strategy-authoring-surface homes. Seven rows
-bind cleanly. The **`Evidence-artifacts duty`** row (line 2175-2179) is the exception: it carries
-exactly one generic key (`/Evidence\s+artifacts[`*_]{0,2}\s+section/i`) bound to
-`skills/war-strategy/references/plan-interview.md` — the term's **consumption** side. The
-glossary entry's own body (CONTEXT.md) names the term's real normative homes as "the `/survey-corps`
-memory-mined issue template" (Task 2.2, same phase — reachable) and "`/war`'s clustered filing
-prompt" plus "the ADR 0044 amendment" (Tasks 3.2 and 3.1 — **Phase 3**, a later phase entirely).
+**Fixed in** commit `45a66a8` (PR #1992, re-bind #1652/#1676): the row in `D36_ROWS` now binds
+all three homes (ADR 0044 `### Evidence-duty home`, `/survey-corps` Step 0.3, the
+`workflow-template.js` filing emission clause) under a `(D36, re-bind #1652/#1676)` comment
+that cites this lesson.
 
-Task 2.3 carries `deps: []`. Per this repo's own decomposition rule (CLAUDE.md, "Code-boundary
-decomposition": *"dependency ⇒ `deps` wave edge **in the same phase** … phase edges only for what
-must be landed first"*), a `deps` edge from a Phase-2 task can never reach a Phase-3 task's content
-— that mechanism is scoped to within-phase ordering only. So unlike the established
-[[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] class (same phase,
-different wave — fixable with a `deps` edge) this is structurally unfixable from inside Task 2.3:
-there is no edge that lets this task's guard see Phase 3's content at all. The worker correctly
-bound the row to the nearest reachable surface (the consumption side) instead, leaving the row's
-real substance — the two filing homes and the ADR 0044 decision-record note — completely unguarded
-until Phase 3 lands, and this plan does not schedule any Phase-3 task to come back and strengthen
-the row afterward.
-
-## Why this is not a worker or plan defect
-
-Both audit seats that caught this routed it `note`/`follow-up`, not `absorb` or a hold — the gap is
-a genuine consequence of splitting one glossary entry's guard duty from its multi-phase-spanning
-producing surfaces, not a mistake in Task 2.3's own diff. This is the sibling class to
-[[count-mirror-guard-duty-split-across-tasks-can-leave-a-third-doc-surface-permanently-unguarded]]
-(same-phase named-arm-forms enumeration gap) — same underlying failure mode (a guard row's binding
-surface set doesn't match its full mirror set), different root cause (there the gap was an
-enumeration omission within one phase; here it is a phase-boundary the `deps` mechanism cannot
-cross at all).
-
-## The durable rule
-
-When a plan authors a glossary/guard-row entry in phase N for a mechanism whose real normative
-home is split across phase N and a later phase M, the phase-N task's drift guard can **only** ever
-bind the phase-N-reachable proxy/consumption surface — never the true home. This is not a latitude
-choice the worker can fix by trying harder; it is enforced by the frozen-phase-base architecture
-itself. If durability of the full binding matters, the plan must **explicitly schedule a follow-up
-task in phase M (or later)** to widen the guard's key set against the newly landed normative
-surface — absent that scheduled task, the thin binding is permanent, silently, because every named
-End state and check still passes.
-
-## Locate-cue (verify still present before acting)
-
-`skills/war/assets/skill-doc-contracts.test.mjs`, the D36 test block (~line 2102-2200), specifically
-the `Evidence-artifacts duty` entry (~line 2175-2179) versus its seven siblings in the same test.
+**Locate-cue:** `skills/war/assets/skill-doc-contracts.test.mjs`, the `D36_ROWS` constant and
+its `Evidence-artifacts duty` entry, plus the `(D36, re-bind #1652/#1676)` header comment.
 
 ## Related
 
-[[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] — the same-phase
-sibling class where a `deps` edge IS the fix.
+[[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] (archived): the
+same-phase sibling class where a `deps` edge IS the fix.
 [[count-mirror-guard-duty-split-across-tasks-can-leave-a-third-doc-surface-permanently-unguarded]]
-— the same-phase enumeration-gap sibling class.
+(archived): the same-phase enumeration-gap sibling class.

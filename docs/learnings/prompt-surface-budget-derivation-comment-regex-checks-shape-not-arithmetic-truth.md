@@ -1,6 +1,6 @@
 ---
 name: prompt-surface-budget-derivation-comment-regex-checks-shape-not-arithmetic-truth
-description: "prompt-surface-budgets.test.mjs's per-row derivation-guard only regexes for a 'post-shrink N B @ sha'-shaped substring and a '×1.25'/'×1.10'-shaped substring — it never checks that the cited sha's actual blob size or the stated arithmetic result are true, so a plausible but false citation passes the gate silently"
+description: "A budget-raise citation's regex guard checks shape only; hand-verify the cited blob size and recompute the multiplier math."
 metadata: 
   node_type: memory
   type: project
@@ -33,39 +33,36 @@ metadata:
 
 # A budget-derivation citation comment's guard test checks shape, not truth
 
-**Code-verified** at landed tip `ad440fc0b65dfbfdf797b8f8b83f44b0d4531b50` on
-`dev/2026-08-30-engine-concurrency-and-pin-transfer` (landed-tip grounding rung 2: `_refinery38`
-worktree, gitdir physical path containing the plan slug, `HEAD` equal to the threaded tip).
-`skills/war/assets/prompt-surface-budgets.test.mjs` lines 300-301 define the per-row
-derivation-guard as:
+**Code-verified** on `dev/2026-08-30-engine-concurrency-and-pin-transfer` and re-confirmed
+against the live tree. In `skills/war/assets/prompt-surface-budgets.test.mjs`, the per-row
+derivation guard is the `const DERIVATION` / `const MULTIPLIER` regex pair:
 
 ```js
 const DERIVATION = /post-shrink [\d,]+ B(?: \([^)\n]*\))? @ [0-9a-f]{7}/;
 const MULTIPLIER = /×1\.25|×1\.10/;
 ```
 
-These are the SOLE checks a row's citation comment must satisfy (referenced at lines ~338/345).
-Both only assert that a citation-**shaped** substring and a multiplier-**shaped** substring exist
-somewhere in the comment — neither confirms the cited short-sha's actual `git cat-file -s
-<sha>:<path>` byte count matches the stated number, nor that applying the stated multiplier to
-that number reproduces the row's actual `hard`/`advisory` value.
+These are the SOLE checks a row's citation comment must satisfy. Both only assert that a
+citation-**shaped** substring and a multiplier-**shaped** substring exist somewhere in the
+comment. Neither confirms that the cited short sha's actual `git cat-file -s <sha>:<path>` byte
+count matches the stated number, nor that applying the stated multiplier to that number
+reproduces the row's actual `hard` / `advisory` value. The file has no `cat-file` call and no
+size recompute anywhere.
 
-**Demonstrated by a near-miss this same phase (not a live instance — the flawed row never
-landed).** This phase's `p2-polish` drafted a `CONTEXT.md` budget-raise comment reading
-"post-shrink 127,482 B @ deb37b5 → hard ×1.25 ceil-KB = 128,000 B". Across two rejected audit
-rounds, five independent seats confirmed BOTH numbers false: `deb37b5`'s `CONTEXT.md` blob is
-126,976 B, not 127,482 B (127,482 B was actually the size only after the polish task's own,
-different commit); and 127,482 × 1.25 ceil-KB is 159,744, not 128,000. The `DERIVATION` and
-`MULTIPLIER` regexes would have passed either way — both false numbers are still shape-valid.
-The row never landed: `p2-polish`'s diff was `polish-rejected` then `polish-discarded`, and
-`CONTEXT.md`'s entry in `prompt-surface-budgets.test.mjs` at this phase's landed tip still reads
-the pre-raise `{ hard: 126976, advisory: 111616 }` — confirmed by direct Read.
+**Demonstrated by a near-miss (the flawed row never landed).** A `p2-polish` dispatch drafted a
+`CONTEXT.md` budget-raise comment reading "post-shrink 127,482 B @ deb37b5 → hard ×1.25 ceil-KB
+= 128,000 B". Five independent audit seats across two rejected rounds confirmed BOTH numbers
+false: the `deb37b5` blob is 126,976 B (127,482 B was the size only after the polish task's own
+commit), and 127,482 × 1.25 ceil-KB is 159,744, not 128,000. The `DERIVATION` and `MULTIPLIER`
+regexes would have passed either way. The polish diff was rejected then discarded, and the
+`CONTEXT.md` row in `prompt-surface-budgets.test.mjs` still reads
+`{ hard: 126976, advisory: 111616 }`.
 
-**Pattern to watch for:** when authoring or reviewing a `PIN-17`/`ADR 0042`-style budget-raise
-citation comment, hand-verify the cited sha's actual blob size and recompute the stated formula —
-the test suite's derivation guard will not catch a plausible-looking but false citation; only its
-`hard`/`advisory` NUMBER is load-bearing to the test, never its justifying prose.
+**Pattern to watch for:** when authoring or reviewing a `PIN-17` / `ADR 0042` budget-raise
+citation comment, hand-verify the cited sha's blob size and recompute the stated formula. The
+derivation guard will not catch a plausible but false citation. Only the row's `hard` /
+`advisory` NUMBER is load-bearing to the test, never its justifying prose.
 
 **Locate-cue (verify still present before acting):**
-`skills/war/assets/prompt-surface-budgets.test.mjs`, the `DERIVATION`/`MULTIPLIER` regex
-definitions (search `const DERIVATION`).
+`skills/war/assets/prompt-surface-budgets.test.mjs`, the `DERIVATION` / `MULTIPLIER` regex
+definitions (search `const DERIVATION`) and the per-row assertions that reference them.

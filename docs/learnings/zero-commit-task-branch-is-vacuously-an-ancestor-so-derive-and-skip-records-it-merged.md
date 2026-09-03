@@ -1,6 +1,6 @@
 ---
 name: zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged
-description: "A recovery relaunch's derive-and-skip marks a NEVER-STARTED task (zero-commit branch at the phase base) as preMerged — the handoff reports it landed, the ledger records merged, and the phase lands without its deliverable"
+description: "A zero-commit task branch is vacuously an ancestor of the tip, so derive-and-skip falsely records it merged; check the commit count"
 metadata: 
   node_type: memory
   type: project
@@ -27,83 +27,36 @@ metadata:
   modified: 2026-08-30T14:48:17.863Z
 ---
 
-`git merge-base --is-ancestor <task-branch> "$TIP"` is **vacuously true for a branch sitting at
-the phase base with no commits**. A task that dep-failed (or never dispatched) in an earlier
-attempt leaves exactly that branch, so a sanctioned recovery relaunch's derive-and-skip clause
-reports it `preMerged`, the workflow's `landed[]` includes it, the ledger records `merged`, and
-the Lead closes its issue — **while its deliverable does not exist anywhere in the window**.
+**Rule:** `git merge-base --is-ancestor <task-branch> "$TIP"` is vacuously true for a branch sitting at the
+phase base with no commits. A task that dep-failed or never dispatched in an earlier attempt leaves exactly
+that branch. A sanctioned recovery relaunch's derive-and-skip then reports it `preMerged`, the handoff lists
+it in `landed[]`, the ledger records `merged`, and the Lead closes its issue, while the deliverable does not
+exist anywhere in the window. A gate-audit does not catch it when every needle it checks belongs to a task
+that really landed.
 
-Observed three times in ONE run (2026-08-27-in-run-finding-resolution, plugin 0.20.1):
-phase-1 tasks 1.2/1.3 in relaunch `-r2`, and phase-2 task 2.1 (the release bump) in `-r3`.
-The 2.1 case landed a phase claiming a release while
-`git diff --stat <base> <tip> -- .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md CHANGELOG.md`
-was **empty** — the CLAUDE.md-named silent-no-op release, in its degenerate zero-slot form.
+**Still open (#1895):** the `deriveSkipClause` in `skills/war/assets/workflow-template.js` (search
+`SANCTIONED RECOVERY RELAUNCH — derive-then-cut`) still gates only on `merge-base --is-ancestor`; the barrier
+`preMerged` intake has no commit-count check. A partial guard exists only on the merge-slot pin-transfer
+path: an empty post-rebase diff with zero task commits fails closed as `empty-unmatched` (#1931).
 
-**It also defeats a gate-audit.** Phase 1's gate-audit passed because every needle it checked
-belonged to task 1.1, which really had landed; 1.2/1.3's End states had no owning artifact to
-contradict. Detection in all three cases came only from the Lead's Checkpoint
-**reconcile-toward-git** (ADR 0008) — the ledger claimed work git could not corroborate.
+**Fix shape:** derive-and-skip must also require `git rev-list --count <base>..<branch>` > 0 before deriving
+`preMerged`; a zero-commit branch takes the fresh-run path. Pair it with a phase-level assertion that every
+task the handoff reports `landed` contributed at least one commit to the integration range.
 
-**Fix shape (filed, #1895):** derive-and-skip must additionally require
-`git rev-list --count <base>..<branch>` > 0 before deriving `preMerged`; a zero-commit branch
-takes the fresh-run path. Pair it with a phase-level assertion that every task the handoff
-reports `landed` contributed at least one commit to the integration range.
+**How to apply until it lands:**
+- Before trusting any relaunch's `preMerged` set, or any `recovered:pre-merged` audit-log verdict, run
+  `git rev-list --count <base>..<branch>` for each skipped task and diff the window for its `Files:`.
+- Delete stale zero-commit task branches before relaunching; that removes the vacuous input entirely.
+- Reconcile toward git at Checkpoint (ADR 0008): a ledger claim git cannot corroborate is the only detection
+  seen so far.
+- An End state a gate-audit records `unverified` (scoped out of another task's attestation) is not evidence
+  the artifact exists.
 
-**Operator-side rule until that lands:** before trusting any relaunch's `preMerged` set, diff the
-window for each skipped task's `Files:` — and delete stale zero-commit branches before relaunching,
-which removes the vacuous input entirely.
+**Why it matters:** the degenerate case is a release-bump task whose phase lands with an empty diff on the
+four version slots (the CLAUDE.md-named silent no-op release), or an ADR-authoring task whose ADR never
+appears.
 
-## Recurrence — third distinct manifestation, the #1895 fix confirmed STILL absent from code,
-## `2026-08-30-engine-concurrency-and-pin-transfer`/phase-2 task 2.2 (landed
-## `dev/2026-08-30-engine-concurrency-and-pin-transfer` @ `ad440fc0b65dfbfdf797b8f8b83f44b0d4531b50`,
-## 2026-08-30)
-
-**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery38`
-worktree's `gitdir` physical path is
-`<repo-root>/.claude/war-worktrees/engine-concurrency-and-pin-transfer-2026-08-30-r3/_refinery/.git`
-(contains the plan slug's components, title-then-date order) and its `HEAD` reads
-`ad440fc0b65dfbfdf797b8f8b83f44b0d4531b50`, exactly the threaded landed tip — a direct Read there
-is `code-verified`-capable.
-
-This phase's audit log records task 2.2 — the sole owner of the plan's one new ADR (PIN-9,
-Commander's Intent End-state 7) — with `verdict: "recovered:pre-merged"`, note "recovered:
-pre-merged on adopted integration branch": the derive-and-skip signature exactly. Independently
-confirmed at the landed tip: `docs/adr/` contains only `0001-*.md` through `0048-*.md` (48 files,
-Glob-confirmed) — no `0049-*` or `00NN-*` ADR exists anywhere. Independently confirmed via
-`.git/refs/heads/war/2026-08-30-engine-concurrency-and-pin-transfer/p2-2.2` = commit
-`fb185988820aee1fdbc8fd0ca4db5f59b38ba0f3` — the SAME sha the phase's own `p2-polish` audit cited
-as the shared phase-2 dispatch base (`git merge-base` of the two sibling task branches) — task
-2.2's branch carries **zero commits**, never dispatched to a worker.
-
-**The #1895 fix shape is still absent from the code at this landed tip.** Read directly:
-`skills/war/assets/workflow-template.js`'s `deriveSkipClause` (search for "SANCTIONED RECOVERY
-RELAUNCH — derive-then-cut") still gates purely on
-`` `git merge-base --is-ancestor <that task's branch> "$TIP"` holds ``, with no
-`git rev-list --count <base>..<branch> > 0` guard anywhere in the clause or its surrounding
-comment block (lines ~1776-1784) — byte-shape-identical to the pre-#1895 code this lesson's
-original entry describes. This is the THIRD distinct run this bug has manifested in (after the
-two `2026-08-27-in-run-finding-resolution` instances), and the first observed case where it
-swallowed an entire deliverable task (an ADR-authoring task, not a release-bump or doc-only task)
-into a false `preMerged`.
-
-**Sharper twist this time:** a phase-close polish audit (`p2-polish`) DID independently detect the
-gap — its own gate-audit raised an `ask`-dispositioned Minor finding naming task 2.2's zero-commit
-branch and the missing ADR, with a fork offering "land now, file follow-up" vs. "hold and
-re-dispatch task 2.2." But the polish round's fix diff was itself rejected on unrelated grounds
-(`verdict: "polish-rejected"`, citing a stale/incorrect budget-raise citation comment), the
-re-audit outcome was `verdict: "polish-discarded"`, and — per
-[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — a discarded
-terminal polish round drains no queue. The `ask` was never surfaced to an operator for a ruling;
-phase 2 landed with task 2.2's entire deliverable absent and End-state 7 unmet (the gate-audit
-recorded it `status: "unverified"`, not `"unmet"`, only because the check was scoped out of task
-2.1's own attestation — not because the artifact was confirmed present).
-
-**Pattern to watch for, extended:** this bug is not merely unfixed — a `recovered:pre-merged`
-verdict on any task in a sanctioned-recovery-relaunch run is now confirmed to warrant an explicit
-zero-commit check (`git rev-list --count <base>..<branch>`) by the Lead/servitor before trusting
-the task's deliverable exists, regardless of how many runs pass without the engine bug being hit.
-
-**Locate-cue (verify still present before acting):** `skills/war/assets/workflow-template.js`, the
-`deriveSkipClause` definition — search `SANCTIONED RECOVERY RELAUNCH — derive-then-cut` — for the
-absence of any `rev-list --count` / commit-count guard alongside the `merge-base --is-ancestor`
-check.
+Recurrences: 3 in two runs (2026-08-27-in-run-finding-resolution tasks 1.2, 1.3, 2.1;
+2026-08-30-engine-concurrency-and-pin-transfer task 2.2, where a `p2-polish` gate-audit raised an `ask` naming
+the gap, but the discarded terminal polish round drained no queue, see
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]).
