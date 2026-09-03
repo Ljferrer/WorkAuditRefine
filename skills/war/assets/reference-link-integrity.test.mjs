@@ -1,6 +1,8 @@
 // reference-link-integrity.test.mjs — durable link-resolution + retired-citation +
-// header-truth + revert-doctrine + step-4-citation sweep over the two prose roots that
-// carry references/ pointers (plan 2026-08-02-references-pointer-link-truth Task 1.3;
+// header-truth + revert-doctrine + step-4-citation + D3-fallback sweep over the prose
+// surfaces that carry references/ pointers: the two scan directories plus README.md, the
+// root-level file entry that joined in 2026-08-25-doc-truth-and-drift-guard-debt Phase 2
+// (#1673) (plan 2026-08-02-references-pointer-link-truth Task 1.3;
 // source spec docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.6, and the
 // mechanical homes for that plan's End states 4-6; hardened by plan
 // 2026-08-06-references-pointer-integrity Task 1.1 — anchored-form resolution,
@@ -13,10 +15,10 @@
 // wiring needed.
 //
 // Self-match note (the coupling-comment lesson — a comment that restates a sweep's own
-// pattern bytes becomes a hit for that sweep): the scans below read ONLY *.md files under
-// agents/ and skills/war/references/. This file is a .mjs under skills/war/assets/, so
-// neither its pattern literals nor the carrier names quoted in these comments can ever be
-// counted by the sweeps they document.
+// pattern bytes becomes a hit for that sweep): the scans below read ONLY *.md files —
+// those under agents/ and skills/war/references/, plus the named root-level README.md.
+// This file is a .mjs under skills/war/assets/, so neither its pattern literals nor the
+// carrier names quoted in these comments can ever be counted by the sweeps they document.
 //
 // Root is resolved from import.meta.url — NEVER process.cwd() (the suite's standing idiom:
 // a subagent's cwd is the main repo and resets between bash calls).
@@ -37,6 +39,20 @@ const AGENTS_DIR = 'agents';
 const REFERENCES_DIR = 'skills/war/references';
 const SCAN_DIRS = [AGENTS_DIR, REFERENCES_DIR];
 
+// README.md joins the same sweep (#1673) as a root-level FILE entry, not a scan directory:
+// the repo root holds unrelated non-prose files, so scanning it as a directory would widen
+// this sweep far past the prose surfaces it guards. The directory-scan design above is
+// preserved untouched — SCAN_DIRS still scans, and each named root-level file below is
+// resolved repo-root-relative and joins SCANNED alongside the scanned directories. A second
+// root-level prose surface joins by name here (UNION extension), never by widening SCAN_DIRS.
+const ROOT_DIR = '.';
+const SCAN_FILES = ['README.md'];
+
+// Every scan UNIT — the two scan directories plus the root-level file entry. The non-vacuity
+// floors below iterate this, not SCAN_DIRS, so a README that stops contributing a resolvable
+// link reds here instead of passing as "no dead links".
+const SCAN_UNITS = [...SCAN_DIRS, ROOT_DIR];
+
 function scan(dir) {
   return readdirSync(join(REPO_ROOT, dir))
     .filter((f) => f.endsWith('.md'))
@@ -49,7 +65,12 @@ function scan(dir) {
     }));
 }
 
-const SCANNED = SCAN_DIRS.flatMap(scan);
+function scanFile(rel) {
+  const abs = join(REPO_ROOT, rel);
+  return { dir: ROOT_DIR, rel, abs, text: readFileSync(abs, 'utf8') };
+}
+
+const SCANNED = [...SCAN_DIRS.flatMap(scan), ...SCAN_FILES.map(scanFile)];
 
 // --- Construct extraction ----------------------------------------------------------
 // Shared by the header-truth and revert-doctrine arms. Anchored on headings, never on line
@@ -121,7 +142,8 @@ const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
 /**
  * Permitted resolution roots for one link target — the resolver states TOLERANCE (D6),
  * deliberately not shape: a file-relative target resolves from the carrying file's own
- * directory; an agents/ target additionally resolves repo-root-relative; and a target
+ * directory (for a root-level file entry that directory IS the repo root, so its relative
+ * targets resolve repo-root-relative); an agents/ target additionally resolves repo-root-relative; and a target
  * beginning with the literal plugin-root placeholder resolves its remainder against
  * REPO_ROOT (plugin root ≡ repo root in this repo), from either scan dir. Link SHAPE
  * enforcement stays per-card in workflow-template.test.mjs — a scan-wide shape assert here
@@ -140,7 +162,7 @@ function resolutionRoots(file, target) {
 test('reference link integrity — every markdown link target under agents/ and skills/war/references/ resolves to a real file', () => {
   // Non-vacuity floor: an empty scan would satisfy every assert below without checking
   // anything (delete-the-feature test: the sweep must be observably running).
-  for (const dir of SCAN_DIRS) {
+  for (const dir of SCAN_UNITS) {
     assert.ok(
       SCANNED.some((f) => f.dir === dir),
       `scan of ${dir}/ found no *.md files — every assert in this suite would pass vacuously`,
@@ -151,9 +173,19 @@ test('reference link integrity — every markdown link target under agents/ and 
   // resolve here and now, BEFORE any scanned card carries it — a broken prefix literal
   // would otherwise first surface as a confusing dead-link red at the card-flip task's
   // merge. Probe target: this suite file itself, which always exists.
+  // The probe target is spelled as LITERAL BYTES, never `PLUGIN_ROOT_PREFIX + ...` (#1542):
+  // round-tripping the constant through the resolver it feeds made this control
+  // self-satisfied — any edit to the constant moved probe and expectation together and the
+  // control stayed green. The constant's own bytes are asserted first, so a changed prefix
+  // reds here by name.
+  assert.equal(
+    PLUGIN_ROOT_PREFIX,
+    '${CLAUDE_PLUGIN_ROOT}/',
+    'anchored-form control failed — PLUGIN_ROOT_PREFIX no longer holds the ratified plugin-root placeholder bytes',
+  );
   const anchoredProbe = resolutionRoots(
     { dir: REFERENCES_DIR, abs: join(REPO_ROOT, REFERENCES_DIR, 'auditor-teach.md') },
-    PLUGIN_ROOT_PREFIX + 'skills/war/assets/reference-link-integrity.test.mjs',
+    '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/reference-link-integrity.test.mjs',
   );
   assert.deepEqual(
     anchoredProbe,
@@ -166,7 +198,7 @@ test('reference link integrity — every markdown link target under agents/ and 
   );
 
   const dead = [];
-  const resolvedPerDir = new Map(SCAN_DIRS.map((d) => [d, 0]));
+  const resolvedPerDir = new Map(SCAN_UNITS.map((d) => [d, 0]));
 
   for (const file of SCANNED) {
     const targets = [...file.text.matchAll(LINK_TARGET)].map((m) => m[1]);
@@ -205,7 +237,7 @@ test('reference link integrity — every markdown link target under agents/ and 
 
   // Second non-vacuity floor: each root must have contributed at least one resolvable
   // target, so an extractor that stopped matching cannot pass as "no dead links".
-  for (const dir of SCAN_DIRS) {
+  for (const dir of SCAN_UNITS) {
     assert.ok(
       resolvedPerDir.get(dir) > 0,
       `no resolvable markdown link target found under ${dir}/ — the resolution arm did not actually run`,
@@ -240,7 +272,7 @@ test('reference link integrity — every markdown link target under agents/ and 
 // leaves the three sanctioned carriers above green.
 const RETIRED_CITATION = /\([^)]*(?:SKILL\.md[^)]*co-source-of-truth|co-source-of-truth[^)]*SKILL\.md)[^)]*\)/gi;
 
-test('reference link integrity — the retired SKILL.md co-source-of-truth citation form is absent from both prose roots', () => {
+test('reference link integrity — the retired SKILL.md co-source-of-truth citation form is absent from every scanned prose surface', () => {
   // Positive control (non-vacuity): the pattern must still FIRE, in both token orders,
   // against synthetic literals of the retired form — a negative-only assert would stay
   // permanently, silently green after a stray escape or renamed token broke the pattern.
@@ -273,12 +305,12 @@ test('reference link integrity — the retired SKILL.md co-source-of-truth citat
 });
 
 // --- Arm 3: header truth --------------------------------------------------------------
-// The eviction-destination references/ files whose headers must carry the qualified
-// byte-identity claim: the four this pass re-qualified, plus glossary-cold.md — the
-// CONTEXT.md eviction destination that joined later (every new eviction destination joins
-// this list on creation; UNION-extension precedent). Read by direct readFileSync and NOT
-// filtered out of the scan results: fail-closed, so a rename throws ENOENT loudly instead
-// of narrowing the check to whatever files still happen to match.
+// EVERY live eviction destination under skills/war/references/ — each one's header must
+// carry the byte-identity claim qualified "at eviction time". The list is a UNION that only
+// ever grows: a new eviction destination joins it on creation, and an existing destination
+// found unlisted joins it in the same touch that notices the gap. Read by direct
+// readFileSync and NOT filtered out of the scan results: fail-closed, so a rename throws
+// ENOENT loudly instead of narrowing the check to whatever files still happen to match.
 const QUALIFIED_HEADERS = [
   'resume-and-recovery.md',
   'submodule-flows.md',
@@ -298,6 +330,11 @@ const QUALIFIED_HEADERS = [
   // Run-manifest per-stamp field-detail eviction destination, byte-funding the card's
   // 56 B of remaining headroom (joined on creation per the UNION-extension precedent above).
   'run-manifest.md',
+  // doc-truth-and-drift-guard-debt Phase 2 Task 1 (#1538/#1535/#1446): two pre-existing
+  // SKILL.md eviction destinations that were never listed. Both headers were qualified "at
+  // eviction time" in this same touch — pin-after-fix, never a guard authored from issue text.
+  'setup.md',
+  'docker-gate.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {
@@ -357,8 +394,10 @@ test('reference link integrity — the re-basing caveat and the no-path-form cla
   );
 
   // THIRD retirement pattern (End state 13's suite regex of record, added by /red-team
-  // round 1): the retired cross-repo header claim. Same axes, same controls; scanned over
-  // the same header regions the qualification check reads.
+  // round 1): the retired cross-repo claim. Same axes, same controls — but scanned over the
+  // WHOLE TEXT of every scanned file (#1677), the same scope RETIRED_REBASING_CAVEAT above
+  // takes. A header-region scope let the identical retired claim survive anywhere below the
+  // first '## ' heading, in exactly the files this arm reads.
   const RETIRED_NO_PATH_FORM_CLAIM = /no\s+path\s+form\s+resolves/i;
   assert.match(
     'On a foreign target repo no path form resolves this file at all',
@@ -371,7 +410,10 @@ test('reference link integrity — the re-basing caveat and the no-path-form cla
     'wrapped positive control failed — RETIRED_NO_PATH_FORM_CLAIM no longer matches a line-wrapped reintroduction of the retired claim',
   );
 
-  const noPathFormCarriers = [];
+  const noPathFormCarriers = SCANNED.filter((f) => RETIRED_NO_PATH_FORM_CLAIM.test(f.text)).map(
+    (f) => f.rel,
+  );
+
   for (const name of QUALIFIED_HEADERS) {
     const header = headerRegion(readFileSync(join(REPO_ROOT, REFERENCES_DIR, name), 'utf8'));
     assert.ok(
@@ -383,16 +425,15 @@ test('reference link integrity — the re-basing caveat and the no-path-form cla
       EVICTION_TIME_QUALIFIER,
       `${REFERENCES_DIR}/${name}: the header's byte-identity claim is not qualified "at eviction time" (checked in the header region — the text before the file's first '## ' heading)`,
     );
-    if (RETIRED_NO_PATH_FORM_CLAIM.test(header)) noPathFormCarriers.push(name);
   }
   // Exemption retired (Task 1.4's own edit, closing the C7 intermediate pin): the claim's
   // last live carrier — worker-servitor-edges.md's header — was re-truthed to the
   // plugin-root-anchored seat-capability matrix (ADR 0047), so the pattern holds at zero
-  // carriers across every scanned header.
+  // carriers across every scanned file, body prose included.
   assert.deepEqual(
     noPathFormCarriers,
     [],
-    `retired no-path-form claim reintroduced in a scanned header:\n  ${noPathFormCarriers.join('\n  ')}`,
+    `retired no-path-form claim reintroduced in a scanned file:\n  ${noPathFormCarriers.join('\n  ')}`,
   );
 });
 
@@ -506,5 +547,36 @@ test('reference link integrity — the step-4 citation in auditor-teach.md resol
   assert.ok(
     teachHeader.includes(citedFile),
     `${teachRel}: the header region no longer mentions ${citedFile} — the step-4 citation's repaired-home note went stale`,
+  );
+});
+
+// --- Arm 6: the D3 plugin-repo fallback sentence (#1539) -----------------------------
+// Phase 1 requalified the D3 fallback: the placeholder-stripping fallback is conditioned on
+// the repo under review being the plugin itself. Every seat card states it in one sentence,
+// and this arm pins those bytes against the merged wording so a partial requalification —
+// one card reworded, the other four left stale — reds instead of drifting silently.
+
+// Copied from the merged tree, byte for byte. Spelled as a plain SINGLE-QUOTED string and
+// compared with String.prototype.includes — grep -F semantics, never a regex and never a
+// template literal: the sentence carries `${CLAUDE_PLUGIN_ROOT}` twice, which a template
+// literal would interpolate and a regex would read as an anchor plus a character class (D6).
+const D3_FALLBACK_SENTENCE =
+  "If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.";
+
+test('reference link integrity — every agents/ seat card carries the plugin-repo-conditioned D3 fallback sentence verbatim', () => {
+  const cards = SCANNED.filter((f) => f.dir === AGENTS_DIR);
+  // Non-vacuity floor, stated as a MINIMUM rather than a roster snapshot: five cards carry
+  // the sentence today, and a sixth seat card must carry it too — a `=== 5` census would
+  // turn adding a seat into a red here rather than into the missing-sentence red below.
+  assert.ok(
+    cards.length >= 5,
+    `only ${cards.length} card(s) found under ${AGENTS_DIR}/ — the five-card D3 sweep did not actually run`,
+  );
+
+  const missing = cards.filter((f) => !f.text.includes(D3_FALLBACK_SENTENCE)).map((f) => f.rel);
+  assert.deepEqual(
+    missing,
+    [],
+    `seat card(s) missing the merged D3 fallback sentence verbatim — requalify every card in one touch, never one at a time:\n  ${missing.join('\n  ')}`,
   );
 });
