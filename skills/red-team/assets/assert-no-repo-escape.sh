@@ -436,24 +436,27 @@ $delta"
     live_ignored="$(git -C "$repo_dir" ls-files --others --ignored --exclude-standard 2>/dev/null)" \
       || die "git ls-files (ignored-file diff) failed for repo '$repo_dir'" 2
 
+    # One awk pass, mirroring check (c): the baseline set first (NR==FNR), then
+    # the live dump on stdin. Emits every live path absent from the baseline, so
+    # cost is O(N + M) with a single subprocess instead of one awk per live file.
+    candidates=""
+    candidates="$(printf '%s\n' "$live_ignored" | awk '
+      NR == FNR { if ($0 != "") base[$0] = 1; next }
+      $0 != "" && !($0 in base) { print }
+    ' <(printf '%s\n' "$base_ignored") -)" \
+      || die "ignored-file diff failed while reading the baseline '$baseline_file'" 2
+
     new_ignored=""
     while IFS= read -r ipath; do
       [ -n "$ipath" ] || continue
-      # Baseline membership. The awk drains its whole input and decides in END —
-      # a `grep -Fxq` here would exit early and SIGPIPE the producing printf
-      # under `set -o pipefail`.
-      if printf '%s\n' "$base_ignored" \
-        | awk -v p="$ipath" 'BEGIN { f = 0 } $0 == p { f = 1 } END { exit f ? 0 : 1 }'; then
-        continue
-      fi
       if ignored_allowed "$ipath"; then
         continue
       fi
       new_ignored="$new_ignored
 $ipath"
-    done <<LIVE_IGNORED
-$live_ignored
-LIVE_IGNORED
+    done <<CANDIDATES
+$candidates
+CANDIDATES
 
     if [ -n "$new_ignored" ]; then
       escape "new gitignored file(s) vs baseline '$baseline_file' — a probe wrote into an IGNORED path during the run (not covered by the run-authored allowlist):${new_ignored}"
