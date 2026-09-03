@@ -59,7 +59,8 @@
 #   19. identical pre/post ref set + clean tree -> exit 0, and the no-baseline stderr
 #       advisory is ABSENT under --baseline
 #   20. #1244 DEMONSTRATED RED (half 1): pattern-slipping `rogue` branch, NO --baseline
-#       -> exit 0 with the stderr advisory present exactly once
+#       -> exit 0 with the stderr advisory present exactly once, naming the heuristic
+#       ceiling, the --baseline upgrade, and the ignored half being off
 #   21. #1244 DEMONSTRATED RED (half 2): same fixture WITH --baseline -> exit 1
 #   22. moved sibling-branch SHA -> exit 1
 #   23. deleted ref -> exit 1
@@ -543,8 +544,11 @@ fi
 # script is kept and no reader is asked to re-run one. The demonstration is the PAIRING
 # with case 21 — same fixture, --baseline added, exit 1.
 #
-# The advisory assertion is pinned to its two subjects (the heuristic ceiling and the
-# --baseline upgrade) and needs run_guard_err: run_guard/run_guard_args discard output.
+# The advisory assertion is pinned to its three subjects (the heuristic ceiling, the
+# --baseline upgrade, and the ignored half being off) and needs run_guard_err:
+# run_guard/run_guard_args discard output. The third subject is the stderr half of the
+# claim both doc surfaces make (SKILL.md Step 4, references/lenses.md: 'the gitignored
+# half does not run at all — the guard says exactly that on stderr').
 # ---------------------------------------------------------------------------
 R20="$(setup_repo)"
 git -C "$R20" branch rogue 2>/dev/null           # slips refs/heads/redteam-* and *-sandbox-*
@@ -558,10 +562,12 @@ elif [ "$(grep -c 'advisory' "$ERR20")" -ne 1 ]; then
   fail "case 20: the advisory must be emitted exactly ONCE; stderr was: $(cat "$ERR20")"
 elif ! grep -q -- '--baseline' "$ERR20"; then
   fail "case 20: the advisory must name the --baseline upgrade; stderr was: $(cat "$ERR20")"
-elif grep -qi 'heuristic' "$ERR20"; then
-  pass "case 20: #1244 repro without --baseline -> exit 0 + advisory once (heuristic ceiling + --baseline)"
-else
+elif ! grep -qi 'heuristic' "$ERR20"; then
   fail "case 20: the advisory must name the heuristic ceiling; stderr was: $(cat "$ERR20")"
+elif grep -qi 'does not run at all without a baseline' "$ERR20"; then
+  pass "case 20: #1244 repro without --baseline -> exit 0 + advisory once (heuristic ceiling + --baseline + ignored half off)"
+else
+  fail "case 20: the advisory must say the gitignored half does not run without a baseline; stderr was: $(cat "$ERR20")"
 fi
 
 # ---------------------------------------------------------------------------

@@ -88,7 +88,8 @@
 #       git call in this script.
 #   Without --baseline, check mode is byte-equivalent to the pre-ref-diff script
 #   in exit codes, stdout, and check behavior; the only delta is exactly one
-#   stderr advisory naming the heuristic ceiling and the --baseline upgrade.
+#   stderr advisory naming the heuristic ceiling, the --baseline upgrade, and the
+#   ignored half being off.
 #
 # ponytail: with --baseline the ref half AND the ignored-file half are both exact
 # baseline diffs, not heuristics — three detection ceilings remain.
@@ -311,12 +312,14 @@ PRE_REFS
 fi
 
 # ---------------------------------------------------------------------------
-# CHECK MODE. Without --baseline the ref half is only the name heuristic — say
-# so exactly once, on stderr (stdout and the exit contract stay byte-equivalent
-# to the pre-ref-diff script).
+# CHECK MODE. Without --baseline the ref half is only the name heuristic and the
+# ignored half does not run at all — say so exactly once, on stderr (stdout and
+# the exit contract stay byte-equivalent to the pre-ref-diff script). The two doc
+# surfaces (SKILL.md Step 4, references/lenses.md) promise the guard says exactly
+# this, so the ignored-half clause is load-bearing, not decoration.
 # ---------------------------------------------------------------------------
 if [ -z "$baseline_file" ]; then
-  printf '%s: advisory — no --baseline: the ref checks are a NAME HEURISTIC (refs/heads/redteam-*, *-sandbox-*) that a probe-invented ref name slips. Take a pre-run `--snapshot <abs-file>` and re-run with `--baseline <abs-file>` for the exact ref-diff.\n' \
+  printf '%s: advisory — no --baseline: the ref checks are a NAME HEURISTIC (refs/heads/redteam-*, *-sandbox-*) that a probe-invented ref name slips. Take a pre-run `--snapshot <abs-file>` and re-run with `--baseline <abs-file>` for the exact ref-diff. The gitignored-file half (check (d)) does not run at all without a baseline to diff against.\n' \
     "$PROG" >&2
 fi
 
