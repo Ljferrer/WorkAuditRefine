@@ -256,6 +256,46 @@ test('executed probes are told to work in a COPY of repo; analyzed probes are re
   assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
 })
 
+// --- Phase 3 Task 1 (D14): the analyzed scope-lock's Evidence-artifacts carve-out ----------------
+// The coverage-vs-source probe's per-issue evidence join DIRECTS an analyzed agent to read a cited
+// issue's `## Evidence artifacts` section via gh. The bare lock ("open nothing else on the machine")
+// forbade exactly that read, so the two instructions contradicted each other. The carve-out is
+// asserted VERBATIM here, and it is analyzed-only: the executed/sandbox branch must stay free of it.
+const D14_CARVE_OUT =
+  "open nothing else on the machine, EXCEPT: reading a cited issue's `## Evidence artifacts` " +
+  "section via `gh issue view` when your probe prompt directs it (read-only, this repo's issues only)."
+// Enumerated, not derived from the live SPINE — a spine lens silently flipped to `executed` would
+// otherwise drop out of the loop and leave this assert vacuous.
+const ANALYZED_SPINE = [
+  'claims-vs-reality',
+  'coverage-vs-source',
+  'consistency-placeholders',
+  'dependency-feasibility',
+  'intent-vs-plan',
+]
+
+test('scope-lock (analyzed): every analyzed probe prompt carries the D14 Evidence-artifacts carve-out', async () => {
+  const a = baseArgs({ probes: [
+    { name: 'b-analyzed', kind: 'bespoke', technique: 'analyzed', prompt: 'do b-analyzed' },
+    { name: 'b-executed', kind: 'bespoke', technique: 'executed', prompt: 'do b-executed' },
+  ] })
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(
+    prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  for (const name of [...ANALYZED_SPINE, 'b-analyzed']) {
+    const prompt = byLabel[`probe:${name}`]
+    assert.ok(prompt, `analyzed probe '${name}' must be dispatched (guards a vacuous loop)`)
+    assert.ok(prompt.includes(D14_CARVE_OUT),
+      `analyzed probe '${name}' must carry the D14 carve-out verbatim`)
+  }
+  for (const name of ['executable-proof', 'b-executed']) {
+    const prompt = byLabel[`probe:${name}`]
+    assert.ok(prompt, `executed probe '${name}' must be dispatched (guards a vacuous loop)`)
+    assert.ok(!prompt.includes('gh issue view'),
+      `executed probe '${name}' keeps the sandbox branch untouched by the carve-out`)
+  }
+})
+
 test('executable-proof extracts + runs plan-authored requiresTest:false grep guards and pins the sentence-case default', async () => {
   const a = baseArgs()
   const { prompts } = await runScaffold(a, passResult(a))

@@ -16,11 +16,19 @@
 //
 // Third family (plan 2026-08-24-authoring-side-verification T1.3): four advisory
 // authoring-verification rules, also in SHAPE_RULES — (a) section-scoped `PIN-<n>` citation over
-// the D1 class→section map (whole right-delimited token; anywhere fallback for class-less pins;
-// definition-without-citation reported), (b) Evidence-consumed block form (each linked artifact
-// row read / unread-with-reason, D8), (c) single-signal oracle heuristic (bare `grep -q` /
-// `test -f` on a `check:`/`Done when:` line — pair it with a decisive token, #1628 · PIN-12),
-// and (d) `WAIVE-<n>` row form (five fields: id · beat · fired arm · scope · reason, D7).
+// the D1 class→section map (whole right-delimited token; anywhere fallback for class-less pins
+// AND for a task-less `slice` cell; definition-without-citation reported), (b) Evidence-consumed
+// block form (each linked artifact row read / unread-with-reason, D8), (c) single-signal oracle
+// heuristic (bare `grep -q` / `test -f` on a `check:`/`Done when:` line — pair it with a decisive
+// token, #1628 · PIN-12), and (d) `WAIVE-<n>` row form (five fields: id · beat · fired arm ·
+// scope · reason — right-delimited id, plus a malformed-id arm for a letter-suffixed `WAIVE-1a`,
+// D7).
+//
+// Fourth family (plan 2026-08-25-authoring-doctrine-and-lint-coherence D3, operator-ratified
+// OD-1): the report-only ‡ INVENTORY rule (`twice-read-inventory`) — one advisory row per
+// ‡-marked design-tree pin. ‡ is mandated authoring, never a defect, so this rule rides a
+// SEPARATE informational channel: `lintInfo(text)`, excluded from `lint()`'s hits and from the
+// CLI's `anyHit`, so `--strict` still exits 0 on a ‡-marked conforming plan.
 //
 // FAIL-OPEN BY DECISION (ADR 0030): report-and-exit-0. This is NEVER a CI gate — the only CI job is
 // war-memory's redaction lint. `--strict` is opt-in (exit non-zero on any hit) for local authoring.
@@ -124,11 +132,18 @@ const pinRe = (n) => new RegExp(`\\bPIN-${n}(?!\\w)`);
 const DESIGN_TREE_H2 = /^##\s+.*\bdesign\s+tree\b/i;
 const BACKSTOPS_H2 = /^##\s+Deferred\s+validations?\b/i;
 // Bold-only markers: the plain phrases legitimately occur mid-prose (and inside the design
-// tree's own D1 row), so only the merged-template bold label opens a region.
+// tree's own D1 row), so only the merged-template bold label opens a region. Resolution is
+// scoped to the tracked intent section's line span (D7) — a decoy bold label earlier in the
+// document never redirects a citation target, and a doc with no intent heading yields null
+// marks (no region at all), never a first-match region from somewhere else.
 const GUARDRAILS_MARK = /\*\*Binding guardrails:?\*\*/i;
 const END_STATE_MARK = /\*\*End state:?\*\*/i;
 // D1's landing-class vocabulary; the class→section map lives in the pin-citation rule.
 const CLASS_TOKEN = /^(guardrail|slice|end-state|backstop|context|non-goal)s?\b/i;
+// D2's twice-read row marker: operator-applied, orthogonal to class. It is stripped before every
+// class/arrow match (D3) and never widens CLASS_TOKEN.
+const TWICE_READ_MARK = '‡';
+const PIN_MARKED = /\bPIN-(\d+)‡/g;
 
 // First line of a logical bullet, truncated — the reportable head of a multi-line item.
 const bulletHead = (b) => b.split('\n')[0].trim().slice(0, 80);
@@ -200,22 +215,40 @@ function parseClasses(expr) {
 // D1's per-pin landing-class cell grammar: `·`-separated parts, each either a pin-scoped
 // `PIN-<n>→<classes>` pair or a bare class expression — a single-class (arrow-less) cell
 // covers all row pins.
+// D3: the ‡ marker is stripped from the cell BEFORE the arrow-pair match and before
+// parseClasses' class match, so every marked form parses into its real class — leading
+// (`‡ guardrail`, which would otherwise fail CLASS_TOKEN's `^` anchor), trailing
+// (`guardrail ‡`), and the arrow pair (`PIN-3‡→guardrail`, which would otherwise drop the pin
+// entirely: the arrow regex's `(?!\w)\s*(?:→|->)` never matches across `‡`). Marks are recorded
+// as they are stripped: `marked` holds arrow-pair-marked pin ids, `markedBare` says a bare part
+// carried the marker (it applies only to pins that fall back to the bare class expression).
 function parseLandingCell(cell) {
   const map = new Map();
   const bare = [];
-  for (const part of cell.split('·')) {
+  const marked = new Set();
+  let markedBare = false;
+  for (const rawPart of cell.split('·')) {
+    const hasMark = rawPart.includes(TWICE_READ_MARK);
+    const part = rawPart.split(TWICE_READ_MARK).join('');
     const arrow = part.match(/\bPIN-(\d+)(?!\w)\s*(?:→|->)\s*(.+)/);
-    if (arrow) map.set(arrow[1], parseClasses(arrow[2]));
-    else bare.push(...parseClasses(part));
+    if (arrow) {
+      map.set(arrow[1], parseClasses(arrow[2]));
+      if (hasMark) marked.add(arrow[1]);
+    } else {
+      bare.push(...parseClasses(part));
+      if (hasMark) markedBare = true;
+    }
   }
-  return { map, bare };
+  return { map, bare, marked, markedBare };
 }
 
 // Design-tree table rows → [{ pin, classes }]. A header row naming the Landing-class column
 // fixes the column indexes; headerless tables fall back to last cell = landing class,
 // second-to-last = source. Defined pins are the Source-cell tokens plus any arrow-mapped
 // pins (a Resolution-cell cross-reference to another row's pin is NOT a definition).
-// classes === null marks a class-less pin (anywhere-citation fallback).
+// classes === null marks a class-less pin (anywhere-citation fallback). `marked` is the D2 ‡
+// row marker — set from a `PIN-<n>‡` id in the Source cell, from an arrow-pair-marked id, or
+// from a marked bare landing cell (applies only to pins that fall back to the bare class expression).
 function parseDesignTree(sectionLines) {
   const pins = [];
   let srcIdx = -1;
@@ -231,9 +264,16 @@ function parseDesignTree(sectionLines) {
       landIdx = cells.length - 1; // headerless fallback
     }
     const source = cells[srcIdx >= 0 ? srcIdx : cells.length - 2] ?? '';
-    const { map, bare } = parseLandingCell(cells[landIdx] ?? '');
+    const { map, bare, marked, markedBare } = parseLandingCell(cells[landIdx] ?? '');
+    const srcMarked = new Set([...source.matchAll(PIN_MARKED)].map((m) => m[1]));
     const ids = new Set([...[...source.matchAll(PIN_TOKEN)].map((m) => m[1]), ...map.keys()]);
-    for (const id of ids) pins.push({ pin: id, classes: map.get(id) ?? (bare.length ? bare : null) });
+    for (const id of ids) {
+      pins.push({
+        pin: id,
+        classes: map.get(id) ?? (bare.length ? bare : null),
+        marked: (map.has(id) ? marked.has(id) : markedBare) || srcMarked.has(id),
+      });
+    }
   }
   return pins;
 }
@@ -261,11 +301,14 @@ export function parsePlanShape(text) {
     guardrailText: null, endStateText: null, backstopText: null, outsideDesignTree: text,
   };
   let designSpan = null;
+  let intentSpan = null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (INTENT_H2.test(line)) {
       doc.planShaped = true;
-      doc.endStateBullets.push(...numberedBullets(lines.slice(i + 1, sectionEnd(lines, i, H2))));
+      const end = sectionEnd(lines, i, H2);
+      doc.endStateBullets.push(...numberedBullets(lines.slice(i + 1, end)));
+      if (intentSpan === null) intentSpan = [i, end];
     } else if (BUILD_ORDER_H2.test(line)) {
       doc.planShaped = true;
     } else if (LEDGER_H2.test(line)) {
@@ -283,10 +326,17 @@ export function parsePlanShape(text) {
       if (id) doc.taskMap.set(id[1].replace(/\.$/, ''), body);
     }
   }
-  const gi = lines.findIndex((l) => GUARDRAILS_MARK.test(l));
-  if (gi !== -1) doc.guardrailText = bulletRegion(lines, gi);
-  const ei = lines.findIndex((l) => END_STATE_MARK.test(l));
-  if (ei !== -1) doc.endStateText = bulletRegion(lines, ei);
+  // D7: both intent-bullet marks resolve INSIDE the tracked intent span, never document-wide —
+  // a decoy bold `**Binding guardrails:**` in ## Context cannot capture the citation target, and
+  // a doc with no intent heading yields null marks (the anywhere-citation fallback), not a
+  // region borrowed from elsewhere.
+  const markIn = (mark) => {
+    if (intentSpan === null) return null;
+    for (let i = intentSpan[0]; i < intentSpan[1]; i += 1) if (mark.test(lines[i])) return bulletRegion(lines, i);
+    return null;
+  };
+  doc.guardrailText = markIn(GUARDRAILS_MARK);
+  doc.endStateText = markIn(END_STATE_MARK);
   const bi = lines.findIndex((l) => BACKSTOPS_H2.test(l));
   if (bi !== -1) doc.backstopText = lines.slice(bi, sectionEnd(lines, bi, H2)).join('\n');
   if (designSpan) {
@@ -295,9 +345,11 @@ export function parsePlanShape(text) {
   return doc;
 }
 
-// The five §4f advisory rules plus the four third-family authoring-verification rules
-// (plan 2026-08-24-authoring-side-verification T1.3). Each scan(doc) returns match strings;
-// slot names the merged-template slot the rule checks.
+// The five §4f advisory rules, the four third-family authoring-verification rules (plan
+// 2026-08-24-authoring-side-verification T1.3), and the report-only ‡ inventory (plan
+// 2026-08-25-authoring-doctrine-and-lint-coherence D3). Each scan(doc) returns match strings;
+// slot names the merged-template slot the rule checks. A rule with channel: 'info' reports on
+// the informational channel only — see lintShape.
 export const SHAPE_RULES = [
   {
     // D5/D18: every numbered End-state bullet carries one tag from the closed set.
@@ -338,16 +390,19 @@ export const SHAPE_RULES = [
     // landing-class section per the class→section map (guardrail → Binding guardrails;
     // slice → each named task's slice; end-state → End state list; backstop → Deferred
     // validations; context/non-goal → the definition row suffices). Class-less pins fall back
-    // to anywhere-citation outside the tree; an unlocatable section falls back the same way
-    // (fail-open). Definition-without-citation is reported either way.
+    // to anywhere-citation outside the tree; a `slice` cell naming no task (D5) and an
+    // unlocatable section fall back the same way (fail-open). Definition-without-citation is
+    // reported either way.
     name: 'pin-citation',
     slot: '`## Resolved design tree` pin rows (`PIN-<n>` cited inside its landing-class section — D1 class→section map)',
     scan: (doc) => {
       const hits = [];
       for (const { pin, classes } of doc.designPins) {
         const re = pinRe(pin);
+        // Anywhere-citation fallback, shared by the class-less arm and the bare-`slice` arm (D5).
+        const fallback = () => { if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} defined but never cited`); };
         if (classes === null) {
-          if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} defined but never cited`);
+          fallback();
           continue;
         }
         for (const c of classes) {
@@ -356,9 +411,14 @@ export const SHAPE_RULES = [
           if (c.cls === 'guardrail') targets = [{ text: doc.guardrailText, desc: 'Binding guardrails' }];
           else if (c.cls === 'end-state') targets = [{ text: doc.endStateText, desc: 'the End state list' }];
           else if (c.cls === 'backstop') targets = [{ text: doc.backstopText, desc: 'Deferred validations' }];
-          else {
-            const ids = c.tasks?.length ? c.tasks : [...doc.taskMap.keys()];
-            targets = ids.map((id) => ({ text: doc.taskMap.get(id) ?? null, desc: `Task ${id}'s slice` }));
+          else if (!c.tasks?.length) {
+            // D5: a `slice` cell that names no task carries no per-task target. It degrades to
+            // the anywhere-citation fallback (the class-less arm) — never a fan-out over every
+            // task in the plan, which would report one hit per uncited task block.
+            fallback();
+            continue;
+          } else {
+            targets = c.tasks.map((id) => ({ text: doc.taskMap.get(id) ?? null, desc: `Task ${id}'s slice` }));
           }
           for (const t of targets) {
             if (t.text === null) {
@@ -419,32 +479,67 @@ export const SHAPE_RULES = [
   {
     // (d) D7: a `WAIVE-<n>` row (a row-initial right-delimited id — a mid-prose mention or the
     // doctrine's `WAIVE-<n>` placeholder is not a row) carries all five `·`-separated fields.
+    // The id is right-delimited by `(?!\w)`, the sibling `PIN-<n>` grammar — so a letter-suffixed
+    // `WAIVE-1a` is not a well-formed row id. Tightening alone would make such a row INVISIBLE
+    // to the rule (less advisory signal), so the malformed id is reported on its own arm.
     name: 'waive-row-form',
     slot: '`WAIVE-<n>` rows (five fields: id · beat · fired arm · scope · reason — right-delimited id, D7)',
     scan: (doc) => {
       const hits = [];
+      // One prefix match; the capture is the first `\w` after the digit-run (greedy `\d+` already
+      // exhausts digits), so a non-empty capture is always a letter or `_` — the malformed arm.
+      const ROW = /^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+(\w?)/;
       for (const line of doc.lines) {
-        if (!/^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+(?!\d)/.test(line)) continue;
+        const m = ROW.exec(line);
+        if (!m) continue;
+        if (m[1]) {
+          hits.push(`${bulletHead(line)} — malformed WAIVE id — letter suffixes are illegal`);
+          continue;
+        }
         const fields = line.replace(/^\s*(?:[-*]\s+|\|\s*)/, '').split('·').map((s) => s.trim()).filter(Boolean);
         if (fields.length < 5) hits.push(`${bulletHead(line)} — ${fields.length} of 5 fields (id · beat · fired arm · scope · reason)`);
       }
       return hits;
     },
   },
+  {
+    // (e) D3 · OD-1: the report-only ‡ inventory — one advisory row per ‡-marked design-tree
+    // pin, surfaced at conversion so the operator can see what gets read twice at echo-back.
+    // channel: 'info' keeps it OFF the hit channel: `lint()` never returns it and the CLI never
+    // counts it in `anyHit`, so a ‡-marked conforming plan still exits 0 under `--strict`.
+    // ‡-marking is mandated authoring under D2/D4 — an inventory row is never a defect.
+    name: 'twice-read-inventory',
+    channel: 'info',
+    slot: '`## Resolved design tree` pin rows (‡-marked pins — read twice at echo-back reconciliation; report-only)',
+    scan: (doc) => doc.designPins
+      .filter((p) => p.marked)
+      .map((p) => `PIN-${p.pin} is ‡-marked — twice-read at echo-back`),
+  },
 ];
 
+// Splits the shape rules by channel: `hits` are the advisory defects, `info` the report-only
+// rows (channel: 'info') that must never reach the hit channel or the CLI's exit contract.
 function lintShape(text) {
   const doc = parsePlanShape(text);
   const hits = [];
+  const info = [];
   for (const rule of SHAPE_RULES) {
-    for (const match of rule.scan(doc)) hits.push({ pattern: rule.name, match, slot: rule.slot });
+    const out = rule.channel === 'info' ? info : hits;
+    for (const match of rule.scan(doc)) out.push({ pattern: rule.name, match, slot: rule.slot });
   }
-  return hits;
+  return { hits, info };
 }
 
 // Returns [{ pattern, match, slot? }] — line-level hits first, then shape hits (slot-bearing).
+// Report-only informational rows are NOT here; read them with lintInfo.
 export function lint(text) {
-  return [...lintLines(text), ...lintShape(text)];
+  return [...lintLines(text), ...lintShape(text).hits];
+}
+
+// The informational channel: [{ pattern, match, slot }] from the channel: 'info' shape rules.
+// Never part of lint()'s hits, never part of the CLI's exit contract.
+export function lintInfo(text) {
+  return lintShape(text).info;
 }
 
 // Line-based so context guards (gate directive, release heading) work.
@@ -499,6 +594,9 @@ function main(argv) {
     } else {
       process.stdout.write(`${file}: clean\n`);
     }
+    // The informational channel prints after the hits and never touches anyHit — a ‡-marked
+    // conforming plan stays exit 0, including under --strict.
+    for (const h of lintInfo(text)) process.stdout.write(`  info ${h.pattern}: ${h.match}\n`);
   }
   process.exit(strict && anyHit ? 1 : 0);
 }

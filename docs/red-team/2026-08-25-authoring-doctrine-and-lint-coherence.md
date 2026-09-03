@@ -1,0 +1,54 @@
+# Red Team — 2026-08-25-authoring-doctrine-and-lint-coherence (2026-09-02)
+**Verdict:** ADJUDICATED — every blocker patched in place and Lead-stamped under `--afk` (campaign run, no operator at the keyboard); no probe re-proof was run.
+**Rounds:** 1
+<!-- Cumulative grill sweeps: the Step-1 seed + this run's sweeps. Strict form — the next run's seeding re-reads exactly this line; an integer, nothing else. -->
+
+Run header: `artifactKind: impl-plan` (merged plan — Part 1 is its own source of truth; `--spec` = the plan). Agents on `opus`/`high` from `agents.redteam`; round limit 3 (default); no `run.maxParallel`, single pipeline. Provision `[]` (no `.war-provision.json`, structural fallback empty). Base: `dev/2026-08-25-authoring-doctrine-and-lint-coherence` @ `d6cf3f8` (0.21.7).
+
+## Attack surface
+Spine: claims-vs-reality, executable-proof, coverage-vs-source (merged arm + per-issue Evidence join), consistency-placeholders, dependency-feasibility, intent-vs-plan. Bespoke: snippet-fidelity (analyzed), baseline-repro (executed), default-flip-old-absent (executed; drift-guard probe 2). Executed in sandbox: executable-proof, baseline-repro, default-flip-old-absent. `ff-topology`: not triggered (no merge-topology anchors in the plan). Lead-run drift-guard probes: unguarded-new-mirror — vacuous (no `workflow-template.js` edit); guard-split-deps-edge — pass (every guard rides its fact's task or lands a phase later: D9 pins in Phase 2 for Phase-1 facts, Phase 2 Task 3's pin same-task, Phase 3 Task 1's assertion same-task, Phase 3 Task 3 `deps: [Task 2]`); touched-doc-fact-coverage — pass (release slots guarded by `version-slots.test.mjs`; the exit-code enumerations name `assert-no-repo-escape.test.sh` as their mirror and now carry doc-guards in `red-team-gate.test.mjs`). Backstop-legitimacy: both rows carry why-deferred + runner + timing; no `judge:`/`HARD at audit_sha` tags.
+Fallback: none — all six analyzed probes ran on `Explore` (no `fallbackEngaged` stamp).
+Coverage: 9/9 expected, 9 on-target, 0 off-target, 0 dropped.
+
+## Executed proof
+- Structure suite, lint suite, scaffold suite, escape-guard suite, pipeline suite all green at base (baseline-repro).
+- D10 (`lacks_i pattern` mislabel on patterns 6/7), D6 (`WAIVE-1a` admitted), D5 (bare `slice` fans out per task), D7 (decoy bold mark redirects targets), D12 (digits-only revert reds twice), D11 (indented decoy bullet not terminated by `MEQ_BOUND`), zero-byte baseline → exit 2, scaffold `Evidence artifacts` count 1 — all reproduce as the plan states.
+- D8 baseline claim FALSE: deleting `|| c.cls === 'non-goal'` reds the suite today (dogfood anchor test, 19 hits) — coverage is incidental, not zero.
+- D3 baseline: arrow-pair `PIN-7‡→guardrail` yields zero design pins at base (pin dropped), not a no-regress case.
+- D17 mechanism: `git status --porcelain --ignored` collapses a pre-existing ignored directory, so a new file under `node_modules/` or a baselined `.claude/red-team/` is invisible to the baseline diff; `git ls-files --others --ignored --exclude-standard` sees it.
+- default-flip-old-absent: Experiments A/B (one surface reworded, the other stale) and C (both reworded + all D9 presence pins installed, retired phrase re-introduced) all leave the structure suite GREEN — the plan carried no OLD-absent assertion in any gate, and End state 2's `|| echo` literal exits 0 in both states.
+- Escape guard: pre-run snapshot exit 0; post-run exit 1 with exactly one delta — ` M docs/plans/2026-08-25-authoring-doctrine-and-lint-coherence.md` — provenance: the Lead's own A6 patch, written before the guard ran (no probe-authored residue, no ref delta). Cleared as Lead-authored; not an escape.
+
+## Findings
+### Critical / Major / Minor
+- [Major] End state 1's `grep -F` check false-negates on re-casing and re-wrapping → rewritten to `grep -in 'landing-class cell'` (mid-clause token, case-insensitive). Resolution: patched, adjudicated.
+- [Major] End state 3's case-sensitive `Landing class` grep misses a parser-accepted casing and claims a template-annotation hit that cannot exist → rewritten to three counted greps (`| landing class |` = 2, `‡` ≥ 3, `Evidence consumed` ≥ 3), each red at base. Resolution: patched, adjudicated.
+- [Major] D3 slice called the arrow-pair `PIN-<n>‡→<class>` form a no-regress case; it drops the pin at base → the strip now runs on the whole cell BEFORE the arrow match, the arrow-pair form is a red-at-base fixture, and Phase 1 Task 2's examples use the trailing class-cell form that parses at base. Resolution: patched, adjudicated.
+- [Major · needsDecision] D17's `!!`-line ignored set cannot see a new file inside a pre-existing ignored directory → file-level enumeration (`git ls-files --others --ignored --exclude-standard`), End state 16 and Phase 3 Task 2 reworded, an inside-a-baselined-directory case added. Resolution: (a) chosen — detection over honest narrowing, because ponytail item 3's own named surface is `node_modules/`; AI-declared.
+- [Major] Evidence-consumed block omitted artifacts the four `## Evidence artifacts` sections list (#1682's and #1674's lessons, #1431, the code surfaces #1674/#1685 name) → rows added, each read or unread-with-reason; archived lesson paths repointed to `docs/learnings/archive/`. Resolution: patched, adjudicated.
+- [Major · needsDecision] The ‡ inventory as an ordinary `SHAPE_RULES` hit reds `--strict` on every conforming (‡-marked) plan → the inventory is a separate informational channel excluded from `anyHit` and `lint()`'s hits, pinned by a `--strict`-exits-0 fixture; D3, Phase 2 Task 1, End state 7 name `--strict`. Resolution: (b) chosen; AI-declared.
+- [Major] Phase 3 Task 3 gated on the pipeline suite, which never reads `SKILL.md`/`loop-budget.md`; the real doc-guards live in `red-team-gate.test.mjs` → that file added to Files, 5.5(c)-shaped guards for the D15 rule and the Step-5 pointer plus D11 extension added, Done when now runs both suites, `requiresTest: true`. Resolution: patched, adjudicated.
+- [Major · needsDecision] Phase 2 Task 1 (lint) could not pass its own gate: the inventory rule reds four count-coupled asserts owned by Task 2 → Tasks 1 and 2 merged into one task owning both files (a deps edge may not dodge a same-file coupling); Phase 2 renumbered to three parallel tasks and every cross-reference updated. Resolution: merge chosen; AI-declared.
+- [Major · needsDecision] The SKILL.md ‡ mirror sentence was a third unpinned ‡ surface → D9 and Phase 2 Task 2 add a SKILL.md-side `check_f`; End state 8 extended. Resolution: (a) chosen — pin, consistent with the bullet's per-sentence pinning; AI-declared.
+- [Major] Context (d)/D8 claimed zero coverage for the `non-goal` arm; coverage is incidental (dogfood) → Context, D8, End state 7 and the fixture duty restated around a NAMED dedicated fixture. Resolution: patched, adjudicated.
+- [Major · needsDecision ×3] No gate asserted the retired phrase absent (Phase 1 gates, D9's presence-only roster, End state 2's non-discriminating `|| echo`) → D9 gains `lacks_doc_i 'landing class is a duty'`, a new charter-scoped `lacks_char_i` helper with two absence pins, in Phase 2 Task 2 as the phase-later guard (rule 7), each Phase-1 slice states its own gate does not check absence, and End state 2's check is `! grep -qi … && echo OLD-ABSENT` scoped to the three doctrine files (the suite's own absence pins carry the literal). Resolution: (a) chosen; scope = the exact literal `landing class is a duty` on both surfaces plus `duty-class twice-read` on the charter; AI-declared.
+- [Minor ×30, 12 distinct] A7 pin count (5 → 2, plus the re-wrap exposure of three neighbour fragments); the D9 WAIVE anchor example spans a wrap point (single-line literal substituted; line-scoped `grep -qF` noted); D7 no-intent null marks is a behavior change, pinned red-at-base; Phase 2 task count; the three count-coupled lint-suite sites named; OD-2 stragglers (ADR line, Phase 3 Task 2 opener, Notes) rewritten to the settled form; A6 restated against master @ 0.21.7. All auto-fixed in the same patch.
+
+## Resolutions applied (grill decisions)
+- Self-adjudicated under `--afk` (campaign lifecycle step 3); each decision above records its chosen arm. No operator ruling this run.
+
+## Adjudications
+<!-- Machine-readable: the WAR Lead reads these rows and threads them into the auditor prompts (auditPrompt() and the gate-audit seats). Version precedence: task instruction > red-team adjudication > plan body literal. -->
+- Integration base `origin/master` @ `d6cf3f8` (0.21.7, PR #1949), expected release 0.21.8 (resolve from the slots at land time) supersedes "landed tip of engine-reliability-and-filing-fidelity … stacks on master at 0.20.0" — A6 and Phase 4 Task 1 — AI-declared
+- Phase 2 = three tasks (Task 1 lint fixes + fixtures, Task 2 structure suite, Task 3 drafter arm) supersedes the four-task split with Task 2 `deps: [Task 1]` — Phase 2 preamble and task headings — AI-declared
+- ‡ inventory = informational channel outside `anyHit`/`lint()` hits, `--strict` exits 0 on a ‡-marked conforming plan supersedes "a new report-only SHAPE_RULES entry … exit contract unchanged" — D3, Phase 2 Task 1, End state 7 — AI-declared
+- Ignored set enumerated file-level via `git ls-files --others --ignored --exclude-standard` supersedes "`git status --porcelain --ignored`, `!!` lines" — D17, Phase 3 Task 2, End state 16 — AI-declared
+- OLD-absent twins (`lacks_doc_i` + new `lacks_char_i`) and a SKILL.md-side `check_f` on the ‡ mirror sentence added to D9 / Phase 2 Task 2; End state 2 check = `! grep -qi 'landing class is a duty' <three doctrine files> && echo OLD-ABSENT` supersedes the `|| echo` form — AI-declared
+- Phase 3 Task 3 Files + `skills/red-team/assets/red-team-gate.test.mjs`, Done when = `node --test skills/red-team/assets/red-team-gate.test.mjs && bash skills/war-machine/war-pipeline-structure.test.sh`, `requiresTest: true` supersedes the pipeline-suite-only gate with `requiresTest: false` — AI-declared
+
+## Residual risk
+- No probe re-proof after the patch: the three executed probes' evidence stands for the pre-patch text; the patched checks (End states 1–3, 7, 8, 16) were sanity-run at base by the Lead (End state 2 exits nonzero at base; End state 3 counts 0/0/1) but not re-verified by an independent agent.
+- `plan-literal-lint` advisory hits on the plan: two `literal-suite-list` rows (pre-existing shape) and two `hardcoded-version` rows from the A6 restatement (the paragraph itself says resolve from the slots at land time).
+- The `lacks_char_i` helper is new authoring inside Phase 2 Task 2's file; its aliveness control follows the sibling helpers' shape (latitude).
+- Backstops unchanged: allowlist recalibration (first post-land `/red-team` + `/war-review`) and #1685 closure via `/aftermath`.
+- Foreign-repo escape-guard note: the only post-run delta was the Lead's own plan edit; no ref moved.

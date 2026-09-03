@@ -11,8 +11,13 @@ reason, D19). Source issues: #1641, #1637, #1640, #1642, #1638, #1639, #1643, #1
 - issues #1641, #1637, #1640, #1638, #1639, #1643, #1682 · read via the spec's verbatim quotes, cross-checked against the named constructs at HEAD · read
 - issues #1642, #1655, #1684, #1685 · `## Evidence artifacts` sections read via gh at drafting · read
 - issues #1650, #1674, #1397, #1396 · read via the spec's quotes plus direct reads of `workflow-scaffold.js`, `loop-budget.md`, `assert-no-repo-escape.sh`/`.test.sh` at HEAD · read
-- `docs/learnings/column-0-bound-regex-does-not-terminate-inside-an-indented-fenced-bullet-block.md` · read (via issue #1684's restatement) · read
-- `docs/learnings/count-mirror-guard-duty-split-across-tasks-can-leave-a-third-doc-surface-permanently-unguarded.md` · unread — issue #1685's body restates it in full, and the claim was independently re-verified by reproduction at HEAD (see Context)
+- `docs/learnings/archive/column-0-bound-regex-does-not-terminate-inside-an-indented-fenced-bullet-block.md` (archived — a move, still queryable) · read (via issue #1684's restatement) · read
+- `docs/learnings/archive/count-mirror-guard-duty-split-across-tasks-can-leave-a-third-doc-surface-permanently-unguarded.md` (archived) · unread — issue #1685's body restates it in full, and the claim was independently re-verified by reproduction at HEAD (see Context) · unread
+- `docs/learnings/new-advisory-lint-rule-batch-can-ship-with-asymmetric-fallback-and-scope-bugs-across-all-four-rules.md` (#1682's listed lesson) · unread — issue #1682's body restates it; its four rule bugs are the Context's (a)–(d), each re-verified against the lint at HEAD · unread
+- `docs/learnings/archive/red-team-endstate-rewrite-must-update-design-row-task-slice-and-the-check-literal-together.md` (#1674's listed lesson) · unread — issue #1674's body restates the four-surface rule the lesson records; D15 is its resolution · unread
+- issue #1431 (#1684's cross-reference — the additive template edit expected inside the window) · unread — closed issue; the per-call-site bound (D11) terminates on any indented bullet regardless of which edit lands · unread
+- `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md` (#1674's listed surfaces) · read — the four-surface rule confirmed absent at HEAD (Context, Red-team arm (ii)) · read
+- `skills/war-strategy/references/plan-interview.md`, `skills/war-strategy/war-strategy-structure.test.sh`, `skills/war-machine/war-pipeline-structure.test.sh` (#1685's listed surfaces) · read — the r7 `lacks_doc_i` + `doc_f` pair reproduced at HEAD (Context, D12) · read
 
 ## Context — the gap / problem
 
@@ -41,8 +46,8 @@ Example A table shape confirmed at `skills/war-strategy/SKILL.md` Example A sect
 HEAD).
 
 **Two floored doctrine clauses are silently deletable.** The WAIVE-row
-right-delimited-id clause (`right-delimited id, inheriting the Evidence consumed block's
-placement latitude`) and the gate-1 scope clause (`Every pin-rule gap and
+right-delimited-id clause (`right-delimited id, inheriting the Evidence` /
+`consumed block's placement latitude` — one clause wrapped across two lines in the file) and the gate-1 scope clause (`Every pin-rule gap and
 Evidence-consumed gap the lint reports, and every WAIVE-<n> row — one-shot and standing
 alike —`) in `plan-interview.md` each sit between pinned fragments; deleting either reds
 nothing in `skills/war-strategy/war-strategy-structure.test.sh` (verified: issue #1642
@@ -60,9 +65,11 @@ issue #1682 (2026-08-25));
 (c) `GUARDRAILS_MARK`/`END_STATE_MARK` resolve via document-wide `lines.findIndex`
 first-match, so an earlier bold occurrence anywhere in Part 1 silently redirects every
 guardrail/end-state citation target (verified: issue #1682 (2026-08-25));
-(d) the `non-goal` skip arm (`c.cls === 'context' || c.cls === 'non-goal'`) has zero test
-coverage — deleting `non-goal` from the condition reds nothing in
-`plan-literal-lint.test.mjs` (verified: issue #1639 (2026-08-25)).
+(d) the `non-goal` skip arm (`c.cls === 'context' || c.cls === 'non-goal'`) has no dedicated
+test — its only coverage is incidental: the dogfood anchor test over
+`docs/plans/2026-08-24-authoring-side-verification.md` (three `non-goal` cells) reds with 19
+hits when the arm is deleted, so any dogfood-plan change that drops those cells would leave
+the arm unguarded (verified: issue #1639 (2026-08-25); reproduction at red-team 2026-09-02).
 
 **Structure-test debt.** `ctl()`'s TAP strings hard-code "lacks_i pattern N" for the two
 doctrine-scoped (`lacks_doc_i`) patterns 6 and 7 (verified: issue #1643 (2026-08-25);
@@ -141,13 +148,13 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
 |---|----------|------------|--------|
 | D1 | What is "duty/fence"? | NOT a landing class. ‡ is an orthogonal row marker the operator applies at ratification to any pin whose content is a standing duty or a fence (regardless of its class cell); the twice-read rule keys on ‡, never on a class token. Both twice-read clauses are reworded to "‡-marked pins" and drop "whose landing class is" | (verified: issue #1637 (2026-08-25) — its theme states exactly this rewording) |
 | D2 | Where is ‡ defined/mandated? | Once, normatively, in `plan-interview.md`'s ratified-pin ledger section (grammar: `‡` appended to the pin id or the landing-class cell in the design-tree row; operator-applied at ratification; consequence: twice-read at echo-back reconciliation); SKILL.md template law gains one mirror sentence; strategy-verifier.md's rule cites the ledger definition | (verified: issue #1641 (2026-08-25)) |
-| D3 | Lint alignment for ‡ | `CLASS_TOKEN` unchanged; the landing-cell parser strips `‡` before class/pin matching so a marked cell still parses into its real class (and is then section-checked, not degraded to anywhere-citation), and no error-shaped report ever fires on the marker alone — AND the lint gains a report-only ‡ INVENTORY rule: one advisory row per ‡-marked pin surfaced at conversion (exit 0, advisory; the gate-1 enumerate-aloud duty gets mechanical input) | operator-ratified (2026-08-25, interactive volley — OD-1 resolved to strip + inventory) |
+| D3 | Lint alignment for ‡ | `CLASS_TOKEN` unchanged; the landing-cell parser strips `‡` from the whole cell BEFORE the arrow-pair (`PIN-<n>→<class>`) match and the class match — at base the arrow-pair form `PIN-7‡→guardrail` drops the pin entirely (proven at red-team 2026-09-02), the leading form `‡ guardrail` degrades to anywhere-citation, the trailing form `guardrail ‡` parses — so every marked form parses into its real class (and is then section-checked), and no error-shaped report ever fires on the marker alone — AND the lint gains a report-only ‡ INVENTORY rule: one advisory row per ‡-marked pin surfaced at conversion, emitted on a separate informational channel that is EXCLUDED from `anyHit` and from `lint()`'s returned hits, so `--strict` still exits 0 on a ‡-marked conforming plan (‡-marking is mandated authoring, never a defect) | operator-ratified (2026-08-25, interactive volley — OD-1 resolved to strip + inventory) |
 | D4 | Example A/B rewrite | Both examples' design trees gain PIN ids + a Landing-class column (`| # | Decision | Resolution | Source | PIN | Landing class |` or the pin→class-pair cell form), at least one ‡-marked row, PIN citations in each pin's landing section, and a minimal Evidence-consumed block, after D1/D2 settle the vocabulary | (verified: issue #1640 (2026-08-25) — its clusterHint defers examples until ‡/class is settled) |
 | D5 | Bare-`slice` fallback | Task-less `slice` cells degrade to the anywhere-citation fallback (the same arm class-less pins use), never fan out to all tasks; a task-less-slice fixture pins it | (verified: issues #1638, #1682 (2026-08-25)) |
 | D6 | WAIVE id delimiter | `WAIVE-\d+(?!\d)` → `WAIVE-\d+(?!\w)` in the waive-row-form rule (sibling pin grammar), PLUS a malformed-id report arm — a row-initial `WAIVE-\d+\w` token is reported as "malformed WAIVE id — letter suffixes are illegal" (tightening the delimiter alone would make `WAIVE-1a` invisible to the rule, reducing advisory signal); fixture: a `WAIVE-1a` row yields the malformed-id hit | (verified: issue #1682 (2026-08-25); invisibility of the bare tighten proven by execution at grill) |
-| D7 | Mark resolution scope | `GUARDRAILS_MARK`/`END_STATE_MARK` resolve by `findIndex` scoped to the tracked intent section's line range, not document-wide; the no-intent path still yields `null` marks; fixture: a decoy bold `**Binding guardrails:**` in Context must not redirect citation targets | (verified: issue #1682 (2026-08-25)) |
-| D8 | non-goal arm test | Add a `non-goal`-class fixture to the pin-citation class-mapping test asserting definition-row sufficiency, so deleting the skip arm reds | (verified: issue #1639 (2026-08-25)) |
-| D9 | Clause-level pins | `war-strategy-structure.test.sh` gains presence pins for the WAIVE right-delimited-id clause and the gate-1 scope clause in `plan-interview.md`, anchored on stable mid-clause tokens, plus the ‡ definition clause from D2 — AND a charter-side new-present ‡ pin (`char_f`) on the reworded strategy-verifier.md rule, lock-step with the doctrine-side pin: without it, dropping ‡ from the charter's clause entirely stays green in the whole suite and passes End state 2's old-absent grep (proven in sandbox at grill) | (verified: issue #1642 (2026-08-25); one-sided-pin gap proven at grill) |
+| D7 | Mark resolution scope | `GUARDRAILS_MARK`/`END_STATE_MARK` resolve by `findIndex` scoped to the tracked intent section's line range, not document-wide; a plan with neither intent heading yields `null` marks — a behavior CHANGE from today's document-wide first match, which returns a non-null region, so it is pinned red-at-base, not as a no-regress assert; fixture: a decoy bold `**Binding guardrails:**` in Context must not redirect citation targets | (verified: issue #1682 (2026-08-25)) |
+| D8 | non-goal arm test | Add a NAMED dedicated `non-goal`-class fixture to the pin-citation class-mapping test asserting definition-row sufficiency, so deleting the skip arm reds that named test — today only the dogfood anchor test reds, incidentally (Context (d)) | (verified: issue #1639 (2026-08-25); incidental coverage reproduced at red-team 2026-09-02) |
+| D9 | Clause-level pins | `war-strategy-structure.test.sh` gains presence pins for the WAIVE right-delimited-id clause and the gate-1 scope clause in `plan-interview.md`, anchored on stable mid-clause tokens, plus the ‡ definition clause from D2 — AND a charter-side new-present ‡ pin (`char_f`) on the reworded strategy-verifier.md rule, lock-step with the doctrine-side pin: without it, dropping ‡ from the charter's clause entirely stays green in the whole suite and passes End state 2's old-absent grep (proven in sandbox at grill) — PLUS the OLD-absent twins, because presence pins close only the drop-‡ direction (proven at red-team 2026-09-02: with every presence pin installed, re-introducing the retired phrase on either surface leaves the suite green): `lacks_doc_i 'landing class is a duty'` on plan-interview.md, and a new charter-scoped `lacks_char_i` helper (the `lacks_doc_i` shape against `$CHARTER`) with `lacks_char_i 'landing class is a duty'` and `lacks_char_i 'duty-class twice-read'` — PLUS a SKILL.md-side `check_f` pin on a stable mid-clause token of the template-law ‡ mirror sentence (Phase 1 Task 2), so the ‡ trio is lock-step (the pin-columns bullet is already pinned sentence-by-sentence; an unpinned mirror sentence is the same one-sided gap on a third surface). Every anchor is a single-line literal: `doc_f`/`char_f`/`check_f` are line-scoped `grep -qF`, so an anchor that spans the doctrine's wrap point (e.g. the WAIVE clause's `inheriting the Evidence` / `consumed block's` break) can never match | (verified: issue #1642 (2026-08-25); one-sided-pin gap proven at grill; old-survives gap and the third-surface gap proven at red-team 2026-09-02) |
 | D10 | ctl() messages | The two `lacks_doc_i` controls (patterns 6, 7) print `lacks_doc_i`, not `lacks_i` — parameterize the helper name (bash-3.2-safe `${4:-lacks_i}` default) or branch the printf | (verified: issue #1643 (2026-08-25)) |
 | D11 | In-fence bound | Add an indentation-tolerant bound var (`MEQ_BOUND_INFENCE`, adding an `^[[:space:]]+- ` arm) used ONLY at the tag-set atom's SKILL-side extraction call site; `MEQ_BOUND` itself is byte-untouched | (verified: issue #1684 (2026-08-25)) |
 | D12 | rules 5–8 guard | RETIRED — already satisfied at HEAD by `war-strategy-structure.test.sh`'s r7 `lacks_doc_i 'rules 5–7'` + `doc_f 'rules 5–8'` pair (landed via #1636 after #1685's lesson was mined); the digits-only revert was reproduced red at drafting | (verified: reproduction at HEAD, 2026-08-25; see Notes) |
@@ -155,19 +162,19 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
 | D14 | Scope-lock carve-out | The analyzed-branch scope-lock string gains one explicit exception: "…open nothing else on the machine, EXCEPT: reading a cited issue's `## Evidence artifacts` section via `gh issue view` when your probe prompt directs it (read-only, this repo's issues only)" — plus a workflow-scaffold.test.mjs assertion that analyzed prompts carry the carve-out | (verified: issue #1650 (2026-08-25)) |
 | D15 | Four-surface rewrite rule | New patch-style rule in `references/loop-budget.md`: any End-state rewrite greps the plan for the old requirement's distinctive wording and fixes every hit (design-tree row, task slice, condition text, `check:` literal) in the same patch, then re-executes the new `check:` at base and confirms it red (prefer both halves: new-present AND old-absent); `skills/red-team/SKILL.md` Step 5 gains the ADR-0042 trigger pointer (`when patching an End state, read references/loop-budget.md`) | (verified: issue #1674 (2026-08-25)) |
 | D16 | Zero-byte ordering pin | New sibling case (case-28 shape: zero-byte baseline AND an escape-tripping fixture — a `redteam-*` junk branch) asserting exit 2 — pins that infra-argument validation outranks live escape detection on the zero-byte path, which case 28's non-tripping fixture cannot | (verified: issue #1397 (2026-08-25); case-28 fixture confirmed at HEAD) |
-| D17 | Gitignored residue | BASELINE-DIFF design (a static allowlist + pre-run refusal self-trips on this very repo — HEAD carries pre-existing `!!` entries including `.claude/red-team/` via machine-local `.git/info/exclude`, which no in-script list can enumerate, and every /red-team run writes its own scaffold to `.claude/red-team/<run>.js` mid-run; proven at grill). Snapshot mode records the ignored-path set (`git status --porcelain --ignored`, `!!` lines) alongside the ref set — NO refusal on pre-existing ignored residue. Check mode (with `--baseline`) flags only NEW non-allowlisted ignored paths vs that baseline → exit 1 (escape); the in-script allowlist is reserved for run-authored legitimate paths (at minimum the run's own `.claude/red-team/` scaffold path). A baseline lacking the ignored section makes the ignored half vacuous (back-compat, fail-open). Case 29's documented-ceiling pin is deliberately flipped to assert detection; header ponytail item 3 rewritten from "not taken" to the taken form. Escape routing (exit 1, not advisory) for a NEW non-allowlisted ignored path | operator-ratified (2026-08-25, interactive volley — OD-2 resolved to escape routing) |
+| D17 | Gitignored residue | BASELINE-DIFF design (a static allowlist + pre-run refusal self-trips on this very repo — HEAD carries pre-existing `!!` entries including `.claude/red-team/` via machine-local `.git/info/exclude`, which no in-script list can enumerate, and every /red-team run writes its own scaffold to `.claude/red-team/<run>.js` mid-run; proven at grill). Snapshot mode records the ignored FILE set (`git ls-files --others --ignored --exclude-standard` — file-level, never `git status --porcelain --ignored`, whose `!!` lines collapse a pre-existing ignored directory to one entry and so hide a new file inside `node_modules/` or an already-baselined `.claude/red-team/` — proven at red-team 2026-09-02) alongside the ref set — NO refusal on pre-existing ignored residue. Check mode (with `--baseline`) flags only NEW non-allowlisted ignored files vs that baseline, including a new file inside a pre-existing ignored directory → exit 1 (escape); the in-script allowlist is reserved for run-authored legitimate paths (at minimum the run's own `.claude/red-team/` scaffold path). A baseline lacking the ignored section makes the ignored half vacuous (back-compat, fail-open). Case 29's documented-ceiling pin is deliberately flipped to assert detection; header ponytail item 3 rewritten from "not taken" to the taken form. Escape routing (exit 1, not advisory) for a NEW non-allowlisted ignored path | operator-ratified (2026-08-25, interactive volley — OD-2 resolved to escape routing) |
 
 ## Assumptions ledger
 
 | ID | Assumption | Basis | Blast radius if wrong | Check |
 |----|-----------|-------|----------------------|-------|
-| A1 | RESOLVED — the operator ratified strip + report-only ‡ inventory (the spec's `[assumed:]` strip-only default was NOT taken); the inventory rule is in-plan (D3, Phase 2 Tasks 1–2) | operator-ratified (2026-08-25, interactive volley — OD-1) | n/a — no longer an assumption | D3's fixtures; End state 7 |
+| A1 | RESOLVED — the operator ratified strip + report-only ‡ inventory (the spec's `[assumed:]` strip-only default was NOT taken); the inventory rule is in-plan (D3, Phase 2 Task 1) | operator-ratified (2026-08-25, interactive volley — OD-1) | n/a — no longer an assumption | D3's fixtures; End state 7 |
 | A2 | RESOLVED — escape routing (exit 1) for a NEW (post-snapshot) non-allowlisted gitignored path, run-authored allowlist starting at `.claude/red-team/`, pre-existing ignored residue baselined — operator-ratified; the residual judgment is only the allowlist's future contents | operator-ratified (2026-08-25, interactive volley — OD-2); baseline-diff redesign grill-proven | false-positive escapes on legitimately run-authored ignored paths stall /red-team runs | backstop row (allowlist recalibration) |
 | A3 | No `agents/*.md` standing surface mirrors the scope-lock wording | drafting-time grep of `skills/` + `agents/` at HEAD found only the scaffold hit | a standing/dispatched drift lands silently | Task 3.1 re-greps at its rebased base before closing |
-| A4 | The D13 sibling surfaces (survey-corps SKILL.md, red-team lenses.md) are already correct and are read as reference shapes only | issue #1655's own three-surface comparison; lenses.md arm re-verified at HEAD | the drafter arm normalizes against a wrong shape | Task 2.4 reads both siblings; if divergent, widens to normalize all three in one commit (spec consequence) |
+| A4 | The D13 sibling surfaces (survey-corps SKILL.md, red-team lenses.md) are already correct and are read as reference shapes only | issue #1655's own three-surface comparison; lenses.md arm re-verified at HEAD | the drafter arm normalizes against a wrong shape | Task 2.3 reads both siblings; if divergent, widens to normalize all three in one commit (spec consequence) |
 | A5 | D1's ‡-is-not-a-class resolution is charter-level wording repair, not a new binding decision — no ADR required | spec §7 `[assumed:]` row carried forward (D19) | an undocumented architectural selector; a short ADR ("‡ twice-read selection is marker-keyed, not class-keyed") ratifies it later | operator may promote at the conversion volley; OD-2's ADR-stub fallback pattern applies |
-| A6 | This plan stacks on the landed tip of `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md` (which itself stacks on master at 0.20.0 — the ask-disposition release — so its Phase 9 release lands ≥ one patch above 0.20.0), so the live integration base at launch already carries that plan's `skills/red-team/SKILL.md` and release-slot edits | campaign stacking directive (operator-directed, ADR 0011) | rebase churn in Phase 3/4; re-verify named constructs at the rebased base | Phase 1 Task 1 worker's first rebase; the release phase's next-free-patch resolution |
-| A7 | The five `war-strategy-structure.test.sh` doc_f/char_f pins that quote the current twice-read wording survive the D1 rewording because they anchor on `read **twice** at echo-back reconciliation`, which both reworded clauses retain | pin inventory read at HEAD (drafting) | Phase 1 tasks red the structure suite; the worker updates the pins lock-step in the same commit — never loosens them | each Phase-1 task's gate run |
+| A6 | This plan's working branch is cut from `origin/master` at `d6cf3f8` (release 0.21.7, PR #1949 merged) — plans 1 and 2 of the campaign (0.20.1, 0.21.0) and the 0.21.x releases are already on master, so the live integration base at launch carries their `skills/red-team/SKILL.md` and release-slot edits and the landing branch is `master` | campaign stacking directive (operator-directed, ADR 0011); base re-verified 2026-09-02 | rebase churn in Phase 3/4; re-verify named constructs at the rebased base | Phase 1 Task 1 worker's first rebase; the release phase's next-free-patch resolution |
+| A7 | The two `war-strategy-structure.test.sh` pins that quote the current twice-read wording (`doc_f` and `char_f` on `read **twice** at echo-back reconciliation`) survive the D1 rewording because both reworded clauses retain that fragment; the three neighbouring single-line `doc_f` fragments in the gate-1 paragraph (`Echo-back 1 is **gate 1**`, `lint stays exit-0 report-only ↔ …`, `fix-or-waive on the record before the confirm counts`) must each stay on one line through the re-wrap, because `doc_f` is line-scoped `grep -qF` | pin inventory re-read at red-team (2026-09-02) | Phase 1 tasks red the structure suite; the worker updates the pins lock-step in the same commit — never loosens them | each Phase-1 task's gate run |
 
 ## Non-goals / deferred
 
@@ -189,9 +196,8 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
   only if CONTEXT.md glossarizes pin-ledger terms, and then with its
   skill-doc-contracts drift-guard row (the recorded CONTEXT.md mirror trap); not adopted
   by this plan (CONTEXT.md is untouched).
-- ADRs: none strictly required (A5). D17's escape-vs-advisory routing is the one
-  genuinely contestable call; if /red-team does not settle OD-2, an ADR stub is the
-  fallback.
+- ADRs: none required (A5). D17's routing was settled at OD-2 (exit-1 escape routing,
+  operator-ratified 2026-08-25); no ADR stub is owed.
 
 ## Commander's Intent
 
@@ -227,12 +233,12 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
   1. `plan-interview.md`'s ratified-pin ledger section defines ‡ once, normatively —
      grammar (appended to the pin id or the landing-class cell), operator-applied at
      ratification, twice-read consequence ·
-     check: grep -Fn 'appended to the pin id or the landing-class cell' skills/war-strategy/references/plan-interview.md prints the definition-clause hit (a bare ‡ grep is green-at-base — the Stage-4 clause already carries the glyph; manual same-scope scan follows).
+     check: grep -in 'landing-class cell' skills/war-strategy/references/plan-interview.md prints the definition-clause hit (case-insensitive, mid-clause token, so a re-wrap or re-casing of the latitude-granted wording cannot red it; a bare ‡ grep is green-at-base — the Stage-4 clause already carries the glyph; manual same-scope scan follows).
   2. Both twice-read clauses key on ‡-marked pins; the class-keyed phrase is gone ·
-     check: grep -rin 'landing class is a duty' skills/war-strategy/ || echo OLD-ABSENT prints OLD-ABSENT (new-present halves via the doctrine-side AND charter-side ‡ pins, End state 8).
+     check: ! grep -qi 'landing class is a duty' skills/war-strategy/references/plan-interview.md skills/war-strategy/references/strategy-verifier.md skills/war-strategy/SKILL.md && echo OLD-ABSENT exits 0 and prints OLD-ABSENT (nonzero on a surviving hit; scoped to the three doctrine files because the structure suite's own absence pins carry the literal; new-present halves via the doctrine-side, charter-side, and SKILL.md-side ‡ pins, End state 8).
   3. Example A and B design trees carry PIN ids and a Landing-class column, at least one
      ‡-marked row, and each example carries an Evidence-consumed block ·
-     check: grep -n 'Landing class' skills/war-strategy/SKILL.md prints hits inside both example fences (plus the template annotation).
+     check: grep -ci '| *landing class *|' skills/war-strategy/SKILL.md prints 2 (0 at base — the two example header rows), grep -c '‡' skills/war-strategy/SKILL.md prints at least 3 (0 at base — the mirror sentence plus at least one marked row per example), and grep -ci 'Evidence consumed' skills/war-strategy/SKILL.md prints at least 3 (1 at base — one block per example).
   4. A bare-`slice` cell with no named task falls back to anywhere-citation — never a
      per-task fan-out ·
      check: node --test skills/war-strategy/assets/plan-literal-lint.test.mjs (D5 fixture; red with the fix reverted).
@@ -242,14 +248,20 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
   6. A decoy bold guardrails/end-state mark before the intent section does not redirect
      citation targets; the no-intent path still yields null marks ·
      check: node --test skills/war-strategy/assets/plan-literal-lint.test.mjs (D7 fixtures).
-  7. Deleting the `non-goal` skip arm reds the lint suite; a ‡-marked class cell parses
-     into its real class and is section-checked; and the report-only ‡ inventory emits
-     exactly one advisory row per ‡-marked pin (none on an unmarked tree), exit 0 ·
-     check: node --test skills/war-strategy/assets/plan-literal-lint.test.mjs (D8 + D3 + D3-inventory fixtures; delete-and-trace in the done report).
+  7. Deleting the `non-goal` skip arm reds the NAMED dedicated `non-goal` fixture in the
+     lint suite (not only the incidental dogfood anchor test); a ‡-marked cell — leading,
+     trailing, and the arrow-pair `PIN-<n>‡→<class>` form — parses into its real class and
+     is section-checked; the report-only ‡ inventory emits exactly one advisory row per
+     ‡-marked pin (none on an unmarked tree), exit 0; and `--strict` still exits 0 on a
+     ‡-marked plan with no other hits ·
+     check: node --test skills/war-strategy/assets/plan-literal-lint.test.mjs (D8 + D3 + D3-inventory + `--strict` fixtures; delete-and-trace naming the failing test title in the done report).
   8. Deleting the WAIVE right-delimited-id clause, the gate-1 scope clause, or the ‡
-     definition clause from `plan-interview.md` reds the structure suite — and dropping ‡
-     from the charter's twice-read clause reds it too (the charter-side new-present pin) ·
-     check: bash skills/war-strategy/war-strategy-structure.test.sh (plus a delete-and-trace of each clause, both surfaces, in the done report).
+     definition clause from `plan-interview.md` reds the structure suite; dropping ‡ from
+     the charter's twice-read clause reds it (the charter-side new-present pin); dropping the
+     ‡ mirror sentence from `SKILL.md`'s template law reds it (the SKILL.md-side pin); and
+     re-introducing `landing class is a duty` on either doctrine surface reds it (the
+     OLD-absent twins) ·
+     check: bash skills/war-strategy/war-strategy-structure.test.sh (plus a delete-and-trace of each clause, all three surfaces, and a re-introduce-and-trace of the retired phrase, in the done report).
   9. The two doctrine-scoped positive controls report under their own helper name ·
      check: bash skills/war-strategy/war-strategy-structure.test.sh | grep -c 'lacks_doc_i pattern' prints 4.
   10. The tag-set atom's SKILL-side extraction terminates at an indented sibling bullet
@@ -263,17 +275,18 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
       check: grep -c 'Evidence artifacts' skills/red-team/assets/workflow-scaffold.js prints at least 2 (scope-lock string plus the probe prompt).
   13. `loop-budget.md`'s patch-style section carries the four-surface same-patch sweep +
       red-at-base re-execution rule ·
-      check: grep -in 'design-tree row' skills/red-team/references/loop-budget.md prints the rule hit.
+      check: grep -in 'design-tree row' skills/red-team/references/loop-budget.md prints the rule hit (and the rule is pinned by a doc-guard in `red-team-gate.test.mjs`, Phase 3 Task 3).
   14. `skills/red-team/SKILL.md` Step 5 carries the ADR-0042 trigger pointer for the rule ·
-      check: grep -in 'patching an End state' skills/red-team/SKILL.md prints the pointer hit.
+      check: grep -in 'patching an End state' skills/red-team/SKILL.md prints the pointer hit (pinned by a doc-guard in `red-team-gate.test.mjs`, the 5.5(c) shape).
   15. A zero-byte baseline coinciding with a live escape-tripping fixture exits 2 — infra
       never preempted by escape ·
       check: bash skills/red-team/assets/assert-no-repo-escape.test.sh (the D16 case).
-  16. A NEW non-allowlisted gitignored path (vs the snapshot's recorded ignored set) is
-      detected per the ratified routing; pre-existing ignored residue and a new path under
-      the run-authored allowlist stay clean; case 29's ceiling pin is flipped to assert
+  16. A NEW non-allowlisted gitignored FILE (vs the snapshot's recorded file-level ignored
+      set) — including one inside a pre-existing ignored directory — is detected per the
+      ratified routing (exit 1); pre-existing ignored residue and a new path under the
+      run-authored allowlist stay clean; case 29's ceiling pin is flipped to assert
       detection ·
-      check: bash skills/red-team/assets/assert-no-repo-escape.test.sh (the D17 cases, including the flipped case-29 pin, the pre-existing-residue control, and the allowlist control).
+      check: bash skills/red-team/assets/assert-no-repo-escape.test.sh (the D17 cases, including the flipped case-29 pin, the inside-a-baselined-directory case, the pre-existing-residue control, and the allowlist control).
 
 ## Build order (for /war)
 
@@ -304,7 +317,11 @@ to loosen (A7: the `read **twice** at echo-back reconciliation` anchors must sur
   Stage-4 sections for paraphrased restatements; list stragglers as survey-derived
   corrections. Touched-doc treatment (rule 8): this doc is the CANONICAL source of the ‡
   grammar (nothing machine-readable to mirror — prose doctrine); its downstream guard is
-  the D9 ‡-clause pin (Phase 2 Task 3, phase-later per rule 7's sanctioned alternative).
+  the D9 ‡-clause pin (Phase 2 Task 2, phase-later per rule 7's sanctioned alternative).
+  This task's own gate does not assert the retired phrase absent — the OLD-absent pins
+  (D9's `lacks_doc_i`/`lacks_char_i` twins) land in Phase 2 Task 2 as the phase-later
+  guard; until then End state 2's check is the only old-absent floor. Keep the gate-1
+  paragraph's three pinned neighbour fragments on one line each through the re-wrap (A7).
 - Done when: bash skills/war-strategy/war-strategy-structure.test.sh
 - requiresTest: false
 - requiresPackaging: false
@@ -316,10 +333,15 @@ to loosen (A7: the `read **twice** at echo-back reconciliation` anchors must sur
 - Plan slice: (D2 mirror) one sentence in the template law's Design-tree pin-columns
   bullet: the operator may mark any pin ‡ (duty/fence content — orthogonal to class);
   ‡-marked pins are read twice at echo-back reconciliation, per the pin-ledger law in
-  `references/plan-interview.md` (cite, don't restate the grammar — de-mirror posture).
+  `references/plan-interview.md` (cite, don't restate the grammar — de-mirror posture);
+  the sentence is pinned by Phase 2 Task 2's SKILL.md-side `check_f` (phase-later, D9),
+  so choose a stable mid-clause token and keep the sentence on one line.
   (D4) rewrite BOTH example design trees to the floored shape: PIN ids + a Landing-class
   column (`| # | Decision | Resolution | Source | PIN | Landing class |` or pin→class
-  pairs), at least one ‡-marked row per example, each pin cited inside its declared
+  pairs), at least one ‡-marked row per example written in the trailing class-cell form
+  (`guardrail ‡`), which parses at base — the arrow-pair `PIN-<n>‡→<class>` form drops
+  the pin at base until Phase 2 Task 1's strip lands and is exercised by that task's
+  fixture, never by the examples — each pin cited inside its declared
   landing-class section (guardrail-class pins cited in `Binding guardrails:`, slice-class
   in the named task's `Plan slice:`), and a minimal Evidence-consumed block per example
   (placement latitude in Part 1; never a new required H2). Example B keeps its per-row
@@ -352,8 +374,10 @@ to loosen (A7: the `read **twice** at echo-back reconciliation` anchors must sur
   fragment `read **twice** at echo-back reconciliation` byte-identical. Grep floor +
   survey: grep -i 'duty-class' and 'landing class' over the file, handle every hit, then
   hand-scan for paraphrases (the sibling suite's comments referencing "duty-class" live
-  in `war-strategy-structure.test.sh` and are Phase 2 Task 3's same-commit comment sweep
-  — named here as this task's mirror, per the drift-pair duty). Touched-doc treatment
+  in `war-strategy-structure.test.sh` and are Phase 2 Task 2's same-commit comment sweep
+  — named here as this task's mirror, per the drift-pair duty). This task's own gate does
+  not assert the retired phrase absent — the OLD-absent `lacks_char_i` pins land in Phase 2
+  Task 2 (phase-later guard). Touched-doc treatment
   (rule 8): cites the canonical ledger definition (de-mirror); no machine-readable facts.
 - Done when: bash skills/war-strategy/war-strategy-structure.test.sh
 - requiresTest: false
@@ -364,77 +388,97 @@ to loosen (A7: the `read **twice** at echo-back reconciliation` anchors must sur
 ## Phase 2 — Lint + structure tests + drafter arm
 
 Phase edge from Phase 1: the D9 ‡-clause pin and the D3 fixture vocabulary anchor on
-Phase-1-landed bytes (rule 7's guard-a-phase-later arm). Five file-disjoint tasks; Task 2
-is wave-edged on Task 1.
+Phase-1-landed bytes (rule 7's guard-a-phase-later arm). Three file-disjoint tasks, fully
+parallel: the lint fixes and their fixtures share one task, because the inventory rule
+grows `SHAPE_RULES` and reds four count-coupled asserts in the test file, so the rule and
+the fixtures can only land in one commit (a split task's gate is unsatisfiable at its base).
 
-### Task 1: Four surgical lint fixes (plan-literal-lint.mjs)
-- Files: `skills/war-strategy/assets/plan-literal-lint.mjs`
-- Plan slice: (D3) strip `‡` in the landing-cell parsing path (`parseLandingCell` /
-  `parseClasses` — site latitude) so a ‡-marked cell (leading or trailing, pin-id-suffixed
-  `PIN-3‡` or class-suffixed `guardrail ‡`) parses into its real class and pin map, and no
-  error-shaped rule fires on the marker alone; `CLASS_TOKEN` byte-unchanged.
-  (D3-inventory, operator-ratified OD-1) a new report-only SHAPE_RULES entry — the ‡
-  inventory: one advisory row per ‡-marked pin found in the design tree (e.g. "PIN-<n> is
-  ‡-marked — twice-read at echo-back"), slot text naming the design-tree pin rows; exit
-  contract unchanged (report-and-exit-0 — mechanical input for gate 1's enumerate-aloud
-  duty, never a defect report). (D5) in the pin-citation
-  slice branch, a `slice` class with no named tasks degrades to the anywhere-citation
-  fallback (the class-less arm), never `[...doc.taskMap.keys()]`. (D6) the waive-row-form
-  row detector's `WAIVE-\d+(?!\d)` becomes `WAIVE-\d+(?!\w)` (sibling pin grammar) AND the
-  rule gains a malformed-id report arm: a row-initial `WAIVE-\d+\w` token is reported as
-  "malformed WAIVE id — letter suffixes are illegal" (the bare tighten alone would
-  make a `WAIVE-1a` row invisible to the rule — less advisory signal, not more). (D7)
+### Task 1: Four surgical lint fixes + red-at-base fixtures (plan-literal-lint.mjs + its suite)
+- Files: `skills/war-strategy/assets/plan-literal-lint.mjs`, `skills/war-strategy/assets/plan-literal-lint.test.mjs`
+- Plan slice: (D3) strip `‡` from the whole landing cell in `parseLandingCell` BEFORE the
+  arrow-pair (`PIN-<n>→<class>`) match and before `parseClasses`'s class match, so every
+  marked form — leading `‡ guardrail`, trailing `guardrail ‡`, pin-id-suffixed `PIN-3‡` in
+  the Source cell, and the arrow-pair `PIN-3‡→guardrail` (which drops the pin entirely at
+  base: the arrow regex's `(?!\w)\s*(?:→|->)` never matches across `‡`) — parses into its
+  real class and pin map, and no error-shaped rule fires on the marker alone;
+  `CLASS_TOKEN` byte-unchanged. (D3-inventory, operator-ratified OD-1) a new report-only
+  SHAPE_RULES entry — the ‡ inventory: one advisory row per ‡-marked pin found in the
+  design tree (e.g. "PIN-<n> is ‡-marked — twice-read at echo-back"), slot text naming the
+  design-tree pin rows — emitted on a separate informational channel: EXCLUDED from the
+  CLI's `anyHit` and from `lint()`'s returned hits (print it after the hits, or return it
+  under its own key — shape latitude), so the exit contract is unchanged INCLUDING
+  `--strict`, which must still exit 0 on a ‡-marked conforming plan (‡-marking is mandated
+  authoring under D2/D4; an informational row must never read as a defect). (D5) in the
+  pin-citation slice branch, a `slice` class with no named tasks degrades to the
+  anywhere-citation fallback (the class-less arm), never `[...doc.taskMap.keys()]`. (D6)
+  the waive-row-form row detector's `WAIVE-\d+(?!\d)` becomes `WAIVE-\d+(?!\w)` (sibling pin
+  grammar) AND the rule gains a malformed-id report arm: a row-initial `WAIVE-\d+\w` token
+  is reported as "malformed WAIVE id — letter suffixes are illegal" (the bare tighten alone
+  would make a `WAIVE-1a` row invisible to the rule — less advisory signal, not more). (D7)
   `GUARDRAILS_MARK`/`END_STATE_MARK` resolution scopes to the tracked intent section's
   line range (the `INTENT_H2` span `parsePlanShape` already walks) instead of
-  document-wide `lines.findIndex`; a plan with neither intent heading still yields null
-  marks (no-regress). Comment sweep: update the header/rule comments that restate the old
-  behaviors (the recorded comments-lag-rewritten-code class).
+  document-wide `lines.findIndex`; a plan with neither intent heading yields null marks —
+  a behavior change from today's document-wide first match, which returns a non-null
+  region. Comment sweep: update the header/rule comments that restate the old behaviors
+  (the recorded comments-lag-rewritten-code class).
+  Fixtures, same commit: D5 (task-less `slice` cell cited somewhere in the doc → at most
+  the anywhere-fallback outcome, never N per-task hits), D6 (a `WAIVE-1a` row yields the
+  malformed-id hit — genuinely red pre-fix, where the `(?!\d)` detector admitted the row
+  and its 5 fields passed clean), D7 (decoy bold `**Binding guardrails:**` in Context;
+  citation targets still resolve inside the intent section; plus the no-intent-heading
+  null-marks assert, red-at-base), D8 (a NAMED dedicated `non-goal`-class fixture in the
+  pin-citation class-mapping test: an uncited `non-goal` pin stays clean — definition row
+  suffices — such that deleting the `non-goal` skip arm reds THAT test; the incidental
+  dogfood red over `docs/plans/2026-08-24-authoring-side-verification.md` is not the
+  proof), and D3 — two red-pre-fix fixtures: the LEADING-‡ class cell (`‡ guardrail`, which
+  pre-fix fails `CLASS_TOKEN`'s `^` anchor and degrades to anywhere-citation: a leading-‡
+  guardrail-class pin cited only outside `Binding guardrails:` yields the section-citation
+  hit) and the ARROW-PAIR form (`PIN-3‡→guardrail`, which pre-fix yields zero design pins);
+  the trailing-‡ (`guardrail ‡`) and Source-cell `PIN-3‡` forms already parse at base and
+  land as no-regress asserts. Plus the D3-inventory fixtures (operator-ratified OD-1): a
+  design tree carrying ‡-marked pins yields exactly one inventory row per marked pin, an
+  unmarked tree yields none — red pre-fix by the rule's absence — and a ‡-marked plan with
+  no other hits exits 0 under `--strict` (the channel-exclusion pin). Weak-test-assertion
+  law: each red-at-base fixture proven red against the pre-fix code (delete the fix
+  mentally; the temp-break runs recorded in the done report, naming the failing test
+  title). The inventory rule grows SHAPE_RULES by one — update every count-coupled site
+  lock-step: the rule-count/name assert (`SHAPE_RULES: nine named rules` → ten), its
+  `slotAnchor` map entry for the inventory rule, and the merged-shape combined fixture's
+  per-rule `countOf` loop plus its `hits.length` literal (9 → 10 — or, if the inventory
+  channel is returned outside `hits`, the literal stays 9 and the loop skips the inventory
+  rule; say which in the done report), where the `badPlan` fixture gains exactly one
+  ‡-marked design-tree row and the `goodPlan` fixture stays ‡-free.
 - Done when: node --test skills/war-strategy/assets/plan-literal-lint.test.mjs
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
 
-### Task 2: Red-at-base fixtures (plan-literal-lint.test.mjs)
-- Files: `skills/war-strategy/assets/plan-literal-lint.test.mjs`
-- Plan slice: fixtures for D5 (task-less `slice` cell cited somewhere in the doc → at
-  most the anywhere-fallback outcome, never N per-task hits), D6 (a `WAIVE-1a` row yields
-  the malformed-id hit — genuinely red pre-fix, where the `(?!\d)` detector admitted the
-  row and its 5 fields passed clean), D7 (decoy bold `**Binding guardrails:**` in
-  Context; citation targets still resolve inside the intent section; plus a
-  no-intent-heading no-regress assert), D8 (a `non-goal`-class pin uncited outside the
-  tree stays clean — definition row suffices — such that deleting the `non-goal` skip arm
-  reds), and D3 — the discriminating red-pre-fix fixture is the LEADING-‡ class cell
-  (`‡ guardrail`, which pre-fix fails `CLASS_TOKEN`'s `^` anchor and degrades to
-  anywhere-citation): a leading-‡ guardrail-class pin cited only outside `Binding
-  guardrails:` yields the section-citation hit; the trailing-‡ (`guardrail ‡`) and
-  pin-id-suffixed (`PIN-3‡`) forms already parse at base and land as no-regress asserts.
-  Plus the D3-inventory fixture (operator-ratified OD-1): a design tree carrying ‡-marked
-  pins yields exactly one inventory row per marked pin, an unmarked tree yields none —
-  red pre-fix by the rule's absence. Weak-test-assertion law: each red-at-base fixture
-  proven red against the pre-fix code (delete the fix mentally; the temp-break runs
-  recorded in the done report). The inventory rule grows SHAPE_RULES by one — update the
-  suite's rule-count/name assert (`SHAPE_RULES: nine named rules` → ten) lock-step.
-- Done when: node --test skills/war-strategy/assets/plan-literal-lint.test.mjs
-- requiresTest: true
-- requiresPackaging: false
-- deps: [Task 1]
-- target repo: superproject
-
-### Task 3: Clause pins, TAP labels, in-fence bound (war-strategy-structure.test.sh)
+### Task 2: Clause pins, OLD-absent twins, TAP labels, in-fence bound (war-strategy-structure.test.sh)
 - Files: `skills/war-strategy/war-strategy-structure.test.sh`
 - Plan slice: (D9) three new presence pins against `plan-interview.md`, anchored on
-  stable mid-clause tokens, case-robust, never sentence-initial: the WAIVE
-  right-delimited-id clause (e.g. `doc_f 'right-delimited id, inheriting the Evidence
-  consumed block'`), the gate-1 scope clause (e.g. `doc_f 'pin-rule gap and
-  Evidence-consumed gap the lint reports'` plus `doc_f 'one-shot and standing alike'`),
-  and the Phase-1-landed ‡ definition clause (anchor literal chosen against the landed
-  bytes; must include the ‡ character so End state 2's new-present half is mechanical) —
-  PLUS the charter-side twin: a `char_f` new-present pin on strategy-verifier.md's
-  reworded ‡ clause (e.g. `char_f '‡-marked pins'`, anchor chosen against Phase-1-landed
-  bytes), lock-step with the doctrine-side pin, because a one-sided pin leaves the
-  charter free to drop ‡ entirely while the suite and End state 2's old-absent grep both
-  stay green (the grill-proven gap; the mirror-pair drift-pin convention).
+  stable mid-clause tokens, case-robust, never sentence-initial, and each on ONE live
+  line — `doc_f`/`char_f`/`check_f` are line-scoped `grep -qF`, so an anchor spanning a
+  wrap point can never match: the WAIVE right-delimited-id clause (e.g. `doc_f
+  'right-delimited id, inheriting the Evidence'` — the clause wraps after `Evidence`, so
+  the longer `… Evidence consumed block` literal is dead on arrival), the gate-1 scope
+  clause (e.g. `doc_f 'pin-rule gap and Evidence-consumed gap the lint reports'` plus
+  `doc_f 'one-shot and standing alike'`), and the Phase-1-landed ‡ definition clause
+  (anchor literal chosen against the landed bytes; must include the ‡ character so End
+  state 2's new-present half is mechanical) — PLUS the charter-side twin: a `char_f`
+  new-present pin on strategy-verifier.md's reworded ‡ clause (e.g. `char_f '‡-marked
+  pins'`, anchor chosen against Phase-1-landed bytes), lock-step with the doctrine-side
+  pin, because a one-sided pin leaves the charter free to drop ‡ entirely while the suite
+  and End state 2's old-absent grep both stay green (the grill-proven gap; the
+  mirror-pair drift-pin convention) — PLUS the SKILL.md-side third: a `check_f` pin on a
+  stable mid-clause token of Phase 1 Task 2's template-law ‡ mirror sentence, so the ‡
+  trio is lock-step — PLUS the OLD-absent twins (the phase-later guard for Phase 1's
+  flip; presence pins close only the drop-‡ direction): `lacks_doc_i 'landing class is a
+  duty'`, a new charter-scoped `lacks_char_i` helper (the `lacks_doc_i` shape — fixed
+  string, case-insensitive — against `$CHARTER`, with the same `ctl()`-style aliveness
+  control the sibling helpers carry), and `lacks_char_i 'landing class is a duty'` plus
+  `lacks_char_i 'duty-class twice-read'`; prove non-vacuity by re-introducing the retired
+  phrase on each surface in a scratch copy and observing the red (done-report trace).
   (D10) `ctl()` prints the helper name it controls — parameterize (bash-3.2-safe, e.g. a
   fourth arg defaulting `lacks_i`) so patterns 6 and 7 report `lacks_doc_i pattern N` on
   both TAP lines. (D11) add `MEQ_BOUND_INFENCE` (the `MEQ_BOUND` arms plus an
@@ -450,7 +494,7 @@ is wave-edged on Task 1.
 - deps: []
 - target repo: superproject
 
-### Task 4: Drafter degraded arm + pin (war-machine SKILL.md + pipeline suite)
+### Task 3: Drafter degraded arm + pin (war-machine SKILL.md + pipeline suite)
 - Files: `skills/war-machine/SKILL.md`, `skills/war-machine/war-pipeline-structure.test.sh`
 - Plan slice: (D13) append the degraded arm to the §2 step-1 drafter evidence clause,
   copying the sibling arms' shape: a cited issue whose `## Evidence artifacts` section is
@@ -502,16 +546,20 @@ deps-dodged).
 
 ### Task 2: Escape-guard widening + ordering pin (assert-no-repo-escape.sh + suite)
 - Files: `skills/red-team/assets/assert-no-repo-escape.sh`, `skills/red-team/assets/assert-no-repo-escape.test.sh`
-- Plan slice: (D17, per OD-2's provisional default — BASELINE-DIFF, never a pre-run
+- Plan slice: (D17, per OD-2's ratified routing — BASELINE-DIFF, never a pre-run
   refusal: this repo itself carries pre-existing `!!` entries including `.claude/red-team/`
   via machine-local `.git/info/exclude`, and every /red-team run writes its own scaffold
   to `.claude/red-team/<run>.js` mid-run, so a static-allowlist + refusal design
   dead-locks the guard on its own home repo). Snapshot mode additionally records the
-  ignored-path set (`git status --porcelain --ignored`, the `!!` lines) alongside the ref
-  set in the snapshot file (section/prefix format is latitude) — pre-existing ignored
-  residue is baselined, never refused. Check mode, with `--baseline` only: diff the live
-  ignored set against the baseline's recorded set; a NEW non-allowlisted ignored path is
-  residue → exit 1 (escape), same route as untracked residue; the in-script allowlist
+  ignored FILE set (`git ls-files --others --ignored --exclude-standard`, one path per
+  line — never `git status --porcelain --ignored`, whose `!!` lines collapse a
+  pre-existing ignored directory to one entry and so cannot see a new file inside
+  `node_modules/` or an already-baselined `.claude/red-team/`; proven at red-team
+  2026-09-02) alongside the ref set in the snapshot file (section/prefix format is
+  latitude) — pre-existing ignored residue is baselined, never refused. Check mode, with
+  `--baseline` only: diff the live ignored file set against the baseline's recorded set; a
+  NEW non-allowlisted ignored file — including one inside a directory the baseline already
+  listed files under — is residue → exit 1 (escape), same route as untracked residue; the in-script allowlist
   covers run-authored legitimate paths only (starter contents per A2: `.claude/red-team/`;
   bash-3.2-safe plain array + case/glob match). A baseline lacking the ignored section
   (an old-format snapshot) makes the ignored half vacuous — fail-open back-compat, noted
@@ -528,7 +576,9 @@ deps-dodged).
   convention: move the validation block below (b1) in a scratch copy and the case flips
   2 → 1 (trace in the done report). (D17 cases) flip case 29's pin to assert detection
   (exit 1 naming the NEW ignored leak vs its snapshot); add an allowlist-control case (a
-  new leak landing only under an allowlisted run-authored pattern → exit 0); add a
+  new leak landing only under an allowlisted run-authored pattern → exit 0); add an
+  inside-a-baselined-directory case (an ignored directory with one file at snapshot time
+  gains a second file → exit 1 naming the new file); add a
   pre-existing-residue control (an ignored file present BEFORE the snapshot → snapshot
   succeeds, check stays exit 0); add an old-format-baseline back-compat control (no
   ignored section → ignored half vacuous, exit 0); update the header case list and case
@@ -541,8 +591,8 @@ deps-dodged).
 - deps: []
 - target repo: superproject
 
-### Task 3: Patch doctrine + escape-semantics doc hits (loop-budget.md, red-team SKILL.md, lenses.md)
-- Files: `skills/red-team/references/loop-budget.md`, `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`
+### Task 3: Patch doctrine + escape-semantics doc hits + their doc-guards (loop-budget.md, red-team SKILL.md, lenses.md, red-team-gate.test.mjs)
+- Files: `skills/red-team/references/loop-budget.md`, `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`, `skills/red-team/assets/red-team-gate.test.mjs`
 - Plan slice: (D15) add the four-surface rewrite rule to `loop-budget.md`'s Patch style
   section: any patch that rewrites an End state greps the plan for the old requirement's
   distinctive wording and fixes every hit — design-tree row, owning task's plan slice,
@@ -564,10 +614,19 @@ deps-dodged).
   enumerations are prose restatements of script behavior (not a config default, manifest
   field, enum member, or version slot — outside rule 8's closed machine-readable scope);
   their arbiter is `assert-no-repo-escape.test.sh` (Task 2), named here as the mirror.
-  Keep the pipeline suite's lenses.md pins green (the backticked `## Evidence artifacts`
-  literal is untouched).
-- Done when: bash skills/war-machine/war-pipeline-structure.test.sh
-- requiresTest: false
+  Doc-guards, same task (the guard travels with its fact): the doc-guards that pin the
+  prose this task rewrites live in `skills/red-team/assets/red-team-gate.test.mjs`, NOT in
+  the pipeline suite (which reads only the scaffold and lenses.md from red-team) — 5.5(c)
+  regex-pins SKILL.md's ADR-0042 loop-budget pointer, D8 pins loop-budget.md's layout, D11
+  fail-closed pins BOTH SKILL.md's and lenses.md's exit-contract enumerations. Add a
+  5.5(c)-shaped doc-guard for the D15 rule in loop-budget.md (a stable mid-clause token of
+  the four-surface sweep) and one for the new Step-5 trigger pointer (trigger THEN read, one
+  paired regex), and extend D11's enumeration asserts with the new ignored-file arm so the
+  Task-2 mirror is guarded on both doc surfaces; run the suite green. Keep the pipeline
+  suite's lenses.md pins green (the backticked `## Evidence artifacts` literal is
+  untouched).
+- Done when: node --test skills/red-team/assets/red-team-gate.test.mjs && bash skills/war-machine/war-pipeline-structure.test.sh
+- requiresTest: true
 - requiresPackaging: false
 - deps: [Task 2]
 - target repo: superproject
@@ -581,11 +640,9 @@ deps-dodged).
   `## Status` line replace-in-place, never a badge, never an empty field) to the next
   free patch above the live integration base at land time, and prepend the newest-first
   `CHANGELOG.md` head entry for that same version (`version-slots.test.mjs` asserts the
-  head equals the bumped `plugin.json` version). Expected integration base (A6): the
-  landed tip of `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md`'s
-  campaign branch, which stacks on master at 0.20.0 (the ask-disposition release) and
-  already carries that plan's own trailing release — resolve from
-  the slots at land time, never from this paragraph. Standalone-fallback
+  head equals the bumped `plugin.json` version). Expected integration base (A6): `origin/master` at
+  0.21.7 (PR #1949), so the expected result is 0.21.8 — resolve from the slots at land
+  time, never from this paragraph. Standalone-fallback
   rule: a run of this plan through plain `/war` (outside the campaign stack) resolves the
   next free patch from the four slots themselves. Before landing, assert the resolved
   version differs from the launch-base version (the stacked-release lag class).
@@ -615,10 +672,13 @@ deps-dodged).
   mined. Reproduced at drafting: a digits-only revert reds the suite twice. No task
   ships for it; the spec's validation criterion 11 is dropped; #1685 closes via the
   backstop row's evidence chain.
-- **D3 fixture added beyond the spec's fixture list.** Spec §4 names fixtures for D5–D8
-  only; a D3 fixture (‡-marked cell parses into its real class, red pre-fix) is added in
-  Phase 2 Task 2 because without it the strip is exactly the kind of unexercised arm D8
-  exists to prevent (weak-test-assertion law).
+- **D3 fixtures added beyond the spec's fixture list.** Spec §4 names fixtures for D5–D8
+  only; D3 fixtures (the leading-‡ cell and the arrow-pair `PIN-<n>‡→<class>` form, both
+  red pre-fix) are added in Phase 2 Task 1 because without them the strip is exactly the
+  kind of unexercised arm D8 exists to prevent (weak-test-assertion law).
+- **Phase 2's lint task and fixture task merged at red-team (2026-09-02).** The
+  inventory rule reds four count-coupled asserts in the test file, so a lint-only task
+  could never pass its own gate at its base; one task owns both files.
 - **D17 redesigned to baseline-diff (grill-driven deviation from the spec's
   allowlist-only sketch).** The spec's D17 named a static in-script allowlist over the
   full ignored set; grill proved that design self-trips on this very repo (pre-existing
@@ -626,7 +686,10 @@ deps-dodged).
   enumerate, plus the run's own mid-run `.claude/red-team/<run>.js` scaffold write). The
   taken form: snapshot mode records the ignored-path set; check mode flags only NEW
   non-allowlisted ignored paths vs that baseline; the allowlist is reserved for
-  run-authored legitimate paths. Same routing question as OD-2; ratify together.
+  run-authored legitimate paths. Routing ratified at OD-2 (exit 1); the ignored set is
+  enumerated file-level (`git ls-files --others --ignored --exclude-standard`), because the
+  `!!` directory-collapsed form cannot see a new file inside a pre-existing ignored
+  directory (proven at red-team 2026-09-02).
 - **D14 gains a test pin beyond the spec.** The carve-out lands with a
   `workflow-scaffold.test.mjs` assertion (Phase 3 Task 1) — an unguarded prompt-string
   duty is the drift class this campaign exists to close.
@@ -634,7 +697,7 @@ deps-dodged).
   the leak-shapes section heading's mention) is renamed to the ‡-keyed form as latitude;
   the floor is the pinned `read **twice** at echo-back reconciliation` fragment plus End
   state 2's old-absent phrase. Structure-suite comments referencing the old label are
-  swept in Phase 2 Task 3.
+  swept in Phase 2 Task 2.
 - **Mirrored surfaces edited here are drift pairs** (twice-read clause in two files;
   drafter arm mirroring siblings; escape-semantics enumerations mirroring the guard):
   each task's done report names its mirror and confirms same-commit coverage.
@@ -646,7 +709,7 @@ None — both forks were settled at the conversion volley:
 - **OD-1 — RESOLVED, operator-ratified (2026-08-25, interactive volley):** strip +
   report-only ‡ inventory (the NON-default branch) — the lint strips ‡ for class parsing
   AND gains the report-only inventory rule surfacing every ‡-marked row at conversion
-  (exit 0, advisory). In-plan: D3, Phase 2 Tasks 1–2, End state 7.
+  (exit 0, advisory; `--strict` unaffected). In-plan: D3, Phase 2 Task 1, End state 7.
 - **OD-2 — RESOLVED, operator-ratified (2026-08-25, interactive volley):** escape
   routing for a NEW non-allowlisted gitignored path detected by the baseline-diff
   (exit 1, snapshot-recorded ignored set, run-authored allowlist starting at

@@ -118,9 +118,9 @@ Echo-back 1 is **gate 1** — the confirm gate carrying the inseparable pair: th
 lint stays exit-0 report-only ↔ gate 1 carries the hard **enumerate-aloud** duty over its
 findings. Every pin-rule gap and Evidence-consumed gap the lint reports, and every
 `WAIVE-<n>` row — one-shot and standing alike — is enumerated aloud and resolved
-fix-or-waive on the record before the confirm counts. Pins whose landing class is a duty
-or fence (marked ‡ in the design tree) are read **twice** at echo-back reconciliation —
-once in the echo-back's own sweep, once against the floor list.
+fix-or-waive on the record before the confirm counts. ‡-marked pins are
+read **twice** at echo-back reconciliation — once in the echo-back's own sweep, once
+against the floor list.
 
 **Stage 5 — two silent gates.** Before writing the file:
 
@@ -148,6 +148,14 @@ Every mechanism below serves it.
   suffices. Class-less pins fall back to anywhere-citation. The advisory
   `plan-literal-lint.mjs` checks the map mechanically — report-only, exit 0; the hard half
   of the pair is gate 1's enumerate-aloud duty (Stage 4).
+- **The `‡` twice-read marker:** `‡` is appended to the pin id, or to the
+  landing-class cell of the design-tree row. The operator applies it at ratification, to
+  any pin whose content is a standing duty or a fence, whatever that pin's class cell
+  says. The consequence is the twice-read rule:
+  ‡-marked pins are read **twice** at echo-back reconciliation (Stage 4, gate 1) — once
+  in the echo-back's own sweep, once against the floor list. The marker is orthogonal to
+  landing class: `‡` is never a class token, and the class vocabulary stays the closed
+  six-class set above.
 - **The `WAIVE-<n>` channel:** `WAIVE-<n>` is the skip token (verifier skips are operator
   utterances — the charter owns the semantics). Waive rows are artifact-borne in the plan:
   id · beat · fired arm · scope · reason, right-delimited id, inheriting the Evidence

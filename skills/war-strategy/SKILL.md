@@ -123,6 +123,7 @@ ledger's `extractFiles` all run unmodified against it).
   landing-class column is floored; where the id sits within a row is latitude. The class→section map,
   the gate-1 pair duty, and the `WAIVE-<n>` channel live in the pin-ledger law
   (`references/plan-interview.md`).
+  **‡ marker:** the operator may mark any pin ‡ (duty or fence content — orthogonal to its landing-class cell), and ‡-marked pins are read twice at echo-back reconciliation, per that same pin-ledger law.
 - **Evidence consumed block:** a plan authored under the interview carries an **Evidence consumed**
   block — one row per linked evidence artifact, read or unread-with-reason — with placement latitude
   anywhere in Part 1 and **never a new required H2** (the extraction surfaces stay untouched).
@@ -140,6 +141,10 @@ backstops) finds its target in each. This one carries the operator-ratified head
 ```
 # Widget cache — invalidate on rename
 
+**Evidence consumed** — one row per linked artifact:
+- `src/cache.js` `cacheKey()` / `renameWidget()` at `abc1234` · read
+- issue #42 (the stale-title report) · unread — the operator restated it in full at interview
+
 ## Context — the gap / problem
 
 Renaming a widget leaves its cache row keyed by the old slug (verified: `src/cache.js`
@@ -151,10 +156,10 @@ Cache schema untouched · the TTL default stays 300s.
 
 ## Resolved design tree
 
-| # | Decision | Resolution | Source |
-|---|----------|------------|--------|
-| D1 | Invalidation point | on the rename write path, not on read | (user) |
-| D2 | Key shape | keep slug keys; drop-and-refill on rename | [assumed: cheapest — if wrong: dual-key window] |
+| # | Decision | Resolution | Source | Landing class |
+|---|----------|------------|--------|---------------|
+| D1 | Invalidation point | on the rename write path, not on read | (user) | PIN-1→guardrail ‡ |
+| D2 | Key shape | keep slug keys; drop-and-refill on rename | [assumed: cheapest — if wrong: dual-key window] | PIN-2→slice (T1) |
 
 ## Assumptions ledger
 
@@ -177,7 +182,8 @@ None.
 - **Mechanism latitude:** the drop-call's placement inside the transaction and the miss-test's
   fixture shape are implementer's choice; substituting any of these mechanisms while the End
   states and binding guardrails hold is not a plan deviation and warrants no issue.
-- **Binding guardrails:** cache schema untouched · the TTL default stays 300s.
+- **Binding guardrails:** cache schema untouched · the TTL default stays 300s · invalidate on the
+  rename write path, never on read (PIN-1).
 - **End state:**
   1. `renameWidget()` drops the old-slug row in the same transaction ·
      check: `node --test src/cache.test.mjs`.
@@ -192,8 +198,8 @@ Phase 1 (fix + test).
 
 ### Task 1: Drop the old-slug row
 - Files: `src/cache.js`, `src/cache.test.mjs`
-- Plan slice: call `dropKey(oldSlug)` inside `renameWidget()`'s transaction; add the
-  rename-then-read miss test.
+- Plan slice: call `dropKey(oldSlug)` inside `renameWidget()`'s transaction, keeping slug keys
+  (PIN-2); add the rename-then-read miss test.
 - Done when: `node --test src/cache.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
@@ -225,6 +231,10 @@ carry per-row `AI-declared` markers (D14). Part 1 is the decision digest citing 
 Converted by `/war-machine --afk` from `docs/specs/2026-05-01-import-throttling-design.md`
 (Part 1 is its decision digest; ledger rows carried forward or retired with stated reason).
 
+**Evidence consumed** — one row per linked artifact:
+- `docs/specs/2026-05-01-import-throttling-design.md` §1, §3, §8 at `def5678` · read
+- issue #88 (2026-04-30) · read via the spec's verbatim quote, cross-checked at `def5678`
+
 ## Context — the gap / problem
 
 Bulk imports saturate the queue (verified: issue #88 (2026-04-30)); interactive traffic
@@ -236,10 +246,10 @@ Queue schema untouched · the enqueue seam is the only choke point.
 
 ## Resolved design tree
 
-| # | Decision | Resolution | Source |
-|---|----------|------------|--------|
-| D1 | Mechanism | fixed burst cap of 50 per 60s window | (verified: spec §3 at `def5678`) |
-| D2 | Overflow behavior | reject with retry-after, never queue-jump | AI-declared [assumed: simplest — if wrong: token bucket] |
+| # | Decision | Resolution | Source | Landing class |
+|---|----------|------------|--------|---------------|
+| D1 | Mechanism | fixed burst cap of 50 per 60s window | PIN-1 · (verified: spec §3 at `def5678`) | slice (T1) |
+| D2 | Overflow behavior | reject with retry-after, never queue-jump | PIN-2 · AI-declared [assumed: simplest — if wrong: token bucket] | guardrail ‡ |
 
 ## Assumptions ledger
 
@@ -263,7 +273,7 @@ None.
   implementer's choice; substituting any of these mechanisms while the End states and binding
   guardrails hold is not a plan deviation and warrants no issue. (AI-declared)
 - **Binding guardrails:** queue schema untouched · the enqueue seam stays the only choke
-  point. (AI-declared)
+  point · overflow rejects with retry-after, never queue-jumps (PIN-2). (AI-declared)
 - **End state:**
   1. `enqueueImport()` rejects the 51st import inside a 60s window ·
      check: `node --test src/throttle.test.mjs`. (AI-declared)
@@ -276,8 +286,8 @@ Phase 1 (cap + test).
 
 ### Task 1: Cap at the enqueue seam
 - Files: `src/throttle.js`, `src/throttle.test.mjs`
-- Plan slice: add the 50-per-60s window check in `enqueueImport()`; test the 51st rejection
-  and the retry-after value.
+- Plan slice: add the 50-per-60s window check in `enqueueImport()` (PIN-1); test the 51st
+  rejection and the retry-after value.
 - Done when: `node --test src/throttle.test.mjs`
 - requiresTest: true
 - requiresPackaging: false

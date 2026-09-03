@@ -2,11 +2,12 @@
 name: doctrine-landing-class-token-can-name-a-marker-outside-its-own-ratified-enum
 description: "A doctrine sentence can gate on 'landing class is X' for a value X that the same doctrine's…"
 metadata: 
+  promoted: claude/authoring-side-verification-600a79@phase-1
   node_type: memory
   type: project
   provenance: code-verified
   slug: doctrine-landing-class-token-can-name-a-marker-outside-its-own-ratified-enum
-  phase: "authoring-side-verification/phase-1 (tasks 1.1, 1.2 audits)"
+  phase: "authoring-side-verification/phase-1 (tasks 1.1, 1.2 audits); resolved 2026-08-25-authoring-doctrine-and-lint-coherence/phase-1 (tasks 1.1-1.3)"
   keywords: 
     - landing class
     - duty or fence
@@ -20,6 +21,10 @@ metadata:
     - fail-open unknown token
     - PIN-25
     - twice-read rule
+    - resolved
+    - vocabulary settlement
+    - double-dagger marker
+    - orthogonal row marker
   tags: 
     - war
     - war-strategy
@@ -28,7 +33,7 @@ metadata:
     - audit-findings
   created: 2026-08-24
   originSessionId: dcda690d-99d2-4fba-9d28-2a2a858d4676
-  modified: 2026-08-25T05:10:27.726Z
+  modified: 2026-09-03T02:16:33.676Z
 ---
 
 # A doctrine sentence's "landing class is X" can name a value outside the same doctrine's ratified enum
@@ -66,13 +71,29 @@ column-level (enum) language — but nothing in the authoring/lint pipeline curr
 class of error: the lint's unknown-token skip is silent, and no test asserts every "landing class
 is X" sentence's `X` is a member of the ratified enum.
 
-**Status at land:** unresolved — task 1.1's second gate-audit round graded this Minor with
-`disposition: follow-up` (not absorbed pre-land); no fix landed in this phase.
+**Status at land:** RESOLVED (code-verified — landed tip `1582717d008b08e0e56e7951c27720efc0c21cfe`
+on `dev/2026-08-25-authoring-doctrine-and-lint-coherence`, read via the `_refinery39` worktree,
+gitdir physical path `<repo-root>/.claude/war-worktrees/2026-08-25-authoring-doctrine-and-lint-coherence-2026-09-02-r3/_refinery/`,
+`HEAD` byte-equal to the landed tip): plan `2026-08-25-authoring-doctrine-and-lint-coherence`'s
+Phase 1 ("Vocabulary settlement (doctrine only)") settled `‡` as a normative, orthogonal,
+operator-applied row marker — never a landing-class value — defined once in
+`plan-interview.md`'s ratified-pin ledger section ("**The `‡` twice-read marker:** `‡` is
+appended to the pin id, or to the landing-class cell of the design-tree row... The marker is
+orthogonal to landing class: `‡` is never a class token, and the class vocabulary stays the
+closed six-class set above."). Both twice-read clauses (`plan-interview.md`'s Stage-4 gate-1
+sentence and `strategy-verifier.md`'s `## The three leak shapes + the ‡ twice-read rule`
+section, "**‡-marked twice-read rule**: the operator marks a pin ‡ in the design tree...") now key
+on `‡` alone; the phrase "landing class is a duty" is confirmed absent from
+`plan-interview.md`, `strategy-verifier.md`, and `skills/war-strategy/SKILL.md` at the landed
+tip. `SKILL.md`'s Example A/B design trees also gained a `Landing class` column with `‡`-marked
+rows (e.g. `PIN-1→guardrail ‡`, `guardrail ‡`) and Evidence-consumed blocks. The fix matches this
+lesson's own predicted shape exactly: "phrase the gate on the row/marker axis... never smuggle a
+row-level attribute into column-level (enum) language."
 
 **Locate-cue (verify still present before acting):**
-`skills/war-strategy/references/plan-interview.md`, the Stage-4 gate-1 pair-duty paragraph
-(the "landing class is a duty or fence" sentence), and the class→section map three lines below it
-in the same file's `## The ratified-pin ledger + the WAIVE channel` section.
+`skills/war-strategy/references/plan-interview.md`'s `## The ratified-pin ledger + the WAIVE
+channel` section, the "**The `‡` twice-read marker:**" bullet; `skills/war-strategy/references/strategy-verifier.md`'s `## The three leak shapes + the ‡ twice-read rule` section; and
+`skills/war-strategy/SKILL.md`'s Example A/B design trees (`Landing class` column).
 
 ## Related
 
