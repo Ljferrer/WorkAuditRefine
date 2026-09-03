@@ -11,11 +11,12 @@ refer to their original card positions. The dispatched worker prompt in
 step-by-step those clauses assume. The cards' plugin-root-anchored pointer (the
 `${CLAUDE_PLUGIN_ROOT}/skills/…` target form; ADR 0047's seat-capability matrix) resolves this
 file even on a foreign target repo for Bash-capable seats, which expand the placeholder in
-their own shell; for seats that cannot expand it (the auditor's read-only git guard denies the
-expansion), resolution rests on harness substitution or the cards' D3 fallback line, and the
-standing cards' decisive-rules-inline digests plus those dispatched clauses remain the
-operative carriers there — this file is best-effort enrichment (adjudication O(1), still
-standing).
+their own shell. Seats that cannot expand it (the auditor's read-only git guard denies the
+expansion) depend on harness substitution first. The cards' D3 fallback line is not a
+foreign-repo resolution path: it resolves the pointer only when the repo under review is the
+plugin itself, so on a foreign target repo resolution rests on harness substitution alone.
+There, the standing cards' decisive-rules-inline digests plus those dispatched clauses are the
+operative carriers — this file is best-effort enrichment (adjudication O(1), still standing).
 
 ## Submodule task mechanics
 
