@@ -1,0 +1,268 @@
+<title>Follow-up Filing Study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{color-scheme:light;
+ --bg:#f7f7f4;--surface:#fcfcfb;--ink:#141513;--ink-2:#4f524d;--ink-3:#7d817a;--rule:#dcded8;--rule-2:#ecede8;
+ --accent:#2a78d6;--s1:#2a78d6;--s2:#1baf7a;--s3:#eda100;--s4:#4a3aa7;--s5:#eb6834;--closed:#1baf7a;--marker:#8a8985;--tip-bg:#141513;--tip-ink:#fcfcfb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+ --bg:#141513;--surface:#1a1a19;--ink:#f3f3ee;--ink-2:#c3c2b7;--ink-3:#8f9089;--rule:#34352f;--rule-2:#262723;
+ --accent:#3987e5;--s1:#3987e5;--s2:#199e70;--s3:#c98500;--s4:#9085e9;--s5:#d95926;--closed:#199e70;--marker:#8f9089;--tip-bg:#f3f3ee;--tip-ink:#141513}}
+:root[data-theme="dark"]{color-scheme:dark;
+ --bg:#141513;--surface:#1a1a19;--ink:#f3f3ee;--ink-2:#c3c2b7;--ink-3:#8f9089;--rule:#34352f;--rule-2:#262723;
+ --accent:#3987e5;--s1:#3987e5;--s2:#199e70;--s3:#c98500;--s4:#9085e9;--s5:#d95926;--closed:#199e70;--marker:#8f9089;--tip-bg:#f3f3ee;--tip-ink:#141513}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Source Sans 3",system-ui,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 24px 80px}
+h1,h2,h3{font-family:Newsreader,Georgia,serif;font-weight:600;text-wrap:balance;margin:0}
+h1{font-size:2.4rem;line-height:1.1;letter-spacing:-.01em}
+h2{font-size:1.5rem;margin:56px 0 12px;padding-top:20px;border-top:1px solid var(--rule)}
+h3{font-size:1.1rem;margin:20px 0 6px}
+p{max-width:68ch;margin:0 0 12px;color:var(--ink)}
+.eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
+.lede{font-size:1.15rem;color:var(--ink-2);max-width:62ch;margin:16px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:28px 0 8px}
+.tile{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px}
+.tile .n{font-family:Newsreader,Georgia,serif;font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
+.tile .l{color:var(--ink-2);font-size:.9rem;margin-top:6px}
+figure{margin:18px 0 0;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px 16px 10px}
+figure h3{margin:0 0 2px}
+figcaption{color:var(--ink-2);font-size:.9rem;margin-bottom:10px;max-width:80ch}
+.chart{position:relative;width:100%;overflow:visible}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.85rem;color:var(--ink-2);margin:6px 0 2px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.legend i.line{height:2px;width:16px;border-radius:1px}
+.legend i.hollow{background:transparent!important;border:2px solid var(--marker)}
+.tip{position:absolute;pointer-events:none;background:var(--tip-bg);color:var(--tip-ink);font:.8rem/1.4 "JetBrains Mono",ui-monospace,monospace;padding:6px 9px;border-radius:4px;white-space:nowrap;transform:translate(-50%,calc(-100% - 10px));opacity:0;transition:opacity .08s;z-index:2}
+.tip.on{opacity:1}
+svg text{font-family:"Source Sans 3",system-ui,sans-serif;fill:var(--ink-2);font-size:12px}
+svg .ax text{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;fill:var(--ink-3)}
+svg .grid line{stroke:var(--rule-2)}
+svg .axis line{stroke:var(--rule)}
+svg .mk line{stroke:var(--marker);stroke-dasharray:3 3}
+svg .mk text{fill:var(--ink-3);font-size:10.5px}
+table{border-collapse:collapse;width:100%;font-size:.92rem;margin:12px 0}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+th{font-weight:600;color:var(--ink-2);font-size:.8rem;letter-spacing:.04em;text-transform:uppercase}
+td.n,th.n{text-align:right;font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+ul{max-width:72ch;padding-left:20px}li{margin:4px 0}
+code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.88em;background:var(--rule-2);padding:1px 5px;border-radius:3px}
+.note{color:var(--ink-2);font-size:.9rem}
+.pill{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:10px;border:1px solid var(--rule);color:var(--ink-2);font-family:"JetBrains Mono",ui-monospace,monospace}
+@media (prefers-reduced-motion:reduce){.tip{transition:none}}
+</style>
+<div class="wrap">
+<div class="eyebrow">WorkAuditRefine · issue #1492 · data through 2026-09-03</div>
+<h1>Follow-up Filing Study</h1>
+<p class="lede">All 391 <code>war-followup</code> issues hand-classified for cause and in-band fixability, timed against the three #1431 boundaries, and joined to the closure history of the 203 that are already closed.</p>
+
+<div class="tiles">
+ <div class="tile"><div class="n">391</div><div class="l">follow-up issues filed since 2026-07-01</div></div>
+ <div class="tile"><div class="n">85%</div><div class="l">fixable in-band (333): 157 trivial, 114 small, 62 lane-closed</div></div>
+ <div class="tile"><div class="n">5%</div><div class="l">#1431 mechanism-substitution class (18 issues)</div></div>
+ <div class="tile"><div class="n">1.4 d</div><div class="l">median time to close, 203 closed</div></div>
+</div>
+
+<h2>1. Filings over time</h2>
+<p>Weekly filings stacked by how fixable each issue was. The dashed lines are the doctrine and release events #1492 asked to compare across. The rate did not fall after either the authored clause (PR #1491) or the runtime arms (0.17.11). It rose with campaign volume and with the engine's own filing dispatch, which files every roster follow-up automatically from 0.19.0 on.</p>
+<figure><h3>Follow-ups filed per week, by in-band fixability</h3><figcaption>Weeks start Monday. Hover a bar segment for the count.</figcaption>
+<div class="legend"><span><i style="background:var(--s1)"></i>trivial (under 10 lines)</span><span><i style="background:var(--s2)"></i>small (under 50)</span><span><i style="background:var(--s3)"></i>fixable, lane closed by rule</span><span><i style="background:var(--s4)"></i>needs a design call</span><span><i style="background:var(--s5)"></i>out of scope</span></div>
+<div class="chart" id="c1"></div><div class="legend" style="margin-top:8px"><span><b>A</b>&nbsp;08-17 PR #1491 amends plans 11–13</span><span><b>B</b>&nbsp;08-18 0.17.11 runtime latitude arms</span><span><b>C</b>&nbsp;08-20 0.18.0 ace bisection + consolidation</span><span><b>D</b>&nbsp;08-25 0.19.0 engine filing dispatch</span><span><b>E</b>&nbsp;08-27 0.21.0 in-run finding resolution</span></div></figure>
+
+<figure><h3>Cumulative filed vs closed</h3><figcaption>Dashed lines A to E as in the chart above. The gap between the lines is the open backlog. 129 of the 203 closures happened after #1492 was filed, and 100 of those closed issues were also created after it.</figcaption>
+<div class="legend"><span><i class="line" style="background:var(--s1)"></i>filed</span><span><i class="line" style="background:var(--closed)"></i>closed</span></div>
+<div class="chart" id="c2"></div></figure>
+
+<h2>2. Per plan: follow-ups per task</h2>
+<p>Each dot is one executed plan at its landing date. Height is follow-ups divided by planned tasks. Filled dots carry a <code>Mechanism latitude:</code> clause; hollow dots do not. Plans that filed nothing sit on the baseline. The clause-free control, plan 14 (adr-doc-truth-sweep), ran at 1.1 per task against 1.7 to 2.8 for the three amended plans beside it.</p>
+<figure><h3>Follow-ups per task by plan landing date</h3><figcaption>Hover a dot for the plan. Dot area scales with task count. Dashed lines A to E as above.</figcaption>
+<div class="legend"><span><i style="background:var(--s1);border-radius:50%"></i>latitude clause</span><span><i class="hollow" style="border-radius:50%"></i>no clause</span></div>
+<div class="chart" id="c3"></div></figure>
+
+<div class="tw"><table><thead><tr><th>Window</th><th class="n">Follow-ups</th><th class="n">Fixable in-band</th><th class="n">#1431 class</th><th>Dominant channel</th></tr></thead><tbody>
+<tr><td>A · before PR #1491 (to 08-16)</td><td class="n">108</td><td class="n">89 (82%)</td><td class="n">3</td><td>Lead-filed 47 · auditor follow-up 31 · sweep-demoted 28</td></tr>
+<tr><td>B · authored half (08-17)</td><td class="n">9</td><td class="n">8</td><td class="n">2</td><td>Lead-filed 6</td></tr>
+<tr><td>C · runtime arms installed (08-18 on)</td><td class="n">274</td><td class="n">236 (86%)</td><td class="n">13</td><td>auditor follow-up 226 · sweep-demoted 23 · Lead 21</td></tr>
+</tbody></table></div>
+
+
+<h2>3. Fixable share by plugin version</h2>
+<p>Each follow-up is assigned the plugin release that was current on the day it was filed (the latest release commit on <code>master</code> at or before the filing timestamp). The share of follow-ups that were fixable in-band has sat between 82% and 92% for every release band since 0.15. No release moved it. What moved is the mix inside that share: lane-closed cases (fixable, but every WAR lane shut by rule) fell from 31% of filings under 0.15 to 0.16 down to 8% to 15% from 0.17.11 on, while trivial same-file fixes rose to 42% to 58%. The #1431 mechanism-substitution share peaked at 12% in 0.17.0 to 0.17.10 and is 0% in 0.21.x, on 60 issues.</p>
+<figure><h3>Follow-ups per release band, split by fixability</h3><figcaption>Bars are 100% of that band's filings. The number above each bar is the band's follow-up count. Hover a segment for the share.</figcaption>
+<div class="legend"><span><i style="background:var(--s1)"></i>trivial</span><span><i style="background:var(--s2)"></i>small</span><span><i style="background:var(--s3)"></i>fixable, lane closed</span><span><i style="background:var(--s4)"></i>design call</span><span><i style="background:var(--s5)"></i>out of scope</span></div>
+<div class="chart" id="c6"></div></figure>
+<figure><h3>Fixable in-band, exact release, with the #1431-class share</h3><figcaption>Releases with 3 or more follow-ups. Dot area scales with the count. The lower line is the mechanism-substitution share of that release's filings.</figcaption>
+<div class="legend"><span><i class="line" style="background:var(--s1)"></i>fixable in-band %</span><span><i class="line" style="background:var(--s4)"></i>#1431 class %</span></div>
+<div class="chart" id="c7"></div></figure>
+<div class="tw"><table><thead><tr><th>Release band</th><th>First release</th><th class="n">n</th><th class="n">fixable</th><th class="n">trivial</th><th class="n">small</th><th class="n">lane closed</th><th class="n">design</th><th class="n">out of scope</th><th class="n">#1431</th></tr></thead><tbody>
+<tr><td>≤0.13</td><td>2026-07-01</td><td class='n'>7</td><td class='n'>86%</td><td class='n'>71%</td><td class='n'>14%</td><td class='n'>0%</td><td class='n'>14%</td><td class='n'>0%</td><td class='n'>0%</td></tr>
+<tr><td>0.14.x</td><td>2026-07-10</td><td class='n'>48</td><td class='n'>75%</td><td class='n'>33%</td><td class='n'>17%</td><td class='n'>25%</td><td class='n'>8%</td><td class='n'>17%</td><td class='n'>4%</td></tr>
+<tr><td>0.15–0.16</td><td>2026-08-03</td><td class='n'>36</td><td class='n'>89%</td><td class='n'>28%</td><td class='n'>31%</td><td class='n'>31%</td><td class='n'>8%</td><td class='n'>3%</td><td class='n'>0%</td></tr>
+<tr><td>0.17.0–.10</td><td>2026-08-06</td><td class='n'>26</td><td class='n'>88%</td><td class='n'>19%</td><td class='n'>46%</td><td class='n'>23%</td><td class='n'>8%</td><td class='n'>4%</td><td class='n'>12%</td></tr>
+<tr><td>0.17.11–.13</td><td>2026-08-18</td><td class='n'>53</td><td class='n'>92%</td><td class='n'>45%</td><td class='n'>40%</td><td class='n'>8%</td><td class='n'>6%</td><td class='n'>2%</td><td class='n'>8%</td></tr>
+<tr><td>0.18.x</td><td>2026-08-20</td><td class='n'>24</td><td class='n'>88%</td><td class='n'>58%</td><td class='n'>17%</td><td class='n'>12%</td><td class='n'>0%</td><td class='n'>12%</td><td class='n'>4%</td></tr>
+<tr><td>0.19.x</td><td>2026-08-25</td><td class='n'>17</td><td class='n'>82%</td><td class='n'>47%</td><td class='n'>24%</td><td class='n'>12%</td><td class='n'>12%</td><td class='n'>6%</td><td class='n'>6%</td></tr>
+<tr><td>0.20.x</td><td>2026-08-25</td><td class='n'>120</td><td class='n'>85%</td><td class='n'>42%</td><td class='n'>28%</td><td class='n'>15%</td><td class='n'>9%</td><td class='n'>6%</td><td class='n'>6%</td></tr>
+<tr><td>0.21.x</td><td>2026-08-27</td><td class='n'>60</td><td class='n'>83%</td><td class='n'>42%</td><td class='n'>32%</td><td class='n'>10%</td><td class='n'>10%</td><td class='n'>7%</td><td class='n'>0%</td></tr>
+</tbody></table></div>
+<p class="note">Version is inferred from filing date. A run on an older installed plugin than the latest release is misattributed one band forward. The operator's own run notes (plan 3 under 0.21.7, for example) match the inferred version where they exist.</p>
+
+<h2>4. What the follow-ups actually are</h2>
+<p>Scope literalism is the leak, not mechanism substitution. Comment and doc lag, in-diff defects and vacuous test pins make up 73% of all filings, and in most of those the seat's own "why not absorbable" text is a scope argument ("the slice does not name this file"), not a difficulty argument. 189 of the 333 fixable issues were five lines or fewer.</p>
+<figure><h3>Class mix per week</h3><figcaption>Same weeks as above, by cause class.</figcaption>
+<div class="legend" id="lg4"></div>
+<div class="chart" id="c4"></div></figure>
+<div class="tw"><table><thead><tr><th>Class</th><th class="n">n</th><th class="n">fixable in-band</th><th class="n">closed</th></tr></thead><tbody>
+<tr><td>comment or doc lag</td><td class="n">121</td><td class="n">119</td><td class="n">67</td></tr>
+<tr><td>defect in the task's own diff</td><td class="n">88</td><td class="n">73</td><td class="n">32</td></tr>
+<tr><td>vacuous test or missing pin</td><td class="n">74</td><td class="n">72</td><td class="n">37</td></tr>
+<tr><td>duplicate of a sibling seat's finding</td><td class="n">26</td><td class="n">26</td><td class="n">23</td></tr>
+<tr><td>mechanism substitution (#1431)</td><td class="n">18</td><td class="n">17</td><td class="n">6</td></tr>
+<tr><td>absorb intended but lost (#1547)</td><td class="n">15</td><td class="n">15</td><td class="n">11</td></tr>
+<tr><td>other</td><td class="n">14</td><td class="n">0</td><td class="n">8</td></tr>
+<tr><td>pre-existing rot outside the slice</td><td class="n">13</td><td class="n">10</td><td class="n">8</td></tr>
+<tr><td>engine defect outside the ceiling</td><td class="n">12</td><td class="n">0</td><td class="n">7</td></tr>
+<tr><td>scope enhancement</td><td class="n">10</td><td class="n">1</td><td class="n">4</td></tr>
+</tbody></table></div>
+<h3>The 18 #1431-class issues</h3>
+<p>#1016, #1212, #1349, #1475, #1480, #1535, #1560, #1575, #1584, #1621, #1655, #1694, #1736, #1750, #1774, #1813, #1829, #1866. Twelve came from plans that carried the clause. The recurring shape is an extension beyond a pinned count or enumeration ("five arms" when seven exist, "2 of 4 sites"), not a construct swap. The clause licenses substitution; seats did not read it as licensing completion of sibling sites or strengthening beyond the slice.</p>
+
+<h2>5. How the closed ones closed</h2>
+<p>WAR runs rarely closed their own follow-ups. The operator did, days later, in batch commits: one <code>docs(truth)</code> commit closed nine, another five, another four. 75 of the 132 closing commits are <code>docs:</code> commits. Trivial issues close fastest, which confirms they were trivial.</p>
+<figure><h3>Time to close, 203 closed issues</h3><figcaption>Median 1.4 days. None stayed open past 31 days before closing.</figcaption>
+<div class="chart" id="c5"></div></figure>
+<div class="tw"><table><thead><tr><th>Fixability</th><th class="n">n</th><th class="n">closed</th><th class="n">median days</th><th>closure vehicle</th></tr></thead><tbody>
+<tr><td>trivial</td><td class="n">157</td><td class="n">83 (53%)</td><td class="n">0.5</td><td>42 commit · 33 hand-verified · 8 PR · 13 not planned</td></tr>
+<tr><td>small</td><td class="n">114</td><td class="n">55 (48%)</td><td class="n">4.0</td><td>35 commit · 20 hand-verified · 9 not planned</td></tr>
+<tr><td>lane closed</td><td class="n">62</td><td class="n">34 (55%)</td><td class="n">4.5</td><td>25 commit · 7 hand-verified · 2 PR</td></tr>
+<tr><td>design call</td><td class="n">32</td><td class="n">16 (50%)</td><td class="n">0.7</td><td>9 commit · 6 hand-verified · 1 PR</td></tr>
+<tr><td>out of scope</td><td class="n">26</td><td class="n">15 (58%)</td><td class="n">1.8</td><td>10 commit · 5 hand-verified</td></tr>
+</tbody></table></div>
+<p class="note">178 closed as completed, 25 as not planned. 21 of the 25 not-planned closures are cross-seat duplicates.</p>
+
+<h2>6. Reading against #1492's boundaries</h2>
+<ul>
+<li><b>Authored half (window B):</b> 9 issues, too few to read.</li>
+<li><b>Doctrine landed (plan 11 phase 2, release 0.17.11 on 08-18):</b> no drop follows. The three amended plans filed 1.7 to 2.8 per task.</li>
+<li><b>Full effect vs control:</b> plans 12 and 13 ran at 1.7 each. Control plan 14 ran at 1.1 with one #1431-class issue (#1621) against one in plan 13 and none in plans 11 and 12. No contrast in the predicted direction.</li>
+<li><b>#1431's deferred backstop</b> (re-open on a routed issue the clause should have covered) is met by #1774 and #1813 at least. Both bodies say the substitution held the End states and was filed anyway.</li>
+<li><b>#1547's batch-revert mode</b> is nearly absent here: one issue. Sweep-never-ran demotions are 52.</li>
+<li><b>First visible drop:</b> the two newest plans under 0.21.x ace re-entry filed 0.2 and 0.1 per task.</li>
+</ul>
+
+<h2>Method and caveats</h2>
+<ul>
+<li>Numerator: every issue carrying the <code>war-followup</code> label, open and closed. Denominator: <code>### Task</code> headings in the executed plan file, attributed from the issue body's plan or epic citation. 12 older July issues could not be attributed.</li>
+<li>Classification: eight agents, one pass each over issue text with light repo lookups. 73% high confidence, 27% medium, 1 low. Treat class counts as plus or minus about 10%.</li>
+<li>Denominator is planned tasks, not landed tasks. Held phases inflate engine-reliability and in-run-finding-resolution slightly.</li>
+<li>Measurement confound: window A counts were Lead-filtered by hand. Window C counts come from the engine's consolidated filing dispatch. Part of the jump is instrumentation, not behavior.</li>
+<li>Closure data: each closed issue's GitHub timeline (closing event, referenced commits, cross-referenced PRs).</li>
+</ul>
+</div>
+<script>
+const D = {"weeks": ["2026-06-29", "2026-07-06", "2026-07-13", "2026-07-20", "2026-07-27", "2026-08-03", "2026-08-10", "2026-08-17", "2026-08-24", "2026-08-31"], "fixw": {"yes-trivial": [5, 1, 0, 8, 7, 13, 1, 39, 80, 3], "yes-small": [1, 1, 0, 5, 2, 15, 2, 31, 55, 2], "yes-lane-closed": [0, 0, 0, 5, 7, 13, 3, 8, 26, 0], "design-call": [1, 0, 0, 2, 2, 3, 1, 4, 16, 3], "no-out-of-scope": [0, 4, 1, 2, 1, 1, 1, 4, 11, 1]}, "clsw": {"comment-or-doc-lag": [3, 1, 0, 8, 7, 18, 1, 20, 62, 1], "defect-in-diff": [1, 1, 0, 4, 1, 9, 2, 14, 55, 1], "test-vacuity-or-pin-gap": [2, 0, 0, 3, 3, 11, 1, 15, 36, 3], "duplicate-of-sibling": [0, 0, 0, 0, 0, 0, 0, 23, 3, 0], "mechanism-substitution": [0, 0, 0, 1, 1, 1, 0, 7, 8, 0], "absorb-intended-but-lost": [0, 0, 0, 2, 3, 4, 0, 3, 3, 0], "other": [1, 4, 1, 4, 4, 2, 4, 4, 21, 4]}, "days": ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-18", "2026-07-19", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03"], "filed": [5, 7, 7, 7, 7, 7, 7, 7, 7, 8, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 29, 29, 32, 36, 42, 45, 54, 55, 55, 55, 55, 76, 76, 85, 95, 100, 100, 100, 100, 100, 100, 100, 100, 106, 108, 117, 146, 146, 186, 194, 194, 194, 194, 218, 299, 366, 366, 366, 382, 388, 388, 388, 391], "closed": [0, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 19, 32, 41, 42, 43, 43, 43, 43, 55, 55, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 64, 64, 74, 96, 96, 118, 118, 118, 118, 118, 151, 154, 159, 181, 181, 191, 202, 202, 202, 203], "plan_pts": [{"slug": "war-companion-skills", "date": "2026-07-02", "tasks": 5, "fu": 1, "rate": 0.2, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "prose-drift-corrections", "date": "2026-07-13", "tasks": 3, "fu": 1, "rate": 0.33, "latitude": false, "mech": 0, "fixable": 0}, {"slug": "lessons-learned-tighten", "date": "2026-07-21", "tasks": 5, "fu": 1, "rate": 0.2, "latitude": false, "mech": 0, "fixable": 0}, {"slug": "audit-adjudication-threading", "date": "2026-07-24", "tasks": 4, "fu": 1, "rate": 0.25, "latitude": false, "mech": 1, "fixable": 1}, {"slug": "merge-land-resilience", "date": "2026-07-24", "tasks": 5, "fu": 9, "rate": 1.8, "latitude": false, "mech": 0, "fixable": 9}, {"slug": "test-floor-target-repo", "date": "2026-07-24", "tasks": 5, "fu": 2, "rate": 0.4, "latitude": false, "mech": 0, "fixable": 2}, {"slug": "war-memory-hardening", "date": "2026-07-24", "tasks": 4, "fu": 2, "rate": 0.5, "latitude": false, "mech": 0, "fixable": 2}, {"slug": "runbook-and-standing-record-coherence", "date": "2026-07-26", "tasks": 7, "fu": 1, "rate": 0.14, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "recovery-re-merge-dispatch-coherence", "date": "2026-07-26", "tasks": 3, "fu": 2, "rate": 0.67, "latitude": false, "mech": 0, "fixable": 2}, {"slug": "drift-guard-and-floor-diagnostic-hardening", "date": "2026-07-26", "tasks": 5, "fu": 1, "rate": 0.2, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "gate-evidence-and-release-integrity", "date": "2026-07-27", "tasks": 5, "fu": 3, "rate": 0.6, "latitude": false, "mech": 0, "fixable": 0}, {"slug": "memory-tooling-hardening", "date": "2026-07-27", "tasks": 4, "fu": 3, "rate": 0.75, "latitude": false, "mech": 0, "fixable": 3}, {"slug": "dispatch-args-and-floor-coverage", "date": "2026-07-27", "tasks": 3, "fu": 3, "rate": 1.0, "latitude": false, "mech": 0, "fixable": 3}, {"slug": "audit-evidence-precedence", "date": "2026-07-28", "tasks": 4, "fu": 1, "rate": 0.25, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "prompt-surface-simplification", "date": "2026-08-01", "tasks": 12, "fu": 11, "rate": 0.92, "latitude": false, "mech": 1, "fixable": 9}, {"slug": "structural-test-nonvacuity", "date": "2026-08-04", "tasks": 4, "fu": 2, "rate": 0.5, "latitude": false, "mech": 0, "fixable": 2}, {"slug": "redteam-doctrine-and-guards", "date": "2026-08-04", "tasks": 7, "fu": 6, "rate": 0.86, "latitude": false, "mech": 0, "fixable": 6}, {"slug": "references-pointer-link-truth", "date": "2026-08-04", "tasks": 3, "fu": 5, "rate": 1.67, "latitude": false, "mech": 0, "fixable": 5}, {"slug": "war-engine-and-standing-doc-truth", "date": "2026-08-04", "tasks": 4, "fu": 8, "rate": 2.0, "latitude": false, "mech": 0, "fixable": 8}, {"slug": "interview-and-authoring-contract", "date": "2026-08-05", "tasks": 10, "fu": 8, "rate": 0.8, "latitude": false, "mech": 0, "fixable": 7}, {"slug": "precision-chain-and-loop-breaker", "date": "2026-08-07", "tasks": 17, "fu": 16, "rate": 0.94, "latitude": false, "mech": 1, "fixable": 13}, {"slug": "red-team-gate-cli", "date": "2026-08-15", "tasks": 3, "fu": 1, "rate": 0.33, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "escape-guard-exit-contract", "date": "2026-08-15", "tasks": 4, "fu": 4, "rate": 1.0, "latitude": false, "mech": 0, "fixable": 3}, {"slug": "verdict-adjudication-integrity", "date": "2026-08-17", "tasks": 8, "fu": 1, "rate": 0.12, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "redteam-rounds-config-telemetry", "date": "2026-08-17", "tasks": 5, "fu": 2, "rate": 0.4, "latitude": false, "mech": 0, "fixable": 2}, {"slug": "handoff-schemas-contract", "date": "2026-08-17", "tasks": 7, "fu": 6, "rate": 0.86, "latitude": false, "mech": 2, "fixable": 5}, {"slug": "structural-pin-extractors", "date": "2026-08-17", "tasks": 3, "fu": 1, "rate": 0.33, "latitude": false, "mech": 0, "fixable": 1}, {"slug": "war-strategy-mirror-guards", "date": "2026-08-18", "tasks": 5, "fu": 14, "rate": 2.8, "latitude": true, "mech": 0, "fixable": 14}, {"slug": "gate2-publication-guard", "date": "2026-08-18", "tasks": 3, "fu": 5, "rate": 1.67, "latitude": true, "mech": 0, "fixable": 5}, {"slug": "references-pointer-integrity", "date": "2026-08-18", "tasks": 6, "fu": 10, "rate": 1.67, "latitude": true, "mech": 1, "fixable": 10}, {"slug": "realized-absorb-rate", "date": "2026-08-20", "tasks": 9, "fu": 40, "rate": 4.44, "latitude": true, "mech": 3, "fixable": 35}, {"slug": "adr-doc-truth-sweep", "date": "2026-08-22", "tasks": 8, "fu": 9, "rate": 1.12, "latitude": false, "mech": 1, "fixable": 7}, {"slug": "authoring-side-verification", "date": "2026-08-25", "tasks": 11, "fu": 17, "rate": 1.55, "latitude": true, "mech": 1, "fixable": 14}, {"slug": "ask-disposition", "date": "2026-08-26", "tasks": 8, "fu": 14, "rate": 1.75, "latitude": true, "mech": 1, "fixable": 10}, {"slug": "engine-reliability-and-filing-fidelity", "date": "2026-08-27", "tasks": 27, "fu": 93, "rate": 3.44, "latitude": true, "mech": 5, "fixable": 81}, {"slug": "in-run-finding-resolution", "date": "2026-08-27", "tasks": 4, "fu": 47, "rate": 11.75, "latitude": true, "mech": 1, "fixable": 41}, {"slug": "engine-concurrency-and-pin-transfer", "date": "2026-08-31", "tasks": 5, "fu": 22, "rate": 4.4, "latitude": true, "mech": 0, "fixable": 18}, {"slug": "authoring-doctrine-and-lint-coherence", "date": "2026-09-03", "tasks": 10, "fu": 2, "rate": 0.2, "latitude": true, "mech": 0, "fixable": 1}, {"slug": "doc-truth-and-drift-guard-debt", "date": "2026-09-03", "tasks": 16, "fu": 1, "rate": 0.06, "latitude": true, "mech": 0, "fixable": 1}], "zero_plans": [{"slug": "drift-guard-tightening", "date": "2026-07-12", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "partial-phase-recovery-and-branch-hygiene", "date": "2026-07-12", "tasks": 7, "fu": 0, "rate": 0, "latitude": false}, {"slug": "red-team-resilience", "date": "2026-07-12", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "servitor-redaction-at-source", "date": "2026-07-12", "tasks": 2, "fu": 0, "rate": 0, "latitude": false}, {"slug": "survey-corps-memory-mining", "date": "2026-07-12", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "war-review-run-telemetry", "date": "2026-07-12", "tasks": 5, "fu": 0, "rate": 0, "latitude": false}, {"slug": "war-room-config-expansion", "date": "2026-07-12", "tasks": 10, "fu": 0, "rate": 0, "latitude": false}, {"slug": "audit-gate-evidence-fidelity", "date": "2026-07-13", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "campaign-ledger-ingestion-contract", "date": "2026-07-13", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "confinement-scope-hooks", "date": "2026-07-13", "tasks": 5, "fu": 0, "rate": 0, "latitude": false}, {"slug": "floor-script-correctness", "date": "2026-07-13", "tasks": 5, "fu": 0, "rate": 0, "latitude": false}, {"slug": "land-path-verification-hygiene", "date": "2026-07-13", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "memory-tooling-frictions", "date": "2026-07-13", "tasks": 5, "fu": 0, "rate": 0, "latitude": false}, {"slug": "red-team-enforcement-hygiene", "date": "2026-07-13", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "war-launch-entry-validation", "date": "2026-07-13", "tasks": 2, "fu": 0, "rate": 0, "latitude": false}, {"slug": "gate-evidence-and-prose-truth", "date": "2026-07-15", "tasks": 6, "fu": 0, "rate": 0, "latitude": false}, {"slug": "lessons-learned-repo-projection-integrity", "date": "2026-07-15", "tasks": 2, "fu": 0, "rate": 0, "latitude": false}, {"slug": "red-team-fallback-and-anchor-hygiene", "date": "2026-07-15", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "campaign-state-anchor", "date": "2026-07-15", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "aftermath-class1-gate-evidence", "date": "2026-07-19", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "campaign-anchor-comment-truth", "date": "2026-07-21", "tasks": 2, "fu": 0, "rate": 0, "latitude": false}, {"slug": "land-failure-recovery", "date": "2026-07-19", "tasks": 6, "fu": 0, "rate": 0, "latitude": false}, {"slug": "learnings-recipe-drift-sweep", "date": "2026-07-19", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "structural-test-integrity", "date": "2026-07-19", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "aftermath-class1-postdelete-verify", "date": "2026-07-24", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "auditor-guard-ergonomics", "date": "2026-07-24", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "cli-main-guard-normalization", "date": "2026-07-24", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "lessons-learned-seed", "date": "2026-07-24", "tasks": 7, "fu": 0, "rate": 0, "latitude": false}, {"slug": "servitor-wrapup-landed-tip", "date": "2026-07-24", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "war-strategy-structure-lock", "date": "2026-07-24", "tasks": 2, "fu": 0, "rate": 0, "latitude": false}, {"slug": "land-advance-exit-contract-truth", "date": "2026-07-26", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "auditor-guard-policy-and-mirror-truth", "date": "2026-07-28", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "standing-doc-and-remedy-truth-sweep", "date": "2026-07-28", "tasks": 8, "fu": 0, "rate": 0, "latitude": false}, {"slug": "war-memory-cli-correctness", "date": "2026-07-28", "tasks": 3, "fu": 0, "rate": 0, "latitude": false}, {"slug": "doc-cli-consistency-corpus", "date": "2026-08-17", "tasks": 4, "fu": 0, "rate": 0, "latitude": false}, {"slug": "done-when-floor-wiring", "date": "2026-08-15", "tasks": 5, "fu": 0, "rate": 0, "latitude": false}, {"slug": "gate-audit-finding-routing", "date": "2026-08-16", "tasks": 7, "fu": 0, "rate": 0, "latitude": false}, {"slug": "shell-pin-helpers", "date": "2026-08-15", "tasks": 2, "fu": 0, "rate": 0, "latitude": false}], "ttc_bins": ["0-1d", "1-3d", "3-7d", "7-14d", "14-31d"], "ttc_h": [87, 28, 35, 30, 23], "markers": [["2026-08-17", "PR #1491 amends plans 11-13"], ["2026-08-18", "0.17.11 runtime latitude arms"], ["2026-08-20", "0.18.0 ace bisection + consolidation"], ["2026-08-25", "0.19.0 engine filing dispatch"], ["2026-08-27", "0.21.0 in-run finding resolution"]]};
+const V = {"bands": [{"band": "\u22640.13", "n": 7, "fixable": 6, "pct": 86, "trivial": 5, "small": 1, "lane": 0, "design": 1, "oos": 0, "mech": 0, "first": "2026-07-01"}, {"band": "0.14.x", "n": 48, "fixable": 36, "pct": 75, "trivial": 16, "small": 8, "lane": 12, "design": 4, "oos": 8, "mech": 2, "first": "2026-07-10"}, {"band": "0.15\u20130.16", "n": 36, "fixable": 32, "pct": 89, "trivial": 10, "small": 11, "lane": 11, "design": 3, "oos": 1, "mech": 0, "first": "2026-08-03"}, {"band": "0.17.0\u2013.10", "n": 26, "fixable": 23, "pct": 88, "trivial": 5, "small": 12, "lane": 6, "design": 2, "oos": 1, "mech": 3, "first": "2026-08-06"}, {"band": "0.17.11\u2013.13", "n": 53, "fixable": 49, "pct": 92, "trivial": 24, "small": 21, "lane": 4, "design": 3, "oos": 1, "mech": 4, "first": "2026-08-18"}, {"band": "0.18.x", "n": 24, "fixable": 21, "pct": 88, "trivial": 14, "small": 4, "lane": 3, "design": 0, "oos": 3, "mech": 1, "first": "2026-08-20"}, {"band": "0.19.x", "n": 17, "fixable": 14, "pct": 82, "trivial": 8, "small": 4, "lane": 2, "design": 2, "oos": 1, "mech": 1, "first": "2026-08-25"}, {"band": "0.20.x", "n": 120, "fixable": 102, "pct": 85, "trivial": 50, "small": 34, "lane": 18, "design": 11, "oos": 7, "mech": 7, "first": "2026-08-25"}, {"band": "0.21.x", "n": 60, "fixable": 50, "pct": 83, "trivial": 25, "small": 19, "lane": 6, "design": 6, "oos": 4, "mech": 0, "first": "2026-08-27"}], "exact": [{"v": "0.8.11", "n": 5, "fixable": 5, "pct": 100, "mech": 0, "date": "2026-07-01", "trivial": 5, "small": 0, "lane": 0, "design": 0, "oos": 0}, {"v": "0.9.0", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-07-01", "trivial": 0, "small": 1, "lane": 0, "design": 0, "oos": 0}, {"v": "0.11.0", "n": 1, "fixable": 0, "pct": 0, "mech": 0, "date": "2026-07-02", "trivial": 0, "small": 0, "lane": 0, "design": 1, "oos": 0}, {"v": "0.14.23", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-07-10", "trivial": 0, "small": 1, "lane": 0, "design": 0, "oos": 0}, {"v": "0.14.26", "n": 5, "fixable": 1, "pct": 20, "mech": 0, "date": "2026-07-11", "trivial": 1, "small": 0, "lane": 0, "design": 0, "oos": 4}, {"v": "0.14.38", "n": 1, "fixable": 0, "pct": 0, "mech": 0, "date": "2026-07-13", "trivial": 0, "small": 0, "lane": 0, "design": 0, "oos": 1}, {"v": "0.14.48", "n": 1, "fixable": 0, "pct": 0, "mech": 0, "date": "2026-07-21", "trivial": 0, "small": 0, "lane": 0, "design": 0, "oos": 1}, {"v": "0.14.52", "n": 1, "fixable": 1, "pct": 100, "mech": 1, "date": "2026-07-22", "trivial": 1, "small": 0, "lane": 0, "design": 0, "oos": 0}, {"v": "0.14.53", "n": 11, "fixable": 11, "pct": 100, "mech": 0, "date": "2026-07-23", "trivial": 5, "small": 4, "lane": 2, "design": 0, "oos": 0}, {"v": "0.14.54", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-07-23", "trivial": 0, "small": 0, "lane": 1, "design": 0, "oos": 0}, {"v": "0.14.56", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-07-23", "trivial": 0, "small": 1, "lane": 0, "design": 0, "oos": 0}, {"v": "0.14.59", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-07-24", "trivial": 1, "small": 0, "lane": 0, "design": 0, "oos": 0}, {"v": "0.14.61", "n": 3, "fixable": 3, "pct": 100, "mech": 0, "date": "2026-07-25", "trivial": 1, "small": 0, "lane": 2, "design": 0, "oos": 0}, {"v": "0.14.62", "n": 1, "fixable": 0, "pct": 0, "mech": 0, "date": "2026-07-26", "trivial": 0, "small": 0, "lane": 0, "design": 0, "oos": 1}, {"v": "0.14.63", "n": 5, "fixable": 3, "pct": 60, "mech": 0, "date": "2026-07-26", "trivial": 1, "small": 0, "lane": 2, "design": 2, "oos": 0}, {"v": "0.14.65", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-07-27", "trivial": 0, "small": 0, "lane": 1, "design": 0, "oos": 0}, {"v": "0.14.66", "n": 2, "fixable": 2, "pct": 100, "mech": 0, "date": "2026-07-27", "trivial": 0, "small": 1, "lane": 1, "design": 0, "oos": 0}, {"v": "0.14.68", "n": 7, "fixable": 5, "pct": 71, "mech": 1, "date": "2026-07-28", "trivial": 3, "small": 0, "lane": 2, "design": 1, "oos": 1}, {"v": "0.14.69", "n": 6, "fixable": 5, "pct": 83, "mech": 0, "date": "2026-07-29", "trivial": 3, "small": 1, "lane": 1, "design": 1, "oos": 0}, {"v": "0.15.1", "n": 21, "fixable": 21, "pct": 100, "mech": 0, "date": "2026-08-03", "trivial": 6, "small": 7, "lane": 8, "design": 0, "oos": 0}, {"v": "0.16.0", "n": 15, "fixable": 11, "pct": 73, "mech": 0, "date": "2026-08-05", "trivial": 4, "small": 4, "lane": 3, "design": 3, "oos": 1}, {"v": "0.17.0", "n": 9, "fixable": 9, "pct": 100, "mech": 1, "date": "2026-08-06", "trivial": 3, "small": 4, "lane": 2, "design": 0, "oos": 0}, {"v": "0.17.1", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-08-14", "trivial": 1, "small": 0, "lane": 0, "design": 0, "oos": 0}, {"v": "0.17.2", "n": 4, "fixable": 3, "pct": 75, "mech": 0, "date": "2026-08-15", "trivial": 0, "small": 2, "lane": 1, "design": 1, "oos": 0}, {"v": "0.17.5", "n": 3, "fixable": 2, "pct": 67, "mech": 0, "date": "2026-08-15", "trivial": 0, "small": 0, "lane": 2, "design": 0, "oos": 1}, {"v": "0.17.8", "n": 2, "fixable": 2, "pct": 100, "mech": 0, "date": "2026-08-17", "trivial": 0, "small": 2, "lane": 0, "design": 0, "oos": 0}, {"v": "0.17.9", "n": 6, "fixable": 5, "pct": 83, "mech": 2, "date": "2026-08-17", "trivial": 0, "small": 4, "lane": 1, "design": 1, "oos": 0}, {"v": "0.17.10", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-08-17", "trivial": 1, "small": 0, "lane": 0, "design": 0, "oos": 0}, {"v": "0.17.11", "n": 1, "fixable": 1, "pct": 100, "mech": 0, "date": "2026-08-18", "trivial": 0, "small": 0, "lane": 1, "design": 0, "oos": 0}, {"v": "0.17.12", "n": 13, "fixable": 13, "pct": 100, "mech": 0, "date": "2026-08-18", "trivial": 9, "small": 3, "lane": 1, "design": 0, "oos": 0}, {"v": "0.17.13", "n": 39, "fixable": 35, "pct": 90, "mech": 4, "date": "2026-08-18", "trivial": 15, "small": 18, "lane": 2, "design": 3, "oos": 1}, {"v": "0.18.0", "n": 21, "fixable": 19, "pct": 90, "mech": 1, "date": "2026-08-20", "trivial": 14, "small": 4, "lane": 1, "design": 0, "oos": 2}, {"v": "0.18.1", "n": 3, "fixable": 2, "pct": 67, "mech": 0, "date": "2026-08-21", "trivial": 0, "small": 0, "lane": 2, "design": 0, "oos": 1}, {"v": "0.19.0", "n": 17, "fixable": 14, "pct": 82, "mech": 1, "date": "2026-08-25", "trivial": 8, "small": 4, "lane": 2, "design": 2, "oos": 1}, {"v": "0.20.0", "n": 69, "fixable": 57, "pct": 83, "mech": 4, "date": "2026-08-25", "trivial": 31, "small": 16, "lane": 10, "design": 7, "oos": 5}, {"v": "0.20.1", "n": 51, "fixable": 45, "pct": 88, "mech": 3, "date": "2026-08-26", "trivial": 19, "small": 18, "lane": 8, "design": 4, "oos": 2}, {"v": "0.21.0", "n": 35, "fixable": 30, "pct": 86, "mech": 0, "date": "2026-08-27", "trivial": 17, "small": 9, "lane": 4, "design": 2, "oos": 3}, {"v": "0.21.7", "n": 22, "fixable": 18, "pct": 82, "mech": 0, "date": "2026-08-30", "trivial": 6, "small": 10, "lane": 2, "design": 4, "oos": 0}, {"v": "0.21.8", "n": 3, "fixable": 2, "pct": 67, "mech": 0, "date": "2026-09-03", "trivial": 2, "small": 0, "lane": 0, "design": 0, "oos": 1}]};
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS='http://www.w3.org/2000/svg';
+function el(n,a,p){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function tipFor(box){const t=document.createElement('div');t.className='tip';box.appendChild(t);return t;}
+function place(t,box,x,y,txt){const r=box.getBoundingClientRect();const s=box.querySelector('svg');const vb=s.viewBox.baseVal;const sx=r.width/vb.width;t.innerHTML=txt;t.style.left=(x*sx)+'px';t.style.top=(y*sx)+'px';t.classList.add('on');}
+const fmtD = s => { const d=new Date(s+'T00:00:00'); return (d.getMonth()+1)+'/'+d.getDate(); };
+const xOfDate=(s,x0,x1,d0,d1)=>{const t=(new Date(s)-new Date(d0))/(new Date(d1)-new Date(d0));return x0+t*(x1-x0);};
+
+const MK='ABCDE';function markers(svg,x0,x1,d0,d1,top,bot,labelY){const g=el('g',{class:'mk'},svg);D.markers.forEach(([d,l],i)=>{const x=xOfDate(d,x0,x1,d0,d1);el('line',{x1:x,x2:x,y1:top,y2:bot},g);const t=el('text',{x:x+3,y:top-4,'text-anchor':'start',style:'font-weight:600'},g);t.textContent=MK[i];});}
+
+// Chart 1: weekly stacked fixability
+(function(){const W=960,H=300,L=44,R=16,T=40,B=34;const box=document.getElementById('c1');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const keys=['yes-trivial','yes-small','yes-lane-closed','design-call','no-out-of-scope'],names=['trivial','small','lane closed','design call','out of scope'],cols=['--s1','--s2','--s3','--s4','--s5'];
+const n=D.weeks.length,tot=D.weeks.map((_,i)=>keys.reduce((a,k)=>a+D.fixw[k][i],0)),ymax=Math.ceil(Math.max(...tot)/50)*50;
+const bw=(W-L-R)/n,y=v=>T+(H-T-B)*(1-v/ymax);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=ymax;v+=50){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v;}
+D.weeks.forEach((w,i)=>{let acc=0;const x=L+i*bw+6,wd=bw-12;keys.forEach((k,j)=>{const v=D.fixw[k][i];if(!v)return;const r=el('rect',{x,y:y(acc+v),width:wd,height:y(acc)-y(acc+v)-(j?2:0)+ (j?0:0),fill:css(cols[j]),rx:j===keys.length-1||acc+v===tot[i]?3:0},svg);r.style.cursor='default';r.addEventListener('mousemove',()=>place(tip,box,x+wd/2,y(acc+v),`week of ${fmtD(w)}<br>${names[j]}: <b>${v}</b> of ${tot[i]}`));r.addEventListener('mouseleave',()=>tip.classList.remove('on'));acc+=v;});
+ const t=el('text',{x:x+wd/2,y:H-B+16,'text-anchor':'middle'},ax);t.textContent=fmtD(w);
+ if(tot[i]){const c=el('text',{x:x+wd/2,y:y(tot[i])-5,'text-anchor':'middle'},svg);c.textContent=tot[i];}});
+// event markers at week positions (continuous)
+const d0=D.weeks[0],d1=new Date(new Date(D.weeks[n-1]).getTime()+7*864e5).toISOString().slice(0,10);
+markers(svg,L,W-R,d0,d1,T-2,H-B,0);
+})();
+
+// Chart 2: cumulative filed vs closed
+(function(){const W=960,H=280,L=44,R=16,T=40,B=30;const box=document.getElementById('c2');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const d0=D.days[0],d1=D.days[D.days.length-1],ymax=400,y=v=>T+(H-T-B)*(1-v/ymax),x=i=>xOfDate(D.days[i],L,W-R,d0,d1);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=ymax;v+=100){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v;}
+D.days.forEach((d,i)=>{if(d.endsWith('-01')||d.endsWith('-15')){const t=el('text',{x:x(i),y:H-B+16,'text-anchor':'middle'},ax);t.textContent=fmtD(d);}});
+const path=(arr,c)=>{el('path',{d:arr.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(' '),fill:'none',stroke:css(c),'stroke-width':2,'stroke-linejoin':'round'},svg);};
+path(D.filed,'--s1');path(D.closed,'--closed');
+const last=D.days.length-1;[['filed',D.filed,'--s1'],['closed',D.closed,'--closed']].forEach(([n,a,c])=>{el('circle',{cx:x(last),cy:y(a[last]),r:4,fill:css(c),stroke:css('--surface'),'stroke-width':2},svg);const t=el('text',{x:x(last)-8,y:y(a[last])+(n==='filed'?-8:16),'text-anchor':'end'},svg);t.textContent=`${n} ${a[last]}`;});
+markers(svg,L,W-R,d0,d1,T-2,H-B,0);
+const cross=el('line',{x1:0,x2:0,y1:T,y2:H-B,stroke:css('--ink-3'),'stroke-width':1,opacity:0},svg);
+const hit=el('rect',{x:L,y:T,width:W-L-R,height:H-T-B,fill:'transparent'},svg);
+hit.addEventListener('mousemove',e=>{const r=svg.getBoundingClientRect();const px=(e.clientX-r.left)*W/r.width;let i=Math.round((px-L)/(W-L-R)*last);i=Math.max(0,Math.min(last,i));cross.setAttribute('x1',x(i));cross.setAttribute('x2',x(i));cross.setAttribute('opacity',1);place(tip,box,x(i),y(D.filed[i]),`${D.days[i]}<br>filed <b>${D.filed[i]}</b> · closed <b>${D.closed[i]}</b> · open ${D.filed[i]-D.closed[i]}`);});
+hit.addEventListener('mouseleave',()=>{cross.setAttribute('opacity',0);tip.classList.remove('on');});
+})();
+
+// Chart 3: per-plan rate timeline
+(function(){const W=960,H=320,L=44,R=16,T=40,B=30;const box=document.getElementById('c3');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const pts=D.plan_pts.concat(D.zero_plans);const d0='2026-06-24',d1='2026-09-05';const ymax=12;const y=v=>T+(H-T-B)*(1-v/ymax);const x=d=>xOfDate(d,L,W-R,d0,d1);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=ymax;v+=2){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v;}
+['2026-07-01','2026-07-15','2026-08-01','2026-08-15','2026-09-01'].forEach(d=>{const t=el('text',{x:x(d),y:H-B+16,'text-anchor':'middle'},ax);t.textContent=fmtD(d);});
+const t0=el('text',{x:L-6,y:T-10,'text-anchor':'end'},ax);t0.textContent='per task';
+markers(svg,L,W-R,d0,d1,T-2,H-B,0);
+pts.sort((a,b)=>b.tasks-a.tasks).forEach(p=>{const r=4+Math.sqrt(p.tasks)*1.6;const c=el('circle',{cx:x(p.date),cy:y(Math.min(p.rate,ymax)),r,fill:p.latitude?css('--s1'):css('--surface'),stroke:p.latitude?css('--surface'):css('--marker'),'stroke-width':2,opacity:.92},svg);
+ c.addEventListener('mousemove',()=>place(tip,box,x(p.date),y(Math.min(p.rate,ymax))-r,`${p.slug}<br>landed ${p.date} · ${p.tasks} tasks · ${p.fu} follow-ups<br><b>${p.rate}</b> per task${p.latitude?' · latitude clause':''}${p.mech?` · ${p.mech} #1431-class`:''}`));c.addEventListener('mouseleave',()=>tip.classList.remove('on'));});
+// label a few
+const lab=[['in-run-finding-resolution','in-run-finding-resolution 11.8'],['realized-absorb-rate','realized-absorb-rate 4.4'],['engine-reliability-and-filing-fidelity','engine-reliability 3.4'],['adr-doc-truth-sweep','plan 14 control 1.1']];
+lab.forEach(([s,l])=>{const p=pts.find(q=>q.slug===s);if(!p)return;const t=el('text',{x:x(p.date)-10,y:y(Math.min(p.rate,ymax))+4,'text-anchor':'end'},svg);t.textContent=l;});
+})();
+
+// Chart 4: class mix per week
+(function(){const W=960,H=300,L=44,R=16,T=20,B=34;const box=document.getElementById('c4');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const keys=['comment-or-doc-lag','defect-in-diff','test-vacuity-or-pin-gap','duplicate-of-sibling','mechanism-substitution','absorb-intended-but-lost','other'];
+const names=['comment/doc lag','defect in diff','vacuous test / pin gap','duplicate of sibling','mechanism substitution (#1431)','absorb lost (#1547)','other'];
+const cols=['--s1','--s5','--s2','--s3','--s4','--closed','--marker'];
+// fixed palette order is slots 1,2,3,4,7 then aqua-dark for absorb (secondary encoding: legend + labels)
+const lg=document.getElementById('lg4');keys.forEach((k,j)=>{const s=document.createElement('span');s.innerHTML=`<i style="background:${css(cols[j])}"></i>${names[j]}`;lg.appendChild(s);});
+const n=D.weeks.length,tot=D.weeks.map((_,i)=>keys.reduce((a,k)=>a+D.clsw[k][i],0)),ymax=Math.ceil(Math.max(...tot)/50)*50;
+const bw=(W-L-R)/n,y=v=>T+(H-T-B)*(1-v/ymax);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=ymax;v+=50){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v;}
+D.weeks.forEach((w,i)=>{let acc=0;const x=L+i*bw+6,wd=bw-12;keys.forEach((k,j)=>{const v=D.clsw[k][i];if(!v)return;const r=el('rect',{x,y:y(acc+v),width:wd,height:Math.max(0,y(acc)-y(acc+v)-2),fill:css(cols[j])},svg);r.addEventListener('mousemove',()=>place(tip,box,x+wd/2,y(acc+v),`week of ${fmtD(w)}<br>${names[j]}: <b>${v}</b> of ${tot[i]}`));r.addEventListener('mouseleave',()=>tip.classList.remove('on'));acc+=v;});const t=el('text',{x:x+wd/2,y:H-B+16,'text-anchor':'middle'},ax);t.textContent=fmtD(w);});
+})();
+
+// Chart 5: time to close histogram
+(function(){const W=960,H=200,L=44,R=16,T=20,B=34;const box=document.getElementById('c5');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const n=D.ttc_bins.length,ymax=100,bw=(W-L-R)/n,y=v=>T+(H-T-B)*(1-v/ymax);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=ymax;v+=25){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v;}
+D.ttc_bins.forEach((b,i)=>{const v=D.ttc_h[i],x=L+i*bw+24,wd=bw-48;const r=el('rect',{x,y:y(v),width:wd,height:y(0)-y(v),fill:css('--s1'),rx:3},svg);r.addEventListener('mousemove',()=>place(tip,box,x+wd/2,y(v),`${b}: <b>${v}</b> issues`));r.addEventListener('mouseleave',()=>tip.classList.remove('on'));const t=el('text',{x:x+wd/2,y:H-B+16,'text-anchor':'middle'},ax);t.textContent=b.replace(/d$/,' days');const c=el('text',{x:x+wd/2,y:y(v)-5,'text-anchor':'middle'},svg);c.textContent=v;});
+})();
+
+// Chart 6: 100% stacked by release band
+(function(){const W=960,H=310,L=44,R=16,T=34,B=50;const box=document.getElementById('c6');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const keys=['trivial','small','lane','design','oos'],names=['trivial','small','lane closed','design call','out of scope'],cols=['--s1','--s2','--s3','--s4','--s5'];
+const n=V.bands.length,bw=(W-L-R)/n,y=v=>T+(H-T-B)*(1-v/100);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=100;v+=25){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v+'%';}
+V.bands.forEach((b,i)=>{let acc=0;const x=L+i*bw+10,wd=bw-20;keys.forEach((k,j)=>{const v=100*b[k]/b.n;if(!v)return;const r=el('rect',{x,y:y(acc+v),width:wd,height:Math.max(0,y(acc)-y(acc+v)-2),fill:css(cols[j])},svg);r.addEventListener('mousemove',()=>place(tip,box,x+wd/2,y(acc+v),`${b.band} (n=${b.n})<br>${names[j]}: <b>${Math.round(v)}%</b> (${b[k]})`));r.addEventListener('mouseleave',()=>tip.classList.remove('on'));acc+=v;});
+ // fixable marker line
+ const fy=y(b.pct);el('line',{x1:x-4,x2:x+wd+4,y1:fy,y2:fy,stroke:css('--ink'),'stroke-width':1.5},svg);const f=el('text',{x:x+wd/2,y:y(100)-8,'text-anchor':'middle',style:'font-weight:600;fill:var(--ink)'},svg);f.textContent=b.pct+'% fixable';
+ const t=el('text',{x:x+wd/2,y:H-B+16,'text-anchor':'middle'},ax);t.textContent=b.band;const t2=el('text',{x:x+wd/2,y:H-B+30,'text-anchor':'middle'},ax);t2.textContent=b.first.slice(5)+' · n='+b.n;});
+})();
+// Chart 7: exact release dots
+(function(){const W=960,H=300,L=44,R=16,T=24,B=50;const box=document.getElementById('c7');const svg=el('svg',{viewBox:`0 0 ${W} ${H}`},box);const tip=tipFor(box);
+const pts=V.exact.filter(p=>p.n>=3);const n=pts.length,step=(W-L-R)/n,y=v=>T+(H-T-B)*(1-v/100),x=i=>L+step*(i+.5);
+const grid=el('g',{class:'grid'},svg),ax=el('g',{class:'ax'},svg);
+for(let v=0;v<=100;v+=25){el('line',{x1:L,x2:W-R,y1:y(v),y2:y(v)},grid);const t=el('text',{x:L-6,y:y(v)+4,'text-anchor':'end'},ax);t.textContent=v+'%';}
+el('path',{d:pts.map((p,i)=>(i?'L':'M')+x(i)+' '+y(p.pct)).join(' '),fill:'none',stroke:css('--s1'),'stroke-width':2},svg);
+el('path',{d:pts.map((p,i)=>(i?'L':'M')+x(i)+' '+y(100*p.mech/p.n)).join(' '),fill:'none',stroke:css('--s4'),'stroke-width':2},svg);
+pts.forEach((p,i)=>{const r=3+Math.sqrt(p.n)*1.3;const c=el('circle',{cx:x(i),cy:y(p.pct),r,fill:css('--s1'),stroke:css('--surface'),'stroke-width':2},svg);
+ c.addEventListener('mousemove',()=>place(tip,box,x(i),y(p.pct)-r,`${p.v} · ${p.date}<br>${p.n} follow-ups · <b>${p.pct}%</b> fixable · ${p.mech} #1431-class`));c.addEventListener('mouseleave',()=>tip.classList.remove('on'));
+ const m=el('circle',{cx:x(i),cy:y(100*p.mech/p.n),r:3.5,fill:css('--s4'),stroke:css('--surface'),'stroke-width':2},svg);
+ const t=el('text',{x:x(i),y:H-B+16,'text-anchor':'middle',transform:`rotate(-40 ${x(i)} ${H-B+16})`},ax);t.textContent=p.v;});
+})();
+</script>
