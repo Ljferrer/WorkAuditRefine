@@ -949,7 +949,7 @@ test('doc-guard 5.5(d): the retired per-blocker-only ROUNDS accounting wording i
 test('doc-guard D15: loop-budget.md carries the four-surface End-state-rewrite sweep rule', () => {
   // Paired, never two presence-anywhere probes: the four named surfaces and the red-at-base
   // re-execution are one rule. A tree that kept the heading but dropped either half goes red.
-  assert.match(LOOP_BUDGET, /rewrites an end state[\s\S]{0,400}?design-tree row[\s\S]{0,200}?owning task's plan slice[\s\S]{0,200}?`check:` literal/i,
+  assert.match(LOOP_BUDGET, /rewrites an end state[\s\S]{0,400}?design-tree row[\s\S]{0,200}?owning task's plan slice[\s\S]{0,200}?end-state condition text[\s\S]{0,200}?`check:` literal/i,
     'loop-budget.md lost the four-surface sweep (design-tree row, owning task plan slice, End-state condition, check: literal)')
   assert.match(LOOP_BUDGET, /re-execute the new `check:` at base and confirm it red/i,
     'loop-budget.md lost the red-at-base re-execution half of the End-state-rewrite rule')
