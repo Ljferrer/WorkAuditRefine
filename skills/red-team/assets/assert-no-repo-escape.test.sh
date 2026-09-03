@@ -86,7 +86,7 @@
 #       snapshot exits 0 (residue is baselined, never refused) and check stays exit 0
 #   34. BACK-COMPAT CONTROL: an OLD-FORMAT baseline with no ignored section makes the
 #       ignored half vacuous -> exit 0 even with a live leak
-#   35. SOURCE LOCK: the ignored half's four git/read failure paths each die with their
+#   35. SOURCE LOCK: the ignored half's five git/read failure paths each die with their
 #       own message (unreachable behaviorally — `git status` dies first on a non-repo)
 set -u
 
@@ -885,6 +885,9 @@ fi
 # otherwise caught. Fail-open by design: a pre-widening baseline must not read as an
 # escape. The old-format file is derived from a REAL new-format snapshot by stripping
 # the section, so the ref half stays exact and only the ignored half differs.
+# Delete-and-trace: drop the old-format marker check (the `_mrc -eq 0` gate) from the
+# guard and check (d) reads the marker-less baseline as an empty ignored set, so the
+# live probe-residue.log leak becomes a candidate and this case flips to exit 1.
 # ---------------------------------------------------------------------------
 R34="$(setup_repo)"
 printf '*.log\n' > "$R34/.gitignore"
