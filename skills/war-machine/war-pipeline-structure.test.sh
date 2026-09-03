@@ -9,7 +9,8 @@
 # #1510/#1605 re-scopes, the deps-edged lenses.md / survey-corps / war-review pins, and the
 # ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
 # (2026-08-25, ask-disposition Task 2.6) the two war-review telemetry rows — the asks tally
-# and the grind-measurement row.
+# and the grind-measurement row. Also pins (2026-09-02, D13) the drafter evidence clause's
+# split degraded arms — absent section, unreachable issue.
 # grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
@@ -652,6 +653,14 @@ has_i "$MACHINE" 'armed-by-rule and unwaived under `--afk`'
 # [[check-command-grep-literal-must-include-markdown-code-span-backticks]].
 has_i "$MACHINE" "reads each cited issue's"
 has   "$MACHINE" '`## Evidence artifacts`'
+# D13 (#1655, 2026-09-02): the same read clause carries the split degraded arms its two sibling
+# surfaces already carry (red-team lenses.md's per-issue Evidence join, survey-corps' named-gap
+# note) — absent section ⇒ vacuous pass; unreachable issue ⇒ a named note in the draft, fail-open
+# under `--afk`. Anchors are stable mid-clause fragments, each on ONE line of the wrapped
+# clause (has_i is line-scoped `grep -qiF`); all three verified absent at the task base.
+has_i "$MACHINE" 'section is absent ⇒ the read is'
+has_i "$MACHINE" '**unreachable** (gh/network/auth failure'
+has_i "$MACHINE" 'in the drafted plan identifying that issue'
 # #1510 re-scope (wrapped, PIN-2): the latitude offer is unconditional; only the per-row
 # AI-declared markers are --afk-scoped. Both ways (per /war-strategy §3 authoring rule 6):
 # the presence pin holds the corrected scoping clause; the split-fragment absence twin holds
