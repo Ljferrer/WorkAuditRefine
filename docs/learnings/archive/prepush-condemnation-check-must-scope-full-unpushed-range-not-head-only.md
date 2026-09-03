@@ -59,3 +59,19 @@ range — it appends a second commit touching the same paths — so a naive reve
 loop forever unless the undo pass recognizes revert-pairs as clean.
 
 > archived 2026-08-30: resolved — moved to archive
+
+## Correction (2026-09-03, #1522)
+
+The range recipe above is unsound without one stated precondition: a **fail-closed `git fetch` refresh
+of the remote-tracking ref, run immediately before the probe**. Both range forms
+(`'@{upstream}'..HEAD` and the `origin/<working>..HEAD` fallback) resolve their left endpoint from a
+*local* remote-tracking ref, which is a cached snapshot. In a freshly-provisioned publication worktree,
+or after another pass pushed to the same branch, that ref lags the real remote tip. The probe then
+computes the wrong range — commits already on origin are re-scanned, or, when the local ref is ahead
+of what this checkout knows, the range understates and a condemnable commit is never inspected. That
+is the same crash-then-resume gap the HEAD-only probe had, reintroduced one level up.
+
+So the probe is: `git fetch origin <working>` first, and **if the fetch fails, stop and escalate** —
+never fall through to a probe against the stale ref, and never push. A stale-ref probe that reports
+"clean" is not evidence; it is an unrefreshed cache. The Fix and Pattern text above stays as landed —
+this section adds the precondition it omits.
