@@ -1,6 +1,6 @@
 ---
 name: resume-and-recovery-filing-on-held-disjunct-names-a-handoff-shape-context-md-excludes
-description: "skills/war/references/resume-and-recovery.md's filing-on-held bullet says on held:land-failed 'the follow-up filing dispatch still runs — or the handoff carries an explicit unfiled-followups block the Lead executes'; CONTEXT.md's canonical 'Clean handoff' glossary row states the handoff block is emitted only on landed and held:escalation — held:land-failed is not in that set, so the second disjunct points a recovering Lead at an artifact the engine (as documented) never produces on that path"
+description: "Two prose surfaces describing one engine emission set can disagree; grep the sibling surface before adding a doc bullet."
 metadata: 
   node_type: memory
   type: project
@@ -30,42 +30,25 @@ metadata:
 
 # Two doctrine surfaces can disagree about which land decisions emit a `handoff` block
 
-**Code-verified** at landed tip `513161f8083c18f4b582f139ec4162c0e95d1116` on
-`dev/2026-08-25-engine-reliability-and-filing-fidelity` (landed-tip grounding rung 2 — the
-`_refinery28` worktree's `HEAD` equals the threaded tip; physical gitdir path
-`<repo-root>/.claude/war-worktrees/2026-08-25-engine-reliability-and-filing-fidelity-2026-08-26/_refinery/`).
+**Rule:** when a doc-only task adds a bullet that describes an engine emission set, grep the other
+prose surfaces that enumerate the same set before landing it. Nothing mechanical forces two
+independent descriptions of one code path to agree.
 
-Phase 6 Task 3 added a bullet to `skills/war/references/resume-and-recovery.md` (line 42)
-documenting the filing-on-held behavior Task 6.1 (b) implements:
+**The instance:** `skills/war/references/resume-and-recovery.md`'s filing-on-held bullet said that
+on `held:land-failed` the filing dispatch still runs "or the `handoff` carries an explicit
+unfiled-followups block". `CONTEXT.md`'s **Clean handoff** glossary row at that time said the
+`handoff` block is emitted only on `landed` and `held:escalation`. The bullet was faithful to its
+plan slice, yet pointed a recovering Lead at an artifact the canonical doc said never exists on
+that path. Graded Minor/`follow-up`, mitigated by the bullet's own "check which shape occurred"
+instruction.
 
-> "(2) **Filing-on-held:** on `held:land-failed`, the follow-up **filing dispatch still runs** —
-> or the `handoff` carries an explicit unfiled-followups block the Lead executes — never silently
-> unrun."
+**Fixed in #1983 (commit 8339bda):** `CONTEXT.md`'s Clean handoff row now names `landed`,
+`held:escalation` and `held:land-failed`. The two surfaces agree. `skill-doc-contracts.test.mjs`
+pins the `held:land-failed` bullet.
 
-The second disjunct ("or the `handoff` carries…") is verbatim-faithful to Task 6.1's own plan
-slice text, so it is not a worker error. But `CONTEXT.md`'s canonical **Clean handoff** glossary
-row (line 877, untouched by this diff, pinned by `skill-doc-contracts.test.mjs`'s drift-guard
-rows) states the `handoff` block (`{ merged, followUps, intentPresent, backstops }`) is "emitted
-on `landed` and `held:escalation`" — a **two-member** set that does not include
-`held:land-failed`. So the resume-and-recovery.md bullet's second disjunct points a recovering
-Lead at an artifact the engine, per its own canonical doc, never produces on the path the bullet
-is describing.
+**How to apply:** the reconciling fix belongs to whichever surface is wrong. If `CONTEXT.md` is
+the one that moves, land it in the same commit as the matching drift-guard row. See also
+[[default-flip-must-audit-all-doc-surfaces]] for the general sibling-surface sweep.
 
-**Mitigated, not harmless:** the same sentence immediately instructs the Lead to "check which of
-the two shapes occurred before filing anything by hand" — so the operational failure mode is a
-wasted look for a nonexistent `handoff`, not a double-file. Graded Minor/`follow-up`, not a hold.
-
-**Why this generalizes:** when a new doc bullet is added under a task whose Files list is the doc
-surface alone (no code touch), and it describes an engine emission set, the doc author has no
-mechanical way to cross-check it against a DIFFERENT doc's canonical enumeration of the same set
-unless they specifically grep for it — CONTEXT.md's glossary row and resume-and-recovery.md's
-recovery bullet are two independent prose descriptions of the same `handoff`-emission code path,
-and nothing forces them to agree. The reconciling fix belongs to whichever surface is wrong (here:
-either widen CONTEXT.md's emitted set to include `held:land-failed`, or drop the handoff disjunct
-from the resume-and-recovery.md bullet) — and it must land in one commit with the matching
-drift-guard row if CONTEXT.md is the one that moves.
-
-**Locate-cue (verify still present before acting):** `skills/war/references/resume-and-recovery.md`
-line ~42 ("Segmented land (in-band marker) and filing-on-held" bullet, second sentence);
-`CONTEXT.md` line ~877 (**Clean handoff** glossary entry, "emitted on `landed` and
-`held:escalation`").
+**Locate-cue:** the "Segmented land (in-band marker) and filing-on-held" bullet in
+`resume-and-recovery.md`; the **Clean handoff** glossary entry in `CONTEXT.md`.

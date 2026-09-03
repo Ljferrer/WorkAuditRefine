@@ -1,6 +1,6 @@
 ---
 name: compound-tap-helper-label-can-superset-match-a-sibling-labels-count-grep
-description: "A parameterized TAP helper's compound label text can substring-match a sibling label's future grep-count check"
+description: "A compound TAP label like a/b is a superset of label a, so a later grep -c for one sub-label can over-count; use a non-superset alias."
 metadata: 
   node_type: memory
   type: project
@@ -30,58 +30,16 @@ metadata:
 
 # A parameterized TAP helper's compound label can be a superset substring of a sibling label a future check greps for
 
-**Found (code-verified — landed tip `abb1f1515977b54fe9153ec178b21153ec04ff4a` on
-`dev/2026-08-25-authoring-doctrine-and-lint-coherence`, read via the `_refinery39` worktree,
-gitdir physical path
-`<repo-root>/.claude/war-worktrees/2026-08-25-authoring-doctrine-and-lint-coherence-2026-09-02-r3/_refinery/`,
-`HEAD` byte-equal to the landed tip; `skills/war-strategy/war-strategy-structure.test.sh` lines
-708-713):** the `ctl()` helper (line 671) takes an optional fourth argument naming which
-positive-control helper a pattern backs, defaulting to `lacks_i`, and prints TAP lines like
-`ok - <name> pattern <n> is alive`. Two doctrine-scoped patterns share one assembled regex
-(`r8`/`r9` both back the same underlying text), so pattern 8's call passes a **compound** label:
+**Rule:** when a parameterized test helper takes a label that later checks discriminate by `grep -c '<label> <suffix>'`, a compound label built by joining two individual labels (`a/b`, `a+b`, `a,b`) is a superset string of either label. A future count check for one label alone can match the compound line too, unless the check's substring happens to require a character (such as a trailing space) the compound form does not produce at that position.
 
-```sh
-ctl 8 "$f8a$f8b" "$r8a$r8b" lacks_doc_i/lacks_char_i
-```
+**Instance (still present, harmless today):** in `skills/war-strategy/war-strategy-structure.test.sh`, the `ctl()` helper takes an optional fourth argument naming the positive-control helper a pattern backs and prints `ok - <name> pattern <n> is alive`. Pattern 8's call passes the compound label `lacks_doc_i/lacks_char_i` because `r8` backs both helpers with one assembled regex. That TAP line contains the substring `lacks_char_i pattern`. The existing End-state count greps `'lacks_doc_i pattern'` with a space after the name, so the `/` in the compound label keeps the count correct. A future `grep -c 'lacks_char_i pattern'` check would over-count by pattern 8's two lines.
 
-This prints `ok - lacks_doc_i/lacks_char_i pattern 8 is alive`, which literally **contains** the
-substring `lacks_char_i pattern` (the exact substring pattern 9's own dedicated check,
-`grep -c 'lacks_char_i pattern'`, would look for). Today this causes no wrong result: the actual
-End-state 9 check greps `'lacks_doc_i pattern'` (note the space immediately after the helper
-name), and the compound label has `/` there instead of a space, so the count still resolves to
-exactly 4 (patterns 6 and 7 only — pattern 8's compound label doesn't match that specific
-substring). But a **hypothetical future** check mirroring End state 9's shape for
-`lacks_char_i` specifically (`grep -c 'lacks_char_i pattern'`) would over-count by 2 — pattern 8's
-two TAP lines plus pattern 9's two — because pattern 8's compound label IS a superset string
-containing that exact substring.
+**Why it happened:** the compound label was a reasonable way to attribute one shared call to both helpers it backs. Nobody anticipated a later maintainer grepping for one helper's name in isolation.
 
-**Why it happened:** `ctl()`'s parameterization is correct and one call legitimately suffices
-for `r8`, since it backs both `lacks_doc_i` and `lacks_char_i` with the identical assembled
-string — the plan's mechanism latitude explicitly sanctioned this shape. The compound label was a
-reasonable way to attribute the shared call to both helpers it backs, without anticipating that a
-later maintainer might grep for one helper's name in isolation.
+**How to apply:** when adding a compound label to a helper whose labels other checks count by substring, pick a shape that can never be a superset of any individual label already grepped for (a short joint alias like `r8`, or a delimiter absent from every individual label). Cheaper alternative: leave the label and add a comment next to any future count check for an individual sub-label noting that a compound line could inflate the count.
 
-**The durable pattern:** when a parameterized test/TAP helper accepts a label argument that is
-later used as a `grep -c '<label> <suffix>'` discriminator, a **compound** label built by
-concatenating two individual label names (e.g. `a/b`, `a+b`, `a,b`) is a superset string of
-either individual label — any future count-based check for one individual label alone risks
-matching the compound line too, unless the check's own substring happens to require a character
-(like a trailing space) the compound form doesn't produce at that position. This is a close
-cousin of [[regex-word-boundary-does-not-stop-at-a-hyphen-use-token-set-compare-for-superstring-tokens]]
-(same "superset substring defeats a later discriminator" theme) but the trap here is plain-string
-label composition, not a regex word-boundary illusion.
-
-**How to apply:** when adding a compound/combined label to a parameterized test helper that
-other checks discriminate by exact substring or `grep -c`, pick a delimiter or shape that can
-never itself be a superset of any individual label already grepped for elsewhere in the suite
-(e.g. a short joint alias like `r8`, or a delimiter guaranteed absent from every individual
-label). Cheaper alternative: leave the compound label as-is and simply note in a comment, next to
-any future count check for an individual sub-label, that a compound line could inflate the count.
-
-**Locate-cue (verify still present before acting):** `skills/war-strategy/war-strategy-structure.test.sh`,
-`ctl()` at line 671, pattern 8's call at line 710, pattern 9's dedicated call at line 713.
+**Locate-cue:** `skills/war-strategy/war-strategy-structure.test.sh`, the `ctl()` helper, pattern 8's `ctl 8 ... lacks_doc_i/lacks_char_i` call, and pattern 9's dedicated `ctl 9 ... lacks_char_i` call.
 
 ## Related
 
-[[regex-word-boundary-does-not-stop-at-a-hyphen-use-token-set-compare-for-superstring-tokens]] —
-the regex-side sibling of this same "superset substring" trap.
+[[regex-word-boundary-does-not-stop-at-a-hyphen-use-token-set-compare-for-superstring-tokens]]: the regex-side sibling of the same "superset substring defeats a later discriminator" trap. Here the trap is plain-string label composition, not a word-boundary illusion.

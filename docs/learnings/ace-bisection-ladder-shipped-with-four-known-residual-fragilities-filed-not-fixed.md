@@ -1,6 +1,6 @@
 ---
 name: ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed
-description: "The new aceBisect ladder (workflow-template.js, phase 1.1 of realized-absorb-rate) landed with…"
+description: "Before touching `aceBisect`, read its filed issues: the ladder shipped with follow-up-routed fragilities and some stay open."
 metadata: 
   promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory
@@ -39,142 +39,48 @@ metadata:
   modified: 2026-08-26T22:42:10.252Z
 ---
 
-# The new `aceBisect` ladder landed with four known, filed-but-unfixed fragilities
+# The `aceBisect` ladder shipped with filed-not-fixed fragilities; check what is still open before touching it
 
-**Found (code-verified — landed tip `291943e` on `dev/2026-08-19-realized-absorb-rate`, verified
-in the phase's `_refinery` worktree; all four were audit findings on the NEW bisection code — task
-1.1, commits `667b34a` + ace polish `c100869` — routed `follow-up` and filed as issues rather than
-fixed pre-land):**
+**Rule:** the bisection ladder in `skills/war/assets/workflow-template.js` (`aceBisect`) landed with
+audit findings routed `follow-up` and filed as issues, not fixed. A task touching `aceBisect` must
+read the filed issues for current status first, and treat every still-open item as a known
+constraint, not a fresh discovery.
 
-1. **Trailer-shape ambiguity (#1560).** The deterministic `Ace-Subset:` trailer value is built as
-   `<taskId>:<sorted,joined,files>` (`workflow-template.js`, the `trailer` const inside `aceBisect`'s
-   while-loop: `r.task.id + ':' + [...new Set(sub.findings.map(f => f.file))].sort().join(',')`).
-   Because a parent subset's file set is always a superset of its children's, one child's trailer
-   value can be a literal string-prefix of a sibling/parent's — the resume-idempotency preflight scan
-   (`git log --format='%H %(trailers:key=Ace-Subset,valueonly)' ...`) can match the wrong commit on a
-   prefix collision. Also: `%(trailers:)` only recognizes a trailer block that is its own final
-   paragraph in the commit message — a trailer line that isn't cleanly isolated can be invisible to
-   the very preflight scan meant to find it.
-2. **Culprit attribution by exact file-string equality (#1561).** `culpritFiles.has(f.file)` (same
-   function) requires byte-exact path match between a blocking regression finding's `file` and an
-   aceable finding's `file`. Any path-form drift (relative vs repo-relative, trailing slash, case on
-   a case-insensitive fs) between the two makes attribution silently fail closed to the `culprits.length
-   === 0` branch — i.e. it falls back to blind halving instead of surfacing the real culprit,
-   with no error or log signal that attribution missed.
-3. **Bare, unwrapped dispatch sites (corroborates
-   [[env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return]],
-   issue #1481).** `aceBisect`'s subset-fix `agent()` call (up to 6 dispatches across the bisection
-   depth) is a bare call with no `dispatchAgent`/try-catch wrapping distinct from the two sites that
-   lesson already names — a harness death mid-ladder converts what would otherwise be an approved,
-   mergeable task into a HARD `held:workflow-error`, discarding the salvageable ace work already
-   accepted at shallower depths.
-4. **Shared `fixRounds` budget starvation (#1562).** The ladder's own round-limit check
-   (`r.task.fixRounds >= roundLimit`) draws from the *same* counter the merge-floor retry loop (fix
-   rounds) and the no-test sub-loop share (see the existing shared-budget test coverage in
-   `workflow-template.test.mjs`). A bisection that consumes several subset commits can leave the
-   task with zero budget left for an unrelated later fix round, starving it.
-5. **(Related, same audit pass, #1563) failing-subset re-audit rounds' own fresh Minor/Nit findings
-   are dropped unrouted** in at least one code path inside the ladder's re-audit handling — worth
-   checking alongside the four above if touching this code.
+**Current state of the original five (verified against `aceBisect` on master):**
 
-**Why record this instead of waiting for the fixes:** all five are `follow-up`-disposed, not
-`absorb`, so nothing forced them to be fixed before land — they are real, currently-live gaps in
-shipped code, not stale findings. A future task touching `aceBisect` should treat all of them as
-known constraints, not surprises, and check the filed issues (#1560-#1563, #1481 corroboration)
-for current status before re-diagnosing from scratch.
+1. Trailer prefix ambiguity and final-paragraph isolation (#1560): fixed in prompt text. The subset
+   dispatch prompt mandates EXACT whole-string equality on the `Ace-Subset:` value and requires the
+   trailer as the commit's own final paragraph. Still prompt-mandated, not engine-enforced: nothing
+   re-reads `%(trailers:)` on the returned `head_sha`. Issue still open.
+2. Culprit attribution by exact file string (#1561): fixed. The `aceRelPath` helper normalizes
+   both sides of `culpritFiles.has(...)`, and it is hoisted above `aceGroups` so the grouping key
+   and the trailer file set use the same form (#1813). Issue still open.
+3. Unwrapped subset and batch dispatches: STILL OPEN (#1481 corroboration). The `const sw = await
+   dispatch(` subset call and the `const ace = await dispatch(` batch call go through `dispatch`
+   (the semaphore seam), not `dispatchAgent` (the try/catch that stamps `warDispatchDeath`). A
+   harness death mid-ladder still turns a mergeable task into a HARD `held:workflow-error`.
+4. Shared `fixRounds` starvation (#1562): mitigated. Subset commits stop at the floor-retry reserve
+   (`if (r.task.fixRounds >= roundLimit - 2)`), holding two slots for the merge-floor retry loop.
+   Residual: the batch ace keeps its own `< roundLimit` gate, and `run.roundLimit <= 3` makes the
+   ladder inert from its first iteration. Issue still open.
+5. Failing-subset re-audit Minor/Nit findings dropped (#1563): fixed via `minorsOf` routing inside
+   the loop. Its `parkAsk` object-identity residual is also fixed: `parkAsk` now dedups by
+   `askContentKey` and records corroborators (#1790).
 
-**Locate-cue (verify still present before acting):** `aceBisect` in
-`skills/war/assets/workflow-template.js` — the `trailer` construction, the `culpritFiles`/`culprits`
-split, the bare `agent()` dispatch inside the `while (queue.length)` loop, and the
-`r.task.fixRounds >= roundLimit` check.
+The doc cascade (ADR 0013, `CONTEXT.md`, `skills/war/SKILL.md`, `references/design.md`) now
+narrates the floor-retry reserve; that residual is closed.
 
-**Addendum (phase 4 "Release", task 4.1, 2026-08-20) — the trailer/preflight resume-idempotency
-contract itself has zero engine-side verification, distinct from fragility 1's trailer-*value*
-ambiguity above.** `code-verified` at the landed tip `5cbf08d1aede44412f0a4d3a6cce1179010cce18`
-(`_refinery22` worktree, `HEAD` byte-equal to that tip; gitdir physical path containing this plan's
-slug: `<repo-root>/.claude/worktrees/realized-absorb-rate-2026-08-19-r2/_refinery/`). Both halves of
-the contract — "commit ends with the `Ace-Subset:` trailer" and "preflight scans the bisection range
-for it" — are dispatched as **prompt text** to the fix-worker agent inside `aceBisect`'s `pt\`...\``
-template (`skills/war/assets/workflow-template.js`); the engine never re-reads `git log`/
-`%(trailers:)` on the worker's returned `head_sha` to confirm the accepted commit actually carries the
-trailer. A worker that emits a gate-green commit but omits or malforms the trailer line would be
-silently accepted — the next resume's preflight would simply fail to recognize it and could
-double-apply. This is a mandate to an LLM worker, not an engine-enforced invariant — see
-[[release-blurb-overstates-guard-semantics]] Recurrence 23 (the README `## Status` blurb stating this
-mandate as a commit-level guarantee, a Nit, `disposition: note`, not fixed before land).
+Recurrences: 2 (phase 4 release addendum; engine-reliability phase 7 addendum).
 
-**Addendum (2026-08-25-engine-reliability-and-filing-fidelity, phase 7 "aceBisect robustness", tasks
-7.1+7.2, landed `dev/2026-08-25-engine-reliability-and-filing-fidelity` @ `fb732efb4ae1d29a9efd8aa0b9722887bc5e2d60`) — three of the four original fragilities plus the related #1563 gap are now
-FIXED; fragility 3 remains open; the fixes carry their own new residuals; and four doc-cascade homes
-narrating the fixed mechanism shipped stale.**
-
-Checkout-topology note: no worktree at the actual merged tip `fb732ef` was live to read from at
-servitor time (only per-task branch worktrees survived, none checked out past the pre-polish tip).
-Facts below are **code-verified** against the pinned `auditSha`/gate-audit tip
-`b5c54b58be788017647aaad446bde204de8d395e` (task 7.2, `gateEvidence: true`) via its live worktree —
-`git diff` between that tip and the terminal `p7-polish` branch was empty and the polish task was
-**discarded** (produced zero commits: see [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]
-for the general pattern), so this pin's content is the actual landed content for every referent
-below.
-
-- **Fragility 1 (trailer prefix ambiguity + final-paragraph isolation) — FIXED.** The subset-fix
-  dispatch prompt now mandates "EXACT whole-string equality — never a prefix or substring match" and
-  requires the `Ace-Subset:` trailer as the commit message's "OWN final paragraph, separated from the
-  body by a blank line" (`skills/war/assets/workflow-template.js`, the `aceBisect` dispatch prompt,
-  verified present at the pin above).
-- **Fragility 2 (culprit attribution by exact file-string equality) — FIXED, with a residual.** A new
-  `aceRelPath` helper (`const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p`)
-  normalizes both sides of `culpritFiles.has(...)` against a `./`-prefix. **Residual (code-verified,
-  agent-audit-sourced):** `aceGroups`' Map key and the deterministic trailer's file-set
-  (`[...new Set(sub.findings.map(f => f.file))]`) still key on the raw, unnormalized `f.file` — two
-  findings naming the same file in different path forms can still split across bisection subsets.
-- **Fragility 4 (shared `fixRounds` budget starvation) — MITIGATED, not fully closed.** Subset
-  commits now dispatch only while `r.task.fixRounds < roundLimit - 2` (verified: the check reads
-  `if (r.task.fixRounds >= roundLimit - 2) { ... }`), reserving 2 slots for the merge-floor retry
-  loop. **Residual (code-verified):** the reserve is scoped to subset commits only — the batch ace
-  dispatch one screen below keeps its own unchanged `< roundLimit` gate, so a task entering the ace
-  at `fixRounds = roundLimit - 1` still charges the batch and can leave the merge-floor retry loop
-  with zero slots. Also: with `run.roundLimit <= 3` the ladder is inert from its first iteration
-  (boundary <= 1) — not live today (only the `economy` preset lowers `roundLimit`, and it also pins
-  `ace: false`), but a hand-written config pairing a low `roundLimit` with `ace: true` would silently
-  restore pre-ladder starvation behavior.
-- **#1563 (failing-subset re-audit rounds' fresh Minor/Nit findings dropped unrouted) — FIXED.** The
-  ladder now routes `minorsOf(subSeats)`/`minorsOf(reSeats)` at multiple sites inside the bisection
-  loop (verified: matches at 4 call sites in the loop body). **New residual this introduces
-  (code-verified referent, agent-asserted mechanism — see
-  [[parkask-object-identity-dedup-breaks-under-per-round-fresh-copy-minorsof]] for the standalone
-  write-up):** `parkAsk`'s dedup is by finding **object identity** (`asks.some(a => a.finding === f)`)
-  while `minorsOf` mints a **fresh copy** of every Minor/Nit on every call — a decision-shaped `ask`
-  that persists across bisection re-audit rounds (the normal case) now parks once per round instead
-  of once per task.
-- **Fragility 3 (bare, unwrapped `agent()` dispatch inside `aceBisect`) — STILL OPEN.** Verified at
-  the pin: the ladder's subset-fix dispatch (`const sw = await agent(...)`) and the batch ace dispatch
-  (`const ace = await agent(...)`) are both still bare `agent()` calls, not `dispatchAgent()` — a
-  harness death mid-ladder still converts an otherwise-salvageable ace run into a HARD
-  `held:workflow-error`, exactly as originally filed. Untouched by this diff; do not assume it was
-  swept up by the `dispatchAgent` wrapping work done in other phases of this same plan.
-- **Doc cascade shipped stale — code-verified across all four homes at the pin.** The mechanism's
-  demotion trigger moved from "budget exhaustion" to the `roundLimit - 2` floor-retry reserve, but
-  none of the four narrative homes were updated: `docs/adr/0013-commanders-intent-and-disposition-routing.md`'s
-  2026-08-20 amendment still reads "Only finally-failing subsets demote to `follow-up` (the remainder
-  demotes on budget exhaustion)"; `CONTEXT.md`'s **Ace bisection** glossary row still reads "(reverts
-  uncharged; exhaustion demotes the remainder)"; `skills/war/SKILL.md`'s `--ace` bullet still reads
-  "(exhaustion demotes the remainder — logged, by design)"; `skills/war/references/design.md` §18
-  still reads "(or a budget-exhausted remainder)". No task in this plan owned the cascade (phase 7's
-  two tasks scope only `workflow-template.js`/`.test.mjs`; the terminal `p7-polish` task that could
-  have absorbed it was **discarded** with zero commits). Treat all four as stale until a future task
-  updates them; verify still present before citing any of the four as accurate.
+**Locate-cue:** `aceBisect` in `workflow-template.js`: the `culpritFiles`/`culprits` split, the
+`roundLimit - 2` reserve check, the `trailer` const, and the `dispatch(` calls inside the
+`while (queue.length)` loop.
 
 ## Related
 
 [[env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return]]
-[[committed-repo-config-can-shadow-a-flipped-engine-default]] — same phase, sibling task 1.2's
-independent `roundLimit` shadowing issue on the budget this ladder also draws from.
-[[release-blurb-overstates-guard-semantics]] — Recurrence 23 records the blurb-level symptom of this
-addendum's root gap (a prompt-mandated property described as a commit-level guarantee).
-[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — why the phase-7 doc
-cascade above shipped stale (the terminal polish round that would have absorbed it was discarded).
-[[parkask-object-identity-dedup-breaks-under-per-round-fresh-copy-minorsof]] — the #1563-fix residual
-in full.
-[[standing-instruction-vs-dispatched-prompt-coverage-split]] — phase 7's new FINDING-PATH FORM
-directive landed dispatched-prompt-only, the same split shape as this file's addendum note above.
+[[committed-repo-config-can-shadow-a-flipped-engine-default]] (sibling `roundLimit` shadowing)
+[[release-blurb-overstates-guard-semantics]] (prompt-mandated trailer sold as a commit guarantee)
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] (why the doc cascade first shipped stale)
+[[parkask-object-identity-dedup-breaks-under-per-round-fresh-copy-minorsof]] (the #1563-fix residual, since fixed)
+[[standing-instruction-vs-dispatched-prompt-coverage-split]] (FINDING-PATH FORM landed dispatched-prompt-only)
