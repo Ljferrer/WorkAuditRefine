@@ -821,3 +821,24 @@ halt-on-miss witnesses, not by intra-plan structure.
   Task 1.2 (h2)'s ADR 0042 byte-identical eviction (never prose-thinning, hard constants
   untouched); the Purpose is scoped to Bash-capable-seat resolution + the recorded auditor
   residual.
+
+## Posterity correction (2026-09-03) — D3 is not a foreign-repo resolution path
+
+Appended by plan `2026-08-25-doc-truth-and-drift-guard-debt` Phase 1 Task 1.3 (#1981, #1545,
+#1678). The ratified text above stays as written; this note is the corrected record.
+
+- **What is corrected.** Three places word the non-Bash seat residual without a repo scope, as
+  if the D3 fallback were a resolution path alongside harness substitution: Task 1.4's slice
+  ("harness substitution or the D3 fallback"), the A2 assumption row ("the auditor rests on the
+  D3 fallback line"), and the discharged A2 backstop row ("the operative paths are seat-shell
+  expansion … and the D3 resolution line"). The D3 resolution line each card carries fires only
+  when the repo under review is the plugin itself. It therefore resolves nothing on a foreign target repo, and it must not be read
+  as a second foreign-repo resolution path beside harness substitution.
+- **What holds.** On a foreign target repo, resolution for a non-Bash seat rests on harness
+  substitution alone; the cards' decisive-rules-inline digests and the dispatched-prompt clauses
+  are the operative carriers there (adjudication O(1), untouched). Bash-capable seats still
+  expand the placeholder in their own shell on any repo — that half of the framing is true and
+  is unaffected by this correction. The `## Open decisions` D3 row above is already scoped "on
+  the plugin repo" and needs no correction.
+- **Where the fix landed.** `skills/war/references/worker-servitor-edges.md`'s header (the
+  authority surface) and ADR 0047's 2026-09-03 amendment.

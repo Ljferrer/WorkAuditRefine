@@ -3,8 +3,9 @@
 The repeatable **operator** lever that moves the prompt-surface byte ceilings — the `hard:` /
 `advisory:` constants in
 [`prompt-surface-budgets.test.mjs`](../assets/prompt-surface-budgets.test.mjs) (`FILE_BUDGETS`
-rows plus `WORKFLOW_LITERAL_BUDGET`). Authority split (the budget-maintenance-authority ADR,
-`docs/adr/`): **workers fund growth within ceilings** — eviction per
+rows plus `WORKFLOW_LITERAL_BUDGET`). Authority split
+([ADR 0048](../../../docs/adr/0048-budget-maintenance-authority.md)): **workers fund
+growth within ceilings** — eviction per
 [ADR 0042](../../../docs/adr/0042-prompt-surface-budgets.md) D3/D4, never a constant raise —
 while **ceiling changes are operator acts via this pass**, machine-enforced at merge by the
 Budget-Raise citation floor (`skills/war/assets/assert-budget-raise-cited.sh`). The pass mirrors

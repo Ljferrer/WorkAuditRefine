@@ -1,6 +1,6 @@
 ---
 name: awk-empty-baseline-nr-fnr-degeneracy
-description: "RESOLVED (escape-guard-exit-contract/1.1, #1263): A zero-byte first file in a two-file awk NR==FNR diff degenerates into 'every stdin record is new' — arg-parse validation must check -s, not just -e/-f/-r"
+description: "RESOLVED (escape-guard-exit-contract/1.1, #1263): A zero-byte first file in a two-file awk NR==FNR diff degenerates into reporting every live ref as 'removed:' — arg-parse validation must check -s, not just -e/-f/-r"
 metadata: 
   node_type: memory
   type: project

@@ -1,7 +1,7 @@
 # /war Setup — branch-gated procedures
 
 Verbatim evictions from `skills/war/SKILL.md` (prompt-surface simplification, spec §4.3; the moved
-blocks below are byte-identical to their pre-eviction SKILL.md text, except where a block carries a
+blocks below are byte-identical to their pre-eviction SKILL.md text at eviction time, except where a block carries a
 noted in-place amendment — currently the § `--afk` sanity floor block). Each block is read on the
 trigger named at its eviction site; the surrounding Setup / launch steps stay in the SKILL. Positional
 words inside the moved blocks ("above", "below") refer to their original SKILL.md positions.
