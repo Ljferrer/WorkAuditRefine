@@ -248,7 +248,7 @@ function parseLandingCell(cell) {
 // pins (a Resolution-cell cross-reference to another row's pin is NOT a definition).
 // classes === null marks a class-less pin (anywhere-citation fallback). `marked` is the D2 ‡
 // row marker — set from a `PIN-<n>‡` id in the Source cell, from an arrow-pair-marked id, or
-// from a marked bare landing cell (which covers every pin of the row).
+// from a marked bare landing cell (applies only to pins that fall back to the bare class expression).
 function parseDesignTree(sectionLines) {
   const pins = [];
   let srcIdx = -1;

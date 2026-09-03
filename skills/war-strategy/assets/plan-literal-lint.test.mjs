@@ -500,6 +500,23 @@ test('twice-read-inventory: exactly one row per ‡-marked pin; an unmarked tree
   assert.deepEqual(lintInfo(unmarked), []);
 });
 
+test('twice-read-inventory: a marked bare part never leaks onto an unmarked arrow-mapped neighbor (and the converse)', () => {
+  // Pre-fix `markedBare || marked.has(id)` marked EVERY pin of a row once any bare part carried ‡,
+  // so PIN-20 (arrow-mapped, unmarked) leaked into the inventory beside the marked bare PIN-21.
+  const doc = (cell) => [
+    ...tree(`| D1 | a | r | (user) · PIN-20 · PIN-21 | ${cell} |`),
+    "## Commander's Intent",
+    '- **Binding guardrails:** the fence holds (PIN-20)',
+  ].join('\n');
+  const markedOf = (d) => parsePlanShape(d).designPins.filter((p) => p.marked).map((p) => p.pin);
+  const bareMarked = doc('PIN-20→guardrail · slice ‡');
+  assert.deepEqual(markedOf(bareMarked), ['21'], 'only the bare-fallback pin carries the bare mark');
+  assert.deepEqual(lintInfo(bareMarked).map((h) => h.match), ['PIN-21 is ‡-marked — twice-read at echo-back']);
+  const arrowMarked = doc('PIN-20‡→guardrail · slice');
+  assert.deepEqual(markedOf(arrowMarked), ['20'], 'an arrow-pair mark never reaches the bare-fallback pin');
+  assert.deepEqual(lintInfo(arrowMarked).map((h) => h.match), ['PIN-20 is ‡-marked — twice-read at echo-back']);
+});
+
 test('pin-citation: silent on a doc with no design tree', () => {
   assert.equal(countOf(lint("## Commander's Intent\n- **Binding guardrails:** none"), 'pin-citation'), 0);
 });
