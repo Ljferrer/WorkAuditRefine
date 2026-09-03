@@ -162,7 +162,11 @@ const scopeLock = (technique) => [
         `  • Read-only INSPECTION of committed state -> \`git -C ${repo} worktree add --detach <tmp> HEAD\`. It shares ${repo}'s ref store, so create NO branches and NO tags in it, and dispose of it with \`git -C ${repo} worktree remove --force <tmp>\` rather than a bare \`rm -rf\` (which strands a prunable \`.git/worktrees/<name>/\` admin entry that accumulates and later blocks reuse of the path). Never omit \`--detach\`: the plain form writes a \`refs/heads/<tmp-basename>\` branch into ${repo} that OUTLIVES \`rm -rf\` of the sandbox directory, and the post-run ref-diff guard reports that ref as an escape.`,
         `The Bash tool RESETS cwd between calls, so NEVER rely on a prior \`cd\` into that sandbox: use \`git -C <abs-sandbox>\` for every git call and absolute paths throughout, run there only, never from the session cwd, and NEVER mutate ${repo}. NEVER run a bare \`git push\` — a cwd reset can land it against the REAL remote (the recorded cwd-reset escape).${provisionDirective(technique)}`,
       ].join('\n')
-    : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine.`,
+    // D14 carve-out. The coverage-vs-source probe's per-issue evidence join DIRECTS an analyzed
+    // agent to read each cited issue's `## Evidence artifacts` section, which the bare lock forbade.
+    // The exception is read-only, gh-only, and scoped to THIS repo's issues; the executed branch
+    // above is byte-untouched.
+    : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine, EXCEPT: reading a cited issue's \`## Evidence artifacts\` section via \`gh issue view\` when your probe prompt directs it (read-only, this repo's issues only).`,
   `If the plan you open is NOT titled "${fingerprint.titleLine}", or you find yourself reading another project's files, STOP — you are on the WRONG plan. Re-open ${planFile} and confine yourself to ${repo}.`,
   `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
 ].join('\n')
