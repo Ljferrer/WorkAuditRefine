@@ -102,11 +102,13 @@ surface, and no hook-gated agent handed a `gh` verb* — not *no agent but the L
 - **The write is bounded and typed.** One batch per phase, one dispatch, a fixed row set assembled by
   the engine, a schema-validated return. Dedup is mandatory: an open `war-followup` match gets a
   corroboration comment, never a duplicate issue.
-- **(B) remains the authority.** Filing is **fail-open** by design — a dead dispatch, a thrown
-  dispatch, or a non-conforming return leaves every row `issue: null` and never converts a resolved
-  land decision into `held:workflow-error`. What makes that safe is the Checkpoint floor: the
-  ledger-keyed follow-up filing floor blocks the DAG advance on any null `issue`. The mechanism that
-  *verifies* filing is still Lead-side and still keys on the ledger; only the labor moved.
+- **The ledger-as-authority pattern (B) established carries over.** Filing is **fail-open** by
+  design — a dead dispatch, a thrown dispatch, or a non-conforming return leaves every row
+  `issue: null` and never converts a resolved land decision into `held:workflow-error`. What makes
+  that safe is a separate Checkpoint floor, not `assert-issues-filed.sh`: the Follow-up filing floor
+  (`skills/war/SKILL.md` Checkpoint, D4/#1331), a Lead-side check with no dedicated script, blocks
+  the DAG advance on any null `issue`. The mechanism that *verifies* filing is still Lead-side and
+  still keys on the ledger; only the labor moved.
 
 **Named residual.** The pre-existing `ponytail:` limitation is unchanged and now has a sibling: a
 finding the engine never routed into `minorsFiled` is invisible to both the dispatch and the floor.
