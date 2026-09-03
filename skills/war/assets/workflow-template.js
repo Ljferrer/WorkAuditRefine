@@ -532,10 +532,16 @@ const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPa
 const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
-// Absent / non-sanctioned ⇒ the barrier's derive-and-skip step and the --reclaim-stale-remote
-// pass-through are DORMANT and every dispatched prompt is byte-identical to a non-recovery run APART
-// FROM the barrier prompt's always-on §4.4 stale-remote classification clause (default behavior, not
-// recovery machinery). A resumeFromRunId replay / accidental same-named local branch never triggers
+// Absent / non-sanctioned ⇒ THREE recovery-gated barrier arms are DORMANT, not one: (1) the
+// derive-and-skip step (deriveSkipClause — a task branch already an ancestor of the frozen tip is
+// reported preMerged and its ensure-worktree skipped, the §4.2 relaunch prompt delta); (2) the
+// pre-checkout ref-holder auto-free (holderFreeClause, #1712 fix 3 — clean prior-generation holders of
+// THIS plan's own refs only, carrying TWO refusal arms: a DIRTY holder and a FOREIGN plan's holder are
+// never freed, each dying loud with the holder path named in stderrTail); (3) the
+// --reclaim-stale-remote pass-through. Dormant, every dispatched prompt is byte-identical to a
+// non-recovery run APART FROM the barrier prompt's TWO always-on clauses — the §4.4 stale-remote
+// classification and the D20 worktree-hygiene capture (default behavior, not recovery machinery).
+// A resumeFromRunId replay / accidental same-named local branch never triggers
 // derivation. Normalized to null unless sanctioned === true, so a malformed value is inert.
 const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray(A.recovery) && A.recovery.sanctioned === true)
   ? { sanctioned: true, reclaimStaleRemote: A.recovery.reclaimStaleRemote === true }
@@ -718,7 +724,8 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 
 
 // Entry validation (H, widened per operator decision 4 + #740; plan.file class added by #1430).
-// THREE problem classes feed ONE hoisted `problems` aggregation and a SINGLE throw here, at the top
+// FOUR problem classes — (1) derivation, (2) phase-field, (3) plan-file, (4) task-field, each named
+// below — feed ONE hoisted `problems` aggregation and a SINGLE throw here, at the top
 // of the try{} body — before any pt-tagged interpolation and before git is touched — so a missing
 // input dies at ENTRY with every absent key named (→ held:workflow-error via the catch, git
 // untouched), not opaquely deep inside prompt construction (#586, #740, #1430).
@@ -4203,7 +4210,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   // channel: attested unmet > attested met > 'unverified'. A condition with NO attestation row from any
   // seat is 'unverified', NEVER a silent 'met'; a pin-mismatched per-task entry's rows are excluded
   // (the seat judged a different tree — its conditions fall to 'unverified'). Whole-pass absence stays
-  // all-'deferred': no gate-audit ran ⇒ nothing verified ⇒ every claim is 'deferred', never a silent 'met'.
+  // all-'deferred': no gate-audit ran ⇒ nothing verified ⇒ every claim is 'deferred', never a silent 'met'
+  // — EXCEPT on a vacuous phase (tasks declared, zero landed), where the D5 clamp below runs FIRST and
+  // lands every claim 'unverified' with the zero-tasks-ran note, never 'deferred' and never green.
   const gateEntries = auditLog.filter(e => e && e.gateEvidence)
   const gateFindings = gateEntries.flatMap(e => e.findings || [])
   const gateAttestations = gateEntries.filter(e => !e.pinMismatch)

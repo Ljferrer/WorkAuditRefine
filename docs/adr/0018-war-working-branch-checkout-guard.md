@@ -1,6 +1,9 @@
 # WAR resolves a dedicated working branch when the desired one is checked out, and bootstraps it on origin at Setup
 
-**Status:** accepted
+**Status:** accepted (amended 2026-08-25 — the dedicated-branch derivation is conditional on a
+blocking leaf `dev`, Setup gains a hard refusal on a blocked `war/<slug>` namespace, reuse consults
+both candidate names, and the sanctioned-relaunch Provision barrier carries a second prompt delta;
+see the amendment row in the Decision section below)
 
 When the working branch `/war` wants to land onto is already checked out in the worktree the run is
 launched from (or any sibling worktree), WAR does **not** try to land onto it. At Setup it resolves a
@@ -55,6 +58,39 @@ push-first-CAS / never-force invariants of ADR 0004.
 
 `resolve-working-branch` and `ensure-origin` live in `provision-worktrees.sh` — the single tested owner
 of git-topology mutation — never as raw `git` in SKILL.md prose.
+
+### Amendment (2026-08-25): the derivation is conditional, and Setup refuses a blocked slug namespace
+
+The Decision above records the dedicated-branch derivation as unconditional (`dev/<date>-<slug>`, one
+name, one reuse arm). The landed `cmd_resolve_working_branch` (#1380, D12/D13/D14/A3) is narrower on
+one axis and wider on three. This amendment records the landed arms; the ratified text above is
+byte-untouched.
+
+- **Conditional name derivation (D12/D13).** `dev/<date>-<slug>` is cut only when no leaf branch `dev`
+  exists. A leaf `dev` makes the nested cut die `cannot lock ref` mid-Setup, so the derivation falls
+  back **once** to the flat, slashless `war-<date>-<slug>` — a sibling of, never inside, the `war/`
+  task-branch ref directory. One fallback, then fail loud: a cut that still dies keeps git's own
+  stderr and appends the blocking-ref diagnosis plus the `--working <branch>` remedy.
+- **A Setup-time refusal arm on the slug namespace (D14).** Before **either** path echoes — including
+  the no-collision path that echoes `<desired>` unchanged — Setup probes for leaf branches at
+  `refs/heads/war` and `refs/heads/war/<slug>`. Either leaf would kill the first mid-phase task-branch
+  cut (task branches live under `war/<slug>/` whichever name the working branch takes), so the
+  subcommand dies plain (exit 1, never `EX_FOREIGN` — a namespace/argument problem, not a
+  foreign-ownership one), naming the blocking leaf and the remedy. Failing at Setup replaces a
+  mid-phase `cannot lock ref` death.
+- **The reuse arm consults both candidate names (A3).** The absent/owned/foreign ladder runs on the
+  sanitized post-fallback candidate, but reuse is checked against **both** `dev/<date>-<slug>` and
+  `war-<date>-<slug>`: an owned branch from a prior attempt is reused as-is, so deleting the blocking
+  leaf mid-run cannot make a resume re-derive a different name. Foreign judgment is unchanged — a
+  present, unowned derived name still fails loud (exit 3).
+- **A second recovery-relaunch prompt delta.** The Provision-barrier prompt's recovery-gated deltas
+  are no longer the stale-remote arm alone. Under `args.recovery.sanctioned` the barrier prompt also
+  carries the **derive-then-cut `preMerged` clause** (a task branch already an ancestor of the frozen
+  integration tip is reported `preMerged` and its `ensure-worktree` skipped, recorded terminal
+  `merged` with no worker dispatched) and the **pre-checkout ref-holder auto-free** (#1712 fix 3),
+  whose own refusal arms never free a dirty holder or a foreign plan's holder. None of this changes
+  the working-branch resolution this ADR decides; it is recorded here because the same Setup/Provision
+  seam owns both.
 
 ## Considered options
 
