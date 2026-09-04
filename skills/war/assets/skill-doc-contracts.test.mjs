@@ -3357,11 +3357,14 @@ test("D44 — CONTEXT.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026
 
 // economy-ace-flip (2026-09-03 in-band-absorb-default Task 1.3, D14, PIN-16): the economy preset
 // no longer pins `run.ace: false` — every preset inherits `DEFAULTS.run.ace` (true), and `run.ace`
-// gates the per-task ace ladder only. Seven surfaces stated the old preset fact; the five below are
-// the ones this suite guards (Task 1.1 authored `war-room/SKILL.md` and `war-config.test.mjs`).
-// OLD-absent is LINE-SCOPED and case-folded: a single physical line holding `economy`, an `ace`
-// token, and `off`/`false` is a hit — line scope reaches both README statements and both halves
-// of war-room's one-line economy bullet, and never crosses a test boundary in war-config.test.mjs.
+// gates the per-task ace ladder only. Eight statements across five surfaces stated the old preset
+// fact; all five are guarded below (Task 1.1 authored the war-room/SKILL.md and war-config.test.mjs
+// rewrites). OLD-absent is LINE-SCOPED and case-folded: a single physical line holding `economy`,
+// an `ace` token, and `off`/`false` is a hit — line scope reaches both README statements and both
+// halves of war-room's one-line economy bullet, and never crosses a test boundary in
+// war-config.test.mjs. README's defaults paragraph is kept as separate physical lines so
+// `commitLearnings: false` never shares a line with the economy sentence; rejoining it false-reds
+// the OLD-absent row.
 const readmeMd = readFileSync(join(HERE, '..', '..', '..', 'README.md'), 'utf8')
 const warRoomMd = readFileSync(join(HERE, '..', '..', 'war-room', 'SKILL.md'), 'utf8')
 const warConfigTestSrc = readFileSync(join(HERE, 'war-config.test.mjs'), 'utf8')
@@ -3373,7 +3376,8 @@ const ECONOMY_ACE_FLIP_SURFACES = [
   ['skills/war/assets/war-config.test.mjs', warConfigTestSrc],
 ]
 // One physical line → OLD hit iff all three tokens co-occur on it (case-folded, token-bounded so
-// `offer`/`false-red` prose never false-reds and `preface`/`ace_diff_files` never counts as `ace`).
+// `offer`/`falsehood` prose never false-reds and `preface`/`ace_diff_files` never counts as `ace`;
+// a hyphenated `false-` compound does count, because the hyphen is a word boundary).
 const economyAceOffLines = (text) =>
   text
     .split('\n')
@@ -3382,8 +3386,10 @@ const economyAceOffLines = (text) =>
     .map(([n]) => n)
 
 test('economy-ace-flip — the line-scoped detector fires on the retired README/SKILL/schemas shapes (self-check)', () => {
-  // Negative reference: the three retired physical-line shapes, verbatim as they stood pre-flip.
-  // Deleting the detector's third clause would let these pass vacuously — assert it fires.
+  // Negative reference: four retired physical-line shapes (items 1 and 4 are abridged from the
+  // pre-flip README lines, items 2 and 3 are the pre-flip SKILL/schemas lines). Narrowing any
+  // clause drops a shape from the expected [1, 2, 3, 4] and reds this test. The second assert
+  // guards the `\bace\b` token boundary; a dropped off/false clause only widens the detector.
   const retired = [
     '| `--ace` | no | on via config `run.ace` (economy preset: off) | Fix nits on the spot |',
     '  - **`--ace` (default on via `run.ace`; the economy preset pins it off).** With `run.ace`,',
