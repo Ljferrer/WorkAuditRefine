@@ -63,6 +63,6 @@ export function decideLand({ landed = [], escalated = [] } = {}) {
 // is never a barrier. Finding-level tokens only: NEVER members of HARD_ESCALATION_REASONS,
 // SOFT_ENV_REASONS, or KNOWN_LAND_DECISIONS. MIRRORED inline in ./workflow-template.js (the Workflow
 // sandbox can't import) — keep in sync; the D2 mirror-registry `barrier-list` rows in
-// workflow-template.test.mjs bind the inline copy, the auditor card sentence, and the
-// disposition-eligibility.md list to this export.
+// workflow-template.test.mjs bind the inline copy, the auditor card sentence, the
+// disposition-eligibility.md list, and the schemas.md AuditVerdict `barrier?` row to this export.
 export const BARRIER_TOKENS = ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']

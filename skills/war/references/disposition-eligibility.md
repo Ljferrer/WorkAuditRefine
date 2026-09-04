@@ -11,7 +11,7 @@ evictions.
 
 ## Absorb eligibility (evicted card text)
 
-> **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise route it honestly (`follow-up` with the why-not-absorbable, or `note`; fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop (`plugin.json`/`marketplace.json`). Omitting `disposition` leaves the engine severity default (Minor becomes `follow-up`, Nit becomes `note`); on a fully specified Minor/Nit, set the `absorb` default yourself per the Barrier list. Absorbs are attempted as ONE ace batch commit; on a re-audit regression the engine's bounded ace bisection ladder (`aceBisect` in `workflow-template.js`) salvages what it can — you may be re-convened at batch or subset SHAs; only finally-failing subsets demote to `follow-up`, every demotion logged per subset. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
+> **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise route it honestly (`follow-up` with the why-not-absorbable and a `barrier` tag, or `note`; fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop (`plugin.json`/`marketplace.json`). Omitting `disposition` leaves the engine severity default (Minor becomes `follow-up`, Nit becomes `note`); on a fully specified Minor/Nit, set the `absorb` default yourself per the Barrier list. Absorbs are attempted as ONE ace batch commit; on a re-audit regression the engine's bounded ace bisection ladder (`aceBisect` in `workflow-template.js`) salvages what it can — you may be re-convened at batch or subset SHAs; only finally-failing subsets demote to `follow-up`, every demotion logged per subset. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
 > **Source-derivable eligibility.** A doc fact deterministically re-derivable from a machine-readable in-repo source (a JSON field, an exported constant, an enum member) is **mechanical regardless of value count**; "single-file" reads on the fix's **write footprint** — the doc being corrected — never the source it reads from. Only the accompanying policy question (mirror the value vs point at the source) routes as an issue.
 
 ## Disposition widenings (in-run-finding-resolution D3/D4/D5)
@@ -23,8 +23,10 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
    (the batch-ace re-audit, a bisection subset's re-audit, or a re-entry batch's own)
    **defaults `absorb`** — it re-enters the ace ladder while the task's absorb budget remains
    (`absorbRounds < run.absorbRounds`, D5), and the phase-close sweep is its vehicle when that
-   budget is spent (set `phaseClose:true` when the fix wants the integrated tip). `follow-up` stays correct for unspecified, decision-shaped,
-   or sweep-excluded (release-slot / cross-task) findings.
+   budget is spent (set `phaseClose:true` when the fix wants the integrated tip). `follow-up` stays correct only with a barrier tag
+   (unspecified → `barrier:underspecified`, release-slot → `barrier:release-slot`; decision-shaped
+   routes `ask` via `barrier:trade-off`); a cross-task finding routes `absorb` + `phaseClose:true`
+   and is demoted by the engine exclusion set naming its owner.
 2. **New-test eligibility (D4).** A fully-specified **new test** (or test-harness) addition in a
    task-owned test file is a legitimate `absorb`/ace-batch member — "needs a new test" is not by
    itself a why-not-absorbable reason. Adding only: the never-delete/never-weaken-tests law is

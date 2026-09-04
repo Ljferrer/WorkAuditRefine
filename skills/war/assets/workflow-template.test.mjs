@@ -8644,7 +8644,7 @@ const RESOLVE_GATE_CASES = [
   resolveGate(`node --test 'skills/**/*.test.mjs'`),    // pre-composed FROM CANONICAL output → idempotent, unchanged
 ]
 
-// (barrier-list) construct-scoped token extraction for the two prose surfaces: the distinct
+// (barrier-list) construct-scoped token extraction for the three prose surfaces: the distinct
 // `barrier:<name>` tokens inside ONE bounded construct (a `windowOf()` window), so a token named
 // elsewhere on the surface never leaks into the equality, and a dropped or misspelled member reds.
 const eligibilityMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
@@ -11767,8 +11767,7 @@ test('new-test-absorb (End state 3): a new-test addition in a task-owned test fi
   const auditPromptText = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness').prompt
   assert.ok(/task-owned test file/.test(auditPromptText) && /not by itself a why-not-absorbable reason/.test(auditPromptText),
     'the dispatched auditor prompt carries the new-test eligibility rule')
-  const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
-  assert.ok(/new test/i.test(eligMd) && /task-owned test file/.test(eligMd),
+  assert.ok(/new test/i.test(eligibilityMd) && /task-owned test file/.test(eligibilityMd),
     'the standing disposition-eligibility.md home carries the new-test eligibility rule')
 })
 
@@ -11783,9 +11782,8 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
   // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror; its ask-only
   // never-defaulted tail is the in-band-absorb-default D1 shape) — the widenings are a separate appended block.
   assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE sentence survives byte-untouched (the ask-only never-defaulted tail)')
-  const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
-  assert.ok(/born at a re-audit/i.test(eligMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
-  assert.ok(/trade-off/i.test(eligMd), 'standing home carries the trade-off routing rule')
+  assert.ok(/born at a re-audit/i.test(eligibilityMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
+  assert.ok(/trade-off/i.test(eligibilityMd), 'standing home carries the trade-off routing rule')
 })
 
 // ---- barrier-list (in-band-absorb-default D1/D2, End state 7 — PIN-1, PIN-2, PIN-12) ----
