@@ -819,15 +819,15 @@ The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect`
 `skills/war/assets/workflow-template.js`, dispatched wave-side per task, never inside the merge lock):
 named culprits are excised (demoted, logged) and the remainder re-applies as ONE subset; blind halving
 is reserved for ambiguous attribution; subsets apply serially at the tip, depth ≤ 2, same-file findings
-never split; each subset commit charges one `fixRounds` slot (reverts uncharged) and dispatches only
-while `fixRounds < roundLimit − 2`, the **floor-retry reserve** that holds two slots back for the
-merge-floor retry loop. Reaching it mid-bisection stops the ladder and the remaining subsets demote to
-`follow-up`, logged and by design; the reserve bounds subset commits only, not the whole ace path (the
-batch ace keeps its own `< roundLimit` gate). Failed subset tips are
+never split; each subset commit charges one `absorbRounds` slot of the task's **Absorb budget** (reverts
+uncharged, `fixRounds` never charged) and dispatches only while `absorbRounds < run.absorbRounds`. A
+spent budget mid-bisection stops the ladder and the still-queued subsets ride to the phase-close sweep as
+absorbs (`routeToSweep`, `phaseClose: true`), logged and by design; the same budget gates the batch ace
+and **Re-entry**. Failed subset tips are
 forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
 mergeable task.
-_Avoid_: whole-batch demotion (retired); conflating this ladder's reserve stop (the remaining subsets
-demote) with **Re-entry**'s reserve rung (routes `phaseClose: true` to the sweep); git-bisect (this is
+_Avoid_: whole-batch demotion (retired); demoting a never-re-audited subset on a spent budget (retired —
+it rides to the sweep; only a subset that failed its own re-audit demotes); git-bisect (this is
 finding-subset re-application, not a history search).
 
 **Re-entry**:
@@ -835,16 +835,40 @@ The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned f
 WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another
 ace-style batch on the same machinery (canonical: `aceReentry` in
 `skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
-**floor-retry reserve** (`fixRounds < roundLimit − 2`, #1562's merge-floor retry slots) is their
-SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
+**Absorb budget** (`absorbRounds < run.absorbRounds`, the per-task ace meter separate from `fixRounds`)
+is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
 its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
-budget-gated. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
+budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
 sweep-discard ⇒ `follow-up`; a forward-reverted finding never re-enters (the oscillation bound);
 every demotion is logged. Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
 tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
-_Avoid_: a second budget; treating the reserve as a soft target (it is the stop condition);
+_Avoid_: charging `fixRounds`; treating the budget as a soft target (it is the stop condition);
 reading it as bounding the merge-slot source.
+
+**Absorb budget**:
+The per-task ace meter, separate from `fixRounds`: the knob `run.absorbRounds` (integer ≥ 1, default 6,
+validated like `run.roundLimit`) bounds the counter `r.task.absorbRounds`, charged once per ace-side
+COMMIT (batch ace, re-entry batch, bisection subset; the terminal pass once it lands) and never by
+reverts, re-audit panels, or fix rounds. All three ace gates read `absorbRounds < run.absorbRounds`;
+a spent budget routes the rows to the phase-close sweep as absorbs, logged and naming the counter
+(at the batch ace only when no Critical/Major blocker is open; open blockers hold the rows on
+`r.task.pendingAbsorbs` for the next approve, regardless of budget).
+Every ace-side commit carries the trailer `Ace-Charge: <task>:<n>` (n = the counter after the charge),
+and a relaunch seeds the counter from the highest trailer index on the task branch (the phase-start
+barrier's `absorbCharges`), 0 with a loud log on error or absence. Supersedes the retired reserve
+arithmetic on `fixRounds` (ADR 0013 amendment 2026-09-03); `fixRounds` counts blocking fix rounds and
+floor retries only.
+_Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a charge; a second meter.
+
+**Exclusion set**:
+The phase-close sweep's union of foreign-owned files and release-slot files: the files of every
+`args.sweepExclude` entry (the Lead's slug-attributed campaign contention list) ∪ the `Files:` of every
+task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
+absorb whose file is in the set demotes to `follow-up` with a reason naming the owner — the entry's plan
+slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
+exclusion; the engine applies the set at sweep time.
+_Avoid_: a seat-side exclusion judgment; a prose or size estimate in place of the file-set match.
 
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and

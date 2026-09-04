@@ -18,7 +18,9 @@ budget-exhaustion narration), three disposition widenings, the absorb-by-citatio
 in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
 trigger — filing parity itself untouched); see the amendment below; amended 2026-08-31 — the
 merge-slot pin-transfer mismatch re-audit is a fourth re-audit source that never re-enters; see
-the amendment below)
+the amendment below; amended 2026-09-03 — the per-task absorb budget (`absorbRounds <
+run.absorbRounds`) supersedes the floor-retry reserve as the ace ladder's stop condition; see the
+amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -440,3 +442,47 @@ amendment records it as law.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
+
+## Amendment (2026-09-03) — the absorb budget supersedes the floor-retry reserve
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 2 —
+D5, PIN-7) gives the ace ladder its own round budget. The 2026-08-27 amendment above bound
+re-entry and bisection subsets by the `roundLimit − 2` **floor-retry reserve**: two `fixRounds`
+slots held back for the merge-floor retry loop. That arithmetic is **superseded**:
+
+- **The absorb budget is the SOLE bound.** The knob `run.absorbRounds` (integer ≥ 1, default 6,
+  validated exactly like `run.roundLimit`; `war-config.mjs`) bounds a per-task counter
+  `r.task.absorbRounds`. All three ace gates — the `aceBisect` subset stop, the `aceReentry` stop,
+  and the batch ace's gate — read `absorbRounds < run.absorbRounds`. No `fixRounds` arithmetic
+  remains on the ace side.
+- **Charge sites.** The counter is charged once per ace-side COMMIT — the batch ace, a re-entry
+  batch, a bisection subset commit, and (Phase 5) the terminal pass. Reverts, re-audit panels, and
+  fix rounds never charge it. `fixRounds` counts blocking fix rounds and floor retries only; no
+  ace-side commit charges it any more.
+- **The trailer and the relaunch seed.** Every ace-side commit carries `Ace-Charge: <task>:<n>`
+  (n = the counter after the charge; reverts carry none). The phase-start git-topology barrier
+  returns `absorbCharges: { <task>: n }`, the HIGHEST trailer index on the task branch, and the
+  engine seeds `r.task.absorbRounds` from it — 0 with a loud log on error or absence.
+- **Exhaustion routes to the sweep, never to `follow-up`.** At all three gates a spent budget
+  routes the finding `phaseClose: true` to the phase-close sweep with a log naming the counter;
+  the still-queued (never re-audited) bisection subsets ride there too, staying absorbs. Only a
+  subset that failed its own re-audit demotes. The batch ace's exhaustion arm splits: spent budget
+  with no open blockers ⇒ the sweep; open Critical/Major blockers ⇒ the aceable rows hold on the
+  task for the next approve, and a task that ends escalated, audit-blocked, or never merged demotes
+  its held rows.
+- **Supersession of the 2026-08-27 currency clause (append-only law).** The 2026-08-27 amendment's
+  clause "As of 2026-08-27: the ladder's stop condition is the floor-retry reserve
+  (`fixRounds < roundLimit − 2`) with budget-bounded re-entry" is ratified text and stays
+  byte-untouched; this note supersedes its *currency*: **as of 2026-09-03 the stop condition is the
+  absorb budget (`absorbRounds < run.absorbRounds`), and the 2026-08-27 clause describes the
+  pre-absorb-budget boundary and is historical.** The living-doc homes of that boundary
+  (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Ace bisection**, **Re-entry**, and
+  **Absorb budget** rows, `design.md` §18, `disposition-eligibility.md` widening 1, and
+  `schemas.md`'s `aced` rows) carry the new arithmetic and are guard-bound; this ADR home stays
+  exempt from the OLD-absent guard because both historical clauses survive by design. The
+  2026-08-31 amendment's reserve sentences ("names the floor-retry reserve their sole bound" and
+  "The reserve therefore bounds the three wave-side sources only") are historical on the same
+  terms: ratified, byte-untouched, and describing the pre-absorb-budget boundary.
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.

@@ -35,7 +35,9 @@ export const meta = {
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // pendingAbsorbs = RELAUNCH-SEED ONLY ([finding rows] held by a blocker-held batch ace at a prior launch); aceStage folds
+//                                     // them into the next approve's ace batch through the same routing chain as fresh rows. Absent ⇒ nothing folds.
 //                                     // planSlice = the task charter (REQUIRED non-empty string — the entry-validation
 //                                     // TASK-FIELD class (D5) refuses a missing/empty slice at intake naming the field).
 //                                     // doneWhen = the task's `Done when:` acceptance command (string|null; absent/null ⇒ legacy —
@@ -60,7 +62,10 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (opus default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, maxParallel, afk },                        // roundLimit used here; afk gates recordAced's
+//     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
+//                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
+//     run:    { roundLimit, absorbRounds, maxParallel, afk },          // roundLimit used here; absorbRounds = the per-task absorb budget (the ace
+//                                     // ladder's own meter, D5; absent ⇒ 6, the DEFAULTS.run.absorbRounds mirror); afk gates recordAced's
 //                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
 //                                     // maxParallel (optional positive integer) is the GLOBAL ceiling on agent dispatches
 //                                     // in flight across the whole run, held by one counting semaphore at the leaf dispatch
@@ -326,12 +331,16 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // WORKTREE_HYGIENE marker lines an ensure-worktree REUSE emits (the STALE_REMOTE marker-capture idiom),
 // carried on an ok: true return beside staleRemote. worktreeHygiene is visibility only, fail-open: ONE
 // log() summary line when non-empty, no auditLog entry, no routing change, never a hold — the barrier
-// never halts on it. All three absent on a plain barrier with nothing to report.
+// never halts on it. All three absent on a plain barrier with nothing to report. A fourth OPTIONAL
+// field, absorbCharges (absorb-budget, D5) — { <task>: n }, the HIGHEST `Ace-Charge: <task>:<n>`
+// trailer index on each task branch (one `git log` trailer read per task, allowed beside the named
+// commands) — seeds r.task.absorbRounds on a relaunch; absent or malformed ⇒ 0 with a loud log.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
   taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
   stderrTail: { type: 'string' }, provisionSource: { type: 'string' },
-  preMerged: { type: 'array' }, staleRemote: { type: 'array' }, worktreeHygiene: { type: 'array' } } }
+  preMerged: { type: 'array' }, staleRemote: { type: 'array' }, worktreeHygiene: { type: 'array' },
+  absorbCharges: { type: 'object' } } }
 
 const done = new Set()
 const succeeded = new Set()
@@ -449,10 +458,14 @@ const NS = A.agentPrefix ?? 'work-audit-refine:'
 // (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
 const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 // Hand-mirrored fallback of DEFAULTS.run.roundLimit (war-config.mjs) — the sandbox cannot import;
-// keep the two literals in lock-step. 6 is the fix-round budget; the ace bisection ladder draws
-// only up to roundLimit − 2 of it (2 slots stay reserved for the merge-floor retry loop), so the
-// priced depth-2 descent is bounded accordingly.
+// keep the two literals in lock-step. 6 is the fix-round budget: blocking fix rounds and the
+// merge-floor retry loop only (PIN-7) — no ace-side commit charges it any more.
 const roundLimit = run.roundLimit ?? 6
+// absorbRounds (absorb-budget, D5): the per-task absorb meter — the ace ladder's OWN round budget,
+// charged once per ace-side COMMIT (batch ace, re-entry batch, bisection subset; the terminal pass
+// reserves a charge site) and read by all three ace gates as `r.task.absorbRounds < absorbRounds`.
+// Reverts, re-audit panels, and fix rounds never charge it. Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync (drift-guarded in war-config.test.mjs).
+const absorbRounds = run.absorbRounds ?? 6
 // maxParallel (#1722, reshaped #1897): the GLOBAL agent-dispatch ceiling for rate-limited accounts —
 // threaded exactly like roundLimit from run.maxParallel, but with NO numeric fallback:
 // absent/null/malformed ⇒ null ⇒ dispatch() below calls agent() straight through, a byte-identical
@@ -1109,16 +1122,18 @@ const parkAsk = f => {
 }
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (dead ace worker /
-// ace unavailable / --ace off; a forward-reverted re-entry batch's findings — a reverted finding
+// a blocked ace worker / --ace off; a forward-reverted re-entry batch's findings — a reverted finding
 // never re-enters, the oscillation bound; plus the six
 // aceBisect bisection arms: named
 // culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
-// (unhalvable single file group — demotes whole), the fix budget reaching the floor-retry reserve
-// (roundLimit − 2) mid-bisection, a subset worker
+// (unhalvable single file group — demotes whole), a subset worker
 // returning no usable head_sha abandoning the bisection, and a finally-failing subset at the
-// depth/split floor). A FRESH absorb born at a re-audit no longer demotes here — it re-enters the
-// ladder (routeReauditMinors → aceReentry, budget-bounded) or routes phaseClose:true to the sweep
-// when the reserve blocks re-entry (D1/D2, #1731); non-approve-branch findings → follow-up (filed with the escalation);
+// depth/split floor; a spent absorb budget mid-bisection no longer demotes — the still-queued
+// subsets ride to the sweep via routeToSweep, D5). A FRESH absorb born at a re-audit no longer
+// demotes here — it re-enters the ladder (routeReauditMinors → aceReentry, absorb-budget-bounded)
+// or routes phaseClose:true to the sweep when the absorb budget is spent (D1/D2, #1731); non-approve-branch
+// findings → follow-up (filed with the escalation); a held absorb (r.task.pendingAbsorbs) on a
+// task that ends escalated, audit-blocked, or never merged → follow-up (demote:absorb-blocked);
 // held-phase phaseCloseQueue → follow-up; fileless absorb → severity default; sweep-raised absorb
 // at either terminal sweep arm → follow-up (the sweep is the phase's terminal fix round).
 // ASK REFUSAL (#1550, D1): demote() refuses an ask unconditionally and LOUDLY — an ask is ruled by
@@ -1180,8 +1195,9 @@ const revertedKeys = new Set()
 // routing and re-entry drain).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (BOTH
-// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push) or for
-// budget-bounded re-entry (r.reentryQueue) records its remintKey here, so a content-identical
+// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push), for
+// budget-bounded re-entry (r.reentryQueue), or HELD for the next ace batch (the batch-ace
+// blocker hold onto r.task.pendingAbsorbs) records its remintKey here, so a content-identical
 // re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
@@ -1221,8 +1237,8 @@ const recordAced = (f, sha, extra) => {
   }
   aced.push({ task: f.task, finding: f, sha, ...(extra || {}) })
 }
-// Reserve-blocked/spent absorb routing (D2 ladder rung): the phase-close sweep is the vehicle when
-// re-entry cannot dispatch — logged, never silent; sweep-discard demotes to follow-up downstream.
+// Budget-spent absorb routing (D2 ladder rung): the phase-close sweep is the vehicle when the ace
+// ladder cannot dispatch — logged, never silent; sweep-discard demotes to follow-up downstream.
 const routeToSweep = (f, why) => {
   log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
   queuedKeys.add(remintKey(f))
@@ -1232,8 +1248,8 @@ const routeToSweep = (f, why) => {
 // for fresh findings" demotions): fresh Minor/Nits raised at ANY re-audit (the plain batch
 // re-audit, a bisection subset's re-audit, a re-entry batch's own re-audit, or the merge-slot
 // pin-transfer MISMATCH re-audit) route by disposition; a fresh ELIGIBLE absorb queues on
-// r.reentryQueue for budget-bounded RE-ENTRY (aceReentry dispatches it while fixRounds <
-// roundLimit − 2). phaseClose/release-slot absorbs route to the sweep, and so does EVERY absorb
+// r.reentryQueue for budget-bounded RE-ENTRY (aceReentry dispatches it while absorbRounds <
+// run.absorbRounds). phaseClose/release-slot absorbs route to the sweep, and so does EVERY absorb
 // under the noReentry opt (the merge-slot caller, whose re-entry queue has no drain left). BOTH the follow-up and absorb arms consult the content-key registries
 // (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
@@ -1249,7 +1265,7 @@ const remintBlock = f => {
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
-  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry this phase — the queued record stands'
+  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands'
   return null
 }
 // Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
@@ -1612,7 +1628,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // skills/war/references/disposition-eligibility.md carries the same three rules (same commit;
     // the auditor card's live trigger pointer covers the standing leg). The dispatched block is
     // pinned by the `disposition-prompt-widened` fixture in workflow-template.test.mjs.
-    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while budget remains, and the phase-close sweep is its vehicle when re-entry is reserve-blocked (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct for unspecified, decision-shaped, or sweep-excluded (release-slot/cross-task) findings. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask.`
+    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while the task's absorb budget remains (absorbRounds < run.absorbRounds), and the phase-close sweep is its vehicle when that budget is spent (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct for unspecified, decision-shaped, or sweep-excluded (release-slot/cross-task) findings. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask.`
     // FINDING-PATH FORM (D12) — dispatched-prompt only, no standing-card behavior change: finding
     // `file` values feed exact-string routing compares (ace culprit attribution normalizes only a
     // leading `./` run), so the re-audit prompt mandates the repo-relative form at the source.
@@ -1784,6 +1800,12 @@ if (tasks.length) {
   // marker-capture idiom); the captured array rides the ok: true return and NEVER halts the barrier,
   // reorders tasks, or changes routing.
   const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE may emit \`WORKTREE_HYGIENE\` marker lines (a repaired or detected dirty-submodule state on a reused worktree). Capture each as { task: "<that task's id>", path: "<the marker's submodule path>", action: "repaired"|"detected", detail: "<the marker's detail>" } into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
+  // Absorb-budget relaunch seed (D5): the ONE git read allowed beyond the named subcommands — a
+  // per-task `git log` trailer read of `Ace-Charge: <task>:<n>` on the task branch. The HIGHEST
+  // index (never a count) so a cherry-pick or duplicate trailer never double-charges; a reverted
+  // ace commit's trailer still counts (the revert carries no charge trailer). Always-on; absent or
+  // malformed ⇒ the engine seeds 0 with a loud log naming the task.
+  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name — never "$TIP", which an agent shell does not carry across calls: an unset TIP reads as HEAD..<branch>, empty in the task worktree, and returns a plausible 0) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
   // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
@@ -1828,7 +1850,7 @@ if (tasks.length) {
   // carries dispatch-layer provenance.
   const barrierOut = await dispatchAgent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
+    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays and the \`absorbCharges\` map); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + pt`provision-worktrees.sh ensure-exclude ${mainCheckout || '<mainCheckout>'} — pass the main checkout EXPLICITLY as the target repo (the optional <repo-dir> positional); ensure-exclude then writes the exclude into that repo's git dir regardless of your cwd. This excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
@@ -1837,6 +1859,7 @@ if (tasks.length) {
     + holderFreeClause
     + staleRemoteClause
     + worktreeHygieneClause
+    + absorbChargesClause
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + pt`4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
@@ -1906,6 +1929,39 @@ if (tasks.length) {
       + ((h && h.detail) ? ' — ' + h.detail : '')).join('; ')
       + ' — visibility only; no routing change, the barrier never halts on it.')
   }
+  // ---- absorb-budget relaunch seed (D5) ----
+  // r.task.absorbRounds seeds from the barrier's absorbCharges map — the highest `Ace-Charge`
+  // trailer index git holds on the task branch (git > any in-memory count, ADR 0008). Both id
+  // dialects match (the preMergedIdOf normalization). A Lead override (args.absorbCharges, read
+  // unconditionally — never gated on args.recovery) wins over the barrier read, logged. Absent map, missing entry, or a
+  // malformed value ⇒ 0 with a loud log naming the task — never silent, never a hold.
+  const chargesOf = m => (m && typeof m === 'object' && !Array.isArray(m)) ? m : null
+  const chargeMaps = [['args.absorbCharges', chargesOf(A.absorbCharges)], ['barrier absorbCharges', chargesOf(barrierOut.absorbCharges)]]
+  // A malformed WHOLE override map (an array, a string, a number) is never a silent skip: log its
+  // shape and fall through to the barrier read (a Lead override typo must not read as "none threaded").
+  if (A.absorbCharges && !chargesOf(A.absorbCharges)) log('absorb-budget: args.absorbCharges is not an object map (' + (Array.isArray(A.absorbCharges) ? 'array' : typeof A.absorbCharges) + ') — ignored; the barrier absorbCharges read is used instead.')
+  for (const t of tasks) {
+    if (done.has(t.id)) continue   // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
+    let seeded = false
+    const causes = []   // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
+    for (const [srcName, m] of chargeMaps) {
+      if (!m) continue
+      const key = Object.keys(m).find(k => preMergedIdOf(k) === preMergedIdOf(t.id))
+      const n = key === undefined ? undefined : m[key]
+      if (Number.isInteger(n) && n >= 0) {
+        t.absorbRounds = n
+        log('absorb-budget: task ' + t.id + ' resumes at absorbRounds ' + n + ' (' + srcName + ' — the highest Ace-Charge trailer index on the task branch).')
+        seeded = true
+        break
+      }
+      if (key !== undefined) log('absorb-budget: ' + srcName + ' entry for task ' + t.id + ' is malformed (' + JSON.stringify(n) + ') — ignored.')
+      causes.push(srcName + (key !== undefined ? ' entry for the task was malformed' : ' map lacks the task'))
+    }
+    if (!seeded) {
+      t.absorbRounds = 0
+      log('absorb-budget: NO usable absorbCharges entry for task ' + t.id + ' (' + (causes.length ? causes.join('; ') : 'barrier returned no absorbCharges map') + ') — seeding absorbRounds 0 (a relaunch may under-count spent ace commits; the Lead may override via args.absorbCharges).')
+    }
+  }
 }
 
 let guard = 0
@@ -1930,11 +1986,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // Order (D2, culprit-first): named culprits are excised (demoted) and the remainder re-applies as
   // ONE subset; blind halving is reserved for AMBIGUOUS attribution. Subsets apply SERIALLY at the
   // tip with a hard depth cap of 2 (batch=0 → halves=1 → quarters=2; no run.* knob), and same-file
-  // findings never split across subsets (D3). Budget (D4 + Open decision 4): the batch charged one
-  // fixRounds slot; each SUBSET COMMIT charges one more; reverts are uncharged; panels stay
-  // unmetered; subset commits dispatch only while fixRounds < roundLimit − 2 (2 slots reserved for
-  // the merge-floor retry loop), and hitting the reserve mid-bisection demotes the remaining
-  // subsets to follow-up (logged — by design). Only FINALLY-
+  // findings never split across subsets (D3). Budget (D4, re-anchored by D5): the batch charged one
+  // absorbRounds slot; each SUBSET COMMIT charges one more; reverts are uncharged; panels stay
+  // unmetered; fixRounds is never charged here (PIN-7); subset commits dispatch only while
+  // absorbRounds < run.absorbRounds, and a spent budget mid-bisection routes the still-queued
+  // (never re-audited) subsets to the phase-close sweep as absorbs (logged — by design). Only FINALLY-
   // failing subsets demote (unsplittable, or a depth-2 regressor).
   // THE LOOP OWNS IN-LOOP FORWARD-REVERTS: each failed commit is reverted at the tip before the next
   // subset commits — the revert step rides the NEXT subset dispatch, conditional on HEAD still being
@@ -2004,6 +2060,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // rationale are schema-optional → absence-tolerant; a citation-resolved finding (D6) renders its
   // row-id + match rationale so the ace commit message carries the durable citation stamp.
   const aceFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationOf(f) ? pt` [absorb-by-citation: row "${citationOf(f).row}" — ${citationOf(f).rationale}]` : ''}`
+  // Absorb-budget helpers (D5): every ace-side dispatch label carries the task's absorbRounds
+  // (`ace:<task>:a<n>`, n = the slot this commit would charge), and every ace-side COMMIT carries
+  // the `Ace-Charge: <task>:<n>` trailer, n = absorbRounds AFTER the charge — the git-derived
+  // relaunch seed the barrier reads back (highest index). Reverts carry no charge trailer.
+  // Concatenation-built (census-safe).
+  const aceLabel = r => 'ace:' + r.task.id + ':a' + (r.task.absorbRounds + 1)
+  const aceChargeOf = r => r.task.id + ':' + (r.task.absorbRounds + 1)
   // Shared conditional forward-revert step (bisection subsets + re-entry batches): emitted only
   // while a failed predecessor commit is still unreverted at the tip.
   const aceRevertStep = (worktree, sha) => sha
@@ -2039,7 +2102,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
       + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${sha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
-        label: 'ace-gate:' + r.task.id + ':r' + r.task.fixRounds, schema: GATE_CHECK, ...spawn('refiner') })
+        label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') })
     // #1935: the echoed head_sha is EVIDENCE, not decoration — compare it. The prompt above asks the
     // refiner to confirm HEAD and echo the sha it gated, so an echo naming a DIFFERENT commit means the
     // gate ran somewhere else and licenses nothing. Reuses pinMismatch, so abbreviated-vs-full names
@@ -2184,34 +2247,36 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     let pendingRevert = batchSha                         // failed tip commit not yet reverted in-loop
     while (queue.length) {
       const sub = queue.shift()
-      // Floor-retry reserve (Open decision 4): subset commits dispatch only while
-      // fixRounds < roundLimit − 2 — so bisection SUBSET commits never pre-drain the last 2
-      // slots ahead of the merge-floor retry loop, which shares run.roundLimit. The reserve is a
-      // bisection-ladder bound only, not a whole-ace-path guarantee: the batch ace keeps its own
-      // `< roundLimit` gate (Open decision 4 scopes the reserve to subset commits).
-      if (r.task.fixRounds >= roundLimit - 2) {
-        log(`ace-bisect ${r.task.id}: ladder stopped — fixRounds ${r.task.fixRounds} reached roundLimit−2 (${roundLimit - 2}); 2 slots stay reserved for the merge-floor retry loop, remaining subsets demote to follow-up`)
+      // Absorb-budget stop (D5): subset commits dispatch only while absorbRounds < run.absorbRounds
+      // — the ace ladder's OWN meter, never fixRounds (the merge-floor retry loop keeps its whole
+      // roundLimit, PIN-7). A spent budget mid-bisection routes this subset and every still-queued
+      // one — none re-audited yet — to the phase-close sweep as absorbs (routeToSweep, phaseClose:
+      // true), no follow-up, no prefix; a subset that already failed its own re-audit kept its
+      // demote on the arm below. Logged, naming the counter.
+      if (r.task.absorbRounds >= absorbRounds) {
+        log('ace-bisect ' + r.task.id + ': ladder stopped — absorbRounds ' + r.task.absorbRounds + ' reached run.absorbRounds (' + absorbRounds + '); the still-queued subsets route to the phase-close sweep as absorbs')
         for (const q of [sub, ...queue.splice(0)])
-          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — fix budget reached the floor-retry reserve mid-bisection (subset commits dispatch only while fixRounds < roundLimit − 2); the remaining subsets demote by design')
+          for (const f of q.findings) routeToSweep(f, 'absorb budget spent mid-bisection (absorbRounds ' + r.task.absorbRounds + ' reached run.absorbRounds ' + absorbRounds + '); the subset was never re-audited')
         break
       }
       // Deterministic trailer value (shape latitude): task id + the subset's sorted file set —
       // concatenation-built (census-safe), stable across resume replays. Files are aceRelPath-
       // normalized (#1813) so a `./`-form report never mints a trailer diverging from its bare twin.
       const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => aceRelPath(f.file)))].sort().join(',')
+      const aceCharge = aceChargeOf(r)                   // `Ace-Charge: <task>:<n>` — n = absorbRounds after this commit's charge
       const revertStep = aceRevertStep(r.task.worktree, pendingRevert)
       const sw = await dispatch(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
         + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits the new sha; a regression is forward-reverted):\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits the new sha; a regression is forward-reverted):\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
         // guaranteed (sub.findings ⊆ aceable); the shared aceFindingRow builder is absence-tolerant.
         + sub.findings.map(aceFindingRow).join('\n') + '\n'
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
         + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
-        { agentType: NS + 'war-worker', phase: 'Audit', label: 'ace:' + r.task.id + ':r' + (r.task.fixRounds + 1), schema: WORKER_RESULT, ...spawnWorker('fix') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r), schema: WORKER_RESULT, ...spawnWorker('fix') })
       const swWhy = blockedReason(sw)
       if (swWhy || typeof sw.head_sha !== 'string' || !sw.head_sha) {
         // No usable commit — uncharged; the tip state is unknowable, so the ladder abandons here
@@ -2221,7 +2286,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — ' + (swWhy || 'subset worker returned no usable head_sha') + '; bisection abandoned, remaining subsets demote')
         break
       }
-      r.task.fixRounds++                                 // each subset COMMIT charges one slot (D4)
+      r.task.absorbRounds++                              // each subset COMMIT charges one absorb slot (D4/D5) — never fixRounds
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const subSha = sw.head_sha
       // Gate at the subset tip FIRST (PIN-12), then the delta-scaled panel (D3/PIN-10). A red gate is
@@ -2259,13 +2324,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // ace-style batch on the same machinery — same eligibility, the same `Ace-Subset` trailer
   // discipline (deterministic value carrying the existing round index), the same tip-preflight
   // idempotency (PIN-15: range scan, EXACT whole-string equality, never the tip alone), the same
-  // forward-revert posture. The floor-retry reserve is the SOLE bound (PIN-1 — no echo cap, no
-  // shrinking rule): re-entry batches dispatch only while fixRounds < roundLimit − 2 — a NEW gate;
-  // the batch ace deliberately keeps its own `< roundLimit` gate (red-team round 1). Reserve-blocked
-  // or spent findings route phaseClose:true (the sweep rung, logged); a regressed re-entry batch is
+  // forward-revert posture. The absorb budget is the SOLE bound (PIN-1 — no echo cap, no
+  // shrinking rule): re-entry batches dispatch only while absorbRounds < run.absorbRounds — the
+  // same gate the batch ace and the bisection subsets read (D5). Budget-spent findings route
+  // phaseClose:true (the sweep rung, logged); a regressed re-entry batch is
   // forward-reverted and its findings demote — a forward-reverted finding NEVER re-enters (the
   // oscillation bound, A1) — while the regressed re-audit's own fresh absorbs may still re-enter
-  // (born at a re-audit) until the reserve stops the loop. Every demotion logged, nothing silent
+  // (born at a re-audit) until the budget stops the loop. Every demotion logged, nothing silent
   // (PIN-2). A citation-resolved finding (D6) is executed through this vehicle: its prompt row and
   // commit message carry the row-id + match rationale, the re-audit panel is charged with citation
   // soundness, and on approval the aced record carries the citation.
@@ -2273,9 +2338,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     let pendingRevert = r.aceReverted || null            // take over any not-yet-reverted failed tip
     if (pendingRevert) r.aceReverted = null
     while ((r.reentryQueue || []).length) {
-      if (r.task.fixRounds >= roundLimit - 2) {
-        log('ace-reentry ' + r.task.id + ': reserve-blocked — fixRounds ' + r.task.fixRounds + ' reached roundLimit−2 (' + (roundLimit - 2) + '); 2 slots stay reserved for the merge-floor retry loop, the fresh absorb(s) route phaseClose:true (the sweep is the fallback rung).')
-        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'reserve-blocked re-entry (fixRounds reached roundLimit − 2)')   // still queued (sweep queue now) — routeToSweep re-stamps queuedKeys
+      if (r.task.absorbRounds >= absorbRounds) {
+        log('ace-reentry ' + r.task.id + ': budget-blocked — absorbRounds ' + r.task.absorbRounds + ' reached run.absorbRounds (' + absorbRounds + '); the fresh absorb(s) route phaseClose:true (the sweep is the fallback rung).')
+        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'budget-blocked re-entry (absorbRounds reached run.absorbRounds)')   // still queued (sweep queue now) — routeToSweep re-stamps queuedKeys
         break
       }
       // Drain-time registry re-check (the oscillation bound, A1 + End state 6): the registries
@@ -2294,20 +2359,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         return true
       })
       if (!batch.length) continue
-      // Same trailer discipline as a bisection subset, with the existing round index folded in so
-      // successive re-entry rounds over the same file set stay distinct across resume replays.
-      const trailer = r.task.id + ':reentry:r' + (r.task.fixRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
+      // Same trailer discipline as a bisection subset, with the absorbRounds index folded in (D5 —
+      // re-anchored off fixRounds, which ace commits no longer move) so successive re-entry rounds
+      // over the same file set stay distinct across resume replays.
+      const trailer = r.task.id + ':reentry:a' + (r.task.absorbRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
+      const aceCharge = aceChargeOf(r)
       const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
       const rw = await dispatch(
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + aceRevertStep(r.task.worktree, pendingRevert)
         + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line (the panel re-audits the new sha; a regression is forward-reverted):\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line (the panel re-audits the new sha; a regression is forward-reverted):\n`
         + batch.map(aceFindingRow).join('\n') + '\n'
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
         + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
-        { agentType: NS + 'war-worker', phase: 'Audit', label: 'ace:' + r.task.id + ':r' + (r.task.fixRounds + 1), schema: WORKER_RESULT, ...spawnWorker('fix') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r), schema: WORKER_RESULT, ...spawnWorker('fix') })
       const rwWhy = blockedReason(rw)
       if (rwWhy || typeof rw.head_sha !== 'string' || !rw.head_sha) {
         // No usable commit — uncharged; abandon (never hold): this batch and the queue demote.
@@ -2317,7 +2384,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
         break
       }
-      r.task.fixRounds++                                 // each re-entry COMMIT charges one slot (the shared budget)
+      r.task.absorbRounds++                              // each re-entry COMMIT charges one absorb slot (D5) — never fixRounds
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const reSha = rw.head_sha
       const { red: reRed, seats: reS, expected: reE } = await aceReaudit(r, reSha, batch, rw)
@@ -2353,10 +2420,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // aceBisect, aceReentry — used to sit inside the serial merge queue, so every ace re-audit was paid
   // for under the integration lock. They run HERE instead: inside the wave thunk, per task, at that
   // task's panel-approved tip, concurrent across tasks and finished BEFORE the merge queue starts. The
-  // routing and ladder bodies are unchanged; only the slot moved. Budget honesty is unchanged too
-  // (PIN-5): the wave thunk seeds task.fixRounds from the audit loop's round count before calling this,
-  // every ace commit charges the SAME shared counter, and the merge slot's seed is narrowed to a
-  // never-lowering one so a resume that enters the merge queue without this stage still has a defined
+  // routing and ladder bodies are unchanged; only the slot moved. Budget (D5, PIN-7): the wave thunk
+  // seeds task.fixRounds from the audit loop's round count before calling this, but NO ace commit
+  // charges it — every ace-side commit charges task.absorbRounds, the ladder's own meter (seeded by
+  // the barrier's absorbCharges read, 0 on a fresh branch); the merge slot's fixRounds seed stays
+  // never-lowering so a resume that enters the merge queue without this stage still has a defined
   // budget (PIN-13). Fail-open (PIN-2): an engine error inside the stage is caught, logged, and the
   // approved task still merges its pre-ace tip.
   const aceStage = async (r) => {
@@ -2382,6 +2450,32 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         else if (!f.phaseClose && aceEligible(f)) aceable.push(f)
         else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }   // stamps queuedKeys — a later re-audit re-mint never queues twice
       }
+      // Held absorbs (D5): rows held on r.task.pendingAbsorbs by an earlier blocker-held batch join
+      // THIS approve's aceable set (deduped by content key against the fresh rows), logged.
+      // ponytail: the in-phase path is deliberately unwired — aceStage runs ONCE per task (the wave
+      // thunk calls it at the audit-loop exit and the task then enters `done`), and the hold arm that
+      // writes r.task.pendingAbsorbs sits at the bottom of this same call, so no in-run hold reaches
+      // this fold; its only live producer is relaunch-seeded args.tasks[].pendingAbsorbs, and the
+      // end-of-queue held-absorb drain owns every in-run held row.
+      // Trust boundary: that seeded producer reaches no entry validation, so every held row passes
+      // the SAME routing chain as a fresh row above (fileless, run.ace, phaseClose, aceEligible)
+      // before it may join aceable — a seeded release-slot row never rides an ace batch (PIN-11)
+      // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
+      const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
+      for (const f of heldRows) {
+        queuedKeys.delete(remintKey(f))   // no longer held — the dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
+        // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
+        if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
+        if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless held absorb takes the severity default (never ace-eligible)')
+        else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
+        else if (!f.phaseClose && aceEligible(f)) {
+          log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
+          aceable.push(f)
+        } else {
+          log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is ' + (f.phaseClose ? 'phaseClose:true' : 'not ace-eligible (release-slot file)') + ' — routed to the phase-close sweep, never the ace batch.')
+          queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f)
+        }
+      }
       // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. The BATCH attempt is
       // unchanged (one commit, one re-audit — the happy path is byte-identical): the ace worker commits one
       // fix, a fresh auditRound re-audits at the new sha; if re-approved the merge runs on the polished tip.
@@ -2389,8 +2483,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // halving to depth 2) instead of demoting the whole batch — NEVER escalate; the approved work still lands.
       // Sits at the TOP of the WAVE-SIDE ace stage, per task, at the panel-approved tip — it no longer
       // runs inside the serial merge queue, so no re-audit is paid for under the integration lock (#1913).
+      // Gate (D5): the batch ace reads the absorb budget — absorbRounds < run.absorbRounds — never
+      // fixRounds (a task at its fixRounds ceiling with absorb budget free still aces, PIN-7).
       let aceSha = null
-      if (blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
+      const openBlockers = blockingOf(r.seats).length
+      if (openBlockers === 0 && aceable.length && r.task.absorbRounds < absorbRounds) {
+        const aceCharge = aceChargeOf(r)
         const ace = await dispatch(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
@@ -2401,16 +2499,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // minorsOf/absorb → Minor/Nit only, bare); the shared aceFindingRow builder is absence-tolerant
           // (and renders a citation-resolved row's row-id + match rationale, D6).
           + aceable.map(aceFindingRow).join('\n') + '\n'
-          + pt`Make ONE commit only (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
+          + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
           + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
-          { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r), schema: WORKER_RESULT, ...spawnWorker('fix') })
         const aceWhy = blockedReason(ace)
         // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — no worker result carries `.sha`).
         // Guard on a TRUTHY head_sha: a falsy sha would make r.aceReverted falsy (revert clause never
         // fires) AND emit a `git revert --no-edit ` with no arg (fails → escalate). Both defeat the
         // never-blocks-a-land invariant. A blocked/head_sha-less ace falls through to the plain merge.
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
-          r.task.fixRounds++
+          r.task.absorbRounds++                          // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
           aceSha = ace.head_sha /* the batch ace commit */
           r.reentryBase = ace.head_sha                 // re-entry preflight range anchor (PIN-15)
           // Gate at the ace tip first (PIN-12), then the delta-scaled panel with per-seat transfer
@@ -2447,17 +2545,31 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Budget-bounded RE-ENTRY (D1/D2, #1731): fresh absorbs born at any of this task's
           // re-audits (batch, bisection subsets, or a re-entry round's own) queued on
           // r.reentryQueue — the ladder re-opens for them here, after the batch/bisection resolved,
-          // while fixRounds < roundLimit − 2 (the floor-retry reserve is the sole bound).
+          // while absorbRounds < run.absorbRounds (the absorb budget is the sole bound, D5).
           if (r.reentryQueue && r.reentryQueue.length) await aceReentry(r)
         } else {
           // aceWhy or falsy head_sha: fall through to the normal merge on the un-aced approved tip
           // (never hold). Demotion arm: failed absorb (ace blocked / no usable head_sha) → follow-up.
           for (const f of aceable) demote(f, 'follow-up', `failed absorb — ${aceWhy || 'ace worker returned no usable head_sha'}`)
         }
+      } else if (aceable.length && openBlockers === 0) {
+        // Spent absorb budget, no open blockers (D5): the aceable rows ride to the phase-close sweep
+        // as absorbs (routeToSweep, phaseClose:true) — the next rung, never a follow-up. Logged,
+        // naming the counter.
+        log('absorb-budget: task ' + r.task.id + ' has absorbRounds ' + r.task.absorbRounds + ' at run.absorbRounds (' + absorbRounds + ') — no ace batch dispatches; ' + aceable.length + ' aceable row(s) route to the phase-close sweep.')
+        for (const f of aceable) routeToSweep(f, 'absorb budget spent (absorbRounds ' + r.task.absorbRounds + ' reached run.absorbRounds ' + absorbRounds + ') — no ace batch for this task')
       } else if (aceable.length) {
-        // Demotion arm: failed absorb — ace unavailable (open blocking findings or exhausted fix
-        // budget) → follow-up. Never dropped silently.
-        for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace unavailable (open blocking findings or exhausted fix budget)')
+        // Open Critical/Major blockers (D5): the aceable rows are HELD on the task
+        // (r.task.pendingAbsorbs, deduped by content key) and join the aceable set at the next
+        // approve; a task that ends escalated, audit-blocked, or never merged demotes them with
+        // demote:absorb-blocked (the merge-queue drain below). Never dropped silently.
+        r.task.pendingAbsorbs = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : []
+        for (const f of aceable) {
+          if (r.task.pendingAbsorbs.some(h => remintKey(h) === remintKey(f))) continue
+          queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
+          r.task.pendingAbsorbs.push(f)
+        }
+        log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')
       }
     } catch (err) {
       // PIN-2, restated at the new slot: the ace never turns a mergeable task into a hold. A thrown
@@ -2573,11 +2685,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       if (verdict === null) verdict = 'audit-blocked'
       const r = { task, verdict, seats, expected, round, blocked }
-      // Budget seed at the audit-loop exit (PIN-5/PIN-13): the hoisted ace stage below charges the SAME
-      // shared fixRounds counter the merge-floor retry loop later draws from, so the seed has to happen
-      // HERE, before the first ace commit — not at the merge slot, which now only never-lowers it.
+      // Budget seed at the audit-loop exit (PIN-5/PIN-13): fixRounds records the blocking fix rounds
+      // the merge-floor retry loop later continues from; the hoisted ace stage below never charges it
+      // (D5 — ace commits charge absorbRounds), and the merge slot only never-lowers this seed.
       task.fixRounds = round
       r.preAceRounds = round
+      // absorbRounds (D5): belt only — the barrier seed loop already assigns every task in `tasks` an
+      // integer (the wave loop iterates that same array), so this line holds only if a future caller
+      // reaches the wave thunk without that loop; it keeps the counter an integer, never undefined (pt).
+      if (!Number.isInteger(task.absorbRounds) || task.absorbRounds < 0) task.absorbRounds = 0
       // WAVE-SIDE ACE (#1913): disposition routing + the whole ace ladder, per task, at the
       // panel-approved tip — concurrent across tasks, and finished before the merge queue opens.
       await aceStage(r)
@@ -2638,18 +2754,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop continues the
     // SHARED budget (not a fresh counter — that would double the allowance). NEVER-LOWERING (PIN-13):
-    // the wave thunk already seeded this before the hoisted ace stage and every ace commit charged it,
-    // so re-seeding from r.round alone would hand the merge-floor retry loop back the rounds the ace
-    // spent. The assignment STAYS — a resume can enter the merge queue with the wave never having run
-    // in-process, and then r.round is the only defined seed there is.
+    // the wave thunk seeds fixRounds from the audit-loop round count; fixRounds counts blocking fix
+    // rounds and floor retries only, and ace commits charge absorbRounds instead (PIN-7), so no ace
+    // commit charges this counter and on every in-process path it already equals r.round here. The
+    // Math.max is a resume-only defence: a resume can enter the merge queue with the wave never
+    // having run in-process (r.task.fixRounds relaunch-seeded, r.round undefined), and the seed must
+    // never lower that carried count. The assignment STAYS — on that resume r.round ?? 0 is the only
+    // other defined seed there is.
     r.task.fixRounds = Math.max(Number.isInteger(r.task.fixRounds) ? r.task.fixRounds : 0, r.round ?? 0)
     // Classify-at-collection (ADR 0013): each Minor/Nit routes ONCE, by disposition. The approve arm's
     // routing now happens WAVE-SIDE inside aceStage, which stashes the once-minted rows on r.taskMinors;
     // the fallback re-mints only for a result that never reached the stage (env-blocked, an early
     // escalate), whose seats are empty anyway.
     const taskMinors = r.taskMinors ?? minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f }))
-    // Ace-free audit-round provenance (#1913): the verdict entry records the PRE-ace round count the
-    // audit loop exited on, so the filed-issue "audit round" never inherits the ace ladder's charges.
+    // Ace-free audit-round provenance (#1913): r.preAceRounds freezes the audit-loop exit count ahead
+    // of the merge-floor retry loop's own fixRounds increments, so the filed-issue "audit round" is the
+    // count the seats saw; the ace ladder charges absorbRounds, never fixRounds (PIN-7).
     auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length, fixRounds: r.preAceRounds ?? r.task.fixRounds })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
@@ -3108,6 +3228,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // blocked text is sentinel-prefixed; absent otherwise (§4.3, orthogonal to reason).
         escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...defectClassOf(r.blocked) })
       }
+    }
+  }
+  // ---- Held-absorb drain (D5): rows held on r.task.pendingAbsorbs never met a later approve ----
+  // A task that ends escalated, audit-blocked, or never merged demotes its held rows with
+  // demote:absorb-blocked (a DEMOTE_REASONS member once D13 lands); a task that merged with rows
+  // still held (a seat approved beside its own blocking finding) sends them to the phase-close
+  // sweep as absorbs — the merged tip is the sweep's base, so nothing is dropped. Logged.
+  for (const r of results.filter(Boolean)) {
+    const held = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
+    if (!held.length) continue
+    if (succeeded.has(r.task.id)) {
+      log('absorb-budget: task ' + r.task.id + ' merged with ' + held.length + ' held absorb(s) and no later approve — routing them to the phase-close sweep.')
+      for (const f of held) routeToSweep(f, 'held absorb — the task merged before a later approve could ace it')
+    } else {
+      log('absorb-budget: task ' + r.task.id + ' never merged (verdict ' + r.verdict + ') — ' + held.length + ' held absorb(s) demote with demote:absorb-blocked.')
+      for (const f of held) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never merged (verdict ' + r.verdict + '; open blocking findings held the ace batch and no later approve came)')
     }
   }
 }
@@ -3722,6 +3858,9 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       // re-approval alone — no per-finding evidence the polish commit reached its file. The
       // recordAcedTouched comment cross-references this ruling.
       for (const f of phaseCloseQueue.splice(0)) recordAced(f, polishSha)
+      // TERMINAL-PASS CHARGE SITE (reserved, D5 / Phase 5): the one-hop terminal pass after the
+      // polish merge charges the polish task's absorbRounds here and carries an `Ace-Charge`
+      // trailer on its single commit — telemetry, never a gate. No dispatch yet.
       // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
       // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later
       // round. A sweep-raised ask still parks (#1550) — the Checkpoint gate has no terminal round.

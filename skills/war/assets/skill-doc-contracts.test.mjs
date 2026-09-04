@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -86,6 +87,21 @@ const eligibilityRef = readFileSync(
   'utf8',
 )
 const floorScriptSrc = readFileSync(join(HERE, FLOOR_SCRIPT), 'utf8')
+// (refiner-evict) The ADR 0042 eviction of the refiner card's `## Gate-failure classification`
+// section (plan 2026-09-03-in-band-absorb-default, D12 · Task 2.1) — the new references home and
+// the two references files whose in-card `#gate-failure-classification` anchors were re-keyed.
+const gateFailureMd = readFileSync(
+  join(HERE, '..', 'references', 'gate-failure-classification.md'),
+  'utf8',
+)
+const budgetRaiseFloorMd = readFileSync(
+  join(HERE, '..', 'references', 'budget-raise-floor.md'),
+  'utf8',
+)
+const refinerRecoveryMd = readFileSync(
+  join(HERE, '..', 'references', 'refiner-recovery.md'),
+  'utf8',
+)
 // (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
 // war-strategy authoring surfaces are the canonical homes the new/converged CONTEXT.md glossary
 // entries restate — SKILL.md §3's rule 8 + §2's oracle-duality bullet, the interview doctrine's
@@ -3155,22 +3171,25 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
   )
 })
 
-// (D43) THE RE-ENTRY / FLOOR-RETRY-RESERVE BOUNDARY IN ITS THREE LIVING-DOC HOMES (#1812; plan
-// 2026-08-27-in-run-finding-resolution, D10 · Task 3). The 2026-08-27 ADR 0013 amendment retired
-// the ace ladder's budget-exhaustion stop condition in favour of budget-bounded re-entry bounded
-// by the floor-retry reserve. #1812's drift was silent precisely because NO row carried the token,
-// so the flip ships the guard: this row binds the NEW boundary prose on every LIVING doc home —
-// SKILL.md's `--ace` bullet, CONTEXT.md's **Ace bisection** glossary row, and design.md §18's
-// disposition-routing bullet — plus the retired literals' absence on those same surfaces.
+// (D43) THE RE-ENTRY / ABSORB-BUDGET BOUNDARY IN ITS THREE LIVING-DOC HOMES (#1812; plan
+// 2026-08-27-in-run-finding-resolution, D10 · Task 3; re-keyed by plan
+// 2026-09-03-in-band-absorb-default, D5 · Task 2.2). The 2026-08-27 ADR 0013 amendment retired the
+// ace ladder's budget-exhaustion stop condition in favour of budget-bounded re-entry bounded by the
+// floor-retry reserve; the 2026-09-03 amendment retired THAT reserve (`fixRounds < roundLimit − 2`)
+// in favour of the per-task absorb budget (`absorbRounds < run.absorbRounds`, PIN-7). #1812's drift
+// was silent precisely because NO row carried the token, so each flip ships the guard: this row
+// binds the CURRENT boundary prose on every LIVING doc home — SKILL.md's `--ace` bullet,
+// CONTEXT.md's **Ace bisection** glossary row, and design.md §18's disposition-routing bullet —
+// plus the retired literals' absence on those same surfaces.
 //
 // THE ADR 0013 HOME IS DELIBERATELY EXEMPT, and the exemption is APPEND-ONLY-LAW-DERIVED, never
 // oversight: the 2026-08-20 amendment's ratified clause ("the remainder demotes on budget
-// exhaustion") is historical law that survives byte-untouched by design, superseded in *currency*
-// by a dated note rather than edited (#1850's living-ADR direction is ratified but deferred until
-// after this plan lands). A blanket absence assert over the ADR would demand the very edit the
+// exhaustion") and the 2026-08-27 amendment's currency clause (the floor-retry reserve) are
+// historical law that survives byte-untouched by design, each superseded in *currency* by a dated
+// note rather than edited. A blanket absence assert over the ADR would demand the very edit the
 // append-only law forbids. So the exemption is not a hole: the final block below asserts BOTH
-// sides of it — the historical clause still present AND the dated supersession note present — so
-// deleting the history, or dropping the note that makes it readable as history, reds here.
+// sides of it — the historical clauses still present AND the dated supersession notes present —
+// so deleting the history, or dropping the note that makes it readable as history, reds here.
 //
 // Extraction is BY CONSTRUCT on all three surfaces (the D35 idiom — never line numbers, which rot
 // across the serial merge queue): the `--ace` bullet → next top-level `- **` bullet; the bolded
@@ -3179,7 +3198,7 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // a truncated extraction reds instead of trivially passing). Keys are token-anchored `/…/i` forms,
 // not sentence bytes: sanctioned rewording latitude on any home must not false-red; a one-sided
 // edit (one home re-authored, another left on the retired boundary) reds.
-test('D43 — the re-entry / floor-retry-reserve boundary is present in all three living-doc homes and the retired budget-exhaustion literals are gone (#1812)', () => {
+test('D43 — the re-entry / absorb-budget boundary is present in all three living-doc homes and the retired budget-exhaustion and reserve literals are gone (#1812; reserve-retired)', () => {
   const HOMES = [
     [
       'skills/war/SKILL.md `--ace` bullet',
@@ -3210,36 +3229,51 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
         'satisfy the keys below vacuously)',
     )
     for (const [key, what] of [
-      [/floor-retry reserve/i, 'the floor-retry-reserve stop condition'],
+      [/absorb budget/i, 'the absorb-budget stop condition'],
       [/re-entry/i, 'the budget-bounded re-entry token'],
-      [/roundLimit\s*[−-]\s*2/, 'the reserve arithmetic (`fixRounds < roundLimit − 2`)'],
+      [/absorbRounds\s*<\s*run\.absorbRounds/, 'the budget arithmetic (`absorbRounds < run.absorbRounds`)'],
       // The three token keys above are all satisfied by a re-entry sentence ALONE, so a home can
-      // carry them while stating the ladder's OPPOSITE semantics (design.md §18 shipped exactly
-      // that at this task's cut base: the bare universal "only finally-failing subsets demote",
-      // with the reserve's sweep rung mis-attributed to the bisection remainder). The engine's
-      // arm (`aceBisect`: `if (r.task.fixRounds >= roundLimit - 2) … demote(f, 'follow-up', …)`
-      // over `[sub, ...queue.splice(0)]`) is the second demote arm, and it routes to `follow-up`
-      // directly — never `phaseClose: true`. This key binds that arm's presence: the reserve stop
-      // must be stated as demoting the still-queued/remaining subsets, in either clause order.
+      // carry them while stating the ladder's OPPOSITE semantics for the bisection remainder. The
+      // engine's arm (`aceBisect`: `if (r.task.absorbRounds >= absorbRounds) … routeToSweep(f, …)`
+      // over the still-queued subsets) routes those subsets to the phase-close sweep as absorbs —
+      // never `follow-up`, never a demotion (D5: only a subset that failed its own re-audit
+      // demotes). This key binds that arm's route: the budget stop must be stated as sending the
+      // still-queued/remaining subsets to the sweep, in either clause order.
       [
-        /(subsets still queued|remaining subsets)[\s\S]{0,160}?demote|demote[\s\S]{0,160}?(subsets still queued|remaining subsets)/i,
-        "the bisection reserve-stop demote arm (reaching the reserve mid-bisection demotes the " +
-          'still-queued subsets too — not only the finally-failing ones)',
+        /(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,160}?sweep|sweep[\s\S]{0,160}?(subsets still queued|still-queued subsets|remaining subsets)/i,
+        'the bisection budget-stop sweep route (a spent absorb budget mid-bisection sends the ' +
+          'still-queued subsets to the sweep as absorbs — never demotes them)',
       ],
     ]) {
       assert.match(
         text,
         key,
-        `${name} must carry ${what} (#1812, ADR 0013 amendment 2026-08-27). Correct this row to a ` +
+        `${name} must carry ${what} (#1812, ADR 0013 amendment 2026-09-03). Correct this row to a ` +
           'sanctioned rewording, never drop the clause on one home to make it pass',
       )
     }
+    // The retired reserve-stop demote route, construct-scoped: a home that still says the
+    // still-queued subsets DEMOTE states the pre-2026-09-03 arm. The key is forward-only
+    // (phrase, then `demote` within 60 chars). At this task's cut base it reds on two homes:
+    // CONTEXT.md's "the remaining subsets demote to `follow-up`" and design.md's "the remaining
+    // subsets demote straight to `follow-up`". SKILL.md's base placed `demote` AHEAD of the
+    // phrase ("subsets demote (plus the subsets still queued when the floor-retry reserve stops
+    // the ladder"), which this key does not match, so on SKILL.md it guards prospectively only
+    // and the three positive keys above bind that home. Do not widen the key to the
+    // `demote ... subsets still queued` direction: the re-authored SKILL.md bullet ("subsets
+    // demote (subsets still queued at a spent budget ride to the sweep") would false-red.
+    assert.ok(
+      !/(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,60}?demote/i.test(text),
+      `${name} still states the retired reserve-stop demote arm (the still-queued subsets demote) — ` +
+        'they ride to the sweep as absorbs now (D5, PIN-7)',
+    )
   }
-  // OLD-absent, whole-surface (End state 9's own form). Both literals were verified present at
-  // this task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion demotes the remainder`
-  // once, design.md `budget-exhausted remainder` once — so these guard a revert of the flip, never
-  // a never-present value (PIN-8). Deliberately NOT applied to docs/adr/0013 — see the
-  // append-only-law exemption in the header comment and its two-sided proof below.
+  // OLD-absent, whole-surface (End state 9's own form). The exhaustion literals were verified
+  // present at the 2026-08-27 task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion
+  // demotes the remainder` once, design.md `budget-exhausted remainder` once — so these guard a
+  // revert of that flip, never a never-present value (PIN-8). Deliberately NOT applied to
+  // docs/adr/0013 — see the append-only-law exemption in the header comment and its two-sided
+  // proof below.
   for (const [name, text, literal] of [
     ['skills/war/SKILL.md', skillMd, 'exhaustion demotes the remainder'],
     ['CONTEXT.md', contextMd, 'exhaustion demotes the remainder'],
@@ -3248,24 +3282,29 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
     assert.ok(
       !norm(text).includes(literal),
       `the retired budget-exhaustion literal "${literal}" must be gone from ${name} ` +
-        '(OLD-absent, base-verified; #1812, PIN-8) — the living docs carry the reserve boundary now',
+        '(OLD-absent, base-verified; #1812, PIN-8) — the living docs carry the absorb budget now',
     )
   }
   // The ADR home's exemption, proven from BOTH sides so the carve-out cannot hollow the row.
-  const adr = norm(adr0013)
-  // Construct-scoped (the D35 idiom): the 2026-08-27 supersession note QUOTES the historical
-  // literal verbatim, so a whole-surface match is satisfied by the quotation alone — deleting the
-  // 2026-08-20 clause (the exact append-only-law violation this assert exists to catch) leaves a
-  // whole-file assert green (proven: the scratch deletion passed before this scoping). Extract the
-  // amendment section and assert inside THAT span.
+  // Construct-scoped (the D35 idiom): each supersession note QUOTES the historical literal
+  // verbatim, so a whole-surface match is satisfied by the quotation alone — deleting the
+  // superseded clause (the exact append-only-law violation this assert exists to catch) leaves a
+  // whole-file assert green (proven: the scratch deletion passed before this scoping). Extract
+  // each amendment section and assert inside THAT span.
   // Extract from the RAW text (norm() joins every line and strips '#', so headings do not survive
   // it), then normalize the extracted span for the literal match.
-  const adr0820 = norm((adr0013.match(/## Amendment \(2026-08-20\)[\s\S]*?(?=\n## |$)/) || [''])[0])
-  assert.ok(
-    adr0820.length > 200,
-    'ADR 0013: the `## Amendment (2026-08-20)` section did not extract (non-vacuity guard) — a ' +
-      'heading rename or removal reds here before the scoped assert below can pass vacuously',
-  )
+  const section = (date) =>
+    norm((adr0013.match(new RegExp(`## Amendment \\(${date}\\)[\\s\\S]*?(?=\\n## |$)`)) || [''])[0])
+  const adr0820 = section('2026-08-20')
+  const adr0827 = section('2026-08-27')
+  const adr0903 = section('2026-09-03')
+  for (const [date, span] of [['2026-08-20', adr0820], ['2026-08-27', adr0827], ['2026-09-03', adr0903]]) {
+    assert.ok(
+      span.length > 200,
+      `ADR 0013: the \`## Amendment (${date})\` section did not extract (non-vacuity guard) — a ` +
+        'heading rename or removal reds here before the scoped asserts below can pass vacuously',
+    )
+  }
   assert.match(
     adr0820,
     /the remainder demotes on budget exhaustion/,
@@ -3274,12 +3313,152 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
       'restore the historical clause rather than editing it out',
   )
   assert.match(
-    adr,
-    /floor-retry reserve/,
-    "ADR 0013 must carry the dated supersession note naming the floor-retry reserve — it is what " +
-      'makes the surviving 2026-08-20 clause readable as history rather than current doctrine ' +
+    adr0827,
+    /floor-retry reserve \(`fixRounds < roundLimit − 2`\)/,
+    "ADR 0013's 2026-08-27 currency clause (the floor-retry reserve) is ratified append-only law " +
+      'and must survive byte-untouched — the 2026-09-03 note supersedes its currency, never its bytes',
+  )
+  assert.match(
+    adr0903,
+    /absorbRounds\s*<\s*run\.absorbRounds/,
+    'ADR 0013 must carry the dated 2026-09-03 supersession note naming the absorb budget — it is ' +
+      'what makes the surviving 2026-08-27 clause readable as history rather than current doctrine ' +
       '(the exemption above is only sound while this note stands)',
   )
+  assert.match(
+    adr0903,
+    /2026-08-27 clause[\s\S]{0,120}?historical/i,
+    "ADR 0013's 2026-09-03 amendment must name the 2026-08-27 currency clause as historical",
+  )
+})
+
+// (reserve-retired) THE `roundLimit − 2` RESERVE ARITHMETIC IS ABSENT FROM EVERY LIVING SURFACE
+// (plan 2026-09-03-in-band-absorb-default, End state 5 · Task 2.2; PIN-7). OLD-absent, whole-surface,
+// base-verified: at this task's cut base the reserve shape was present in SKILL.md's `--ace` bullet,
+// CONTEXT.md's **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
+// them), and Task 2.1 had already retired it from `disposition-eligibility.md` widening 1, the
+// `schemas.md` re-entry row, and the engine's seven comments plus its four emitted reserve-stop
+// strings (two log() calls plus the demote() and routeToSweep() reason literals they guarded)
+// (rule 7: this task's gate reads those three surfaces after the dep rebase). Two shapes
+// are guarded: the arithmetic itself (`roundLimit − 2`, either minus glyph, any spacing, case-
+// folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
+// merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).
+// ADR 0013 is exempt (append-only law — D43 proves both sides of that exemption).
+test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces (End state 5, PIN-7)', () => {
+  for (const [name, text] of [
+    ['skills/war/SKILL.md', skillMd],
+    ['CONTEXT.md', contextMd],
+    ['skills/war/references/design.md', designRefMd],
+    ['skills/war/references/disposition-eligibility.md', eligibilityRef],
+    ['skills/war/references/schemas.md', schemasMd],
+    ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
+  ]) {
+    const t = norm(text)
+    assert.ok(
+      !/roundLimit\s*(?:−|-|–)\s*2/i.test(t),
+      `${name} still carries the retired \`roundLimit − 2\` reserve arithmetic (OLD-absent, ` +
+        'base-verified; End state 5, PIN-7) — the absorb budget `absorbRounds < run.absorbRounds` ' +
+        'is the ace ladder\'s sole bound now',
+    )
+    assert.ok(
+      !/floor-retry reserve/i.test(t),
+      `${name} still names the retired \`floor-retry reserve\` (OLD-absent, base-verified; End ` +
+        'state 5) — re-author to the absorb budget',
+    )
+  }
+  // The positive half: the six surfaces carry the NEW arithmetic, so an emptied surface cannot
+  // satisfy the absence asserts vacuously.
+  for (const [name, text] of [
+    ['skills/war/SKILL.md', skillMd],
+    ['CONTEXT.md', contextMd],
+    ['skills/war/references/design.md', designRefMd],
+    ['skills/war/references/disposition-eligibility.md', eligibilityRef],
+    ['skills/war/references/schemas.md', schemasMd],
+    ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
+  ]) {
+    assert.match(
+      norm(text),
+      /absorbRounds\s*<\s*run\.absorbRounds/,
+      `${name} must state the absorb-budget gate \`absorbRounds < run.absorbRounds\` (D5) — the ` +
+        'retired-shape asserts above are only meaningful while the successor is present',
+    )
+  }
+})
+
+// (refiner-evict) THE `## Gate-failure classification` EVICTION (plan 2026-09-03-in-band-absorb-
+// default, D12 · Task 2.1 moved it, Task 2.2 pins it; ADR 0042). Three rows: (a) the evicted body
+// is present VERBATIM in skills/war/references/gate-failure-classification.md — extract by
+// construct (the `## Gate-failure classification` heading → end of file, the section's only
+// terminator there) and assert BYTE equality against the pinned SHA-256 of the pre-eviction card
+// bytes (3,126 B, `git show e673850^:agents/war-refiner.md`, the section up to `## Gate contract`);
+// a reword, a dropped bullet, or a re-flow reds here — an ADR 0042 eviction is a byte-identical
+// move, and a sanctioned later edit re-pins the digest in the same commit with its rationale.
+// (b) the card's trigger pointer is pinned — trigger + link, never a bare link (a pointer without
+// a trigger is a defect, ADR 0042) — and the card no longer carries the body. (c) no
+// `#gate-failure-classification` in-page anchor token survives in the card or the two references
+// files that linked into it (case-insensitive): an in-page anchor cannot resolve into the moved
+// section, so a surviving token is a dangling link.
+const GATE_FAILURE_SECTION_SHA256 = '927b5e3345a883124bc7270a0f53349469b6c73267d0ed0ab58595c8418679ad'
+test('refiner-evict (a) — the evicted `## Gate-failure classification` body is present verbatim in gate-failure-classification.md (extract and byte equality; ADR 0042, D12)', () => {
+  const heading = '\n## Gate-failure classification\n'
+  const at = gateFailureMd.indexOf(heading)
+  assert.ok(at >= 0, 'gate-failure-classification.md lost its `## Gate-failure classification` heading')
+  assert.equal(
+    gateFailureMd.indexOf(heading, at + 1),
+    -1,
+    'expected exactly one `## Gate-failure classification` heading in gate-failure-classification.md',
+  )
+  const body = gateFailureMd.slice(at + 1)
+  assert.ok(!/\n## /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last `##` section (heading → end of file)')
+  // Non-vacuity: the extraction spans the section's tail bullet.
+  assert.match(body, /\*\*Debt reuse:\*\*/, 'the extracted section must span its `**Debt reuse:**` tail bullet')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 3126, 'the evicted section is 3,126 B (the pre-eviction card bytes)')
+  assert.equal(
+    createHash('sha256').update(body, 'utf8').digest('hex'),
+    GATE_FAILURE_SECTION_SHA256,
+    'the evicted `## Gate-failure classification` section must be byte-identical to the ' +
+      'pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins ' +
+      'GATE_FAILURE_SECTION_SHA256 in this commit with its rationale',
+  )
+})
+test('refiner-evict (b) — the refiner card keeps the fixed trigger pointer to gate-failure-classification.md and no longer carries the body', () => {
+  assert.match(
+    refinerCard,
+    /when the gate is red, read \[gate-failure-classification\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-failure-classification\.md\)/,
+    'the card must carry the fixed trigger pointer "when the gate is red, read ' +
+      '[gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/' +
+      'gate-failure-classification.md)" (trigger + link; ADR 0042, D12)',
+  )
+  assert.match(
+    refinerCard,
+    /^## Gate-failure classification$/m,
+    'the card keeps the `## Gate-failure classification` heading over the pointer',
+  )
+  for (const literal of ['Per-site classification base', 'Precondition-marker short-circuit', 'Debt reuse:']) {
+    assert.ok(
+      !refinerCard.includes(literal),
+      `the card still carries the evicted body literal "${literal}" — the section lives in ` +
+        'gate-failure-classification.md only (a duplicated body drifts)',
+    )
+  }
+})
+test('refiner-evict (c) — no `#gate-failure-classification` anchor token survives in the card, budget-raise-floor.md, or refiner-recovery.md', () => {
+  for (const [name, text] of [
+    ['agents/war-refiner.md', refinerCard],
+    ['skills/war/references/budget-raise-floor.md', budgetRaiseFloorMd],
+    ['skills/war/references/refiner-recovery.md', refinerRecoveryMd],
+  ]) {
+    assert.ok(
+      !/#gate-failure-classification/i.test(text),
+      `${name} still carries the retired in-page anchor token \`#gate-failure-classification\` — ` +
+        'the section moved to skills/war/references/gate-failure-classification.md; re-key the link',
+    )
+    assert.match(
+      text,
+      /gate-failure-classification\.md/,
+      `${name} must name the references home gate-failure-classification.md (the re-keyed link)`,
+    )
+  }
 })
 
 // (D44) THE INTENT-CEILING LATITUDE MIRROR (#1513) — CONTEXT.md's **Intent ceiling / plan floor**

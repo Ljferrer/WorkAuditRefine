@@ -20,9 +20,9 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
 
 1. **Re-audit-born default-absorb (D3).** A mechanical, fully-specified finding **born at a re-audit**
    (the batch-ace re-audit, a bisection subset's re-audit, or a re-entry batch's own)
-   **defaults `absorb`** — it re-enters the ace ladder while `fixRounds < roundLimit − 2`, and the
-   phase-close sweep is its vehicle when re-entry is reserve-blocked (set `phaseClose:true` when
-   the fix wants the integrated tip). `follow-up` stays correct for unspecified, decision-shaped,
+   **defaults `absorb`** — it re-enters the ace ladder while the task's absorb budget remains
+   (`absorbRounds < run.absorbRounds`, D5), and the phase-close sweep is its vehicle when that
+   budget is spent (set `phaseClose:true` when the fix wants the integrated tip). `follow-up` stays correct for unspecified, decision-shaped,
    or sweep-excluded (release-slot / cross-task) findings.
 2. **New-test eligibility (D4).** A fully-specified **new test** (or test-harness) addition in a
    task-owned test file is a legitimate `absorb`/ace-batch member — "needs a new test" is not by
