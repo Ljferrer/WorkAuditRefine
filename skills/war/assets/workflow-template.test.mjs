@@ -11850,9 +11850,10 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
   assert.ok(p.includes('task-owned test file'), 'widening (2): new-test eligibility (D4)')
   assert.ok(p.includes('trade-off') && p.includes('routes ask'), 'widening (3): trade-off-ask routing (D5)')
   assert.ok(p.includes('citation') && p.includes('NO-match'), 'the citation arm and its ambiguity-is-no-match floor ride the dispatched block (D6, PIN-6)')
-  // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror; its ask-only
-  // never-defaulted tail is the in-band-absorb-default D1 shape) — the widenings are a separate appended block.
-  assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE sentence survives byte-untouched (the ask-only never-defaulted tail)')
+  // The DISPOSITION RULE sentence is the card byte-mirror (Phase 4 rewrote it: the note clause and the
+  // fully-specified-absorb default); this pin reads only its ask-only never-defaulted tail — the
+  // in-band-absorb-default D1 shape — and the widenings are a separate appended block (#2055).
+  assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE sentence keeps its ask-only never-defaulted tail')
   assert.ok(/born at a re-audit/i.test(eligibilityMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
   assert.ok(/trade-off/i.test(eligibilityMd), 'standing home carries the trade-off routing rule')
 })
@@ -11860,10 +11861,10 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
 // ---- barrier-list (in-band-absorb-default D1/D2, End state 7 — PIN-1, PIN-2, PIN-12) ----
 // The structured `barrier` enum and the in-diff absorb default flip on the SEAT surfaces only:
 // AUDIT_VERDICT's optional `barrier` field, the dispatched DISPOSITION RULE rendered from the inline
-// BARRIER_TOKENS mirror (byte-mirroring the card), and dispositionOf's engine default UNCHANGED
-// through Phase 3 (the Phase 4 diff-probe floor moves the default into the engine). Each fixture reds
-// with its arm deleted: drop the schema field, hand-type the tokens into the prompt, or flip the
-// engine default early.
+// BARRIER_TOKENS mirror (byte-mirroring the card), and dispositionOf's engine default, which reads
+// the diff probe since Phase 4 (D1/D4 — the fixture below pins that read). Each fixture reds with its
+// arm deleted: drop the schema field, hand-type the tokens into the prompt, or make the engine
+// default ignore the probe (#2055).
 
 test('barrier-list — AUDIT_VERDICT finding items carry the OPTIONAL `barrier` field whose enum IS the inline BARRIER_TOKENS mirror (never required; the four canonical tokens)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
