@@ -14132,6 +14132,17 @@ test('ace-off-route — the retired "absorb requires --ace" demotion is absent f
 
 const gaAbsorb = (over = {}) => ({ severity: 'Minor', title: 'gate-audit absorb', file: 'docs/ga.md', rationale: 'r', suggested_fix: 'fix it', disposition: 'absorb', ...over })
 
+test('gate-audit-route — engine provenance stamps (task, seat, lens, sha) win over same-named keys a seat payload supplies (#2054)', async () => {
+  const spoof = gaAbsorb({ title: 'spoofed provenance', task: 'zz', seat: 'seat:spoof', lens: 'spoof', sha: 'deadbeef' })
+  const { out } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [spoof] }))
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'spoofed provenance')
+  assert.ok(aced, 'presence guard: the row reaches the sweep and records aced')
+  assert.equal(aced.finding.task, 't1', 'the engine task stamp wins over the seat-supplied one')
+  assert.equal(aced.finding.seat, 'gate-audit:t1:execution-evidence', 'the engine seat stamp wins')
+  assert.equal(aced.finding.lens, 'execution-evidence', 'the engine lens stamp wins')
+  assert.notEqual(aced.finding.sha, 'deadbeef', 'the engine sha stamp wins')
+})
+
 test('gate-audit-route — the per-task execution-evidence seat\'s fully specified Minor reaches the sweep queue stamped with its seat label; auditLog keeps the record', async () => {
   const { out, calls } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [gaAbsorb()] }))
   assert.ok(polishPromptOf(calls).includes('gate-audit absorb'), 'the row reaches the sweep')
