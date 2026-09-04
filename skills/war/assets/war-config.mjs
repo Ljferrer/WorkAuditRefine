@@ -26,16 +26,16 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.docs: the tier that dispatches all-*.md tasks (defaults opus/default). worker.fix
-    // (fix-round + --ace tier) defaults to fable/low — the balanced profile's value, which
-    // thorough/economy override; a config may still override it per-run.
-    worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' }, fix: { model: 'fable', effort: 'low' } },
-    auditor:  { model: 'sonnet', effort: 'max' },
+    // worker.docs: the tier that dispatches all-*.md tasks (defaults fable/default). worker.fix
+    // (fix-round + --ace tier) defaults to fable/default — the balanced profile's value, which
+    // economy overrides on the base + docs tiers; a config may still override any tier per-run.
+    worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
+    auditor:  { model: 'opus',   effort: 'high' },
     refiner:  { model: 'sonnet', effort: 'high' },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
     // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/high,
-    // overridden by thorough/economy. Consumed only when /red-team runs against this repo.
+    // overridden by thorough (fable/default) and economy (sonnet/default). Consumed only when /red-team runs against this repo.
     redteam:  { model: 'opus',   effort: 'high' },
     // snipe: the model/effort /snipe spawns its one-shot auditor seats at (#1920). NOT a phase
     // role (never in ROLES/agentMatrix). Ladder at consumption (snipe-args.mjs snipeTier):
@@ -106,13 +106,14 @@ export const PRESETS = {
   thorough: {
     profile: 'thorough',
     agents: {
-      worker:   { model: 'fable', effort: 'max', docs: { model: 'opus', effort: 'high' }, fix: { model: 'fable', effort: 'max' } },
-      auditor:  { model: 'opus',  effort: 'max' },
+      // worker tiers inherit DEFAULTS (fable/default on base, docs and fix).
+      auditor:  { model: 'fable',  effort: 'default' },
       // Pinned ABOVE the DEFAULTS refiner (sonnet/high): thorough must never be weaker than
       // balanced on any axis, so its refiner takes the top effort tier.
       refiner:  { model: 'sonnet', effort: 'xhigh' },
-      servitor: { model: 'opus',  effort: 'default' },
-      redteam:  { model: 'fable', effort: 'xhigh' },
+      servitor: { model: 'opus',   effort: 'high' },
+      redteam:  { model: 'fable',  effort: 'default' },
+      snipe:    { model: 'fable',  effort: 'default' },
     },
     // 5-lens pool: under rosterPolicy 'auto' the Lead seeds 1–5 seats per task from it.
     audit: {
@@ -127,18 +128,17 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Pins the knobs economy must keep historical; run.ace, run.absorbRounds, and
-    // memory.commitLearnings deliberately inherit DEFAULTS (see the notes below).
+    // Cheaper tiers on every role except the fix worker (fable/default, inherited from DEFAULTS).
+    // refiner/servitor are pinned at sonnet/high; roster policy, round limit and ace inherit DEFAULTS
+    // (auto / 6 / on).
     agents: {
-      worker:   { model: 'sonnet', effort: 'default', docs: { model: 'haiku', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
-      auditor:  { model: 'sonnet', effort: 'default' },
-      refiner:  { model: 'sonnet', effort: 'default' },
-      servitor: { model: 'sonnet', effort: 'default' },
-      redteam:  { model: 'sonnet', effort: 'max' },
+      worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
+      auditor:  { model: 'sonnet', effort: 'xhigh' },
+      refiner:  { model: 'sonnet', effort: 'high' },
+      servitor: { model: 'sonnet', effort: 'high' },
+      redteam:  { model: 'sonnet', effort: 'default' },
     },
-    // roster pinned to the historical quartet: DEFAULTS moved to a 5-seat roster, and economy's
-    // lone-seat widening (autoEscalate, inherited true) unions toward THIS list — leaving it
-    // unpinned would have widened economy from 4 seats to 5.
+    // roster pinned to the historical quartet (DEFAULTS carries a 5-seat pool).
     audit: {
       roster: [
         { lens: 'correctness', depth: 'deep' },
@@ -146,11 +146,8 @@ export const PRESETS = {
         { lens: 'plan-faithfulness', depth: 'deep' },
         { lens: 'security', depth: 'deep' },
       ],
-      rosterPolicy: 'solo',
     },
-    run: { roundLimit: 2, redteamRoundLimit: 2 },
-    // (run.ace is no longer pinned — DEFAULTS is true, so economy inherits on (D14, PIN-16).)
-    // (run.absorbRounds is not pinned — economy inherits DEFAULTS' 6.)
+    run: { redteamRoundLimit: 2 },
     // (memory.commitLearnings is no longer pinned — DEFAULTS is now false, so economy inherits off.)
   },
 }
@@ -194,8 +191,8 @@ export function agentMatrix() {
 // and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
 // row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g.
-// docs=opus/default with per-preset overrides (thorough opus/high, economy haiku/high), fix=fable/low
-// on balanced) match this canonical source, not a hand-copied literal.
+// docs=fable/default with the economy override opus/default, fix=fable/default on every preset)
+// match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker
