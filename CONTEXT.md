@@ -680,8 +680,8 @@ plan's file list, not the diff).
 
 **Fix bump**:
 The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and `--ace` worker
-spawns — either direction: a stronger fixer than the first pass, or (the balanced default) an opus
-first pass with a faster fable/`low` fixer. Absent = fix work inherits the base worker config
+spawns — either direction: a stronger fixer than the first pass (the economy preset: opus first
+pass, fable/`default` fixer), or a faster one. Absent = fix work inherits the base worker config
 (today's behavior).
 _Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
 knob covers both).

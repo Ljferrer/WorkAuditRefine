@@ -281,9 +281,9 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     refiner:  { model, effort },
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (balanced opus/high); only a MISSING config file → red-team inherits the session
-    snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), default opus/high; explicit null = unset (falls back to the auditor tier); validated like redteam
-  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "opus", effort: "default" }; balanced inherits, thorough → opus/high, economy → haiku/high)
-  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; every preset populates it (balanced fable/low); an omitted block inherits the base worker config
+    snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), default opus/high (thorough → fable/default); explicit null = unset (falls back to the auditor tier); validated like redteam
+  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "fable", effort: "default" }; balanced and thorough inherit, economy → opus/default)
+  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; every preset populates it (fable/default in DEFAULTS, inherited by all three); an omitted block inherits the base worker config
   audit: {
     roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)
@@ -294,7 +294,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     autoEscalate: true },                    // widens a Critical/low-confidence LONE seat — toward its own valid `widen` nomination (those lenses @ deep), else the default roster's lenses; set false (with rosterPolicy:"solo") to pin one auditor
 // COST NOTE: rosterPolicy "all" spawns every roster seat on every task (5 deep seats with the
 // default roster, unanimous); the default "auto" convenes the 1–5 seats the Lead composed per task.
-// Use rosterPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
+// Use rosterPolicy:"solo" for cost-sensitive runs — one seat at neighbors depth (no shipped preset pins it).
 // Legacy keys covenSize/lenses/covenPolicy FAIL validation with a courtesy error naming the key —
 // run /war-room to regenerate the config (D3: no shims, no accepted-but-ignored keys).
   run: { roundLimit, absorbRounds, redteamRoundLimit, maxParallel, afk, ace, provision, provisionSource, provisionAuto },
