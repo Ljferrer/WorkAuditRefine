@@ -60,11 +60,13 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (opus default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, maxParallel, afk },                        // roundLimit used here; afk gates recordAced's
+//     run:    { roundLimit, maxParallel, afk, absorbRounds },          // roundLimit used here; afk gates recordAced's
 //                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
 //                                     // maxParallel (optional positive integer) is the GLOBAL ceiling on agent dispatches
 //                                     // in flight across the whole run, held by one counting semaphore at the leaf dispatch
 //                                     // seam; absent/null ⇒ agent() is called straight through, a byte-identical dispatch path
+//                                     // absorbRounds (absorb-budget, D5): per-task ace-commit budget; absent ⇒ DEFAULTS.run.absorbRounds (6)
+//     absorbCharges,                  // optional Lead relaunch override { <task>: n } of the barrier's absorbCharges read (wins, logged)
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
 //                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
@@ -1926,8 +1928,8 @@ if (tasks.length) {
   // ---- absorb-budget relaunch seed (D5) ----
   // r.task.absorbRounds seeds from the barrier's absorbCharges map — the highest `Ace-Charge`
   // trailer index git holds on the task branch (git > any in-memory count, ADR 0008). Both id
-  // dialects match (the preMergedIdOf normalization). A Lead override (args.absorbCharges, a
-  // sanctioned relaunch) wins over the barrier read, logged. Absent map, missing entry, or a
+  // dialects match (the preMergedIdOf normalization). A Lead override (args.absorbCharges,
+  // honored unconditionally) wins over the barrier read, logged. Absent map, missing entry, or a
   // malformed value ⇒ 0 with a loud log naming the task — never silent, never a hold.
   const chargesOf = m => (m && typeof m === 'object' && !Array.isArray(m)) ? m : null
   const chargeMaps = [['args.absorbCharges', chargesOf(A.absorbCharges)], ['barrier absorbCharges', chargesOf(barrierOut.absorbCharges)]]
@@ -2440,8 +2442,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       // Held absorbs (D5): rows held on r.task.pendingAbsorbs by an earlier blocker-held batch join
       // THIS approve's aceable set (deduped by content key against the fresh rows), logged.
+      // ponytail: deliberately-unwired in-phase — aceStage runs ONCE per task, and the hold arm below
+      // writes pendingAbsorbs at the bottom of that same call, so no in-run hold reaches this fold;
+      // its only live producer is relaunch-seeded task state (args.tasks[].pendingAbsorbs). The
+      // end-of-queue held-absorb drain owns the in-run rows.
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
       for (const f of heldRows) {
+        queuedKeys.delete(remintKey(f))                    // no longer held — mirrors aceReentry's drain idiom
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') re-raised this round — the fresh row rides the ace batch; the held copy is dropped as a duplicate.'); continue }
         log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
         aceable.push(f)
@@ -2537,6 +2544,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         for (const f of aceable) {
           if (r.task.pendingAbsorbs.some(h => remintKey(h) === remintKey(f))) continue
           r.task.pendingAbsorbs.push(f)
+          queuedKeys.add(remintKey(f))                     // stamps queuedKeys — a later re-audit re-mint never queues a second copy
         }
         log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')
       }
@@ -2722,9 +2730,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop continues the
     // SHARED budget (not a fresh counter — that would double the allowance). NEVER-LOWERING (PIN-13):
-    // the wave thunk already seeded this before the hoisted ace stage and every ace commit charged it,
-    // so re-seeding from r.round alone would hand the merge-floor retry loop back the rounds the ace
-    // spent. The assignment STAYS — a resume can enter the merge queue with the wave never having run
+    // the wave thunk seeds fixRounds from the audit-loop round count; fixRounds counts blocking fix
+    // rounds and floor retries only, and ace commits charge absorbRounds instead (PIN-7). The
+    // Math.max STAYS — a resume can enter the merge queue with the wave never having run
     // in-process, and then r.round is the only defined seed there is.
     r.task.fixRounds = Math.max(Number.isInteger(r.task.fixRounds) ? r.task.fixRounds : 0, r.round ?? 0)
     // Classify-at-collection (ADR 0013): each Minor/Nit routes ONCE, by disposition. The approve arm's
