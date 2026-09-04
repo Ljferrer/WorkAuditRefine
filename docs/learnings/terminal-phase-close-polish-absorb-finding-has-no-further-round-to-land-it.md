@@ -1,14 +1,28 @@
 ---
 name: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
-description: "A last-round polish gate-audit absorb finding has no further pass to drain it"
+description: "A phase-close polish task's OWN gate-audit can surface a fresh absorb+phaseClose:true finding on the polish diff itself — but if that polish task is the phase's last round (e.g. a release/final phase), there is no subsequent polish pass to drain the queue, and the finding ships unfixed at land"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   promoted: dev/2026-08-06-handoff-schemas-contract@phase-2
   slug: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
-  phase: 2026-08-05-precision-chain-and-loop-breaker/6.1
+  phase: 2026-08-05-precision-chain-and-loop-breaker/6.1 +recurrences (latest 2026-09-03-in-band-absorb-default/phase-1 p1-polish)
   keywords: 
+    - polish fix reproduces same defect class
+    - replacement wording still wrong
+    - ordinal attribution fragile
+    - positional summary claim fragile
+    - campaign-ledger.mjs Fallback ceilings
+    - in-band-absorb-default
+    - six auditor findings same line
+    - CONTEXT.md Re-entry glossary
+    - noReentry
+    - merge-slot pin-transfer mismatch
+    - design.md sole bound stale
+    - unrelated finding sinks whole polish batch
+    - engine-concurrency-and-pin-transfer
+    - routeReauditMinors
     - phase-close
     - polish
     - absorb
@@ -34,6 +48,22 @@ metadata:
     - Status blurb
     - note disposition
     - mitigation not learned
+    - worker returned no result
+    - entire phase absorb backlog orphaned
+    - no dedicated polish task in build order
+    - final post-merge gate-audit finding unfixed
+    - ADR 0025 Status line
+    - phase-3-integrated-tip
+    - assert-budget-raise-cited.sh
+    - merge-path floor enumeration
+    - engine-reliability-and-filing-fidelity
+    - ruledAskRowText
+    - foreign string row fixture gap
+    - schemas.md afk annotation
+    - cross-file mirror partial fix
+    - in-run-finding-resolution
+    - run.afk producer
+    - queued from earlier task gate-audit
   tags: 
     - war
     - phase-close
@@ -41,7 +71,7 @@ metadata:
     - audit-findings
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-17T17:06:54.300Z
+  modified: 2026-09-04T04:25:33.965Z
 ---
 
 # A terminal phase-close polish task's own absorb finding can ship unfixed
@@ -215,3 +245,278 @@ phase 3 of `2026-08-06-handoff-schemas-contract`); the three findings' own file 
 (`README.md:363`, `364`, `367`) are confirmed at the landed tip above. Related:
 [[readme-status-blurb-homes-list-is-editorial-not-exhaustive]] (the substantive defect class these
 three `note` findings share).
+
+## Recurrence — sharper failure mode: the terminal polish task never even convenes (`worker returned no result`), orphaning EVERY queued absorb finding from the whole phase, `2026-08-06-references-pointer-integrity`/p1 (landed tip `d712424133e66952e780acba6dbd45c737a6afd5` on `dev/2026-08-06-references-pointer-integrity`, 2026-08-18)
+
+Reported directly by the phase's own audit log (Lead-orchestration data, not independently
+Read/Grep-confirmed by me this round — my checkout was on `master` at an unrelated SHA with no live
+worktree matching this plan's slug under `.git/worktrees/*`, so I fell to the landed-tip-grounding
+gate-audit fallback rung; kept `agent-unverified` since this is a run-outcome fact with no file/code
+referent to verify): the phase's `p1-polish` `auditLog` entry reads
+`{"task":"p1-polish","verdict":"polish-discarded","branch":"war/2026-08-06-references-pointer-integrity/p1-polish","findings":[],"blocked":"worker returned no result"}`.
+
+This is the `sweepWhy` set / "no panel convened at all" arm from
+[[polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead]]
+— but the trigger this time is not a routine "no findings queued" skip, it is the **polish worker's
+own dispatch failing to return a result at all**. Tasks 1.1, 1.2, and 1.5's audits (plus that same
+gate-audit pass) queued well over a dozen `disposition: absorb, phaseClose: true` findings against
+this exact phase (a mis-attributing failure message, a false "verbatim" claim, an un-truthed
+`refiner-recovery.md` header, a stale ADR consequences enumeration, etc.). Because the polish task
+never convened, **none of them had any chance to land** — this sharpens the parent lesson's pattern
+beyond "the terminal round's own gate-audit raises a fresh finding with nowhere to go": here the
+terminal round doesn't run at all, so the *entire backlog* of absorb findings queued across the
+whole phase ships unfixed, not just the polish diff's own follow-on findings.
+
+**Pattern to watch for, extended:** when checking a phase-close polish task's outcome, a
+`verdict: polish-discarded` entry with `blocked: "worker returned no result"` (rather than a benign
+`sweepWhy` like "no findings queued") means the phase's entire `absorb`/`phaseClose: true` backlog is
+orphaned, not just findings raised against the polish diff itself. A servitor/Lead auditing a phase
+close should treat this `blocked` value as materially worse than the other `sweepWhy` shapes and flag
+every `absorb, phaseClose: true` finding from every task in the phase as unlanded, not just the polish
+round's own.
+
+**Locate-cue:** none — process/disposition evidence from the audit log itself (task `p1-polish`,
+phase 1 of `2026-08-06-references-pointer-integrity`).
+
+## Recurrence — no distinct polish task at all; the FINAL post-merge gate-audit's own `phaseClose: true` finding ships unfixed, `realized-absorb-rate`/phase-3 (landed `dev/2026-08-19-realized-absorb-rate` @ `4d93459972a4c4c67b5977064b583cbd41265d31`, 2026-08-20)
+
+**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery22`
+worktree's `gitdir` physical path is
+`/Users/ljf/GitHub/WorkAuditRefine/.claude/worktrees/realized-absorb-rate-2026-08-19-r2/_refinery/.git`
+(contains the plan slug) and its `HEAD` reads `4d93459972a4c4c67b5977064b583cbd41265d31`,
+exactly the threaded landed tip — a direct Read there is `code-verified`-capable.
+
+This phase's audit log carries no separate `*-polish` task at all: the last entry is
+`task: "phase-3-integrated-tip"`, `verdict: "gate-audit:approve"`, `authoritative: true` — the
+post-merge gate-audit over the whole integrated phase tip. That entry raised a fresh
+`severity: Minor`, `disposition: absorb, phaseClose: true` finding on `docs/adr/0025-drift-guard-discipline.md`
+line 3: the Status currency parenthetical still names only the `amended 2026-08-02` amendment even
+though the same diff appended a *second* `## Amendment (2026-08-19)` section, so a reader consulting
+only Status under-counts the ADR's amendment history. The finding's own rationale explicitly judged
+the fix mechanical and guardrail-consistent (ADR 0013's amendment, landed in the SAME phase, sets the
+in-repo precedent that the Status currency line is extended per amendment, not frozen — see
+[[adr-amendment-byte-unchanged-body-mandate-exempts-status-currency-line]]).
+
+**It never was fixed.** Read directly at the landed tip (`docs/adr/0025-drift-guard-discipline.md`,
+lines 3-5): the Status parenthetical still reads verbatim `amended 2026-08-02 — a file-disjoint
+guard/mirror split takes a `deps` edge, not shared-wave placement; see the amendment below)` — no
+mention of `2026-08-19` or the touched-doc amendment appended later in the same file. This phase had
+**no dedicated phase-close polish task** in its build order at all (only 3.1/3.2/3.3 plus the
+post-merge gate-audit) — sharpening the pattern once more: it is not only "the terminal polish
+task's own audit has nowhere to go" and not only "the terminal task never convenes" — here there is
+no terminal polish task in the plan's shape to begin with, so a `phaseClose: true` finding raised by
+the phase's own final gate-audit has no dispatch slot whatsoever, by construction, not by a run-time
+failure. The fail-open coherence sweep this repo's pipeline names (CLAUDE.md: "phase-close coherence
+sweep (fail-open polish of `absorb` findings)") evidently did not create one either.
+
+**Pattern to watch for, extended again:** absence of a `*-polish` task in a phase's task list is
+itself a signal to check every `phaseClose: true` finding from that phase's final gate-audit by hand
+— there may be no queue-drain mechanism convened at all, not even a discarded/rejected one.
+
+**Locate-cue (verify still present before acting):** `docs/adr/0025-drift-guard-discipline.md`, line
+3, the `**Status:**` parenthetical.
+
+## Recurrence — near-identical shape to the original example, CLAUDE.md's floor-family mirror again, `2026-08-25-engine-reliability-and-filing-fidelity`/p2-polish (landed `dev/2026-08-25-engine-reliability-and-filing-fidelity` @ `8b1e0ea6d9db99a8042ebaf34766f8c5c7780617`, 2026-08-26)
+
+**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery28`
+worktree's `gitdir` physical path is
+`<repo-root>/.claude/war-worktrees/2026-08-25-engine-reliability-and-filing-fidelity-2026-08-26/_refinery/.git`
+(contains the plan slug) and its `HEAD` reads `8b1e0ea6d9db99a8042ebaf34766f8c5c7780617`, exactly
+the threaded landed tip — a direct Read there is `code-verified`-capable.
+
+The `p2-polish` task's own gate-audit surfaced a fresh `severity: Minor`, `disposition: absorb,
+phaseClose: true` finding on `CLAUDE.md`: Phase 2 landed a fifth merge-path floor
+(`skills/war/assets/assert-budget-raise-cited.sh`, the Budget-Raise citation floor) wired
+unconditionally into all four dispatched merge flavors plus `agents/war-refiner.md` step 7, but
+`CLAUDE.md`'s `## Guard architecture (hooks/)` paragraph still enumerated only the prior four
+merge-path floors (`assert-test-in-diff.sh`, `assert-packaging-in-diff.sh`,
+`assert-no-submodule-mutation.sh`, `assert-done-when.sh`). This is structurally the *same*
+defect shape as the original canonical example at the top of this lesson (a new floor's
+`CLAUDE.md` mirror omission) — just a different floor name, one plan-run later, in the same
+paragraph.
+
+**It never was fixed.** Read directly at the landed tip
+(`skills/war/assets/workflow-template.js` §46, this file), `CLAUDE.md` line 62 still reads
+"Merge-path floors (`assert-test-in-diff.sh`, `assert-packaging-in-diff.sh`,
+`assert-no-submodule-mutation.sh`, `assert-done-when.sh`) run refiner-side pre-merge" — no
+`assert-budget-raise-cited.sh`. Grepping the whole file for `assert-budget-raise-cited` or
+`Budget-Raise` returns zero matches. `p2-polish` was this phase's terminal phase-close round
+(the phase's audit log has no subsequent polish/gate-audit entry after it beyond the unrelated
+`phase-2-integrated-tip` post-merge pass, whose own findings do not mention this gap), so —
+exactly as the pattern predicts — the `absorb, phaseClose: true` disposition had nowhere left to
+land.
+
+**Sharpens the confidence, does not sharpen the mechanism:** this is the same "polish task's own
+audit raises a fresh absorb+phaseClose finding with no further round to drain it" shape as the
+lesson's very first example (also a `CLAUDE.md` floor-list omission). Contrast with the
+`schemas.md` `floor_route` field mirror gap raised in the SAME phase's task-2.2 audit (not a
+polish-own-diff finding, so it had a normal downstream round available) — that one WAS fixed by
+land (confirmed present in `skills/war/references/schemas.md` at this same landed tip). The
+differentiator is not "is it a doc mirror gap" but specifically "was it raised by the terminal
+polish round's own audit, with no further round to consume the disposition."
+
+**Locate-cue (verify still present before acting):** `CLAUDE.md`, `## Guard architecture
+(hooks/)` paragraph, the "Merge-path floors (...)" sentence.
+
+## Recurrence — two independent instances in one phase, one a cross-file-mirror partial-fix, the other
+## a test-coverage gap on a just-landed defensive code arm, `2026-08-27-in-run-finding-resolution`/p2-polish
+## (landed `dev/2026-08-27-in-run-finding-resolution` @ `121da3bdae390583c3c50f04d408605398b54460`, 2026-08-27)
+
+**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery34`
+worktree's `gitdir` physical path is
+`<repo-root>/.claude/war-worktrees/2026-08-27-in-run-finding-resolution-2026-08-27-r3/_refinery/.git`
+(contains the plan slug) and its `HEAD` reads `121da3bdae390583c3c50f04d408605398b54460`, exactly the
+threaded landed tip — a direct Read there is `code-verified`-capable.
+
+**Instance 1 — cross-file-mirror partial fix.** Task 2.0's audit queued (`absorb, phaseClose: true`)
+a finding that `skills/war/SKILL.md`'s Quick start had no `--afk` producer sentence for the newly
+engine-read `run.afk` field. `p2-polish` correctly fixed it — confirmed at the landed tip,
+`skills/war/SKILL.md` line 17 reads "`--afk` sets `run.afk = true` for this run ... the engine reads
+it as the operator-presence gate on the absorb-by-citation unpark (#1879 RULING 1)" verbatim. But the
+**same commit** that added that sentence also touched `skills/war/references/schemas.md` (the sibling
+canonical field-reference the SKILL.md fix duplicates) without updating that file's own `run.afk`
+annotation: line 248 still reads verbatim "`afk = default for /war --afk;`" with no consumer clause —
+confirmed unchanged at the landed tip. `p2-polish`'s own gate-audit raised this exact gap as a fresh
+`absorb, phaseClose: true` finding on the polish diff itself (the canonical shape this lesson's
+original example names), and since `p2-polish` is this phase's terminal round, it shipped unfixed.
+
+**Instance 2 — test-coverage gap on a just-landed defensive code arm.** Task 2.0's own **gate-audit**
+(post-merge, before `p2-polish` ran) queued (`absorb, phaseClose: true`) a finding that
+`ruledAskRowText`'s new `typeof row === 'string'` arm (`skills/war/assets/workflow-template.js`,
+landed at `ffb8e53`) shipped with no same-diff fixture proving a **foreign** string ruled-ask row is
+refused by the provenance floor — the one existing string-row fixture (`workflow-template.test.mjs`,
+the S3 `notObject = 'a bare string (plan wtprov-a)'` vector) carries the run's OWN token, so it
+exercises the intake-drop path, never the floor's string-scanning path. **Confirmed still true at the
+landed tip**: the code arm is present (`workflow-template.js`, `ruledAskRowText`, the `if (typeof row
+=== 'string') return { text: row, exempt: false }` line) but no fixture in
+`workflow-template.test.mjs` threads a foreign-plan string row through it — grepped for `bare string`,
+`notObject`, and the `provenance floor (ruledAsks` test family; only the own-token S3 vector and the
+object-shaped foreign-record fixtures exist. This finding was queued from an EARLIER task's
+gate-audit (not the polish task's own diff), matching the
+[[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] Recurrence-2/18-style "queued
+from an earlier stage, not the polish diff itself" sub-shape already named in this lesson's
+`assert-no-repo-escape.sh` recurrence above — and it too shipped unfixed, because `p2-polish` was the
+only round left to drain it.
+
+**Sharpens the pattern once more:** both instances land in the SAME phase-close round, and neither is
+the "polish task's own audit found a NEW defect on the polish diff" shape from the canonical example —
+Instance 1 is a same-commit sibling-file mirror the fix touched-but-missed; Instance 2 is a
+pre-queued finding from an earlier task's gate-audit that the terminal round simply never got to. A
+servitor/Lead closing out a terminal polish round should check BOTH: (a) did every `phaseClose: true`
+finding queued from PRIOR tasks actually get addressed by the polish diff, and (b) did the polish
+diff's OWN fix correctly cover every doc/code mirror the original finding implied, not just the one
+file named in the `suggested_fix`.
+
+**Locate-cue (verify still present before acting):**
+`skills/war/references/schemas.md` line 248 (the `run:` block's `afk` annotation, still Lead-side-only);
+`skills/war/assets/workflow-template.test.mjs`, the `provenance floor (ruledAsks` and `ruled-ask intake
+(S3` test titles (no foreign-string-row fixture among them).
+
+## Recurrence — glossary enumeration goes stale, `2026-08-30-engine-concurrency-and-pin-transfer`/phase-2
+## task 2.1 (landed `dev/2026-08-30-engine-concurrency-and-pin-transfer` @
+## `ad440fc0b65dfbfdf797b8f8b83f44b0d4531b50`, 2026-08-30)
+
+**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery38`
+worktree's `gitdir` physical path is
+`<repo-root>/.claude/war-worktrees/engine-concurrency-and-pin-transfer-2026-08-30-r3/_refinery/.git`
+(contains the plan slug's components) and its `HEAD` reads
+`ad440fc0b65dfbfdf797b8f8b83f44b0d4531b50`, exactly the threaded landed tip.
+
+Task 2.1's own audit queued an `absorb, phaseClose: true` Minor finding: the same diff that added
+a 4th re-audit source (the merge-slot pin-transfer MISMATCH re-audit, routed via
+`routeReauditMinors`'s `noReentry` opt straight to the sweep, unconditional on budget headroom)
+left `CONTEXT.md`'s **Re-entry** glossary entry unchanged — it still enumerates re-audit sources
+as "(plain, bisection-subset, or a re-entry batch's own)" and still calls the floor-retry reserve
+"the SOLE bound," both now inaccurate for this 4th source.
+
+**It never was fixed.** `CONTEXT.md`'s **Re-entry** entry at the landed tip still reads, verbatim,
+"a fresh `absorb`-dispositioned finding born at ANY re-audit (plain, bisection-subset, or a
+re-entry batch's own)" and "The **floor-retry reserve** (`fixRounds < roundLimit − 2` ...) is the
+SOLE bound" — no mention of the merge-slot pin-transfer mismatch source. Independently confirmed
+the mechanism itself IS live: `skills/war/assets/workflow-template.js` calls
+`routeReauditMinors(r, rbSeats, { noReentry: 'merge-slot pin-transfer mismatch re-audit — the wave
+side is over, so re-entry can never dispatch; the sweep is the vehicle' })` at its merge-slot
+mismatch arm, and the `noReentry` opt is read and honored in `routeReauditMinors` itself — the
+code and the doc genuinely disagree. `p2-polish` (this phase's terminal round, tasked with
+draining exactly this queue) was rejected on unrelated grounds (a stale budget-raise citation
+comment — see
+[[prompt-surface-budget-derivation-comment-regex-checks-shape-not-arithmetic-truth]]) and its
+retry was `polish-discarded` — no round ever consumed the disposition.
+
+**Compounds with a second `absorb, phaseClose: true` finding in the same task-2.1 audit** (also
+never fixed, same terminal-polish-discarded mechanism): `skills/war/references/design.md` §18
+("Disposition routing (ADR 0013)") makes the identical unscoped "that reserve is its sole bound"
+claim, now also stale — confirmed unchanged at the landed tip.
+
+**Sharpens the pattern once more:** this is the FIRST recorded instance of the `p2-polish` fix
+diff itself being rejected on an UNRELATED finding (see
+[[prompt-surface-budget-derivation-comment-regex-checks-shape-not-arithmetic-truth]]), so a batch
+of otherwise-correct absorb fixes never got a chance to land at all — not because the polish task didn't run (as in the "worker returned no result"
+recurrence above) and not because its own diff raised a fresh finding (the canonical shape), but
+because the polish diff bundled multiple fixes and ONE unrelated defect in that same diff sank
+the whole batch through `polish-rejected` → `polish-discarded`.
+
+**Locate-cue (verify still present before acting):** `CONTEXT.md`, the **Re-entry** glossary
+entry (search `**Re-entry**:`), the sentence beginning "The budget-bounded
+return of the ace ladder for a fresh `absorb`-dispositioned finding born at ANY re-audit"; sibling
+gap at `skills/war/references/design.md` §18, the sentence "that reserve is its sole bound."
+
+## Recurrence — the polish's OWN replacement wording reproduces the identical misattribution class; ships
+## with the ORIGINAL wrong wording after `polish-rejected` then `polish-discarded`,
+## `2026-09-03-in-band-absorb-default`/phase-1 p1-polish (landed
+## `dev/2026-09-03-2026-09-03-in-band-absorb-default` @ `a06d7260684761001549f958fc71acde414b2a0b`, 2026-09-03)
+
+**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery45`
+worktree's `gitdir` physical path is
+`<repo-root>/.claude/war-worktrees/2026-09-03-in-band-absorb-default-2026-09-03/_refinery/.git`
+(contains this plan's slug) and its `HEAD` reads `a06d7260684761001549f958fc71acde414b2a0b`,
+exactly the threaded landed tip — a direct Read there is `code-verified`-capable.
+
+Task 1.2's own audit queued a Nit, `disposition: absorb, autoFixable: true`:
+`skills/war-campaign/assets/campaign-ledger.mjs` line 107's header comment "Fallback ceilings
+(both fail-loud-backstopped, never a silent wrong ingest):" lags its own three-bullet list — a
+third bullet (code-fence blindness) had been added in the same diff, so "both" undercounts, and
+that third bullet is never backstopped at all (it "never throws").
+
+`p1-polish` attempted a fix. Its OWN gate-audit then returned SIX findings against the SAME
+line — one Major, four Minor, one Nit — every one pointing at the SAME root cause: the polish's
+REPLACEMENT wording ("the first two fail-loud-backstopped … the third bounded") is ITSELF wrong.
+Bullet 1 (`isPathShaped` over-acceptance) ends "never a throw" at the pinned blob, so it is NOT
+backstopped; only bullet 2 (the parenthetical keep-rule asymmetry) reaches `assertOrderable`'s
+fail-loud throw. The polish's fix swapped one wrong count word ("both") for a wrong POSITIONAL
+attribution ("the first two") — the identical misattribution defect class in new wording, not a
+fix. Verdict: `polish-rejected`. A second `p1-polish` audit-log entry then recorded
+`verdict: polish-discarded`, `findings: []`, `branch: war/2026-09-03-in-band-absorb-default/p1-polish`
+— no further redo commit ever landed.
+
+**It never was fixed — confirmed at the landed tip.**
+`skills/war-campaign/assets/campaign-ledger.mjs` line 107 still reads verbatim `// Fallback
+ceilings (both fail-loud-backstopped, never a silent wrong ingest):` — the ORIGINAL flawed
+wording from before task 1.2's own finding, not even the polish's (also flawed) replacement.
+Because the polish branch was discarded wholesale, neither the original defect nor the polish's
+new defect shipped; the pre-finding text survives untouched.
+
+**Sharpens the pattern with a new sub-shape:** every prior recurrence in this lesson has the
+polish's fix landing CORRECTLY, with a NEW, unrelated defect then surfacing on the polish diff.
+Here the polish's fix was REJECTED before merge because it reproduced the SAME defect class (an
+ordinal/positional summary clause over sibling bullets, fragile to bullet count AND to bullet
+order) in new wording — five independent auditor seats converged on the same root cause the
+original finding named ("attribution," not merely "count"). Also new: six polish-audit findings
+in ONE round independently caught the SAME issue, showing the underlying defect class (a
+"counts/summarizes its own sibling bullets" comment header) is inherently attribution-fragile,
+not merely count-fragile — swapping a stale count word for a stale ordinal claim is not a fix.
+
+**Pattern to watch for, extended once more:** a phase-close absorb fix for a "summary/count
+header over enumerated sibling bullets" defect is at high risk of reproducing the SAME
+misattribution in new words, because the fix author tends to patch the SURFACE symptom (the count
+word) without re-deriving the attribution from each bullet's own text. Before accepting such a
+fix, re-read every enumerated bullet the header summarizes and check the fix's claim against each
+one individually — do not merely check that the new count word now matches the bullet count.
+
+**Locate-cue (verify still present before acting):**
+`skills/war-campaign/assets/campaign-ledger.mjs`, the `extractFiles` header comment block, the
+line beginning `// Fallback ceilings (both fail-loud-backstopped`. Related:
+[[collectblocks-files-anchor-scan-is-fence-blind-while-sibling-parser-in-same-file-is-fence-aware]]
+— a different finding on the same `extractFiles` header block, from the same task 1.2 diff.
+
+> archived 2026-08-17: resolved — moved to archive
