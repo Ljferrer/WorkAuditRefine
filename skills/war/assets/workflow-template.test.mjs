@@ -3446,7 +3446,7 @@ test('bisection — all findings named culprits: nothing to salvage, the whole b
   assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the merge reverts the final failed batch tip')
 })
 
-test('bisection — ambiguous attribution blind-halves: serial subsets at the tip, round-encoded distinct ace labels, Ace-Subset trailer + bisection-range preflight + worktree-local dirt clause on every subset dispatch (End state 2)', async () => {
+test('bisection — ambiguous attribution blind-halves: serial subsets at the tip, absorb-encoded distinct ace labels, Ace-Subset trailer + bisection-range preflight + worktree-local dirt clause on every subset dispatch (End state 2)', async () => {
   const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
@@ -3461,7 +3461,7 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   assert.equal(aces.length, 3, 'batch + two blind halves, applied serially')
   const labels = aces.map(c => c.opts.label)
   assert.deepEqual(labels, ['ace:t1:a1', 'ace:t1:a2', 'ace:t1:a3'],
-    'ace labels stay distinct and round-encoded (the ace:<task>:r<n> scheme extends to subsets)')
+    'ace labels stay distinct and absorb-encoded (the ace:<task>:a<n> scheme extends to subsets)')
   for (const c of aces.slice(1)) {
     assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
     assert.match(c.prompt, /ace00001\^\.\.HEAD/, 'the preflight scans the bisection range since the pre-batch base')
@@ -4373,11 +4373,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly five dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: five dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: six dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4390,8 +4390,11 @@ test('#1550 (D7) — ask order-census: five dispositionOf sites with ask precedi
   // approved/regressed + the two bisection-subset arms) consolidated into the ONE shared
   // routeReauditMinors helper (its dispositionOf site carries the ask arm first, then the re-entry
   // queue as its absorb chain) — an ask raised at any re-audit still parks, never drops.
-  assert.equal(sites.length, 5,
-    `the floored order-census domain is exactly FIVE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  // 5 → 6 (in-band-absorb-default Phase 2 polish): the aceStage held-row fold routes each
+  // relaunch-seeded r.task.pendingAbsorbs row through dispositionOf (ask parks first, then
+  // follow-up files, note notes) before its absorb chain — a seeded ask is never aced.
+  assert.equal(sites.length, 6,
+    `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
   for (const i of sites) {
     const slice = src.slice(i, i + 700)
@@ -13262,7 +13265,7 @@ test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbChar
     if (name === 'malformed entry') assert.ok(!seedLog.includes('map lacks the task'), `${name}: the 0-seed line never claims the map lacks the task`)
     const ace = calls.find(isAce)
     assert.equal(ace && ace.opts.label, 'ace:t1:a1', `${name}: the ladder starts at slot 1`)
-    assert.ok(!(calls.some(c => (c.opts.label || '') === 'work:t1') === false), `${name}: the worker still dispatched — never a hold`)
+    assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), `${name}: the worker still dispatched — never a hold`)
   }
 })
 
@@ -13287,6 +13290,12 @@ test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt
     assert.match(c.prompt, /as its OWN final paragraph, separated from the body by a blank line/, 'the trailer is mandated as a distinct final block (git parses trailers only there)')
   }
   assert.match(aces[1].prompt, /`Ace-Subset: t1:reentry:a2:skills\/second\.js` and `Ace-Charge: t1:2`/, 'the re-entry commit carries BOTH trailers')
+  // Bisection-subset site (the third emitter): bisectSubsetImpl reaches the ace:t1:a2 subset dispatch.
+  const sub = (await runPhase(ACE_ARGS(), bisectSubsetImpl())).calls.find(c => (c.opts.label || '') === 'ace:t1:a2')
+  assert.ok(sub, 'presence guard: the bisection subset dispatched')
+  const sm = sub.prompt.match(grammar)
+  assert.ok(sm && sm[1] === 't1' && Number(sm[2]) === 2, 'the subset commit prompt carries the Ace-Charge trailer in the pinned grammar (index 2: the subset charges the slot after the batch)')
+  assert.match(sub.prompt, /`Ace-Subset: t1:[^`]+` and `Ace-Charge: t1:2` as its OWN final paragraph, separated from the body by a blank line/, 'the subset mandates BOTH trailers as a distinct final block')
   // Reverts excluded: the merge dispatch's FORWARD-REVERT clause (a red-gate ace tip) names no charge.
   const red = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': { gate_green: false, gate_output: 'FAIL' } })
   const merge = red.calls.find(isMergeTask)
@@ -13381,6 +13390,59 @@ test('absorb-budget (End state 4, held then merged): a task that merges with row
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held-merged nit'), 'never a follow-up')
 })
 
+test('absorb-budget (End state 4, held on a task that never ran): a relaunch-seeded pendingAbsorbs row on a dep-blocked task (never a wave result) demotes with demote:absorb-blocked and a log naming the task — never dropped silently', async () => {
+  const held = { severity: 'Nit', title: 'orphan nit', file: 'skills/orphan.js', rationale: 'held at a prior launch', autoFixable: true, task: 't2', seat: 'audit:t2:correctness' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    // t1's worker blocks ⇒ t1 escalates ⇒ t2 (deps: t1) is dep-blocked by the pre-check, never dispatched.
+    if (seat === 'war-worker' && (opts.label || '').includes(':t1')) return { task_id: 't1', status: 'blocked', blocked_reason: 'forced' }
+    return aceBase([])(prompt, opts)
+  }
+  const args = ACE_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'], pendingAbsorbs: [held] },
+  ] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  assert.ok((out.escalated || []).some(e => e && e.task === 't2' && e.reason === 'dep-failed'), 'presence guard: t2 is dep-blocked')
+  assert.ok(!calls.some(c => (c.opts.label || '').includes(':t2')), 't2 never dispatched anything')
+  const filed = (out.minorsFiled || []).find(m => m && m.title === 'orphan nit')
+  assert.ok(filed, 'the held row demotes to follow-up (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t2 never ran this phase') && l.includes('1 held absorb(s) demote with demote:absorb-blocked')), 'the drain is logged naming the task and the count')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('orphan nit') && l.includes('demote:absorb-blocked')), 'the demotion carries the demote:absorb-blocked prefix')
+})
+
+test('absorb-budget (End state 4, held-row gates): a seeded ask-disposition row parks, a seeded Major row and a severity-less row are dropped with a log — none reaches the ace prompt, which still dispatches for the fresh row', async () => {
+  const askRow = { severity: 'Minor', title: 'held ask', file: 'skills/ask.js', rationale: 'a fork', disposition: 'ask', ask: { question: 'which way?', fork: ['a', 'b'] }, task: 't1', seat: 'audit:t1:correctness' }
+  const majorRow = { severity: 'Major', title: 'held major', file: 'skills/major.js', rationale: 'blocking', autoFixable: true, task: 't1', seat: 'audit:t1:correctness' }
+  const bareRow = { title: 'held bare', file: 'skills/bare.js', rationale: 'no severity', autoFixable: true, task: 't1', seat: 'audit:t1:correctness' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'fresh nit', file: 'skills/fresh.js' })]), approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [askRow, majorRow, bareRow] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('fresh nit'), 'the ace batch still dispatched for the fresh row')
+  for (const t of ['held ask', 'held major', 'held bare']) assert.ok(!ace.prompt.includes(t), `"${t}" never reaches the ace prompt`)
+  assert.ok((out.asks || []).some(a => a && a.question === 'which way?'), 'the ask-disposition held row is parked on asks[]')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "held ask"') && l.includes('disposition ask')), 'the ask park is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held major"') && l.includes('carries severity Major')), 'the Major drop is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held bare"') && l.includes('carries severity (none)')), 'the severity-less drop is logged')
+  assert.ok(!logs.some(l => typeof l === 'string' && /ace stage (error|threw)|aceStage/i.test(l) && l.includes('undefined')), 'no ace-stage throw from a bare severity')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'fresh nit'), 'the fresh row is aced')
+})
+
+test('absorb-budget (End state 4, held collides with a queued fresh row): a seeded phaseClose:true held row whose content key matches a fresh row already queued for the sweep is dropped with a log — exactly one sweep entry, one aced record', async () => {
+  const fresh = queuedAbsorb()   // phaseClose:true ⇒ the fresh loop queues it for the sweep (stamps queuedKeys)
+  const held = { ...fresh, task: 't1', seat: 'audit:t1:correctness' }
+  const args = SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held] }] })
+  const { out, calls, logs } = await runPhase(args, sweepBase([fresh]))
+  const polish = calls.find(c => /^polish:phase-/.test(c.opts.label || ''))
+  assert.ok(polish, 'presence guard: the sweep dispatched')
+  assert.equal((polish.prompt.match(/dangling link/g) || []).length, 1, 'the sweep prompt lists the finding exactly once')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "dangling link" (task t1) is a duplicate of a row already queued for the phase-close sweep')), 'the collision is logged')
+  assert.equal((out.aced || []).filter(a => a && a.finding && a.finding.title === 'dangling link').length, 1, 'exactly one aced record')
+})
+
 test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-refiner.md AND the dispatched barrier prompt, with the one-git-read allowance; delete-the-feature per surface', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const barrier = calls.find(isProvision)
@@ -13388,8 +13450,11 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
   const ANCHORS = [/absorbCharges/, /Ace-Charge/, /trailers:key=Ace-Charge/, /highest/i, /never a count/i]
   for (const [name, text] of [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]) {
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
-    const mutated = text.replace(/trailers:key=Ace-Charge/g, 'REMOVED')
-    assert.ok(ANCHORS.some(re => !re.test(mutated)), `${name}: removing the trailer read breaks at least one anchor (delete-and-trace control)`)
+    // Delete-and-trace control: strip the WHOLE absorb-charge sentence (not an anchor literal, so the
+    // check is not true by construction) and at least one anchor must go red.
+    const mutated = text.replace(/Absorb-charge read \(D5[^]*?seeds 0 loudly\./, '').replace(/ABSORB-CHARGE READ[^]*?and continue\./, '')
+    assert.notEqual(mutated, text, `${name}: the absorb-charge sentence was located and stripped (presence guard)`)
+    assert.ok(ANCHORS.some(re => !re.test(mutated)), `${name}: removing the absorb-charge sentence breaks at least one anchor (delete-and-trace control)`)
   }
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
   assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')

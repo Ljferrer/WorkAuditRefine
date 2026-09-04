@@ -1098,7 +1098,7 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
 // dropped. Exactly-once membership by CONTENT identity (#1810 — the old object-identity check
 // false-missed minorsOf's per-round fresh copies, parking a persisting ask once per round): every
-// route into asks[] — the five dispositionOf-site ask arms, the three gate-audit-family
+// route into asks[] — the six dispositionOf-site ask arms, the three gate-audit-family
 // comment-named ask arms (#1692 — lanes with no absorb chain, so no dispositionOf call site in the
 // census), AND the demote() ask refusal — funnels through here, so one finding can never park
 // twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
@@ -1804,8 +1804,10 @@ if (tasks.length) {
   // per-task `git log` trailer read of `Ace-Charge: <task>:<n>` on the task branch. The HIGHEST
   // index (never a count) so a cherry-pick or duplicate trailer never double-charges; a reverted
   // ace commit's trailer still counts (the revert carries no charge trailer). Always-on; absent or
-  // malformed ⇒ the engine seeds 0 with a loud log naming the task.
-  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name — never "$TIP", which an agent shell does not carry across calls: an unset TIP reads as HEAD..<branch>, empty in the task worktree, and returns a plausible 0) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
+  // malformed ⇒ the engine seeds 0 with a loud log naming the task. The range interpolates
+  // ph.integrationBranch by NAME, never "$TIP": an agent shell does not carry a variable across
+  // calls, and an unset TIP reads as HEAD..<branch> — empty in the task worktree, a plausible 0.
+  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
   // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
@@ -2361,7 +2363,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (!batch.length) continue
       // Same trailer discipline as a bisection subset, with the absorbRounds index folded in (D5 —
       // re-anchored off fixRounds, which ace commits no longer move) so successive re-entry rounds
-      // over the same file set stay distinct across resume replays.
+      // inside ONE run emit distinct trailer values over the same file set. A relaunch's git-derived
+      // absorbRounds seed shifts the index, so the preflight's exact-equality match holds only
+      // within a launch; across launches the absorb budget is what bounds re-charging.
       const trailer = r.task.id + ':reentry:a' + (r.task.absorbRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
       const aceCharge = aceChargeOf(r)
       const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
@@ -2458,14 +2462,25 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // this fold; its only live producer is relaunch-seeded args.tasks[].pendingAbsorbs, and the
       // end-of-queue held-absorb drain owns every in-run held row.
       // Trust boundary: that seeded producer reaches no entry validation, so every held row passes
-      // the SAME routing chain as a fresh row above (fileless, run.ace, phaseClose, aceEligible)
-      // before it may join aceable — a seeded release-slot row never rides an ace batch (PIN-11)
-      // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
+      // the SAME gates as a fresh row above — the minorsOf severity filter (Minor/Nit only; any
+      // other severity, a missing one included, is dropped with a log — aceFindingRow renders
+      // f.severity bare), dispositionOf (ask parks, follow-up files, note notes), then the routing
+      // chain (fileless, run.ace, phaseClose, aceEligible) — before it may join aceable: a seeded
+      // release-slot row never rides an ace batch (PIN-11), a seeded row never dispatches an ace
+      // worker with run.ace off (PIN-16), and a seeded ask is never committed by an ace worker.
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
       for (const f of heldRows) {
-        queuedKeys.delete(remintKey(f))   // no longer held — the dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
+        if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries severity ' + (f.severity === undefined ? '(none)' : String(f.severity)) + ' — only Minor/Nit rows are absorbable; dropped from the fold (never aced).'); continue }
+        // A fresh row with the SAME content key may already sit in the sweep queue (the phaseClose /
+        // release-slot arm above stamped queuedKeys this call): the queued record stands — a second
+        // push would ace the finding twice (phaseCloseQueue has no later dedup).
+        if (queuedKeys.has(remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already queued for the phase-close sweep — the held copy is dropped.'); continue }
         // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
+        const hd = dispositionOf(f)
+        if (hd === 'ask') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries disposition ask — parked for the Checkpoint ruling gate, never aced.'); parkAsk(f); continue }
+        if (hd === 'follow-up') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries disposition follow-up — filed, never aced.'); fileFollowUp(f); continue }
+        if (hd === 'note') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries disposition note — recorded, never aced.'); notes.push(f); continue }
         if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless held absorb takes the severity default (never ace-eligible)')
         else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
         else if (!f.phaseClose && aceEligible(f)) {
@@ -2495,8 +2510,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
           + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
           + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
-          // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is construction-guaranteed (aceable =
-          // minorsOf/absorb → Minor/Nit only, bare); the shared aceFindingRow builder is absence-tolerant
+          // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is Minor/Nit by construction from
+          // BOTH producers (fresh rows via minorsOf; held rows via the fold's severity gate above — bare); the shared aceFindingRow builder is absence-tolerant
           // (and renders a citation-resolved row's row-id + match rationale, D6).
           + aceable.map(aceFindingRow).join('\n') + '\n'
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
@@ -3245,6 +3260,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       log('absorb-budget: task ' + r.task.id + ' never merged (verdict ' + r.verdict + ') — ' + held.length + ' held absorb(s) demote with demote:absorb-blocked.')
       for (const f of held) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never merged (verdict ' + r.verdict + '; open blocking findings held the ace batch and no later approve came)')
     }
+  }
+  // A task that never produced a wave result (pre-merged by the barrier, env-blocked by the
+  // staleRemote arm, or dep-blocked by the pre-check) enters `done` before nextWave(), so the loop
+  // above never sees its relaunch-seeded pendingAbsorbs — sweep the task list so those rows demote
+  // with a log too. Never dropped silently.
+  for (const t of tasks) {
+    const held = Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []
+    if (!held.length) continue
+    log('absorb-budget: task ' + t.id + ' never ran this phase (pre-merged, env-blocked, or dep-blocked) — ' + held.length + ' held absorb(s) demote with demote:absorb-blocked.')
+    for (const f of held) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never ran this phase (pre-merged, env-blocked, or dep-blocked)')
   }
 }
 

@@ -336,6 +336,10 @@ const QUALIFIED_HEADERS = [
   // eviction time" in this same touch — pin-after-fix, never a guard authored from issue text.
   'setup.md',
   'docker-gate.md',
+  // in-band-absorb-default Phase 2 Task 2.1 (ADR 0042): the agents/war-refiner.md
+  // `## Gate-failure classification` eviction destination (joined on creation per the
+  // UNION-extension precedent above).
+  'gate-failure-classification.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

@@ -1,6 +1,6 @@
 # Gate-failure classification — evicted from `agents/war-refiner.md` (ADR 0042)
 
-Read this file when the gate is red on a merge-task or land-phase dispatch (the card's trigger pointer names it). The section below moved here byte-identical from `agents/war-refiner.md`; it still speaks in the card's own voice, and its step numbers resolve against the card.
+Read this file when the gate is red on a merge-task or land-phase dispatch (the card's trigger pointer names it). The section below moved here byte-identical from `agents/war-refiner.md` at eviction time; it still speaks in the card's own voice, and its step numbers resolve against the card.
 
 ## Gate-failure classification
 
