@@ -112,6 +112,11 @@ function isPathShaped(token) {
 //    ONLY when its sole content is a BACKTICKED path token; a bare parenthesized
 //    path is stripped BEFORE the fallback sees it. A block reduced to empty that
 //    way yields [] and, if every block is empty, surfaces via the fail-loud throw.
+//  - Code-fence blindness: the union is anchor-shaped only. collectBlocks has no
+//    fence toggle (unlike resolveRoadmapPlans), so a `Files:` line inside a ```
+//    fence or in illustrative prose contributes to the footprint. Bounded — worst
+//    case is an over-wide footprint and an over-conservative contention order,
+//    never a throw.
 export function extractFiles(lines) {
   const arr = Array.isArray(lines) ? lines : String(lines).split(/\r?\n/)
   const files = []
