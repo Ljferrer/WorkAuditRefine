@@ -1398,13 +1398,14 @@ const revertedKeys = new Set()
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
 // finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
 // re-enters the ladder and never files a second record: the filed record is the durable home; the
-// re-mint is corroboration (logged). Stamped at the four sites a later re-audit can see: the
-// round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, demote()'s minorsFiled
-// push, and the phase-close sweep's sweep-raised follow-up arm (fileFollowUp — the terminal pass's
-// one re-audit seat is the later window there). The escalation-arm DIRECT push is NOT stamped — no
-// later re-audit runs for that task, so no re-mint window exists there (its demote()-routed
+// re-mint is corroboration (logged). Stamped at five sites: the round-1 approve-branch follow-up
+// arm, routeReauditMinors' follow-up arm, demote()'s minorsFiled push, and the phase-close sweep's
+// sweep-raised follow-up arm on BOTH the merged arm (the terminal pass's one re-audit seat is the
+// later window there) and the discard arm (no later window — the stamp is harmless surplus). Two
+// DIRECT minorsFiled pushes are NOT stamped: the escalation arm and routeTerminalMinors' follow-up
+// arm — no later re-audit runs after either, so no re-mint window exists (their demote()-routed
 // siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
-// routing and re-entry drain).
+// routing and re-entry drain) (#2066).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, and the
