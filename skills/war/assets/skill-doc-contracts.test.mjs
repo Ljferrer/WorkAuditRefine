@@ -3945,6 +3945,12 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
   assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the CONTEXT.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
   const pc = pick('Phase-close coherence sweep', /^\*\*Phase-close coherence sweep\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
   assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the CONTEXT.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
+  // The two sentences corrected at ace re-entry r3 (same revert-green rationale as the pair above):
+  // the **Absorb budget** terminal-pass charge clause and the **Drain cause** carry route.
+  const ab = pick('Absorb budget', /^\*\*Absorb budget\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(ab, /and the terminal pass, on the polish pseudo-task, telemetry only/, 'the CONTEXT.md **Absorb budget** entry must charge the terminal pass on the polish pseudo-task, telemetry only')
+  const dc = pick('Drain cause', /^\*\*Drain cause\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(dc, /carried on `carriedPhaseClose` on a non-final one/, 'the CONTEXT.md **Drain cause** entry must carry the discard-route non-final carry clause (`carriedPhaseClose`)')
   // The retired sentence: OLD-absent on the sweep-raised entry, NEW-present in its place.
   const sr = contextMd.match(/^\*\*sweep-raised finding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(sr, 'could not locate the `**sweep-raised finding**` glossary entry in CONTEXT.md — the extraction construct rotted')

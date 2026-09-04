@@ -752,8 +752,8 @@ affirmative issue (`follow-up` — must state why it is not absorbable), record 
 (`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
 A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
 (outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
-Nit becomes note; `ask` is never a default. A failed or ineligible route **demotes one step toward
-durability**, logged — per subset under the ace bisection ladder — never dropped silently, while
+Nit becomes note; `ask` is never a default. A failed or ineligible route **steps toward
+durability** — to the phase-close sweep, then the carried queue on a non-final phase, then `follow-up` — logged — per subset under the ace bisection ladder — never dropped silently, while
 `demote()` refuses an ask (log + re-route onto `asks[]`); zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
 
@@ -973,7 +973,8 @@ _Avoid_: follow-up issues as the default disposal; a handoff block on `held:work
 death has no trustworthy return to render).
 
 **Drain cause**:
-The stamped reason a queued absorb was fail-open-routed — demoted to follow-up on a final phase, carried on `carriedPhaseClose` on a non-final one — recorded per
+The stamped reason a queued absorb was fail-open-routed — demoted to follow-up when the polish
+provisioning dies, and on a discarded sweep demoted on a final phase or carried on `carriedPhaseClose` on a non-final one — recorded per
 finding when a phase-close polish dispatch dies, so the drain is attributable instead of a bare
 follow-up dump. Emitted by `workflow-template.js`'s phase-close polish-dispatch drain path; the
 field name is engine-owned.
