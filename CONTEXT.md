@@ -941,8 +941,8 @@ _Avoid_: a second pass; reading its charge as a gate; a release-slot file in its
 **Carried queue**:
 The absorb rows a phase could not land and did not demote — a held phase's whole queue, a discarded
 sweep's absorbs, a non-final terminal pass's rows — emitted top-level as `carriedPhaseClose` on the
-phase return (`[]` on `landed`) and threaded back by the Lead as `args.seededPhaseClose`, where they
-drain into the relaunch's sweep queue.
+phase return (always present, `[]` when nothing was carried, so absence is never ambiguous) and
+threaded back by the Lead as `args.seededPhaseClose`, where they drain into the relaunch's sweep queue.
 _Avoid_: reading absence as empty; demoting a held phase's queue; a carry inside the handoff block.
 
 **truncated gate log**:

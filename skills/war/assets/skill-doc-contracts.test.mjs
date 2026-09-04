@@ -3931,7 +3931,7 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
   const cq = pick('Carried queue', /^\*\*Carried queue\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   for (const [re, what] of [
     [/`carriedPhaseClose`/, 'the phase-return key (D3b)'],
-    [/`\[\]` on `landed`/, 'the always-present empty-on-landed clause'],
+    [/always present, `\[\]` when nothing was carried, so absence is never ambiguous/, 'the always-present empty-when-nothing-carried clause (a landed phase can carry)'],
     [/`args\.seededPhaseClose`/, 'the relaunch args key (PIN-5)'],
     [/held phase'?s whole queue/, 'the held-phase carry'],
     [/discarded sweep'?s absorbs/, 'the discard-arm carry'],
