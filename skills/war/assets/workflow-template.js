@@ -2606,7 +2606,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (!batch.length) continue
       // Same trailer discipline as a bisection subset, with the absorbRounds index folded in (D5 —
       // re-anchored off fixRounds, which ace commits no longer move) so successive re-entry rounds
-      // over the same file set stay distinct across resume replays.
+      // over the same file set mint distinct trailers. No replay-stability claim: absorbRounds seeds
+      // from the barrier's Ace-Charge read, so a relaunch mints a HIGHER index for the same file set
+      // and the preflight's exact-equality scan matches only a same-index commit; the budget seed
+      // bounds the re-charge (#2035).
       const trailer = r.task.id + ':reentry:a' + (r.task.absorbRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
       const aceCharge = aceChargeOf(r)
       const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
