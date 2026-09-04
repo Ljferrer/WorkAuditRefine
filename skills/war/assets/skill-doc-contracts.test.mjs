@@ -3377,7 +3377,9 @@ const ECONOMY_ACE_FLIP_SURFACES = [
 ]
 // One physical line → OLD hit iff all three tokens co-occur on it (case-folded, token-bounded so
 // `offer`/`falsehood` prose never false-reds and `preface`/`ace_diff_files` never counts as `ace`;
-// a hyphenated `false-` compound does count, because the hyphen is a word boundary).
+// a hyphenated `false-` compound does count, because the hyphen is a word boundary — and so does
+// the `off` side: `trade-off` and `one-off` match `\boff\b` the same way, so a line pairing
+// `economy`, `ace`, and `barrier:trade-off` is a hit).
 const economyAceOffLines = (text) =>
   text
     .split('\n')
@@ -3386,17 +3388,19 @@ const economyAceOffLines = (text) =>
     .map(([n]) => n)
 
 test('economy-ace-flip — the line-scoped detector fires on the retired README/SKILL/schemas shapes (self-check)', () => {
-  // Negative reference: four retired physical-line shapes (items 1 and 4 are abridged from the
-  // pre-flip README lines, items 2 and 3 are the pre-flip SKILL/schemas lines). Narrowing any
-  // clause drops a shape from the expected [1, 2, 3, 4] and reds this test. The second assert
-  // guards the `\bace\b` token boundary; a dropped off/false clause only widens the detector.
+  // Negative reference: five retired physical-line shapes (items 1, 2 and 4 are abridged from the
+  // pre-flip README/SKILL lines, item 3 is the pre-flip schemas line with its indent dropped, item
+  // 5 is item 1 in uppercase so the case-fold is exercised). Narrowing any clause drops a shape
+  // from the expected [1, 2, 3, 4, 5] and reds this test. The second assert guards the `\bace\b`
+  // token boundary; a dropped off/false clause only widens the detector.
   const retired = [
     '| `--ace` | no | on via config `run.ace` (economy preset: off) | Fix nits on the spot |',
     '  - **`--ace` (default on via `run.ace`; the economy preset pins it off).** With `run.ace`,',
     '  // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);',
     'a solo roster, a 2-round budget, and ace off. `/war-room` only ever asks (economy)',
+    '| --ACE | no | on via config run.ace (ECONOMY preset: OFF) |',
   ].join('\n')
-  assert.deepEqual(economyAceOffLines(retired), [1, 2, 3, 4])
+  assert.deepEqual(economyAceOffLines(retired), [1, 2, 3, 4, 5])
   // And a lawful post-flip line — all three words present but `ace` only as a sub-token — is clean.
   assert.deepEqual(
     economyAceOffLines('economy: ace_diff_files stays off; the preface is false'),
@@ -3411,7 +3415,9 @@ test('economy-ace-flip — OLD-absent: no surface carries a line pairing economy
       hits,
       [],
       `${surface} line(s) ${hits.join(', ')} still state the retired "economy pins ace off" fact ` +
-        '(D14, PIN-16) — every preset inherits run.ace on; rewrite the line, never drop this row',
+        '(D14, PIN-16) — every preset inherits run.ace on; rewrite the line, never drop this row ' +
+        '(a README defaults-paragraph reflow also trips this: keep `commitLearnings: false` off ' +
+        'the economy line — split the paragraph back)',
     )
   }
 })
