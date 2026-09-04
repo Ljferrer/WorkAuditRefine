@@ -3483,6 +3483,7 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
     'ace labels stay distinct and slot-encoded (the ace:<task>:a<n> scheme extends to subsets)')
   for (const c of aces.slice(1)) {
     assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
+    assert.match(c.prompt, /`Ace-Charge: t1:\d+`/, 'every subset dispatch mandates the Ace-Charge trailer too — the third ace-side commit site (#2031)')
     assert.match(c.prompt, /ace00001\^\.\.HEAD/, 'the preflight scans the bisection range since the pre-batch base')
     assert.ok(c.prompt.includes('never the tip alone'), 'the preflight is range-scoped, never tip-only')
     assert.ok(c.prompt.includes('WITHOUT committing'), 'a preflight hit returns the existing sha without committing')
