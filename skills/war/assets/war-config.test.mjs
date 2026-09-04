@@ -591,13 +591,10 @@ function warRoomAbsorbRoundsRow(text) {
   return next === -1 ? line : line.slice(0, next)
 }
 
-test('absorb-budget: war-room SKILL.md run.absorbRounds row default == DEFAULTS.run.absorbRounds (extraction + equality)', () => {
-  const text = readDoc('skills/war-room/SKILL.md')
-  const roundLimitAt = text.indexOf('`run.roundLimit`')
-  const absorbAt = text.indexOf('`run.absorbRounds`')
-  assert.ok(roundLimitAt >= 0 && absorbAt >= 0, 'both whitelist rows must exist')
-  assert.equal(text.slice(0, roundLimitAt).split('\n').length, text.slice(0, absorbAt).split('\n').length,
-    'the run.absorbRounds row must sit beside run.roundLimit (same physical line)')
+// Shared compare: the /integer ≥ 1/ check plus the equality against DEFAULTS.run.absorbRounds. The
+// positive test calls it on the live doc; the negative test wraps it in assert.throws on a mutated doc,
+// so the guard's own assertion is what fires on drift (not just the slicer seeing the mutation).
+function assertRowDefault(text) {
   const row = warRoomAbsorbRoundsRow(text)
   assert.ok(/integer ≥ 1/.test(row), 'the row must read "integer ≥ 1"')
   const dm = row.match(/default\s+`?(\d+)`?/i)
@@ -605,6 +602,16 @@ test('absorb-budget: war-room SKILL.md run.absorbRounds row default == DEFAULTS.
   assert.equal(Number(dm[1]), DEFAULTS.run.absorbRounds,
     `war-room's run.absorbRounds row states default ${dm[1]} but DEFAULTS.run.absorbRounds is ` +
     `${DEFAULTS.run.absorbRounds} — bind the doc to the canonical value`)
+}
+
+test('absorb-budget: war-room SKILL.md run.absorbRounds row default == DEFAULTS.run.absorbRounds (extraction + equality)', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  const roundLimitAt = text.indexOf('`run.roundLimit`')
+  const absorbAt = text.indexOf('`run.absorbRounds`')
+  assert.ok(roundLimitAt >= 0 && absorbAt >= 0, 'both whitelist rows must exist')
+  assert.equal(text.slice(0, roundLimitAt).split('\n').length, text.slice(0, absorbAt).split('\n').length,
+    'the run.absorbRounds row must sit beside run.roundLimit (same physical line)')
+  assertRowDefault(text)
 })
 
 test('absorb-budget: a changed war-room default number goes red (negative reference through the same slicer)', () => {
@@ -614,8 +621,7 @@ test('absorb-budget: a changed war-room default number goes red (negative refere
   assert.ok(dm)
   const mutated = text.replace(row, row.replace(dm[0], dm[0].replace(dm[1], String(DEFAULTS.run.absorbRounds + 1))))
   assert.notEqual(mutated, text, 'the mutation must change the doc')
-  const md = warRoomAbsorbRoundsRow(mutated).match(/default\s+`?(\d+)`?/i)
-  assert.notEqual(Number(md[1]), DEFAULTS.run.absorbRounds, 'the drifted doc number must NOT equal the canonical default')
+  assert.throws(() => assertRowDefault(mutated), 'the guard must fire on the drifted doc number')
 })
 
 // --- run.provision / provisionSource / provisionAuto (Part B) ----------------
