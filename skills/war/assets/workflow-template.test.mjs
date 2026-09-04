@@ -3480,7 +3480,7 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   assert.equal(aces.length, 3, 'batch + two blind halves, applied serially')
   const labels = aces.map(c => c.opts.label)
   assert.deepEqual(labels, ['ace:t1:a1', 'ace:t1:a2', 'ace:t1:a3'],
-    'ace labels stay distinct and round-encoded (the ace:<task>:r<n> scheme extends to subsets)')
+    'ace labels stay distinct and slot-encoded (the ace:<task>:a<n> scheme extends to subsets)')
   for (const c of aces.slice(1)) {
     assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
     assert.match(c.prompt, /ace00001\^\.\.HEAD/, 'the preflight scans the bisection range since the pre-batch base')
@@ -13185,7 +13185,7 @@ test('#1940 — PIN-13 seed: a behavioural resume simulation, not a source-shape
   assert.equal(bare, 0, 'with neither source the seed is 0, never NaN')
   assert.equal(bare < 6, true,
     'and 0 opens the ace gate — `undefined < 6` is false, the exact defect that made the hoisted ace never dispatch')
-  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:r<n>` never renders rNaN')
+  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:a<n>` never renders aNaN')
 })
 
 test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase refiner dispatchKind is named (default-deny census)', () => {
