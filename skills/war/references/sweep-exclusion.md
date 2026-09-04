@@ -36,7 +36,7 @@ CLAUDE_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT" node --input-type=module -e '
 ' -- "$LEDGER" "$SLUG"
 ```
 
-Thread the printed array **verbatim** as `args.sweepExclude` (through `--args <file>` when the phase args ride the staged script). The engine entry-validates each row (a missing `slug` or a non-string-array `files` refuses the launch, naming the entry index and field), so never hand-edit a row. A non-zero exit means a qualifying entry's plan file is unreadable (`extractFilesFromPlanFile` throws ENOENT). Repair the ledger entry and re-run; never thread an empty list or omit the key on a failed run — that reads as an absent ledger. The step stops with the node error before any output, so never thread a truncated or empty list as though the union were empty.
+Thread the printed array **verbatim** as `args.sweepExclude` (through `--args <file>` when the phase args ride the staged script). The engine entry-validates each row (a missing `slug` or a non-string-array `files` refuses the launch, naming the entry index and field), so never hand-edit a row. A non-zero exit means a qualifying entry's plan file is unreadable (`extractFilesFromPlanFile` throws ENOENT). Repair the ledger entry and re-run; never omit the key (that reads as an absent ledger) and never thread an empty list (that reads as a genuinely empty contention set, silently disabling the campaign arm) on a failed run. The step stops with the node error before any output, so never thread a truncated or empty list as though the union were empty.
 
 ## Log lines (one each, at launch)
 
