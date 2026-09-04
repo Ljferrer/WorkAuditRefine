@@ -3637,11 +3637,13 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
 // (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
 // LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
 // in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
-// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md, SKILL.md, design.md — the `*`
-// covers `defaults` and `defaulted`), `absorb` and `ask` never defaulted (gastown-design-params.md),
-// and the zero-token-gap `absorb` is never a default (the ADR rule-4 literal that once lived on
-// the card, `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — rule 7:
-// this row reads those three surfaces after the dep rebase). Detection runs on a NORMALIZED
+// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md, SKILL.md, design.md, the card,
+// `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — the `*` covers
+// `defaults` and `defaulted`; rule 7: this row reads those last three surfaces after the dep
+// rebase), `absorb` and `ask` never defaulted (gastown-design-params.md), and the zero-token-gap
+// `absorb` is never a default (the ADR 0013 Decision 4 literal, guard-exempt here, and the earlier
+// CONTEXT.md retirement D37a still pins — never present on the other seven surfaces at base, so
+// its assert guards a first appearance, not a revert). Detection runs on a NORMALIZED
 // surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
 // across a comment boundary flattens contiguous), then backticks and single and double quotes
 // stripped, whitespace collapsed, case-folded — so a single-quoted engine comment (`'absorb' and

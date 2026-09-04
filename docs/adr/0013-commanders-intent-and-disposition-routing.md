@@ -514,8 +514,8 @@ byte-untouched; this note supersedes its *currency* for the fully specified case
 - **Living-doc homes.** `CLAUDE.md`'s Known-traps bullet, CONTEXT.md's **Disposition** and
   **Barrier list** rows, `skills/war/SKILL.md`'s Audits bullet, `design.md` §18,
   `gastown-design-params.md`, `schemas.md`'s AuditVerdict row, `agents/war-auditor.md`, and the
-  dispatched rule carry the new default; the retired "`absorb` and `ask` are never defaults"
-  wording is guard-bound absent there (`old-default-absent`). This ADR home stays exempt from
+  dispatched rule carry the new default; the three retired `absorb`-is-never-a-default wordings
+  are guard-bound absent there (`old-default-absent`). This ADR home stays exempt from
   that guard because Decision 4's clause survives by design (append-only law).
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
