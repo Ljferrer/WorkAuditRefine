@@ -104,7 +104,7 @@ function isPathShaped(token) {
 // (mixed lines defer to backticks). Only an empty UNION surfaces via
 // assertOrderable's fail-loud throw; one empty block among full ones does not.
 //
-// Fallback ceilings (both fail-loud-backstopped, never a silent wrong ingest):
+// Fallback ceilings (the first two fail-loud-backstopped, never a silent wrong ingest; the third bounded, not backstopped):
 //  - isPathShaped over-acceptance: it accepts any dot-suffixed token (a stray
 //    prose `e.g.` would pass), so a sloppy bare line can over-widen the footprint.
 //    Bounded — worst case is an over-conservative contention order, never a throw.
