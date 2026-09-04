@@ -14459,7 +14459,9 @@ test('terminal-pass — a discarded sweep on a non-final phase carries its absor
   assert.ok(carriedOf(nonFinal.out, 'dangling link') && carriedOf(nonFinal.out, 'sweep-raised absorb'), 'both the queued row and the sweep-raised absorb carry')
   assert.equal((nonFinal.out.minorsFiled || []).length, 0, 'no demotion on the non-final discard')
   assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('no merged sweep this phase') && l.includes('discarded')), 'the no-sweep skip is logged naming the polish status')
+  assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('carries on carriedPhaseClose')), 'the DISCARDED log names the non-final carry')
   const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), buildSeqImpl({ 'audit:p3-polish:correctness': [reject] }, sweepBase([queuedAbsorb()])))
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('demotes to follow-up')), 'the DISCARDED log names the final-phase demotion')
   const d = demotionOf(final.out, 'sweep-raised absorb')
   assert.ok(d && /^demote:sweep-discarded — sweep-raised absorb/.test(d.demoteReason), 'the discard-path reason keeps its sweep-raised token and names the discard')
   assert.ok(demotionOf(final.out, 'dangling link'), 'the queued row demotes on the final phase')
@@ -14479,8 +14481,11 @@ test('terminal-pass — no sweep (empty queue) logs the skip; a clean polish pan
 test('terminal-pass — a queued absorb the sweep could not land (its file absent from the sweep\'s changed-file report) joins the terminal queue instead of being recorded aced at the polish sha', async () => {
   const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
   const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
-  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/x.md'] }
+  // ace_diff_files (git-derived) names docs/x.md only; the self-reported files_changed disagrees and
+  // also claims docs/q.md — the git-derived list wins, so the row on docs/q.md still diverts.
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'], files_changed: ['docs/x.md', 'docs/q.md'] }
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok(polishPromptOf(calls).includes('ace_diff_files'), 'the sweep prompt asks for ace_diff_files')
   assert.ok((out.aced || []).some(a => a.finding.title === 'landed by the sweep' && a.sha === 'polishsha'), 'the touched row is aced at the polish sha')
   assert.ok(!(out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'polishsha'), 'the untouched row is NOT recorded aced at the polish sha')
   const tw = terminalCalls(calls)
@@ -14519,6 +14524,24 @@ test('terminal-pass — a present-but-disjoint sweep report (no file in the queu
   assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
   assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is aced at the polish sha')
   assert.equal(terminalCalls(calls).length, 0, 'a disjoint report never diverts rows to the terminal queue')
+})
+
+test('terminal-pass — a terminal-seat re-mint of a terminalRow (recorded aced on the merged arm) corroborates via remintBlock: logged, never a second aced record, never a demotion', async () => {
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ terminalFindings: [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'still there', disposition: 'absorb' }] }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('polish-panel absorb')), 'the re-mint arm logs')
+  assert.equal((out.aced || []).filter(a => a.finding && a.finding.title === 'polish-panel absorb').length, 1, 'exactly one aced record — never a second')
+  assert.ok(!demotionOf(out, 'polish-panel absorb'), 'never demoted')
+  assert.deepEqual(out.carriedPhaseClose, [], 'never carried a second time')
+})
+
+test('terminal-pass — the terminal re-audit records a pinTransfers row (kind ace, mode terminal): the re-audit seat re-ran and every other default-roster seat transferred at the terminal sha (PIN-10)', async () => {
+  const { out } = await runPhase(SWEEP_ARGS(), terminalImpl())
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.mode === 'terminal')
+  assert.ok(row && row.task === 'p3-polish' && row.sha === 'terminalsha', 'the terminal row pins the polish pseudo-task and the terminal sha')
+  assert.ok(Array.isArray(row.seats) && row.seats.length > 0, 'every default-roster seat appears')
+  assert.ok(row.seats.every(s => s.sha === 'terminalsha' && (s.outcome === 're-ran' || s.outcome === 'transferred')), 'each seat row carries the sha and an outcome')
+  assert.equal(row.seats.filter(s => s.outcome === 're-ran').length, 1, 'exactly one seat re-ran')
+  assert.equal(row.seats.find(s => s.outcome === 're-ran').lens, 'correctness', 'the re-ran seat is the terminal seat')
 })
 
 test('terminal-pass — a fileless polish-panel absorb on the terminal queue demotes demote:fileless (severity default) and never dispatches the pass', async () => {

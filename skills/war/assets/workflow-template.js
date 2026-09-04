@@ -91,8 +91,10 @@ const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], propert
   // ace_diff_files (#1913, D3/PIN-18 — the mappedTests precedent): the GIT-derived changed-file list of
   // an ace commit, filled by the ace/bisection/re-entry worker from `git diff --name-only <preAceTip>
   // <aceSha>`. It is the ONLY input to the delta-scaled re-audit's subset rule; the agent's own
-  // files_changed is a CROSS-CHECK, never the source. OPTIONAL — absent or empty routes the FULL panel
-  // (fail-closed), so every non-ace worker result stays byte-identical to today.
+  // files_changed is a CROSS-CHECK there, never the source. OPTIONAL — absent or empty routes the FULL
+  // panel (fail-closed), so every non-ace worker result stays byte-identical to today. The ONE consumer
+  // with a different precedence is the sweep's landed-row check (sweepTouched): ace_diff_files
+  // preferred, files_changed a fallback SOURCE when ace_diff_files is absent or empty.
   ace_diff_files: { type: 'array' },
   notes: { type: 'string' }, blocked_reason: { type: 'string' } } }
 
@@ -1464,6 +1466,7 @@ const routeToSweep = (f, why) => {
 // the Lead threads them back as args.seededPhaseClose. The engine stamps `planSlug` so the carried
 // row clears the #1413 own-token floor on the relaunch by construction. Logged, never silent.
 const carryPhaseClose = (f, why) => {
+  queuedKeys.add(remintKey(f))   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
   log('held-carry: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → carriedPhaseClose — ' + why + '.')
   carriedPhaseClose.push({ ...f, phaseClose: true, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
 }
@@ -4164,12 +4167,12 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // pt-tagged prompt-feeding rows (sweep prompt, top-level-catch, fail-open polish): f.severity is a required
       // finding field (bare); title/task ?? absence-tolerant; file/rationale/suggested_fix already guarded/defaulted.
       + phaseCloseQueue.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
-      + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit (the git-derived list decides which queued rows the sweep landed; files_changed is only a cross-check).\n`
+      + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit (the git-derived list decides which queued rows the sweep landed; files_changed is read only as a fallback source when ace_diff_files is absent or empty).\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
       + provisionClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
-      // never agents.worker.fix. (The three fix-follow-up classes — fix:/ace:/add-test:|package-it: — are
+      // never agents.worker.fix. (The four fix-follow-up classes — fix:/ace:/add-test:|package-it:/terminal: — are
       // tier-aware via spawnWorker('fix'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
@@ -4276,8 +4279,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const routeTerminalMinors = (seats, sha) => {
         for (const f of minorsOf(seats).map(x => ({ task: polishTask.id, ...x }))) {
           const d = dispositionOf(f, null)
-          // Registry consult (mirrors routeReauditMinors): the terminal commit just fixed the terminalRows,
-          // recorded aced above — a seat re-mint of one of them corroborates, never a second record.
+          // Registry consult (mirrors routeReauditMinors): the terminalRows were recorded aced on the
+          // merged arm and demoted or carried on the regressed and unmerged arms (filedKeys / queuedKeys
+          // stamped either way) — a seat re-mint of one of them corroborates, never a second record.
           const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
           if (d === 'ask') parkAsk(f)
           else if (b) { log('terminal pass: seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') at ' + sha + ' — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
@@ -4327,6 +4331,10 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // first seat). The pass is bound at one hop: no fix round, no bisection, no re-entry.
           const { seats: tSeats, expected: tExpected } = await auditRound(polishTask, null, tw.tests ? tw.tests : null, terminalSha, null, [seat])
           const tApproved = allApprove(tSeats, tExpected) && blockingOf(tSeats).length === 0
+          // Ledger row (PIN-10): the terminal seat re-ran; every other default-roster seat transfers
+          // from the polish panel — every rosterOverride site records its transfer, this one included.
+          pinTransfers.push({ task: polishTask.id, kind: 'ace', mode: 'terminal', why: 'one-hop terminal pass — one re-audit seat, the rest transfer from the polish panel', sha: terminalSha,
+            seats: defaultRoster.map(s => ({ seat: s.lens, lens: s.lens, outcome: s.lens === seat.lens ? 're-ran' : 'transferred', sha: terminalSha })) })
           auditLog.push({ task: polishTask.id, verdict: tApproved ? 'approve' : 'terminal-rejected', terminal: true, sha: terminalSha, seat: seat.lens, findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length })
           if (!tApproved) {
             // REGRESSION: forward-revert the terminal commit on the polish branch (tip-only clean
