@@ -1190,8 +1190,9 @@ const revertedKeys = new Set()
 // routing and re-entry drain).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (BOTH
-// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push) or for
-// budget-bounded re-entry (r.reentryQueue) records its remintKey here, so a content-identical
+// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push), for
+// budget-bounded re-entry (r.reentryQueue), or HELD for the next ace batch (the batch-ace
+// blocker hold onto r.task.pendingAbsorbs) records its remintKey here, so a content-identical
 // re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
@@ -1259,7 +1260,7 @@ const remintBlock = f => {
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
-  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry this phase — the queued record stands'
+  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands'
   return null
 }
 // Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
@@ -1799,7 +1800,7 @@ if (tasks.length) {
   // index (never a count) so a cherry-pick or duplicate trailer never double-charges; a reverted
   // ace commit's trailer still counts (the revert carries no charge trailer). Always-on; absent or
   // malformed ⇒ the engine seeds 0 with a loud log naming the task.
-  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' "$TIP"..<that task's branch>\` and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
+  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' "$TIP"..<that task's branch>\` and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
   // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
@@ -1931,8 +1932,12 @@ if (tasks.length) {
   // malformed value ⇒ 0 with a loud log naming the task — never silent, never a hold.
   const chargesOf = m => (m && typeof m === 'object' && !Array.isArray(m)) ? m : null
   const chargeMaps = [['args.absorbCharges', chargesOf(A.absorbCharges)], ['barrier absorbCharges', chargesOf(barrierOut.absorbCharges)]]
+  // A malformed WHOLE override map (an array, a string, a number) is never a silent skip: log its
+  // shape and fall through to the barrier read (a Lead override typo must not read as "none threaded").
+  if (A.absorbCharges && !chargesOf(A.absorbCharges)) log('absorb-budget: args.absorbCharges is not an object map (' + (Array.isArray(A.absorbCharges) ? 'array' : typeof A.absorbCharges) + ') — ignored; the barrier absorbCharges read is used instead.')
   for (const t of tasks) {
     let seeded = false
+    const causes = []   // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
     for (const [srcName, m] of chargeMaps) {
       if (!m) continue
       const key = Object.keys(m).find(k => preMergedIdOf(k) === preMergedIdOf(t.id))
@@ -1944,10 +1949,11 @@ if (tasks.length) {
         break
       }
       if (key !== undefined) log('absorb-budget: ' + srcName + ' entry for task ' + t.id + ' is malformed (' + JSON.stringify(n) + ') — ignored.')
+      causes.push(srcName + (key !== undefined ? ' entry for the task was malformed' : ' map lacks the task'))
     }
     if (!seeded) {
       t.absorbRounds = 0
-      log('absorb-budget: NO usable absorbCharges entry for task ' + t.id + ' (barrier ' + (chargesOf(barrierOut.absorbCharges) ? 'map lacks the task' : 'returned no absorbCharges map') + ') — seeding absorbRounds 0 (a relaunch may under-count spent ace commits; the Lead may override via args.absorbCharges).')
+      log('absorb-budget: NO usable absorbCharges entry for task ' + t.id + ' (' + (causes.length ? causes.join('; ') : 'barrier returned no absorbCharges map') + ') — seeding absorbRounds 0 (a relaunch may under-count spent ace commits; the Lead may override via args.absorbCharges).')
     }
   }
 }
@@ -2440,8 +2446,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       // Held absorbs (D5): rows held on r.task.pendingAbsorbs by an earlier blocker-held batch join
       // THIS approve's aceable set (deduped by content key against the fresh rows), logged.
+      // ponytail: the in-phase path is deliberately unwired — aceStage runs ONCE per task (the wave
+      // thunk calls it at the audit-loop exit and the task then enters `done`), and the hold arm that
+      // writes r.task.pendingAbsorbs sits at the bottom of this same call, so no in-run hold reaches
+      // this fold; its only live producer is relaunch-seeded args.tasks[].pendingAbsorbs, and the
+      // end-of-queue held-absorb drain owns every in-run held row.
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
       for (const f of heldRows) {
+        queuedKeys.delete(remintKey(f))   // no longer held — the fresh-row dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') re-raised this round — the fresh row rides the ace batch; the held copy is dropped as a duplicate.'); continue }
         log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
         aceable.push(f)
@@ -2536,6 +2548,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         r.task.pendingAbsorbs = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : []
         for (const f of aceable) {
           if (r.task.pendingAbsorbs.some(h => remintKey(h) === remintKey(f))) continue
+          queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
           r.task.pendingAbsorbs.push(f)
         }
         log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')
@@ -2659,8 +2672,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // (D5 — ace commits charge absorbRounds), and the merge slot only never-lowers this seed.
       task.fixRounds = round
       r.preAceRounds = round
-      // absorbRounds (D5): the barrier seeded it from the git-derived Ace-Charge read; a task that
-      // reached this thunk without a seed (no barrier ran) starts at 0 — never undefined (pt).
+      // absorbRounds (D5): belt only — the barrier seed loop already assigns every task in `tasks` an
+      // integer (the wave loop iterates that same array), so this line holds only if a future caller
+      // reaches the wave thunk without that loop; it keeps the counter an integer, never undefined (pt).
       if (!Number.isInteger(task.absorbRounds) || task.absorbRounds < 0) task.absorbRounds = 0
       // WAVE-SIDE ACE (#1913): disposition routing + the whole ace ladder, per task, at the
       // panel-approved tip — concurrent across tasks, and finished before the merge queue opens.
@@ -2722,18 +2736,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop continues the
     // SHARED budget (not a fresh counter — that would double the allowance). NEVER-LOWERING (PIN-13):
-    // the wave thunk already seeded this before the hoisted ace stage and every ace commit charged it,
-    // so re-seeding from r.round alone would hand the merge-floor retry loop back the rounds the ace
-    // spent. The assignment STAYS — a resume can enter the merge queue with the wave never having run
-    // in-process, and then r.round is the only defined seed there is.
+    // the wave thunk seeds fixRounds from the audit-loop round count; fixRounds counts blocking fix
+    // rounds and floor retries only, and ace commits charge absorbRounds instead (PIN-7), so no ace
+    // commit charges this counter and on every in-process path it already equals r.round here. The
+    // Math.max is a resume-only defence: a resume can enter the merge queue with the wave never
+    // having run in-process (r.task.fixRounds relaunch-seeded, r.round undefined), and the seed must
+    // never lower that carried count. The assignment STAYS — on that resume r.round ?? 0 is the only
+    // other defined seed there is.
     r.task.fixRounds = Math.max(Number.isInteger(r.task.fixRounds) ? r.task.fixRounds : 0, r.round ?? 0)
     // Classify-at-collection (ADR 0013): each Minor/Nit routes ONCE, by disposition. The approve arm's
     // routing now happens WAVE-SIDE inside aceStage, which stashes the once-minted rows on r.taskMinors;
     // the fallback re-mints only for a result that never reached the stage (env-blocked, an early
     // escalate), whose seats are empty anyway.
     const taskMinors = r.taskMinors ?? minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f }))
-    // Ace-free audit-round provenance (#1913): the verdict entry records the PRE-ace round count the
-    // audit loop exited on, so the filed-issue "audit round" never inherits the ace ladder's charges.
+    // Ace-free audit-round provenance (#1913): r.preAceRounds freezes the audit-loop exit count ahead
+    // of the merge-floor retry loop's own fixRounds increments, so the filed-issue "audit round" is the
+    // count the seats saw; the ace ladder charges absorbRounds, never fixRounds (PIN-7).
     auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length, fixRounds: r.preAceRounds ?? r.task.fixRounds })
     done.add(r.task.id)
     if (r.verdict === 'approve') {

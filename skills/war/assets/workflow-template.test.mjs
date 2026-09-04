@@ -3509,8 +3509,9 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
     'ace:t1:a4': [bWorker('5ab00003')],   // [f3]
     'ace:t1:a5': [bWorker('5ab00004')],   // [f4,f5]
   }, aceBase([f1, f2, f3, f4, f5]))
-  // roundLimit 9: the ladder is budget-unconstrained here so the depth mechanics alone are under test.
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 9 } }), impl)
+  // absorbRounds 9: the subset stop reads absorbRounds against run.absorbRounds, and this ladder
+  // charges 5 slots, so the budget is kept unconstrained here and the depth mechanics alone are under test.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, absorbRounds: 9 } }), impl)
   const aces = calls.filter(isAce)
   // dispatches: batch, [f1,f2,f3], [f1,f2], [f3], [f4,f5] — and NOTHING after the depth-2
   // regression: without the cap, [f1] and [f2] would each get their own dispatch (7 total).
@@ -12096,7 +12097,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
   assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
-  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry this phase — the queued record stands')),
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
@@ -13246,14 +13247,17 @@ test('absorb-budget (End state 4, charge then revert): one charge and its revert
 })
 
 test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbCharges map, a map lacking the task, and a malformed entry each seed absorbRounds 0 with a loud log naming the task', async () => {
-  for (const [name, env, expectLog] of [
-    ['no map', { ok: true }, 'returned no absorbCharges map'],
-    ['map lacks the task', { ok: true, absorbCharges: { other: 2 } }, 'map lacks the task'],
-    ['malformed entry', { ok: true, absorbCharges: { t1: 'three' } }, 'is malformed'],
+  for (const [name, env, expectLog, cause] of [
+    ['no map', { ok: true }, 'returned no absorbCharges map', 'barrier returned no absorbCharges map'],
+    ['map lacks the task', { ok: true, absorbCharges: { other: 2 } }, 'map lacks the task', 'barrier absorbCharges map lacks the task'],
+    ['malformed entry', { ok: true, absorbCharges: { t1: 'three' } }, 'is malformed', 'barrier absorbCharges entry for the task was malformed'],
   ]) {
     const { calls, logs } = await runPhase(ACE_ARGS(), withBarrier(env, aceBase([nit()])))
-    assert.ok(logs.some(l => typeof l === 'string' && l.includes('NO usable absorbCharges entry for task t1') && l.includes('seeding absorbRounds 0')), `${name}: the 0 seed is logged loudly naming the task`)
+    const seedLog = logs.find(l => typeof l === 'string' && l.includes('NO usable absorbCharges entry for task t1') && l.includes('seeding absorbRounds 0'))
+    assert.ok(seedLog, `${name}: the 0 seed is logged loudly naming the task`)
     assert.ok(logs.some(l => typeof l === 'string' && l.includes(expectLog)), `${name}: the log names the cause`)
+    assert.ok(seedLog.includes(cause), `${name}: the 0-seed line carries the real cause (${cause}), never a contradicting one`)
+    if (name === 'malformed entry') assert.ok(!seedLog.includes('map lacks the task'), `${name}: the 0-seed line never claims the map lacks the task`)
     const ace = calls.find(isAce)
     assert.equal(ace && ace.opts.label, 'ace:t1:a1', `${name}: the ladder starts at slot 1`)
     assert.ok(!(calls.some(c => (c.opts.label || '') === 'work:t1') === false), `${name}: the worker still dispatched — never a hold`)
@@ -13385,6 +13389,22 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
   assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
   assert.match(schemasMdForAbsorb, /absorbCharges/, 'schemas.md documents the ENV_OUTCOME absorbCharges field')
+  // Schema-slot pins (the done_when_log_path shape): the ENGINE literal declares the slot with its type,
+  // the slot stays OPTIONAL, and each schemas.md row binds to the engine key it documents.
+  const env = src.slice(src.indexOf('const ENV_OUTCOME'), src.indexOf('const done = new Set'))
+  assert.match(env, /absorbCharges:\s*\{\s*type:\s*'object'\s*\}/, "ENV_OUTCOME declares absorbCharges: { type: 'object' }")
+  assert.ok(!/required:\s*\[[^\]]*absorbCharges/.test(env), 'absorbCharges is OPTIONAL — never added to ENV_OUTCOME.required')
+  const envKey = (env.match(/(absorbCharges):\s*\{/) || [])[1]
+  assert.equal(envKey, 'absorbCharges', 'the ENV_OUTCOME properties key is extracted from src (non-vacuous)')
+  const envDocStart = schemasMdForAbsorb.indexOf('Every `provision`-mode refiner dispatch')
+  const envFence = schemasMdForAbsorb.indexOf('```jsonc', envDocStart)
+  const envDoc = schemasMdForAbsorb.slice(envFence, schemasMdForAbsorb.indexOf('```', envFence + 8))
+  assert.ok(envDocStart >= 0 && new RegExp('^\\s*' + envKey + '\\?\\s*\\}', 'm').test(envDoc), 'the schemas.md env-outcome block documents the same optional key name the engine literal declares (' + envKey + '?)')
+  assert.match(schemasMdForAbsorb, /absorbRounds/, 'schemas.md documents the absorbRounds meter row')
+  assert.match(schemasMdForAbsorb, /r\.task\.absorbRounds/, "the schemas.md absorbRounds phase-return row names the engine counter r.task.absorbRounds")
+  assert.match(src, /r\.task\.absorbRounds/, 'the engine reads the counter under that same name (r.task.absorbRounds)')
+  // PIN-13 source-shape pin: the merge-slot seed keeps its never-lowering Math.max form (resume-only defence, PIN-7).
+  assert.match(src, /r\.task\.fixRounds = Math\.max\(Number\.isInteger\(r\.task\.fixRounds\) \? r\.task\.fixRounds : 0, r\.round \?\? 0\)/, 'the merge-slot fixRounds seed keeps the never-lowering Math.max form')
 })
 const schemasMdForAbsorb = readFileSync(join(here, '../references/schemas.md'), 'utf8')
 
