@@ -13636,9 +13636,9 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
   assert.ok(barrier, 'the barrier was dispatched (presence guard)')
   const ANCHORS = [/absorbCharges/, /Ace-Charge/, /trailers:key=Ace-Charge/, /highest/i, /never a count/i]
   for (const [name, text] of [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]) {
+    // The anchor loop IS the delete-and-trace: remove the trailer read from either surface and its
+    // /trailers:key=Ace-Charge/ match reds. (A local replace-then-absence check was a tautology, #2029.)
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
-    const mutated = text.replace(/trailers:key=Ace-Charge/g, 'REMOVED')
-    assert.ok(ANCHORS.some(re => !re.test(mutated)), `${name}: removing the trailer read breaks at least one anchor (delete-and-trace control)`)
   }
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
   assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
