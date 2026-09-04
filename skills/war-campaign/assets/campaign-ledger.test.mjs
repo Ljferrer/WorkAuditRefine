@@ -18,6 +18,7 @@ import {
   record,
   aggregateBackstops,
   extractFiles,
+  extractFilesFromPlanFile,
   intersectFootprints,
 } from './campaign-ledger.mjs'
 
@@ -1298,8 +1299,8 @@ test('extractFiles on a mixed block (one backticked path + bare text) defers to 
   assert.deepEqual(extractFiles(block), ['src/a.js'])
 })
 
-test('extractFiles block-scoping: a bare "- Files:" line immediately followed by a backtick-bearing "- Plan slice:" bullet yields only the Files path (collectBlock stops at the next list item)', () => {
-  // RED without the collectBlock list-item break: the Plan-slice backticks (construct
+test('extractFiles block-scoping: a bare "- Files:" line immediately followed by a backtick-bearing "- Plan slice:" bullet yields only the Files path (collectBlocks stops at the next list item)', () => {
+  // RED without the collectBlocks list-item break: the Plan-slice backticks (construct
   // names, not paths) bleed into the block, a backtick is then present, the
   // backtick-absence fallback never fires, and extractFiles returns [].
   const block = [
@@ -1307,6 +1308,71 @@ test('extractFiles block-scoping: a bare "- Files:" line immediately followed by
     '- Plan slice: rewrite `resolveRoadmapPlans` and `extractFiles` per the design tree',
   ]
   assert.deepEqual(extractFiles(block), ['src/only.js'])
+})
+
+// ---- files-union: every Files: block in a plan unions into the footprint (D11) ----
+
+test('files-union: a three-task plan yields the union of every `- Files:` block, in order of first appearance', () => {
+  const plan = [
+    '## Build order',
+    '### Task 1.1',
+    '- Files: `src/a.js`, `src/b.js`',
+    '- Plan slice: first',
+    '### Task 1.2',
+    '- Files: `src/c.js`',
+    '- Plan slice: second',
+    '### Task 2.1',
+    '- Files: `src/d.js`, `src/e.js`',
+    '- Plan slice: third',
+  ]
+  assert.deepEqual(extractFiles(plan), ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js', 'src/e.js'])
+})
+
+test('files-union: a path repeated across tasks appears once, at its first position', () => {
+  const plan = [
+    '- Files: `src/a.js`, `src/shared.js`',
+    '- Plan slice: first',
+    '- Files: `src/shared.js`, `src/b.js`',
+    '- Plan slice: second',
+  ]
+  assert.deepEqual(extractFiles(plan), ['src/a.js', 'src/shared.js', 'src/b.js'])
+})
+
+test('files-union: a plan with one empty block and one full block does not throw at init (only an empty UNION is unparseable)', () => {
+  const root = tmpDir()
+  const planPath = path.join(root, 'plan.md')
+  fs.writeFileSync(planPath, [
+    '# Plan',
+    '### Task 1.1',
+    '- Files: `resolveGate` (a construct name, not a path)',
+    '- Plan slice: first',
+    '### Task 1.2',
+    '- Files: `src/real.js`',
+    '- Plan slice: second',
+    '',
+  ].join('\n'))
+  const campaignDir = path.join(root, 'campaign')
+  const ledger = init(campaignDir, { plans: [planPath], mode: 'stack' })
+  assert.deepEqual(ledger.plans[0].files, ['src/real.js'])
+})
+
+test('files-union: a backticked block plus a bare comma-separated block yields the union of both (per-block fallback; RED under concatenate-then-scan)', () => {
+  // Concatenate-then-scan sees a backtick from block 1, so the bare block's
+  // backtick-absence fallback never fires and src/bare-b.js is dropped.
+  const plan = [
+    '- Files: `src/tick-a.js`',
+    '- Plan slice: first',
+    '- Files: src/bare-b.js, src/bare-c.js',
+    '- Plan slice: second',
+  ]
+  assert.deepEqual(extractFiles(plan), ['src/tick-a.js', 'src/bare-b.js', 'src/bare-c.js'])
+})
+
+test('files-union: extractFilesFromPlanFile is exported and returns the union for a plan on disk', () => {
+  const root = tmpDir()
+  const planPath = path.join(root, 'plan.md')
+  fs.writeFileSync(planPath, '- Files: `src/x.js`\n- Plan slice: a\n- Files: `src/y.js`\n- Plan slice: b\n')
+  assert.deepEqual(extractFilesFromPlanFile(planPath), ['src/x.js', 'src/y.js'])
 })
 
 // ---- intersectFootprints -------------------------------------------------
