@@ -9,7 +9,7 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 
 ## 2. Substrate — hybrid
 - **Workflow spine, one run per phase.** Holds the phase loop and *is* the serial merge queue (one merge at a time, by construction). The script has no shell/fs access — every git/test action is performed by a spawned agent.
-- **Workers** = worktree-isolated `Agent`s (per-role model from `war-config.mjs` DEFAULTS; e.g. the current worker default is opus at session (`default`) effort), one fresh per task.
+- **Workers** = worktree-isolated `Agent`s (per-role model from `war-config.mjs` DEFAULTS; e.g. the current worker default is fable at session (`default`) effort), one fresh per task.
 - **Auditors** = read-only `Agent`s (per-role model from `war-config.mjs` DEFAULTS); independent by default, with **one rebuttal round** on a split (realized inside the Workflow by re-spawning each seat with its peers' findings — a portable stand-in for live peer messaging).
 - **Witness dissolved** into the Workflow + hooks + Lead.
 

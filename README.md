@@ -337,8 +337,8 @@ Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (una
 | WAR | Gas Town | Built on |
 |---|---|---|
 | Lead (your chat) | Mayor | the main Claude Code session |
-| Worker | Polecat | `war-worker` — `Agent` (sonnet) in a git worktree |
-| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (sonnet on `max` by default); file tools plus a fail-closed guard restricting Bash to read-only git |
+| Worker | Polecat | `war-worker` — `Agent` (fable) in a git worktree |
+| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (opus on `high` by default); file tools plus a fail-closed guard restricting Bash to read-only git |
 | Refinery (merge queue) | Refinery | `war-refiner` — `Agent` + the serial Workflow merge loop |
 | Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (sonnet); records per-phase learnings to memory |
 | -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
