@@ -4,10 +4,10 @@ description: "Delete feature mentally; assert must fail w/o it"
 metadata:
   node_type: memory
   type: project
-  keywords: [vacuous test, false green, contains substring match, shared exit code, delete and trace, dead regex branch, negative match on undefined, temp-break RED proof, aggregate threshold count, inflated count, padding intro line, single-item removal slack, qualifier lock, anchor-derived region, region includes anchor substring, self-satisfying token, sliced-from-anchor window, hardcoded empty field, inert tiebreak, coincidental fixture ordering, localeCompare no-op, N-of-M emission sites, multi-site coverage gap, count assertion, source-level count, pkg 819 idiom, one-of-three seat coverage, emission site RED-ability, presence-only filename regex, run vs skip discrimination, floor-retry prompt pin, pkg 4.2 retry-merge, tautological length assertion, match length always groupcount plus one, capture group count, non-global match, extraction-equality test, D6 arms length, closed-set header sentence, ordered chain anchor, rung-body coverage gap, five-surface registry row, authority ladder, predicate wiring gap, shared inner predicate, flag-delta vs composition, caller-side substitution, byte-triplicated existence guard, guard bound by one call path only, _hit vs _hit_i, lacks_i wiring unasserted, delete-the-feature mutation, String.replace doesNotMatch, tautological mutation test, self-referential strip-and-assert, both-surfaces D20 idiom, non-vacuity proof]
+  keywords: [vacuous test, false green, contains substring match, shared exit code, delete and trace, dead regex branch, negative match on undefined, temp-break RED proof, aggregate threshold count, inflated count, padding intro line, single-item removal slack, qualifier lock, anchor-derived region, region includes anchor substring, self-satisfying token, sliced-from-anchor window, hardcoded empty field, inert tiebreak, coincidental fixture ordering, localeCompare no-op, N-of-M emission sites, multi-site coverage gap, count assertion, source-level count, pkg 819 idiom, one-of-three seat coverage, emission site RED-ability, presence-only filename regex, run vs skip discrimination, floor-retry prompt pin, pkg 4.2 retry-merge, tautological length assertion, match length always groupcount plus one, capture group count, non-global match, extraction-equality test, D6 arms length, closed-set header sentence, ordered chain anchor, rung-body coverage gap, five-surface registry row, authority ladder, predicate wiring gap, shared inner predicate, flag-delta vs composition, caller-side substitution, byte-triplicated existence guard, guard bound by one call path only, _hit vs _hit_i, lacks_i wiring unasserted, delete-the-feature mutation, String.replace doesNotMatch, tautological mutation test, self-referential strip-and-assert, both-surfaces D20 idiom, non-vacuity proof, self-referential probe constant, anchoredProbe, construct-then-parse round trip, PLUGIN_ROOT_PREFIX typo, CHANGELOG ordering test, fixture-driven negative control, cmpSemver, only-tests-the-live-file, version-slots.test.mjs, self-citing fixture, non-goal skip arm, incidental substring citation, first sub-case does not discriminate, flattened whole-surface positive detector, pre-existing phrase satisfies key, old-default-absent, DISPOSITION WIDENINGS, unanchored substring key]
   provenance: code-verified
   slug: weak-test-assertion-passes-without-feature-being-exercised
-  phase: "audit-scheduler-integrity/t4 +16 recurrences (latest 2026-08-06-handoff-schemas-contract/1.1, 2026-08-17)"
+  phase: "audit-scheduler-integrity/t4 +20 recurrences (latest 2026-09-03-in-band-absorb-default/phase-4 task 4.1 — gateAuditRows engine-stamp precedence untested)"
   date: 2026-07-21
   tags:
     - testing
@@ -15,9 +15,9 @@ metadata:
     - threading
     - workflow-template
     - guard-test
-  promoted: dev/2026-08-06-shell-pin-helpers@phase-1
+  promoted: dev/2026-09-03-2026-09-03-in-band-absorb-default@phase-3
   originSessionId: 68b2ca32-fa05-459c-9ddf-f23ca91a5f40
-  modified: 2026-08-17T12:07:45.164Z
+  modified: 2026-09-04T15:25:03.491Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at
@@ -127,6 +127,110 @@ future Gate-2 promotion of this file overwrites the same-slug repo file.
   it's meant to falsify (a hand-authored fixture, a different code path, a real edit) for the
   delete-and-trace proof to mean anything.
 
+- **A positive control that CONSTRUCTS its probe target from the same constant it then PARSES
+  cannot catch a typo in that constant** (`2026-08-06-references-pointer-integrity/phase-1 task
+  1.1`, 2026-08-18, worker-audit `disposition: absorb, phaseClose: true` — Minor, never a hold;
+  not independently Read/Grep-confirmed by me this round — my checkout had no live worktree
+  matching this plan's slug, so this bullet stays `agent-unverified` per the landed-tip-grounding
+  gate-audit fallback, despite the auditor's own `Re-grounded at the pin` claim): an
+  `anchoredProbe` control inside `skills/war/assets/reference-link-integrity.test.mjs`'s Arm-1
+  resolution test builds its probe target as `PLUGIN_ROOT_PREFIX + 'skills/war/assets/reference-link-integrity.test.mjs'`
+  and then asserts `resolutionRoots()` stripped exactly that same prefix back off. Because the one
+  constant is used to both *construct* and later *parse* the target,
+  `target.startsWith(PLUGIN_ROOT_PREFIX)` is true by construction for **any** value the constant
+  holds, and the sliced remainder is always just the literal tail that was appended — so a typo in
+  the constant itself (a dropped `{`, a wrong env-var name) leaves both the `deepEqual` and a
+  companion `existsSync` check green. The control's own comment claims the opposite effect ("a
+  broken prefix literal would otherwise first surface as a confusing dead-link red at [a
+  downstream task's] merge") — what the control actually proves is that `resolutionRoots()` routes
+  an anchored-looking target to the right root and slices *a* prefix off it, not that the
+  constant's own bytes are correct. **Fix:** spell the probe target as its own independent
+  single-quoted literal (not built from the constant under test), or add a separate
+  `assert.equal(PLUGIN_ROOT_PREFIX, '<expected literal>')` line — either way the constant's bytes
+  need a check that doesn't route through the constant itself. **Recognize the shape fast:** any
+  test where the same named constant appears on both sides of a round-trip (build the fixture with
+  it, then assert the code-under-test recovers it) is checking the round-trip mechanism, not the
+  constant's value — the exact same self-referential-strip-and-assert trap as the
+  `String.replace`/`doesNotMatch` bullet above, one level up (a shared *literal* rather than a
+  shared *regex*).
+
+- **A fail-closed positive-only ordering assertion has no fixture-driven negative control proving
+  it actually fires on a real violation** (`2026-08-25-ask-disposition/phase-3 task 3.1`
+  gate-audit, `disposition: note`, Nit, never a hold — `code-verified` at the audited pin
+  `a3f7b8b282bd1a993e5a3c56bdf4347395d89ee7`, `skills/war/assets/version-slots.test.mjs` lines
+  207-217, test `'CHANGELOG.md entries are strictly descending by version (no dupes, no
+  out-of-order insert)'`): the test parses every `## X.Y.Z — date` heading out of the **live**
+  `CHANGELOG.md` and asserts `cmpSemver(versions[i], versions[i-1]) < 0` pairwise, plus a
+  `versions.length >= 2` fail-closed guard. This genuinely isn't vacuous in the always-passes
+  sense — the length guard reds on a stripped file, and an inverted `cmpSemver` would immediately
+  red against the file's own current descending ladder — but nothing in the suite proves the
+  **loop and comparator together** actually catch a real out-of-order insert or a duplicate
+  version heading, because the only fixture ever exercised is the live file, which is (by
+  construction, since it's release history) already correctly ordered. The house convention this
+  same file already establishes for exactly this shape — "checklist lock is non-vacuous: a
+  subsection-absent reference fails the same path" — pairs the positive assertion with a fixture
+  that must fail; this new test has no sibling fixture-driven negative control. **Fix:** add a
+  synthetic CHANGELOG body (a small in-memory string, not the live file) carrying a deliberately
+  out-of-order heading pair and a duplicated version heading, and assert the same loop throws
+  against it — mirroring the existing "checklist lock is non-vacuous" pattern in the same suite.
+
+- **A dedicated skip-arm fixture's FIRST sub-case can incidentally self-cite the very pin it means to test, leaving only its SECOND sub-case discriminating** (`2026-08-25-authoring-doctrine-and-lint-coherence/phase-2 task 2.1`, 2026-08-25, plan-faithfulness `disposition: note`, Nit, never a hold — code-verified at the landed tip `abb1f1515977b54fe9153ec178b21153ec04ff4a` on `dev/2026-08-25-authoring-doctrine-and-lint-coherence`, read via the `_refinery39` worktree, gitdir physical path `<repo-root>/.claude/war-worktrees/2026-08-25-authoring-doctrine-and-lint-coherence-2026-09-02-r3/_refinery/`, `HEAD` byte-equal to the landed tip, `skills/war-strategy/assets/plan-literal-lint.test.mjs` lines 396-413, test `'pin-citation: a `non-goal` pin needs no citation — the definition row suffices'`): the test builds a `doc` fixture whose own `## Notes` line reads "nothing cites PIN-11 anywhere, and that is conforming" — that Notes line's prose literally contains the substring `PIN-11`, so even with the `non-goal` class-skip arm deleted, the anywhere-citation fallback would find that substring and the assertion would still pass, for the wrong reason. Only the fixture's second (`uncited`) sub-case, whose Notes line reads "no citation at all" (no `PIN-11` substring), genuinely reds when the skip arm is removed. The test AS A WHOLE still correctly reds on deletion (the `uncited` assertion catches it), so the End-state condition it backs is met — but the first sub-case's own inline comment ("the class skip is the only thing keeping this clean") is false for that specific sub-case; the comment describes the pair's collective intent, not sub-case one's individual discriminating power. **Fix, if ever pursued:** reword the first sub-case's Notes line to avoid the substring entirely (e.g. "this pin needs no mention at all"), or drop the inline comment's implication that sub-case one alone proves the skip arm's necessity.
+
+- **A normalized whole-surface "new sentence present" detector can be vacuously satisfied by an
+  unrelated PRE-EXISTING phrase on one surface, so it cannot detect a revert of the actual flip
+  sentence there** (`2026-09-03-in-band-absorb-default/phase-3 task 3.2`, 2026-09-04, `disposition:
+  note` (final verdict) — Nit, never a hold; code-verified at the landed tip
+  `84bd08f414dd7f397260d8ca3cd262f89c75a0fe` on `dev/2026-09-03-2026-09-03-in-band-absorb-default`,
+  read via the `_refinery45` worktree whose `gitdir` physical path names this plan's slug,
+  `skills/war/assets/skill-doc-contracts.test.mjs`, the `old-default-absent (b)` test, ~line 3756):
+  row (b) asserts each of eight living surfaces, flattened to one string (backticks/quotes stripped,
+  whitespace collapsed, case-folded), matches `/defaults to absorb/`, meant to prove the NEW
+  default-flip sentence landed on every surface. On `skills/war/assets/workflow-template.js`
+  specifically, a DIFFERENT, older sentence in the same file's `DISPOSITION WIDENINGS` block
+  (confirmed present at the landed tip, line 1652: "a mechanical, fully-specified finding born at a
+  re-audit DEFAULTS to absorb") case-folds to the same key phrase and already existed BEFORE the
+  task that added the real flip sentence (line 1647: "A fully specified Minor/Nit defaults to
+  absorb..."). Because the row does a flat substring match rather than anchoring to the specific
+  flip sentence, a hypothetical revert of line 1647 alone — while leaving the older, unrelated line
+  1652 phrase intact — would leave `old-default-absent (b)` green on this one surface, even though
+  the fact it means to lock (the flip landed HERE) would be false. The audit routed this `note`
+  (beyond the plan's End-state-8 scope, which requires only the absence half, not a NEW-present row)
+  rather than a defect to fix. **Fix, if ever pursued:** anchor the positive key to the specific flip
+  sentence's own distinguishing clause (e.g. `/A fully specified Minor\/Nit defaults to absorb/`) on
+  surfaces where a different pre-existing sentence can share the flattened key phrase, rather than a
+  bare `/defaults to absorb/` whole-file scan. **Recognize the shape fast:** before trusting a
+  flattened whole-surface positive-presence detector as proof a SPECIFIC new sentence landed, grep
+  the target surface's PRE-diff base for the same normalized key — if it was already true, the
+  detector cannot discriminate the sentence you actually care about from whatever already satisfied
+  it.
+
+- **An engine-stamp-wins spread reorder (`{ ...seatRow, task, seat, lens, sha }`) has no fixture
+  proving the precedence, because every fixture is built through a shared helper that never sets
+  those keys** (`2026-09-03-in-band-absorb-default/phase-4 task 4.1`, 2026-09-04, `disposition:
+  absorb`/`note` — recurring Minor across the task's own audit, its post-merge gate-audit, and its
+  discarded `p4-polish` polish round; never a hold; code-verified at the landed tip
+  `1fcc88f9c6515707b1e52bb7215a5b5134860b03` on `dev/2026-09-03-2026-09-03-in-band-absorb-default`,
+  read via the `_refinery45` worktree whose `gitdir` physical path names this plan's slug):
+  `routeGateAuditRows` collects each of the three gate-audit seats' findings as `{ ...f, task:
+  taskId, seat: 'gate-audit:...', lens: 'execution-evidence', sha: ... }` — a deliberate reorder
+  from an earlier `{ task, seat, lens, sha, ...f }` shape, so the engine's own stamps win over any
+  same-named key a seat's JSON payload supplies. Every `gate-audit-route` fixture in
+  `workflow-template.test.mjs` builds its row through a `gaAbsorb()` helper that sets only
+  severity/title/file/rationale/suggested_fix/disposition — never `task`, `seat`, `lens`, or `sha`
+  — so flipping the spread order back to seat-wins produces byte-identical rows on every fixture,
+  and the whole suite stays green. Delete-and-trace on the reorder itself fails: nothing reds.
+  **Fix:** add one `gate-audit-route` fixture whose seat return carries spoofed provenance keys
+  (e.g. `{ ...gaAbsorb(), task: 'other-task', seat: 'audit:t9:correctness', sha: 'deadbeef00' }`)
+  and assert the queued row's `task`/`seat`/`sha` equal the engine-derived values, not the
+  seat-supplied ones — the same "spoof-the-payload" shape
+  [[auditor-supplied-provenance-keys-trusted-verbatim-in-followup-collapse-and-ask-parking]]
+  describes for the opposite precedence direction (there, auditor-supplied keys spread LAST and
+  win; here, engine keys spread LAST and are meant to win — both need a fixture that actually
+  seeds a conflicting key to prove which side wins). **Recognize the shape fast:** whenever a spread
+  order is the ONLY thing enforcing which side of a merge wins, check whether every fixture's input
+  object can even carry the contested keys — a shared builder helper that never sets them makes the
+  reorder itself untestable, not merely undertested.
+
 **Why:** green no-op tests survive feature deletion and rot silently. **How to apply:** run the delete-and-trace check on every new guard/threading assertion; pair positives with negatives and negatives with presence guards; for "each of N items has property P" assertions, count every legitimate occurrence of P's phrase on the surface (including intro/summary lines) before picking a threshold, or switch to a per-item anchored check; for an anchor-sliced region, check whether any locked token is itself a substring of the anchor literal or satisfiable by unrelated prose already in-region before trusting a whole-sentence delete-and-trace RED proof as evidence every individual token discriminates; when a construct is threaded to N near-identical emission sites, verify whether the mapped test proves all N or just one — a plan can legitimately sanction one-of-N as a latitude call, but if it doesn't, add a source-level count assertion (the `pkg #819` idiom) to close the residual N-1 sites cheaply; when an extraction test does `assert.ok(match)` then `assert.equal(match.length, N)`, check whether `N` is just `1 + the regex's own fixed capture-group count` — if so the length assertion can never fail and only a structurally-independent count (of the source's own delimiters) proves anything about a future third occurrence; when a closed-set header sentence backs an ordered chain anchor, count whether every enumerated member also has its own body-content assert — a header sentence naming N things is not proof any one thing's *content* survives deletion.
 
 **Verification note (discharged 2026-07-12):** the t1.4 referent is now directly verified at the live tip — the aggregate `>= 4` occurrence count was **retired** and replaced by the stronger fix from the bullet above: per-rule window checks (`qualifierPerRuleWindows` in `workflow-template.test.mjs`, whose comment cites the one-occurrence slack) plus a delete-the-feature companion mutation test that cites this lesson by slug. The tracked gap (#693) is closed COMPLETED; the bullet stands as the durable pattern.
@@ -136,3 +240,5 @@ future Gate-2 promotion of this file overwrites the same-slug repo file.
 Related: [[gitmodules-working-tree-read-vs-ref-snapshot]], [[land-local-follower-ref-can-lag-sync-before-next-phase]], [[gate-audit-pin-bracket-test-blocked-by-git-guard]], [[shared-string-constant-quote-literal-byte-anchor-fragility]], [[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]], [[process-recipe-lesson-body-is-not-drift-guarded-by-any-test]], [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]].
 
 > archived 2026-07-21: resolved — moved to archive
+
+> archived 2026-08-17: resolved — moved to archive

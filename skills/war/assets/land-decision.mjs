@@ -53,3 +53,40 @@ export function decideLand({ landed = [], escalated = [] } = {}) {
   if (hard) return 'held:escalation'
   return 'held:nothing-merged'
 }
+
+// BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2): the seat's structured `barrier` enum — the
+// only lawful reasons a fully specified in-diff Minor/Nit routes `follow-up` instead of the `absorb`
+// default. Three follow-up barriers plus one ask-routing tag: 'barrier:release-slot' (release-slot
+// file), 'barrier:underspecified' (fix not fully specified), 'barrier:rationale-comment' (the fix
+// removes or edits a line carrying a `ponytail:` / deliberate-mirror rationale comment), and
+// 'barrier:trade-off' (behavior change with a nameable trade-off — meant for `ask`). A scope argument
+// is never a barrier. Finding-level tokens only: NEVER members of HARD_ESCALATION_REASONS,
+// SOFT_ENV_REASONS, or KNOWN_LAND_DECISIONS. MIRRORED inline in ./workflow-template.js (the Workflow
+// sandbox can't import) — keep in sync; the D2 mirror-registry `barrier-list` rows in
+// workflow-template.test.mjs bind the inline copy, the auditor card sentence, the
+// disposition-eligibility.md list, and the schemas.md AuditVerdict `barrier?` row to this export.
+export const BARRIER_TOKENS = ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']
+
+// RELEASE_SLOT_FILES (in-band-absorb-default D2, PIN-3/PIN-11): the two pure version-slot JSONs the
+// engine refuses from the per-task ace, the phase-close sweep, and the terminal pass — nothing else
+// (README's `## Status` blurb stays guarded by version-slots.test.mjs, never by this list). The
+// engine matches on the BASENAMES derived from these paths through one helper, so the refusal keeps
+// its breadth in any directory (`sub/dir/plugin.json` refused, `plugin.json.bak` not). MIRRORED
+// inline in ./workflow-template.js (the Workflow sandbox can't import) — keep in sync; the D2
+// mirror-registry `sweep-exclude` row in workflow-template.test.mjs and the F07 drift test in
+// war-config.test.mjs bind the inline copy to this export.
+export const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']
+
+// DEMOTE_REASONS (in-band-absorb-default D13, PIN-15): the closed prefix enum every engine
+// `follow-up` demotion cites — `demote()` validates each follow-up reason against it at runtime and
+// on a miss prepends 'demote:unclassified' (itself a member) with a loud log, never a throw, so an
+// engine-filed issue body's prefix line is never blank. Twelve members: absorb-regressed (the ace
+// fix itself broke a re-audit and was forward-reverted), absorb-blocked (a held absorb on a task
+// that never merged), fileless, task-unapproved, sweep-skipped, sweep-discarded, terminal-pass,
+// exclusion-set, release-slot, floor-skipped (a seat row on a task whose diff probe failed),
+// ask-unruled-afk (Lead-side, the Checkpoint --afk no-match lane), unclassified. Finding-level
+// prefixes only: NEVER members of HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, KNOWN_LAND_DECISIONS, or
+// BARRIER_TOKENS. MIRRORED inline in ./workflow-template.js (the Workflow sandbox can't import) —
+// keep in sync; the D2 mirror-registry `demote-census` row in workflow-template.test.mjs and the F07
+// drift test in war-config.test.mjs bind the inline copy to this export.
+export const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']

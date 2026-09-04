@@ -750,10 +750,13 @@ The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it
 the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
 affirmative issue (`follow-up` — must state why it is not absorbable), record it without filing
 (`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
-Omitted → Minor becomes follow-up, Nit becomes note; `absorb` and `ask` are never defaults. A failed or
-ineligible route **demotes one step toward durability**, logged — per subset under the ace bisection
-ladder — never dropped silently, while `demote()` refuses an ask (log + re-route onto `asks[]`); zero
-unrouted findings on every exit path.
+A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
+(outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
+Nit becomes note; `ask` is never a default. A failed route **steps toward durability** — the
+phase-close sweep, then the carried queue on a non-final phase, then `follow-up`; an ineligible
+route (release-slot, exclusion-set, fileless) demotes straight to its default rung. Every step is
+logged — per subset under the ace bisection ladder — never dropped silently, while
+`demote()` refuses an ask (log + re-route onto `asks[]`); zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
 
 **Ask disposition** (`ask`):
@@ -819,15 +822,15 @@ The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect`
 `skills/war/assets/workflow-template.js`, dispatched wave-side per task, never inside the merge lock):
 named culprits are excised (demoted, logged) and the remainder re-applies as ONE subset; blind halving
 is reserved for ambiguous attribution; subsets apply serially at the tip, depth ≤ 2, same-file findings
-never split; each subset commit charges one `fixRounds` slot (reverts uncharged) and dispatches only
-while `fixRounds < roundLimit − 2`, the **floor-retry reserve** that holds two slots back for the
-merge-floor retry loop. Reaching it mid-bisection stops the ladder and the remaining subsets demote to
-`follow-up`, logged and by design; the reserve bounds subset commits only, not the whole ace path (the
-batch ace keeps its own `< roundLimit` gate). Failed subset tips are
+never split; each subset commit charges one `absorbRounds` slot of the task's **Absorb budget** (reverts
+uncharged, `fixRounds` never charged) and dispatches only while `absorbRounds < run.absorbRounds`. A
+spent budget mid-bisection stops the ladder and the still-queued subsets ride to the phase-close sweep as
+absorbs (`routeToSweep`, `phaseClose: true`), logged and by design; the same budget gates the batch ace
+and **Re-entry**. Failed subset tips are
 forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
 mergeable task.
-_Avoid_: whole-batch demotion (retired); conflating this ladder's reserve stop (the remaining subsets
-demote) with **Re-entry**'s reserve rung (routes `phaseClose: true` to the sweep); git-bisect (this is
+_Avoid_: whole-batch demotion (retired); demoting a never-re-audited subset on a spent budget (retired —
+it rides to the sweep; only a subset that failed its own re-audit demotes); git-bisect (this is
 finding-subset re-application, not a history search).
 
 **Re-entry**:
@@ -835,16 +838,67 @@ The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned f
 WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another
 ace-style batch on the same machinery (canonical: `aceReentry` in
 `skills/war/assets/workflow-template.js`), **never a new round type or status member**. The
-**floor-retry reserve** (`fixRounds < roundLimit − 2`, #1562's merge-floor retry slots) is their
-SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
+**Absorb budget** (`absorbRounds < run.absorbRounds`, the per-task ace meter separate from `fixRounds`)
+is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
 its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
-budget-gated. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
-sweep-discard ⇒ `follow-up`; a forward-reverted finding never re-enters (the oscillation bound);
-every demotion is logged. Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
+budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
+sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a
+forward-reverted finding never re-enters (the oscillation bound); every demotion is logged.
+Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
 tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
-_Avoid_: a second budget; treating the reserve as a soft target (it is the stop condition);
+_Avoid_: charging `fixRounds`; treating the budget as a soft target (it is the stop condition);
 reading it as bounding the merge-slot source.
+
+**Absorb budget**:
+The per-task ace meter, separate from `fixRounds`: the knob `run.absorbRounds` (integer ≥ 1, default 6,
+validated like `run.roundLimit`) bounds the counter `r.task.absorbRounds`, charged once per ace-side
+COMMIT (batch ace, re-entry batch, bisection subset, and the terminal pass, on the polish
+pseudo-task, telemetry only) and never by reverts, re-audit panels, or fix rounds. All three ace
+gates read `absorbRounds < run.absorbRounds`;
+a spent budget routes the rows to the phase-close sweep as absorbs, logged and naming the counter
+(at the batch ace only when no Critical/Major blocker is open; open blockers hold the rows on
+`r.task.pendingAbsorbs` for the next approve, regardless of budget).
+Every ace-side commit carries the trailer `Ace-Charge: <task>:<n>` (n = the counter after the charge),
+and a relaunch seeds the counter from the highest trailer index on the task branch (the phase-start
+barrier's `absorbCharges`), 0 with a loud log on error or absence. Supersedes the retired reserve
+arithmetic on `fixRounds` (ADR 0013 amendment 2026-09-03); `fixRounds` counts blocking fix rounds and
+floor retries only.
+_Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a charge; a second meter.
+
+**Exclusion set**:
+The phase-close sweep's union of foreign-owned files and release-slot files: the files of every
+`args.sweepExclude` entry (the Lead's slug-attributed campaign contention list) ∪ the `Files:` of every
+task whose status is not `merged` ∪ `RELEASE_SLOT_FILES`, both sides `aceRelPath`-normalized. A queued
+absorb whose file is in the set demotes to `follow-up` with a reason naming the owner — the entry's plan
+slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
+exclusion; the engine applies the set at sweep time.
+_Avoid_: a seat-side exclusion judgment; a prose or size estimate in place of the file-set match.
+
+**Barrier list** (`BARRIER_TOKENS`):
+The closed enum a seat cites in a finding's structured `barrier` field to route a fully specified
+Minor/Nit away from its `absorb` default: `barrier:release-slot` (a release-slot file),
+`barrier:underspecified` (the fix is not fully specified), `barrier:rationale-comment` (the fix removes or
+edits a `ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (a nameable trade-off — routes
+`ask`, never `follow-up`). Three follow-up barriers plus one ask route; canonical in
+`skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js`, body in
+`skills/war/references/disposition-eligibility.md` (ADR 0013 amendment 2026-09-04). A scope argument is
+never a barrier, and the why-not-absorbable prose stays free text beside the tag.
+_Avoid_: a prose barrier; a fifth member minted on a card; the engine estimating fix size.
+
+**Demote reason prefix** (`DEMOTE_REASONS`):
+The closed prefix enum every engine `follow-up` demotion cites, canonical in
+`skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js` (mirror-registry row and `F07`
+registration). Twelve members: `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`,
+`demote:task-unapproved`, `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`,
+`demote:exclusion-set`, `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, and
+`demote:unclassified`. `demote()` validates every `follow-up` reason at runtime; a miss prepends
+`demote:unclassified` with a loud log, never a throw. Each engine-filed issue body carries the prefix on its
+`Demote-Reason:` line, and `/war-review` tallies `demote:unclassified` as a defect signal. A failed ATTEMPT
+(an untouched file, a dead ace worker, a red gate at the ace tip) and an ace-off run route the row to the
+phase-close sweep instead of demoting (ADR 0013 amendment 2026-09-04, Phase 4).
+_Avoid_: an unprefixed `follow-up` demotion; a prefix minted outside the enum; reading a member as a
+`HARD_ESCALATION_REASONS` or `BARRIER_TOKENS` member.
 
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and
@@ -870,14 +924,33 @@ _Avoid_: tip-only preflight; pinning the value shape (latitude — the key is th
 The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
 fixes ONLY the queued `phaseClose` absorb findings, a full default-roster panel re-audits the polish SHA,
 and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
-place; queue demotes to follow-up) and the pre-polish tip lands exactly as it would have. It may only
-improve the tip; a discarded sweep recomputes nothing.
+place; queue carries on `carriedPhaseClose` (non-final phase) or demotes to follow-up (final))
+and the pre-polish tip lands exactly as it would have. It may only improve the tip; a discarded
+sweep recomputes nothing.
 _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure that holds the land.
 
 **sweep-raised finding**:
 A finding the phase-close re-audit panel raises against the polish commit itself, not a queued
 `phaseCloseQueue` finding the sweep drains; Minor/Nit route by disposition at sweep close
-(Critical/Major keep today's blocking visibility), never aced, never re-queued.
+(Critical/Major keep today's blocking visibility): on the merged arm an absorb joins the terminal
+pass, on the discard arm it rides the carried queue (non-final phase) or demotes `demote:sweep-discarded`.
+
+**Terminal pass**:
+The one-hop ace commit plus one re-audit seat after the polish merge (ADR 0012 successor of the
+merged-sweep demote arm): the polish panel's absorbs plus what the sweep left unlanded, filtered
+through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip; a regression is
+forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
+unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
+convenes with `run.ace` off and never budget-blocks.
+_Avoid_: a second pass; reading its charge as a gate; a release-slot file in its commit.
+
+**Carried queue**:
+The absorb rows a phase could not land and did not demote — a held phase's whole queue, a
+non-final discarded sweep's absorbs, a non-final terminal pass's rows — emitted top-level as
+`carriedPhaseClose` on the
+phase return (always present, `[]` when nothing was carried, so absence is never ambiguous) and
+threaded back by the Lead as `args.seededPhaseClose`, where they drain into the relaunch's sweep queue.
+_Avoid_: reading absence as empty; demoting a held phase's queue; a carry inside the handoff block.
 
 **truncated gate log**:
 A captured gate log whose bash half aborted at the first red suite (some per-file headers, not
@@ -906,12 +979,13 @@ _Avoid_: follow-up issues as the default disposal; a handoff block on `held:work
 death has no trustworthy return to render).
 
 **Drain cause**:
-The stamped reason a demoted absorb finding was fail-open-routed to follow-up — recorded per
-finding when a phase-close polish dispatch dies, so the drain is attributable instead of a bare
-follow-up dump. Emitted by `workflow-template.js`'s phase-close polish-dispatch drain path; the
-field name is engine-owned.
-_Avoid_: disposition (the stamp records *why demoted*, never the route chosen); reading a missing
-stamp as a clean route.
+The stamped reason a queued absorb was fail-open-routed — demoted to follow-up when the polish
+provisioning dies, and on a discarded sweep demoted on a final phase or carried on
+`carriedPhaseClose` on a non-final one — recorded per finding when a phase-close polish dispatch
+dies, so the drain is attributable instead of a bare follow-up dump. Emitted by
+`workflow-template.js`'s phase-close polish-dispatch drain path; the field name is engine-owned.
+_Avoid_: disposition (the stamp records *why the drain happened*, never the route chosen); reading
+a missing stamp as a clean route.
 
 ### Test discipline
 

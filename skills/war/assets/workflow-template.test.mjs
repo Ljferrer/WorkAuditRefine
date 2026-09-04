@@ -5,16 +5,25 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS } from './land-decision.mjs'
+import { createHash } from 'node:crypto'
+import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
+// (auditor-evict, D16) the references home of the evicted `execution-evidence` gate-audit checklist —
+// every assert that reads a checklist DUTY reads this file; heading + trigger pointer stay on the card.
+const gateAuditChecklistMd = readFileSync(join(here, '../references/gate-audit-checklist.md'), 'utf8')
 // UNION surface (prompt-surface simplification, adjudication I): Task 3.1 evicted the guard-contract
 // teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
 const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
 const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'utf8')
+const schemasMdForAbsorb = readFileSync(join(here, '../references/schemas.md'), 'utf8')   // read surface for the absorb-budget both-surfaces fixture (#2027)
+// Relocated surface (in-band-absorb-default D12, ADR 0042): Task 2.1 evicted `## Gate-failure
+// classification` byte-identical from the card into this reference file (the card keeps the heading
+// and the trigger pointer) — presence keys over the moved procedure relocate their read here.
+const gateFailureMd = readFileSync(join(here, '../references/gate-failure-classification.md'), 'utf8')
 // UNION/relocated surface (prompt-surface simplification, adjudications E+I): Task 4.1 evicted the
 // submodule-as-repo provisioning recipe, the superproject reland discrimination (land step 3), and the
 // 2A/2B submodule land arms from the card into this reference file — presence keys over the moved text
@@ -51,6 +60,12 @@ const NEW_SEAT_DEFAULTS = {
   // refiner returns.
   'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
+  // diff-probe (in-band-absorb-default D4): the per-task refiner probe between the worker's green
+  // return and the seat convene. The neutral default is an ABSENT probe (no diff_files) — the
+  // fail-open arm: dispositionOf keeps the old severity default and the intake floor skips, so
+  // every pre-Phase-4 fixture routes exactly as it did. A fixture that wants the floor answers the
+  // seat with { diff_files: [...] } through `seats`.
+  'diff-probe': { detail: 'harness default — no probe' },
 }
 // runPhase(args, agentImpl, seats): `seats` drives the two #1913 refiner seats — a value, or a
 // (prompt, opts) function. They are answered from `seats`, never from agentImpl, precisely because the
@@ -69,7 +84,7 @@ async function runPhase(args, agentImpl, seats = {}) {
   const fn = build()
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
-    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer') return answerNewSeat(seats, prompt, opts)
+    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe') return answerNewSeat(seats, prompt, opts)
     return agentImpl(prompt, opts)
   }
   const log = (m) => logs.push(m)
@@ -471,11 +486,13 @@ const isProvisionTopology = (c) =>
   !/^provision-run:/.test(c.opts.label || '')
 // A merge-task dispatch is a Refine-phase refiner seat that is NOT one of the phase's other
 // Refine-phase refiner dispatches: the land-barrier endstate-check, the post-merge evidence seat, the
-// phase-close polish worktree, and the #1913 pin-transfer probe (which rebases and measures patch-ids
-// but never merges). Keyed on dispatchKind, the stable discriminator, never a label-prefix regex.
+// phase-close polish worktree, the #1913 pin-transfer probe (which rebases and measures patch-ids
+// but never merges), and the terminal-pass forward-revert (a Refine-phase refiner dispatch that
+// reverts a regressed terminal commit but never merges). Keyed on dispatchKind, the stable
+// discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
-const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check']
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
   !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
@@ -3111,15 +3128,20 @@ const aceBase = (findingsFirstRound = [nit()]) => (prompt, opts) => {
   return {}
 }
 
-test('Task 3 — default-off: run.ace unset ⇒ no ace dispatch, an absorb nit demotes to follow-up (minorsFiled), aced empty', async () => {
-  // run.ace omitted → absorb execution is unavailable (per-task ace AND sweep alike); the legacy
-  // autoFixable nit reads as absorb and takes the logged demotion to follow-up (ADR 0013 ladder).
+test('Task 3 — default-off (ace-off-route, D14): run.ace unset ⇒ no ace dispatch; an absorb nit routes phaseClose:true to the sweep (no default roster ⇒ the sweep-skipped drain demotes it), aced empty', async () => {
+  // run.ace omitted → the per-task ace ladder never dispatches (that is ALL run.ace gates); the
+  // legacy autoFixable nit reads as absorb and routes to the phase-close sweep. Without a config
+  // default audit.roster the sweep skips fail-open and drains the queue to follow-up — so the row
+  // reaches minorsFiled ONLY through the logged demote:sweep-skipped drain, never an ace-off demotion.
   const { out, calls, logs } = await runPhase(ACE_ARGS({ run: {} }), aceBase([nit()]))
   assert.ok(!calls.some(isAce), 'no ace worker is dispatched when run.ace is unset')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('tidy import') && l.includes('ace off this run')),
+    'the ace-off absorb is routed to the sweep with a log naming ace off (D14)')
   const filed = (out.minorsFiled || []).find(m => m && m.task === 't1' && m.title === 'tidy import')
-  assert.ok(filed, 'the absorb nit demotes to follow-up (minorsFiled) when --ace is off')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('tidy import')),
-    'the --ace-off demotion is log()ged (never silent)')
+  assert.ok(filed, 'the sweep-skipped drain demotes the queued row to follow-up (minorsFiled) — nothing drops silently')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('tidy import') && l.includes('demote:sweep-skipped')),
+    'the drain demotion is log()ged with its demote:sweep-skipped prefix (never silent)')
+  assert.ok(!logs.some(l => typeof l === 'string' && /absorb requires/i.test(l)), 'the retired ace-off demotion never fires')
   assert.ok(!out.aced || out.aced.length === 0, 'aced is empty/absent when run.ace is off')
   assert.ok(out.landed.includes('t1'), 't1 still lands on the default-off path')
 })
@@ -3182,11 +3204,10 @@ test('Task 3 — never blocks a land via forward-revert: a regressing ace re-aud
   assert.notEqual(out.landDecision, 'held:escalation', 'the ace regression does NOT hold the land')
 })
 
-test('Task 3 — release-slot refusal narrowed (criterion 1/2): plugin.json / marketplace.json absorb nits are never aced per-task — they route to the phase-close queue', async () => {
-  // The two pure version-slot JSONs keep the hard string refusal; the refused absorb no longer
-  // falls through to minorsFiled — it feeds the phase-close sweep (criterion 2). Without a config
-  // default audit.roster the sweep skips fail-open and drains the queue to follow-up, so the
-  // finding surfaces in minorsFiled ONLY via the logged demotion.
+test('Task 3 — release-slot refusal (criterion 1/2, sweep-exclude D2): plugin.json / marketplace.json absorb nits are never aced per-task — they demote AT BIRTH with demote:release-slot, never the sweep queue', async () => {
+  // The two pure version-slot JSONs keep the hard refusal (RELEASE_SLOT_FILES); a release-slot
+  // absorb demotes where it is born (PIN-11) — it never feeds the ace batch and never reaches the
+  // phase-close queue (no sweep dispatch, no sweep-skipped drain).
   for (const file of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
     const slotNit = nit({ title: 'slot nit', file })
     const impl = buildSeqImpl(
@@ -3196,10 +3217,12 @@ test('Task 3 — release-slot refusal narrowed (criterion 1/2): plugin.json / ma
     const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
     assert.ok(!calls.some(isAce), `no ace worker for a release-slot nit (${file}) even with autoFixable:true`)
     assert.ok(!out.aced || !out.aced.some(a => a && a.finding && a.finding.title === 'slot nit'), `the release-slot nit (${file}) is NOT aced`)
-    assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep skipped')),
-      `the slot nit (${file}) reached the phase-close queue (sweep skipped without a default roster — fail-open drain)`)
-    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'slot nit'),
-      `the drained slot nit (${file}) demotes to follow-up (never dropped silently)`)
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('slot nit') && l.includes('demote:release-slot') && l.includes('the release slot')),
+      `the slot nit (${file}) demotes at birth with the demote:release-slot prefix naming the release slot as owner`)
+    assert.ok(!logs.some(l => typeof l === 'string' && l.includes('sweep skipped')),
+      `the slot nit (${file}) never reached the phase-close queue (no sweep drain)`)
+    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'slot nit' && m.engineFiled === true),
+      `the demoted slot nit (${file}) is filed as an engine demotion (never dropped silently)`)
   }
 })
 
@@ -3227,9 +3250,9 @@ test('Task 3 — ponytail / no-flag refusal: a Nit without autoFixable/dispositi
 
 // ---------------------------------------------------------------------------
 // Ace RE-ENTRY (in-run-finding-resolution Task 1.1, D1/D2/#1731): the ladder RE-OPENS for fresh
-// absorbs born at a re-audit — budget-bounded (fixRounds < roundLimit − 2, the floor-retry
-// reserve is the SOLE bound), same machinery (Ace-Subset trailer + tip-preflight idempotency,
-// PIN-15), forward-revert posture preserved (a reverted finding never re-enters).
+// absorbs born at a re-audit — budget-bounded (absorbRounds < run.absorbRounds, the absorb budget
+// is the SOLE bound — in-band-absorb-default D5), same machinery (Ace-Subset trailer +
+// tip-preflight idempotency, PIN-15), forward-revert posture preserved (a reverted finding never re-enters).
 // ---------------------------------------------------------------------------
 
 // Drives: round-1 absorb → batch ace → re-audit approves WITH a fresh absorb → ONE re-entry batch
@@ -3249,7 +3272,7 @@ test('ace-reentry (End state 1, plain re-audit): a fresh absorb born at the appr
   assert.ok(re.prompt.includes('second') && !re.prompt.includes('first,'), 'the re-entry batch carries the fresh finding')
   // PIN-15: the re-entry dispatch inherits the Ace-Subset trailer discipline (round index folded
   // into the deterministic value) and the tip-preflight idempotency (range scan, exact equality).
-  assert.match(re.prompt, /`Ace-Subset: t1:reentry:r2:skills\/second\.js`/, 'the trailer value carries task id + round index + sorted file set')
+  assert.match(re.prompt, /`Ace-Subset: t1:reentry:a2:skills\/second\.js`/, 'the trailer value carries task id + absorbRounds index + sorted file set')
   assert.ok(re.prompt.includes('EXACT whole-string equality') && re.prompt.includes('never the tip alone'),
     'the re-entry PREFLIGHT mandates the range scan with exact whole-string trailer equality (PIN-15)')
   assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'second'), 'the re-audit-born absorb is ACED (executed in-run)')
@@ -3270,10 +3293,10 @@ test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born 
       bApprove(),                           // subset [f2] approves clean
       bApprove(),                           // the re-entry batch's own re-audit approves clean
     ],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],
-    'ace:t1:r3': [bWorker('5ab00002')],
-    'ace:t1:r4': [bWorker('2ee20001')],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],
+    'ace:t1:a3': [bWorker('5ab00002')],
+    'ace:t1:a4': [bWorker('2ee20001')],
   }, aceBase([f1, f2]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3340,17 +3363,18 @@ test('ace-reentry (End state 1 + 6, batch-regressed arm): a batch finding re-rai
   assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
 })
 
-test('ace-reentry (End state 1, reserve gate): re-entry dispatches only while fixRounds < roundLimit − 2 — at the reserve the fresh absorb routes phaseClose:true instead (logged)', async () => {
-  // roundLimit 3 ⇒ reserve boundary 1. The batch ace charges the only slot; the re-audit-born
-  // absorb finds the reserve line and routes to the sweep queue (no second ace dispatch). Without
-  // a default audit.roster the sweep skips fail-open and drains — the finding surfaces via the
-  // logged demotion, proving the sweep queue (not minorsFiled directly) was its route.
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 3 } }), reentryImpl())
-  assert.equal(calls.filter(isAce).length, 1, 'only the batch ace dispatched — the reserve blocks re-entry (the NEW < roundLimit − 2 gate)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserve-blocked') && l.includes('roundLimit−2 (1)')),
-    'the reserve stop is logged with the boundary value')
+test('absorb-budget (End state 4, re-entry gate): re-entry dispatches only while absorbRounds < run.absorbRounds — at a spent budget the fresh absorb routes phaseClose:true instead (logged, naming the counter)', async () => {
+  // absorbRounds 1: the batch ace charges the only absorb slot; the re-audit-born absorb finds the
+  // budget spent and routes to the sweep queue (no second ace dispatch). roundLimit stays at its
+  // default 6 — fixRounds plays no part in the gate (D5, PIN-7). Without a default audit.roster
+  // the sweep skips fail-open and drains — the finding surfaces via the logged demotion, proving
+  // the sweep queue (not minorsFiled directly) was its route.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, absorbRounds: 1 } }), reentryImpl())
+  assert.equal(calls.filter(isAce).length, 1, 'only the batch ace dispatched — the spent absorb budget blocks re-entry (the absorbRounds < run.absorbRounds gate)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('budget-blocked') && l.includes('absorbRounds 1 reached run.absorbRounds (1)')),
+    'the budget stop is logged naming the counter and the boundary value')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('second')),
-    'the reserve-blocked absorb routes phaseClose:true toward the sweep (logged, never silent)')
+    'the budget-blocked absorb routes phaseClose:true toward the sweep (logged, never silent)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep skipped')), 'the finding reached the phase-close queue (drained fail-open without a roster)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'second'), 'the drained finding demotes to follow-up (nothing dropped)')
 })
@@ -3393,8 +3417,9 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
 // Ace bisection (realized-absorb-rate Task 1.1, D1–D4/D6): the regression-recovery
 // ladder on a failed --ace batch. Culprit-first excision → blind halving only on
 // ambiguous attribution → serial subsets at the tip, depth cap 2, same-file findings
-// never split; batch = 1 fixRounds slot, +1 per subset commit, reverts uncharged,
-// exhaustion demotes the remainder by design; the loop owns in-loop forward-reverts
+// never split; batch = 1 absorbRounds slot, +1 per subset commit (fixRounds is never charged,
+// D5), reverts uncharged, a spent absorb budget routes the still-queued remainder to the
+// phase-close sweep by design; the loop owns in-loop forward-reverts
 // and only a FINAL failed tip rides the merge dispatch's revert clause.
 // ---------------------------------------------------------------------------
 
@@ -3409,8 +3434,8 @@ test('bisection — culprit-first excision: a named culprit demotes, the remaind
   const fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js'), bApprove()],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],
   }, aceBase([fa, fb]))
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3432,7 +3457,7 @@ test('bisection — all findings named culprits: nothing to salvage, the whole b
   const fa = nit({ title: 'a nit', file: 'skills/a.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa]), bRegress('skills/a.js')],
-    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:a1': [bWorker('ace00001')],
   }, aceBase([fa]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   assert.equal(calls.filter(isAce).length, 1, 'no subset dispatch — total culprit attribution leaves nothing to salvage')
@@ -3446,18 +3471,19 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   const impl = buildSeqImpl({
     // regression names a file NO aceable finding touches ⇒ ambiguous ⇒ blind halving
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],
-    'ace:t1:r3': [bWorker('5ab00002')],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],
+    'ace:t1:a3': [bWorker('5ab00002')],
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 3, 'batch + two blind halves, applied serially')
   const labels = aces.map(c => c.opts.label)
-  assert.deepEqual(labels, ['ace:t1:r1', 'ace:t1:r2', 'ace:t1:r3'],
-    'ace labels stay distinct and round-encoded (the ace:<task>:r<n> scheme extends to subsets)')
+  assert.deepEqual(labels, ['ace:t1:a1', 'ace:t1:a2', 'ace:t1:a3'],
+    'ace labels stay distinct and slot-encoded (the ace:<task>:a<n> scheme extends to subsets)')
   for (const c of aces.slice(1)) {
     assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
+    assert.match(c.prompt, /`Ace-Charge: t1:\d+`/, 'every subset dispatch mandates the Ace-Charge trailer too — the third ace-side commit site (#2031)')
     assert.match(c.prompt, /ace00001\^\.\.HEAD/, 'the preflight scans the bisection range since the pre-batch base')
     assert.ok(c.prompt.includes('never the tip alone'), 'the preflight is range-scoped, never tip-only')
     assert.ok(c.prompt.includes('WITHOUT committing'), 'a preflight hit returns the existing sha without committing')
@@ -3497,14 +3523,15 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
       bApprove(),                    // [f3] approves
       bApprove(),                    // [f4,f5] approves
     ],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],   // [f1,f2,f3]
-    'ace:t1:r3': [bWorker('5ab00002')],   // [f1,f2]
-    'ace:t1:r4': [bWorker('5ab00003')],   // [f3]
-    'ace:t1:r5': [bWorker('5ab00004')],   // [f4,f5]
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],   // [f1,f2,f3]
+    'ace:t1:a3': [bWorker('5ab00002')],   // [f1,f2]
+    'ace:t1:a4': [bWorker('5ab00003')],   // [f3]
+    'ace:t1:a5': [bWorker('5ab00004')],   // [f4,f5]
   }, aceBase([f1, f2, f3, f4, f5]))
-  // roundLimit 9: the ladder is budget-unconstrained here so the depth mechanics alone are under test.
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 9 } }), impl)
+  // absorbRounds 9: the subset stop reads absorbRounds against run.absorbRounds, and this ladder
+  // charges 5 slots, so the budget is kept unconstrained here and the depth mechanics alone are under test.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, absorbRounds: 9 } }), impl)
   const aces = calls.filter(isAce)
   // dispatches: batch, [f1,f2,f3], [f1,f2], [f3], [f4,f5] — and NOTHING after the depth-2
   // regression: without the cap, [f1] and [f2] would each get their own dispatch (7 total).
@@ -3530,9 +3557,9 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],   // half 1 approves
-    'ace:t1:r3': [bWorker('5ab00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],   // half 1 approves
+    'ace:t1:a3': [bWorker('5ab00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const merge = calls.find(isMergeTask)
@@ -3545,25 +3572,34 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
-test('bisection — budget: each subset COMMIT charges one fixRounds slot; the floor-retry reserve (roundLimit − 2) demotes the remaining subsets to follow-up (logged, by design) and the task still lands', async () => {
+test('absorb-budget (bisection budget): each subset COMMIT charges one absorbRounds slot, never fixRounds; a spent budget routes the still-queued subsets to the phase-close sweep as absorbs (logged, by design) and the task still lands', async () => {
   const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove()],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],
   }, aceBase([fa, fb]))
-  // roundLimit 4 ⇒ subset boundary roundLimit − 2 = 2 (Open decision 4): batch charges slot 1,
-  // subset 1 charges slot 2 — subset 2 finds the reserve line reached (2 slots kept for the
-  // merge-floor retry loop).
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 4 } }), impl)
-  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (floor-retry reserve reached)')
+  // absorbRounds 2 (D5): batch charges slot 1, subset 1 charges slot 2 — subset 2 finds the budget
+  // spent and rides to the sweep queue (never a follow-up demotion). roundLimit stays at its
+  // default 6 and is never charged by the ladder. Without a default audit.roster the sweep skips
+  // fail-open and drains, so the row surfaces in minorsFiled only THROUGH the sweep queue.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, absorbRounds: 2 } }), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (absorb budget spent)')
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'the committed subset aces')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the un-dispatched remainder demotes to follow-up')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserved for the merge-floor retry loop')), 'the reserve-exhausted branch logs why the ladder stopped')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ladder stopped — absorbRounds 2 reached run.absorbRounds (2)')), 'the budget stop logs the counter and the boundary value')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('fb nit') && l.includes('absorb budget spent mid-bisection')),
+    'the un-dispatched remainder routes to the phase-close sweep as an absorb (routeToSweep, never demote)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep skipped')), 'the remainder reached the phase-close queue (drained fail-open without a roster)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the drained remainder is not dropped (fail-open drain to follow-up)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('fb nit') && l.includes('mid-bisection')),
+    'no reserve-style demotion arm fired for the still-queued subset')
   assert.ok(out.landed.includes('t1'), 't1 lands')
   const audEntry = out.auditLog.find(e => e && e.task === 't1' && e.verdict === 'approve')
   assert.ok(audEntry, 'presence guard: the t1 approve entry exists')
+  // This read is ace-blind: auditLog rows stamp r.preAceRounds, frozen at the audit-loop exit before
+  // any ace charge. The live PIN-7 discrimination is 'absorb-budget (End state 4, fixRounds untouched by ace)'.
+  assert.equal(audEntry.fixRounds, 0, 'the audit-round provenance records the pre-ace round count (0 fix rounds)')
 })
 
 test('bisection — same-file findings never split across subsets (D3): two findings in one file regress as an ATOMIC batch (no subset dispatch); grouped halving keeps a file whole', async () => {
@@ -3572,7 +3608,7 @@ test('bisection — same-file findings never split across subsets (D3): two find
   const s2 = nit({ title: 'same two', file: 'skills/same.js' })
   const atomicImpl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([s1, s2]), bRegress('zz.js')],
-    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:a1': [bWorker('ace00001')],
   }, aceBase([s1, s2]))
   const atomic = await runPhase(ACE_ARGS(), atomicImpl)
   assert.equal(atomic.calls.filter(isAce).length, 1, 'no subset dispatch — a single file group cannot split (D3)')
@@ -3583,9 +3619,9 @@ test('bisection — same-file findings never split across subsets (D3): two find
   const o1 = nit({ title: 'other one', file: 'skills/other.js' })
   const groupedImpl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([s1, s2, o1]), bRegress('zz.js'), bApprove(), bApprove()],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],
-    'ace:t1:r3': [bWorker('5ab00002')],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],
+    'ace:t1:a3': [bWorker('5ab00002')],
   }, aceBase([s1, s2, o1]))
   const grouped = await runPhase(ACE_ARGS(), groupedImpl)
   const gAces = grouped.calls.filter(isAce)
@@ -3600,8 +3636,8 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js')],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }],
   }, aceBase([fa, fb]))
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
   assert.equal(calls.filter(isAce).length, 2, 'the ladder abandons after the blocked subset — no further subset dispatch')
@@ -3616,11 +3652,11 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
 
 // ---------------------------------------------------------------------------
 // ace-trailer regression rows (Phase 7 Task 2, End state 11 — D12 trailer equality,
-// culprit-path normalization, Open decision 4 floor-retry reserve, #1694 fold):
+// culprit-path normalization, the D5 absorb-budget stop, #1694 fold):
 // the PREFLIGHT/commit mandates are prompt-enforced (the subset worker performs the
 // compare), so the exact-equality and final-paragraph rows pin the dispatched prompt
 // literals against a fixture whose sibling trailers ARE in strict-prefix relation;
-// path attribution and the reserve boundary are engine behavior and get functional rows.
+// path attribution and the absorb-budget boundary are engine behavior and get functional rows.
 // ---------------------------------------------------------------------------
 
 test('bisection ace-trailer — a sibling strict-prefix trailer pair never matches under exact-value comparison: every subset dispatch mandates EXACT whole-string equality (never prefix/substring) and the final-paragraph trailer block', async () => {
@@ -3631,9 +3667,9 @@ test('bisection ace-trailer — a sibling strict-prefix trailer pair never match
   const f2 = nit({ title: 'bak nit', file: 'skills/aa.js.bak' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],
-    'ace:t1:r3': [bWorker('5ab00002')],
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],
+    'ace:t1:a3': [bWorker('5ab00002')],
   }, aceBase([f1, f2]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3665,8 +3701,8 @@ test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regress
     const fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
     return buildSeqImpl({
       'audit:t1:correctness': [bApprove([fa, fb]), bRegress(regressFile), bApprove()],
-      'ace:t1:r1': [bWorker('ace00001')],
-      'ace:t1:r2': [bWorker('5ab00001')],
+      'ace:t1:a1': [bWorker('ace00001')],
+      'ace:t1:a2': [bWorker('5ab00001')],
     }, aceBase([fa, fb]))
   }
   for (const [aceFile, regressFile, dir] of [
@@ -3691,10 +3727,13 @@ test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regress
   }
 })
 
-test('bisection ace-trailer — floor-retry reserve (Open decision 4): the subset ladder stops at roundLimit − 2 mid-queue, leaving the merge-floor retry loop its 2 reserved slots; the stop is logged and the remainder demotes', async () => {
-  // roundLimit 5 ⇒ subset boundary 3. Charges: batch (1) → half [f1,f2] (2) regresses and splits
-  // → depth-2 [f1] (3) approves → [f2] and the untouched half [f3,f4] find the reserve line
-  // reached: exactly 2 of 5 slots remain for the merge-floor retry loop.
+test('absorb-budget (End state 4, budget-spent bisect ladder): the untested subsets ride to the sweep queue and none reach minorsFiled, while a subset that already failed its own re-audit still demotes', async () => {
+  // absorbRounds 3 (D5). Charges: batch (1) → half [f1,f2] (2) regresses and splits → depth-2 [f1]
+  // (3) REGRESSES at the depth floor (a re-audit-failed subset: keeps its demote) → [f2] and the
+  // untouched half [f3,f4] find the budget spent: never re-audited, they ride to the phase-close
+  // sweep as absorbs (routeToSweep, phaseClose:true) and ace at the polish sha — never minorsFiled.
+  // SWEEP_ARGS supplies the default roster so the sweep really convenes; sweepBase drives the
+  // polish worker/merge and answers the un-keyed seats clean.
   const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
   const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
   const f3 = nit({ title: 'f3 nit', file: 'skills/f3.js' })
@@ -3704,22 +3743,24 @@ test('bisection ace-trailer — floor-retry reserve (Open decision 4): the subse
       bApprove([f1, f2, f3, f4]),
       bRegress('zz-unrelated.js'),   // batch regresses, ambiguous ⇒ halves [f1,f2] [f3,f4]
       bRegress('zz-unrelated.js'),   // [f1,f2] regresses ⇒ splits to [f1] [f2] ahead of [f3,f4]
-      bApprove(),                    // [f1] approves — the third and final charged slot
+      bRegress('zz-unrelated.js'),   // [f1] regresses at depth 2 — the third and final charged slot; f1 demotes (re-audit failed)
     ],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],   // [f1,f2]
-    'ace:t1:r3': [bWorker('5ab00002')],   // [f1]
-  }, aceBase([f1, f2, f3, f4]))
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 5 } }), impl)
-  // Without the reserve (a bare < roundLimit gate) [f2] would dispatch a 4th ace call.
-  assert.equal(calls.filter(isAce).length, 3, 'batch + two subsets — the ladder stops AT roundLimit − 2, never draws the reserved slots')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reached roundLimit−2 (3)')
-    && l.includes('2 slots stay reserved for the merge-floor retry loop')),
-    'the reserve-exhausted branch logs the boundary value and why the ladder stopped')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f1 nit' && a.sha === '5ab00002'),
-    'the subset committed inside the budget still aces')
-  assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => (out.minorsFiled || []).some(m => m && m.title === t)),
-    'the mid-queue remainder — the split sibling AND the untouched half — demotes to follow-up')
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],   // [f1,f2]
+    'ace:t1:a3': [bWorker('5ab00002')],   // [f1]
+  }, sweepBase([]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: true, absorbRounds: 3 } }), impl)
+  // Without the absorb-budget stop, [f2] would dispatch a 4th ace call.
+  assert.equal(calls.filter(isAce).length, 3, 'batch + two subsets — the ladder stops AT run.absorbRounds')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-bisect t1: ladder stopped — absorbRounds 3 reached run.absorbRounds (3)')),
+    'the budget stop logs the counter and the boundary value')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the subset that failed its own re-audit still demotes (follow-up)')
+  assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => !(out.minorsFiled || []).some(m => m && m.title === t)),
+    'no still-queued (never re-audited) subset reaches minorsFiled')
+  assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t && a.sha === 'polishsha')),
+    'the still-queued subsets — the split sibling AND the untouched half — ace at the polish sha via the sweep')
+  const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
+  assert.ok(pw && ['f2 nit', 'f3 nit', 'f4 nit'].every(t => pw.prompt.includes(t)), 'the sweep dispatch carries every still-queued subset finding')
   assert.ok(out.landed.includes('t1'), 't1 still lands')
 })
 
@@ -3731,7 +3772,7 @@ test('bisection ace-trailer — fold (#1694): an ask raised by the ace-regressio
     confidence: 'high', findings: [{ severity: 'Major', title: 'regressed', file: 'skills/a.js', rationale: 'broke' }, askMinor] }
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa]), regressWithAsk],
-    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:a1': [bWorker('ace00001')],
   }, aceBase([fa]))
   const { out } = await runPhase(ACE_ARGS(), impl)
   const parked = (out.asks || []).find(a => a && a.question === 'keep or revert?')
@@ -3757,9 +3798,9 @@ test('bisection ace-trailer — fold (#1694): an ask raised by a FAILING bisecti
     ] }
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), subRegressWithAsk, bApprove()],
-    'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('5ab00001')],   // [f1] — regresses with the ask riding the re-audit
-    'ace:t1:r3': [bWorker('5ab00002')],   // [f2] — approves
+    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:t1:a2': [bWorker('5ab00001')],   // [f1] — regresses with the ask riding the re-audit
+    'ace:t1:a3': [bWorker('5ab00002')],   // [f2] — approves
   }, aceBase([f1, f2]))
   const { out } = await runPhase(ACE_ARGS(), impl)
   const parked = (out.asks || []).find(a => a && a.question === 'split further?')
@@ -4088,19 +4129,21 @@ const bare = (over = {}) => ({ severity: 'Nit', title: 'bare', file: 'skills/war
 
 // --- Disposition routing (criteria 1/2/3) ---
 
-test('disposition defaults (criterion 3): omitted+Minor → minorsFiled, omitted+Nit → notes, absorb never defaulted', async () => {
+test('disposition defaults (criterion 3): omitted+Minor → minorsFiled, omitted+Nit → notes — the engine severity default holds until the Phase 4 diff-probe floor', async () => {
   const minor = bare({ severity: 'Minor', title: 'minor default' })
   const nitF = bare({ severity: 'Nit', title: 'nit default' })
   const { out, calls } = await runPhase(ACE_ARGS(), aceBase([minor, nitF]))
-  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces (absorb and ask are never defaults).
-  assert.ok(!calls.some(isAce), 'no ace dispatch for dispositionless findings even under run.ace (absorb never defaulted)')
+  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces: dispositionOf's engine default
+  // stays the severity default through Phase 3 (the seat applies the in-diff absorb default itself;
+  // the Phase 4 diff-probe floor moves it into the engine — in-band-absorb-default D1).
+  assert.ok(!calls.some(isAce), 'no ace dispatch for dispositionless findings even under run.ace (the engine severity default holds)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'minor default'), 'omitted+Minor → minorsFiled (follow-up default)')
   assert.ok(!(out.notes || []).some(n => n && n.title === 'minor default'), 'the Minor is not in notes')
   assert.ok((out.notes || []).some(n => n && n.title === 'nit default'), 'omitted+Nit → notes (note default)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'nit default'), 'the Nit does not default into an issue')
 })
 
-test('explicit dispositions route and override the severity default', async () => {
+test('explicit dispositions route and override the engine severity default', async () => {
   const fu = bare({ severity: 'Nit', title: 'explicit follow-up', disposition: 'follow-up', rationale: 'needs new tests — beyond phase scope' })
   const nt = bare({ severity: 'Minor', title: 'explicit note', disposition: 'note' })
   const { out } = await runPhase(ACE_ARGS(), aceBase([fu, nt]))
@@ -4194,9 +4237,12 @@ test('Task 2.1 (#1410): required-when-escalate is stated on the prose surfaces; 
   }
 })
 
-test('aceEligible (criterion 1): regex is exactly the two version-slot JSONs and the f.file truthiness guard is KEPT', () => {
-  assert.ok(src.includes('const aceEligible = f => f.file && !/(?:plugin\\.json|marketplace\\.json)$/.test(f.file)'),
-    'aceEligible keeps the f.file guard and narrows the regex to plugin.json|marketplace.json')
+test('aceEligible (criterion 1, sweep-exclude D2): the refusal reads the RELEASE_SLOT_FILES mirror through the one basename helper and the f.file truthiness guard is KEPT', () => {
+  assert.ok(src.includes('const aceEligible = f => f.file && !isReleaseSlotFile(f.file)'),
+    'aceEligible keeps the f.file guard and reads the release-slot refusal through isReleaseSlotFile (the mirror-derived basename helper)')
+  assert.ok(src.includes('const RELEASE_SLOT_BASENAMES = new Set(RELEASE_SLOT_FILES.map(releaseSlotBasename))'),
+    'the basename set derives from the inline RELEASE_SLOT_FILES mirror — one helper shared with the sweep exclusion set')
+  assert.ok(!/const aceEligible = f => f\.file && !\/\(\?:plugin/.test(src), 'the hand-typed regex refusal is retired (the mirror is the single source)')
   assert.ok(!src.includes('|README\\.md)$/'), 'README.md is no longer in the refusal regex')
 })
 
@@ -4215,7 +4261,7 @@ test('demotion ladder: a fileless absorb takes the severity default (logged, nev
 test('demotion ladder: a blocked ace worker demotes the aceable findings to follow-up (logged); the task still lands', async () => {
   const ab = nit({ title: 'wanted absorb' })
   const impl = buildSeqImpl(
-    { 'ace:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }] },
+    { 'ace:t1:a1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }] },
     aceBase([ab]))
   const { out, logs } = await runPhase(ACE_ARGS(), impl)
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'wanted absorb'), 'failed absorb → follow-up')
@@ -4328,7 +4374,7 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   const logs = [], notes = [], minorsFiled = [], asks = []
   const { dispositionOf, parkAsk, demote } = harness(m => logs.push(m), notes, minorsFiled, asks)
   assert.equal(dispositionOf(askFinding()), 'ask', "dispositionOf classifies an explicit disposition:'ask' as ask")
-  assert.equal(dispositionOf({ severity: 'Minor', title: 'no explicit' }), 'follow-up', 'ask is NEVER defaulted (Minor keeps its follow-up default)')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'no explicit' }), 'follow-up', 'ask is NEVER defaulted (Minor keeps its engine follow-up default until the Phase 4 floor)')
   const f = askFinding({ task: 't9' })
   assert.doesNotThrow(() => demote(f, 'follow-up', 'a would-be demotion'), 'the refusal NEVER throws (a throw would destroy the parked records on held:workflow-error)')
   assert.equal(asks.length, 1, 'the refused ask re-routes onto asks[]')
@@ -4352,11 +4398,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly five dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly seven dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: five dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: seven dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4369,11 +4415,19 @@ test('#1550 (D7) — ask order-census: five dispositionOf sites with ask precedi
   // approved/regressed + the two bisection-subset arms) consolidated into the ONE shared
   // routeReauditMinors helper (its dispositionOf site carries the ask arm first, then the re-entry
   // queue as its absorb chain) — an ask raised at any re-audit still parks, never drops.
-  assert.equal(sites.length, 5,
-    `the floored order-census domain is exactly FIVE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
-  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
-  for (const i of sites) {
-    const slice = src.slice(i, i + 700)
+  // 5 → 6 (in-band-absorb-default D15, gate-audit-route): the three gate-audit-family seats' rows
+  // route through ONE new producer, routeGateAuditRows — its dispositionOf site carries the ask arm
+  // first (parkAsk), then the sweep queue as its absorb chain (routeToSweep). The retired #1692
+  // comment-named sinks no longer register here.
+  // 6 → 7 (in-band-absorb-default D3a, terminal-pass): the terminal re-audit seat's own Minor/Nits
+  // route through routeTerminalMinors — its dispositionOf site carries the ask arm first (parkAsk),
+  // then carriedPhaseClose / demote:terminal-pass as its absorb chain.
+  assert.equal(sites.length, 7,
+    `the floored order-census domain is exactly SEVEN dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|terminalQueue\.push|carryPhaseClose\(/
+  for (let k = 0; k < sites.length; k++) {
+    const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
+    const slice = src.slice(i, Math.min(i + 2600, end))
     const askIdx = slice.indexOf("=== 'ask'")
     assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
     const parkIdx = slice.indexOf('parkAsk(')
@@ -4444,7 +4498,12 @@ test('files_changed contract (end state 8): IDENTICAL wording in agents/war-work
 
 test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt carry the same rule sentences', async () => {
   const LATITUDE = "the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before."
-  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the `ask` field: `question` naming the decision needed plus `fork` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.'
+  // (barrier-list, in-band-absorb-default D1/D2) the card's byte-mirror of the dispatched DISPOSITION RULE:
+  // the in-diff absorb default, the out-of-diff absorb + phaseClose:true default, the structured
+  // `barrier` field clause spelling the four BARRIER_TOKENS, and the ask-only never-defaulted tail.
+  // Phase 4 (gate-audit-route / filing-floor, D15/D4): the note clause ("a note that names a fix in a
+  // touched file is applied"), the diff-probe floor sentence, and the fully-specified omitted default.
+  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the `ask` field: `question` naming the decision needed plus `fork` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine\'s diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured `barrier` field, one of barrier:release-slot, barrier:underspecified, barrier:rationale-comment, barrier:trade-off (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default.'
   assert.ok(auditorMd.includes(LATITUDE), 'war-auditor.md carries the latitude rule (standing surface)')
   assert.ok(auditorMd.includes(DISPO), 'war-auditor.md carries the disposition rule (standing surface)')
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -4921,34 +4980,35 @@ test('phase-close sweep discard (criterion 5): a rejected polish is DISCARDED �
 // reaches demote(), so the 'Disposition demotion' log assert fails; minorsFiled never receives either
 // sweep-raised finding, so the minorsFiled and handoff.followUps asserts fail; only the aced-is-queue-
 // only invariant would stay green, and it cannot green the tests alone.
-test('sweep-raised finding routing (End state 1, #1377): a MERGED sweep re-audit Minor/absorb demotes through the ladder (terminal-round reason) to minorsFiled + followUps; disposition:follow-up files WITHOUT demotion; aced carries only the queued findings', async () => {
+test('sweep-raised finding routing (End state 1, #1377; terminal-pass D3a): a MERGED sweep re-audit Minor/absorb rides the terminal pass (never the old terminal-round demotion); disposition:follow-up files WITHOUT demotion, floorSkipped and logged; note routes to notes; aced carries the queued finding at the polish sha and the sweep-raised absorb at the terminal sha', async () => {
   const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
   const sweepFollowUp = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
   const sweepNote = { severity: 'Nit', title: 'sweep-raised note', file: 'docs/w.md', rationale: 'informational', disposition: 'note' }
   const impl = buildSeqImpl(
     { 'audit:p3-polish:correctness': [approveWith('audit:p3-polish:correctness', [sweepAbsorb, sweepFollowUp, sweepNote])] },
-    sweepBase([queuedAbsorb()]))
-  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+    terminalImpl())
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
   assert.equal(out.handoff.polish, 'merged', 'the sweep merged (presence guard — an approve verdict with Minor/Nit findings still re-approves)')
-  // absorb → demote(…, 'follow-up', …): the ladder is the vehicle, the reason names the terminal round.
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb') && l.includes('terminal fix round')),
-    "the sweep-raised absorb takes the LOGGED demotion naming the sweep as the phase's terminal fix round (never dropped silently)")
-  const filedAbsorb = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised absorb')
-  assert.ok(filedAbsorb && filedAbsorb.task === 'p3-polish', 'the demoted absorb lands in minorsFiled, task-stamped with the polish pseudo-task id')
-  // follow-up → filed directly, no demotion log line for it.
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'sweep-raised follow-up'), 'a disposition:follow-up sweep finding files to minorsFiled')
+  // absorb → the terminal pass: ONE terminal worker carries it; no demotion names the retired terminal-round reason.
+  const tw = calls.find(c => (c.opts.label || '') === 'terminal:phase-3')
+  assert.ok(tw && tw.prompt.includes('sweep-raised absorb'), 'the sweep-raised absorb is the terminal pass input (verbatim in the terminal worker prompt)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb')),
+    'the sweep-raised absorb is never demoted on the merged arm (the retired terminal-round demotion is gone)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'sweep-raised absorb'), 'the absorb never files')
+  // follow-up → filed directly, no demotion log line for it; floorSkipped stamped AND logged (never a silent stamp site).
+  const filedFu = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised follow-up')
+  assert.ok(filedFu && filedFu.floorSkipped === true, 'a disposition:follow-up sweep finding files to minorsFiled with floorSkipped (no diff probe ran for the polish pseudo-task)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep-raised follow-up') && l.includes('floorSkipped')), 'the floorSkipped stamp is logged')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised follow-up')),
     'the follow-up finding routes WITHOUT a demotion (it is already at its durable disposition)')
   // note → notes.
   assert.ok((out.notes || []).some(n => n && n.title === 'sweep-raised note'), 'a disposition:note sweep finding routes to notes')
   // handoff observable: followUps derive from minorsFiled.
-  assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised absorb/.test(fu.reason || '')), 'the handoff followUps observable carries the demoted absorb')
   assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised follow-up/.test(fu.reason || '')), 'the handoff followUps observable carries the filed follow-up')
-  // Invariant: aced carries ONLY the queued findings absorbed at the polish sha — nothing sweep-raised.
-  assert.equal((out.aced || []).length, 1, 'aced carries exactly the one queued finding')
-  assert.equal(out.aced[0].finding.title, 'dangling link', 'aced is queue-only — the queued finding, absorbed at the polish sha')
-  assert.ok(!(out.aced || []).some(a => a && a.finding && /^sweep-raised/.test(a.finding.title || '')), 'nothing sweep-raised rides aced')
-  assert.ok(!(out.handoff.absorbed || []).some(a => (a.findings || []).some(t => /^sweep-raised/.test(t))), 'nothing sweep-raised rides the handoff absorbed observable')
+  // aced: the queued finding at the polish sha, the sweep-raised absorb at the terminal sha (D3a).
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'dangling link' && a.sha === 'polishsha'), 'the queued finding is absorbed at the polish sha')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'sweep-raised absorb' && a.sha === 'terminalsha' && a.terminal === true), 'the sweep-raised absorb is aced at the terminal sha, terminal-stamped')
+  assert.ok((out.handoff.absorbed || []).some(a => a.sha === 'terminalsha' && (a.findings || []).includes('sweep-raised absorb')), 'the handoff absorbed observable carries the terminal commit')
 })
 
 test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejected sweep routes its re-audit Minor/Nits through the same ladder with the unmerged-branch reason; the polish-rejected auditLog entry pins verdict + findings payload", async () => {
@@ -4978,7 +5038,7 @@ test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejec
   assert.equal(rejected.returned, 1, 'the entry records the returned seat count')
 })
 
-test('phase-close sweep: a held phase never dispatches the sweep — queue drains to follow-up; handoff degrades with polish:skipped', async () => {
+test('phase-close sweep (held-carry D3b): a held phase never dispatches the sweep — the queue rides carriedPhaseClose (never a demotion); handoff degrades with polish:skipped', async () => {
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'conflict' }
@@ -4987,10 +5047,12 @@ test('phase-close sweep: a held phase never dispatches the sweep — queue drain
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
   assert.equal(out.landDecision, 'held:escalation', 'the merge conflict holds the phase (presence guard)')
   assert.ok(!calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatches on a held phase')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue drains to follow-up (never dropped)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('draining')), 'the held-phase drain is log()ged')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue never demotes on a held phase')
+  assert.ok((out.carriedPhaseClose || []).some(f => f && f.title === 'dangling link'), 'the queue rides carriedPhaseClose (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('carrying') && l.includes('carriedPhaseClose')), 'the held-phase carry is log()ged')
   assert.ok(out.handoff, 'handoff still emitted on held:escalation (degraded)')
   assert.equal(out.handoff.polish, 'skipped')
+  assert.ok(!('carriedPhaseClose' in out.handoff), 'carriedPhaseClose is a TOP-LEVEL key, never inside the handoff (#1799)')
 })
 
 test('phase-close sweep: an empty queue skips the sweep entirely — polish:skipped, zero polish dispatches', async () => {
@@ -5043,13 +5105,14 @@ test('end-state check rides the gate-audit prompt (criterion 11): three cases + 
   assert.match(p, /plan_ref[\s\S]*VERBATIM/, 'findings key on the condition text via plan_ref')
 })
 
-test('End-state ownership carve-out (#1082): the standing war-auditor.md card carries the same two-owner rule', () => {
+test('End-state ownership carve-out (#1082): the standing execution-evidence checklist (gate-audit-checklist.md, evicted from the card — D16) carries the same two-owner rule', () => {
   // Standing surface of the split-surface discipline (ADR 0025) — the dispatched twin is pinned in the
   // criterion-11 prompt test above. Same shape: ONE ordered regex bounded inside the bullet it polices,
-  // anchored from the lead-in through the bullet's own terminal hold clause.
-  assert.match(auditorMd,
+  // anchored from the lead-in through the bullet's own terminal hold clause. The duty reads off the
+  // references file the card's trigger pointer names (auditor-evict), never the card.
+  assert.match(gateAuditChecklistMd,
     /\*\*End-state ownership mapping:\*\*[^]*?later phase[^]*?sibling task in this phase[^]*?out-of-scope[^]*?never a Critical\/Major hold/,
-    'war-auditor.md execution-evidence checklist carries the two-owner End-state ownership mapping duty')
+    'gate-audit-checklist.md execution-evidence checklist carries the two-owner End-state ownership mapping duty')
 })
 
 test('end-state check: NO claims ⇒ the gate-audit prompt carries no end-state block (byte-compatible)', async () => {
@@ -5443,7 +5506,7 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   assert.ok(live.includes(BANNER), "resolveGate's live output carries the per-file banner literal (producer side)")
   assert.ok(live.includes('%s'), "resolveGate's live output interpolates the per-file path (%s) into the banner")
   assert.ok(p.includes(BANNER), 'the per-task seat prompt carries the matching banner literal')
-  assert.ok(auditorMd.includes(BANNER), 'agents/war-auditor.md carries the matching banner literal (standing card)')
+  assert.ok(gateAuditChecklistMd.includes(BANNER), 'gate-audit-checklist.md (the evicted execution-evidence checklist, D16) carries the matching banner literal (standing surface)')
   // Fail-open: no mappedTests token on the MergeResult ⇒ no block (the SOFT cannot-confirm posture kept).
   // The absence probe keys on the BLOCK HEADER literal: the rescoped conjunctive clause (D3, #1372)
   // defers to the MAPPED TESTS block BY NAME in every per-task prompt, so a bare 'MAPPED TESTS'
@@ -6925,16 +6988,21 @@ test('#598 validation 6 — gate-audit debt line: a baseline-merged task threads
   assert.ok(!/BASELINE GATE DEBT/.test(t2GA.prompt), 'a clean-merged task carries NO debt line (empty debt ⇒ byte-identical prompt)')
 })
 
-test('#598 validation 6 — drift-guard: war-refiner.md names the three class values, the base re-run step, and the reproducibility predicate (token-anchored, case-tolerant)', () => {
-  for (const v of ['introduced', 'baseline', 'environment']) assert.match(refinerMd, new RegExp(v, 'i'), `war-refiner.md names the '${v}' class value`)
+test('#598 validation 6 — drift-guard: the evicted gate-failure classification (gate-failure-classification.md) names the three class values, the base re-run step, and the reproducibility predicate; the card keeps the field and the trigger pointer (token-anchored, case-tolerant)', () => {
+  // D12 (ADR 0042): the procedure lives in skills/war/references/gate-failure-classification.md;
+  // the card keeps `gate_failure_class` (merge-task step 3, the Return section) and the pointer.
+  for (const v of ['introduced', 'baseline', 'environment']) assert.match(gateFailureMd, new RegExp(v, 'i'), `gate-failure-classification.md names the '${v}' class value`)
   assert.match(refinerMd, /gate_failure_class/i, 'war-refiner.md names the gate_failure_class field')
-  assert.match(refinerMd, /classification base/i, 'war-refiner.md names the classification base (the base re-run target)')
-  assert.match(refinerMd, /re-?run.{0,40}(failing )?gate/i, 'war-refiner.md describes re-running the failing gate at the base')
-  assert.match(refinerMd, /reproduc/i, 'war-refiner.md names the reproducibility predicate (the environment trigger)')
-  assert.match(refinerMd, /fresh (TMPDIR|environment)/i, 'war-refiner.md names the fresh-environment trigger')
-  assert.match(refinerMd, /integration base/i, 'war-refiner.md names the merge-task classification base (phase integration base)')
-  assert.match(refinerMd, /origin\/<working>/i, 'war-refiner.md names the land-phase classification base (detached origin/<working> tip)')
-  assert.match(refinerMd, /KNOWN BASELINE GATE DEBT|debt reuse/i, 'war-refiner.md names the baseline-debt reuse threading')
+  assert.match(gateFailureMd, /gate_failure_class/i, 'gate-failure-classification.md names the gate_failure_class field')
+  assert.match(gateFailureMd, /classification base/i, 'gate-failure-classification.md names the classification base (the base re-run target)')
+  assert.match(gateFailureMd, /re-?run.{0,40}(failing )?gate/i, 'gate-failure-classification.md describes re-running the failing gate at the base')
+  assert.match(gateFailureMd, /reproduc/i, 'gate-failure-classification.md names the reproducibility predicate (the environment trigger)')
+  assert.match(gateFailureMd, /fresh (TMPDIR|environment)/i, 'gate-failure-classification.md names the fresh-environment trigger')
+  assert.match(gateFailureMd, /integration base/i, 'gate-failure-classification.md names the merge-task classification base (phase integration base)')
+  assert.match(gateFailureMd, /origin\/<working>/i, 'gate-failure-classification.md names the land-phase classification base (detached origin/<working> tip)')
+  assert.match(gateFailureMd, /KNOWN BASELINE GATE DEBT|debt reuse/i, 'gate-failure-classification.md names the baseline-debt reuse threading')
+  assert.match(refinerMd, /when the gate is red, read \[gate-failure-classification\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-failure-classification\.md\)/,
+    'war-refiner.md keeps the fixed trigger pointer to the evicted procedure (D12)')
 })
 
 // ---------------------------------------------------------------------------
@@ -7131,12 +7199,14 @@ test('#1114 — a polish merge returning submodule-blocked routes the EXISTING f
 // dispatched merge/land prompts (the classificationClause) must both carry the rule (spec §9 / criterion 9).
 const markerEnvRe = /REL_GUARD_PRECONDITION_FAILED[\s\S]{0,320}environment|environment[\s\S]{0,320}REL_GUARD_PRECONDITION_FAILED/i
 test('t1.8 — precondition-marker reader contract lands on BOTH surfaces (war-refiner.md + dispatched merge/land prompts)', async () => {
-  // Surface 1 — the standing refiner card.
-  assert.match(refinerMd, /REL_GUARD_PRECONDITION_FAILED/, 'war-refiner.md names the live precondition-marker token')
-  assert.match(refinerMd, /precondition[- ]marker/i, 'war-refiner.md names the precondition-marker rule (case-tolerant mid-sentence)')
-  assert.match(refinerMd, /stderr/i, 'war-refiner.md says to consult stderr, not just TAP stdout')
-  assert.match(refinerMd, markerEnvRe, "war-refiner.md ties the marker to the 'environment' classification")
-  assert.match(refinerMd, /never.{0,40}introduced|introduced.{0,40}never/i, "war-refiner.md says the marker is NEVER 'introduced'")
+  // Surface 1 — the standing refiner procedure, evicted (D12, ADR 0042) from the card into
+  // skills/war/references/gate-failure-classification.md; the card keeps the trigger pointer.
+  assert.match(gateFailureMd, /REL_GUARD_PRECONDITION_FAILED/, 'gate-failure-classification.md names the live precondition-marker token')
+  assert.match(gateFailureMd, /precondition[- ]marker/i, 'gate-failure-classification.md names the precondition-marker rule (case-tolerant mid-sentence)')
+  assert.match(gateFailureMd, /stderr/i, 'gate-failure-classification.md says to consult stderr, not just TAP stdout')
+  assert.match(gateFailureMd, markerEnvRe, "gate-failure-classification.md ties the marker to the 'environment' classification")
+  assert.match(gateFailureMd, /never.{0,40}introduced|introduced.{0,40}never/i, "gate-failure-classification.md says the marker is NEVER 'introduced'")
+  assert.match(refinerMd, /gate-failure-classification\.md/, 'war-refiner.md points at the evicted procedure')
 
   // Surface 2 — the dispatched merge + land prompts (both carry classificationClause).
   const { calls } = await runPhase(CLS_ARGS(), clsImpl())
@@ -7613,11 +7683,16 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.ok(!/\((?:\.\.\/)+[^)]*refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses a forbidden ../-prefixed path, at any depth')
   // Fourth, plain-text pointer — the fixed-shape ADR 0042 trigger line left by the
   // references-pointer-integrity Task 1.2 (h2) budget eviction of the § Base re-run +
-  // re-attach recipe. Pinned together with the moved fragment at the destination, so neither
-  // half can be dropped without orphaning the other (the dispatched merge/land prompts still
-  // carry the re-attach procedure — asserted by the #598 prompt tests above).
-  assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Base re-run + re-attach)'),
-    'the ADR 0042 trigger pointer for the evicted Base re-run + re-attach recipe survives on the card')
+  // re-attach recipe. It sits inside the `## Gate-failure classification` section, which the
+  // in-band-absorb-default D12 eviction moved byte-identical into
+  // references/gate-failure-classification.md — so the pointer now lives THERE (the card keeps
+  // its own trigger pointer to that file). Pinned together with the moved fragment at the
+  // destination, so neither half can be dropped without orphaning the other (the dispatched
+  // merge/land prompts still carry the re-attach procedure — asserted by the #598 prompt tests above).
+  assert.ok(gateFailureMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Base re-run + re-attach)'),
+    'the ADR 0042 trigger pointer for the evicted Base re-run + re-attach recipe survives in the evicted classification section (gate-failure-classification.md)')
+  assert.match(refinerMd, /\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-failure-classification\.md\)/,
+    'the card routes to the evicted classification section (D12 trigger pointer)')
   assert.ok(refinerRecoveryMd.includes('RE-ATTACH `_refinery` to the integration branch before you return'),
     'refiner-recovery.md carries the evicted Base re-run + re-attach recipe (byte-identical move)')
 })
@@ -8366,13 +8441,18 @@ test('#806 — no-skip control: all gated, all real shas ⇒ the chain is byte-i
   assert.equal(preMergeTipOf(ev, 't3'), gateHeadShaOf(ev, 't2'), "t3's preMergeTip = t2's gateHeadSha (predecessor chain, unchanged)")
 })
 
-test('T2.1 both-surfaces — the execution-evidence checklist + guard-specificity duty live in war-auditor.md (standing surface); the stale spawn-prompt-only sentence is updated', () => {
-  assert.ok(auditorMd.includes('gate-audit checklist'), 'war-auditor.md has the named execution-evidence gate-audit checklist')
-  assert.ok(/delete-and-trace/i.test(auditorMd), 'the checklist carries the mandatory delete-and-trace / temp-break-RED duty')
-  assert.ok(/Pair every positive assertion with a negative absence assert/i.test(auditorMd),
+test('T2.1 both-surfaces — the execution-evidence checklist heading + trigger pointer live in war-auditor.md, its duties in gate-audit-checklist.md (auditor-evict, D16); the guard-specificity duty stays on the card; the stale spawn-prompt-only sentence is updated', () => {
+  assert.ok(auditorMd.includes('gate-audit checklist'), 'war-auditor.md has the named execution-evidence gate-audit checklist heading')
+  assert.match(auditorMd, /^### `execution-evidence` gate-audit checklist \(reserved lens\)$/m, 'the card keeps the checklist heading')
+  assert.match(auditorMd,
+    /when you sit as the `execution-evidence` seat, read \[gate-audit-checklist\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-audit-checklist\.md\)/,
+    'the card carries the fixed trigger pointer "when you sit as the `execution-evidence` seat, read [gate-audit-checklist.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-audit-checklist.md)" (trigger + link, ADR 0042)')
+  // the four duty asserts read the references file the pointer names — the evicted body's home
+  assert.ok(/delete-and-trace/i.test(gateAuditChecklistMd), 'the checklist carries the mandatory delete-and-trace / temp-break-RED duty')
+  assert.ok(/Pair every positive assertion with a negative absence assert/i.test(gateAuditChecklistMd),
     'the checklist carries the pair-positive-with-negative-absence duty')
-  assert.ok(auditorMd.includes('Consume the stamped `pin_status`'), 'the checklist directs consuming the stamped pin_status')
-  assert.ok(/missing artifact ⇒ SOFT/i.test(auditorMd), 'the checklist carries the missing-artifact ⇒ SOFT rule')
+  assert.ok(gateAuditChecklistMd.includes('Consume the stamped `pin_status`'), 'the checklist directs consuming the stamped pin_status')
+  assert.ok(/missing artifact ⇒ SOFT/i.test(gateAuditChecklistMd), 'the checklist carries the missing-artifact ⇒ SOFT rule')
   // test-fidelity lens duties (D6/D7 judgment side)
   assert.ok(auditorMd.includes('Guard-assertion specificity'), 'the test-fidelity lens carries the guard-assertion-specificity duty')
   assert.ok(auditorMd.includes('Guard-masking'), 'the test-fidelity lens carries the guard-masking flag')
@@ -8436,7 +8516,7 @@ test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker 
 })
 
 // Drive a Major → fix-round → approve+absorb-nit → --ace → clean re-audit flow so BOTH the fix-round
-// worker (fix:t1:r1) and the --ace worker (ace:t1:r2) dispatch in one phase. Returns captured opts.
+// worker (fix:t1:r1) and the --ace worker (ace:t1:a1 — the absorb meter, not fixRounds) dispatch in one phase. Returns captured opts.
 const runFixAndAce = async (agentsCfg) => {
   const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
     findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
@@ -8450,7 +8530,7 @@ const runFixAndAce = async (agentsCfg) => {
   })
   const { calls } = await runPhase(args, impl)
   const optsOf = (label) => (calls.find(c => c.opts.label === label) || {}).opts || {}
-  return { work: optsOf('work:t1'), fix: optsOf('fix:t1:r1'), ace: optsOf('ace:t1:r2') }
+  return { work: optsOf('work:t1'), fix: optsOf('fix:t1:r1'), ace: optsOf('ace:t1:a1') }
 }
 
 test('Task 1.2 — fix tier set: the fix-round AND the --ace worker both dispatch on agents.worker.fix (and the base first-pass differs)', async () => {
@@ -8596,6 +8676,17 @@ const RESOLVE_GATE_CASES = [
   resolveGate(`node --test 'skills/**/*.test.mjs'`),    // pre-composed FROM CANONICAL output → idempotent, unchanged
 ]
 
+// (barrier-list) construct-scoped token extraction for the three prose surfaces: the distinct
+// `barrier:<name>` tokens inside ONE bounded construct (a `windowOf()` window), so a token named
+// elsewhere on the surface never leaks into the equality, and a dropped or misspelled member reds.
+const eligibilityMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
+const barrierTokensIn = text => [...new Set((text || '').match(/barrier:[a-z-]+/g) || [])]
+// windowOf: the text strictly between the first startTok and the next endTok after it ('' when either is absent).
+const windowOf = (text, startTok, endTok) => {
+  const a = text.indexOf(startTok); if (a === -1) return ''
+  const b = text.indexOf(endTok, a + startTok.length); return b === -1 ? '' : text.slice(a + startTok.length, b)
+}
+
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
   assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
   const MIRROR_REGISTRY = [
@@ -8608,6 +8699,44 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'SOFT_ENV_REASONS', mode: 'deepEqual',
       canonical: SOFT_ENV_REASONS,
       extractInline: () => parseInlineArray(/const\s+SOFT_ENV_REASONS\s*=\s*(\[[^\]]+\])/) },
+    // BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2/PIN-12): the seat's structured `barrier`
+    // enum, canonical in land-decision.mjs, hand-mirrored inline above AUDIT_VERDICT. Four rows bind
+    // the inline mirror, the auditor card's Disposition-rule sentence, and the eligibility doc's
+    // `## Barrier list` section to the export — each extracted by construct, set-equal to the four.
+    // A fourth row binds the hand-copied schemas.md AuditVerdict `barrier?` row (one physical line).
+    { name: 'barrier-list — inline BARRIER_TOKENS mirror', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => parseInlineArray(/const\s+BARRIER_TOKENS\s*=\s*(\[[^\]]+\])/) },
+    { name: 'barrier-list — war-auditor.md Disposition-rule sentence', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(auditorMd, '**Disposition rule:**', '\n')) },
+    { name: 'barrier-list — disposition-eligibility.md `## Barrier list` section', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(eligibilityMd, '## Barrier list', '\n## ')) },
+    { name: 'barrier-list — schemas.md AuditVerdict barrier row', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(schemasMd, 'barrier?,', '\n')) },
+    // Widening (1) restates the barrier rule on two live surfaces (the dispatched DISPOSITION WIDENINGS
+    // literal and the eligibility doc's numbered item 1). It names three of the four members, so these
+    // two rows are subset-mode (membership, minCount 3): a misspelled or dropped token in widening (1) reds.
+    { name: 'barrier-list — dispatched DISPOSITION WIDENINGS (1) barrier tokens', mode: 'subset', minCount: 3,
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(src, 'DISPOSITION WIDENINGS: (1)', '\n')) },
+    { name: 'barrier-list — disposition-eligibility.md item 1 barrier tokens', mode: 'subset', minCount: 3,
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(eligibilityMd, '1. **Re-audit-born default-absorb (D3).**', '\n2. ')) },
+    // RELEASE_SLOT_FILES (in-band-absorb-default D2, PIN-3/PIN-11, sweep-exclude): the two pure
+    // version-slot JSONs, canonical in land-decision.mjs, hand-mirrored beside BARRIER_TOKENS; the
+    // engine derives its basename refusal (aceEligible + the sweep exclusion set) from the mirror.
+    { name: 'sweep-exclude — inline RELEASE_SLOT_FILES mirror', mode: 'deepEqual',
+      canonical: RELEASE_SLOT_FILES,
+      extractInline: () => parseInlineArray(/const\s+RELEASE_SLOT_FILES\s*=\s*(\[[^\]]+\])/) },
+    // DEMOTE_REASONS (in-band-absorb-default D13, PIN-15, demote-census): the closed follow-up
+    // demotion prefix enum, canonical in land-decision.mjs, hand-mirrored beside RELEASE_SLOT_FILES;
+    // demote() validates every follow-up reason against the inline copy at runtime.
+    { name: 'demote-census — inline DEMOTE_REASONS mirror', mode: 'deepEqual',
+      canonical: DEMOTE_REASONS,
+      extractInline: () => parseInlineArray(/const\s+DEMOTE_REASONS\s*=\s*(\[[^\]]+\])/) },
     { name: 'landDecision known set', mode: 'subset',
       canonical: KNOWN_LAND_DECISIONS,
       extractInline: extractLandDecisionLiterals },
@@ -8643,7 +8772,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 9, 'the mirror registry lists at least the nine required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 17, 'the mirror registry lists at least the seventeen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, the two widening-(1) barrier subset rows, the sweep-exclude RELEASE_SLOT_FILES row, the demote-census DEMOTE_REASONS row, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -8651,8 +8780,9 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
         `${row.name}: inline mirror deepEquals the canonical export (order-insensitive)`)
     } else if (row.mode === 'subset') {
       const inline = row.extractInline()
-      assert.ok(inline.length >= 6,
-        `${row.name}: the extractor found at least the 6 emitted literals (sanity — got ${JSON.stringify(inline)})`)
+      const minCount = row.minCount ?? 6
+      assert.ok(inline.length >= minCount,
+        `${row.name}: the extractor found at least the ${minCount} emitted literals (sanity — got ${JSON.stringify(inline)})`)
       for (const v of inline) {
         assert.ok(row.canonical.includes(v), `${row.name}: inline literal '${v}' is a member of the canonical known set`)
       }
@@ -8742,7 +8872,7 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
   const oldLiterals = [...new Set([...naiveTwoStepStrip(mutated).matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
   assert.ok(!oldLiterals.includes('held:bogus'),
     'the old two-step preparation LOSES held:bogus (assigned inside the deleted 42k span) — the #929 subset-row gap this narrowing closes')
-  // The MIRROR_REGISTRY subset row's >= 6 sanity floor and membership semantics are unchanged — only the
+  // The MIRROR_REGISTRY landDecision subset row's >= 6 sanity floor (the minCount default) and membership semantics are unchanged — only the
   // extractor's text preparation narrowed; the live extractor still returns its 6 real landDecision values.
   assert.ok(extractLandDecisionLiterals(src).length >= 6, 'the live extractor still finds at least the 6 emitted landDecision literals (unchanged semantics)')
 })
@@ -8813,7 +8943,7 @@ const fixNeededImpl = () => {
   }
 }
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
-// Reaches ONE ace bisection subset dispatch (ace:t1:r2): batch ace → culprit regression (names ka) →
+// Reaches ONE ace bisection subset dispatch (ace:t1:a2): batch ace → culprit regression (names ka) →
 // the remainder [kb] re-applies as ONE subset. Fresh closure per run (buildSeqImpl queues pop).
 const bisectSubsetImpl = () => buildSeqImpl({
   'audit:t1:correctness': [bApprove([nit({ title: 'ka', file: 'skills/ka.js' }), nit({ title: 'kb', file: 'skills/kb.js' })]),
@@ -8856,12 +8986,12 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), floorRetryImpl()) },
   { site: 'PACKAGE_IT Gate: line (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), pkgFloorRetryImpl()) },
-  { site: 'ace Gate: line (ace:<task>:r<n>)', find: (c) => c.find(isAce),
+  { site: 'ace Gate: line (ace:<task>:a<n>)', find: (c) => c.find(isAce),
     run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), aceBase()) },
   // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventeenth gate-bearing
   // site — it interpolates the same plan.gate Gate: line as its fix-family siblings — so it is ADDED
   // here, never skipped (this array's own doctrine). bisectSubsetImpl (below) reaches it.
-  { site: 'ace bisection subset Gate: line (ace:<task>:r<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:r2$/.test(x.opts.label || '')),
+  { site: 'ace bisection subset Gate: line (ace:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '')),
     run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (precision-chain Task 2.3) is the fifth fix-family prompt and equally gate-bearing —
   // it interpolates the same plan.gate Gate: line as its floor-fix siblings — so it is ADDED here,
@@ -8951,11 +9081,11 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), floorRetryImpl()) },
   { site: 'PACKAGE_IT floor-fix prompt (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
     run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), pkgFloorRetryImpl()) },
-  { site: 'ace advisory-polish prompt (ace:<task>:r<n>)', find: (c) => c.find(isAce),
+  { site: 'ace advisory-polish prompt (ace:<task>:a<n>)', find: (c) => c.find(isAce),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), aceBase()) },
   // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventh worker-family
   // site — doneWhenClause rides it beside its Gate: line like its siblings — ADDED, never skipped.
-  { site: 'ace bisection subset prompt (ace:<task>:r<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:r2$/.test(x.opts.label || '')),
+  { site: 'ace bisection subset prompt (ace:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '')),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (Task 2.3) is the fifth fix-family prompt — doneWhenClause rides it like its
   // siblings, so its row is ADDED, never skipped. (Production only reaches it for a doneWhen-bearing
@@ -8965,8 +9095,8 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runDoneUnmetLoop({ taskOver }) },
   // The ace RE-ENTRY batch dispatch (in-run-finding-resolution Task 1.1) is the eighth
   // worker-family site — doneWhenClause rides it beside its Gate: line — ADDED, never skipped.
-  { site: 'ace re-entry batch prompt (ace:<task>:r<n>, fresh re-audit absorb)',
-    find: (c) => c.find(x => /^ace:t1:r2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')),
+  { site: 'ace re-entry batch prompt (ace:<task>:a<n>, fresh re-audit absorb)',
+    find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), reentryImpl()) },
 ]
 
@@ -9046,9 +9176,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), bisectSubsetImpl()),
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), reentryImpl()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
+    await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:/, /^polish:/]) {
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:/, /^polish:/, /^terminal:/]) {
     assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
       `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
   }
@@ -9070,8 +9201,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   // real source (the established `//`-strip idiom in this file, made index-preserving). Blanking is
   // fail-CLOSED for this pin: an over-blanked line loses its occurrence and reds the count.
   const censusSrc = src.replace(/\/\/[^\n]*/g, m => ' '.repeat(m.length))
+  // 8 → 9 (in-band-absorb-default D3a): the terminal-pass prompt joined; its fixture (terminalImpl)
+  // rides the sweep above.
   const census = [...censusSrc.matchAll(/keep the gate\b/gi)]
-  assert.equal(census.length, 8,
+  assert.equal(census.length, 9,
     'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
   // Per-occurrence membership (#1686) — the count alone is RELOCATION-blind: an occurrence that
   // moves out of a dispatched prompt into a comment, or into a dispatch site no fixture drives,
@@ -9088,6 +9221,7 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
     { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
+    { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
   ]
   const keepGreenRanges = KEEP_GREEN_SITES.map(s => {
     const start = censusSrc.indexOf(s.from)
@@ -9509,7 +9643,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/preset/i, /matrix/i] },
     { name: 'gate-audit inline seat: finding-less escalate is a HARD hold (execution-evidence + end-state, outside auditPrompt)',
-      surfaces: [['war-auditor.md', auditorMd],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16): the
+      // finding-less-escalate reservation is the checklist's pin_status bullet, never card prose.
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd],
                  ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
                  ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
       anchors: [/finding-less/i, /HARD hold/i] },
@@ -9607,7 +9743,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // the dispatched prompts the interpolated endstate-3-1.log; every other token appears verbatim on all
     // three surfaces, so a per-surface revert reds this row.
     { name: 'artifact-first End-state attestation (D8, Task 3.2): one endStateAttestations row per claimed condition — status + evidence, never a bare verdict; unattested ⇒ unverified, never met',
-      surfaces: [['war-auditor.md', auditorMd],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16), never the card
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd],
                  ['per-task gate-audit prompt (claims-bearing)', esSeatP],
                  ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/endStateAttestations/, /never a bare verdict/i, /met \| unmet \| unverified/,
@@ -9626,7 +9763,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // the abort point is SOFT cannot-confirm, never HARD. All three tokens were zero-hit on both
     // anchored surfaces at this task's base (Context 7), so a per-surface revert of the clause reds this row.
     { name: 'mechanical mapped-tests grep (D7, Task 3.2 + round-3 enumeration-conditional): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is HARD only where the log enumerates test file paths; a non-enumerating half is SOFT cannot-confirm, never a hold',
-      surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16), never the card
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
       anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i,
                 /ONLY when the captured log ENUMERATES test file paths/i, /aggregate summary/i,
                 /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i,
@@ -9655,7 +9793,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // card AND the shared endStateBlock (live prompts: per-task + end-state-only seats; the
     // integrated-tip seat concatenates the same const, source-count-pinned).
     { name: "stale-artifact tip_sha comparison (recovery Blocker 2): stamped tip_sha mismatching the confirmed tip ⇒ unverified, never met — readable is not sufficient",
-      surfaces: [['war-auditor.md', auditorMd],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16), never the card
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd],
                  ['per-task gate-audit prompt (claims-bearing)', esSeatP],
                  ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/stamped `?tip_sha`?/, /stale-but-readable/i, /mismatch\w* the confirmed tip/i,
@@ -10087,9 +10226,6 @@ const LITERAL_REGISTRY = [
   ["fix:${task.id}:r${round + 1}`, schema: WORKE"],
   ["engine error during work/audit: ${err.messag"],
   ["gate-audit: skipping ${task.id} (requiresTes"],
-  ["ace-bisect ${r.task.id}: ladder stopped — fi"],
-  ["ace:${r.task.id}:r${r.task.fixRounds + 1}`, "],
-  ["failed absorb — ${aceWhy || 'ace worker retu"],
   ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 4],
   ["packaging-floor: skipping ${r.task.id} (requ"],
   ["merge:${r.task.id}`, schema: MERGE_RESULT, ."],
@@ -10102,7 +10238,6 @@ const LITERAL_REGISTRY = [
   ["merge:${r.task.id}:environment-proceed`, sch"],
   ["merge:${r.task.id}:baseline-proceed`, schema"],
   ["${r.task.id} touches a submodule (surfaced o", 3],
-  ["task never reached the approve branch (verdi"],
   ["Task ${r.task.id}: env-blocked — provision s"],
   ["endstate-check intake-lint: condition ${r.n}"],
   ["endstate-check: dispatching the land-barrier"],
@@ -10132,6 +10267,10 @@ const LITERAL_REGISTRY = [
   ["polish:phase-${ph.id}`, schema: WORKER_RESUL"],
   ["merge:p${ph.id}-polish`, schema: MERGE_RESUL"],
   ["phase-close sweep MERGED at ${polishSha} — t"],
+  // terminal pass (in-band-absorb-default D3a): the three dispatch labels — worker, forward-revert, merge.
+  ["terminal:phase-${ph.id}`, dispatchKind: 'ter"],
+  ["terminal-revert:phase-${ph.id}`, dispatchKin"],
+  ["merge:p${ph.id}-terminal`, schema: MERGE_RES"],
   ["phase-close sweep DISCARDED (${sweepWhy || ("],
   ["polish merge returned ${pmr && pmr.status ||"],
   ["land:phase-${ph.id}`, schema: MERGE_RESULT, "],
@@ -11126,7 +11265,9 @@ test('global ceiling end-to-end: a rejecting dispatch inside a capped run stays 
 const BARE_INTERPOLATION_CENSUS = [
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
-  'ensures', 'ev.round', 'ev.sha', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
+  // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
+  // `pin` local (ev.sha, else the row's own sanitized sha for a gate-audit pseudo-task).
+  'ensures', 'ev.round', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
   'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output',
   'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
   'nearMissDiag', 'owned', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
@@ -11140,6 +11281,20 @@ const BARE_INTERPOLATION_CENSUS = [
   // set) and worktree is r.task.worktree (entry-validated) at both call sites — the old inline
   // 'pendingRevert' row relocated into the helper.
   'r.reentryBase', 'reentryRange', 'sha', 'worktree',
+  // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
+  // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds
+  // (barrier-seeded, then integer-guarded at the wave thunk) — construction-guaranteed a string.
+  'aceCharge',
+  // phaseBaseCmd (in-band-absorb-default D15): the evidence dispatch's PHASE DIFF step interpolates
+  // the same merge-base shell substitution const the evItems fallback uses — a template-built
+  // string, always defined. tip (D4): the diff-probe prompt's task tip — a const with an explicit
+  // 'HEAD' fallback when the worker returned no usable head_sha — construction-guaranteed a string.
+  'phaseBaseCmd', 'tip',
+  // terminalCharge / terminalSha (in-band-absorb-default D3a, terminal-pass): the `Ace-Charge:
+  // p<N>-polish:<n>` trailer value (concatenation-built from the polish pseudo-task id and its
+  // seeded integer counter) and the terminal worker's head_sha, guarded truthy-string before the
+  // prompts that interpolate it are built — both construction-guaranteed strings.
+  'terminalCharge', 'terminalSha',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
@@ -11645,20 +11800,20 @@ const quietGate = (base) => (prompt, opts) => {
   return base(prompt, opts)
 }
 
-test('reaudit-sweep (End state 2): a re-audit-born mechanical absorb, reserve-blocked, lands in the phase-close sweep — aced at the polish sha, NOT minorsFiled', async () => {
-  // roundLimit 3 ⇒ reserve boundary 1: the batch ace spends the only slot, so the re-audit-born
-  // absorb is reserve-blocked and routes phaseClose:true — the sweep is its vehicle (D2/D3).
+test('reaudit-sweep (End state 2) / absorb-budget: a re-audit-born mechanical absorb, budget-blocked, lands in the phase-close sweep — aced at the polish sha, NOT minorsFiled', async () => {
+  // absorbRounds 1 (D5): the batch ace spends the only absorb slot, so the re-audit-born absorb
+  // is budget-blocked and routes phaseClose:true — the sweep is its vehicle (D2/D3).
   const first = nit({ title: 'first nit', file: 'skills/first.js' })
   const fresh = nit({ title: 'reaudit-born nit', file: 'skills/fresh.js' })
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [first]),
                                approveWith('audit:t1:correctness', [fresh])] },
     sweepBase([]))
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: true, roundLimit: 3 } }), impl)
-  assert.equal(calls.filter(isAce).length, 1, 'only the batch ace dispatched (the reserve blocks re-entry)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserve-blocked')), 'the reserve stop is logged')
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: true, absorbRounds: 1 } }), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'only the batch ace dispatched (the spent absorb budget blocks re-entry)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('budget-blocked')), 'the budget stop is logged')
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
-  assert.ok(pw && pw.prompt.includes('reaudit-born nit'), 'the reserve-blocked absorb reaches the phase-close sweep dispatch')
+  assert.ok(pw && pw.prompt.includes('reaudit-born nit'), 'the budget-blocked absorb reaches the phase-close sweep dispatch')
   assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'reaudit-born nit' && a.sha === 'polishsha'),
     'the re-audit-born absorb is ACED at the polish sha (executed in-run via the sweep)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'reaudit-born nit'),
@@ -11684,8 +11839,7 @@ test('new-test-absorb (End state 3): a new-test addition in a task-owned test fi
   const auditPromptText = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness').prompt
   assert.ok(/task-owned test file/.test(auditPromptText) && /not by itself a why-not-absorbable reason/.test(auditPromptText),
     'the dispatched auditor prompt carries the new-test eligibility rule')
-  const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
-  assert.ok(/new test/i.test(eligMd) && /task-owned test file/.test(eligMd),
+  assert.ok(/new test/i.test(eligibilityMd) && /task-owned test file/.test(eligibilityMd),
     'the standing disposition-eligibility.md home carries the new-test eligibility rule')
 })
 
@@ -11697,12 +11851,124 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
   assert.ok(p.includes('task-owned test file'), 'widening (2): new-test eligibility (D4)')
   assert.ok(p.includes('trade-off') && p.includes('routes ask'), 'widening (3): trade-off-ask routing (D5)')
   assert.ok(p.includes('citation') && p.includes('NO-match'), 'the citation arm and its ambiguity-is-no-match floor ride the dispatched block (D6, PIN-6)')
-  // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror) — the
-  // widenings are a separate appended block.
-  assert.ok(p.includes('absorb and ask are never defaults.'), 'the original DISPOSITION RULE sentence survives byte-untouched')
-  const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
-  assert.ok(/born at a re-audit/i.test(eligMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
-  assert.ok(/trade-off/i.test(eligMd), 'standing home carries the trade-off routing rule')
+  // The DISPOSITION RULE sentence is the card byte-mirror (Phase 4 rewrote it: the note clause and the
+  // fully-specified-absorb default); this pin reads only its ask-only never-defaulted tail — the
+  // in-band-absorb-default D1 shape — and the widenings are a separate appended block (#2055).
+  assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE sentence keeps its ask-only never-defaulted tail')
+  assert.ok(/born at a re-audit/i.test(eligibilityMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
+  assert.ok(/trade-off/i.test(eligibilityMd), 'standing home carries the trade-off routing rule')
+})
+
+// ---- barrier-list (in-band-absorb-default D1/D2, End state 7 — PIN-1, PIN-2, PIN-12) ----
+// The structured `barrier` enum and the in-diff absorb default flip on the SEAT surfaces only:
+// AUDIT_VERDICT's optional `barrier` field, the dispatched DISPOSITION RULE rendered from the inline
+// BARRIER_TOKENS mirror (byte-mirroring the card), and dispositionOf's engine default, which reads
+// the diff probe since Phase 4 (D1/D4 — the fixture below pins that read). Each fixture reds with its
+// arm deleted: drop the schema field, hand-type the tokens into the prompt, or make the engine
+// default ignore the probe (#2055).
+
+test('barrier-list — AUDIT_VERDICT finding items carry the OPTIONAL `barrier` field whose enum IS the inline BARRIER_TOKENS mirror (never required; the four canonical tokens)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const aud = calls.find(isAuditor)
+  assert.ok(aud, 'an auditor was dispatched (presence guard)')
+  const items = aud.opts.schema.properties.findings.items
+  assert.deepEqual(items.properties.barrier, { enum: BARRIER_TOKENS }, 'the barrier field is an enum over exactly the canonical BARRIER_TOKENS')
+  assert.deepEqual(items.required, ['severity'], 'barrier stays OPTIONAL — severity remains the only required finding key (default-deny census)')
+  assert.match(src, /barrier: \{ enum: BARRIER_TOKENS \}/, 'the schema field renders from the inline mirror, never a restated literal (source pin)')
+  // default-deny census over the finding-item property list: a new key joins here or reds.
+  assert.deepEqual(Object.keys(items.properties).sort(),
+    ['ask', 'autoFixable', 'barrier', 'citation', 'citationUnsound', 'disposition', 'file', 'line', 'phaseClose', 'plan_ref', 'rationale', 'severity', 'suggested_fix', 'title'],
+    'the AUDIT_VERDICT finding-item property census admits exactly the known keys plus barrier')
+})
+
+test('barrier-list — the dispatched DISPOSITION RULE renders the four BARRIER_TOKENS from the inline mirror, carries the in-diff absorb default, the out-of-diff absorb + phaseClose:true seat rule, and the `barrier` field clause, and byte-mirrors the card', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const p = calls.find(isAuditor).prompt
+  const rule = windowOf(p, 'DISPOSITION RULE:', '\n')
+  assert.ok(rule, 'the dispatched DISPOSITION RULE sentence is locatable')
+  assert.ok(rule.includes(BARRIER_TOKENS.join(', ')), 'the four tokens render in canonical order, comma-joined, from the mirror')
+  assert.deepEqual([...new Set(rule.match(/barrier:[a-z-]+/g))].sort(), [...BARRIER_TOKENS].sort(), 'exactly the four BARRIER_TOKENS are named — no extra, no scope token (PIN-2)')
+  assert.ok(rule.includes('defaults to absorb when its file is in the task diff'), 'the in-diff absorb default sentence (D1)')
+  assert.ok(rule.includes('absorb + phaseClose:true when its file is outside the task diff'), 'the out-of-diff seat rule (D2 seat half)')
+  assert.ok(rule.includes('follow-up is legal only with a barrier cited in the structured `barrier` field'), 'the barrier field clause')
+  assert.ok(rule.includes('a scope argument is never a barrier'), 'a scope argument is never a barrier (PIN-2)')
+  assert.ok(rule.includes('ask is never a default.'), 'the ask-only never-defaulted tail')
+  assert.ok(!rule.includes('absorb and ask are never defaults'), 'the retired conjunction is gone from the dispatched sentence')
+  // byte-mirror: the card's Disposition-rule bullet body IS the dispatched sentence body (PIN-12)
+  const card = windowOf(auditorMd, '**Disposition rule:** ', '\n')
+  assert.equal(rule.trim(), card.trim(), 'the dispatched DISPOSITION RULE byte-mirrors the card sentence (standing card + dispatched prompt, one commit)')
+  // standing eligibility home: the `## Barrier list` section carries the same default sentence and the out-of-diff clause
+  const home = windowOf(eligibilityMd, '## Barrier list', '\n## ')
+  assert.ok(home.includes('defaults to `absorb`'), 'the eligibility doc Barrier list section carries the in-diff absorb default sentence (D1)')
+  assert.ok(home.includes('`absorb` + `phaseClose:true` when its file is outside the task diff'), 'the eligibility doc Barrier list section carries the out-of-diff absorb + phaseClose:true clause')
+  // source pin: the tokens are INTERPOLATED from the mirror, never hand-typed into the prompt literal
+  assert.ok(src.includes("one of ${BARRIER_TOKENS.join(', ')}"), 'the prompt literal interpolates BARRIER_TOKENS.join — deleting the interpolation for a hand-typed list reds here')
+})
+
+test("barrier-list / filing-floor — dispositionOf's engine default reads the diff probe (Phase 4, D1/D4): probe absent ⇒ the old severity default; probe present ⇒ a fully specified omitted Minor/Nit reads absorb, in-diff bare and out-of-diff with phaseClose:true; no suggested_fix ⇒ the old default; a barrier-tagged follow-up passes through", () => {
+  const sliceStart = src.indexOf('const dispositionOf')
+  const sliceEnd = src.indexOf('const aceEligible')
+  // aceRelPath is declared INSIDE the slice (file scope, below askContentKey) — never injected.
+  const { dispositionOf } = new Function('log', 'notes', 'minorsFiled', 'asks', 'BARRIER_TOKENS',
+    src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf }')(() => {}, [], [], [], BARRIER_TOKENS)
+  // probe ABSENT (null) — the old severity default stands (filing-floor: a failed probe keeps the old default)
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'in-diff specified', file: 'a.js', suggested_fix: 'do x' }, null), 'follow-up',
+    'probe absent: the engine severity default holds for a fully specified Minor (fail-open, D4)')
+  assert.equal(dispositionOf({ severity: 'Nit', title: 'in-diff specified', file: 'a.js', suggested_fix: 'do x' }, null), 'note',
+    'probe absent: the engine severity default holds for a fully specified Nit')
+  // probe PRESENT — the diff-probe default (End state 10)
+  const diff = new Set(['a.js'])
+  const inDiff = { severity: 'Minor', title: 'in-diff specified', file: './a.js', suggested_fix: 'do x' }
+  assert.equal(dispositionOf(inDiff, diff), 'absorb', 'an omitted-disposition in-diff Minor with a suggested_fix defaults absorb (a ./-form path still matches)')
+  assert.notEqual(inDiff.phaseClose, true, 'the in-diff default is a bare absorb — it joins the task ace batch, not the sweep')
+  const outOfDiff = { severity: 'Minor', title: 'out-of-diff specified', file: 'b.js', suggested_fix: 'do y' }
+  assert.equal(dispositionOf(outOfDiff, diff), 'absorb', 'an omitted out-of-diff Minor with a suggested_fix defaults absorb')
+  assert.equal(outOfDiff.phaseClose, true, '… + phaseClose:true (rides the sweep)')
+  assert.equal(dispositionOf({ severity: 'Nit', title: 'nit specified', file: 'a.js', suggested_fix: 'do z' }, diff), 'absorb', 'a fully specified Nit reads absorb too')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'unspecified', file: 'a.js' }, diff), 'follow-up',
+    'an omitted Minor with NO suggested_fix keeps the old default (never an absorb without a fix)')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'blank fix', file: 'a.js', suggested_fix: '   ' }, diff), 'follow-up', 'a whitespace-only suggested_fix is not a fix')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'barred', file: 'a.js', disposition: 'follow-up', barrier: 'barrier:release-slot' }, diff), 'follow-up',
+    'a barrier-tagged follow-up passes through the classifier unchanged (the intake floor files it as stated)')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'seat absorb', file: 'a.js', disposition: 'absorb', phaseClose: true }, diff), 'absorb',
+    'the seat-set out-of-diff absorb reads absorb (phaseClose rides the finding)')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'seat ask', file: 'a.js', disposition: 'ask', ask: { question: 'q', fork: ['a', 'b'] } }, diff), 'ask', 'ask is never defaulted and always honored')
+})
+
+// ---- auditor-evict (in-band-absorb-default D16, ADR 0042, PIN-18) ----
+// The card's `### \`execution-evidence\` gate-audit checklist (reserved lens)` section (4,426 B, one
+// contiguous block: heading, blank line, body, trailing blank line) moved byte-identical to
+// skills/war/references/gate-audit-checklist.md. (a) extract by construct (the `###` heading → end of
+// file, the section's only terminator there) and assert BYTE equality against the pinned SHA-256 of the
+// pre-eviction card bytes (`git show 581a654:agents/war-auditor.md`, lines 63–74) — a reword, a
+// dropped bullet, or a re-flow reds; a sanctioned later edit re-pins the digest in the same commit
+// with its rationale. (b) the card keeps the heading over the fixed trigger pointer and no longer
+// carries the body.
+const GATE_AUDIT_CHECKLIST_SHA256 = '0783da5e8701a746e6bad796defbf072a6a9fb5c97bd4efb3e3edf7705aead47'
+test('auditor-evict (a) — the evicted execution-evidence checklist section is present verbatim in gate-audit-checklist.md (extract and byte equality; ADR 0042, D16)', () => {
+  const heading = '\n### `execution-evidence` gate-audit checklist (reserved lens)\n'
+  const at = gateAuditChecklistMd.indexOf(heading)
+  assert.ok(at >= 0, 'gate-audit-checklist.md lost its `### execution-evidence gate-audit checklist` heading')
+  assert.equal(gateAuditChecklistMd.indexOf(heading, at + 1), -1, 'expected exactly one checklist heading in gate-audit-checklist.md')
+  const body = gateAuditChecklistMd.slice(at + 1)
+  assert.ok(!/\n##? /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last section (heading → end of file)')
+  // Non-vacuity: the extraction spans the section's tail bullet.
+  assert.match(body, /\*\*End-state ownership mapping:\*\*/, 'the extracted section must span its `**End-state ownership mapping:**` tail bullet')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 4426, 'the evicted section is 4,426 B (the pre-eviction card bytes)')
+  assert.equal(createHash('sha256').update(body, 'utf8').digest('hex'), GATE_AUDIT_CHECKLIST_SHA256,
+    'the evicted checklist section must be byte-identical to the pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins GATE_AUDIT_CHECKLIST_SHA256 in this commit with its rationale')
+})
+test('auditor-evict (b) — the card keeps the checklist heading over the fixed trigger pointer and no longer carries the body', () => {
+  assert.match(auditorMd, /^### `execution-evidence` gate-audit checklist \(reserved lens\)$/m, 'the card keeps the checklist heading')
+  const section = windowOf(auditorMd, '### `execution-evidence` gate-audit checklist (reserved lens)', '\n## ')
+  assert.match(section,
+    /when you sit as the `execution-evidence` seat, read \[gate-audit-checklist\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-audit-checklist\.md\)/,
+    'the heading sits over the fixed trigger pointer (trigger + link, never a bare link — ADR 0042)')
+  for (const literal of ['Consume the stamped `pin_status`', 'Read the captured gate-log artifact', 'Grep the threaded `mappedTests`',
+    'Artifact-first End-state attestation', 'Mandatory delete-and-trace', 'Pair every positive assertion', '**End-state ownership mapping:**']) {
+    assert.ok(!auditorMd.includes(literal), `the card still carries the evicted body literal "${literal}" — the duties live in gate-audit-checklist.md only (a duplicated body drifts)`)
+  }
+  assert.ok(section.length < 600, 'the card section is the heading + pointer only, never a re-grown body')
 })
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
@@ -12009,12 +12275,15 @@ const registrySlice = () => {
   const sliceStart = src.indexOf('const dispositionOf')
   const sliceEnd = src.indexOf('const allApprove')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→allApprove registry slice is locatable')
-  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'minorsOf', 'run',
+  // aceRelPath is declared inside the slice (file scope, below askContentKey); RELEASE_SLOT_FILES /
+  // BARRIER_TOKENS / DEMOTE_REASONS are the module-top mirrors — injected as the canonical exports
+  // (the D2 registry rows deepEqual them).
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
-    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys }')
-  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [] }
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys, diffFilesByTask, dispositionOf, intakeFloor, demote }')
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, minorsOf, { ace: true })
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
   return { ...state, ...api }
 }
 
@@ -12056,7 +12325,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   const h = registrySlice()
   const f = { severity: 'Minor', task: 't1', title: 'stale count', file: 'skills/a.js', disposition: 'absorb', phaseClose: true, seat: 'audit:t1:correctness' }
   // Entry point 1 — routeToSweep stamps queuedKeys.
-  h.routeToSweep({ ...f }, 'reserve-blocked re-entry (fixture)')
+  h.routeToSweep({ ...f }, 'budget-blocked re-entry (fixture)')
   assert.equal(h.phaseCloseQueue.length, 1, 'the finding queues for the sweep once')
   assert.ok(h.queuedKeys.has(h.remintKey(f)), 'routeToSweep stamps the queued registry')
   // A later re-audit re-mints the same content (fresh copy, drifted seat): never a second record.
@@ -12064,7 +12333,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
   assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
-  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry this phase — the queued record stands')),
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
@@ -12108,22 +12377,25 @@ test('ask-content-key (cross-seat corroboration): a second seat re-minting a fil
 })
 
 test('ask-collision (End state 7): every measured ask-drop sink merges a content collision as corroboration or logs it — one parametrized check over the THREE gate-audit sites plus a no-silent-discard negative control', async () => {
-  // Parametrized source leg — the three structurally identical sites (per-task execution-evidence,
-  // integrated-tip, end-state): each parks UNCONDITIONALLY through parkAsk (the collision handling
-  // lives in the funnel); the retired `asks.some(` guard — the unlogged silent sink #1790 measured —
-  // is absent from every site window.
+  // Parametrized source leg — the three structurally identical seat sites (per-task
+  // execution-evidence, integrated-tip, end-state) collect their Minor/Nit rows, seat-stamped, onto
+  // gateAuditRows (in-band-absorb-default D15); the ONE floor pass (routeGateAuditRows) parks every
+  // ask UNCONDITIONALLY through parkAsk (the collision handling lives in the funnel); the retired
+  // `asks.some(` guard — the unlogged silent sink #1790 measured — is absent from every window.
   const SITES = [
-    "':execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha)",
-    "':integrated-tip', sha: auditShaOrSentinel(authVerdict.audit_sha)",
-    "':end-state', sha: auditShaOrSentinel(esVerdict.audit_sha)",
+    "':execution-evidence', lens: 'execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha)",
+    "':integrated-tip', lens: 'execution-evidence', sha: auditShaOrSentinel(authVerdict.audit_sha)",
+    "':end-state', lens: 'execution-evidence', sha: auditShaOrSentinel(esVerdict.audit_sha)",
   ]
   for (const anchor of SITES) {
     const i = src.indexOf(anchor)
-    assert.ok(i !== -1, `gate-audit ask site locatable: ${anchor}`)
+    assert.ok(i !== -1, `gate-audit row-collection site locatable: ${anchor}`)
     const window = src.slice(Math.max(0, i - 400), i)
-    assert.ok(window.includes('parkAsk('), `site ${anchor}: parks through the parkAsk funnel`)
+    assert.ok(window.includes('gateAuditRows.push('), `site ${anchor}: collects onto gateAuditRows for the ONE floor pass`)
     assert.ok(!window.includes('asks.some('), `site ${anchor}: the arm-local silent-discard guard is retired (#1790)`)
   }
+  const pass = src.slice(src.indexOf('const routeGateAuditRows = () => {'), src.indexOf('routeGateAuditRows()\n'))
+  assert.ok(pass.length > 0 && pass.includes('parkAsk(f)'), 'the gate-audit floor pass parks through the parkAsk funnel (exactly-once by content identity)')
   // Lookbehind excludes `tasks.some(` (a different construct sharing the substring).
   assert.ok(!/(?<![A-Za-z])asks\.some\(/.test(src), 'NO asks.some( silent-discard guard survives anywhere in the template')
   // Behavioral leg (the reachable per-task site): a gate-audit re-raise of a roster-parked ask
@@ -12196,11 +12468,17 @@ test('lens-suffix (End state 7): lens extraction keys on the FAMILY PREFIX — g
 })
 
 test('ace-group-path (End state 8): aceGroups and the Ace-Subset trailer key on aceRelPath-normalized paths — a ./-form and bare-form pair of the same file lands in ONE subset', () => {
-  const sliceStart = src.indexOf('const aceRelPath')
+  // aceRelPath is file-scope (hoisted out of the wave loop, in-band-absorb-default Phase 3): evaluate
+  // it from its own src.match (the recordAcedTouched idiom) and slice the grouping/halving block from
+  // `const aceGroups`, injecting the helper as a parameter.
+  const relM = src.match(/^const aceRelPath = (p => .+)$/m)
+  assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
+  const aceRelPath = new Function('return ' + relM[1])()
+  const sliceStart = src.indexOf('const aceGroups')
   const sliceEnd = src.indexOf('const citationOf')
-  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceRelPath→aceHalve engine slice is locatable')
-  const { aceRelPath, aceGroups, aceHalve } = new Function(
-    src.slice(sliceStart, sliceEnd) + '\nreturn { aceRelPath, aceGroups, aceHalve }')()
+  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceGroups→aceHalve engine slice is locatable')
+  const { aceGroups, aceHalve } = new Function('aceRelPath',
+    src.slice(sliceStart, sliceEnd) + '\nreturn { aceGroups, aceHalve }')(aceRelPath)
   const pair = [{ file: './skills/x.js', title: 'dot form' }, { file: 'skills/x.js', title: 'bare form' }]
   const groups = aceGroups(pair)
   assert.equal(groups.length, 1, 'the ./-form and bare-form pair groups as ONE file (never split across subsets, D3)')
@@ -12417,11 +12695,11 @@ test('#1913 End state 3 — the ace batch, its gate check and its re-audit all d
   assert.deepEqual(out.landed.sort(), ['t1', 't2'], 'both tasks land')
 })
 
-test('#1913 End state 3 (PIN-5/PIN-13) — a wave-side ace round charges the SHARED fixRounds budget, so an ace run exhausts the floor-retry loop one round earlier', async () => {
-  // A permanently-red no-test floor drains run.roundLimit. With --ace ON the batch ace has already
-  // charged one slot wave-side, so exactly ONE FEWER add-test fix round is dispatched before
-  // exhaustion. If the merge-slot seed re-seeded from r.round (rather than never-lowering), the two
-  // runs would spend identical budgets and this goes red.
+test('absorb-budget (End state 4, fixRounds untouched by ace): an ace commit leaves fixRounds unchanged — an ace run and a control run spend the SAME floor-retry budget (PIN-7 retires the #1913 shared-budget charge)', async () => {
+  // A permanently-red no-test floor drains run.roundLimit. With --ace ON the batch ace charges the
+  // ABSORB meter (absorbRounds), never fixRounds, so exactly the SAME number of add-test fix rounds
+  // is dispatched before exhaustion. Delete the D5 re-anchor (restore `fixRounds++` at the batch
+  // ace) and the ace run spends one fewer round, reding this.
   const floorImpl = (findings) => (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
@@ -12438,9 +12716,10 @@ test('#1913 End state 3 (PIN-5/PIN-13) — a wave-side ace round charges the SHA
   const noAce = await runPhase(ACE_ARGS({ run: { roundLimit: 4 } }), floorImpl([nit()]))
   assert.ok(withAce.calls.some(isAce), 'the --ace run really dispatched a wave-side ace')
   assert.ok(!noAce.calls.some(isAce), 'the control run dispatched no ace')
-  assert.equal(addTests(withAce.calls), addTests(noAce.calls) - 1,
-    'the ace round charged one slot of the SHARED budget: exactly one fewer floor-retry fix round')
+  assert.equal(addTests(withAce.calls), addTests(noAce.calls),
+    'the ace round charged nothing on fixRounds: the same number of floor-retry fix rounds (PIN-7)')
   assert.ok((withAce.out.escalated || []).some(e => e && e.reason === 'no-test'), 'the floor still exhausts to the no-test escalation')
+  assert.ok((withAce.out.aced || []).some(a => a && a.sha === 'ace00001'), 'the --ace run really aced (the absorb slot was charged, not the fix slot)')
 })
 
 test('#1913 PIN-12/PIN-2 — a RED gate at the ace tip blocks the re-audit and the transfer: the ace commit is forward-reverted, the finding demotes, the task still lands', async () => {
@@ -12754,7 +13033,7 @@ test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed
   assert.equal(run(null), false, 'a dead/absent result never licenses')
 })
 
-test('#1944 — recordAcedTouched records aced only what the ace commit touched, and demotes the rest', () => {
+test('#1944 / demote-census — recordAcedTouched records aced only what the ace commit touched, and routes the rest to the sweep (a failed ATTEMPT never files, D13)', () => {
   const m = src.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
   assert.ok(m, 'src must contain the recordAcedTouched helper (#1944)')
   const relPath = src.match(/const aceRelPath = (p => [^\n]+)/)
@@ -12767,9 +13046,10 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
   const build = () => {
     const aced = [], demoted = []
     // eslint-disable-next-line no-new-func
-    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'recordAced', 'citationOf', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
+    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationOf', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
       aceRelSet, aceRelPath,
-      (f, to, why) => demoted.push({ f, to, why }),
+      (f, to, why) => { throw new Error('demote() must never be reached from recordAcedTouched — an untouched file is a failed ATTEMPT, routed to the sweep (D13): ' + why) },
+      (f, why) => demoted.push({ f, to: 'sweep', why }),
       (f, sha) => aced.push({ f, sha }),
       () => null)
     return { fn, aced, demoted }
@@ -12781,8 +13061,8 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
     const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
     fn([hit, miss], SHA, { ace_diff_files: ['./a.js'] })
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'], 'only the touched finding is recorded aced')
-    assert.deepEqual(demoted.map(x => x.f.title), ['untouched'], 'the untouched finding demotes instead')
-    assert.equal(demoted[0].to, 'follow-up', 'it demotes one step, to follow-up — never dropped')
+    assert.deepEqual(demoted.map(x => x.f.title), ['untouched'], 'the untouched finding routes to the sweep instead')
+    assert.equal(demoted[0].to, 'sweep', 'it rides routeToSweep (phaseClose:true, the row stays an absorb) — never a follow-up, never dropped')
     assert.match(demoted[0].why, /never touched b\.js/, 'the reason names the file the commit never reached')
     assert.match(demoted[0].why, /partial batch fix/, 'the reason names the failure class')
   }
@@ -12829,7 +13109,7 @@ test('#1944 — recordAcedTouched records aced only what the ace commit touched,
     const { fn, aced, demoted } = build()
     const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
     fn([hit, miss], SHA, { ace_diff_files: ['a.js'] })
-    assert.equal(demoted.length, 1, 'INSIDE the footprint, the genuine partial miss still demotes')
+    assert.equal(demoted.length, 1, 'INSIDE the footprint, the genuine partial miss still routes to the sweep')
     assert.equal(demoted[0].f.title, 'untouched')
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'])
   }
@@ -12865,12 +13145,14 @@ test('#1944 — recordAced call-site census: every occurrence is a NAMED legitim
   // recordAcedTouched or ruled here by name.
   const code = src.replace(/^\s*\/\/.*$/gm, '')
   const total = (code.match(/recordAced\(/g) || []).length
-  assert.equal(total, 2, 'exactly 2 recordAced( occurrences — the recordAcedTouched interior and the sweep polish arm; a new one must be ruled here')
+  assert.equal(total, 3, 'exactly 3 recordAced( occurrences — the recordAcedTouched interior, the sweep polish arm, and the terminal-pass merged arm; a new one must be ruled here')
   const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
   assert.ok(helper, 'the recordAcedTouched helper exists')
   assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
-  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) recordAced\(f, polishSha\)/,
-    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction, though the #1944 partial-fix shape applies to it too (a queued finding the polish commit never touched is still recorded aced; ruled a known residual, not silently)")
+  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha\)/,
+    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual)")
+  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true \}\)/,
+    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent)')
   assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
     'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
   assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
@@ -12905,7 +13187,7 @@ test('#1940 — PIN-13 seed: a behavioural resume simulation, not a source-shape
   assert.equal(bare, 0, 'with neither source the seed is 0, never NaN')
   assert.equal(bare < 6, true,
     'and 0 opens the ace gate — `undefined < 6` is false, the exact defect that made the hoisted ace never dispatch')
-  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:r<n>` never renders rNaN')
+  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:a<n>` never renders aNaN')
 })
 
 test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase refiner dispatchKind is named (default-deny census)', () => {
@@ -12957,11 +13239,13 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
   // rebase is spelled `(2) REBASE` and is the RULED exclusion — it IS the skip's origin, so the
   // predicate cannot apply to it. A merge prompt labelling its rebase differently escapes this
   // census; keep the `(a)` form when adding one.
+  // 5 → 6 (in-band-absorb-default D3a): the terminal-pass merge rebases the POLISH worktree too —
+  // the second pointer-free site, for the same reason (no pin-transfer probe ever rebases it).
   const rebasePrompts = (src.replace(/^\s*\/\/.*$/gm, '').match(/\(a\) REBASE in the (?:TASK|POLISH) worktree/g) || [])
-  assert.equal(rebasePrompts.length, 5,
-    'exactly 5 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge — a new one must be ruled here')
-  assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 1,
-    'the one pointer-free site is the polish merge, by name')
+  assert.equal(rebasePrompts.length, 6,
+    'exactly 6 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge + the terminal-pass merge — a new one must be ruled here')
+  assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 2,
+    'the two pointer-free sites are the polish merge and the terminal-pass merge, by name')
 })
 
 test('#1951 anchor — the ace-gate prompt still carries the tip phrase the harness default parses', () => {
@@ -13053,7 +13337,9 @@ const grabSchema = (name) => {
   const j = src.indexOf('{', i)
   for (let k = j; k < src.length; k++) {
     if (src[k] === '{') d++
-    if (src[k] === '}') { d--; if (d === 0) return new Function('return (' + src.slice(j, k + 1) + ')')() }
+    // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) — bound here from the
+    // canonical export (the D2 mirror registry deepEquals the two).
+    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'return (' + src.slice(j, k + 1) + ')')(BARRIER_TOKENS) }
   }
   throw new Error('unbalanced ' + name)
 }
@@ -13133,4 +13419,1352 @@ test('#1956 — AUDIT_VERDICT items-level conditional: an ask-disposition findin
   const items = { ...AV.properties.findings.items, if: { properties: { disposition: { const: 'note' } }, required: ['disposition'] } }
   const wrong = { ...AV, properties: { ...AV.properties, findings: { ...AV.properties.findings, items } } }
   assert.equal(evalSchema(wrong, verdict(bare)), true, 'mis-authored conditional flips the bare-ask case to accepted — reds this fixture if shipped')
+})
+
+// ---------------------------------------------------------------------------
+// absorb-budget (in-band-absorb-default Phase 2 Task 1, D5 / PIN-7): the ace ladder's OWN round
+// meter. r.task.absorbRounds is charged once per ace-side COMMIT (batch, re-entry, bisection
+// subset), never by reverts, panels, or fix rounds; fixRounds counts blocking fix rounds and floor
+// retries only. All three ace gates read `absorbRounds < run.absorbRounds`; a spent budget routes
+// the rows to the phase-close sweep; open blockers HOLD the rows on r.task.pendingAbsorbs. Every
+// ace-side commit carries `Ace-Charge: <task>:<n>`; the barrier's absorbCharges read seeds the
+// counter on a relaunch. Each fixture is red with its engine arm deleted.
+// ---------------------------------------------------------------------------
+
+// Barrier impl: the git-topology barrier returns the given env-outcome; everything else falls back
+// to the given base impl (aceBase / sweepBase / a buildSeqImpl).
+const withBarrier = (env, base) => (prompt, opts) =>
+  (seatOf(opts) === 'war-refiner' && opts.dispatchKind === 'provision-barrier') ? env : base(prompt, opts)
+
+test('absorb-budget (End state 4, fixRounds at the audit-loop ceiling): a task whose fixRounds sits at the loop ceiling with absorbRounds free still runs an ace batch AND a re-entry batch — fixRounds gates neither', async () => {
+  // roundLimit 2: a Major costs one fix round (fixRounds 1 — the highest value the audit loop can
+  // exit `approve` with; the retired `roundLimit − 2` reserve arithmetic read 0 here and blocked
+  // every subset and re-entry). The batch ace still dispatches, and the re-audit-born absorb still
+  // re-enters: absorbRounds (0 → 1 → 2 under the default 6) is the only gate.
+  const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [blockingMajor,
+                               approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const { out, calls } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 2 } }), impl)
+  assert.ok(calls.some(c => (c.opts.label || '') === 'fix:t1:r1'), 'presence guard: the fix round really ran (fixRounds 1 = roundLimit − 1)')
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 2, 'batch ace + ONE re-entry batch dispatched — fixRounds at the loop ceiling gates neither')
+  assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH') && aces[1].prompt.includes('second'), 'the second dispatch is the re-entry vehicle')
+  assert.ok(['first', 'second'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t)), 'both absorbs aced')
+  const row = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'approve')
+  assert.equal(row && row.fixRounds, 1, 'the audit round provenance records the one blocking fix round')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('absorb-budget (End state 4, spent budget at the batch): a task whose absorbRounds is already spent dispatches NO ace batch — its aceable rows route to the sweep with a log naming the counter, and ace at the polish sha', async () => {
+  // The barrier read seeds absorbRounds at run.absorbRounds (6, the default) — the task branch
+  // already carries six Ace-Charge trailers — so the batch gate refuses; no blockers ⇒ the rows
+  // ride to the phase-close sweep (never a follow-up) and ace there.
+  const queued = nit({ title: 'spent-budget nit', file: 'skills/spent.js' })
+  const impl = withBarrier({ ok: true, absorbCharges: { t1: DEFAULTS.run.absorbRounds } }, sweepBase([queued]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(!calls.some(isAce), 'no ace batch dispatches at a spent absorb budget')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb-budget: task t1 has absorbRounds 6 at run.absorbRounds (6)')), 'the budget block is logged naming the counter')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('spent-budget nit') && l.includes('absorb budget spent')), 'the aceable row routes to the sweep (routeToSweep)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'spent-budget nit'), 'never a follow-up')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'spent-budget nit' && a.sha === 'polishsha'), 'the row aces at the polish sha via the sweep')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('absorb-budget (End state 4, resume seed): three Ace-Charge trailers on the branch ⇒ the task resumes at absorbRounds 3 — the next ace label and Ace-Charge trailer read 4', async () => {
+  const impl = withBarrier({ ok: true, absorbCharges: { t1: 3 } }, aceBase([nit()]))
+  const { calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb-budget: task t1 resumes at absorbRounds 3 (barrier absorbCharges')), 'the seed is logged from the barrier read')
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'the batch ace dispatched (3 < 6)')
+  assert.equal(ace.opts.label, 'ace:t1:a4', 'the ace label carries absorbRounds (the slot this commit charges)')
+  assert.match(ace.prompt, /`Ace-Charge: t1:4`/, 'the Ace-Charge trailer index is absorbRounds AFTER the charge')
+  const gate = calls.find(c => c.opts.dispatchKind === 'ace-gate')
+  assert.ok(gate && gate.opts.label === 'ace-gate:t1:a4', 'the ace-gate label carries the charged absorbRounds')
+})
+
+test('absorb-budget (End state 4, charge then revert): one charge and its revert ⇒ the branch reads 1 (the reverted commit\'s trailer still counts) — the task resumes at 1 and the barrier prompt says so', async () => {
+  const impl = withBarrier({ ok: true, absorbCharges: { 'p3-t1': 1 } }, aceBase([nit()]))
+  const { calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 resumes at absorbRounds 1')), 'the worktree-name dialect key (p3-t1) seeds the bare-id task')
+  const ace = calls.find(isAce)
+  assert.equal(ace && ace.opts.label, 'ace:t1:a2', 'the next ace charges slot 2')
+  const barrier = calls.find(isProvision)
+  assert.match(barrier.prompt, /a reverted ace commit's trailer still counts/, 'the barrier prompt states that a revert never un-charges')
+  assert.match(barrier.prompt, /HIGHEST integer n/, 'the barrier reads the highest index, never a count')
+})
+
+test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbCharges map, a map lacking the task, and a malformed entry each seed absorbRounds 0 with a loud log naming the task', async () => {
+  for (const [name, env, expectLog, cause] of [
+    ['no map', { ok: true }, 'returned no absorbCharges map', 'barrier returned no absorbCharges map'],
+    ['map lacks the task', { ok: true, absorbCharges: { other: 2 } }, 'map lacks the task', 'barrier absorbCharges map lacks the task'],
+    ['malformed entry', { ok: true, absorbCharges: { t1: 'three' } }, 'is malformed', 'barrier absorbCharges entry for the task was malformed'],
+  ]) {
+    const { calls, logs } = await runPhase(ACE_ARGS(), withBarrier(env, aceBase([nit()])))
+    const seedLog = logs.find(l => typeof l === 'string' && l.includes('NO usable absorbCharges entry for task t1') && l.includes('seeding absorbRounds 0'))
+    assert.ok(seedLog, `${name}: the 0 seed is logged loudly naming the task`)
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes(expectLog)), `${name}: the log names the cause`)
+    assert.ok(seedLog.includes(cause), `${name}: the 0-seed line carries the real cause (${cause}), never a contradicting one`)
+    if (name === 'malformed entry') assert.ok(!seedLog.includes('map lacks the task'), `${name}: the 0-seed line never claims the map lacks the task`)
+    const ace = calls.find(isAce)
+    assert.equal(ace && ace.opts.label, 'ace:t1:a1', `${name}: the ladder starts at slot 1`)
+    assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), `${name}: the worker still dispatched — never a hold`)
+  }
+})
+
+test('absorb-budget (End state 4, Lead override): args.absorbCharges wins over the barrier read on a relaunch (no recovery gate), logged', async () => {
+  const impl = withBarrier({ ok: true, absorbCharges: { t1: 5 } }, aceBase([nit()]))
+  const { calls, logs } = await runPhase(ACE_ARGS({ absorbCharges: { t1: 2 } }), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 resumes at absorbRounds 2 (args.absorbCharges')), 'the override source is named')
+  assert.equal((calls.find(isAce) || {}).opts.label, 'ace:t1:a3', 'the override seed drives the next slot')
+})
+
+test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt pins `Ace-Charge: <id>:<int>` as its own final-paragraph trailer; the forward-revert clause carries no charge trailer', async () => {
+  const grammar = /`Ace-Charge: ([A-Za-z0-9._-]+):(\d+)`/
+  // batch + re-entry (reentryImpl): both dispatches carry the trailer, indices 1 and 2.
+  const { calls } = await runPhase(ACE_ARGS(), reentryImpl())
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 2, 'presence guard: batch + re-entry')
+  for (const [i, c] of aces.entries()) {
+    const m = c.prompt.match(grammar)
+    assert.ok(m, `ace dispatch ${i + 1} carries the Ace-Charge trailer in the pinned grammar`)
+    assert.equal(m[1], 't1', 'the trailer names the task id')
+    assert.equal(Number(m[2]), i + 1, 'the index is absorbRounds after the charge')
+    assert.match(c.prompt, /as its OWN final paragraph, separated from the body by a blank line/, 'the trailer is mandated as a distinct final block (git parses trailers only there)')
+  }
+  assert.match(aces[1].prompt, /`Ace-Subset: t1:reentry:a2:skills\/second\.js` and `Ace-Charge: t1:2`/, 'the re-entry commit carries BOTH trailers')
+  // Reverts excluded: the merge dispatch's FORWARD-REVERT clause (a red-gate ace tip) names no charge.
+  const red = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': { gate_green: false, gate_output: 'FAIL' } })
+  const merge = red.calls.find(isMergeTask)
+  assert.match(merge.prompt, /FORWARD-REVERT/, 'presence guard: the revert clause rides the merge dispatch')
+  const revertClause = merge.prompt.slice(merge.prompt.indexOf('FORWARD-REVERT'), merge.prompt.indexOf('BEFORE the rebase step'))
+  assert.ok(!/Ace-Charge/.test(revertClause), 'a revert carries no charge trailer')
+})
+
+test('absorb-budget (End state 4, ace labels): ace and ace-gate dispatch labels carry absorbRounds — `ace:<task>:a<n>` / `ace-gate:<task>:a<n>`, n advancing with each charge', async () => {
+  const { calls } = await runPhase(ACE_ARGS(), reentryImpl())
+  assert.deepEqual(calls.filter(isAce).map(c => c.opts.label), ['ace:t1:a1', 'ace:t1:a2'], 'the two ace dispatches are labelled by the slot they charge')
+  assert.deepEqual(calls.filter(c => c.opts.dispatchKind === 'ace-gate').map(c => c.opts.label), ['ace-gate:t1:a1', 'ace-gate:t1:a2'], 'the ace-gate labels carry the charged counter')
+  assert.ok(!calls.some(c => /^ace(-gate)?:t1:r\d/.test(c.opts.label || '')), 'no ace-family label still carries the retired fixRounds index')
+})
+
+test('absorb-budget (End state 4, distinct re-entry trailers): two successive re-entry batches over ONE file set emit distinct Ace-Subset values — the round segment is anchored on absorbRounds, which fixRounds no longer moves', async () => {
+  // batch (first) → re-audit raises `second` on skills/second.js → re-entry 1 → its re-audit raises
+  // `third` on the SAME file → re-entry 2 → clean. Anchored on fixRounds (never charged by ace
+  // commits now) both trailers would read `:reentry:r1:` — an idempotency-preflight collision.
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'third', file: 'skills/second.js', rationale: 'another nit, same file' })]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const reentries = calls.filter(isAce).filter(c => c.prompt.includes('ACE RE-ENTRY BATCH'))
+  assert.equal(reentries.length, 2, 'two re-entry batches dispatched')
+  const trailers = reentries.map(c => (c.prompt.match(/`Ace-Subset: ([^`]+)`/) || [])[1])
+  assert.deepEqual(trailers, ['t1:reentry:a2:skills/second.js', 't1:reentry:a3:skills/second.js'], 'the trailers differ only by the absorbRounds segment')
+  assert.notEqual(trailers[0], trailers[1], 'distinct values (the preflight compares by exact whole-string equality)')
+  assert.ok(['second', 'third'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t)), 'both re-entry absorbs aced')
+})
+
+test('absorb-budget (End state 4, held then approved): a row held on r.pendingAbsorbs by a blocker-held batch rides the NEXT approve\'s ace batch — aced, never minorsFiled', async () => {
+  // The held state is seeded on the task (the shape the batch-ace hold writes); the fresh approve
+  // folds it into the aceable set beside the round's own nit, deduped by content key.
+  const held = { severity: 'Nit', title: 'held nit', file: 'skills/held.js', rationale: 'held earlier', autoFixable: true, task: 't1', seat: 'audit:t1:correctness' }
+  const fresh = nit({ title: 'fresh nit', file: 'skills/fresh.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [fresh]), approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held, { ...held }] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'the ace batch dispatched')
+  assert.ok(ace.prompt.includes('held nit') && ace.prompt.includes('fresh nit'), 'the held row rides the batch beside the fresh row')
+  assert.equal((ace.prompt.match(/held nit/g) || []).length, 1, 'the duplicate held copy is deduped by content key')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) joins this approve')), 'the fold is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) is a duplicate of a row already in this approve') && l.includes('the held copy is dropped')),
+    'the duplicate branch logs cause-neutrally (a held-vs-held collision is not a fresh re-raise)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('the fresh row rides the ace batch')), 'the retired fresh-row cause wording is gone')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'held nit'), 'the held row is aced')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held nit'), 'the held row is not in minorsFiled')
+})
+
+// A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
+// blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
+const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',
+  findings: [{ severity: 'Major', title: 'open blocker', file: 'skills/blk.js', rationale: 'still open' }, ...findings] })
+
+test('absorb-budget (End state 4, held then escalated): open blockers HOLD the aceable rows on r.pendingAbsorbs; a task that then ends escalated (never merged) demotes them with demote:absorb-blocked', async () => {
+  const row = nit({ title: 'blocked nit', file: 'skills/blocked.js' })
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor') return approveBesideMajor([row])
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'conflict', conflict_files: ['x'] }
+    return aceBase([])(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(!calls.some(isAce), 'no ace batch dispatches under open blockers')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('carries 1 open blocking finding(s)') && l.includes('HELD on r.pendingAbsorbs')), 'the hold is logged')
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'conflict'), 'presence guard: the task never merged (conflict escalation)')
+  const filed = (out.minorsFiled || []).find(m => m && m.title === 'blocked nit')
+  assert.ok(filed, 'the held row demotes to follow-up (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('blocked nit') && l.includes('demote:absorb-blocked')), 'the demotion reason carries the demote:absorb-blocked prefix')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('ace unavailable (open blocking findings or exhausted fix budget)')), 'the retired shared exhaustion arm is gone')
+})
+
+test('absorb-budget (End state 4, held then merged): a task that merges with rows still held (no later approve came) sends them to the phase-close sweep as absorbs — logged, never dropped', async () => {
+  const row = nit({ title: 'held-merged nit', file: 'skills/hm.js' })
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    const label = opts.label || ''
+    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) return approveBesideMajor([row])
+    return sweepBase([])(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(!calls.some(isAce), 'no ace batch under open blockers')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 merged with 1 held absorb(s)')), 'the merged-with-held drain is logged')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'held-merged nit' && a.sha === 'polishsha'), 'the held row aces at the polish sha via the sweep')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held-merged nit'), 'never a follow-up')
+})
+
+test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-refiner.md AND the dispatched barrier prompt, with the one-git-read allowance; delete-the-feature per surface', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const barrier = calls.find(isProvision)
+  assert.ok(barrier, 'the barrier was dispatched (presence guard)')
+  const ANCHORS = [/absorbCharges/, /Ace-Charge/, /trailers:key=Ace-Charge/, /highest/i, /never a count/i]
+  for (const [name, text] of [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]) {
+    // The anchor loop IS the delete-and-trace: remove the trailer read from either surface and its
+    // /trailers:key=Ace-Charge/ match reds. (A local replace-then-absence check was a tautology, #2029.)
+    for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
+  }
+  assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
+  assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
+  assert.match(schemasMdForAbsorb, /absorbCharges/, 'schemas.md documents the ENV_OUTCOME absorbCharges field')
+  // Schema-slot pins (the done_when_log_path shape): the ENGINE literal declares the slot with its type,
+  // the slot stays OPTIONAL, and each schemas.md row binds to the engine key it documents.
+  const env = src.slice(src.indexOf('const ENV_OUTCOME'), src.indexOf('const done = new Set'))
+  assert.match(env, /absorbCharges:\s*\{\s*type:\s*'object'\s*\}/, "ENV_OUTCOME declares absorbCharges: { type: 'object' }")
+  assert.ok(!/required:\s*\[[^\]]*absorbCharges/.test(env), 'absorbCharges is OPTIONAL — never added to ENV_OUTCOME.required')
+  const envKey = (env.match(/(absorbCharges):\s*\{/) || [])[1]
+  assert.equal(envKey, 'absorbCharges', 'the ENV_OUTCOME properties key is extracted from src (non-vacuous)')
+  const envDocStart = schemasMdForAbsorb.indexOf('Every `provision`-mode refiner dispatch')
+  const envFence = schemasMdForAbsorb.indexOf('```jsonc', envDocStart)
+  const envDoc = schemasMdForAbsorb.slice(envFence, schemasMdForAbsorb.indexOf('```', envFence + 8))
+  assert.ok(envDocStart >= 0 && new RegExp('^\\s*' + envKey + '\\?\\s*\\}', 'm').test(envDoc), 'the schemas.md env-outcome block documents the same optional key name the engine literal declares (' + envKey + '?)')
+  assert.match(schemasMdForAbsorb, /absorbRounds/, 'schemas.md documents the absorbRounds meter row')
+  assert.match(schemasMdForAbsorb, /r\.task\.absorbRounds/, "the schemas.md absorbRounds phase-return row names the engine counter r.task.absorbRounds")
+  assert.match(src, /r\.task\.absorbRounds/, 'the engine reads the counter under that same name (r.task.absorbRounds)')
+  // PIN-13 source-shape pin: the merge-slot seed keeps its never-lowering Math.max form (resume-only defence, PIN-7).
+  assert.match(src, /r\.task\.fixRounds = Math\.max\(Number\.isInteger\(r\.task\.fixRounds\) \? r\.task\.fixRounds : 0, r\.round \?\? 0\)/, 'the merge-slot fixRounds seed keeps the never-lowering Math.max form')
+})
+
+test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbRounds ?? <n>` fallback equals DEFAULTS.run.absorbRounds, and the three ace gates read absorbRounds — the retired reserve arithmetic is absent', () => {
+  const m = src.match(/const\s+absorbRounds\s*=\s*run\.absorbRounds\s*\?\?\s*(\d+)/)
+  assert.ok(m, 'the absorbRounds fallback is present')
+  assert.equal(Number(m[1]), DEFAULTS.run.absorbRounds, 'the fallback literal mirrors DEFAULTS.run.absorbRounds')
+  assert.equal((src.match(/r\.task\.absorbRounds >= absorbRounds/g) || []).length, 2, 'the aceBisect subset stop and the aceReentry stop read the absorb budget')
+  assert.ok(src.includes('if (openBlockers === 0 && aceable.length && r.task.absorbRounds < absorbRounds)'), 'the batch ace gate reads the absorb budget, never fixRounds')
+  assert.ok(!/aceable\.length && r\.task\.fixRounds < roundLimit/.test(src), 'the retired fixRounds batch gate is gone')
+  assert.ok(!/roundLimit\s*(−|-)\s*2/.test(src), 'the roundLimit − 2 reserve arithmetic is gone (End state 5)')
+  assert.equal((src.match(/r\.task\.fixRounds\+\+/g) || []).length, 1, 'fixRounds is charged only by the merge-floor retry loop — one site in the whole engine (PIN-7)')
+  const bisectBody = src.slice(src.indexOf('const aceBisect = async'), src.indexOf('const aceReentry = async'))
+  const reentryBody = src.slice(src.indexOf('const aceReentry = async'), src.indexOf('const aceStage = async'))
+  assert.ok(bisectBody.length > 0 && reentryBody.length > 0, 'presence guard: both ace-ladder bodies were extracted')
+  assert.ok(!bisectBody.includes('r.task.fixRounds++'), 'aceBisect carries no fixRounds charge at all (PIN-7, comment-independent)')
+  assert.ok(!reentryBody.includes('r.task.fixRounds++'), 'aceReentry carries no fixRounds charge at all (PIN-7, comment-independent)')
+  assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three `r.task.absorbRounds++` sites: batch, subset, re-entry — the terminal pass charges the polish pseudo-task on its own receiver')
+})
+
+// ===========================================================================
+// in-band-absorb-default Phase 4 (Task 4.1): sweep exclusion set (D2), diff probe + intake filing
+// floor (D4), demote-reason census (D13), ace-off routing (D14), gate-audit-family routing (D15).
+// Fixture families: sweep-exclude, filing-floor, demote-census, ace-off-route, gate-audit-route.
+// ===========================================================================
+
+// Normalized whole-file scan (the terminal-pass fixture's idiom, Phase 5): strip line-comment
+// prefixes, join lines, collapse whitespace, case-fold — so a retired literal cannot survive as a
+// wrapped comment copy or a re-flowed string.
+const normalizedSrc = () => src.split('\n').map(l => l.replace(/^\s*\/\/\s?/, '')).join(' ').replace(/\s+/g, ' ').toLowerCase()
+
+// Sweep-family base (SWEEP_ARGS carries the config default roster, so the sweep convenes): the t1
+// work-round seat raises `queued`; the per-task gate-audit seat raises `gate` (pin-equal audit_sha —
+// the merge returns integration_sha 'beefcafe12', the evidence dispatch is answered with `evidence`);
+// polish provisioning ok; the polish panel approves clean.
+const p4Base = ({ queued = [], gate = [], evidence = null, worker = null, seatsOf = null } = {}) => (prompt, opts) => {
+  const seat = seatOf(opts), label = opts.label || ''
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+  if (seat === 'war-refiner' && /^polish-worktree:/.test(label)) return { ok: true }
+  if (seat === 'war-refiner' && /^evidence:/.test(label)) return evidence ?? { perTask: [] }
+  if (seat === 'war-worker') {
+    const w = worker && worker(label)
+    if (w) return w
+    return { task_id: 't1', status: 'implemented', head_sha: label.startsWith('polish:') ? 'polishsha' : 'deadbeef', tests: { unit: 1 } }
+  }
+  if (seat === 'war-auditor') {
+    const custom = seatsOf && seatsOf(label)
+    if (custom) return custom
+    if (label.startsWith('gate-audit:')) return { seat: label, lens: 'execution-evidence', verdict: 'approve', findings: gate, confidence: 'high', audit_sha: 'beefcafe12' }
+    const f = label.includes(':t1:') ? queued : []
+    return { seat: label, lens: 'correctness', verdict: 'approve', findings: f, confidence: 'high' }
+  }
+  if (seat === 'war-refiner') return opts.phase === 'Land'
+    ? { mode: 'land-phase', status: 'landed', working_sha: 'abcdef99' }
+    : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+  return {}
+}
+const polishPromptOf = calls => (calls.find(c => (c.opts.label || '') === 'polish:phase-3') || {}).prompt || ''
+const demotionOf = (out, title) => (out.minorsFiled || []).find(m => m && m.title === title)
+const filingPromptOf = calls => (calls.find(c => c.opts.dispatchKind === 'file-followups') || {}).prompt || ''
+
+// ---- sweep-exclude (D2/D6, End state 9) --------------------------------------------------------
+
+test('sweep-exclude — a campaign hit demotes the queued absorb at sweep time naming the owning plan slug (demote:exclusion-set); the sweep never dispatches on an emptied queue', async () => {
+  const args = SWEEP_ARGS({ sweepExclude: [{ slug: 'other-plan', files: ['docs/x.md'] }] })
+  const { out, calls, logs } = await runPhase(args, p4Base({ queued: [queuedAbsorb()] }))
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  const d = demotionOf(out, 'dangling link')
+  assert.ok(d && d.engineFiled === true, 'the queued absorb demotes to follow-up as an engine demotion')
+  assert.match(d.demoteReason, /^demote:exclusion-set — /, 'the reason leads with the demote:exclusion-set prefix')
+  assert.ok(d.demoteReason.includes('owned by plan other-plan'), 'the reason names the owning plan slug')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('dangling link') && l.includes('plan other-plan')), 'the demotion is logged naming the owner')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'the sweep never dispatches — the exclusion set emptied the queue')
+})
+
+test('sweep-exclude — an in-phase hit demotes naming the task id: a never-merged sibling task\'s Files: entry owns the file', async () => {
+  const args = SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], files: ['./docs/x.md'] },
+  ] })
+  // t2 never merges on a SOFT path (a red merge gate, gate_failed — not a hard escalation), so the
+  // phase still lands and the sweep's exclusion set sees t2 as a not-merged owner.
+  const impl = buildSeqImpl({ 'merge:t2': [{ mode: 'merge-task', status: 'gate_failed', gate_output: 'red' }] }, p4Base({ queued: [queuedAbsorb()] }))
+  const { out, calls } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase lands minus t2')
+  assert.ok(out.landed.includes('t1') && !out.landed.includes('t2'), 'presence guard: t1 merged, t2 never did')
+  const d = demotionOf(out, 'dangling link')
+  assert.ok(d && /^demote:exclusion-set — /.test(d.demoteReason) && d.demoteReason.includes('owned by task t2'), 'the in-phase hit demotes naming the task id (a ./-form Files: path matches the bare queued path)')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'the sweep never dispatches on the emptied queue')
+})
+
+test('sweep-exclude — an absent list reaches the sweep: the queued absorb rides the polish dispatch, and the absent campaign set is logged once', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ queued: [queuedAbsorb()] }))
+  assert.ok(polishPromptOf(calls).includes('dangling link'), 'the queued absorb reaches the sweep')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('no campaign contention set threaded')), 'the absent list is logged (never mistaken for an empty ledger)')
+  assert.ok(!demotionOf(out, 'dangling link'), 'nothing demotes')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'dangling link'), 'the absorb is aced at the polish sha')
+})
+
+test('sweep-exclude — a ./-form campaign path still matches (aceRelPath on both sides), and an empty union from a present list is logged as empty', async () => {
+  const dot = SWEEP_ARGS({ sweepExclude: [{ slug: 'dotted-plan', files: ['./docs/x.md'] }] })
+  const r1 = await runPhase(dot, p4Base({ queued: [queuedAbsorb()] }))
+  assert.ok(demotionOf(r1.out, 'dangling link') && demotionOf(r1.out, 'dangling link').demoteReason.includes('plan dotted-plan'), 'a ./-form exclusion path matches the bare queued path')
+  const empty = SWEEP_ARGS({ sweepExclude: [{ slug: 'empty-plan', files: [] }] })
+  const r2 = await runPhase(empty, p4Base({ queued: [queuedAbsorb()] }))
+  assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('campaign contention set empty for 1 entries')), 'an empty union from a present list logs as empty (never read as an absent ledger)')
+  assert.ok(polishPromptOf(r2.calls).includes('dangling link'), 'the queued absorb still reaches the sweep')
+})
+
+test('sweep-exclude — a sub/dir/plugin.json absorb demotes at birth with demote:release-slot while plugin.json.bak is not refused (basename match from the RELEASE_SLOT_FILES mirror)', async () => {
+  const deep = nit({ title: 'deep slot', file: 'sub/dir/plugin.json' })
+  const r1 = await runPhase(ACE_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [deep]), approveWith('audit:t1:correctness', [])] }, aceBase([deep])))
+  assert.ok(!r1.calls.some(isAce), 'no ace worker for sub/dir/plugin.json')
+  const d = demotionOf(r1.out, 'deep slot')
+  assert.ok(d && /^demote:release-slot — /.test(d.demoteReason) && d.demoteReason.includes('the release slot'), 'the deep-path slot file demotes at birth naming the release slot')
+  const bak = nit({ title: 'bak file', file: '.claude-plugin/plugin.json.bak' })
+  const r2 = await runPhase(ACE_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [bak]), approveWith('audit:t1:correctness', [])] }, aceBase([bak])))
+  assert.ok(r2.calls.some(isAce), 'plugin.json.bak is NOT a release-slot file — it aces per task')
+  assert.ok(!demotionOf(r2.out, 'bak file'), 'the .bak row is never demoted as a release slot')
+})
+
+test('sweep-exclude — a README absorb outside `## Status` reaches the sweep (only the two JSON slots are refused; the Status blurb is version-slots.test.mjs\'s guard)', async () => {
+  const readme = nit({ title: 'readme phrasing', file: 'README.md', disposition: 'absorb', phaseClose: true, autoFixable: false })
+  const { out, calls } = await runPhase(SWEEP_ARGS(), p4Base({ queued: [readme] }))
+  assert.ok(polishPromptOf(calls).includes('readme phrasing'), 'the README absorb rides the sweep')
+  assert.ok(!demotionOf(out, 'readme phrasing'), 'README.md is never refused as a release slot')
+})
+
+test('sweep-exclude — the retired routeToSweep release-slot arm is absent, and the RELEASE_SLOT_FILES inline mirror equals the canonical export', () => {
+  assert.ok(!/release-slot absorb born at a re-audit/i.test(src), 'the retired "phaseClose/release-slot absorb born at a re-audit" arm is gone (PIN-3)')
+  assert.ok(!normalizedSrc().includes('release-slot absorb born at a re-audit'), 'nor does it survive as a wrapped comment copy')
+  const m = src.match(/const\s+RELEASE_SLOT_FILES\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'the inline RELEASE_SLOT_FILES mirror exists')
+  assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), RELEASE_SLOT_FILES, 'the inline mirror equals the canonical land-decision.mjs export')
+  assert.ok(src.includes('demote:release-slot — release-slot absorb refused at birth'), 'the at-birth demotion carries the demote:release-slot prefix')
+})
+
+test('sweep-exclude — args.sweepExclude entry validation: a non-array, a non-object entry, a missing slug, and a non-string files list each refuse the launch at entry naming args.sweepExclude; zero agents', async () => {
+  for (const [bad, needle] of [
+    ['nope', 'args.sweepExclude must be an array'],
+    [['x'], 'args.sweepExclude[0] must be an object'],
+    [[{ files: ['a.md'] }], 'args.sweepExclude[0].slug must be a non-empty string'],
+    [[{ slug: 'p', files: 'a.md' }], 'args.sweepExclude[0].files must be an array'],
+  ]) {
+    const { out, calls } = await runPhase(SWEEP_ARGS({ sweepExclude: bad }), p4Base({ queued: [queuedAbsorb()] }))
+    assert.equal(out.landDecision, 'held:workflow-error', `refused at entry for ${JSON.stringify(bad)}`)
+    assert.ok(String(out.workflowError && out.workflowError.message).includes(needle), `the message names the field: ${needle}`)
+    assert.equal(calls.length, 0, 'zero agents dispatched on an entry refusal')
+  }
+  const { out } = await runPhase(SWEEP_ARGS({ sweepExclude: null }), p4Base({ queued: [queuedAbsorb()] }))
+  assert.equal(out.landDecision, 'landed', 'null reads as absent (no list) — a legal launch')
+})
+
+test('sweep-exclude — the release-slot arm of the set catches a seeded ruled-ask row on a slot file (owner "the release slot")', async () => {
+  const args = SWEEP_ARGS({ ruledAsks: [{ task: 't1', file: '.claude-plugin/marketplace.json', suggested_fix: 'bump', ruling: 'bump it (wtprov)', planSlug: 'wtprov-a', phase: 3, findingTitle: 'slot ruling' }] })
+  const { out, calls } = await runPhase(args, p4Base())
+  const d = demotionOf(out, 'slot ruling')
+  assert.ok(d && /^demote:release-slot — /.test(d.demoteReason) && d.demoteReason.includes('owned by the release slot'), 'the seeded slot-file row demotes at sweep time naming the release slot')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'the sweep never touches a version slot')
+})
+
+// ---- filing-floor (D4, End state 10) ----------------------------------------------------------
+
+const PROBE = { 'diff-probe': { diff_files: ['skills/war/assets/x.js', './docs/in.md'] } }
+const minor = (over = {}) => ({ severity: 'Minor', title: 'plain minor', file: 'skills/war/assets/x.js', rationale: 'r', ...over })
+// One work-round seat raising `first`, clean on every re-audit; the gate-audit seat clean.
+const floorImpl = (first) => buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', first)] }, p4Base())
+
+test('filing-floor — the diff-probe dispatch runs per task after the worker\'s green return and BEFORE the seats convene, with its own DIFF_PROBE_RESULT schema and the git-derived range', async () => {
+  const { calls } = await runPhase(ACE_ARGS(), floorImpl([]), PROBE)
+  const probeIdx = calls.findIndex(c => c.opts.dispatchKind === 'diff-probe')
+  const workIdx = calls.findIndex(isWorker)
+  const auditIdx = calls.findIndex(isAuditor)
+  assert.ok(probeIdx !== -1, 'the diff probe dispatched')
+  assert.ok(workIdx < probeIdx && probeIdx < auditIdx, 'worker → probe → first audit seat (before the seats convene)')
+  const p = calls[probeIdx]
+  assert.equal(p.opts.label, 'diff-probe:t1', 'label diff-probe:<task>')
+  assert.equal(seatOf(p.opts), 'war-refiner', 'a refiner dispatch')
+  assert.ok(p.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t1 diff --name-only') && p.prompt.includes('merge-base integration/wtprov-a/phase-3 deadbeef'), 'the prompt names the git range in the task worktree: merge-base(integration, tip)..tip')
+  assert.ok(/Idempotent/.test(p.prompt), 'idempotent on resume')
+  assert.ok(p.opts.schema && p.opts.schema.properties && p.opts.schema.properties.diff_files, 'its own DIFF_PROBE_RESULT schema carries diff_files')
+  assert.ok(!(p.opts.schema.required || []).includes('diff_files'), 'diff_files is optional (fail-open)')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'diff-probe').length, 1, 'exactly one probe per task')
+})
+
+test('filing-floor — an omitted-disposition in-diff Minor with a suggested_fix defaults absorb and rides the task\'s ace batch, never the sweep', async () => {
+  const f = minor({ title: 'specified in-diff', suggested_fix: 'rename it' })
+  const { out, calls } = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('specified in-diff'), 'the row rides the task ace batch')
+  assert.ok(!polishPromptOf(calls).includes('specified in-diff'), 'not the sweep')
+  assert.ok(!demotionOf(out, 'specified in-diff'), 'never filed')
+})
+
+test('filing-floor — an omitted-disposition out-of-diff Minor with a suggested_fix defaults absorb + phaseClose:true and rides the sweep, never the task ace batch', async () => {
+  const f = minor({ title: 'specified out-of-diff', file: 'docs/elsewhere.md', suggested_fix: 'fix the link' })
+  const { out, calls } = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  assert.ok(polishPromptOf(calls).includes('specified out-of-diff'), 'the row rides the sweep')
+  assert.ok(!calls.some(c => isAce(c) && c.prompt.includes('specified out-of-diff')), 'not the task ace batch')
+  assert.ok(!demotionOf(out, 'specified out-of-diff'), 'never filed')
+})
+
+test('filing-floor — an omitted Minor with NO suggested_fix keeps the old default (filed follow-up, seat-filed with no floor stamp) even with the probe present', async () => {
+  const f = minor({ title: 'unspecified minor' })
+  const { out, calls } = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  const d = demotionOf(out, 'unspecified minor')
+  assert.ok(d && d.engineFiled !== true && d.floorSkipped !== true, 'filed as a seat row — no engine stamp, no floor-skipped stamp')
+  assert.ok(filingPromptOf(calls).includes('filed-by: seat-filed (barrier: none)'), 'the filing prompt renders the seat-filed provenance')
+  assert.ok(!calls.some(c => isAce(c) && c.prompt.includes('unspecified minor')), 'never an absorb without a fix')
+})
+
+test('filing-floor — a barrierless in-diff follow-up reroutes to absorb and is present in the task\'s ace batch, not the sweep (logged)', async () => {
+  const f = minor({ title: 'barrierless in-diff', disposition: 'follow-up', suggested_fix: 'do x' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('intake floor REROUTED') && l.includes('barrierless in-diff') && l.includes('carried no barrier tag')), 'the reroute is logged')
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('barrierless in-diff'), 'the rerouted row joins the task ace batch')
+  assert.ok(!polishPromptOf(calls).includes('barrierless in-diff'), 'not the sweep')
+  assert.ok(!demotionOf(out, 'barrierless in-diff'), 'never filed')
+})
+
+test('filing-floor — a barrierless out-of-diff follow-up reroutes to absorb + phaseClose:true and rides the sweep; an unknown barrier token counts as no barrier', async () => {
+  const f = minor({ title: 'barrierless out-of-diff', file: 'docs/elsewhere.md', disposition: 'follow-up', barrier: 'barrier:scope', suggested_fix: 'do y' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('barrierless out-of-diff') && l.includes('unknown token "barrier:scope"') && l.includes('phaseClose:true')), 'the reroute log names the unknown token and the sweep route')
+  assert.ok(polishPromptOf(calls).includes('barrierless out-of-diff'), 'the row rides the sweep')
+  assert.ok(!demotionOf(out, 'barrierless out-of-diff'), 'never filed')
+})
+
+test('filing-floor — an engine demotion with no barrier is never rerouted (engineFiled rows skip the floor), and a follow-up with barrier:release-slot files as stated', async () => {
+  const fileless = { severity: 'Minor', title: 'fileless absorb', rationale: 'r', disposition: 'absorb' }
+  const barred = minor({ title: 'barred follow-up', disposition: 'follow-up', barrier: 'barrier:release-slot', suggested_fix: 'bump' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([fileless, barred]), PROBE)
+  const d1 = demotionOf(out, 'fileless absorb')
+  assert.ok(d1 && d1.engineFiled === true && /^demote:fileless — /.test(d1.demoteReason), 'the fileless absorb is an engine demotion with the demote:fileless prefix')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('REROUTED') && l.includes('fileless absorb')), 'an engine demotion is never rerouted')
+  const d2 = demotionOf(out, 'barred follow-up')
+  assert.ok(d2 && d2.engineFiled !== true && d2.barrier === 'barrier:release-slot', 'the barrier-tagged follow-up files as stated, keeping its barrier provenance')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('REROUTED') && l.includes('barred follow-up')), 'no reroute for a barrier-tagged follow-up')
+  const fp = filingPromptOf(calls)
+  assert.ok(fp.includes('filed-by: demote:fileless') && fp.includes('filed-by: seat-filed (barrier: barrier:release-slot)'), 'the filing prompt renders both provenances on their fixed field')
+  assert.ok(fp.includes('Demote-Reason:'), 'the issue body carries the prefix on a fixed first line')
+})
+
+test('filing-floor — barrier:trade-off with the ask field reroutes to ask (parked); without it the row stays follow-up with the "trade-off without ask fields" log', async () => {
+  const withAsk = minor({ title: 'trade-off asked', disposition: 'follow-up', barrier: 'barrier:trade-off', suggested_fix: 'flip', ask: { question: 'flip or keep?', fork: ['flip', 'keep'] } })
+  const without = minor({ title: 'trade-off bare', disposition: 'follow-up', barrier: 'barrier:trade-off', suggested_fix: 'flip' })
+  const { out, logs } = await runPhase(SWEEP_ARGS(), floorImpl([withAsk, without]), PROBE)
+  assert.ok((out.asks || []).some(a => a && a.question === 'flip or keep?'), 'the trade-off with an ask field parks on asks[]')
+  assert.ok(!demotionOf(out, 'trade-off asked'), 'the parked ask is never filed')
+  const d = demotionOf(out, 'trade-off bare')
+  assert.ok(d && d.barrier === 'barrier:trade-off', 'the ask-less trade-off stays follow-up as stated')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('trade-off without ask fields') && l.includes('trade-off bare')), 'the keep is logged with the trade-off-without-ask-fields line')
+})
+
+test('filing-floor — an in-diff note with a suggested_fix reroutes to absorb (ace batch, "note with a specified fix rerouted"); a note without a fix stays a note', async () => {
+  const fixed = minor({ title: 'note with fix', disposition: 'note', suggested_fix: 'tidy it' })
+  const bare = minor({ title: 'note bare', disposition: 'note' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([fixed, bare]), PROBE)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('note with a specified fix rerouted') && l.includes('note with fix')), 'the note reroute is logged')
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('note with fix'), 'the rerouted note joins the task ace batch')
+  assert.ok((out.notes || []).some(n => n && n.title === 'note bare'), 'the fix-less note stays a note')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'note with fix'), 'the rerouted note is no longer a note')
+})
+
+test('filing-floor — an out-of-diff note with a suggested_fix stays a note (the inDiff conjunct): never rerouted, never in the task ace batch', async () => {
+  const outFixed = minor({ title: 'note out of diff with fix', file: 'docs/elsewhere.md', disposition: 'note', suggested_fix: 'tidy it' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([outFixed]), PROBE)
+  assert.ok((out.notes || []).some(n => n && n.title === 'note out of diff with fix'), 'the out-of-diff note stays a note')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('note with a specified fix rerouted') && l.includes('note out of diff with fix')), 'no note reroute is logged for it')
+  assert.ok(!calls.some(c => isAce(c) && c.prompt.includes('note out of diff with fix')), 'no ace prompt carries it')
+})
+
+test('filing-floor — a failed probe leaves diff_files absent: the old default stands, the skip is logged once per task, and the task\'s filed seat rows carry demote:floor-skipped on the issue-body prefix line', async () => {
+  const f = minor({ title: 'would-be absorb', suggested_fix: 'do x' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), { 'diff-probe': { detail: 'fatal: bad revision' } })
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('diff-probe:t1 returned no diff_files') && l.includes('fatal: bad revision')), 'the probe failure is logged with its detail')
+  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('intake floor SKIPPED for task t1')).length, 1, 'the floor skip is logged exactly once for the task')
+  const d = demotionOf(out, 'would-be absorb')
+  assert.ok(d && d.floorSkipped === true && d.engineFiled !== true, 'the old default filed the row as a seat row stamped floorSkipped')
+  assert.ok(!calls.some(isAce), 'no ace batch — the old default never absorbs')
+  assert.ok(filingPromptOf(calls).includes('filed-by: demote:floor-skipped'), 'the filing prompt renders demote:floor-skipped on the row')
+})
+
+test('filing-floor — a THROWN probe dispatch is fail-open: logged, absent, the old default stands (never a hold)', async () => {
+  const f = minor({ title: 'thrown probe row', suggested_fix: 'do x' })
+  const { out, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), { 'diff-probe': () => { throw new Error('socket hang up') } })
+  assert.equal(out.landDecision, 'landed', 'a thrown probe never holds the phase')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('diff-probe:t1 dispatch threw') && l.includes('socket hang up')), 'the throw is logged')
+  assert.ok(demotionOf(out, 'thrown probe row') && demotionOf(out, 'thrown probe row').floorSkipped === true, 'the old default stands with the floor-skipped stamp')
+})
+
+test('filing-floor — the probe is read-only and idempotent on resume: a second run over the same seats yields the same routing (in-diff absorb) and one probe per run', async () => {
+  const f = minor({ title: 'idempotent row', suggested_fix: 'do x' })
+  const r1 = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  const r2 = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
+  for (const r of [r1, r2]) {
+    assert.equal(r.calls.filter(c => c.opts.dispatchKind === 'diff-probe').length, 1, 'one probe per task per run')
+    assert.ok(r.calls.find(isAce) && r.calls.find(isAce).prompt.includes('idempotent row'), 'the same in-diff routing each run')
+    assert.ok(/read-only git read, no merge, no push, no rebase, no gate/.test(r.calls.find(c => c.opts.dispatchKind === 'diff-probe').prompt), 'the probe prompt is read-only')
+  }
+})
+
+test('filing-floor — the intake floor is deterministic: BARRIER_TOKENS membership and the git-derived diff only (source pin: no size estimate, no prose match; the AUDIT_VERDICT barrier enum is the same mirror)', () => {
+  const floor = src.slice(src.indexOf('const intakeFloor = '), src.indexOf('// Cross-round ASK content identity'))
+  assert.ok(floor.length > 0, 'the intake floor is locatable')
+  assert.ok(floor.includes('BARRIER_TOKENS.includes(f.barrier)'), 'barrier membership is enum membership on the mirror')
+  assert.ok(floor.includes('diff.has(aceRelPath(f.file))'), 'in-diff is Set membership on the git-derived diff_files')
+  assert.ok(!/rationale|\.length\s*[<>]\s*\d{2,}/.test(floor), 'the floor never reads prose or estimates a size')
+  assert.ok(floor.includes("if (f.engineFiled === true) return d"), 'engineFiled rows pass through untouched (seat rows only)')
+  assert.ok(src.includes('f.engineFiled = true'), 'demote() stamps engineFiled: true')
+  // Behavioral arm: the engineFiled guard is the ONLY thing separating these two rows — a
+  // barrierless in-diff follow-up reroutes to absorb unless the row is an engine demotion.
+  const h = registrySlice()
+  const stamped = { severity: 'Minor', task: 't1', title: 'stamped row', file: 'a.js', disposition: 'follow-up', suggested_fix: 'do x', engineFiled: true }
+  assert.equal(h.intakeFloor(stamped, 'follow-up', new Set(['a.js'])), 'follow-up', 'an engineFiled row is never rerouted')
+  assert.ok(!h.logs.some(l => typeof l === 'string' && l.includes('REROUTED')), 'and no reroute is logged')
+  const unstamped = { severity: 'Minor', task: 't1', title: 'seat row', file: 'a.js', disposition: 'follow-up', suggested_fix: 'do x', engineFiled: false }
+  assert.equal(h.intakeFloor(unstamped, 'follow-up', new Set(['a.js'])), 'absorb', 'the same row without the engineFiled stamp reroutes to absorb')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('REROUTED') && l.includes('seat row')), 'and that reroute is logged')
+})
+
+// ---- demote-census (D13, End state 11) --------------------------------------------------------
+
+test('demote-census — demote() validates a DEMOTE_REASONS prefix on every follow-up reason: an unprefixed reason emits demote:unclassified plus the loud log; a prefixed reason and a note demotion pass untouched', () => {
+  const h = registrySlice()
+  const f = { severity: 'Minor', task: 't1', title: 'no prefix', file: 'a.js', disposition: 'absorb' }
+  h.demote(f, 'follow-up', 'plain reason with no prefix')
+  assert.ok(h.minorsFiled.includes(f), 'still filed — never a throw')
+  assert.equal(f.engineFiled, true, 'stamped engineFiled')
+  assert.match(f.demoteReason, /^demote:unclassified — plain reason with no prefix$/, 'demote:unclassified is prepended, the original reason kept')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('DEMOTE_REASONS MISS') && l.includes('no prefix')), 'the miss is logged loudly')
+  const g = { severity: 'Minor', task: 't1', title: 'prefixed', file: 'b.js', disposition: 'absorb' }
+  h.demote(g, 'follow-up', 'demote:fileless — some reason')
+  assert.equal(g.demoteReason, 'demote:fileless — some reason', 'a prefixed reason passes untouched')
+  const n = { severity: 'Nit', task: 't1', title: 'noted', file: 'c.js', disposition: 'absorb' }
+  h.demote(n, 'note', 'no prefix needed on a note demotion')
+  assert.ok(h.notes.includes(n) && !/unclassified/.test(n.demoteReason), 'a note demotion is never prefix-validated')
+  assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('DEMOTE_REASONS MISS')).length, 1, 'exactly one miss logged')
+})
+
+// Default-deny census over every demote() call whose disposition argument can evaluate to
+// 'follow-up' — the literal shape and the severity-ternary shape. Each site's reason argument must
+// LEAD with a DEMOTE_REASONS member literal (the variable-head sites carry a literal prefix ahead
+// of the variable). Pinned count = a dated snapshot at land; an unwired negative reference proves
+// the matcher and the classifier see an unprefixed site.
+const DEMOTE_SITE_RE = /demote\(\s*[^,()]+,\s*(?:'follow-up'|f\.severity === 'Minor' \? 'follow-up' : 'note'),\s*([^\n]*)/g
+const demoteSites = text => {
+  const sites = []
+  const code = text.replace(/^\s*\/\/.*$/gm, '')
+  for (const m of code.matchAll(DEMOTE_SITE_RE)) sites.push({ index: m.index, reason: m[1] })
+  return sites
+}
+const reasonPrefixOf = reason => { const m = reason.match(/^['"](demote:[a-z-]+)/); return m ? m[1] : null }
+// Unwired negative reference (never executed by the engine): a follow-up demote whose reason has no prefix.
+const NEGATIVE_REF = "demote(f, 'follow-up', 'failed absorb — no prefix here at all')"
+
+test('demote-census — every demote() site whose disposition can be follow-up leads its reason with a DEMOTE_REASONS member; the count is pinned; the negative reference is caught; zero shipped sites carry demote:unclassified', () => {
+  const sites = demoteSites(src)
+  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 25 sites — release-slot at birth,
+  // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
+  // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
+  // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
+  // exclusion-set ×2 (sweep time + the terminal-pass filter) + release-slot at sweep time,
+  // terminal-pass ×4 (no commit / did not merge / a seat-raised absorb / a terminal seat that
+  // returned no verdict, final phase only), sweep-discarded ×2 (final phase only).
+  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  for (const s of sites) {
+    const p = reasonPrefixOf(s.reason)
+    assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
+    assert.ok(DEMOTE_REASONS.includes(p), `demote site @${s.index}: prefix ${p} is a DEMOTE_REASONS member`)
+    assert.notEqual(p, 'demote:unclassified', `demote site @${s.index}: no shipped site is born unclassified`)
+  }
+  // Negative reference: the matcher finds it, the classifier rejects it.
+  const neg = demoteSites(NEGATIVE_REF)
+  assert.equal(neg.length, 1, 'the matcher sees the unprefixed negative reference')
+  assert.equal(reasonPrefixOf(neg[0].reason), null, 'and the classifier flags it as unprefixed')
+  const negTernary = demoteSites("demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless without prefix')")
+  assert.equal(negTernary.length, 1, 'the severity-ternary shape is matched')
+  assert.equal(reasonPrefixOf(negTernary[0].reason), null, 'an unprefixed ternary site is flagged')
+  assert.ok(!src.includes(NEGATIVE_REF), 'the negative reference is unwired (never in the engine)')
+  // Every member cited somewhere or reserved: the three variable-head/ternary sites carry a literal prefix.
+  assert.ok(src.includes("'demote:sweep-skipped — ' + (provDrainCause"), 'the provDrainCause site leads with a literal prefix')
+  assert.ok(src.includes("'demote:sweep-discarded — ' + (sweepDrainCause"), 'the sweepDrainCause site leads with a literal prefix')
+  assert.ok(src.includes("'demote:absorb-regressed — failed absorb — ' + (ur"), 'the re-entry regression ternary leads with a literal prefix')
+  // Retired follow-up arms: the three failed-attempt sites are routeToSweep calls now.
+  const n = normalizedSrc()
+  for (const t of ['bisection abandoned, remaining subsets demote', 'absorb requires --ace']) {
+    assert.ok(!n.includes(t), `retired demote text absent: ${t}`)
+  }
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (aceWhy || 'ace worker returned no usable head_sha'))"), 'the dead ace worker routes to the sweep')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (rwWhy || 're-entry worker returned no usable head_sha')"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line)')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip"), 'the red ace gate routes to the sweep')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched '"), 'the untouched-file row routes to the sweep')
+})
+
+test('demote-census — an untouched-file ace row reaches the sweep queue (the ace commit touched a sibling file only) while the touched row is aced', async () => {
+  const a = nit({ title: 'touched row', file: 'skills/war/assets/x.js' })
+  const b = nit({ title: 'untouched row', file: 'skills/war/assets/y.js' })
+  const worker = label => label.startsWith('ace:') ? { task_id: 't1', status: 'implemented', head_sha: 'ace5ea1', ace_diff_files: ['skills/war/assets/x.js'] } : null
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a, b])] }, p4Base({ worker }))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'touched row' && x.sha === 'ace5ea1'), 'the touched row is aced at the ace sha')
+  assert.ok(polishPromptOf(calls).includes('untouched row'), 'the untouched row reaches the sweep queue')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('untouched row') && l.includes('never touched skills/war/assets/y.js')), 'the old text is the log line')
+  assert.ok(!demotionOf(out, 'untouched row'), 'never filed')
+})
+
+test('demote-census — a dead ace worker\'s rows and a red-ace-gate\'s rows each reach the sweep queue (a failed ATTEMPT never files)', async () => {
+  const a = nit({ title: 'dead-worker row' })
+  const dead = label => label.startsWith('ace:') ? { task_id: 't1', status: 'blocked', blocked_reason: 'boom' } : null
+  const r1 = await runPhase(SWEEP_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a])] }, p4Base({ worker: dead })))
+  assert.ok(polishPromptOf(r1.calls).includes('dead-worker row'), 'the dead worker\'s row reaches the sweep')
+  assert.ok(!demotionOf(r1.out, 'dead-worker row'), 'never filed')
+  assert.ok(r1.logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('dead-worker row') && l.includes('boom')), 'the old text is the log line')
+  const b = nit({ title: 'red-gate row' })
+  const r2 = await runPhase(SWEEP_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [b])] }, p4Base()), { 'ace-gate': { gate_green: false, gate_output: 'red' } })
+  assert.ok(polishPromptOf(r2.calls).includes('red-gate row'), 'the red-gate row reaches the sweep')
+  assert.ok(!demotionOf(r2.out, 'red-gate row'), 'never filed')
+  assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('red-gate row') && l.includes('RED at the ace tip')), 'the old text is the log line')
+})
+
+test('demote-census — a regressed ace row files with demote:absorb-regressed (the fix itself broke a re-audit; forward-reverted)', async () => {
+  const a = nit({ title: 'regressed row' })
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a]),
+    { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'ace broke it', file: 'skills/war/assets/x.js', rationale: 'regressed' }] }] }, p4Base())
+  const { out } = await runPhase(SWEEP_ARGS(), impl)
+  const d = demotionOf(out, 'regressed row')
+  assert.ok(d && d.engineFiled === true && /^demote:absorb-regressed — /.test(d.demoteReason), 'the regressed row files with the demote:absorb-regressed prefix')
+})
+
+test('demote-census — the mirror-registry row and the F07 registration bind the inline DEMOTE_REASONS to land-decision.mjs; the file-followups prompt and file-followups.md carry the fixed Demote-Reason line', () => {
+  const m = src.match(/const\s+DEMOTE_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'the inline mirror exists')
+  assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), DEMOTE_REASONS, 'the inline mirror equals the canonical export')
+  assert.ok(src.includes('Demote-Reason: <value>'), 'the dispatched filing prompt puts the prefix on a fixed first line')
+  assert.ok(fileFollowupsMd.includes('Demote-Reason: <value>') && /demote:floor-skipped/.test(fileFollowupsMd) && /DEMOTE_REASONS/.test(fileFollowupsMd), 'file-followups.md mirrors the fixed line and names the enum')
+  const wc = readFileSync(join(here, 'war-config.test.mjs'), 'utf8')
+  assert.ok(wc.includes("['DEMOTE_REASONS mirrors', ['drift-guard(F07): demote-census — inline DEMOTE_REASONS']]"), 'the F07 registration binds the marker to its drift test')
+})
+
+// ---- ace-off-route (D14, End state 12) --------------------------------------------------------
+
+test('ace-off-route — with ace off a seat absorb reaches the sweep (phaseClose:true), never an ace-off demotion', async () => {
+  const a = nit({ title: 'ace-off absorb', disposition: 'absorb', autoFixable: false })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: false } }), buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a])] }, p4Base()))
+  assert.ok(!calls.some(isAce), 'no ace ladder with ace off')
+  assert.ok(polishPromptOf(calls).includes('ace-off absorb'), 'the absorb reaches the sweep')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace off this run') && l.includes('ace-off absorb')), 'the routing is logged naming ace off')
+  assert.ok(!demotionOf(out, 'ace-off absorb'), 'never demoted on the ace-off path')
+  assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'ace-off absorb'), 'aced at the polish sha — the sweep runs regardless of run.ace')
+})
+
+test('ace-off-route — with ace off a floor reroute (barrierless in-diff follow-up) reaches the sweep', async () => {
+  const f = minor({ title: 'rerouted with ace off', disposition: 'follow-up', suggested_fix: 'do x' })
+  const { out, calls } = await runPhase(SWEEP_ARGS({ run: { ace: false } }), floorImpl([f]), PROBE)
+  assert.ok(!calls.some(isAce), 'no ace ladder with ace off')
+  assert.ok(polishPromptOf(calls).includes('rerouted with ace off'), 'the floor reroute rides the sweep')
+  assert.ok(!demotionOf(out, 'rerouted with ace off'), 'never filed')
+})
+
+test('ace-off-route — the retired "absorb requires --ace" demotion is absent from workflow-template.js (normalized whole-file scan, wrapped comment copies included)', () => {
+  assert.ok(!normalizedSrc().includes('absorb requires --ace'), 'the two ace-off demote arms are retired')
+  assert.ok(!/absorb requires --ace/i.test(src), 'raw scan agrees')
+  assert.ok(src.includes("routeToSweep(f, 'ace off this run (run.ace false)"), 'the ace-off route to the sweep exists')
+})
+
+// ---- gate-audit-route (D15, End state 13) -----------------------------------------------------
+
+const gaAbsorb = (over = {}) => ({ severity: 'Minor', title: 'gate-audit absorb', file: 'docs/ga.md', rationale: 'r', suggested_fix: 'fix it', disposition: 'absorb', ...over })
+
+test('gate-audit-route — engine provenance stamps (task, seat, lens, sha) win over same-named keys a seat payload supplies (#2054)', async () => {
+  const spoof = gaAbsorb({ title: 'spoofed provenance', task: 'zz', seat: 'seat:spoof', lens: 'spoof', sha: 'deadbeef' })
+  const { out } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [spoof] }))
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'spoofed provenance')
+  assert.ok(aced, 'presence guard: the row reaches the sweep and records aced')
+  assert.equal(aced.finding.task, 't1', 'the engine task stamp wins over the seat-supplied one')
+  assert.equal(aced.finding.seat, 'gate-audit:t1:execution-evidence', 'the engine seat stamp wins')
+  assert.equal(aced.finding.lens, 'execution-evidence', 'the engine lens stamp wins')
+  assert.notEqual(aced.finding.sha, 'deadbeef', 'the engine sha stamp wins')
+})
+
+test('gate-audit-route — the per-task execution-evidence seat\'s fully specified Minor reaches the sweep queue stamped with its seat label; auditLog keeps the record', async () => {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [gaAbsorb()] }))
+  assert.ok(polishPromptOf(calls).includes('gate-audit absorb'), 'the row reaches the sweep')
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'gate-audit absorb')
+  assert.ok(aced && aced.finding.seat === 'gate-audit:t1:execution-evidence', 'stamped with the seat label')
+  assert.ok((out.auditLog || []).some(e => e && e.gateEvidence && (e.findings || []).some(f => f.title === 'gate-audit absorb')), 'auditLog keeps the record')
+  assert.ok(!demotionOf(out, 'gate-audit absorb'), 'never filed')
+})
+
+test('gate-audit-route — the integrated-tip seat\'s absorb reaches the sweep stamped gate-audit:phase-3:integrated-tip', async () => {
+  const args = SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] })
+  const evidence = { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } }
+  const seatsOf = label => label === 'gate-audit:phase-3:integrated-tip'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: 'beefcafe12', findings: [gaAbsorb({ title: 'integrated-tip absorb' }), gaAbsorb({ title: 'integrated-tip barred follow-up', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })] }
+    : null
+  const { out, calls } = await runPhase(args, p4Base({ evidence, seatsOf }))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip'), 'presence guard: the integrated-tip seat convened')
+  assert.ok(polishPromptOf(calls).includes('integrated-tip absorb'), 'its absorb reaches the sweep')
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'integrated-tip absorb')
+  assert.ok(aced && aced.finding.seat === 'gate-audit:phase-3:integrated-tip', 'stamped with the seat label')
+  // The pseudo-task row has no auditEvidenceOf entry: the filing prompt's pinned sha falls back
+  // to the row's own seat-stamped sha, never the 'unrecorded' sentinel.
+  const filed = demotionOf(out, 'integrated-tip barred follow-up')
+  assert.ok(filed && filed.task === 'phase-3-integrated-tip' && filed.sha === 'beefcafe12', 'presence guard: the barred follow-up filed under the pseudo-task with the seat-stamped sha')
+  const fp = filingPromptOf(calls)
+  assert.ok(fp.includes('pinned sha beefcafe12'), 'the pseudo-task row renders the seat-stamped sha as its pin')
+  assert.ok(!fp.includes('pinned sha unrecorded'), 'and never the unrecorded sentinel')
+})
+
+test('gate-audit-route — the end-state-only seat\'s absorb reaches the sweep stamped gate-audit:phase-3:end-state', async () => {
+  const args = SWEEP_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const seatsOf = label => label === 'gate-audit:phase-3:end-state'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [gaAbsorb({ title: 'end-state absorb' })] }
+    : null
+  const { out, calls } = await runPhase(args, p4Base({ seatsOf }))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat convened')
+  assert.ok(polishPromptOf(calls).includes('end-state absorb'), 'its absorb reaches the sweep')
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'end-state absorb')
+  assert.ok(aced && aced.finding.seat === 'gate-audit:phase-3:end-state', 'stamped with the seat label')
+})
+
+test('gate-audit-route — a barrierless gate-audit follow-up reroutes into the sweep queue with no diff check (logged); a barrier:release-slot follow-up files as stated', async () => {
+  const bare = gaAbsorb({ title: 'ga barrierless follow-up', disposition: 'follow-up' })
+  const barred = gaAbsorb({ title: 'ga barred follow-up', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bare, barred] }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass REROUTED') && l.includes('ga barrierless follow-up') && l.includes('carried no barrier tag')), 'the reroute is logged')
+  assert.ok(polishPromptOf(calls).includes('ga barrierless follow-up'), 'the barrierless follow-up rides the sweep')
+  const d = demotionOf(out, 'ga barred follow-up')
+  assert.ok(d && d.barrier === 'barrier:release-slot' && d.engineFiled !== true, 'the barrier-tagged follow-up files as stated')
+})
+
+test('gate-audit-route — a gate-audit note with a suggested_fix and a file in phase_diff_files reroutes to the sweep; an out-of-phase-diff note stays a note', async () => {
+  const inNote = gaAbsorb({ title: 'ga note in diff', disposition: 'note', file: 'docs/ga.md' })
+  const outNote = gaAbsorb({ title: 'ga note out of diff', disposition: 'note', file: 'docs/untouched.md' })
+  const evidence = { perTask: [], phase_diff_files: ['./docs/ga.md'] }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [inNote, outNote], evidence }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('note with a specified fix rerouted') && l.includes('ga note in diff')), 'the note reroute is logged')
+  assert.ok(polishPromptOf(calls).includes('ga note in diff'), 'the in-diff note rides the sweep')
+  assert.ok((out.notes || []).some(n => n && n.title === 'ga note out of diff'), 'the out-of-diff note stays a note')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'ga note in diff'), 'the rerouted note is no longer a note')
+  const ev = calls.find(c => /^evidence:phase-/.test(c.opts.label || ''))
+  assert.ok(ev && ev.prompt.includes('PHASE DIFF') && ev.prompt.includes('phase_diff_files'), 'the evidence dispatch asks for phase_diff_files')
+})
+
+test('gate-audit-route — phase_diff_files absent: the follow-up arm still reroutes, the note arm skips with a log, and no demote:floor-skipped comes from this pass', async () => {
+  const bare = gaAbsorb({ title: 'ga follow-up no phase diff', disposition: 'follow-up' })
+  const note = gaAbsorb({ title: 'ga note no phase diff', disposition: 'note' })
+  const barred = gaAbsorb({ title: 'ga barred no phase diff', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bare, note, barred] }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase_diff_files absent') && l.includes('note arm skips')), 'the note-arm skip is logged')
+  assert.ok(polishPromptOf(calls).includes('ga follow-up no phase diff'), 'the follow-up still reroutes into the sweep')
+  assert.ok((out.notes || []).some(n => n && n.title === 'ga note no phase diff'), 'the note keeps its classification')
+  const filed = demotionOf(out, 'ga barred no phase diff')
+  assert.ok(filed && filed.barrier === 'barrier:release-slot', 'presence guard: the barrier-tagged follow-up reached minorsFiled')
+  assert.ok(filed.floorSkipped !== true, 'no demote:floor-skipped from the gate-audit pass — measured on a row that actually filed')
+})
+
+test('gate-audit-route — an exclusion-set hit from a gate-audit seat demotes naming the owner; a gate-audit ask still parks', async () => {
+  const hit = gaAbsorb({ title: 'ga excluded absorb', file: 'docs/foreign.md' })
+  const ask = { severity: 'Minor', title: 'ga ask', file: 'docs/ga.md', rationale: 'r', disposition: 'ask', ask: { question: 'capture or recompute?', fork: ['capture', 'recompute'] } }
+  const { out } = await runPhase(SWEEP_ARGS({ sweepExclude: [{ slug: 'foreign-plan', files: ['docs/foreign.md'] }] }), p4Base({ gate: [hit, ask] }))
+  const d = demotionOf(out, 'ga excluded absorb')
+  assert.ok(d && /^demote:exclusion-set — /.test(d.demoteReason) && d.demoteReason.includes('plan foreign-plan'), 'the gate-audit absorb demotes at sweep time naming the owning plan')
+  assert.ok((out.asks || []).some(a => a && a.question === 'capture or recompute?' && a.seat === 'gate-audit:t1:execution-evidence'), 'the gate-audit ask parks with its seat label')
+  assert.ok(!demotionOf(out, 'ga ask'), 'the ask is never filed')
+})
+
+test('gate-audit-route — the retired auditLog-only sink is absent: the three seats collect rows for ONE producer and no comment-named sink survives', () => {
+  const n = normalizedSrc()
+  assert.ok(!n.includes('auditlog-only'), 'no "auditLog-only" sink wording survives (wrapped comment copies included)')
+  assert.ok(!n.includes('comment-named sink'), 'no comment-named sink registers any more')
+  assert.equal((src.match(/gateAuditRows\.push\(/g) || []).length, 3, 'exactly three seat collection sites (per-task, integrated-tip, end-state)')
+  assert.equal((src.match(/routeGateAuditRows\(\)/g) || []).length, 1, 'ONE task-less floor pass invocation, before the sweep')
+  assert.ok(src.indexOf('routeGateAuditRows()\n') < src.indexOf('// ---- PHASE-CLOSE COHERENCE SWEEP'), 'the pass runs before the sweep')
+  assert.ok(auditorMd.includes('Your Minor/Nit findings route like any seat\'s'), 'the card names the routing beside the checklist pointer')
+  assert.ok(auditorMd.includes('a note that names a fix in a touched file is applied') && src.includes('a note that names a fix in a touched file is applied'), 'the note clause is on the card AND the dispatched DISPOSITION RULE (PIN-17, one commit)')
+})
+
+// PIN-17 / PIN-12: the shared DISPOSITION RULE clause (BARRIER_TOKENS-rendered) rides each of the
+// three gate-audit dispatched prompts — asserted on the dispatched prompt by label, never on `src`
+// (a `src` grep is satisfied by the roster auditPrompt literal alone).
+const gaPromptOf = (calls, label) => (calls.find(c => (c.opts.label || '') === label) || {}).prompt || ''
+const assertDispositionRuleOn = (prompt, label) => {
+  assert.ok(prompt, 'presence guard: ' + label + ' convened')
+  assert.ok(prompt.includes('DISPOSITION RULE: every Minor/Nit finding carries a disposition'), label + ' carries the DISPOSITION RULE clause')
+  assert.ok(prompt.includes('follow-up is legal only with a barrier cited in the structured `barrier` field'), label + ' carries the `barrier` field instruction')
+  for (const tok of ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']) assert.ok(prompt.includes(tok), label + ' names ' + tok)
+  assert.ok(prompt.includes('a note that names a fix in a touched file is applied'), label + ' carries the note clause')
+}
+
+test('gate-audit-route — the per-task and integrated-tip gate-audit prompts carry the shared DISPOSITION RULE clause, the `barrier` field instruction and the four barrier tokens (PIN-17, PIN-12)', async () => {
+  const args = SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] })
+  const evidence = { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } }
+  const { calls } = await runPhase(args, p4Base({ evidence }))
+  assertDispositionRuleOn(gaPromptOf(calls, 'gate-audit:t1:execution-evidence'), 'gate-audit:t1:execution-evidence')
+  assertDispositionRuleOn(gaPromptOf(calls, 'gate-audit:phase-3:integrated-tip'), 'gate-audit:phase-3:integrated-tip')
+})
+
+test('gate-audit-route — the end-state-only gate-audit prompt carries the shared DISPOSITION RULE clause, the `barrier` field instruction and the four barrier tokens (PIN-17, PIN-12)', async () => {
+  const args = SWEEP_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const { calls } = await runPhase(args, p4Base())
+  assertDispositionRuleOn(gaPromptOf(calls, 'gate-audit:phase-3:end-state'), 'gate-audit:phase-3:end-state')
+  assert.equal((src.match(/^const DISPOSITION_RULE_CLAUSE = pt`/gm) || []).length, 1, 'ONE shared const')
+  assert.equal((src.match(/^\s*\+ DISPOSITION_RULE_CLAUSE,?$/gm) || []).length, 4, 'consumed by auditPrompt and the three gate-audit dispatches')
+})
+
+test('gate-audit-route — end-state-only arm (phase_diff_files structurally absent): an omitted-disposition fully specified Minor reads absorb + phaseClose:true and rides the sweep, never a barrierless follow-up', async () => {
+  const args = SWEEP_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const omitted = { severity: 'Minor', title: 'end-state omitted disposition', file: 'docs/ga.md', rationale: 'r', suggested_fix: 'fix it' }
+  const seatsOf = label => label === 'gate-audit:phase-3:end-state'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [omitted] }
+    : null
+  const { out, calls, logs } = await runPhase(args, p4Base({ seatsOf }))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat convened')
+  assert.ok(!calls.some(c => /^evidence:phase-/.test(c.opts.label || '')), 'presence guard: no evidence dispatch on this arm — phase_diff_files is structurally absent')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass REROUTED') && l.includes('end-state omitted disposition') && l.includes('phase_diff_files absent')), 'the reroute is logged')
+  assert.ok(polishPromptOf(calls).includes('end-state omitted disposition'), 'the row rides the sweep')
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'end-state omitted disposition')
+  assert.ok(aced && aced.finding.phaseClose === true && aced.finding.seat === 'gate-audit:phase-3:end-state', 'absorb + phaseClose:true, stamped with the seat label')
+  assert.ok(!demotionOf(out, 'end-state omitted disposition'), 'never filed as a barrierless follow-up')
+})
+
+test('gate-audit-route — a gate-audit re-mint of a finding the roster panel already aced is corroboration, never a second sweep record', async () => {
+  const a = nit({ title: 'twice raised', file: 'skills/war/assets/x.js' })
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a])] }, p4Base({ gate: [gaAbsorb({ title: 'twice raised', file: 'skills/war/assets/x.js' })] }))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'twice raised'), 'the roster-raised row is aced by the task ace')
+  assert.ok(!polishPromptOf(calls).includes('twice raised'), 'the gate-audit re-mint never re-queues it')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass: re-mint of "twice raised"') && l.includes('corroboration')), 'the re-mint is logged as corroboration')
+})
+
+test('gate-audit-route — a gate-audit re-mint of a finding the roster panel already QUEUED for the sweep lands the second seat on the queued row\'s seats list, never a second sweep record', async () => {
+  const q = nit({ title: 'queued twice', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [q])] }, p4Base({ gate: [gaAbsorb({ title: 'queued twice', file: 'docs/q.md' })] }))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass: re-mint of "queued twice"') && l.includes('already queued')), 'the re-mint is refused as already queued')
+  const rows = (out.aced || []).filter(x => x && x.finding && x.finding.title === 'queued twice')
+  assert.equal(rows.length, 1, 'one surviving sweep record')
+  assert.ok(polishPromptOf(calls).includes('queued twice'), 'the queued row reaches the sweep')
+  assert.deepEqual(rows[0].finding.seats, ['audit:t1:correctness (task t1)', 'gate-audit:t1:execution-evidence (task t1)'],
+    'the second seat lands on the queued row\'s seats list, seeded with the first raiser')
+})
+
+// ===========================================================================
+// in-band-absorb-default Phase 5 (Task 5.1): the terminal pass (D3a) and the held-phase carry (D3b).
+// Fixture families: terminal-pass, held-carry.
+// ===========================================================================
+
+// Terminal-pass base: sweepBase with a merged sweep whose POLISH PANEL raises `polishFindings` on its
+// first call (the terminal re-audit — the same seat label, second call — answers `terminalSeat`, an
+// approve with `terminalFindings` by default); the terminal worker returns `terminalWorker`
+// (head_sha 'terminalsha'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
+// overrides the polish worker's result (e.g. a files_changed report).
+const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
+  terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
+  terminalSeatDrop = false, terminalThrow = null } = {}) => {
+  const base = sweepBase(queued)
+  let polishAudits = 0
+  return (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && /^audit:p3-polish:/.test(label)) {
+      polishAudits++
+      if (polishAudits === 1) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: polishFindings, confidence: 'high' }
+      if (terminalSeatDrop) return null   // a dropped seat dispatch — every terminal re-audit call (auditRound's two retries included) returns nothing
+      return terminalSeat || { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: terminalFindings, confidence: 'high' }
+    }
+    if (seat === 'war-worker' && label.startsWith('terminal:')) {
+      if (terminalThrow) throw terminalThrow   // the infra-death arm (INFRA_DEATH_RE) — mirrors the sweepDeath fixture
+      return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: 'terminalsha', tests: { unit: 1 } }
+    }
+    if (seat === 'war-worker' && label.startsWith('polish:') && sweepWorker) return sweepWorker
+    if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: 'term1nal12' }
+    if (seat === 'war-refiner' && label.startsWith('terminal-revert:')) return terminalRevert || { ok: true }
+    return base(prompt, opts)
+  }
+}
+const terminalCalls = calls => calls.filter(c => (c.opts.label || '') === 'terminal:phase-3')
+const carriedOf = (out, title) => (out.carriedPhaseClose || []).find(f => f && f.title === title)
+
+// ---- terminal-pass (D3a, End state 14) ----------------------------------------------------------
+
+test('terminal-pass — a polish-panel absorb reaches the terminal pass: exactly ONE terminal commit with an Ace-Charge trailer, one re-audit seat, Refine merge before the land, aced at the terminal sha; the polish task counter reads 1 after the pass', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), terminalImpl())
+  const tws = terminalCalls(calls)
+  assert.equal(tws.length, 1, 'exactly one terminal worker dispatch (one hop per phase)')
+  assert.ok(tws[0].prompt.includes('polish-panel absorb'), 'the polish-panel absorb is the terminal input, verbatim')
+  assert.match(tws[0].prompt, /Ace-Charge: p3-polish:1/, 'the one commit carries the Ace-Charge trailer on the polish pseudo-task (counter seeded 0 ⇒ charge 1)')
+  assert.match(tws[0].prompt, /EXACTLY ONE commit/, 'one commit only')
+  assert.equal(tws[0].opts.dispatchKind, 'terminal-pass', 'dispatchKind terminal-pass')
+  assert.ok(tws[0].prompt.includes('/abs/repo/.claude/worktrees/run-2026/p3-polish'), 'the commit is made in the polish worktree at the post-polish tip')
+  // one re-audit seat at the terminal sha, then the Refine merge, then the land
+  const polishAudits = calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:correctness')
+  assert.equal(polishAudits.length, 2, 'the polish panel (1) + exactly one terminal re-audit seat (1)')
+  assert.ok(calls.indexOf(polishAudits[1]) > calls.indexOf(tws[0]), 'the terminal seat convenes AFTER the terminal commit')
+  const tEntry = (out.auditLog || []).find(e => e && e.terminal === true)
+  assert.ok(tEntry && tEntry.sha === 'terminalsha' && tEntry.seat === 'correctness' && tEntry.verdict === 'approve' && tEntry.requested === 1, 'the terminal auditLog entry pins the sha, the seat and the one-seat roster')
+  const mergeIdx = calls.findIndex(c => (c.opts.label || '') === 'merge:p3-terminal')
+  const landIdx = calls.findIndex(isLand)
+  assert.ok(mergeIdx !== -1 && landIdx !== -1 && mergeIdx < landIdx, 'the terminal commit merges through Refine before the single land')
+  assert.match(calls[mergeIdx].prompt, /assert-no-submodule-mutation\.sh/, 'the terminal merge runs the unconditional floors like any ace commit')
+  assert.match(calls[mergeIdx].prompt, /assert-budget-raise-cited\.sh/, 'the terminal merge runs the budget-raise floor too')
+  assert.ok(!tws[0].prompt.includes('ace_diff_files'), 'the terminal prompt never asks for ace_diff_files — no consumer reads it on the terminal arm')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === 'terminalsha'), 'the absorb is aced at the terminal sha')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('polish task absorbRounds now 1')), 'the polish task counter reads 1 after the pass (telemetry)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('re-audit seat: correctness')), 'the seat choice is logged')
+  assert.deepEqual(out.carriedPhaseClose, [], 'nothing carried on a clean pass — the key is present as []')
+  assert.equal(out.landDecision, 'landed')
+})
+
+test('terminal-pass — a roster without `correctness` still convenes the pass: the roster\'s first seat re-audits with its own lens, logged', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }, { lens: 'correctness' }] } }), terminalImpl())
+  // the correctness seat wins when present
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-audit seat: correctness')), 'correctness is preferred when the roster carries it')
+  assert.equal(calls.filter(c => /^audit:p3-polish:/.test(c.opts.label || '')).length, 3, 'two panel seats + exactly ONE terminal seat (the [seat] rosterOverride)')
+  assert.equal(calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:security').length, 1, 'the security seat runs on the polish panel only — the terminal round convenes ONE seat')
+  const tEntry = out.auditLog.find(e => e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry && tEntry.requested === 1 && tEntry.seat === 'correctness', 'the terminal auditLog entry requested exactly one seat')
+  const r2 = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }] } }), terminalImpl())
+  assert.equal(terminalCalls(r2.calls).length, 1, 'the pass still convenes without a correctness seat')
+  assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('re-audit seat: security') && l.includes('no correctness seat on the roster')), 'the first seat re-audits with its own lens, logged')
+  assert.equal(r2.calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:security').length, 2, 'the polish panel + one terminal re-audit under the security lens')
+  assert.ok(terminalCalls(calls).length === 1, 'presence guard on the first run')
+})
+
+test('terminal-pass — the pass convenes with run.ace off (run.ace gates the per-task ladder only, PIN-16) and a polish task that never carried a counter still dispatches it', async () => {
+  const { calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: false } }), terminalImpl())
+  assert.ok(!calls.some(isAce), 'no per-task ace under run.ace off (presence guard)')
+  assert.equal(terminalCalls(calls).length, 1, 'the terminal pass dispatches regardless of run.ace')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('run.ace off — the pass convenes regardless')), 'logged')
+  assert.match(src, /absorbRounds: 0,\s*\/\/ the terminal pass's telemetry counter/, 'the polish pseudo-task seeds absorbRounds: 0 at construction')
+})
+
+test('terminal-pass — a terminal-born absorb on a release-slot file is REFUSED and logged (demote:release-slot), never committed; an emptied terminal queue skips with a log', async () => {
+  const impl = terminalImpl({ polishFindings: [{ severity: 'Minor', title: 'slot absorb', file: 'plugin.json', rationale: 'bump', disposition: 'absorb' }] })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(terminalCalls(calls).length, 0, 'no terminal commit — the only input was refused')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: REFUSED') && l.includes('plugin.json')), 'the refusal is logged')
+  const d = demotionOf(out, 'slot absorb')
+  assert.ok(d && /^demote:release-slot/.test(d.demoteReason), 'demoted with demote:release-slot')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal queue is empty') && l.includes('skipped')), 'the empty terminal queue skip is logged')
+})
+
+test('terminal-pass — finalPhase:false: a fresh absorb from the terminal seat emits exactly ONE carriedPhaseClose entry (planSlug-stamped, reason names the phase) and no demotion', async () => {
+  const fresh = { severity: 'Nit', title: 'terminal-born absorb', file: 'docs/t.md', rationale: 'seen on the terminal diff', disposition: 'absorb' }
+  const { out, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalFindings: [fresh] }))
+  assert.equal(out.landDecision, 'landed')
+  assert.equal((out.carriedPhaseClose || []).length, 1, 'exactly one carried entry')
+  const c = out.carriedPhaseClose[0]
+  assert.equal(c.title, 'terminal-born absorb')
+  assert.equal(c.planSlug, 'wtprov-a', 'the engine stamps the run planSlug so the relaunch clears the #1413 floor by construction')
+  assert.equal(c.carriedFrom.phase, 3)
+  assert.match(c.carriedFrom.reason, /carried from phase 3 terminal pass/)
+  assert.ok(!demotionOf(out, 'terminal-born absorb'), 'never demoted on a non-final phase')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held-carry') && l.includes('terminal-born absorb')), 'the carry is logged')
+})
+
+test('terminal-pass — finalPhase:true files exactly ONE demotion with reason "raised on the terminal pass" (demote:terminal-pass); an absent finalPhase demotes the same way', async () => {
+  const fresh = { severity: 'Nit', title: 'terminal-born absorb', file: 'docs/t.md', rationale: 'seen on the terminal diff', disposition: 'absorb' }
+  for (const [name, args] of [['finalPhase:true', SWEEP_ARGS({ finalPhase: true })], ['absent finalPhase', SWEEP_ARGS()]]) {
+    const { out, logs } = await runPhase(args, terminalImpl({ terminalFindings: [fresh] }))
+    const ds = (out.minorsFiled || []).filter(m => m && m.title === 'terminal-born absorb')
+    assert.equal(ds.length, 1, name + ': exactly one demotion')
+    assert.ok(/^demote:terminal-pass/.test(ds[0].demoteReason) && ds[0].demoteReason.includes('raised on the terminal pass'), name + ': the reason carries the prefix + "raised on the terminal pass"')
+    assert.deepEqual(out.carriedPhaseClose, [], name + ': nothing carried')
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('args.finalPhase ' + (name === 'absent finalPhase' ? 'absent (reads as final)' : 'true'))), name + ': the finality read is logged')
+  }
+})
+
+test('terminal-pass — a non-boolean finalPhase is refused at entry (held:workflow-error naming args.finalPhase), zero dispatches', async () => {
+  for (const bad of ['yes', 1, null, {}]) {
+    const { out, calls } = await runPhase(SWEEP_ARGS({ finalPhase: bad }), terminalImpl())
+    assert.equal(out.landDecision, 'held:workflow-error', JSON.stringify(bad) + ' is refused')
+    assert.match(out.workflowError.message, /args\.finalPhase must be a boolean or absent/, 'the refusal names the arg')
+    assert.equal(calls.length, 0, 'zero agents on the refused launch')
+    assert.deepEqual(out.carriedPhaseClose, [], 'the catch-block return still carries the key (D3b)')
+  }
+})
+
+test('terminal-pass — a re-audit regression forward-reverts the terminal commit, then carries (non-final) or demotes (final, demote:absorb-regressed); never a second pass', async () => {
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected }))
+  const rv = nonFinal.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the forward-revert of the terminal sha is dispatched')
+  assert.ok(!nonFinal.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'a regressed terminal commit never merges')
+  assert.equal(terminalCalls(nonFinal.calls).length, 1, 'never a second pass')
+  assert.ok(carriedOf(nonFinal.out, 'polish-panel absorb'), 'non-final: the row carries')
+  assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
+  const tRejected = nonFinal.out.auditLog.find(e => e.verdict === 'terminal-rejected' && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tRejected, 'the terminal-rejected auditLog entry records the regression')
+  assert.ok((tRejected.findings || []).some(f => f.title === 'terminal broke it'), 'the terminal-rejected entry carries the blocking finding — its only channel')
+  assert.equal(nonFinal.out.landDecision, 'landed', 'the land proceeds on the polished tip')
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeat: rejected }))
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:absorb-regressed/.test(d.demoteReason) && d.demoteReason.includes('forward-reverted'), 'final: demotes with demote:absorb-regressed naming the revert')
+  assert.deepEqual(final.out.carriedPhaseClose, [], 'final: nothing carried')
+  assert.equal(terminalCalls(final.calls).length, 1, 'final: never a second pass either')
+})
+
+test('terminal-pass — a terminal re-audit seat that returns no verdict (dropped after auditRound\'s retries) still forward-reverts, but demotes demote:terminal-pass with the no-verdict wording, never demote:absorb-regressed', async () => {
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatDrop: true }))
+  const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
+  assert.ok(!final.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'an unjudged terminal commit never merges')
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('the terminal re-audit seat returned no verdict') && l.includes('terminalsha')), 'the no-verdict outcome is logged by name')
+  assert.ok(!final.logs.some(l => typeof l === 'string' && l.includes('REGRESSED on the correctness re-audit at terminalsha')), 'no seat judged a regression, so none is logged')
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('returned no verdict') && d.demoteReason.includes('forward-reverted'), 'final: demotes demote:terminal-pass naming the missing verdict and the revert')
+  assert.ok(!/absorb-regressed/.test(d.demoteReason), 'never demote:absorb-regressed — no seat returned request_changes')
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry && tEntry.verdict === 'terminal-rejected' && tEntry.returned === 0 && tEntry.requested === 1, 'the auditLog row records 0 of 1 seats returned')
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeatDrop: true }))
+  const c = carriedOf(nonFinal.out, 'polish-panel absorb')
+  assert.ok(c && c.carriedFrom && c.carriedFrom.reason.includes('returned no verdict'), 'non-final: the row carries with the no-verdict reason')
+  assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
+})
+
+test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm, non-final) corroborates onto the carried row: the terminal seat joins its seats list, never a second carry and never a demotion', async () => {
+  // The carried row is a QUEUED absorb (raised by task t1's seat) the sweep left unlanded — its raiser
+  // ref differs from the terminal seat's, so the seats-list assertion is not vacuous.
+  const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/q.md', rationale: 'regressed' },
+      { severity: 'Nit', title: 'left unlanded', task: 't1', file: 'docs/q.md', rationale: 'still there', disposition: 'absorb' }] }
+  const { out, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker, terminalSeat: rejected }))
+  const carried = (out.carriedPhaseClose || []).filter(f => f && f.title === 'left unlanded')
+  assert.equal(carried.length, 1, 'exactly one carried record — the re-mint never carries a second copy')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of "left unlanded"') && l.includes('carried on carriedPhaseClose')), 'the re-mint is refused as carried, logged')
+  assert.deepEqual(carried[0].seats, ['audit:t1:correctness (task t1)', 'audit:p3-polish:correctness (task t1)'],
+    'the terminal seat joins the carried row\'s seats list behind its own raiser (corroborateSurvivor searches carriedPhaseClose)')
+  assert.ok(!demotionOf(out, 'left unlanded'), 'never demoted')
+})
+
+test('terminal-pass — a terminal worker dispatch that dies post-spawn (INFRA_DEATH_RE) takes the env-died arm: logged, no commit, the rows carry on a non-final phase', async () => {
+  const dead = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalThrow: new Error('529 Overloaded') }))
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('terminal:phase-3 dispatch died post-spawn (env-died)')), 'the infra-death arm logs the env-died line')
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal:phase-3 dispatch died post-spawn (env-died)')), 'the no-commit arm names the death as its reason')
+  assert.ok(carriedOf(dead.out, 'polish-panel absorb'), 'non-final: the row carries')
+  assert.ok(!demotionOf(dead.out, 'polish-panel absorb'), 'never demoted')
+  assert.ok(!dead.logs.some(l => typeof l === 'string' && l.includes('absorbRounds now')), 'no commit ⇒ no charge')
+  assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
+  assert.equal(dead.out.landDecision, 'landed', 'fail-open: the land proceeds on the polished tip')
+})
+
+test('terminal-pass — a discarded sweep on a non-final phase carries its absorbs (queued + sweep-raised) instead of demoting; the final phase keeps the discard-path demotion with its sweep-raised token', async () => {
+  const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const reject = { seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [sweepAbsorb] }
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), buildSeqImpl({ 'audit:p3-polish:correctness': [reject] }, sweepBase([queuedAbsorb()])))
+  assert.equal(nonFinal.out.handoff.polish, 'discarded', 'presence guard')
+  assert.ok(carriedOf(nonFinal.out, 'dangling link') && carriedOf(nonFinal.out, 'sweep-raised absorb'), 'both the queued row and the sweep-raised absorb carry')
+  assert.equal((nonFinal.out.minorsFiled || []).length, 0, 'no demotion on the non-final discard')
+  assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('no merged sweep this phase') && l.includes('discarded')), 'the no-sweep skip is logged naming the polish status')
+  assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('carries on carriedPhaseClose')), 'the DISCARDED log names the non-final carry')
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), buildSeqImpl({ 'audit:p3-polish:correctness': [reject] }, sweepBase([queuedAbsorb()])))
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('demotes to follow-up')), 'the DISCARDED log names the final-phase demotion')
+  const d = demotionOf(final.out, 'sweep-raised absorb')
+  assert.ok(d && /^demote:sweep-discarded — sweep-raised absorb/.test(d.demoteReason), 'the discard-path reason keeps its sweep-raised token and names the discard')
+  assert.ok(demotionOf(final.out, 'dangling link'), 'the queued row demotes on the final phase')
+  assert.deepEqual(final.out.carriedPhaseClose, [], 'nothing carried on the final phase')
+})
+
+test('terminal-pass — no sweep (empty queue) logs the skip; a clean polish panel with nothing unlanded logs the empty-queue skip; zero terminal dispatches either way', async () => {
+  const noSweep = await runPhase(SWEEP_ARGS(), sweepBase([]))
+  assert.equal(terminalCalls(noSweep.calls).length, 0)
+  assert.ok(noSweep.logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('no merged sweep this phase (polish skipped)')), 'no sweep ⇒ skip logged')
+  const emptyQueue = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [] }))
+  assert.equal(emptyQueue.out.handoff.polish, 'merged', 'presence guard')
+  assert.equal(terminalCalls(emptyQueue.calls).length, 0)
+  assert.ok(emptyQueue.logs.some(l => typeof l === 'string' && l.includes('terminal queue is empty') && l.includes('skipped')), 'empty terminal queue ⇒ skip logged')
+})
+
+test('terminal-pass — a queued absorb the sweep could not land (its file absent from the sweep\'s changed-file report) joins the terminal queue instead of being recorded aced at the polish sha', async () => {
+  const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  // ace_diff_files (git-derived) names docs/x.md only; the self-reported files_changed disagrees and
+  // also claims docs/q.md — the git-derived list wins, so the row on docs/q.md still diverts.
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'], files_changed: ['docs/x.md', 'docs/q.md'] }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok(polishPromptOf(calls).includes('ace_diff_files'), 'the sweep prompt asks for ace_diff_files')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'landed by the sweep' && a.sha === 'polishsha'), 'the touched row is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'polishsha'), 'the untouched row is NOT recorded aced at the polish sha')
+  const tw = terminalCalls(calls)
+  assert.equal(tw.length, 1, 'the terminal pass dispatches for it')
+  assert.ok(tw[0].prompt.includes('left unlanded'), 'the unlanded row is the terminal input')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('never touched docs/q.md') && l.includes('joins the terminal queue')), 'logged')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'terminalsha'), 'and it aces at the terminal sha')
+})
+
+test('terminal-pass — a terminal commit that does not merge, or a terminal worker that makes no commit, carries (non-final) or demotes demote:terminal-pass (final); the counter is charged only by a commit', async () => {
+  const noMerge = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalMerge: { mode: 'merge-task', status: 'gate_failed', gate_output: 'red' } }))
+  const d = demotionOf(noMerge.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('did not merge'), 'final + no merge ⇒ demote:terminal-pass naming the merge outcome')
+  assert.ok(noMerge.logs.some(l => typeof l === 'string' && l.includes('polish task absorbRounds now 1')), 'the commit charged the counter even though the merge failed (telemetry)')
+  const dead = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'blocked', blocked_reason: 'boom' } }))
+  assert.ok(carriedOf(dead.out, 'polish-panel absorb'), 'non-final + no commit ⇒ carried')
+  assert.ok(!dead.logs.some(l => typeof l === 'string' && l.includes('absorbRounds now')), 'no commit ⇒ no charge')
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (boom)')), 'logged')
+  assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
+  assert.ok(!dead.calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('terminalsha')), 'no re-audit without a commit')
+  const noSha = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }))
+  assert.ok(noSha.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal worker returned no usable head_sha)')), 'an implemented result without head_sha takes the no-usable-head_sha arm, logged')
+  assert.ok(carriedOf(noSha.out, 'polish-panel absorb'), 'and the row carries')
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
+  const badRevert = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected, terminalRevert: { ok: false, stderrTail: 'boom' } }))
+  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of terminalsha did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
+  assert.ok(carriedOf(badRevert.out, 'polish-panel absorb'), 'the row still carries')
+  assert.equal(terminalCalls(badRevert.calls).length, 1, 'never a second pass')
+})
+
+test('terminal-pass — a present-but-disjoint sweep report (no file in the queue footprint) keeps the re-approval ruling: every queued row is recorded aced at the polish sha and no terminal pass dispatches', async () => {
+  const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/other.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is aced at the polish sha')
+  assert.equal(terminalCalls(calls).length, 0, 'a disjoint report never diverts rows to the terminal queue')
+})
+
+test('terminal-pass — a sweep report carrying files_changed ONLY (no ace_diff_files) that overlaps the queue footprint is read as the fallback SOURCE: the touched row aces at the polish sha and the untouched row joins the terminal queue', async () => {
+  const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/x.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is NOT aced at the polish sha')
+  const tw = terminalCalls(calls)
+  assert.equal(tw.length, 1, 'the files_changed fallback diverts the untouched row to the terminal pass')
+  assert.ok(tw[0].prompt.includes('row on q'), 'the terminal prompt carries the untouched row')
+})
+
+test('terminal-pass — a terminal-seat re-mint of the sweep-raised follow-up (filed on the merged arm, filedKeys-stamped) corroborates: minorsFiled holds exactly ONE row plus the re-mint log line', async () => {
+  const fu = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up', barrier: 'barrier:release-slot' }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [fu, { severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }], terminalFindings: [{ ...fu }] }))
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'sweep-raised follow-up').length, 1, 'exactly one filed row — the terminal re-mint never files a second')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('sweep-raised follow-up') && l.includes('already filed')), 'the re-mint is logged as corroboration')
+})
+
+test('terminal-pass — a polish-panel absorb on an args.sweepExclude-owned file is REFUSED by the terminal filter (demote:exclusion-set naming the owner), logged, and never in the terminal worker prompt', async () => {
+  const args = SWEEP_ARGS({ sweepExclude: [{ slug: 'other-plan', files: ['docs/y.md'] }] })
+  const { out, calls, logs } = await runPhase(args, terminalImpl())
+  const d = demotionOf(out, 'polish-panel absorb')
+  assert.ok(d && /^demote:exclusion-set — terminal pass:/.test(d.demoteReason) && d.demoteReason.includes('owned by plan other-plan'), 'the row demotes naming the owner')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: REFUSED "polish-panel absorb"') && l.includes('owned by plan other-plan')), 'the refusal is logged')
+  assert.ok(!terminalCalls(calls).some(c => c.prompt.includes('polish-panel absorb')), 'never a terminal worker input')
+  assert.ok(!(out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'never aced')
+})
+
+test('terminal-pass — a terminal-seat re-mint of a terminalRow (recorded aced on the merged arm) corroborates via remintBlock: logged, never a second aced record, never a demotion', async () => {
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ terminalFindings: [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'still there', disposition: 'absorb' }] }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('polish-panel absorb')), 'the re-mint arm logs')
+  assert.equal((out.aced || []).filter(a => a.finding && a.finding.title === 'polish-panel absorb').length, 1, 'exactly one aced record — never a second')
+  assert.ok(!demotionOf(out, 'polish-panel absorb'), 'never demoted')
+  assert.deepEqual(out.carriedPhaseClose, [], 'never carried a second time')
+})
+
+test('terminal-pass — the terminal re-audit records a pinTransfers row (kind ace, mode terminal): the re-audit seat re-ran and every other default-roster seat transferred at the terminal sha (PIN-10)', async () => {
+  // Two-seat roster: the transfer half of the row is only observable when a non-terminal seat exists.
+  const { out } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, { lens: 'security' }] } }), terminalImpl())
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.mode === 'terminal')
+  assert.ok(row && row.task === 'p3-polish' && row.sha === 'terminalsha', 'the terminal row pins the polish pseudo-task and the terminal sha')
+  assert.ok(Array.isArray(row.seats), 'the row carries a seats array')
+  assert.equal(row.seats.length, 2, 'every default-roster seat appears — both seats')
+  assert.ok(row.seats.every(s => s.sha === 'terminalsha' && (s.outcome === 're-ran' || s.outcome === 'transferred')), 'each seat row carries the sha and an outcome')
+  assert.equal(row.seats.filter(s => s.outcome === 're-ran').length, 1, 'exactly one seat re-ran')
+  assert.equal(row.seats.find(s => s.outcome === 're-ran').lens, 'correctness', 'the re-ran seat is the terminal seat')
+  assert.equal(row.seats.filter(s => s.outcome === 'transferred').length, 1, 'exactly one seat transferred')
+  assert.equal(row.seats.find(s => s.outcome === 'transferred').lens, 'security', 'the transferred seat is the non-terminal roster seat')
+})
+
+test('terminal-pass — a fileless polish-panel absorb on the terminal queue demotes demote:fileless (severity default) and never dispatches the pass', async () => {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [{ severity: 'Minor', title: 'fileless terminal absorb', rationale: 'r', disposition: 'absorb' }] }))
+  const d = demotionOf(out, 'fileless terminal absorb')
+  assert.ok(d && /^demote:fileless/.test(d.demoteReason) && d.demoteReason.includes('terminal-pass'), 'a Minor fileless row demotes to follow-up with demote:fileless naming the terminal pass')
+  assert.equal(terminalCalls(calls).length, 0, 'nothing eligible ⇒ no terminal dispatch')
+})
+
+test('terminal-pass — the seat\'s own follow-up files with floorSkipped AND a log line (never a fourth silent floorSkipped site); its ask parks; its note routes to notes', async () => {
+  const fu = { severity: 'Minor', title: 'terminal follow-up', file: 'docs/f.md', rationale: 'substantive', disposition: 'follow-up', barrier: 'barrier:release-slot' }
+  const note = { severity: 'Nit', title: 'terminal note', file: 'docs/n.md', rationale: 'fyi', disposition: 'note' }
+  const ask = { severity: 'Minor', title: 'terminal ask', file: 'docs/a.md', rationale: 'which?', disposition: 'ask', ask: { question: 'A or B?', fork: ['A', 'B'] } }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ terminalFindings: [fu, note, ask] }))
+  const filed = (out.minorsFiled || []).find(m => m && m.title === 'terminal follow-up')
+  assert.ok(filed && filed.floorSkipped === true, 'the follow-up files floorSkipped')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal follow-up') && l.includes('floorSkipped')), 'the stamp is logged')
+  assert.ok((out.notes || []).some(n => n.title === 'terminal note'), 'the note routes to notes')
+  assert.ok((out.asks || []).some(a => a.question === 'A or B?'), 'the ask parks')
+})
+
+test('terminal-pass — retired text is absent from workflow-template.js under the normalized whole-file scan (wrapped comment copies included); the discard-path reason keeps its sweep-raised token', () => {
+  const n = normalizedSrc()
+  for (const t of ['absorb has no later round', 'sweep-raised absorb at either terminal sweep arm', 'sweep-raised absorb at its terminal arms', 'terminal-pass charge site (reserved']) {
+    assert.ok(!n.includes(t), `retired text absent (normalized): ${t}`)
+  }
+  assert.ok(!/absorb has no later/i.test(src), 'raw scan agrees')
+  assert.ok(src.includes("demote:sweep-discarded — sweep-raised absorb"), 'the discard-path reason keeps its sweep-raised token')
+  assert.ok(!src.includes("demote:terminal-pass — sweep-raised absorb"), 'the merged-path sweep-raised demote arm is retired')
+  assert.ok(src.includes('pt`TERMINAL PASS for WAR phase'), 'the terminal pass prompt is the successor')
+})
+
+test('terminal-pass — schema-slot pins: the schemas.md rows for carriedPhaseClose, seededPhaseClose and finalPhase bind to the engine\'s emitted / validated key names', () => {
+  // carriedPhaseClose: emitted TOP-LEVEL at BOTH return sites (never inside the handoff).
+  const mainReturn = src.match(/^return \{ phase: phaseId, landed, [^\n]*\}$/m)
+  assert.ok(mainReturn, 'the main return line is extracted')
+  const carriedKey = (mainReturn[0].match(/\b(carriedPhaseClose)\b/) || [])[1]
+  assert.equal(carriedKey, 'carriedPhaseClose', 'the main return emits the key (non-vacuous extraction)')
+  assert.ok(mainReturn[0].indexOf('carriedPhaseClose') < mainReturn[0].indexOf('handoff'), 'top-level, beside landDecision — not a handoff key')
+  const catchReturn = src.slice(src.indexOf("landDecision: 'held:workflow-error'"), src.indexOf('workflowError: {'))
+  assert.match(catchReturn, /\bcarriedPhaseClose\b/, 'the catch-block return emits the same key')
+  const rStart = schemasMd.indexOf('## Workflow per-phase return')
+  const rEnd = schemasMd.indexOf('\n## ', rStart + 1)   // the next H2 (none today — the section closes the file)
+  const returnDoc = schemasMd.slice(rStart, rEnd > 0 ? rEnd : schemasMd.length)
+  assert.ok(new RegExp('^\\s*' + carriedKey + ':', 'm').test(returnDoc), 'schemas.md § Workflow per-phase return documents the same key name (' + carriedKey + ')')
+  // seededPhaseClose + finalPhase: validated at entry under those exact arg names; documented in the args contract.
+  for (const key of ['seededPhaseClose', 'finalPhase']) {
+    const validated = (src.match(new RegExp("A\\.(" + key + ") !== undefined")) || [])[1]
+    assert.equal(validated, key, 'the entry validation reads args.' + key + ' (non-vacuous extraction)')
+    assert.ok(src.includes("'workflow-template: args." + key), 'the refusal message names args.' + key)
+    const argsDoc = schemasMd.slice(schemasMd.indexOf('## Workflow per-phase args contract'), schemasMd.indexOf('## Workflow per-phase return'))
+    assert.ok(new RegExp('^Optional `' + validated + '`', 'm').test(argsDoc), 'schemas.md § Workflow per-phase args contract carries an `Optional `' + key + '`` row')
+  }
+})
+
+// ---- held-carry (D3b, End state 15) --------------------------------------------------------------
+
+test('held-carry — a held:nothing-merged phase emits carriedPhaseClose on the phase return with the queued absorb and ZERO demotions with the retired held-phase reason', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'gate_failed', gate_output: 'boom' }   // no class ⇒ soft
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:nothing-merged', 'presence guard')
+  assert.ok(carriedOf(out, 'dangling link'), 'the queued absorb rides carriedPhaseClose')
+  assert.equal(carriedOf(out, 'dangling link').planSlug, 'wtprov-a', 'planSlug-stamped for the relaunch floor')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'never demoted')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('held phase — the phase-close sweep never dispatched')), 'zero demotions with the retired reason')
+  assert.ok(!src.includes('demote:sweep-skipped — held phase'), 'the held-phase demote arm is retired from the engine')
+})
+
+test('held-carry — default-deny census: carriedPhaseClose is present on EVERY Workflow-emitted hold class (escalation, nothing-merged, land-failed, submodule-pr, workflow-error from the catch block) and is [] on landed', async () => {
+  const refine = status => (prompt, opts) => seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' ? { mode: 'merge-task', status } : sweepBase([])(prompt, opts)
+  const land = result => (prompt, opts) => seatOf(opts) === 'war-refiner' && opts.phase === 'Land' ? result : sweepBase([])(prompt, opts)
+  const runs = {
+    'landed': await runPhase(SWEEP_ARGS(), sweepBase([])),
+    'held:escalation': await runPhase(SWEEP_ARGS(), refine('conflict')),
+    'held:nothing-merged': await runPhase(SWEEP_ARGS(), refine('gate_failed')),
+    'held:land-failed': await runPhase(SWEEP_ARGS(), land({ mode: 'land-phase', status: 'error' })),
+    'held:submodule-pr': await runPhase(SWEEP_ARGS(), land({ mode: 'land-phase', status: 'submodule-pr', pr_number: 7, pr_remote: 'org/sub' })),
+    'held:workflow-error': await runPhase(SWEEP_ARGS({ finalPhase: 'nope' }), sweepBase([])),
+  }
+  for (const [expected, r] of Object.entries(runs)) {
+    assert.equal(r.out.landDecision, expected, expected + ': the fixture reaches its hold class (presence guard)')
+    assert.ok(Array.isArray(r.out.carriedPhaseClose), expected + ': carriedPhaseClose is present as an array on the phase return')
+    if (expected === 'landed') assert.deepEqual(r.out.carriedPhaseClose, [], 'landed with nothing carried ⇒ []')
+  }
+  // Default-deny: every Workflow-emitted member of the canonical enum is covered above; the one
+  // Lead-side member (held:phase-incomplete — a non-completed notification, never a Workflow return) is the ruled exclusion.
+  const workflowEmitted = KNOWN_LAND_DECISIONS.filter(d => d !== 'held:phase-incomplete')
+  assert.deepEqual(Object.keys(runs).sort(), [...workflowEmitted].sort(), 'the census covers exactly the Workflow-emitted land decisions')
+})
+
+test('held-carry — a relaunch with args.seededPhaseClose drains the seeded entries into the sweep (logged per row); entry validation refuses a malformed seed; a foreign planSlug refuses at entry (#1413)', async () => {
+  const seed = [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r', disposition: 'absorb', planSlug: 'wtprov-a', carriedFrom: { phase: 2, reason: 'held phase' } }]
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ seededPhaseClose: seed }), sweepBase([]))
+  assert.ok(polishPromptOf(calls).includes('carried nit'), 'the seeded row reaches the sweep dispatch')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held-carry (D3b): seeded phase-close row "carried nit"') && l.includes('carried from phase 2')), 'the drain is logged per row')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'carried nit' && a.sha === 'polishsha'), 'and it aces at the polish sha')
+  for (const [bad, msg] of [
+    ['nope', 'args.seededPhaseClose must be an array'],
+    [['x'], 'args.seededPhaseClose[0] must be a finding row object'],
+    [[{ severity: 'Minor' }], 'args.seededPhaseClose[0].title must be a non-empty string'],
+    [[{ title: 't' }], 'args.seededPhaseClose[0].severity must be a non-empty string'],
+    [[{ title: 't', severity: 'Nit', file: 5 }], 'args.seededPhaseClose[0].file must be a repo-relative path string or null'],
+  ]) {
+    const r = await runPhase(SWEEP_ARGS({ seededPhaseClose: bad }), sweepBase([]))
+    assert.equal(r.out.landDecision, 'held:workflow-error', JSON.stringify(bad) + ' is refused at entry')
+    assert.ok(r.out.workflowError.message.includes(msg), 'the refusal names the field: ' + msg)
+    assert.equal(r.calls.length, 0, 'zero agents')
+  }
+  const foreign = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ ...seed[0], planSlug: 'other-plan' }] }), sweepBase([]))
+  assert.equal(foreign.out.landDecision, 'held:workflow-error', 'a foreign planSlug stamp refuses')
+  assert.match(foreign.out.workflowError.message, /args\.seededPhaseClose carries a planSlug provenance stamp naming a foreign plan \(other-plan\)/, 'the #1413 refusal names the surface and the stamp')
+  // an own-token-less, stamp-less row fails the own-token floor (the carried row's planSlug stamp is what exempts it)
+  const bare = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r' }] }), sweepBase([]))
+  assert.equal(bare.out.landDecision, 'held:workflow-error')
+  assert.match(bare.out.workflowError.message, /args\.seededPhaseClose contains none of the run's own plan-slug tokens/, 'the own-token floor applies to the surface')
 })
