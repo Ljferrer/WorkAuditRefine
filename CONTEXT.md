@@ -840,7 +840,7 @@ ace-style batch on the same machinery (canonical: `aceReentry` in
 is their SOLE bound. A fourth source, the **merge-slot pin-transfer mismatch re-audit**, never re-enters:
 its absorbs route straight to the sweep (`routeReauditMinors`' `noReentry` opt), never
 budget-gated. Budget spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
-sweep-discard ⇒ `follow-up`; a forward-reverted finding never re-enters (the oscillation bound);
+sweep-discard ⇒ carried on `carriedPhaseClose` (non-final phase) or `follow-up` (final); a forward-reverted finding never re-enters (the oscillation bound);
 every demotion is logged. Re-entry rounds inherit the **Ace-Subset trailer** discipline and the
 tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
@@ -920,7 +920,7 @@ _Avoid_: tip-only preflight; pinning the value shape (latitude — the key is th
 The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
 fixes ONLY the queued `phaseClose` absorb findings, a full default-roster panel re-audits the polish SHA,
 and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
-place; queue demotes to follow-up) and the pre-polish tip lands exactly as it would have. It may only
+place; queue carries on `carriedPhaseClose` (non-final phase) or demotes to follow-up (final)) and the pre-polish tip lands exactly as it would have. It may only
 improve the tip; a discarded sweep recomputes nothing.
 _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure that holds the land.
 
@@ -934,12 +934,13 @@ pass, on the discard arm it rides the carried queue (non-final phase) or demotes
 The one-hop ace commit plus one re-audit seat after the polish merge (ADR 0012 successor of the
 merged-sweep demote arm): the polish panel's absorbs plus what the sweep left unlanded, filtered
 through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip; a regression is
-forward-reverted, then the rows carry (non-final) or demote `demote:terminal-pass` (final); it
+forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
+unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
 convenes with `run.ace` off and never budget-blocks.
 _Avoid_: a second pass; reading its charge as a gate; a release-slot file in its commit.
 
 **Carried queue**:
-The absorb rows a phase could not land and did not demote — a held phase's whole queue, a discarded
+The absorb rows a phase could not land and did not demote — a held phase's whole queue, a non-final discarded
 sweep's absorbs, a non-final terminal pass's rows — emitted top-level as `carriedPhaseClose` on the
 phase return (always present, `[]` when nothing was carried, so absence is never ambiguous) and
 threaded back by the Lead as `args.seededPhaseClose`, where they drain into the relaunch's sweep queue.
