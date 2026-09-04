@@ -750,7 +750,9 @@ The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it
 the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
 affirmative issue (`follow-up` — must state why it is not absorbable), record it without filing
 (`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
-Omitted → Minor becomes follow-up, Nit becomes note; `absorb` and `ask` are never defaults. A failed or
+A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
+(outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
+Nit becomes note; `ask` is never a default. A failed or
 ineligible route **demotes one step toward durability**, logged — per subset under the ace bisection
 ladder — never dropped silently, while `demote()` refuses an ask (log + re-route onto `asks[]`); zero
 unrouted findings on every exit path.
@@ -869,6 +871,17 @@ absorb whose file is in the set demotes to `follow-up` with a reason naming the 
 slug, the task id, or "the release slot" — and every demotion is logged. The seat never decides
 exclusion; the engine applies the set at sweep time.
 _Avoid_: a seat-side exclusion judgment; a prose or size estimate in place of the file-set match.
+
+**Barrier list** (`BARRIER_TOKENS`):
+The closed enum a seat cites in a finding's structured `barrier` field to route a fully specified
+Minor/Nit away from its `absorb` default: `barrier:release-slot` (a release-slot file),
+`barrier:underspecified` (the fix is not fully specified), `barrier:rationale-comment` (the fix edits a
+`ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (a nameable trade-off — routes
+`ask`, never `follow-up`). Three follow-up barriers plus one ask route; canonical in
+`skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js`, body in
+`skills/war/references/disposition-eligibility.md` (ADR 0013 amendment 2026-09-04). A scope argument is
+never a barrier, and the why-not-absorbable prose stays free text beside the tag.
+_Avoid_: a prose barrier; a fifth member minted on a card; the engine estimating fix size.
 
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and

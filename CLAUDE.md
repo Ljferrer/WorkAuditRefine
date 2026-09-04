@@ -80,6 +80,6 @@ New doctrine defaults to a `references/` file plus a trigger pointer on the oper
 
 - `docs/learnings/` on a branch/PR not yet merged ⇒ `render-index --local`-only silently drops every `[repo]` row — pass `--repo` whenever the dir exists.
 - LEGACY spec + plan pairs share a slug but different suffixes; `/red-team`'s legacy arm greps such a plan's source-spec line — keep it there. A merged plan's Part 1 is its own source of truth.
-- Findings route by auditor-owned `disposition` (`absorb`/`follow-up`/`note`/`ask`), orthogonal to severity; `absorb` and `ask` are never defaults — an unruled `ask` is never filed, only ruled at the Checkpoint strike-list gate. A validation in neither the gate, a floor, nor the backstops section may not be waived in prose — escalate (ADR 0017).
+- Findings route by auditor-owned `disposition` (`absorb`/`follow-up`/`note`/`ask`), orthogonal to severity; a fully specified Minor/Nit defaults to `absorb` (`phaseClose:true` outside the task diff) and `follow-up` needs a `barrier` tag; `ask` is never a default — an unruled `ask` is never filed, only ruled at the Checkpoint strike-list gate. A validation in neither the gate, a floor, nor the backstops section may not be waived in prose — escalate (ADR 0017).
 - Intent is never Lead-invented; the sole synthetic-intent exception is `/war-machine --afk`'s `## AI-Commander's Intent` heading, and any heading-extraction surface must recognize **both** intent headings (ADR 0014).
 - Anchor references by named construct, not line number — line numbers rot across the serial merge queue.

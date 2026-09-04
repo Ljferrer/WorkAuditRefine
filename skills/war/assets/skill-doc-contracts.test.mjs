@@ -150,6 +150,8 @@ const adr0012 = readFileSync(
 )
 const designRefMd = readFileSync(join(HERE, '..', 'references', 'design.md'), 'utf8')
 const fileFollowupsMd = readFileSync(join(HERE, '..', 'references', 'file-followups.md'), 'utf8')
+const auditorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-auditor.md'), 'utf8')
+const gastownMd = readFileSync(join(HERE, '..', 'references', 'gastown-design-params.md'), 'utf8')
 const warReviewSkillMd = readFileSync(
   join(HERE, '..', '..', 'war-review', 'SKILL.md'),
   'utf8',
@@ -2778,7 +2780,10 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
 // present at the plan's implementation base `a60221a` and retired by this task — the absence
 // asserts guard against a revert, never a never-present value; PIN-8).
 test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLAUDE.md Known-traps bullet carry the four-member shapes, closed phrasings retired (#1550)', () => {
-  // CONTEXT.md **Disposition** — four-member header, never-defaults pair, demote() ask refusal.
+  // CONTEXT.md **Disposition** — four-member header, the in-diff absorb default with its ask-only
+  // never-a-default tail (re-keyed by plan 2026-09-03-in-band-absorb-default Task 3.2 from the
+  // retired `absorb` and `ask` are never defaults pair; the old-default-absent row guards the pair
+  // absent), demote() ask refusal.
   const disposition = contextMd.match(/^\*\*Disposition\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(
     disposition,
@@ -2793,7 +2798,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   )
   for (const [re, what] of [
     [/\(`absorb` \| `follow-up` \| `note` \| `ask`\)/, 'the four-member header'],
-    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/fully specified Minor\/Nit defaults to `absorb`/, 'the in-diff absorb default'],
+    [/`follow-up` needs a tag from the \*\*Barrier list\*\*/, 'the barrier-list cross-reference'],
+    [/`ask` is never a default/, 'the ask-only never-a-default tail'],
     [/`demote\(\)`\s+refuses\s+an\s+ask/i, "the demote() ask refusal"],
     [/re-route\s+onto\s+`asks\[\]`/i, "the refusal's re-route-onto-`asks[]` arm"],
   ]) {
@@ -2843,7 +2850,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   )
   for (const [re, what] of [
     [/`absorb`\/`follow-up`\/`note`\/`ask`/, 'the four-member set'],
-    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/fully specified Minor\/Nit defaults to `absorb`/, 'the in-diff absorb default'],
+    [/`follow-up` needs a `barrier` tag/, 'the barrier-tag clause'],
+    [/`ask` is never a default/, 'the ask-only never-a-default tail'],
     [/unruled `ask` is never filed/i, 'the never-filed-unruled law'],
     [/Checkpoint strike-list gate/i, 'the strike-list ruling site'],
   ]) {
@@ -3135,7 +3144,11 @@ test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ru
   assert.ok(!/two producers above/i.test(s), 'the retired `two producers above` literal must be gone from SKILL.md (OLD-absent, base-verified; PIN-8)')
   // The per-phase disposition sentence (the Audits bullet) — widened form, old default literal retired.
   assert.match(s, /decision-shaped Minor\/Nit only the operator can rule/i, 'the Audits bullet must carry the ask arm')
-  assert.match(s, /`absorb` and `ask` are never defaulted/, 'the Audits bullet must carry the widened never-defaulted pair')
+  // Re-keyed by plan 2026-09-03-in-band-absorb-default Task 3.2: the widened pair `absorb` and
+  // `ask` are never defaulted retired with the in-diff absorb default (old-default-absent guards it).
+  assert.match(s, /a fully specified one defaults to `absorb`, `phaseClose:true` outside the task diff/, 'the Audits bullet must carry the in-diff absorb default')
+  assert.match(s, /needs a `barrier` tag/, 'the Audits bullet must carry the follow-up barrier-tag clause')
+  assert.match(s, /`ask` is never a default/, 'the Audits bullet must carry the ask-only never-a-default tail')
   assert.ok(!/`absorb` is never defaulted/.test(s), 'the retired single-member `absorb` is never defaulted literal must be gone from SKILL.md (OLD-absent, base-verified; PIN-8)')
 })
 
@@ -3619,4 +3632,111 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
         'PIN-16). Correct this row to a sanctioned rewording, never delete it',
     )
   }
+})
+
+// (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
+// LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
+// in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
+// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md, SKILL.md, design.md — the `*`
+// covers `defaults` and `defaulted`), `absorb` and `ask` never defaulted (gastown-design-params.md),
+// and the zero-token-gap `absorb` is never a default (the ADR rule-4 literal that once lived on
+// the card, `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — rule 7:
+// this row reads those three surfaces after the dep rebase). Detection runs on a NORMALIZED
+// surface — backticks and single and double quotes stripped, whitespace collapsed, case-folded —
+// so a single-quoted engine comment (`'absorb' and 'ask' are NEVER defaulted`), a wrapped
+// Markdown line, or a benign re-case cannot evade it (the recorded
+// [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]] lesson). The lawful rewrite keeps an
+// `ask`-only tail ("defaults to absorb; ask is never a default"), which shares no shape with the
+// three retired forms — the self-check below proves both halves of the detector. ADR 0013 is
+// exempt (append-only law): Decision 4's ratified clause survives byte-untouched, and the
+// 2026-09-04 amendment section carries the supersession — pinned present in row (b).
+const oldDefaultFlat = (s) => s.replace(/[`'"]/g, '').replace(/\s+/g, ' ').toLowerCase()
+const OLD_DEFAULT_SHAPES = [
+  [/absorb and ask are never default/, '`absorb` and `ask` are never default*'],
+  [/absorb and ask never defaulted/, '`absorb` and `ask` never defaulted'],
+  [/absorb is never a default/, '`absorb` is never a default (zero-token gap)'],
+]
+const OLD_DEFAULT_SURFACES = [
+  ['CLAUDE.md', claudeMd],
+  ['CONTEXT.md', contextMd],
+  ['agents/war-auditor.md', auditorCard],
+  ['skills/war/SKILL.md', skillMd],
+  ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
+  ['skills/war/references/design.md', designRefMd],
+  ['skills/war/references/gastown-design-params.md', gastownMd],
+  ['skills/war/references/schemas.md', schemasMd],
+]
+const oldDefaultHits = (text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
+
+test('old-default-absent (self-check) — the lawful rewrite passes and a body carrying only the two single-quoted comment sites reds', () => {
+  // Positive fixture: the sanctioned `ask`-only tail is not an OLD hit.
+  assert.deepEqual(
+    oldDefaultHits('A fully specified Minor/Nit defaults to `absorb`; `ask` is never a default.'),
+    [],
+    'the lawful rewrite "defaults to absorb; ask is never a default" must pass the detector',
+  )
+  // Negative fixture: a workflow-template.js body carrying ONLY the two retired single-quoted
+  // comment sites (the AUDIT_VERDICT schema comment and the dispositionOf header, as they read
+  // before Task 3.1) — quote-stripping, comment-prefix wrapping, and case-folding must all fire.
+  const retiredBody = [
+    "    // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → severity default",
+    "    // (Minor → follow-up, Nit → note; 'absorb' and 'ask' are never",
+    "    // defaulted). phaseClose:true routes an absorb to the phase-close queue.",
+    "    disposition: { enum: ['absorb', 'follow-up', 'note', 'ask'] },",
+    "// Disposition classification (ADR 0013; ask member #1550): Defaults when omitted:",
+    "// Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only",
+  ].join('\n')
+  assert.deepEqual(
+    oldDefaultHits(retiredBody),
+    ['`absorb` and `ask` are never default*'],
+    'a workflow-template.js body carrying only the two single-quoted comment sites must red on the detector',
+  )
+  // Each shape fires on its own base-verified literal (no shape is dead).
+  assert.deepEqual(oldDefaultHits('`absorb` and `ask` never defaulted (ADR 0013)'), ['`absorb` and `ask` never defaulted'])
+  assert.deepEqual(oldDefaultHits('Nit → note; `absorb` is never a default.'), ['`absorb` is never a default (zero-token gap)'])
+})
+
+test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces after normalization (End state 8)', () => {
+  for (const [name, text] of OLD_DEFAULT_SURFACES) {
+    const hits = oldDefaultHits(text)
+    assert.deepEqual(
+      hits,
+      [],
+      `${name} still carries the retired ${hits.join(' / ')} wording (OLD-absent, base-verified; ` +
+        'End state 8, D1/D2) — a fully specified Minor/Nit defaults to `absorb` now; only `ask` is ' +
+        'never a default',
+    )
+  }
+})
+
+test('old-default-absent (b) — every living surface carries the in-diff absorb default and ADR 0013 carries the 2026-09-04 amendment section', () => {
+  // The positive half: an emptied surface cannot satisfy the absence asserts vacuously.
+  for (const [name, text] of OLD_DEFAULT_SURFACES) {
+    assert.match(
+      oldDefaultFlat(text),
+      /defaults to absorb/,
+      `${name} must state that a fully specified Minor/Nit defaults to absorb (D1/D2; End state 8) — ` +
+        'the retired-shape asserts are only meaningful while the successor is present',
+    )
+  }
+  // The ADR home is exempt from the absence guard (append-only law) and instead pins the
+  // amendment section by construct: the dated heading through the NEXT H2 (or EOF).
+  const block = adr0013.match(/^## Amendment \(2026-09-04\)(?:(?!\n## )[\s\S])*/m)
+  assert.ok(block, 'ADR 0013 must carry the `## Amendment (2026-09-04)` in-diff absorb default section (Task 3.2)')
+  const a = norm(block[0])
+  for (const [re, what] of [
+    [/defaults to `absorb`/, 'the in-diff absorb default'],
+    [/`BARRIER_TOKENS`/, 'the barrier list name'],
+    [/`barrier:release-slot`, `barrier:underspecified`, `barrier:rationale-comment`/, 'the three follow-up barriers'],
+    [/`barrier:trade-off`/, 'the ask-route barrier'],
+    [/scope argument is never a barrier/i, 'the scope-argument exclusion'],
+    [/byte-untouched/, "Decision 4's byte-untouched clause"],
+  ]) {
+    assert.match(a, re, `the ADR 0013 2026-09-04 amendment must carry ${what}`)
+  }
+  assert.match(
+    adr0013,
+    /Nit → note; `absorb` is never a default\. Critical\/Major blocking is untouched\./,
+    "Decision 4's ratified clause must survive byte-untouched in ADR 0013 (append-only law)",
+  )
 })
