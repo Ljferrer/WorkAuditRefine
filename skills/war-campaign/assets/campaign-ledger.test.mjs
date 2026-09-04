@@ -1356,7 +1356,7 @@ test('files-union: a plan with one empty block and one full block does not throw
   assert.deepEqual(ledger.plans[0].files, ['src/real.js'])
 })
 
-test('files-union: a plan whose every `- Files:` block is a bare `TODO` placeholder throws unparseable footprint at init (empty UNION under the multi-block path)', () => {
+test('files-union: a plan whose every `- Files:` block is a sole non-path-shaped `TODO` token throws unparseable footprint at init (empty UNION under the multi-block path)', () => {
   // RED if the union arm ever returns a non-empty array from empty blocks.
   const root = tmpDir()
   const planPath = path.join(root, 'plan.md')

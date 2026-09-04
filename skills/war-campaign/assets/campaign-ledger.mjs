@@ -34,8 +34,10 @@ const FILES_ANCHOR = /^\s*(-\s+)?\*{0,2}Files?:\*{0,2}\s*/i
 // on a real /war-machine plan `- Files:` is immediately followed by `- Plan slice:`
 // with no blank line between, and without this break the backtick-heavy Plan-slice
 // prose bleeds into the block — its construct-name backticks defeat the
-// backtick-absence fallback in extractFiles, so a bare `- Files:` path is lost and
-// init throws `unparseable footprint` (a /red-team CRITICAL). The checkbox
+// backtick-absence fallback in extractFiles, so a bare `- Files:` path is dropped
+// from that block's contribution to the union (silently absorbed whenever any
+// sibling block parses); init throws `unparseable footprint` (a /red-team
+// CRITICAL) only when every block yields []. The checkbox
 // alternative is retained for the space-less `-[x]` form the plain-bullet pattern
 // would miss.
 const NEW_CONSTRUCT = /^\s*(#{1,6}\s|\*\*|-\s*\[[ xX]\]|-\s)/
