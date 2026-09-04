@@ -24,7 +24,10 @@ amendment below; amended 2026-09-04 — a fully specified in-diff Minor/Nit defa
 and `follow-up` needs a `BARRIER_TOKENS` tag, superseding Decision 4's "`absorb` is never a
 default" for that case; see the amendment below; amended 2026-09-04 (Phase 4) — with `run.ace` off a
 defaulted `absorb` routes `phaseClose:true` to the phase-close sweep, and every engine `follow-up`
-demotion carries a `DEMOTE_REASONS` prefix; see the amendment below)
+demotion carries a `DEMOTE_REASONS` prefix; see the amendment below; amended 2026-09-04
+(Phase 4, note reroute) — an in-diff `note` that names a fix reroutes to `absorb`, and
+gate-audit-family rows route like any seat's, so Decision 4's "never an issue" for `note` is bounded;
+see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -556,6 +559,31 @@ points:
   `file-followups.md` carry the new facts; the retired Residual-rule wording is guard-bound absent
   on `skills/war/SKILL.md` (`ace-off-route`). This ADR home stays exempt from that guard because
   the superseded clauses survive by design (append-only law).
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-09-04) — a note that names a fix reroutes to absorb; gate-audit-family rows route like any seat's
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 —
+D4, D15, PIN-17) bounds Decision 4's `note` clause on two points. Decision 4's ratified text and
+every amendment above stay byte-untouched; this note supersedes their *currency* (#2056):
+
+- **A note that names a fix reroutes to absorb.** The intake floor (`intakeFloor` in
+  `skills/war/assets/workflow-template.js`) turns an in-diff `note` carrying a `suggested_fix` into
+  `absorb`, and the gate-audit floor pass does the same over `phase_diff_files`. A rerouted note then
+  walks the absorb ladder like any absorb, so its terminal rungs can file: `demote:absorb-regressed`
+  at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase.
+  Decision 4's "`note` (report + servitor feed, never an issue)" therefore reads: never an issue
+  *as a note* — a note the floor rerouted is an absorb from that point on, and every such reroute is
+  logged.
+- **Gate-audit-family rows route like any seat's.** The per-task `execution-evidence`,
+  integrated-tip, and end-state seats' Minor/Nit findings route by disposition exactly as a wave
+  seat's do: a fully specified one goes `absorb` + `phaseClose:true` into the phase-close queue,
+  stamped with its seat label; `follow-up` needs a `barrier` tag; `ask` parks. The retired
+  `auditLog`-only sink no longer exists.
+- **Living-doc homes.** CONTEXT.md's **Disposition** and **Terminal pass** rows, `schemas.md`'s
+  disposition bullet, and `references/disposition-eligibility.md` carry the new facts.
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
 body text above — beyond the Status currency line — byte-unchanged.
