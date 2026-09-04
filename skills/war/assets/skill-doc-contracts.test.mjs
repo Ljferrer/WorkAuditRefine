@@ -4021,6 +4021,14 @@ test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and 
   assert.match(block[0], /^\s*sweepExcludeCount: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `sweepExcludeCount: … | null` row (PIN-8)')
   assert.match(block[0], /^\s*finalPhase: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `finalPhase: … | null` row (D3a)')
   assert.match(norm(manifest[0]), /`sweepExcludeCount` \/ `finalPhase`[^.]*stamped at phase launch/, 'the `## Run manifest` section must carry the `sweepExcludeCount` / `finalPhase` stamp bullet')
+  // schemas.md's own MUST-carry enumeration names the pair too (#2078 — deleting the two fields from
+  // that bullet alone used to stay green while the comment below claimed either surface reds).
+  const mustCarrySchemas = manifest[0].match(/^- \*\*MUST-carry\*\*[^\n]*$/m)
+  assert.ok(mustCarrySchemas, 'could not locate the `- **MUST-carry**` bullet in schemas.md § Run manifest — construct rotted')
+  assert.match(mustCarrySchemas[0], /`envelope` aggregates/, 'the schemas.md MUST-carry bullet must span its `envelope` aggregates tail — extraction truncated (non-vacuity floor)')
+  for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
+    assert.ok(mustCarrySchemas[0].includes(field), `the schemas.md MUST-carry bullet must list ${field} in the per-phase set (PIN-8; Task 6.1)`)
+  }
   // run-manifest.md is the cold home of the per-stamp procedure (the mirror of the schemas.md rows):
   // its `At phase launch` bullet and its MUST-carry sentence must both name the pair, so a one-sided
   // revert of either surface reds here (phase-6 sweep finding: the cold home had no drift guard).
