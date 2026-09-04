@@ -4064,7 +4064,7 @@ const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId
 // registration (Open decision 4) — bookkeeping is a Lead-side ledger entry + the handoff block.
 // Drain-cause stamp (Phase 6 Task 1 (d)): when a phase-close DISPATCH DIES (polish-worktree
 // provision or the sweep worker — a tagged env-died throw, or a dead dispatch returning nothing),
-// every finding the resulting drain demotes or carries carries WHICH dispatch died and WHY — an
+// every finding the resulting drain demotes or carries records WHICH dispatch died and WHY — an
 // in-band field on the finding row (rides minorsFiled, the escalation records, and carriedPhaseClose
 // into the next phase's seededPhaseClose; the field name is mechanism latitude), replacing the flat
 // untriaged dump. Ordinary non-death drains (invalid roster, panel non-approval) and the held-phase
