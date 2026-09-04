@@ -40,9 +40,12 @@ const FILES_ANCHOR = /^\s*(-\s+)?\*{0,2}Files?:\*{0,2}\s*/i
 // would miss.
 const NEW_CONSTRUCT = /^\s*(#{1,6}\s|\*\*|-\s*\[[ xX]\]|-\s)/
 
-// Consume each anchor line's remainder + continuation lines until a blank line
-// or a new construct (heading, bold, checkbox, or any new list item — the
-// list-item break keeps the block scoped to the Files line's own content).
+// Consume each anchor line's remainder + continuation lines until a blank line,
+// a new construct (heading, bold, checkbox, or any new list item — the
+// list-item break keeps the block scoped to the Files line's own content), or
+// the next Files: anchor itself (the dash-less bare `Files:` form matches no
+// NEW_CONSTRUCT alternative, so without this break two adjacent bare blocks
+// would merge into one whitespace-bearing segment that isPathShaped rejects).
 // Returns EVERY Files: block in the plan, in document order (D11): a multi-task
 // plan carries one block per task and the footprint is their union.
 function collectBlocks(lines) {
@@ -56,6 +59,7 @@ function collectBlocks(lines) {
       const line = lines[j]
       if (line.trim() === '') break
       if (NEW_CONSTRUCT.test(line)) break
+      if (FILES_ANCHOR.test(line)) break
       parts.push(line)
     }
     blocks.push(parts.join(' '))
