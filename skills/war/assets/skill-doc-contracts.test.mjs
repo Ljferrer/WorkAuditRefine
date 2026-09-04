@@ -3354,3 +3354,78 @@ test("D44 — CONTEXT.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026
     }
   }
 })
+
+// economy-ace-flip (2026-09-03 in-band-absorb-default Task 1.3, D14, PIN-16): the economy preset
+// no longer pins `run.ace: false` — every preset inherits `DEFAULTS.run.ace` (true), and `run.ace`
+// gates the per-task ace ladder only. Seven surfaces stated the old preset fact; the five below are
+// the ones this suite guards (Task 1.1 authored `war-room/SKILL.md` and `war-config.test.mjs`).
+// OLD-absent is LINE-SCOPED and case-folded: a single physical line holding `economy`, an `ace`
+// token, and `off`/`false` is a hit — line scope reaches both README statements and both halves
+// of war-room's one-line economy bullet, and never crosses a test boundary in war-config.test.mjs.
+const readmeMd = readFileSync(join(HERE, '..', '..', '..', 'README.md'), 'utf8')
+const warRoomMd = readFileSync(join(HERE, '..', '..', 'war-room', 'SKILL.md'), 'utf8')
+const warConfigTestSrc = readFileSync(join(HERE, 'war-config.test.mjs'), 'utf8')
+const ECONOMY_ACE_FLIP_SURFACES = [
+  ['README.md', readmeMd],
+  ['skills/war/SKILL.md', skillMd],
+  ['skills/war/references/schemas.md', schemasMd],
+  ['skills/war-room/SKILL.md', warRoomMd],
+  ['skills/war/assets/war-config.test.mjs', warConfigTestSrc],
+]
+// One physical line → OLD hit iff all three tokens co-occur on it (case-folded, token-bounded so
+// `offer`/`false-red` prose never false-reds and `preface`/`ace_diff_files` never counts as `ace`).
+const economyAceOffLines = (text) =>
+  text
+    .split('\n')
+    .map((l, i) => [i + 1, l.toLowerCase()])
+    .filter(([, l]) => /economy/.test(l) && /\bace\b/.test(l) && /\b(?:off|false)\b/.test(l))
+    .map(([n]) => n)
+
+test('economy-ace-flip — the line-scoped detector fires on the retired README/SKILL/schemas shapes (self-check)', () => {
+  // Negative reference: the three retired physical-line shapes, verbatim as they stood pre-flip.
+  // Deleting the detector's third clause would let these pass vacuously — assert it fires.
+  const retired = [
+    '| `--ace` | no | on via config `run.ace` (economy preset: off) | Fix nits on the spot |',
+    '  - **`--ace` (default on via `run.ace`; the economy preset pins it off).** With `run.ace`,',
+    '  // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);',
+    'a solo roster, a 2-round budget, and ace off. `/war-room` only ever asks (economy)',
+  ].join('\n')
+  assert.deepEqual(economyAceOffLines(retired), [1, 2, 3, 4])
+  // And a lawful post-flip line — all three words present but `ace` only as a sub-token — is clean.
+  assert.deepEqual(
+    economyAceOffLines('economy: ace_diff_files stays off; the preface is false'),
+    [],
+  )
+})
+
+test('economy-ace-flip — OLD-absent: no surface carries a line pairing economy, an ace token, and off/false', () => {
+  for (const [surface, text] of ECONOMY_ACE_FLIP_SURFACES) {
+    const hits = economyAceOffLines(text)
+    assert.deepEqual(
+      hits,
+      [],
+      `${surface} line(s) ${hits.join(', ')} still state the retired "economy pins ace off" fact ` +
+        '(D14, PIN-16) — every preset inherits run.ace on; rewrite the line, never drop this row',
+    )
+  }
+})
+
+test('economy-ace-flip — NEW-present: every surface carries the inherited-on fact', () => {
+  for (const [surface, text, key, what] of [
+    ['README.md', readmeMd, /`--ace` \| no \| on via config `run\.ace` \(default `true`; every preset inherits it on\)/, 'the `--ace` row'],
+    ['README.md', readmeMd, /`run\.ace` stays inherited on \(no preset pins the ace ladder/, 'the today\'s-defaults economy sentence'],
+    ['skills/war/SKILL.md', skillMd, /\*\*`--ace` \(default on via `run\.ace`; every preset inherits it on\)\.\*\*/, 'the `--ace` bullet'],
+    ['skills/war/references/schemas.md', schemasMd, /\/\/ ace = gates the per-task ace ladder only \(.*default true; every preset inherits it on\)/, 'the `ace` config comment'],
+    ['skills/war-room/SKILL.md', warRoomMd, /\*\*economy\*\*[^\n]*`run\.ace` inherited on/, 'the economy preset bullet'],
+    ['skills/war-room/SKILL.md', warRoomMd, /`run\.ace` \(bool[^\n]*default `true`\)/, 'the run.ace whitelist row'],
+    ['skills/war/assets/war-config.test.mjs', warConfigTestSrc, /preset-ace-on/, 'the preset-ace-on census fixture'],
+    ['skills/war/assets/war-config.test.mjs', warConfigTestSrc, /assert\.equal\(c\.run\.ace, true\)/, 'the economy-inherits assertion'],
+  ]) {
+    assert.match(
+      text,
+      key,
+      `${surface} must carry ${what} stating run.ace is inherited on by every preset (D14, ` +
+        'PIN-16). Correct this row to a sanctioned rewording, never delete it',
+    )
+  }
+})
