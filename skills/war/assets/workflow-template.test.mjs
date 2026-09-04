@@ -4419,8 +4419,8 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
     `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(/
   for (let k = 0; k < sites.length; k++) {
-    const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
-    const slice = src.slice(i, Math.min(i + 2600, end))
+    const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm (the only cap)
+    const slice = src.slice(i, end)
     const askIdx = slice.indexOf("=== 'ask'")
     assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
     const parkIdx = slice.indexOf('parkAsk(')
@@ -11271,7 +11271,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // the same merge-base shell substitution const the evItems fallback uses — a template-built
   // string, always defined. tip (D4): the diff-probe prompt's task tip — a const with an explicit
   // 'HEAD' fallback when the worker returned no usable head_sha — construction-guaranteed a string.
-  'phaseBaseCmd', 'tip',
+  // probeBase (phase-4 polish): the diff-probe base ref — a ternary over task.taskType that yields
+  // ph.integrationBranch (entry-validated) or task.targetBase with its '<targetBase>' fallback —
+  // construction-guaranteed a string.
+  'phaseBaseCmd', 'tip', 'probeBase',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
@@ -11828,9 +11831,10 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
   assert.ok(p.includes('task-owned test file'), 'widening (2): new-test eligibility (D4)')
   assert.ok(p.includes('trade-off') && p.includes('routes ask'), 'widening (3): trade-off-ask routing (D5)')
   assert.ok(p.includes('citation') && p.includes('NO-match'), 'the citation arm and its ambiguity-is-no-match floor ride the dispatched block (D6, PIN-6)')
-  // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror; its ask-only
-  // never-defaulted tail is the in-band-absorb-default D1 shape) — the widenings are a separate appended block.
-  assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE sentence survives byte-untouched (the ask-only never-defaulted tail)')
+  // The DISPOSITION RULE sentence's ask-only never-defaulted TAIL survives (the in-band-absorb-default
+  // D1 shape) — the widenings are a separate appended block. The whole-sentence byte-mirror pin is the
+  // `latitude + disposition rules (criterion 8)` DISPO const, not this assert.
+  assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE ask-only never-defaulted tail survives')
   assert.ok(/born at a re-audit/i.test(eligibilityMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
   assert.ok(/trade-off/i.test(eligibilityMd), 'standing home carries the trade-off routing rule')
 })
@@ -13818,6 +13822,16 @@ test('filing-floor — the diff-probe dispatch runs per task after the worker\'s
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'diff-probe').length, 1, 'exactly one probe per task')
 })
 
+test('filing-floor — a submodule task\'s diff probe resolves its base against the task targetBase, never the superproject integration branch (absent in the submodule checkout)', async () => {
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Sub task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }],
+    taskType: 'submodule', targetRepo: 'vendor/lib', targetBase: 'main' }] })
+  const { calls } = await runPhase(args, floorImpl([]), PROBE)
+  const p = calls.find(c => c.opts.dispatchKind === 'diff-probe')
+  assert.ok(p, 'the diff probe dispatched for the submodule task (presence guard)')
+  assert.ok(p.prompt.includes('merge-base main deadbeef'), 'the probe range is merge-base(targetBase, tip)..tip')
+  assert.ok(!p.prompt.includes('merge-base integration/wtprov-a/phase-3'), 'the superproject integration ref never appears in the submodule probe')
+})
+
 test('filing-floor — an omitted-disposition in-diff Minor with a suggested_fix defaults absorb and rides the task\'s ace batch, never the sweep', async () => {
   const f = minor({ title: 'specified in-diff', suggested_fix: 'rename it' })
   const { out, calls } = await runPhase(SWEEP_ARGS(), floorImpl([f]), PROBE)
@@ -14251,7 +14265,7 @@ test('gate-audit-route — end-state-only arm (phase_diff_files structurally abs
   const { out, calls, logs } = await runPhase(args, p4Base({ seatsOf }))
   assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat convened')
   assert.ok(!calls.some(c => /^evidence:phase-/.test(c.opts.label || '')), 'presence guard: no evidence dispatch on this arm — phase_diff_files is structurally absent')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass REROUTED') && l.includes('end-state omitted disposition') && l.includes('phase_diff_files absent')), 'the reroute is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit-family absorb (gate-audit:phase-3:end-state)')), 'the row routes to the sweep as a gate-audit-family absorb (the empty-Set dispositionOf read; reverted, it files as a barrierless follow-up)')
   assert.ok(polishPromptOf(calls).includes('end-state omitted disposition'), 'the row rides the sweep')
   const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'end-state omitted disposition')
   assert.ok(aced && aced.finding.phaseClose === true && aced.finding.seat === 'gate-audit:phase-3:end-state', 'absorb + phaseClose:true, stamped with the seat label')

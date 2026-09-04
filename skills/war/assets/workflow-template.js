@@ -2813,7 +2813,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // DIFF PROBE (in-band-absorb-default D4, PIN-6): ONE refiner dispatch per task between the
       // worker's green return and the seat convene — `git diff --name-only <dispatchBase>..<tip>` in
       // the task worktree, the dispatch base being the merge-base of the integration branch and the
-      // tip (the frozen phase base every worktree was cut from). Read-only and idempotent on resume
+      // tip (the frozen phase base every worktree was cut from). SUBMODULE ARM: a submodule task's
+      // worktree is the submodule checkout, where the superproject integration ref does not exist,
+      // so its base is the task's targetBase (the same split repoOf/targetBase already model on the
+      // evidence dispatch and the worker prompt). Read-only and idempotent on resume
       // (the same range yields the same list; a replay re-dispatches harmlessly). Its diff_files feed
       // dispositionOf's engine default and the intake filing floor; worker files_changed is never the
       // source. FAIL-OPEN: a dead/thrown dispatch or a return without a diff_files array leaves the
@@ -2821,11 +2824,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // skipped (its filed seat rows carry demote:floor-skipped). Never a hold, never a fix loop.
       {
         const tip = (typeof impl.head_sha === 'string' && impl.head_sha) ? impl.head_sha : 'HEAD'
+        const probeBase = task.taskType === 'submodule' ? (task.targetBase || '<targetBase>') : ph.integrationBranch
         let probe = null
         try {
           probe = await dispatch(
             pt`DIFF PROBE for WAR task ${task.id} (you are the refiner; a read-only git read, no merge, no push, no rebase, no gate). `
-            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${task.worktree} diff --name-only $(git -C ${task.worktree} merge-base ${ph.integrationBranch} ${tip})..${tip} — the dispatch base is the merge-base of the integration branch and the task tip. `
+            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${task.worktree} diff --name-only $(git -C ${task.worktree} merge-base ${probeBase} ${tip})..${tip} — the dispatch base is the merge-base of ${probeBase} (the integration branch; for a submodule task, the submodule base) and the task tip. `
             + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
             { agentType: NS + 'war-refiner', phase: 'Audit', label: 'diff-probe:' + task.id, dispatchKind: 'diff-probe', schema: DIFF_PROBE_RESULT, ...spawn('refiner') })
         } catch (err) {
@@ -3879,11 +3883,12 @@ if (mergedTasksForGateAudit.length > 0) {
 // trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix is
 // non-empty and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
 // ⇒ the note arm skips with a log while the follow-up arm still reroutes, and NO demote:floor-skipped
-// comes from this pass; an omitted-disposition fully specified row reads absorb (dispositionOf over
-// the phase diff), an unspecified one keeps the severity default; with phase_diff_files ABSENT an
-// omitted-disposition fully specified row STILL reads absorb + phaseClose:true (the sweep is the only
-// lane left, no diff check — the end-state-only arm never stamps phase_diff_files, so without this
-// arm a Minor would file barrierless, breaching PIN-17). A release-slot file demotes at birth
+// comes from this pass; an omitted-disposition fully specified row reads absorb + phaseClose:true
+// (dispositionOf over an EMPTY Set — gate-audit rows never join a task ace batch, so in-diff
+// membership carries no meaning here and the sweep is the only lane left, with or without
+// phase_diff_files; the end-state-only arm never stamps phase_diff_files, and a Minor there would
+// otherwise file barrierless, breaching PIN-17), an unspecified one keeps the severity default. A
+// release-slot file demotes at birth
 // (demote:release-slot, PIN-11). auditLog keeps every record — it is no longer the only sink.
 const routeGateAuditRows = () => {
   if (!gateAuditRows.length) return
@@ -3892,12 +3897,10 @@ const routeGateAuditRows = () => {
   for (const f of gateAuditRows.splice(0)) {
     const fix = typeof f.suggested_fix === 'string' && f.suggested_fix.trim().length > 0
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
-    let d = dispositionOf(f, phaseDiffFiles)
+    // Empty Set, never phaseDiffFiles: gate-audit rows never join a task ace batch, so every fully
+    // specified omitted row absorbs + phaseClose:true (out-of-diff arm) — with or without a diff.
+    let d = dispositionOf(f, new Set())
     if (d === 'ask') { parkAsk(f); continue }       // ask precedes the absorb chain (#1550, D7)
-    if (noteArmSkipped && f.disposition == null && fix) {   // no diff ⇒ specified omitted row still absorbs (D15, PIN-17; header comment)
-      d = 'absorb'; f.phaseClose = true
-      log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') omitted disposition with a specified fix, phase_diff_files absent → absorb + phaseClose:true (no diff check; D15).')
-    }
     if (f.disposition === 'follow-up') {
       if (!barrier) { d = 'absorb'; f.phaseClose = true; log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') follow-up carried no barrier tag → absorb + phaseClose:true (the sweep is the only lane left; follow-up is legal only with a BARRIER_TOKENS member, D15).') }
       else if (barrier === 'barrier:trade-off') {
@@ -4002,6 +4005,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       if (n === 0) log('campaign contention set empty for ' + A.sweepExclude.length + ' entries (args.sweepExclude present; no files) — the in-phase and release-slot arms still run.')
     } else log('no campaign contention set threaded (args.sweepExclude absent) — the in-phase and release-slot arms still run.')
     for (const t of (tasks || [])) if (!succeeded.has(t.id)) for (const p of (Array.isArray(t.files) ? t.files : [])) claim(p, 'task ' + t.id)
+    // The plan's literal union member; subsumed by the isReleaseSlotFile fallback on the owner lookup below, which catches the same basenames in any directory.
     for (const p of RELEASE_SLOT_FILES) claim(p, 'the release slot')
     const kept = []
     for (const f of phaseCloseQueue.splice(0)) {

@@ -551,6 +551,19 @@ points:
   `demote:absorb-regressed`. Each engine-filed issue body carries the prefix on its first
   `Demote-Reason:` line; the Checkpoint's `--afk` no-match ask lane files Lead-side with
   `demote:ask-unruled-afk`.
+- **A `note` that names a fix reroutes to `absorb`, and gate-audit-family rows route like any
+  seat's.** Decision 4's `note` = "report + servitor feed, never an issue" is superseded in currency
+  for one case: an in-diff `note` carrying a `suggested_fix` reroutes to `absorb` at the intake
+  floor (its file in the task's git-derived `diff_files`), and the gate-audit floor pass does the
+  same over `phase_diff_files`. A rerouted note walks the absorb ladder like any absorb — a
+  rerouted note that finally fails its absorb attempt demotes with a `DEMOTE_REASONS` prefix
+  (`demote:absorb-regressed` at an ace re-audit regression, `demote:sweep-discarded` at a
+  discarded sweep) and files like any demoted absorb. A note without a fix keeps its
+  classification. The three gate-audit-family seats (`execution-evidence`, integrated-tip,
+  end-state) route Minor/Nit rows like any seat's (PIN-17): `absorb` + `phaseClose:true` to the
+  sweep or the terminal pass through one task-less floor pass, `follow-up` only with a `barrier`
+  tag (a barrierless one reroutes to `absorb` + `phaseClose:true`), `ask` parks; the retired
+  `auditLog`-only sink was never recorded here and is gone.
 - **Living-doc homes.** CONTEXT.md's **Demote reason prefix** row, `skills/war/SKILL.md`'s `--ace`
   bullet (the rewritten Residual rule), `schemas.md`'s `barrier` provenance row, and
   `file-followups.md` carry the new facts; the retired Residual-rule wording is guard-bound absent
