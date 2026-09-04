@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS } from './land-decision.mjs'
+import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const readAsset = (rel) => readFileSync(join(HERE, rel), 'utf8')
@@ -72,6 +72,37 @@ test('barrier-list — BARRIER_TOKENS is exactly the four canonical members, bar
     assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} is never a landDecision value`)
   }
   assert.ok(!BARRIER_TOKENS.some(t => /scope/i.test(t)), 'a scope argument is never a barrier (PIN-2)')
+})
+
+// ---- RELEASE_SLOT_FILES (in-band-absorb-default D2, PIN-3/PIN-11) — the two pure version-slot JSONs ----
+// Exactly two members, nothing else (README's `## Status` blurb is version-slots.test.mjs's, never
+// this list's); the inline hand-mirror in workflow-template.js derives the basename refusal from it.
+test('sweep-exclude — RELEASE_SLOT_FILES is exactly the two pure version-slot JSONs, repo-relative, disjoint from every land-path enum', () => {
+  assert.deepEqual(RELEASE_SLOT_FILES, ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json'], 'the canonical two, in order (D2)')
+  assert.equal(new Set(RELEASE_SLOT_FILES).size, 2, 'no dupes')
+  for (const p of RELEASE_SLOT_FILES) {
+    assert.ok(!p.startsWith('/') && !p.startsWith('./'), `${p} is a bare repo-relative path`)
+    assert.ok(/\.json$/.test(p), `${p} is a JSON slot`)
+    assert.ok(!HARD_ESCALATION_REASONS.includes(p) && !SOFT_ENV_REASONS.includes(p) && !KNOWN_LAND_DECISIONS.includes(p) && !BARRIER_TOKENS.includes(p), `${p} is never a member of a land-path or barrier enum`)
+  }
+  assert.ok(!RELEASE_SLOT_FILES.some(p => /README/i.test(p)), 'README.md is never a release-slot file (its Status blurb has its own guard)')
+})
+
+// ---- DEMOTE_REASONS (in-band-absorb-default D13, PIN-15) — the closed follow-up demotion prefix enum ----
+// Twelve members, every one `demote:`-prefixed, `demote:unclassified` among them (the runtime miss
+// arm's own member); disjoint from every land-path enum and from BARRIER_TOKENS.
+test('demote-census — DEMOTE_REASONS is exactly the twelve canonical prefixes, demote:-prefixed, with demote:unclassified a member, disjoint from every land-path and barrier enum', () => {
+  assert.deepEqual(DEMOTE_REASONS, ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified'],
+    'the canonical twelve, in order (D13)')
+  assert.equal(new Set(DEMOTE_REASONS).size, 12, 'no dupes')
+  assert.ok(DEMOTE_REASONS.includes('demote:unclassified'), 'the miss arm prepends a MEMBER, so the prefix line is never blank')
+  for (const t of DEMOTE_REASONS) {
+    assert.ok(/^demote:[a-z-]+$/.test(t), `${t} carries the demote: prefix and a kebab-case member name`)
+    assert.ok(!HARD_ESCALATION_REASONS.includes(t), `${t} is never a HARD_ESCALATION_REASONS member`)
+    assert.ok(!SOFT_ENV_REASONS.includes(t), `${t} is never a SOFT_ENV_REASONS member`)
+    assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} is never a landDecision value`)
+    assert.ok(!BARRIER_TOKENS.includes(t), `${t} is never a barrier token (a seat cites barriers; the engine cites demote prefixes)`)
+  }
 })
 
 // ---- SOFT_ENV_REASONS (#1411, Task 2.1(c)(ii)) — the #236/#639 census discipline, extended ----
