@@ -20,7 +20,9 @@ trigger — filing parity itself untouched); see the amendment below; amended 20
 merge-slot pin-transfer mismatch re-audit is a fourth re-audit source that never re-enters; see
 the amendment below; amended 2026-09-03 — the per-task absorb budget (`absorbRounds <
 run.absorbRounds`) supersedes the floor-retry reserve as the ace ladder's stop condition; see the
-amendment below)
+amendment below; amended 2026-09-04 — a fully specified in-diff Minor/Nit defaults to `absorb`
+and `follow-up` needs a `BARRIER_TOKENS` tag, superseding Decision 4's "`absorb` is never a
+default" for that case; see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -483,6 +485,38 @@ slots held back for the merge-floor retry loop. That arithmetic is **superseded*
   2026-08-31 amendment's reserve sentences ("names the floor-retry reserve their sole bound" and
   "The reserve therefore bounds the three wave-side sources only") are historical on the same
   terms: ratified, byte-untouched, and describing the pre-absorb-budget boundary.
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-09-04) — the in-diff `absorb` default and the barrier list
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 3 —
+D1, D2, PIN-1, PIN-2) flips the seat-side default for one case. Decision 4's ratified clause
+"Defaults when omitted: Minor → follow-up, Nit → note; `absorb` is never a default" stays
+byte-untouched; this note supersedes its *currency* for the fully specified case only:
+
+- **The in-diff default is `absorb`.** A `Minor`/`Nit` with a non-empty `suggested_fix` whose
+  file is in the task diff defaults to `absorb`; one whose file is outside the task diff defaults
+  to `absorb` + `phaseClose:true` (the phase-close sweep, under the exclusion set). The seat reads
+  the diff and sets that disposition itself (the standing card and the dispatched DISPOSITION RULE
+  carry the sentence, byte-mirrored). `dispositionOf`'s omitted-disposition engine default stays
+  the severity default (Minor → `follow-up`, Nit → `note`) through Phase 3; Phase 4's git-derived
+  diff probe makes the engine apply the same default deterministically. `ask` is never a default.
+- **The barrier list.** On such a finding `follow-up` is legal only with a barrier cited in the
+  structured `barrier` field of the finding (AUDIT_VERDICT, optional enum), never as prose. The
+  list is exactly `BARRIER_TOKENS`, canonical in `skills/war/assets/land-decision.mjs` and
+  hand-mirrored in `workflow-template.js` with a mirror-registry row: `barrier:release-slot`,
+  `barrier:underspecified`, `barrier:rationale-comment` (three follow-up barriers) and
+  `barrier:trade-off` (an `ask` route — the trade-off is the fork). A scope argument is never a
+  barrier; the why-not-absorbable prose stays free text beside the tag. Body:
+  `skills/war/references/disposition-eligibility.md` § Barrier list.
+- **Living-doc homes.** `CLAUDE.md`'s Known-traps bullet, CONTEXT.md's **Disposition** and
+  **Barrier list** rows, `skills/war/SKILL.md`'s Audits bullet, `design.md` §18,
+  `gastown-design-params.md`, `schemas.md`'s AuditVerdict row, `agents/war-auditor.md`, and the
+  dispatched rule carry the new default; the three retired `absorb`-is-never-a-default wordings
+  are guard-bound absent there (`old-default-absent`). This ADR home stays exempt from
+  that guard because Decision 4's clause survives by design (append-only law).
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
 body text above — beyond the Status currency line — byte-unchanged.

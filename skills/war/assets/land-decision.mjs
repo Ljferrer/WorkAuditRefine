@@ -53,3 +53,16 @@ export function decideLand({ landed = [], escalated = [] } = {}) {
   if (hard) return 'held:escalation'
   return 'held:nothing-merged'
 }
+
+// BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2): the seat's structured `barrier` enum — the
+// only lawful reasons a fully specified in-diff Minor/Nit routes `follow-up` instead of the `absorb`
+// default. Three follow-up barriers plus one ask-routing tag: 'barrier:release-slot' (release-slot
+// file), 'barrier:underspecified' (fix not fully specified), 'barrier:rationale-comment' (the fix
+// removes or edits a line carrying a `ponytail:` / deliberate-mirror rationale comment), and
+// 'barrier:trade-off' (behavior change with a nameable trade-off — meant for `ask`). A scope argument
+// is never a barrier. Finding-level tokens only: NEVER members of HARD_ESCALATION_REASONS,
+// SOFT_ENV_REASONS, or KNOWN_LAND_DECISIONS. MIRRORED inline in ./workflow-template.js (the Workflow
+// sandbox can't import) — keep in sync; the D2 mirror-registry `barrier-list` rows in
+// workflow-template.test.mjs bind the inline copy, the auditor card sentence, the
+// disposition-eligibility.md list, and the schemas.md AuditVerdict `barrier?` row to this export.
+export const BARRIER_TOKENS = ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']
