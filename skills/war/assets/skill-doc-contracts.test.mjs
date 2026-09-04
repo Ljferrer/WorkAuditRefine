@@ -3885,6 +3885,7 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
     assert.match(a, re, `the ADR 0013 Phase 4 amendment must carry ${what}`)
   }
   const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
   const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
   assert.deepEqual(
     [...new Set(a.match(/demote:[a-z-]+/g) || [])].sort(),

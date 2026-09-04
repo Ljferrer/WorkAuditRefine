@@ -535,9 +535,8 @@ points:
   off, a defaulted `absorb` (in-diff or out-of-diff, seat-set or floor-rerouted) routes
   `phaseClose:true` to the phase-close sweep under the exclusion set and never demotes on the
   ace-off path. The two "absorb requires --ace" demote arms in `workflow-template.js` are retired;
-  the 2026-08-20 amendment's ace-off demotion narration and the `--ace` bullet's retired "with
-  `--ace` off every absorb demotes this way" Residual-rule wording describe the pre-Phase-4 ladder
-  and are historical. Every preset resolves `run.ace === true`; a user config may still set it
+  the `--ace` bullet's retired "with `--ace` off every absorb demotes this way" Residual-rule
+  wording describes the pre-Phase-4 ladder and is historical. Every preset resolves `run.ace === true`; a user config may still set it
   false.
 - **Every engine `follow-up` demotion carries a `DEMOTE_REASONS` prefix.** The closed prefix enum
   is canonical in `skills/war/assets/land-decision.mjs` and hand-mirrored in
