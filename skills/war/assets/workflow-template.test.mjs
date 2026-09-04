@@ -8684,6 +8684,15 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'barrier-list — schemas.md AuditVerdict barrier row', mode: 'deepEqual',
       canonical: BARRIER_TOKENS,
       extractInline: () => barrierTokensIn(windowOf(schemasMd, 'barrier?,', '\n')) },
+    // Widening (1) restates the barrier rule on two live surfaces (the dispatched DISPOSITION WIDENINGS
+    // literal and the eligibility doc's numbered item 1). It names three of the four members, so these
+    // two rows are subset-mode (membership, minCount 3): a misspelled or dropped token in widening (1) reds.
+    { name: 'barrier-list — dispatched DISPOSITION WIDENINGS (1) barrier tokens', mode: 'subset', minCount: 3,
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(src, 'DISPOSITION WIDENINGS: (1)', '\n')) },
+    { name: 'barrier-list — disposition-eligibility.md item 1 barrier tokens', mode: 'subset', minCount: 3,
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(eligibilityMd, '1. **Re-audit-born default-absorb (D3).**', '\n2. ')) },
     { name: 'landDecision known set', mode: 'subset',
       canonical: KNOWN_LAND_DECISIONS,
       extractInline: extractLandDecisionLiterals },
@@ -8719,7 +8728,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 13, 'the mirror registry lists at least the thirteen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 15, 'the mirror registry lists at least the fifteen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, the two widening-(1) barrier subset rows, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -8727,8 +8736,9 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
         `${row.name}: inline mirror deepEquals the canonical export (order-insensitive)`)
     } else if (row.mode === 'subset') {
       const inline = row.extractInline()
-      assert.ok(inline.length >= 6,
-        `${row.name}: the extractor found at least the 6 emitted literals (sanity — got ${JSON.stringify(inline)})`)
+      const minCount = row.minCount ?? 6
+      assert.ok(inline.length >= minCount,
+        `${row.name}: the extractor found at least the ${minCount} emitted literals (sanity — got ${JSON.stringify(inline)})`)
       for (const v of inline) {
         assert.ok(row.canonical.includes(v), `${row.name}: inline literal '${v}' is a member of the canonical known set`)
       }
@@ -8818,7 +8828,7 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
   const oldLiterals = [...new Set([...naiveTwoStepStrip(mutated).matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
   assert.ok(!oldLiterals.includes('held:bogus'),
     'the old two-step preparation LOSES held:bogus (assigned inside the deleted 42k span) — the #929 subset-row gap this narrowing closes')
-  // The MIRROR_REGISTRY subset row's >= 6 sanity floor and membership semantics are unchanged — only the
+  // The MIRROR_REGISTRY landDecision subset row's >= 6 sanity floor (the minCount default) and membership semantics are unchanged — only the
   // extractor's text preparation narrowed; the live extractor still returns its 6 real landDecision values.
   assert.ok(extractLandDecisionLiterals(src).length >= 6, 'the live extractor still finds at least the 6 emitted landDecision literals (unchanged semantics)')
 })
