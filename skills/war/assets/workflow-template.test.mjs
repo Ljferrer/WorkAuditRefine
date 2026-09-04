@@ -19,6 +19,7 @@ const gateAuditChecklistMd = readFileSync(join(here, '../references/gate-audit-c
 // teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
 const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
 const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'utf8')
+const schemasMdForAbsorb = readFileSync(join(here, '../references/schemas.md'), 'utf8')   // read surface for the absorb-budget both-surfaces fixture (#2027)
 // Relocated surface (in-band-absorb-default D12, ADR 0042): Task 2.1 evicted `## Gate-failure
 // classification` byte-identical from the card into this reference file (the card keeps the heading
 // and the trigger pointer) — presence keys over the moved procedure relocate their read here.
@@ -13658,7 +13659,6 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
   // PIN-13 source-shape pin: the merge-slot seed keeps its never-lowering Math.max form (resume-only defence, PIN-7).
   assert.match(src, /r\.task\.fixRounds = Math\.max\(Number\.isInteger\(r\.task\.fixRounds\) \? r\.task\.fixRounds : 0, r\.round \?\? 0\)/, 'the merge-slot fixRounds seed keeps the never-lowering Math.max form')
 })
-const schemasMdForAbsorb = readFileSync(join(here, '../references/schemas.md'), 'utf8')
 
 test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbRounds ?? <n>` fallback equals DEFAULTS.run.absorbRounds, and the three ace gates read absorbRounds — the retired reserve arithmetic is absent', () => {
   const m = src.match(/const\s+absorbRounds\s*=\s*run\.absorbRounds\s*\?\?\s*(\d+)/)
