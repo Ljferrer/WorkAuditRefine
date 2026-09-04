@@ -13510,7 +13510,7 @@ test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbChar
     if (name === 'malformed entry') assert.ok(!seedLog.includes('map lacks the task'), `${name}: the 0-seed line never claims the map lacks the task`)
     const ace = calls.find(isAce)
     assert.equal(ace && ace.opts.label, 'ace:t1:a1', `${name}: the ladder starts at slot 1`)
-    assert.ok(!(calls.some(c => (c.opts.label || '') === 'work:t1') === false), `${name}: the worker still dispatched — never a hold`)
+    assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), `${name}: the worker still dispatched — never a hold`)
   }
 })
 
