@@ -10,7 +10,7 @@ import {
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
-import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, decideLand } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -2472,6 +2472,17 @@ test('drift-guard(F07): inline SOFT_ENV_REASONS equals the canonical export exac
     'inline SOFT_ENV_REASONS must equal the canonical export exactly (no divergence)')
 })
 
+test('drift-guard(F07): barrier-list — inline BARRIER_TOKENS equals the canonical export exactly (in-band-absorb-default D1)', () => {
+  // The seat's structured `barrier` enum is canonical in land-decision.mjs with a hand-mirrored inline
+  // copy above AUDIT_VERDICT (the schema enum and the dispatched DISPOSITION RULE render from it).
+  // Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+BARRIER_TOKENS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'BARRIER_TOKENS not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...BARRIER_TOKENS].sort(),
+    'inline BARRIER_TOKENS must equal the canonical export exactly (no divergence)')
+})
+
 // ---------------------------------------------------------------------------
 // Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
 // ---------------------------------------------------------------------------
@@ -2480,6 +2491,7 @@ test('drift-guard(F07): inline SOFT_ENV_REASONS equals the canonical export exac
 //   the landDecision marker → logic-mirror covering landDecision (decideLand)
 //   the HARD_ESCALATION_REASONS marker → logic-mirror (same decideLand block)
 //   the SOFT_ENV_REASONS marker (#1411) → logic-mirror (its own inline-equality drift test)
+//   the BARRIER_TOKENS marker (in-band-absorb-default D1) → logic-mirror (its own inline-equality drift test)
 //   the run.provision data-mirror marker → data-mirror (field names) — allowlisted, no behavioral test
 // A marker not in either registry → test fails.
 
@@ -2510,6 +2522,10 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     // → covered by its own inline-equality drift test (the D2 registry row in
     // workflow-template.test.mjs deepEquals the pair independently).
     ['SOFT_ENV_REASONS mirrors', ['drift-guard(F07): inline SOFT_ENV_REASONS']],
+    // Marker (in-band-absorb-default D1): "BARRIER_TOKENS mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `barrier-list` rows in
+    // workflow-template.test.mjs bind the card sentence and the eligibility-doc list too).
+    ['BARRIER_TOKENS mirrors', ['drift-guard(F07): barrier-list — inline BARRIER_TOKENS']],
     // Marker (absorb-budget, D5): "Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync"
     // → covered by the absorbRounds fallback drift guard (the roundLimit-fallback idiom).
     ['Mirror of DEFAULTS.run.absorbRounds', ['drift-guard(F07): absorb-budget — absorbRounds fallback']],
@@ -2598,13 +2614,13 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — exactly 6 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback)', () => {
+test('meta-guard(F07): sanity — exactly 7 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback; BARRIER_TOKENS)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // Anchored by construct, not line number. If you add a new mirror, update BOTH the
   // registry/allowlist above AND bump this count.
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
-  assert.equal(count, 6,
-    `Expected exactly 6 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+  assert.equal(count, 7,
+    `Expected exactly 7 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })

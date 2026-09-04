@@ -5,12 +5,16 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS } from './land-decision.mjs'
+import { createHash } from 'node:crypto'
+import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
+// (auditor-evict, D16) the references home of the evicted `execution-evidence` gate-audit checklist —
+// every assert that reads a checklist DUTY reads this file; heading + trigger pointer stay on the card.
+const gateAuditChecklistMd = readFileSync(join(here, '../references/gate-audit-checklist.md'), 'utf8')
 // UNION surface (prompt-surface simplification, adjudication I): Task 3.1 evicted the guard-contract
 // teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
 const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
@@ -4109,19 +4113,21 @@ const bare = (over = {}) => ({ severity: 'Nit', title: 'bare', file: 'skills/war
 
 // --- Disposition routing (criteria 1/2/3) ---
 
-test('disposition defaults (criterion 3): omitted+Minor → minorsFiled, omitted+Nit → notes, absorb never defaulted', async () => {
+test('disposition defaults (criterion 3): omitted+Minor → minorsFiled, omitted+Nit → notes — the engine severity default holds until the Phase 4 diff-probe floor', async () => {
   const minor = bare({ severity: 'Minor', title: 'minor default' })
   const nitF = bare({ severity: 'Nit', title: 'nit default' })
   const { out, calls } = await runPhase(ACE_ARGS(), aceBase([minor, nitF]))
-  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces (absorb and ask are never defaults).
-  assert.ok(!calls.some(isAce), 'no ace dispatch for dispositionless findings even under run.ace (absorb never defaulted)')
+  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces: dispositionOf's engine default
+  // stays the severity default through Phase 3 (the seat applies the in-diff absorb default itself;
+  // the Phase 4 diff-probe floor moves it into the engine — in-band-absorb-default D1).
+  assert.ok(!calls.some(isAce), 'no ace dispatch for dispositionless findings even under run.ace (the engine severity default holds)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'minor default'), 'omitted+Minor → minorsFiled (follow-up default)')
   assert.ok(!(out.notes || []).some(n => n && n.title === 'minor default'), 'the Minor is not in notes')
   assert.ok((out.notes || []).some(n => n && n.title === 'nit default'), 'omitted+Nit → notes (note default)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'nit default'), 'the Nit does not default into an issue')
 })
 
-test('explicit dispositions route and override the severity default', async () => {
+test('explicit dispositions route and override the engine severity default', async () => {
   const fu = bare({ severity: 'Nit', title: 'explicit follow-up', disposition: 'follow-up', rationale: 'needs new tests — beyond phase scope' })
   const nt = bare({ severity: 'Minor', title: 'explicit note', disposition: 'note' })
   const { out } = await runPhase(ACE_ARGS(), aceBase([fu, nt]))
@@ -4349,7 +4355,7 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   const logs = [], notes = [], minorsFiled = [], asks = []
   const { dispositionOf, parkAsk, demote } = harness(m => logs.push(m), notes, minorsFiled, asks)
   assert.equal(dispositionOf(askFinding()), 'ask', "dispositionOf classifies an explicit disposition:'ask' as ask")
-  assert.equal(dispositionOf({ severity: 'Minor', title: 'no explicit' }), 'follow-up', 'ask is NEVER defaulted (Minor keeps its follow-up default)')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'no explicit' }), 'follow-up', 'ask is NEVER defaulted (Minor keeps its engine follow-up default until the Phase 4 floor)')
   const f = askFinding({ task: 't9' })
   assert.doesNotThrow(() => demote(f, 'follow-up', 'a would-be demotion'), 'the refusal NEVER throws (a throw would destroy the parked records on held:workflow-error)')
   assert.equal(asks.length, 1, 'the refused ask re-routes onto asks[]')
@@ -4465,7 +4471,10 @@ test('files_changed contract (end state 8): IDENTICAL wording in agents/war-work
 
 test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt carry the same rule sentences', async () => {
   const LATITUDE = "the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before."
-  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the `ask` field: `question` naming the decision needed plus `fork` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.'
+  // (barrier-list, in-band-absorb-default D1/D2) the card's byte-mirror of the dispatched DISPOSITION RULE:
+  // the in-diff absorb default, the out-of-diff absorb + phaseClose:true default, the structured
+  // `barrier` field clause spelling the four BARRIER_TOKENS, and the ask-only never-defaulted tail.
+  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the `ask` field: `question` naming the decision needed plus `fork` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself. On such a finding, follow-up is legal only with a barrier cited in the structured `barrier` field, one of barrier:release-slot, barrier:underspecified, barrier:rationale-comment, barrier:trade-off (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; ask is never a default.'
   assert.ok(auditorMd.includes(LATITUDE), 'war-auditor.md carries the latitude rule (standing surface)')
   assert.ok(auditorMd.includes(DISPO), 'war-auditor.md carries the disposition rule (standing surface)')
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -5064,13 +5073,14 @@ test('end-state check rides the gate-audit prompt (criterion 11): three cases + 
   assert.match(p, /plan_ref[\s\S]*VERBATIM/, 'findings key on the condition text via plan_ref')
 })
 
-test('End-state ownership carve-out (#1082): the standing war-auditor.md card carries the same two-owner rule', () => {
+test('End-state ownership carve-out (#1082): the standing execution-evidence checklist (gate-audit-checklist.md, evicted from the card — D16) carries the same two-owner rule', () => {
   // Standing surface of the split-surface discipline (ADR 0025) — the dispatched twin is pinned in the
   // criterion-11 prompt test above. Same shape: ONE ordered regex bounded inside the bullet it polices,
-  // anchored from the lead-in through the bullet's own terminal hold clause.
-  assert.match(auditorMd,
+  // anchored from the lead-in through the bullet's own terminal hold clause. The duty reads off the
+  // references file the card's trigger pointer names (auditor-evict), never the card.
+  assert.match(gateAuditChecklistMd,
     /\*\*End-state ownership mapping:\*\*[^]*?later phase[^]*?sibling task in this phase[^]*?out-of-scope[^]*?never a Critical\/Major hold/,
-    'war-auditor.md execution-evidence checklist carries the two-owner End-state ownership mapping duty')
+    'gate-audit-checklist.md execution-evidence checklist carries the two-owner End-state ownership mapping duty')
 })
 
 test('end-state check: NO claims ⇒ the gate-audit prompt carries no end-state block (byte-compatible)', async () => {
@@ -5464,7 +5474,7 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   assert.ok(live.includes(BANNER), "resolveGate's live output carries the per-file banner literal (producer side)")
   assert.ok(live.includes('%s'), "resolveGate's live output interpolates the per-file path (%s) into the banner")
   assert.ok(p.includes(BANNER), 'the per-task seat prompt carries the matching banner literal')
-  assert.ok(auditorMd.includes(BANNER), 'agents/war-auditor.md carries the matching banner literal (standing card)')
+  assert.ok(gateAuditChecklistMd.includes(BANNER), 'gate-audit-checklist.md (the evicted execution-evidence checklist, D16) carries the matching banner literal (standing surface)')
   // Fail-open: no mappedTests token on the MergeResult ⇒ no block (the SOFT cannot-confirm posture kept).
   // The absence probe keys on the BLOCK HEADER literal: the rescoped conjunctive clause (D3, #1372)
   // defers to the MAPPED TESTS block BY NAME in every per-task prompt, so a bare 'MAPPED TESTS'
@@ -8399,13 +8409,18 @@ test('#806 — no-skip control: all gated, all real shas ⇒ the chain is byte-i
   assert.equal(preMergeTipOf(ev, 't3'), gateHeadShaOf(ev, 't2'), "t3's preMergeTip = t2's gateHeadSha (predecessor chain, unchanged)")
 })
 
-test('T2.1 both-surfaces — the execution-evidence checklist + guard-specificity duty live in war-auditor.md (standing surface); the stale spawn-prompt-only sentence is updated', () => {
-  assert.ok(auditorMd.includes('gate-audit checklist'), 'war-auditor.md has the named execution-evidence gate-audit checklist')
-  assert.ok(/delete-and-trace/i.test(auditorMd), 'the checklist carries the mandatory delete-and-trace / temp-break-RED duty')
-  assert.ok(/Pair every positive assertion with a negative absence assert/i.test(auditorMd),
+test('T2.1 both-surfaces — the execution-evidence checklist heading + trigger pointer live in war-auditor.md, its duties in gate-audit-checklist.md (auditor-evict, D16); the guard-specificity duty stays on the card; the stale spawn-prompt-only sentence is updated', () => {
+  assert.ok(auditorMd.includes('gate-audit checklist'), 'war-auditor.md has the named execution-evidence gate-audit checklist heading')
+  assert.match(auditorMd, /^### `execution-evidence` gate-audit checklist \(reserved lens\)$/m, 'the card keeps the checklist heading')
+  assert.match(auditorMd,
+    /when you sit as the `execution-evidence` seat, read \[gate-audit-checklist\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-audit-checklist\.md\)/,
+    'the card carries the fixed trigger pointer "when you sit as the `execution-evidence` seat, read [gate-audit-checklist.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-audit-checklist.md)" (trigger + link, ADR 0042)')
+  // the four duty asserts read the references file the pointer names — the evicted body's home
+  assert.ok(/delete-and-trace/i.test(gateAuditChecklistMd), 'the checklist carries the mandatory delete-and-trace / temp-break-RED duty')
+  assert.ok(/Pair every positive assertion with a negative absence assert/i.test(gateAuditChecklistMd),
     'the checklist carries the pair-positive-with-negative-absence duty')
-  assert.ok(auditorMd.includes('Consume the stamped `pin_status`'), 'the checklist directs consuming the stamped pin_status')
-  assert.ok(/missing artifact ⇒ SOFT/i.test(auditorMd), 'the checklist carries the missing-artifact ⇒ SOFT rule')
+  assert.ok(gateAuditChecklistMd.includes('Consume the stamped `pin_status`'), 'the checklist directs consuming the stamped pin_status')
+  assert.ok(/missing artifact ⇒ SOFT/i.test(gateAuditChecklistMd), 'the checklist carries the missing-artifact ⇒ SOFT rule')
   // test-fidelity lens duties (D6/D7 judgment side)
   assert.ok(auditorMd.includes('Guard-assertion specificity'), 'the test-fidelity lens carries the guard-assertion-specificity duty')
   assert.ok(auditorMd.includes('Guard-masking'), 'the test-fidelity lens carries the guard-masking flag')
@@ -8629,6 +8644,17 @@ const RESOLVE_GATE_CASES = [
   resolveGate(`node --test 'skills/**/*.test.mjs'`),    // pre-composed FROM CANONICAL output → idempotent, unchanged
 ]
 
+// (barrier-list) construct-scoped token extraction for the two prose surfaces: the distinct
+// `barrier:<name>` tokens inside ONE bounded construct (a `between()` window), so a token named
+// elsewhere on the surface never leaks into the equality, and a dropped or misspelled member reds.
+const eligibilityMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
+const barrierTokensIn = text => [...new Set((text || '').match(/barrier:[a-z-]+/g) || [])]
+// windowOf: the text strictly between the first startTok and the next endTok after it ('' when either is absent).
+const windowOf = (text, startTok, endTok) => {
+  const a = text.indexOf(startTok); if (a === -1) return ''
+  const b = text.indexOf(endTok, a + startTok.length); return b === -1 ? '' : text.slice(a + startTok.length, b)
+}
+
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
   assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
   const MIRROR_REGISTRY = [
@@ -8641,6 +8667,19 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'SOFT_ENV_REASONS', mode: 'deepEqual',
       canonical: SOFT_ENV_REASONS,
       extractInline: () => parseInlineArray(/const\s+SOFT_ENV_REASONS\s*=\s*(\[[^\]]+\])/) },
+    // BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2/PIN-12): the seat's structured `barrier`
+    // enum, canonical in land-decision.mjs, hand-mirrored inline above AUDIT_VERDICT. Three rows bind
+    // the inline mirror, the auditor card's Disposition-rule sentence, and the eligibility doc's
+    // `## Barrier list` section to the export — each extracted by construct, set-equal to the four.
+    { name: 'barrier-list — inline BARRIER_TOKENS mirror', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => parseInlineArray(/const\s+BARRIER_TOKENS\s*=\s*(\[[^\]]+\])/) },
+    { name: 'barrier-list — war-auditor.md Disposition-rule sentence', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(auditorMd, '**Disposition rule:**', '\n')) },
+    { name: 'barrier-list — disposition-eligibility.md `## Barrier list` section', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(eligibilityMd, '## Barrier list', '\n## ')) },
     { name: 'landDecision known set', mode: 'subset',
       canonical: KNOWN_LAND_DECISIONS,
       extractInline: extractLandDecisionLiterals },
@@ -8676,7 +8715,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 9, 'the mirror registry lists at least the nine required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 12, 'the mirror registry lists at least the twelve required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the three barrier-list BARRIER_TOKENS rows, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -9542,7 +9581,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/preset/i, /matrix/i] },
     { name: 'gate-audit inline seat: finding-less escalate is a HARD hold (execution-evidence + end-state, outside auditPrompt)',
-      surfaces: [['war-auditor.md', auditorMd],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16): the
+      // finding-less-escalate reservation is the checklist's pin_status bullet, never card prose.
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd],
                  ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
                  ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
       anchors: [/finding-less/i, /HARD hold/i] },
@@ -9640,7 +9681,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // the dispatched prompts the interpolated endstate-3-1.log; every other token appears verbatim on all
     // three surfaces, so a per-surface revert reds this row.
     { name: 'artifact-first End-state attestation (D8, Task 3.2): one endStateAttestations row per claimed condition — status + evidence, never a bare verdict; unattested ⇒ unverified, never met',
-      surfaces: [['war-auditor.md', auditorMd],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16), never the card
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd],
                  ['per-task gate-audit prompt (claims-bearing)', esSeatP],
                  ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/endStateAttestations/, /never a bare verdict/i, /met \| unmet \| unverified/,
@@ -9659,7 +9701,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // the abort point is SOFT cannot-confirm, never HARD. All three tokens were zero-hit on both
     // anchored surfaces at this task's base (Context 7), so a per-surface revert of the clause reds this row.
     { name: 'mechanical mapped-tests grep (D7, Task 3.2 + round-3 enumeration-conditional): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is HARD only where the log enumerates test file paths; a non-enumerating half is SOFT cannot-confirm, never a hold',
-      surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16), never the card
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
       anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i,
                 /ONLY when the captured log ENUMERATES test file paths/i, /aggregate summary/i,
                 /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i,
@@ -9688,7 +9731,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // card AND the shared endStateBlock (live prompts: per-task + end-state-only seats; the
     // integrated-tip seat concatenates the same const, source-count-pinned).
     { name: "stale-artifact tip_sha comparison (recovery Blocker 2): stamped tip_sha mismatching the confirmed tip ⇒ unverified, never met — readable is not sufficient",
-      surfaces: [['war-auditor.md', auditorMd],
+      // standing surface = the evicted checklist's references home (auditor-evict, D16), never the card
+      surfaces: [['gate-audit-checklist.md', gateAuditChecklistMd],
                  ['per-task gate-audit prompt (claims-bearing)', esSeatP],
                  ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/stamped `?tip_sha`?/, /stale-but-readable/i, /mismatch\w* the confirmed tip/i,
@@ -11732,12 +11776,105 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
   assert.ok(p.includes('task-owned test file'), 'widening (2): new-test eligibility (D4)')
   assert.ok(p.includes('trade-off') && p.includes('routes ask'), 'widening (3): trade-off-ask routing (D5)')
   assert.ok(p.includes('citation') && p.includes('NO-match'), 'the citation arm and its ambiguity-is-no-match floor ride the dispatched block (D6, PIN-6)')
-  // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror) — the
-  // widenings are a separate appended block.
-  assert.ok(p.includes('absorb and ask are never defaults.'), 'the original DISPOSITION RULE sentence survives byte-untouched')
+  // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror; its ask-only
+  // never-defaulted tail is the in-band-absorb-default D1 shape) — the widenings are a separate appended block.
+  assert.ok(p.includes('ask is never a default.'), 'the DISPOSITION RULE sentence survives byte-untouched (the ask-only never-defaulted tail)')
   const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
   assert.ok(/born at a re-audit/i.test(eligMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
   assert.ok(/trade-off/i.test(eligMd), 'standing home carries the trade-off routing rule')
+})
+
+// ---- barrier-list (in-band-absorb-default D1/D2, End state 7 — PIN-1, PIN-2, PIN-12) ----
+// The structured `barrier` enum and the in-diff absorb default flip on the SEAT surfaces only:
+// AUDIT_VERDICT's optional `barrier` field, the dispatched DISPOSITION RULE rendered from the inline
+// BARRIER_TOKENS mirror (byte-mirroring the card), and dispositionOf's engine default UNCHANGED
+// through Phase 3 (the Phase 4 diff-probe floor moves the default into the engine). Each fixture reds
+// with its arm deleted: drop the schema field, hand-type the tokens into the prompt, or flip the
+// engine default early.
+
+test('barrier-list — AUDIT_VERDICT finding items carry the OPTIONAL `barrier` field whose enum IS the inline BARRIER_TOKENS mirror (never required; the four canonical tokens)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const aud = calls.find(isAuditor)
+  assert.ok(aud, 'an auditor was dispatched (presence guard)')
+  const items = aud.opts.schema.properties.findings.items
+  assert.deepEqual(items.properties.barrier, { enum: BARRIER_TOKENS }, 'the barrier field is an enum over exactly the canonical BARRIER_TOKENS')
+  assert.deepEqual(items.required, ['severity'], 'barrier stays OPTIONAL — severity remains the only required finding key (default-deny census)')
+  assert.match(src, /barrier: \{ enum: BARRIER_TOKENS \}/, 'the schema field renders from the inline mirror, never a restated literal (source pin)')
+  // default-deny census over the finding-item property list: a new key joins here or reds.
+  assert.deepEqual(Object.keys(items.properties).sort(),
+    ['ask', 'autoFixable', 'barrier', 'citation', 'citationUnsound', 'disposition', 'file', 'line', 'phaseClose', 'plan_ref', 'rationale', 'severity', 'suggested_fix', 'title'],
+    'the AUDIT_VERDICT finding-item property census admits exactly the known keys plus barrier')
+})
+
+test('barrier-list — the dispatched DISPOSITION RULE renders the four BARRIER_TOKENS from the inline mirror, carries the in-diff absorb default, the out-of-diff absorb + phaseClose:true seat rule, and the `barrier` field clause, and byte-mirrors the card', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const p = calls.find(isAuditor).prompt
+  const rule = windowOf(p, 'DISPOSITION RULE:', '\n')
+  assert.ok(rule, 'the dispatched DISPOSITION RULE sentence is locatable')
+  assert.ok(rule.includes(BARRIER_TOKENS.join(', ')), 'the four tokens render in canonical order, comma-joined, from the mirror')
+  assert.deepEqual([...new Set(rule.match(/barrier:[a-z-]+/g))].sort(), [...BARRIER_TOKENS].sort(), 'exactly the four BARRIER_TOKENS are named — no extra, no scope token (PIN-2)')
+  assert.ok(rule.includes('defaults to absorb when its file is in the task diff'), 'the in-diff absorb default sentence (D1)')
+  assert.ok(rule.includes('absorb + phaseClose:true when its file is outside the task diff'), 'the out-of-diff seat rule (D2 seat half)')
+  assert.ok(rule.includes('follow-up is legal only with a barrier cited in the structured `barrier` field'), 'the barrier field clause')
+  assert.ok(rule.includes('a scope argument is never a barrier'), 'a scope argument is never a barrier (PIN-2)')
+  assert.ok(rule.includes('ask is never a default.'), 'the ask-only never-defaulted tail')
+  assert.ok(!rule.includes('absorb and ask are never defaults'), 'the retired conjunction is gone from the dispatched sentence')
+  // byte-mirror: the card's Disposition-rule bullet body IS the dispatched sentence body (PIN-12)
+  const card = windowOf(auditorMd, '**Disposition rule:** ', '\n')
+  assert.equal(rule.trim(), card.trim(), 'the dispatched DISPOSITION RULE byte-mirrors the card sentence (standing card + dispatched prompt, one commit)')
+  // source pin: the tokens are INTERPOLATED from the mirror, never hand-typed into the prompt literal
+  assert.ok(src.includes("one of ${BARRIER_TOKENS.join(', ')}"), 'the prompt literal interpolates BARRIER_TOKENS.join — deleting the interpolation for a hand-typed list reds here')
+})
+
+test("barrier-list — dispositionOf's engine default is UNCHANGED in Phase 3: an omitted-disposition fully specified Minor still reads follow-up, a Nit note, and a barrier-tagged follow-up passes through", () => {
+  const sliceStart = src.indexOf('const dispositionOf')
+  const sliceEnd = src.indexOf('const aceEligible')
+  const { dispositionOf } = new Function('log', 'notes', 'minorsFiled', 'asks',
+    src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf }')(() => {}, [], [], [])
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'in-diff specified', file: 'a.js', suggested_fix: 'do x' }), 'follow-up',
+    'the engine severity default holds for a fully specified Minor until the Phase 4 diff-probe floor (D1)')
+  assert.equal(dispositionOf({ severity: 'Nit', title: 'in-diff specified', file: 'a.js', suggested_fix: 'do x' }), 'note',
+    'the engine severity default holds for a fully specified Nit')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'barred', file: 'a.js', disposition: 'follow-up', barrier: 'barrier:release-slot' }), 'follow-up',
+    'a barrier-tagged follow-up passes through unchanged (the intake floor is Phase 4)')
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'seat absorb', file: 'a.js', disposition: 'absorb', phaseClose: true }), 'absorb',
+    'the seat-set out-of-diff absorb reads absorb (phaseClose rides the finding)')
+})
+
+// ---- auditor-evict (in-band-absorb-default D16, ADR 0042, PIN-18) ----
+// The card's `### \`execution-evidence\` gate-audit checklist (reserved lens)` section (4,426 B, one
+// contiguous block: heading, blank line, body, trailing blank line) moved byte-identical to
+// skills/war/references/gate-audit-checklist.md. (a) extract by construct (the `###` heading → end of
+// file, the section's only terminator there) and assert BYTE equality against the pinned SHA-256 of the
+// pre-eviction card bytes (`git show 581a654:agents/war-auditor.md`, lines 63–74) — a reword, a
+// dropped bullet, or a re-flow reds; a sanctioned later edit re-pins the digest in the same commit
+// with its rationale. (b) the card keeps the heading over the fixed trigger pointer and no longer
+// carries the body.
+const GATE_AUDIT_CHECKLIST_SHA256 = '0783da5e8701a746e6bad796defbf072a6a9fb5c97bd4efb3e3edf7705aead47'
+test('auditor-evict (a) — the evicted execution-evidence checklist section is present verbatim in gate-audit-checklist.md (extract and byte equality; ADR 0042, D16)', () => {
+  const heading = '\n### `execution-evidence` gate-audit checklist (reserved lens)\n'
+  const at = gateAuditChecklistMd.indexOf(heading)
+  assert.ok(at >= 0, 'gate-audit-checklist.md lost its `### execution-evidence gate-audit checklist` heading')
+  assert.equal(gateAuditChecklistMd.indexOf(heading, at + 1), -1, 'expected exactly one checklist heading in gate-audit-checklist.md')
+  const body = gateAuditChecklistMd.slice(at + 1)
+  assert.ok(!/\n##? /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last section (heading → end of file)')
+  // Non-vacuity: the extraction spans the section's tail bullet.
+  assert.match(body, /\*\*End-state ownership mapping:\*\*/, 'the extracted section must span its `**End-state ownership mapping:**` tail bullet')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 4426, 'the evicted section is 4,426 B (the pre-eviction card bytes)')
+  assert.equal(createHash('sha256').update(body, 'utf8').digest('hex'), GATE_AUDIT_CHECKLIST_SHA256,
+    'the evicted checklist section must be byte-identical to the pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins GATE_AUDIT_CHECKLIST_SHA256 in this commit with its rationale')
+})
+test('auditor-evict (b) — the card keeps the checklist heading over the fixed trigger pointer and no longer carries the body', () => {
+  assert.match(auditorMd, /^### `execution-evidence` gate-audit checklist \(reserved lens\)$/m, 'the card keeps the checklist heading')
+  const section = windowOf(auditorMd, '### `execution-evidence` gate-audit checklist (reserved lens)', '\n## ')
+  assert.match(section,
+    /when you sit as the `execution-evidence` seat, read \[gate-audit-checklist\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-audit-checklist\.md\)/,
+    'the heading sits over the fixed trigger pointer (trigger + link, never a bare link — ADR 0042)')
+  for (const literal of ['Consume the stamped `pin_status`', 'Read the captured gate-log artifact', 'Grep the threaded `mappedTests`',
+    'Artifact-first End-state attestation', 'Mandatory delete-and-trace', 'Pair every positive assertion', '**End-state ownership mapping:**']) {
+    assert.ok(!auditorMd.includes(literal), `the card still carries the evicted body literal "${literal}" — the duties live in gate-audit-checklist.md only (a duplicated body drifts)`)
+  }
+  assert.ok(section.length < 600, 'the card section is the heading + pointer only, never a re-grown body')
 })
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
@@ -12231,11 +12368,17 @@ test('lens-suffix (End state 7): lens extraction keys on the FAMILY PREFIX — g
 })
 
 test('ace-group-path (End state 8): aceGroups and the Ace-Subset trailer key on aceRelPath-normalized paths — a ./-form and bare-form pair of the same file lands in ONE subset', () => {
-  const sliceStart = src.indexOf('const aceRelPath')
+  // aceRelPath is file-scope (hoisted out of the wave loop, in-band-absorb-default Phase 3): evaluate
+  // it from its own src.match (the recordAcedTouched idiom) and slice the grouping/halving block from
+  // `const aceGroups`, injecting the helper as a parameter.
+  const relM = src.match(/^const aceRelPath = (p => .+)$/m)
+  assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
+  const aceRelPath = new Function('return ' + relM[1])()
+  const sliceStart = src.indexOf('const aceGroups')
   const sliceEnd = src.indexOf('const citationOf')
-  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceRelPath→aceHalve engine slice is locatable')
-  const { aceRelPath, aceGroups, aceHalve } = new Function(
-    src.slice(sliceStart, sliceEnd) + '\nreturn { aceRelPath, aceGroups, aceHalve }')()
+  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceGroups→aceHalve engine slice is locatable')
+  const { aceGroups, aceHalve } = new Function('aceRelPath',
+    src.slice(sliceStart, sliceEnd) + '\nreturn { aceGroups, aceHalve }')(aceRelPath)
   const pair = [{ file: './skills/x.js', title: 'dot form' }, { file: 'skills/x.js', title: 'bare form' }]
   const groups = aceGroups(pair)
   assert.equal(groups.length, 1, 'the ./-form and bare-form pair groups as ONE file (never split across subsets, D3)')
@@ -13089,7 +13232,9 @@ const grabSchema = (name) => {
   const j = src.indexOf('{', i)
   for (let k = j; k < src.length; k++) {
     if (src[k] === '{') d++
-    if (src[k] === '}') { d--; if (d === 0) return new Function('return (' + src.slice(j, k + 1) + ')')() }
+    // The literal references the inline BARRIER_TOKENS mirror (barrier-list, D1) — bound here from the
+    // canonical export (the D2 mirror registry deepEquals the two).
+    if (src[k] === '}') { d--; if (d === 0) return new Function('BARRIER_TOKENS', 'return (' + src.slice(j, k + 1) + ')')(BARRIER_TOKENS) }
   }
   throw new Error('unbalanced ' + name)
 }

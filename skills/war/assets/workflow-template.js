@@ -92,6 +92,12 @@ const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], propert
   ace_diff_files: { type: 'array' },
   notes: { type: 'string' }, blocked_reason: { type: 'string' } } }
 
+// BARRIER_TOKENS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
+// The seat's structured `barrier` enum (in-band-absorb-default D1, PIN-1/PIN-2): three follow-up
+// barriers plus barrier:trade-off, an ask route. The AUDIT_VERDICT finding schema and the dispatched
+// DISPOSITION RULE render from this ONE array; the auditor card sentence and disposition-eligibility.md
+// list the same four by hand, and the D2 mirror-registry `barrier-list` rows bind all of them.
+const BARRIER_TOKENS = ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']
 const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'findings', 'confidence'], properties: {
   seat: { type: 'string' }, lens: { type: 'string' }, audit_sha: { type: 'string' },
   verdict: { enum: ['approve', 'request_changes', 'escalate'] },
@@ -99,10 +105,15 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     severity: { enum: ['Critical', 'Major', 'Minor', 'Nit'] }, title: { type: 'string' }, file: { type: 'string' },
     line: { type: 'number' }, rationale: { type: 'string' }, suggested_fix: { type: 'string' }, plan_ref: { type: 'string' },
     // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → severity default
-    // (Minor → follow-up, Nit → note; 'absorb' and 'ask' are never defaulted). phaseClose:true routes an
-    // absorb to the phase-close queue. autoFixable is DEPRECATED — legacy alias for disposition:'absorb',
-    // honored one release, removed next release.
+    // (Minor → follow-up, Nit → note; 'ask' is never defaulted). The seat applies the in-diff absorb
+    // default itself (the dispatched DISPOSITION RULE) until the Phase 4 diff-probe floor gives the
+    // engine a git-derived diff. phaseClose:true routes an absorb to the phase-close queue.
+    // autoFixable is DEPRECATED — legacy alias for disposition:'absorb', honored one release, removed next release.
     disposition: { enum: ['absorb', 'follow-up', 'note', 'ask'] }, phaseClose: { type: 'boolean' },
+    // barrier (in-band-absorb-default D1): OPTIONAL, the structured reason a fully specified finding
+    // routes follow-up instead of the absorb default — one of the inline BARRIER_TOKENS mirror; prose
+    // is never a barrier. barrier:trade-off is meant for ask (the Phase 4 intake floor reroutes it).
+    barrier: { enum: BARRIER_TOKENS },
     autoFixable: { type: 'boolean' },
     // ask (#1550, ADR 0013 amendment 2026-08-25): the question+fork field — MANDATORY on a
     // disposition:'ask' finding (the items-level if/then below, mirroring the top-level
@@ -1068,9 +1079,11 @@ const auditShaOrSentinel = s => s == null ? null : (typeof s === 'string' && /^[
 const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, lens: s.lens, sha: auditShaOrSentinel(s.audit_sha), ...f })))
 // Disposition classification (ADR 0013; ask member #1550): auditor-owned routing, orthogonal to
 // severity. The ask arm precedes the absorb chain (D7 order-census). Defaults when omitted:
-// Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only
-// when the seat set disposition:'ask' explicitly. Legacy autoFixable:true reads as 'absorb' for
-// one release (deprecated — removed next release).
+// Minor → 'follow-up', Nit → 'note'; 'ask' is NEVER defaulted — an ask exists only when the seat
+// set disposition:'ask' explicitly. The engine default stays the severity default until the
+// Phase 4 diff-probe floor (in-band-absorb-default D1/D4): today the seat applies the in-diff
+// absorb default itself. Legacy autoFixable:true reads as 'absorb' for one release (deprecated —
+// removed next release).
 const dispositionOf = f =>
   f.disposition === 'ask' ? 'ask'
   : (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') ? f.disposition
@@ -1084,14 +1097,20 @@ const dispositionOf = f =>
 // registries key on the richer remintKey tuple below (registry-coverage fix: a question-derived
 // key under-distinguishes same-question findings on different files).
 const askContentKey = f => (f.task ?? '') + '\u0000' + ((f.ask && f.ask.question) || f.title || '(question unrecorded)')
+// aceRelPath (#1813, culprit-path form D12): repo-relative normalization with any leading `./` run
+// stripped, so a `./`-prefixed report and a bare plan path attribute identically. Non-strings pass
+// through untouched (callers filter them as falsy). File scope (hoisted out of the wave loop,
+// in-band-absorb-default Phase 3): remintKey, the ace grouping key, the culprit compare, both
+// `Ace-Subset` trailer builds, and recordAcedTouched all normalize through this one helper.
+const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
 // Cross-round FINDING re-mint identity (registry-coverage fix, D8 property floor): the FINDING
 // registries (acedKeys / revertedKeys / filedKeys / queuedKeys) key on the richer tuple
 // task + aceRelPath-normalized file + title — stable across rounds for the same finding
-// (seat/sha churn and `./`-form path drift never change the key, the #1813 normalization inlined
-// — aceRelPath itself is scoped inside the bisection block) while distinguishing distinct
-// same-task findings by file AND title. The question-derived askContentKey stays parkAsk-only.
+// (seat/sha churn and `./`-form path drift never change the key — the file-scope aceRelPath
+// above) while distinguishing distinct same-task findings by file AND title. The
+// question-derived askContentKey stays parkAsk-only.
 const remintKey = f => (f.task ?? '') + '\u0000'
-  + (typeof f.file === 'string' ? f.file.replace(/^(?:\.\/)+/, '') : '') + '\u0000'
+  + (typeof f.file === 'string' ? aceRelPath(f.file) : '') + '\u0000'
   + (f.title ?? '')
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
@@ -1623,7 +1642,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // always-rendered prose whose BEHAVIOR fires only when the threaded intent carries an explicit
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
-    + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.`
+    // The barrier list renders from the inline BARRIER_TOKENS mirror (in-band-absorb-default D1);
+    // the card sentence spells the same four by hand — the `barrier-list` registry rows bind them.
+    + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; ask is never a default.`
     // DISPOSITION WIDENINGS (in-run-finding-resolution D3/D4/D5) — standing home:
     // skills/war/references/disposition-eligibility.md carries the same three rules (same commit;
     // the auditor card's live trigger pointer covers the standing leg). The dispatched block is
@@ -1999,12 +2020,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // or demotes-and-logs, and the merge always runs — the ladder never holds or escalates a mergeable
   // task. Resume idempotency (D6): every subset commit carries a deterministic `Ace-Subset:` trailer
   // and every subset dispatch preflights the bisection range (never the tip alone) for it.
-  // Culprit-path form (D12): BOTH sides of the culprit `has()` compare are normalized to
-  // repo-relative form with any leading `./` run stripped, so a `./`-prefixed report and a bare
-  // plan path attribute identically. Non-strings pass through untouched (filtered as falsy below).
-  // Hoisted above aceGroups (#1813): the grouping key and the `Ace-Subset` trailer build normalize
-  // through it too.
-  const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
+  // Culprit-path form (D12): BOTH sides of the culprit `has()` compare are normalized through the
+  // file-scope aceRelPath (repo-relative, leading `./` run stripped — #1813), as are the grouping
+  // key and the `Ace-Subset` trailer builds below.
   // Same-file grouping: one group per aceRelPath-normalized f.file (#1813 — a `./`-form and a
   // bare-form report of the same file land in ONE group, so same-file findings never split across
   // subsets, the D3 invariant), insertion-ordered; halving splits the GROUP list.

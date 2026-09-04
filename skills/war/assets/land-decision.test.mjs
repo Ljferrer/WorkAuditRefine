@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS } from './land-decision.mjs'
+import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS } from './land-decision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const readAsset = (rel) => readFileSync(join(HERE, rel), 'utf8')
@@ -55,6 +55,23 @@ test('unrunnable-deps is a hard escalation reason (L1: mirrors unified — a gho
 test('done-unmet is a hard escalation reason (precision-chain D1: a red Done when at merge, budget exhausted, holds the land)', () => {
   assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'done-unmet' }] }), 'held:escalation')
   assert.ok(HARD_ESCALATION_REASONS.includes('done-unmet'))
+})
+
+// ---- BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2) — the seat's structured `barrier` enum ----
+// Exactly four members, in order: three follow-up barriers plus `barrier:trade-off` (an ask route).
+// Finding-level tokens only — disjoint from every land-path enum; the inline hand-mirror lives in
+// workflow-template.js and the D2 mirror registry there (`barrier-list` rows) deepEquals it.
+test('barrier-list — BARRIER_TOKENS is exactly the four canonical members, barrier:-prefixed, disjoint from every land-path enum', () => {
+  assert.deepEqual(BARRIER_TOKENS, ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off'],
+    'the canonical four, in order (PIN-1)')
+  assert.equal(new Set(BARRIER_TOKENS).size, 4, 'no dupes')
+  for (const t of BARRIER_TOKENS) {
+    assert.ok(t.startsWith('barrier:'), `${t} carries the barrier: prefix`)
+    assert.ok(!HARD_ESCALATION_REASONS.includes(t), `${t} is never a HARD_ESCALATION_REASONS member`)
+    assert.ok(!SOFT_ENV_REASONS.includes(t), `${t} is never a SOFT_ENV_REASONS member`)
+    assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} is never a landDecision value`)
+  }
+  assert.ok(!BARRIER_TOKENS.some(t => /scope/i.test(t)), 'a scope argument is never a barrier (PIN-2)')
 })
 
 // ---- SOFT_ENV_REASONS (#1411, Task 2.1(c)(ii)) — the #236/#639 census discipline, extended ----

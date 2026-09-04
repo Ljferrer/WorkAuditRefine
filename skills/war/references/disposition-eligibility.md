@@ -40,6 +40,26 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
    unpark or prefill the question (the miss is logged, never silent). The re-audit panel verifies
    citation soundness. Ambiguity is NO-match: park the ask (match strictness, PIN-6).
 
+## Barrier list — the in-diff `absorb` default and its four barriers (in-band-absorb-default D1/D2)
+
+A **fully specified** `Minor`/`Nit` (non-empty `suggested_fix`) **defaults to `absorb`** when its
+file is in the task diff, and to `absorb` + `phaseClose:true` when its file is outside the task diff
+— you read the diff, so you set that disposition yourself (the engine's omitted-disposition default
+stays the severity default until the Phase 4 diff probe). On such a finding `follow-up` is legal
+**only** with a barrier cited in the structured `barrier` field, never as prose. The list is exactly
+`BARRIER_TOKENS` (canonical in `skills/war/assets/land-decision.mjs`, mirrored inline in
+`workflow-template.js`; the `barrier-list` registry rows bind this list to the export):
+
+- `barrier:release-slot` — the fix touches a release-slot file (`plugin.json` / `marketplace.json`).
+- `barrier:underspecified` — the fix is not fully specified.
+- `barrier:rationale-comment` — the fix removes or edits a line carrying a `ponytail:` /
+  deliberate-mirror rationale comment.
+- `barrier:trade-off` — a behavior change with a nameable trade-off; this one routes `ask` (the
+  trade-off IS the fork — carry the `ask` field), never `follow-up`.
+
+Three follow-up barriers plus one ask-routing tag. A **scope argument is never a barrier**; the
+why-not-absorbable prose stays free text beside the tag. `ask` is never a default.
+
 ## Ask eligibility (`disposition:'ask'` — the operator's question channel)
 
 Set `disposition:'ask'` on a `Minor`/`Nit` finding **only** when the finding is
