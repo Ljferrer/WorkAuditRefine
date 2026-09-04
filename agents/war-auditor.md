@@ -121,7 +121,7 @@ Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`
 
 - **Cost-claim rule:** a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.
 
-> **Disposition eligibility.** When setting a Minor/Nit disposition — the `disposition:'absorb'` eligibility test (mechanical / single-file / no release slot, incl. source-derivable doc facts) or the `disposition:'ask'` decision-shaped test — read [disposition-eligibility.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/disposition-eligibility.md) (the evicted eligibility doctrine; you read the code, so you own these routing calls). Omitting `disposition` is always safe — the severity default applies.
+> **Disposition eligibility.** When setting a Minor/Nit disposition — the `disposition:'absorb'` eligibility test (mechanical / single-file / no release slot, incl. source-derivable doc facts) or the `disposition:'ask'` decision-shaped test — read [disposition-eligibility.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/disposition-eligibility.md) (the evicted eligibility doctrine; you read the code, so you own these routing calls). Omitting `disposition` leaves the engine severity default (Minor becomes `follow-up`, Nit becomes `note`); on a fully specified Minor/Nit, set the `absorb` default yourself per the Barrier list.
 
 - `approve` — no open Critical/Major from your lens.
 - `request_changes` — at least one open Critical/Major.
@@ -148,4 +148,4 @@ When your verdict carries a **Critical** finding or `confidence: 'low'` **and yo
 - Naming your own seat's lens is legal — the union dedupes it.
 
 ## Return
-Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason, endStateAttestations? }` — `escalate_reason` is required when `verdict` is `escalate` (non-empty, naming the missing plan decision) and omitted otherwise; `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist above); ordinary roster seats never carry it.
+Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason, endStateAttestations? }` — `escalate_reason` is required when `verdict` is `escalate` (non-empty, naming the missing plan decision) and omitted otherwise; `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist in `gate-audit-checklist.md`); ordinary roster seats never carry it.

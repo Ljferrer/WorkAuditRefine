@@ -8645,7 +8645,7 @@ const RESOLVE_GATE_CASES = [
 ]
 
 // (barrier-list) construct-scoped token extraction for the two prose surfaces: the distinct
-// `barrier:<name>` tokens inside ONE bounded construct (a `between()` window), so a token named
+// `barrier:<name>` tokens inside ONE bounded construct (a `windowOf()` window), so a token named
 // elsewhere on the surface never leaks into the equality, and a dropped or misspelled member reds.
 const eligibilityMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
 const barrierTokensIn = text => [...new Set((text || '').match(/barrier:[a-z-]+/g) || [])]
@@ -8668,9 +8668,10 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       canonical: SOFT_ENV_REASONS,
       extractInline: () => parseInlineArray(/const\s+SOFT_ENV_REASONS\s*=\s*(\[[^\]]+\])/) },
     // BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2/PIN-12): the seat's structured `barrier`
-    // enum, canonical in land-decision.mjs, hand-mirrored inline above AUDIT_VERDICT. Three rows bind
+    // enum, canonical in land-decision.mjs, hand-mirrored inline above AUDIT_VERDICT. Four rows bind
     // the inline mirror, the auditor card's Disposition-rule sentence, and the eligibility doc's
     // `## Barrier list` section to the export — each extracted by construct, set-equal to the four.
+    // A fourth row binds the hand-copied schemas.md AuditVerdict `barrier?` row (one physical line).
     { name: 'barrier-list — inline BARRIER_TOKENS mirror', mode: 'deepEqual',
       canonical: BARRIER_TOKENS,
       extractInline: () => parseInlineArray(/const\s+BARRIER_TOKENS\s*=\s*(\[[^\]]+\])/) },
@@ -8680,6 +8681,9 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'barrier-list — disposition-eligibility.md `## Barrier list` section', mode: 'deepEqual',
       canonical: BARRIER_TOKENS,
       extractInline: () => barrierTokensIn(windowOf(eligibilityMd, '## Barrier list', '\n## ')) },
+    { name: 'barrier-list — schemas.md AuditVerdict barrier row', mode: 'deepEqual',
+      canonical: BARRIER_TOKENS,
+      extractInline: () => barrierTokensIn(windowOf(schemasMd, 'barrier?,', '\n')) },
     { name: 'landDecision known set', mode: 'subset',
       canonical: KNOWN_LAND_DECISIONS,
       extractInline: extractLandDecisionLiterals },
@@ -8715,7 +8719,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 12, 'the mirror registry lists at least the twelve required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the three barrier-list BARRIER_TOKENS rows, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 13, 'the mirror registry lists at least the thirteen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -11822,6 +11826,10 @@ test('barrier-list — the dispatched DISPOSITION RULE renders the four BARRIER_
   // byte-mirror: the card's Disposition-rule bullet body IS the dispatched sentence body (PIN-12)
   const card = windowOf(auditorMd, '**Disposition rule:** ', '\n')
   assert.equal(rule.trim(), card.trim(), 'the dispatched DISPOSITION RULE byte-mirrors the card sentence (standing card + dispatched prompt, one commit)')
+  // standing eligibility home: the `## Barrier list` section carries the same default sentence and the out-of-diff clause
+  const home = windowOf(eligibilityMd, '## Barrier list', '\n## ')
+  assert.ok(home.includes('defaults to `absorb`'), 'the eligibility doc Barrier list section carries the in-diff absorb default sentence (D1)')
+  assert.ok(home.includes('`absorb` + `phaseClose:true` when its file is outside the task diff'), 'the eligibility doc Barrier list section carries the out-of-diff absorb + phaseClose:true clause')
   // source pin: the tokens are INTERPOLATED from the mirror, never hand-typed into the prompt literal
   assert.ok(src.includes("one of ${BARRIER_TOKENS.join(', ')}"), 'the prompt literal interpolates BARRIER_TOKENS.join — deleting the interpolation for a hand-typed list reds here')
 })
