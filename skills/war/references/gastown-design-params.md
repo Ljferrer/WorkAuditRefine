@@ -6,8 +6,8 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | Gas Town | WAR | Built on |
 |---|---|---|
 | Mayor | Lead | the main Claude Code session (your chat) |
-| Polecat | `war-worker` | `Agent` (opus) in a git worktree |
-| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (sonnet): Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
+| Polecat | `war-worker` | `Agent` (fable) in a git worktree |
+| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (opus): Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
 | Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` (sonnet) + Workflow control flow |
 | Witness | (dissolved) | Workflow control flow + lifecycle hooks |
 | bd remember | war-servitor | write-scoped `Agent` (sonnet); records per-phase learnings |
