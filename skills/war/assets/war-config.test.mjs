@@ -91,6 +91,8 @@ test('partial override merges over defaults', () => {
   assert.equal(c.agents.worker.effort, 'low')
   assert.equal(c.agents.auditor.model, 'opus')   // untouched default
   assert.equal(c.agents.refiner.model, 'sonnet') // untouched default
+  // No shipped preset pins audit.rosterPolicy any more — keep the override path itself covered.
+  assert.equal(fillDefaults({ audit: { rosterPolicy: 'solo' } }).audit.rosterPolicy, 'solo')
 })
 
 test('thorough preset', () => {
@@ -119,6 +121,8 @@ test('economy preset (cheaper agent tiers; roster policy, roundLimit, ace, absor
   assert.equal(c.agents.servitor.model, 'sonnet')
   assert.equal(c.agents.servitor.effort, 'high')    // pinned — DEFAULTS is xhigh
   assert.equal(c.agents.refiner.effort, 'high')
+  // The refiner pin equals DEFAULTS, so the resolved value cannot discriminate it — guard the pin itself.
+  assert.deepEqual(PRESETS.economy.agents.refiner, { model: 'sonnet', effort: 'high' }, 'economy pins its refiner explicitly')
   // pinned — DEFAULTS carries a 5-seat pool; economy keeps the historical quartet.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
@@ -336,8 +340,8 @@ test('workerTierMatrix: base + docs + fix row per preset; fix now defaulted; exa
     assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
     assert.equal(fix.length, 1, `workerTierMatrix must carry exactly one fix row for ${preset} (fix is now defaulted)`)
     // Exact per-preset docs/fix values live in the dedicated docs + fix tests and the
-    // "each row equals presetConfig() merge" delegation test below (thorough docs = opus/high, which
-    // differs from balanced's opus/default in effort, not model).
+    // "each row equals presetConfig() merge" delegation test below (balanced and thorough inherit
+    // docs fable/default; economy overrides it to opus/default).
   }
   // fix is now defaulted in DEFAULTS → every preset emits a fix row. Delete-the-feature: drop the fix
   // block from DEFAULTS and every preset, and the per-preset fix.length===1 check above goes red (the
@@ -572,8 +576,8 @@ test('war-room SKILL.md redteamRoundLimit constants == canonical DEFAULTS/PRESET
   assert.equal(Number(pm[1]), PRESETS.economy.run.redteamRoundLimit,
     `war-room's step-2 bullet states an economy pin of ${pm[1]} but PRESETS.economy.run.redteamRoundLimit ` +
     `is ${PRESETS.economy.run.redteamRoundLimit} — bind the doc to the canonical value`)
-  // Step-1 economy blurb: the sibling pin beside roundLimit: 2 (the colon form appears only there —
-  // the step-2 bullet writes the dotted run.redteamRoundLimit with no colon).
+  // Step-1 economy blurb: the redteamRoundLimit: 2 pin beside the inherited roundLimit (the colon form
+  // appears only there — the step-2 bullet writes the dotted run.redteamRoundLimit with no colon).
   const bm = text.match(/redteamRoundLimit:\s*`?(\d+)/)
   assert.ok(bm, 'the step-1 economy blurb must carry the redteamRoundLimit: 2 sibling pin (#1376)')
   assert.equal(Number(bm[1]), PRESETS.economy.run.redteamRoundLimit,
