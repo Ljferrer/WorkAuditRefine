@@ -145,7 +145,9 @@ Round 1: 40 blockers and 29 `needsDecision` rows, twelve roots, all patched or r
 
 ## Route upstream
 **Regrill:** `/war-strategy /Users/ljf/GitHub/WorkAuditRefine/docs/plans/2026-09-03-in-band-absorb-default.md` — run the interview on the agenda below; it patches the plan.
-**Agenda (residual questions), round 5:**
+**Round 5 rulings (operator, 2026-09-03), applied to the plan through `48787f7`:** the seat applies the in-diff default in Phase 3 and a per-task `diff-probe` refiner dispatch before the seats gives Phase 4's `dispositionOf` and intake floor a git-derived diff (the merge-queue floor, `MERGE_RESULT.diff_files`, and the "one lane weaker" residual are gone); `aceEligible` and the exclusion set match on basenames derived from `RELEASE_SLOT_FILES`; the `/war-room` default row is guarded by the existing extraction-and-equality test; the batch-ace exhaustion arm splits (spent budget ⇒ sweep, open blockers ⇒ held on `r.pendingAbsorbs` for the next approve, terminal hold ⇒ `demote:absorb-blocked`); `DEMOTE_REASONS` has twelve members and three failed-attempt sites route to the sweep instead of filing; a task-less gate-audit floor pass runs before the sweep on `phase_diff_files` from the post-merge evidence dispatch; the `diff_files`-absent lane is moot once the probe replaces the merge-result field (a probe failure files with `demote:floor-skipped`). Open decisions: none. The operator chose to launch on this state in a new session rather than run a sixth round; the launch is on the verdict this report prints.
+
+**Agenda (residual questions), round 5 (ruled above, kept for the record):**
 - Default flip placement: (a) Phase 3 changes prompt text only, the engine default stays `follow-up` until Phase 4's floor, tests re-titled; (b) flip an engine arm in Phase 3, which cannot see the diff.
 - `aceEligible` semantics: (a) basename matching derived from `RELEASE_SLOT_FILES`, today's breadth kept; (b) exact repo-relative paths, a narrowing.
 - `/war-room` default row: (a) extend the existing extraction-and-equality war-room test in `war-config.test.mjs` to the new row; (b) de-mirror, state no default like the `run.roundLimit` row.
