@@ -1431,6 +1431,7 @@ const corroborateSurvivor = f => {
   const k = remintKey(f)
   const hit = minorsFiled.find(m => remintKey(m) === k)
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
+    || phaseCloseQueue.find(q => remintKey(q) === k)
   if (!hit) return
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   const ref = seatRefOf(f)
@@ -1443,8 +1444,9 @@ const routeReauditMinors = (r, seats, opts) => {
   // merge-slot re-audit's findings walk the SAME disposition ladder every wave-side site uses.
   const noReentry = (opts && opts.noReentry) || null
   r.reentryQueue = r.reentryQueue || []
+  const diff = diffFilesOf(r.task)
   for (const f of minorsOf(seats).map(x => ({ task: r.task.id, ...x }))) {
-    const d = intakeFloor(f, dispositionOf(f, diffFilesOf(r.task)), diffFilesOf(r.task))
+    const d = intakeFloor(f, dispositionOf(f, diff), diff)
     const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
     if (d === 'ask') parkAsk(f)                     // ask precedes the absorb chain (#1550, D7)
     else if (d === 'follow-up') {
@@ -3896,21 +3898,22 @@ const routeGateAuditRows = () => {
       d = 'absorb'; f.phaseClose = true
       log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') omitted disposition with a specified fix, phase_diff_files absent → absorb + phaseClose:true (no diff check; D15).')
     }
-    // Content-key registries (the dedup-registry law): a per-task seat re-raising a finding the
-    // roster panel already aced, filed, or queued on the same task is corroboration — merged onto
-    // the surviving record, logged, never a second record and never a re-queue.
-    const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
-    if (b) { log('gate-audit floor pass: re-mint of "' + (f.title ?? '') + '" (' + f.seat + ') — ' + b + '; not re-routed (logged, never silent).'); corroborateSurvivor(f); continue }
     if (f.disposition === 'follow-up') {
-      if (!barrier) { d = 'absorb'; log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') follow-up carried no barrier tag → absorb + phaseClose:true (the sweep is the only lane left; follow-up is legal only with a BARRIER_TOKENS member, D15).') }
+      if (!barrier) { d = 'absorb'; f.phaseClose = true; log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') follow-up carried no barrier tag → absorb + phaseClose:true (the sweep is the only lane left; follow-up is legal only with a BARRIER_TOKENS member, D15).') }
       else if (barrier === 'barrier:trade-off') {
         if (f.ask && typeof f.ask === 'object' && typeof f.ask.question === 'string' && f.ask.question) { log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') barrier:trade-off with the ask field → ask (parked, D15).'); parkAsk(f); continue }
         log('gate-audit floor pass: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') trade-off without ask fields — kept follow-up as stated (D15).')
       }
     } else if (f.disposition === 'note' && fix && !noteArmSkipped && typeof f.file === 'string' && f.file && phaseDiffFiles.has(aceRelPath(f.file))) {
-      d = 'absorb'
+      d = 'absorb'; f.phaseClose = true
       log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') note with a specified fix rerouted → absorb + phaseClose:true (its file is in phase_diff_files, D15).')
     }
+    // Content-key registries (the dedup-registry law): a per-task seat re-raising a finding the
+    // roster panel already aced, filed, or queued on the same task is corroboration — merged onto
+    // the surviving record, logged, never a second record and never a re-queue. Computed from the
+    // POST-floor disposition (after the follow-up and note arms above), matching routeReauditMinors.
+    const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
+    if (b) { log('gate-audit floor pass: re-mint of "' + (f.title ?? '') + '" (' + f.seat + ') — ' + b + '; not re-routed (logged, never silent).'); corroborateSurvivor(f); continue }
     if (d === 'follow-up') fileFollowUp(f)
     else if (d === 'note') notes.push(f)
     else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless gate-audit absorb takes the severity default (never sweep-eligible)')
@@ -4011,6 +4014,8 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     phaseCloseQueue.push(...kept)
   }
 }
+// Not an `else if` of the chain above: the exclusion-set drain there may have emptied the queue,
+// so the sweep arm re-tests both conditions on the drained queue.
 if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
   const rvSweep = validateRoster(defaultRoster)
   if (!rvSweep.valid) {
@@ -4541,7 +4546,10 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // task has NO gate-audit entry (the D7 skip) — its pinned sha falls back to the landedShaByTask
   // retention landMerged stamped (its real landed integration tip), so a merged task never renders
   // 'unrecorded' (Phase 5 Task 1). Fail-open: a task with neither (e.g. a never-merged task filing
-  // on the held:escalation path) renders 'unrecorded' — never invented, never a throw.
+  // on the held:escalation path) renders 'unrecorded' — never invented, never a throw. A gate-audit
+  // pseudo-task (`phase-<id>-integrated-tip` / `phase-<id>-end-state`, routeGateAuditRows) has no
+  // auditLog entry under that id and no landedShaByTask key either — the row builder below falls
+  // back to the row's own sanitized `sha` (auditShaOrSentinel) when this helper reads 'unrecorded'.
   const auditEvidenceOf = t => {
     const v = auditLog.find(e => e && e.task === t && typeof e.fixRounds === 'number')
     const g = auditLog.find(e => e && e.task === t && e.gateEvidence && typeof e.gateHeadSha === 'string' && e.gateHeadSha)
@@ -4584,7 +4592,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
       // the row down the seatRef fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {

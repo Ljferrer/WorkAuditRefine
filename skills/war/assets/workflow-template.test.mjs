@@ -4394,7 +4394,7 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly five dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
@@ -4418,8 +4418,9 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   assert.equal(sites.length, 6,
     `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(/
-  for (const i of sites) {
-    const slice = src.slice(i, i + 2600)
+  for (let k = 0; k < sites.length; k++) {
+    const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
+    const slice = src.slice(i, Math.min(i + 2600, end))
     const askIdx = slice.indexOf("=== 'ask'")
     assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
     const parkIdx = slice.indexOf('parkAsk(')
@@ -11246,7 +11247,9 @@ test('global ceiling end-to-end: a rejecting dispatch inside a capped run stays 
 const BARE_INTERPOLATION_CENSUS = [
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
-  'ensures', 'ev.round', 'ev.sha', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
+  // ev.sha left this census (in-band-absorb-default 4.1 polish): the pinned-sha slot renders the
+  // `pin` local (ev.sha, else the row's own sanitized sha for a gate-audit pseudo-task).
+  'ensures', 'ev.round', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
   'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output',
   'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
   'nearMissDiag', 'owned', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
@@ -13896,6 +13899,14 @@ test('filing-floor — an in-diff note with a suggested_fix reroutes to absorb (
   assert.ok(!(out.notes || []).some(n => n && n.title === 'note with fix'), 'the rerouted note is no longer a note')
 })
 
+test('filing-floor — an out-of-diff note with a suggested_fix stays a note (the inDiff conjunct): never rerouted, never in the task ace batch', async () => {
+  const outFixed = minor({ title: 'note out of diff with fix', file: 'docs/elsewhere.md', disposition: 'note', suggested_fix: 'tidy it' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([outFixed]), PROBE)
+  assert.ok((out.notes || []).some(n => n && n.title === 'note out of diff with fix'), 'the out-of-diff note stays a note')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('note with a specified fix rerouted') && l.includes('note out of diff with fix')), 'no note reroute is logged for it')
+  assert.ok(!calls.some(c => isAce(c) && c.prompt.includes('note out of diff with fix')), 'no ace prompt carries it')
+})
+
 test('filing-floor — a failed probe leaves diff_files absent: the old default stands, the skip is logged once per task, and the task\'s filed seat rows carry demote:floor-skipped on the issue-body prefix line', async () => {
   const f = minor({ title: 'would-be absorb', suggested_fix: 'do x' })
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), { 'diff-probe': { detail: 'fatal: bad revision' } })
@@ -13988,7 +13999,8 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   assert.equal(neg.length, 1, 'the matcher sees the unprefixed negative reference')
   assert.equal(reasonPrefixOf(neg[0].reason), null, 'and the classifier flags it as unprefixed')
   const negTernary = demoteSites("demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless without prefix')")
-  assert.equal(negTernary.length, 1 && reasonPrefixOf(negTernary[0].reason) === null ? 1 : 0, 'the severity-ternary shape is matched and an unprefixed one flagged')
+  assert.equal(negTernary.length, 1, 'the severity-ternary shape is matched')
+  assert.equal(reasonPrefixOf(negTernary[0].reason), null, 'an unprefixed ternary site is flagged')
   assert.ok(!src.includes(NEGATIVE_REF), 'the negative reference is unwired (never in the engine)')
   // Every member cited somewhere or reserved: the three variable-head/ternary sites carry a literal prefix.
   assert.ok(src.includes("'demote:sweep-skipped — ' + (provDrainCause"), 'the provDrainCause site leads with a literal prefix')
@@ -13996,10 +14008,11 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   assert.ok(src.includes("'demote:absorb-regressed — failed absorb — ' + (ur"), 'the re-entry regression ternary leads with a literal prefix')
   // Retired follow-up arms: the three failed-attempt sites are routeToSweep calls now.
   const n = normalizedSrc()
-  for (const t of ['bisection abandoned, remaining subsets demote', 're-entry abandoned', 'absorb requires --ace']) {
-    assert.ok(!n.includes(t) || t === 're-entry abandoned', `retired demote text absent: ${t}`)
+  for (const t of ['bisection abandoned, remaining subsets demote', 'absorb requires --ace']) {
+    assert.ok(!n.includes(t), `retired demote text absent: ${t}`)
   }
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (aceWhy || 'ace worker returned no usable head_sha'))"), 'the dead ace worker routes to the sweep')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (rwWhy || 're-entry worker returned no usable head_sha')"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line)')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip"), 'the red ace gate routes to the sweep')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched '"), 'the untouched-file row routes to the sweep')
 })
@@ -14233,4 +14246,16 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
   assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'twice raised'), 'the roster-raised row is aced by the task ace')
   assert.ok(!polishPromptOf(calls).includes('twice raised'), 'the gate-audit re-mint never re-queues it')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass: re-mint of "twice raised"') && l.includes('corroboration')), 'the re-mint is logged as corroboration')
+})
+
+test('gate-audit-route — a gate-audit re-mint of a finding the roster panel already QUEUED for the sweep lands the second seat on the queued row\'s seats list, never a second sweep record', async () => {
+  const q = nit({ title: 'queued twice', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [q])] }, p4Base({ gate: [gaAbsorb({ title: 'queued twice', file: 'docs/q.md' })] }))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass: re-mint of "queued twice"') && l.includes('already queued')), 'the re-mint is refused as already queued')
+  const rows = (out.aced || []).filter(x => x && x.finding && x.finding.title === 'queued twice')
+  assert.equal(rows.length, 1, 'one surviving sweep record')
+  assert.ok(polishPromptOf(calls).includes('queued twice'), 'the queued row reaches the sweep')
+  assert.deepEqual(rows[0].finding.seats, ['audit:t1:correctness (task t1)', 'gate-audit:t1:execution-evidence (task t1)'],
+    'the second seat lands on the queued row\'s seats list, seeded with the first raiser')
 })
