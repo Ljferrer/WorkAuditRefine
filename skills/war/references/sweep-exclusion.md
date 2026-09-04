@@ -18,7 +18,7 @@ The campaign ledger is `$MAIN/.claude/campaigns/<id>/ledger.json` under the **ma
 
 ## Build the list
 
-One entry per ledger plan that is **not this plan** and whose `status` is **not `landed`** (`queued` today, and any other non-landed status a future lifecycle writes). Shape: `[{ slug, files[] }]`, `slug` the entry's `slug`, `files` the re-extracted footprint (plan-relative paths, as the plan writes them, no normalization; the engine `aceRelPath`-normalizes both sides).
+One entry per ledger plan that is **not this plan** and whose `status` is **not `landed`** (`queued` today, and any other non-landed status a future lifecycle writes). Shape: `[{ slug, files[] }]`, `slug` the entry's `slug`, `files` the re-extracted footprint (repo-relative paths, as the plan writes them, no normalization; the engine `aceRelPath`-normalizes both sides).
 
 ```bash
 # $CLAUDE_PLUGIN_ROOT = the plugin root; $LEDGER = the resolved ledger path; $SLUG = this run's planSlug.

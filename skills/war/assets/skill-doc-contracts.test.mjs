@@ -3982,6 +3982,7 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
 // `references/sweep-exclusion.md` is read directly (ADR 0042: the card carries the trigger
 // pointer only, the body lives in references/).
 const sweepExclusionMd = readFileSync(join(HERE, '..', 'references', 'sweep-exclusion.md'), 'utf8')
+const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 
 test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and sweep-exclusion.md carries the Lead duty (End state 16, D6, PIN-8)', () => {
   // The pointer sits in the per-phase launch paragraph (the one that threads the Workflow `args`),
@@ -4020,6 +4021,21 @@ test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and 
   assert.match(block[0], /^\s*sweepExcludeCount: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `sweepExcludeCount: … | null` row (PIN-8)')
   assert.match(block[0], /^\s*finalPhase: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `finalPhase: … | null` row (D3a)')
   assert.match(norm(manifest[0]), /`sweepExcludeCount` \/ `finalPhase`[^.]*stamped at phase launch/, 'the `## Run manifest` section must carry the `sweepExcludeCount` / `finalPhase` stamp bullet')
+  // run-manifest.md is the cold home of the per-stamp procedure (the mirror of the schemas.md rows):
+  // its `At phase launch` bullet and its MUST-carry sentence must both name the pair, so a one-sided
+  // revert of either surface reds here (phase-6 sweep finding: the cold home had no drift guard).
+  const launchStamp = runManifestMd.match(/^- \*\*At phase launch\*\*[^\n]*$/m)
+  assert.ok(launchStamp, 'could not locate the `- **At phase launch**` bullet in run-manifest.md — construct rotted')
+  assert.match(launchStamp[0], /sweep-exclusion\.md/, 'the run-manifest.md `At phase launch` bullet must span its sweep-exclusion.md pointer tail — extraction truncated (non-vacuity floor)')
+  for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
+    assert.ok(launchStamp[0].includes(field), `the run-manifest.md \`At phase launch\` bullet must name ${field} as a launch-time stamp (PIN-8; Task 6.1)`)
+  }
+  const mustCarry = runManifestMd.match(/^Field names follow spec §4\.A[^\n]*$/m)
+  assert.ok(mustCarry, 'could not locate the `Field names follow spec §4.A` MUST-carry sentence in run-manifest.md — construct rotted')
+  assert.match(mustCarry[0], /\*\*top level\*\*/, 'the run-manifest.md MUST-carry sentence must span its `**top level**` tail — extraction truncated (non-vacuity floor)')
+  for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
+    assert.ok(mustCarry[0].includes(field), `the run-manifest.md MUST-carry sentence must list ${field} in the per-phase set (PIN-8; Task 6.1)`)
+  }
 })
 
 test('lead-carry-pin — resume-and-recovery.md carries the relaunch carry steps: carriedPhaseClose → args.seededPhaseClose, finalPhase at every launch, the absorbCharges override, the transcript re-derivation residual (End state 16, D3a/D3b, PIN-5)', () => {
