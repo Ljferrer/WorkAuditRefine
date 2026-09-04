@@ -274,7 +274,7 @@ Phase 1 (config knob, economy flip, ledger footprint, flip doc sweep) → Phase 
 - Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`, `CHANGELOG.md`
 - Plan slice: bump all four slots in lock-step to the next free patch above the live base; replace the `## Status` blurb in place; add the CHANGELOG head entry naming the absorb budget, the economy preset flip, the barrier list and default flip, the exclusion set, the filing floor, the `DEMOTE_REASONS` census, the ace-off routing, the terminal pass, and the held carry.
 - Done when: `node --test skills/war/assets/version-slots.test.mjs`
-- requiresTest: true
+- requiresTest: false
 - requiresPackaging: true
 - deps: []
 - target repo: superproject
