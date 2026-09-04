@@ -3337,8 +3337,9 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
 // base-verified: at this task's cut base the reserve shape was present in SKILL.md's `--ace` bullet,
 // CONTEXT.md's **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
 // them), and Task 2.1 had already retired it from `disposition-eligibility.md` widening 1, the
-// `schemas.md` re-entry row, and the engine's seven comments plus its two emitted reserve-stop
-// strings (rule 7: this task's gate reads those three surfaces after the dep rebase). Two shapes
+// `schemas.md` re-entry row, and the engine's seven comments plus its four emitted reserve-stop
+// strings (two log() calls plus the demote() and routeToSweep() reason literals they guarded)
+// (rule 7: this task's gate reads those three surfaces after the dep rebase). Two shapes
 // are guarded: the arithmetic itself (`roundLimit − 2`, either minus glyph, any spacing, case-
 // folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
 // merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).

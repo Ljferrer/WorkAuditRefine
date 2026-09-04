@@ -851,7 +851,9 @@ The per-task ace meter, separate from `fixRounds`: the knob `run.absorbRounds` (
 validated like `run.roundLimit`) bounds the counter `r.task.absorbRounds`, charged once per ace-side
 COMMIT (batch ace, re-entry batch, bisection subset; the terminal pass once it lands) and never by
 reverts, re-audit panels, or fix rounds. All three ace gates read `absorbRounds < run.absorbRounds`;
-a spent budget routes the rows to the phase-close sweep as absorbs, logged and naming the counter.
+a spent budget routes the rows to the phase-close sweep as absorbs, logged and naming the counter
+(at the batch ace only when no Critical/Major blocker is open; open blockers hold the rows on
+`r.task.pendingAbsorbs` for the next approve, regardless of budget).
 Every ace-side commit carries the trailer `Ace-Charge: <task>:<n>` (n = the counter after the charge),
 and a relaunch seeds the counter from the highest trailer index on the task branch (the phase-start
 barrier's `absorbCharges`), 0 with a loud log on error or absence. Supersedes the retired reserve
