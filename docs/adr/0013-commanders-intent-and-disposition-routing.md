@@ -536,8 +536,8 @@ points:
   `phaseClose:true` to the phase-close sweep under the exclusion set and never demotes on the
   ace-off path. The two "absorb requires --ace" demote arms in `workflow-template.js` are retired;
   the `--ace` bullet's retired "with `--ace` off every absorb demotes this way" Residual-rule
-  wording describes the pre-Phase-4 ladder and is historical. Every preset resolves `run.ace === true`; a user config may still set it
-  false.
+  wording describes the pre-Phase-4 ladder and is historical. Every preset resolves
+  `run.ace === true`; a user config may still set it false.
 - **Every engine `follow-up` demotion carries a `DEMOTE_REASONS` prefix.** The closed prefix enum
   is canonical in `skills/war/assets/land-decision.mjs` and hand-mirrored in
   `workflow-template.js` with a mirror-registry row and an `F07` registration. Twelve members:
