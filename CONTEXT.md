@@ -850,7 +850,7 @@ reading it as bounding the merge-slot source.
 **Absorb budget**:
 The per-task ace meter, separate from `fixRounds`: the knob `run.absorbRounds` (integer ≥ 1, default 6,
 validated like `run.roundLimit`) bounds the counter `r.task.absorbRounds`, charged once per ace-side
-COMMIT (batch ace, re-entry batch, bisection subset; the terminal pass once it lands) and never by
+COMMIT (batch ace, re-entry batch, bisection subset, and the terminal pass, on the polish pseudo-task, telemetry only) and never by
 reverts, re-audit panels, or fix rounds. All three ace gates read `absorbRounds < run.absorbRounds`;
 a spent budget routes the rows to the phase-close sweep as absorbs, logged and naming the counter
 (at the batch ace only when no Critical/Major blocker is open; open blockers hold the rows on
@@ -973,7 +973,7 @@ _Avoid_: follow-up issues as the default disposal; a handoff block on `held:work
 death has no trustworthy return to render).
 
 **Drain cause**:
-The stamped reason a demoted absorb finding was fail-open-routed to follow-up — recorded per
+The stamped reason a queued absorb was fail-open-routed — demoted to follow-up on a final phase, carried on `carriedPhaseClose` on a non-final one — recorded per
 finding when a phase-close polish dispatch dies, so the drain is attributable instead of a bare
 follow-up dump. Emitted by `workflow-template.js`'s phase-close polish-dispatch drain path; the
 field name is engine-owned.

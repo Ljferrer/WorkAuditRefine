@@ -3937,6 +3937,14 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
     [/discarded sweep'?s absorbs/, 'the discard-arm carry'],
     [/non-final terminal pass'?s rows/, 'the terminal-pass carry'],
   ]) assert.match(cq, re, `the CONTEXT.md **Carried queue** entry must carry ${what}`)
+  // The two corrected carry-or-demote sentences (ace re-entry r3): the **Re-entry** budget-spent
+  // route and the **Phase-close coherence sweep** discard clause each carry `carriedPhaseClose`
+  // with its non-final qualifier. The lookahead is `**:`-anchored because the **Re-entry** body
+  // opens a line with a bolded cross-reference (`**Absorb budget** (...)`) before its `_Avoid_`.
+  const rr = pick('Re-entry', /^\*\*Re-entry\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the CONTEXT.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
+  const pc = pick('Phase-close coherence sweep', /^\*\*Phase-close coherence sweep\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the CONTEXT.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
   // The retired sentence: OLD-absent on the sweep-raised entry, NEW-present in its place.
   const sr = contextMd.match(/^\*\*sweep-raised finding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(sr, 'could not locate the `**sweep-raised finding**` glossary entry in CONTEXT.md — the extraction construct rotted')
