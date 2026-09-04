@@ -7,7 +7,7 @@ metadata:
   keywords: [vacuous test, false green, contains substring match, shared exit code, delete and trace, dead regex branch, negative match on undefined, temp-break RED proof, aggregate threshold count, inflated count, padding intro line, single-item removal slack, qualifier lock, anchor-derived region, region includes anchor substring, self-satisfying token, sliced-from-anchor window, hardcoded empty field, inert tiebreak, coincidental fixture ordering, localeCompare no-op, N-of-M emission sites, multi-site coverage gap, count assertion, source-level count, pkg 819 idiom, one-of-three seat coverage, emission site RED-ability, presence-only filename regex, run vs skip discrimination, floor-retry prompt pin, pkg 4.2 retry-merge, tautological length assertion, match length always groupcount plus one, capture group count, non-global match, extraction-equality test, D6 arms length, closed-set header sentence, ordered chain anchor, rung-body coverage gap, five-surface registry row, authority ladder, predicate wiring gap, shared inner predicate, flag-delta vs composition, caller-side substitution, byte-triplicated existence guard, guard bound by one call path only, _hit vs _hit_i, lacks_i wiring unasserted, delete-the-feature mutation, String.replace doesNotMatch, tautological mutation test, self-referential strip-and-assert, both-surfaces D20 idiom, non-vacuity proof, self-referential probe constant, anchoredProbe, construct-then-parse round trip, PLUGIN_ROOT_PREFIX typo, CHANGELOG ordering test, fixture-driven negative control, cmpSemver, only-tests-the-live-file, version-slots.test.mjs, self-citing fixture, non-goal skip arm, incidental substring citation, first sub-case does not discriminate, flattened whole-surface positive detector, pre-existing phrase satisfies key, old-default-absent, DISPOSITION WIDENINGS, unanchored substring key]
   provenance: code-verified
   slug: weak-test-assertion-passes-without-feature-being-exercised
-  phase: "audit-scheduler-integrity/t4 +19 recurrences (latest 2026-09-03-in-band-absorb-default/phase-3 task 3.2 — old-default-absent (b) vacuous pass on a pre-existing phrase)"
+  phase: "audit-scheduler-integrity/t4 +20 recurrences (latest 2026-09-03-in-band-absorb-default/phase-4 task 4.1 — gateAuditRows engine-stamp precedence untested)"
   date: 2026-07-21
   tags:
     - testing
@@ -15,9 +15,9 @@ metadata:
     - threading
     - workflow-template
     - guard-test
-  promoted: dev/2026-08-06-handoff-schemas-contract@phase-1
+  promoted: dev/2026-09-03-2026-09-03-in-band-absorb-default@phase-3
   originSessionId: 68b2ca32-fa05-459c-9ddf-f23ca91a5f40
-  modified: 2026-09-04T11:28:18.279Z
+  modified: 2026-09-04T15:25:03.491Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at
@@ -203,6 +203,33 @@ future Gate-2 promotion of this file overwrites the same-slug repo file.
   the target surface's PRE-diff base for the same normalized key — if it was already true, the
   detector cannot discriminate the sentence you actually care about from whatever already satisfied
   it.
+
+- **An engine-stamp-wins spread reorder (`{ ...seatRow, task, seat, lens, sha }`) has no fixture
+  proving the precedence, because every fixture is built through a shared helper that never sets
+  those keys** (`2026-09-03-in-band-absorb-default/phase-4 task 4.1`, 2026-09-04, `disposition:
+  absorb`/`note` — recurring Minor across the task's own audit, its post-merge gate-audit, and its
+  discarded `p4-polish` polish round; never a hold; code-verified at the landed tip
+  `1fcc88f9c6515707b1e52bb7215a5b5134860b03` on `dev/2026-09-03-2026-09-03-in-band-absorb-default`,
+  read via the `_refinery45` worktree whose `gitdir` physical path names this plan's slug):
+  `routeGateAuditRows` collects each of the three gate-audit seats' findings as `{ ...f, task:
+  taskId, seat: 'gate-audit:...', lens: 'execution-evidence', sha: ... }` — a deliberate reorder
+  from an earlier `{ task, seat, lens, sha, ...f }` shape, so the engine's own stamps win over any
+  same-named key a seat's JSON payload supplies. Every `gate-audit-route` fixture in
+  `workflow-template.test.mjs` builds its row through a `gaAbsorb()` helper that sets only
+  severity/title/file/rationale/suggested_fix/disposition — never `task`, `seat`, `lens`, or `sha`
+  — so flipping the spread order back to seat-wins produces byte-identical rows on every fixture,
+  and the whole suite stays green. Delete-and-trace on the reorder itself fails: nothing reds.
+  **Fix:** add one `gate-audit-route` fixture whose seat return carries spoofed provenance keys
+  (e.g. `{ ...gaAbsorb(), task: 'other-task', seat: 'audit:t9:correctness', sha: 'deadbeef00' }`)
+  and assert the queued row's `task`/`seat`/`sha` equal the engine-derived values, not the
+  seat-supplied ones — the same "spoof-the-payload" shape
+  [[auditor-supplied-provenance-keys-trusted-verbatim-in-followup-collapse-and-ask-parking]]
+  describes for the opposite precedence direction (there, auditor-supplied keys spread LAST and
+  win; here, engine keys spread LAST and are meant to win — both need a fixture that actually
+  seeds a conflicting key to prove which side wins). **Recognize the shape fast:** whenever a spread
+  order is the ONLY thing enforcing which side of a merge wins, check whether every fixture's input
+  object can even carry the contested keys — a shared builder helper that never sets them makes the
+  reorder itself untestable, not merely undertested.
 
 **Why:** green no-op tests survive feature deletion and rot silently. **How to apply:** run the delete-and-trace check on every new guard/threading assertion; pair positives with negatives and negatives with presence guards; for "each of N items has property P" assertions, count every legitimate occurrence of P's phrase on the surface (including intro/summary lines) before picking a threshold, or switch to a per-item anchored check; for an anchor-sliced region, check whether any locked token is itself a substring of the anchor literal or satisfiable by unrelated prose already in-region before trusting a whole-sentence delete-and-trace RED proof as evidence every individual token discriminates; when a construct is threaded to N near-identical emission sites, verify whether the mapped test proves all N or just one — a plan can legitimately sanction one-of-N as a latitude call, but if it doesn't, add a source-level count assertion (the `pkg #819` idiom) to close the residual N-1 sites cheaply; when an extraction test does `assert.ok(match)` then `assert.equal(match.length, N)`, check whether `N` is just `1 + the regex's own fixed capture-group count` — if so the length assertion can never fail and only a structurally-independent count (of the source's own delimiters) proves anything about a future third occurrence; when a closed-set header sentence backs an ordered chain anchor, count whether every enumerated member also has its own body-content assert — a header sentence naming N things is not proof any one thing's *content* survives deletion.
 
