@@ -1,6 +1,8 @@
 # Gate-audit checklist — the `execution-evidence` seat's standing duties
 
-Verbatim eviction from `agents/war-auditor.md` (plan 2026-09-03-in-band-absorb-default, D16 · Phase 3 Task 1; ADR 0042). The section below is byte-identical to the pre-eviction card text (4,426 B, heading through the trailing blank line); the card keeps the same `###` heading over one fixed trigger pointer to this file, and the per-pass spawn prompt still threads only the run-specific tokens (the stamped `pin_status`, the gate-log artifact path, the guard-specificity token) onto these duties. The `auditor-evict` rows in `skills/war/assets/workflow-template.test.mjs` pin the section by digest — a sanctioned later edit re-pins the digest in the same commit with its rationale.
+Verbatim eviction from `agents/war-auditor.md` (plan 2026-09-03-in-band-absorb-default, D16 · Phase 3 Task 1; ADR 0042). The section below is byte-identical to the pre-eviction card text at eviction time (4,426 B, heading through the trailing blank line); the card keeps the same `###` heading over one fixed trigger pointer to this file, and the per-pass spawn prompt still threads only the run-specific tokens (the stamped `pin_status`, the gate-log artifact path, the guard-specificity token) onto these duties. The `auditor-evict` rows in `skills/war/assets/workflow-template.test.mjs` pin the section by digest — a sanctioned later edit re-pins the digest in the same commit with its rationale.
+
+## Standing duties
 
 ### `execution-evidence` gate-audit checklist (reserved lens)
 
