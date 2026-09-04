@@ -927,7 +927,23 @@ _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure tha
 **sweep-raised finding**:
 A finding the phase-close re-audit panel raises against the polish commit itself, not a queued
 `phaseCloseQueue` finding the sweep drains; Minor/Nit route by disposition at sweep close
-(Critical/Major keep today's blocking visibility), never aced, never re-queued.
+(Critical/Major keep today's blocking visibility): on the merged arm an absorb joins the terminal
+pass, on the discard arm it rides the carried queue (non-final phase) or demotes `demote:sweep-discarded`.
+
+**Terminal pass**:
+The one-hop ace commit plus one re-audit seat after the polish merge (ADR 0012 successor of the
+merged-sweep demote arm): the polish panel's absorbs plus what the sweep left unlanded, filtered
+through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip; a regression is
+forward-reverted, then the rows carry (non-final) or demote `demote:terminal-pass` (final); it
+convenes with `run.ace` off and never budget-blocks.
+_Avoid_: a second pass; reading its charge as a gate; a release-slot file in its commit.
+
+**Carried queue**:
+The absorb rows a phase could not land and did not demote — a held phase's whole queue, a discarded
+sweep's absorbs, a non-final terminal pass's rows — emitted top-level as `carriedPhaseClose` on the
+phase return (`[]` on `landed`) and threaded back by the Lead as `args.seededPhaseClose`, where they
+drain into the relaunch's sweep queue.
+_Avoid_: reading absence as empty; demoting a held phase's queue; a carry inside the handoff block.
 
 **truncated gate log**:
 A captured gate log whose bash half aborted at the first red suite (some per-file headers, not
