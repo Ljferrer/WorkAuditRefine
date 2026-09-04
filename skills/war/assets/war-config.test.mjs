@@ -1319,6 +1319,15 @@ test('drift-guard: roundLimit fallback in workflow-template.js matches DEFAULTS.
     'workflow-template.js roundLimit fallback literal drifted from DEFAULTS.run.roundLimit')
 })
 
+// absorb-budget (D5, PIN-7): the template's `run.absorbRounds ?? <n>` fallback is a hand-mirror of
+// DEFAULTS.run.absorbRounds (the sandbox cannot import) — the roundLimit-fallback idiom above.
+test('drift-guard(F07): absorb-budget — absorbRounds fallback in workflow-template.js matches DEFAULTS.run.absorbRounds', () => {
+  const match = templateText.match(/const\s+absorbRounds\s*=\s*run\.absorbRounds\s*\?\?\s*(\d+)/)
+  assert.ok(match, 'absorbRounds fallback (`run.absorbRounds ?? <n>`) not found in workflow-template.js')
+  assert.equal(Number(match[1]), DEFAULTS.run.absorbRounds,
+    'workflow-template.js absorbRounds fallback literal drifted from DEFAULTS.run.absorbRounds')
+})
+
 // roundLimit default flip (3 → 6): pin the NEW value and assert the OLD literal is absent
 // across every enumerated doc surface. Every OLD-absent pattern is context-scoped with a
 // word boundary (`\b`) before `roundLimit` so the sibling knob `run.redteamRoundLimit`
@@ -2501,6 +2510,9 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     // → covered by its own inline-equality drift test (the D2 registry row in
     // workflow-template.test.mjs deepEquals the pair independently).
     ['SOFT_ENV_REASONS mirrors', ['drift-guard(F07): inline SOFT_ENV_REASONS']],
+    // Marker (absorb-budget, D5): "Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync"
+    // → covered by the absorbRounds fallback drift guard (the roundLimit-fallback idiom).
+    ['Mirror of DEFAULTS.run.absorbRounds', ['drift-guard(F07): absorb-budget — absorbRounds fallback']],
   ])
 
   // DATA mirrors → allowlisted (field names, no canonical function to behavioral-test).
@@ -2586,13 +2598,13 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — exactly 5 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS)', () => {
+test('meta-guard(F07): sanity — exactly 6 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // Anchored by construct, not line number. If you add a new mirror, update BOTH the
   // registry/allowlist above AND bump this count.
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
-  assert.equal(count, 5,
-    `Expected exactly 5 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+  assert.equal(count, 6,
+    `Expected exactly 6 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })

@@ -157,6 +157,10 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/budget-rebaseline.md',
   'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
   'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
+  // gate-failure-classification.md holds the `## Gate-failure classification` section evicted
+  // byte-identical from agents/war-refiner.md (in-band-absorb-default D12, ADR 0042); its only
+  // command prose is git (the base re-run / re-attach idiom) — no scanned-module verb.
+  'skills/war/references/gate-failure-classification.md',
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund
