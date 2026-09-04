@@ -83,8 +83,7 @@ export const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin
 // engine-filed issue body's prefix line is never blank. Twelve members: absorb-regressed (the ace
 // fix itself broke a re-audit and was forward-reverted), absorb-blocked (a held absorb on a task
 // that never merged), fileless, task-unapproved, sweep-skipped, sweep-discarded, terminal-pass,
-// exclusion-set, release-slot, floor-skipped (a seat row the intake floor never judged — a failed or
-// absent diff probe, the escalation arm, or the sweep panel's polish pseudo-task),
+// exclusion-set, release-slot, floor-skipped (a seat row on a task whose diff probe failed),
 // ask-unruled-afk (Lead-side, the Checkpoint --afk no-match lane), unclassified. Finding-level
 // prefixes only: NEVER members of HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, KNOWN_LAND_DECISIONS, or
 // BARRIER_TOKENS. MIRRORED inline in ./workflow-template.js (the Workflow sandbox can't import) —

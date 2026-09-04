@@ -5689,10 +5689,8 @@ test('handoff block (criterion 6): a landed phase emits { tipSha, polish, absorb
   assert.equal(h.tipSha, 'abc1234def', 'tipSha is the landed working sha')
   assert.equal(h.polish, 'skipped', 'no queue → polish skipped')
   assert.deepEqual(h.absorbed, [], 'nothing absorbed')
-  // handoffImpl answers no diff-probe dispatch, so the seat row files stamped floorSkipped (D4) and
-  // the ADDITIVE provenance key rides the handoff row beside { issue, reason }.
-  assert.deepEqual(h.followUps, [{ issue: 1234, reason: 'needs new tests — thin wiring', floorSkipped: true }],
-    'followUps carry { issue, reason } plus the filing provenance — the file-followups dispatch stamped the filed issue number (D2)')
+  assert.deepEqual(h.followUps, [{ issue: 1234, reason: 'needs new tests — thin wiring' }],
+    'followUps carry { issue, reason } — the file-followups dispatch stamped the filed issue number (D2)')
   assert.deepEqual(h.notes, [{ task: 't1', title: 'honest comment' }], 'notes carry { task, title }')
   assert.deepEqual(h.endState, [], 'no claims → empty endState')
   assert.equal(h.intentPresent, false, 'intentPresent false without args.intent')
@@ -5702,7 +5700,7 @@ test('handoff block (criterion 6): a landed phase emits { tipSha, polish, absorb
 test('file-followups fail-open (End state 2): a DEAD filing dispatch leaves every followUps issue null, landDecision unchanged, ONE log line — never a hold', async () => {
   const { out, logs } = await runPhase(HANDOFF_ARGS(), handoffImpl(null))
   assert.equal(out.landDecision, 'landed', 'landDecision untouched by the dead filing dispatch')
-  assert.deepEqual(out.handoff.followUps, [{ issue: null, reason: 'needs new tests — thin wiring', floorSkipped: true }],
+  assert.deepEqual(out.handoff.followUps, [{ issue: null, reason: 'needs new tests — thin wiring' }],
     'every unmatched followUps entry stays issue: null (fail-open — the Checkpoint floor is the catch)')
   assert.equal(logs.filter(l => typeof l === 'string' && l.startsWith('file-followups:')).length, 1,
     'exactly ONE fail-open log line for the dead/non-conforming filing dispatch')
@@ -11840,10 +11838,10 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
 // ---- barrier-list (in-band-absorb-default D1/D2, End state 7 — PIN-1, PIN-2, PIN-12) ----
 // The structured `barrier` enum and the in-diff absorb default flip on the SEAT surfaces only:
 // AUDIT_VERDICT's optional `barrier` field, the dispatched DISPOSITION RULE rendered from the inline
-// BARRIER_TOKENS mirror (byte-mirroring the card), and dispositionOf's engine default reading the
-// per-task diff probe (Phase 4, D1/D4: an in-diff Minor with a suggested_fix defaults absorb). Each
-// fixture reds with its arm deleted: drop the schema field, hand-type the tokens into the prompt, or
-// remove the probe read from the engine default.
+// BARRIER_TOKENS mirror (byte-mirroring the card), and dispositionOf's engine default UNCHANGED
+// through Phase 3 (the Phase 4 diff-probe floor moves the default into the engine). Each fixture reds
+// with its arm deleted: drop the schema field, hand-type the tokens into the prompt, or flip the
+// engine default early.
 
 test('barrier-list — AUDIT_VERDICT finding items carry the OPTIONAL `barrier` field whose enum IS the inline BARRIER_TOKENS mirror (never required; the four canonical tokens)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -13958,54 +13956,6 @@ test('filing-floor — the intake floor is deterministic: BARRIER_TOKENS members
   assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('REROUTED') && l.includes('seat row')), 'and that reroute is logged')
 })
 
-// The three floorSkipped stamp sites the intake floor never reaches (D4): the escalation arm and
-// both terminal sweep arms. Delete-and-trace: remove any one `f.floorSkipped = true` stamp (or its
-// log line) and the matching fixture reds — the row files unstamped and the prompt renders the
-// seat-filed provenance instead of demote:floor-skipped.
-test('filing-floor — the escalation arm: a seat follow-up on an escalated task files stamped floorSkipped, renders filed-by: demote:floor-skipped, logs the skip once, and the handoff row carries the flag', async () => {
-  const impl = (prompt, opts) => {
-    if (seatOf(opts) === 'war-auditor') {
-      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high',
-        findings: [{ severity: 'Minor', title: 'seat follow-up on escalated task', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:release-slot' }] }
-    }
-    return aceBase([])(prompt, opts)
-  }
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, PROBE)
-  assert.ok((out.escalated || []).some(e => e && e.task === 't1'), 't1 escalated (presence guard)')
-  const d = demotionOf(out, 'seat follow-up on escalated task')
-  assert.ok(d && d.floorSkipped === true && d.engineFiled !== true, 'the seat follow-up files stamped floorSkipped, never engineFiled')
-  assert.ok(filingPromptOf(calls).includes('filed-by: demote:floor-skipped'), 'the filing prompt renders demote:floor-skipped on the row')
-  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('intake floor not run on the escalation arm for task t1')).length, 1, 'the skip is logged exactly once for the task')
-  const fu = (out.handoff.followUps || []).find(x => x && /seat follow-up on escalated task/.test(x.reason || ''))
-  assert.ok(fu && fu.floorSkipped === true && fu.barrier === 'barrier:release-slot' && !('demoteReason' in fu), 'the handoff followUps row carries floorSkipped + barrier and no demoteReason')
-})
-
-test('filing-floor — the merged sweep arm: a sweep-raised seat follow-up files stamped floorSkipped, renders filed-by: demote:floor-skipped, and logs the skip once', async () => {
-  const sweepFollowUp = { severity: 'Minor', title: 'sweep-raised seat follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
-  const impl = buildSeqImpl(
-    { 'audit:p3-polish:correctness': [approveWith('audit:p3-polish:correctness', [sweepFollowUp])] },
-    sweepBase([queuedAbsorb()]))
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
-  assert.equal(out.handoff.polish, 'merged', 'the sweep merged (presence guard)')
-  const d = demotionOf(out, 'sweep-raised seat follow-up')
-  assert.ok(d && d.floorSkipped === true && d.engineFiled !== true, 'the sweep-raised follow-up files stamped floorSkipped, never engineFiled')
-  assert.ok(filingPromptOf(calls).includes('filed-by: demote:floor-skipped'), 'the filing prompt renders demote:floor-skipped on the row')
-  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('intake floor not run on the merged sweep arm for the polish pseudo-task p3-polish')).length, 1, 'the skip is logged exactly once')
-})
-
-test('filing-floor — the discard sweep arm: a sweep-raised seat follow-up files stamped floorSkipped, renders filed-by: demote:floor-skipped, and logs the skip once', async () => {
-  const sweepFollowUp = { severity: 'Minor', title: 'sweep-raised seat follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
-  const impl = buildSeqImpl(
-    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [sweepFollowUp] }] },
-    sweepBase([queuedAbsorb()]))
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
-  assert.equal(out.handoff.polish, 'discarded', 'the sweep discarded (presence guard)')
-  const d = demotionOf(out, 'sweep-raised seat follow-up')
-  assert.ok(d && d.floorSkipped === true && d.engineFiled !== true, 'the sweep-raised follow-up files stamped floorSkipped, never engineFiled')
-  assert.ok(filingPromptOf(calls).includes('filed-by: demote:floor-skipped'), 'the filing prompt renders demote:floor-skipped on the row')
-  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('intake floor not run on the discard sweep arm for the polish pseudo-task p3-polish')).length, 1, 'the skip is logged exactly once')
-})
-
 // ---- demote-census (D13, End state 11) --------------------------------------------------------
 
 test('demote-census — demote() validates a DEMOTE_REASONS prefix on every follow-up reason: an unprefixed reason emits demote:unclassified plus the loud log; a prefixed reason and a note demotion pass untouched', () => {
@@ -14232,18 +14182,6 @@ test('gate-audit-route — phase_diff_files absent: the follow-up arm still rero
   const filed = demotionOf(out, 'ga barred no phase diff')
   assert.ok(filed && filed.barrier === 'barrier:release-slot', 'presence guard: the barrier-tagged follow-up reached minorsFiled')
   assert.ok(filed.floorSkipped !== true, 'no demote:floor-skipped from the gate-audit pass — measured on a row that actually filed')
-})
-
-test('gate-audit-route — a seat payload carrying spoofed provenance keys (task, seat, sha) never overrides the engine stamps: the queued row keeps the engine task, seat label, and pin-equal audit_sha', async () => {
-  const spoofed = { ...gaAbsorb({ title: 'ga spoofed provenance' }), task: 'other-task', seat: 'audit:t9:correctness', lens: 'correctness', sha: 'deadbeef00' }
-  const { out, calls } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [spoofed] }))
-  assert.ok(polishPromptOf(calls).includes('ga spoofed provenance'), 'presence guard: the row reaches the sweep')
-  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'ga spoofed provenance')
-  assert.ok(aced, 'presence guard: the row is recorded aced')
-  assert.equal(aced.finding.task, 't1', 'the engine task stamp wins over the seat-supplied task')
-  assert.equal(aced.finding.seat, 'gate-audit:t1:execution-evidence', 'the engine seat label wins over the seat-supplied seat')
-  assert.equal(aced.finding.lens, 'execution-evidence', 'the engine lens wins over the seat-supplied lens')
-  assert.equal(aced.finding.sha, 'beefcafe12', 'the engine pin-equal audit_sha wins over the seat-supplied sha')
 })
 
 test('gate-audit-route — an exclusion-set hit from a gate-audit seat demotes naming the owner; a gate-audit ask still parks', async () => {

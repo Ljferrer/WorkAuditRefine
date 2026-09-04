@@ -1159,8 +1159,7 @@ const floorSkipLogged = new Set()
 // 'absorb' ("note with a specified fix rerouted"); every other row keeps its classification. Probe
 // ABSENT (diff null) ⇒ the old default stands, the task's skip is logged once, and each seat row
 // filed for that task carries floorSkipped (rendered demote:floor-skipped on the issue-body prefix
-// line; the escalation arm and the sweep panel's polish pseudo-task stamp the same flag, each with
-// its own log line) — never demote:floor-skipped from the gate-audit pass, which has its own floor.
+// line) — never demote:floor-skipped from the gate-audit pass, which has its own floor.
 const intakeFloor = (f, d, diff) => {
   if (f.engineFiled === true) return d
   if (!(diff instanceof Set)) {
@@ -3404,11 +3403,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // follow-up and are filed WITH the escalation — the old eager-push behavior, now stated. An
       // ask still parks (#1550): the question survives the escalation for the Checkpoint gate,
       // never filed unruled with it.
-      if (taskMinors.length) log('intake floor not run on the escalation arm for task ' + r.task.id + ' — filed seat rows carry demote:floor-skipped (D4).')
       for (const f of taskMinors) {
         const d = dispositionOf(f, null)   // no floor on the escalation arm: nothing lands this phase for the task
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped (logged once above)
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
       }
       if (r.verdict === 'env-blocked') {
@@ -4155,11 +4153,10 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
       // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later
       // round. A sweep-raised ask still parks (#1550) — the Checkpoint gate has no terminal round.
-      if (sweepMinors.length) log('intake floor not run on the merged sweep arm for the polish pseudo-task ' + polishTask.id + ' (no diff probe) — filed seat rows carry demote:floor-skipped (D4).')
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped (logged once above)
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
         else if (d === 'note') notes.push(f)
         else demote(f, 'follow-up', "demote:terminal-pass — sweep-raised absorb — the phase-close sweep is the phase's terminal fix round; absorb has no later round to land")
       }
@@ -4181,11 +4178,10 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
       // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
       // A sweep-raised ask still parks (#1550): the ruling gate is Lead-side, not branch-bound.
-      if (sweepMinors.length) log('intake floor not run on the discard sweep arm for the polish pseudo-task ' + polishTask.id + ' (no diff probe) — filed seat rows carry demote:floor-skipped (D4).')
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped (logged once above)
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
         else if (d === 'note') notes.push(f)
         else demote(f, 'follow-up', 'demote:sweep-discarded — sweep-raised absorb — the phase-close sweep was discarded; the polish branch never merged')
       }
@@ -4560,9 +4556,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : (landedShaByTask.get(t) ?? 'unrecorded') }
   }
   // filedByOf (D13, PIN-15): the row's fixed-line prefix value — the DEMOTE_REASONS member leading an
-  // engine-demoted row's reason (demote() guarantees one), demote:floor-skipped for a seat row the
-  // intake floor never judged (a failed or absent diff probe, the escalation arm, or the sweep
-  // panel's polish pseudo-task), else the seat's barrier tag (or 'none' when the seat cited none).
+  // engine-demoted row's reason (demote() guarantees one), demote:floor-skipped for a seat row on a
+  // task whose diff probe failed, else the seat's barrier tag (or 'none' when the seat cited none).
   const filedByOf = m => m.engineFiled === true
     ? ((DEMOTE_REASONS.find(p => typeof m.demoteReason === 'string' && m.demoteReason.startsWith(p))) || 'demote:unclassified')
     : m.floorSkipped === true ? 'demote:floor-skipped'
@@ -4583,8 +4578,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // Demote-reason prefix line (in-band-absorb-default D13, PIN-15) — standing mirror:
       // skills/war/references/file-followups.md (same commit). Every engine-filed issue body carries
       // its DEMOTE_REASONS prefix on a FIXED line; a seat-filed row carries its barrier tag, and a
-      // seat row the intake floor never judged carries demote:floor-skipped.
-      + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row the intake floor never judged (a failed or absent diff probe, the escalation arm, or the sweep panel's polish pseudo-task), or \`seat-filed (barrier: <tag>)\` otherwise; a clustered issue lists one such line per member row.\n`
+      // seat row on a task whose diff probe failed carries demote:floor-skipped.
+      + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row whose task had no diff probe, or \`seat-filed (barrier: <tag>)\` otherwise; a clustered issue lists one such line per member row.\n`
       + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens follows the FAMILY-PREFIX rule: a seat label whose FIRST \`:\`-segment is \`gate-audit\` yields the lens \`execution-evidence\` whatever its trailing segments (a phase-level segment like \`phase-1\` or a dispatch suffix like \`integrated-tip\`/\`end-state\` is never a lens); otherwise the lens is the trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
@@ -4691,13 +4686,7 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — an
     // auditor-supplied `merged: [null]` deref here would convert a LANDED phase into
     // held:workflow-error and destroy this very handoff.
-    // demoteReason / barrier / floorSkipped (in-band-absorb-default D4/D13, ADDITIVE keys — no exact-key
-    // handoff validator exists): the filing provenance filedByOf renders on the prompt reaches the
-    // machine-readable handoff too, so the Checkpoint can tell an engine demotion from a seat-filed row.
     followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
-      ...(typeof m.demoteReason === 'string' && m.demoteReason ? { demoteReason: m.demoteReason } : {}),
-      ...(typeof m.barrier === 'string' && m.barrier ? { barrier: m.barrier } : {}),
-      ...(m.floorSkipped === true ? { floorSkipped: true } : {}),
       ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}) })),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
