@@ -108,8 +108,9 @@ export const PRESETS = {
     agents: {
       // worker tiers inherit DEFAULTS (fable/default on base, docs and fix).
       auditor:  { model: 'fable',  effort: 'default' },
-      // Pinned ABOVE the DEFAULTS refiner (sonnet/high): thorough must never be weaker than
-      // balanced on any axis, so its refiner takes the top effort tier.
+      // Refiner pinned one effort tier above the DEFAULTS refiner (sonnet/high). Thorough is the
+      // fable-everywhere preset: auditor, red-team and snipe seats run fable at session effort,
+      // which is a model step up from balanced's opus/high on those axes, not an effort step up.
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
@@ -128,9 +129,9 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Cheaper tiers on every role except the fix worker (fable/default, inherited from DEFAULTS).
-    // refiner/servitor are pinned at sonnet/high; roster policy, round limit and ace inherit DEFAULTS
-    // (auto / 6 / on).
+    // Sonnet on the auditor, refiner, servitor and red-team seats; opus first-pass workers (base and
+    // docs) with the fable/default fix tier inherited from DEFAULTS. snipe deliberately inherits
+    // DEFAULTS (opus/high). Roster policy, round limit and ace inherit DEFAULTS (auto / 6 / on).
     agents: {
       worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'xhigh' },
