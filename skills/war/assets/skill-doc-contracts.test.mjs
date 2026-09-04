@@ -3089,7 +3089,9 @@ test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ru
     [/Evidence artifacts/i, "parity's Evidence-artifacts section"],
     [/third producer/i, 'the ruling-minted-as-third-producer clause'],
     [/never re-adds one/i, 'the Lead-never-re-adds-one clause'],
-    [/demotes to follow-up with the question preserved/i, 'the `--afk` no-match demotion arm'],
+    // Re-keyed at in-band-absorb-default Task 6.1 (D13): the no-match arm now names its
+    // `DEMOTE_REASONS` prefix; the afk-ask-prefix-pin row below pins the full sentence per bullet.
+    [/files as a `follow-up` with `demote:ask-unruled-afk` on the body prefix line, question preserved/, 'the `--afk` no-match demotion arm (re-keyed to its DEMOTE_REASONS prefix, D13)'],
     [/provenance-marked/i, "the suppression row's provenance marking"],
   ]) {
     assert.match(cp, re, `the SKILL.md Checkpoint must carry ${what} (#1550, Task 2.1's duty pinned here per rule 7)`)
@@ -3969,4 +3971,95 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
     [/2026-09-03-in-band-absorb-default\.md/, "the plan's file (the decision record it points at)"],
   ]) assert.match(xref[0], re, `the ADR 0012 2026-09-04 cross-reference must carry ${what}`)
   assert.ok(adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m), 'the pre-existing 2026-08-25 cross-reference must still be present (append-only law)')
+})
+
+// (sweep-exclusion-pin / lead-carry-pin / afk-ask-prefix-pin) THE LEAD LAUNCH AND RELAUNCH PROSE
+// (plan 2026-09-03-in-band-absorb-default, End state 16 · Task 6.1; D3a/D3b/D6/D13, PIN-5/PIN-8).
+// The engine reads `args.sweepExclude`, `args.seededPhaseClose`, and `args.finalPhase`; these rows
+// pin the Lead-side duties that thread them. Extraction is construct-scoped (the launch paragraph,
+// the Recovery-relaunch bullet, the Checkpoint ask-gate bullet), never whole-file, and every
+// extraction spans its own tail marker (D26's non-vacuity floor). The new cold home
+// `references/sweep-exclusion.md` is read directly (ADR 0042: the card carries the trigger
+// pointer only, the body lives in references/).
+const sweepExclusionMd = readFileSync(join(HERE, '..', 'references', 'sweep-exclusion.md'), 'utf8')
+
+test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and sweep-exclusion.md carries the Lead duty (End state 16, D6, PIN-8)', () => {
+  // The pointer sits in the per-phase launch paragraph (the one that threads the Workflow `args`),
+  // in the fixed `when <trigger>, read references/<file>` shape (link form, as the card's siblings).
+  const launch = skillMd.match(/^Run \*\*one Workflow per phase\*\*[^\n]*$/m)
+  assert.ok(launch, 'could not locate the per-phase `Run **one Workflow per phase**` launch paragraph in SKILL.md — construct rotted')
+  assert.match(launch[0], /as the Workflow `args`\./, 'the launch paragraph must span its `as the Workflow `args`.` marker — extraction truncated (non-vacuity floor)')
+  assert.match(
+    launch[0],
+    /when launching under a campaign, read \[references\/sweep-exclusion\.md\]\(references\/sweep-exclusion\.md\)/i,
+    'SKILL.md must carry the trigger pointer "when launching under a campaign, read [references/sweep-exclusion.md](references/sweep-exclusion.md)" in the launch paragraph (ADR 0042 shape; Task 6.1)',
+  )
+  // The card carries the pointer only — the duty body lives in references/ (no duplicated body).
+  for (const literal of ['extractFilesFromPlanFile', 'campaign contention set empty for', 'no campaign contention set threaded']) {
+    assert.ok(!skillMd.includes(literal), `SKILL.md carries the evicted-shape body literal "${literal}" — the duty lives in sweep-exclusion.md only (a duplicated body drifts)`)
+  }
+  const sx = norm(sweepExclusionMd)
+  for (const [re, what] of [
+    [/the exported `extractFilesFromPlanFile`/, 'the exported `extractFilesFromPlanFile` (campaign-ledger.mjs) as the footprint source'],
+    [/import the function in a Node one-liner, do not add a verb/, 'the import-in-a-Node-one-liner instruction'],
+    [/verb set is closed and stays so/, "the closed-verb-set clause (no new ledger CLI verb)"],
+    [/import \{ extractFilesFromPlanFile \}|const \{ extractFilesFromPlanFile \} = await import\(/, 'the one-liner itself'],
+    [/not this plan[^.]*not `landed`|\*\*not this plan\*\*[^.]*\*\*not `landed`\*\*/i, 'the entry filter (not this plan, not `landed`)'],
+    [/\[\{ slug, files\[\] \}\]/, 'the `[{ slug, files[] }]` entry shape'],
+    [/Stored ledger `files` are the contention record, not this input/, 'the stored-`files`-are-not-this-input clause'],
+    [/`campaign contention set empty for <n> entries`/, 'the empty-union log line'],
+    [/`no campaign contention set threaded`/, 'the absent-ledger log line'],
+    [/`sweepExcludeCount`/, 'the `sweepExcludeCount` manifest row'],
+    [/`finalPhase`: the boolean threaded as `args\.finalPhase`[^;]*`null` when absent/, 'the `finalPhase` manifest row (null when absent)'],
+  ]) assert.match(sx, re, `sweep-exclusion.md must carry ${what} (D6, PIN-8; Task 6.1)`)
+  // schemas.md § Run manifest carries both rows inside the per-phase manifest block.
+  const manifest = schemasMd.match(/^## Run manifest[\s\S]*?(?=\n## )/m)
+  assert.ok(manifest, 'could not locate the `## Run manifest` section in schemas.md — construct rotted')
+  const block = manifest[0].match(/```jsonc[\s\S]*?```/)
+  assert.ok(block, 'the `## Run manifest` section lost its jsonc block')
+  assert.match(block[0], /^\s*sweepExcludeCount: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `sweepExcludeCount: … | null` row (PIN-8)')
+  assert.match(block[0], /^\s*finalPhase: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `finalPhase: … | null` row (D3a)')
+  assert.match(norm(manifest[0]), /`sweepExcludeCount` \/ `finalPhase`[^.]*stamped at phase launch/, 'the `## Run manifest` section must carry the `sweepExcludeCount` / `finalPhase` stamp bullet')
+})
+
+test('lead-carry-pin — resume-and-recovery.md carries the relaunch carry steps: carriedPhaseClose → args.seededPhaseClose, finalPhase at every launch, the absorbCharges override, the transcript re-derivation residual (End state 16, D3a/D3b, PIN-5)', () => {
+  // Per bullet, inside the `### Recovery relaunch` shared-mechanics list: the new bullet must span
+  // its own tail marker (the re-derivation log line), so a truncated extraction reds here.
+  const relaunch = resumeMd.match(/^### Recovery relaunch[\s\S]*?(?=\n### )/m)
+  assert.ok(relaunch, 'could not locate the `### Recovery relaunch` section in resume-and-recovery.md — construct rotted')
+  const bullet = relaunch[0].match(/^- \*\*Phase-close carry[\s\S]*?(?=\n- \*\*|\n\n)/m)
+  assert.ok(bullet, 'could not locate the `- **Phase-close carry` bullet in the Recovery-relaunch shared mechanics — construct rotted')
+  const b = norm(bullet[0])
+  assert.match(b, /relaunch log names the re-derivation/, 'the Phase-close carry bullet must span its re-derivation tail — extraction truncated (non-vacuity floor)')
+  for (const [re, what] of [
+    [/`carriedPhaseClose`[^.]*landed or held/, "the every-phase-return clause (landed or held — a landed non-final phase can carry, D3a)"],
+    [/Thread it \*\*verbatim\*\* into the next launch's `args\.seededPhaseClose`/, 'the verbatim `carriedPhaseClose` → `args.seededPhaseClose` threading step'],
+    [/thread `args\.finalPhase` from the plan's phase count at \*\*every\*\* launch/, 'the `args.finalPhase`-at-every-launch sentence beside the seeding step'],
+    [/Override `absorbCharges` through `args\.absorbCharges` \*\*only\*\* at a sanctioned relaunch/, 'the `absorbCharges`-override-only-at-a-sanctioned-relaunch note'],
+    [/threw before returning has no phase return/, "the accepted residual's premise (a Workflow that threw has no phase return)"],
+    [/re-derives the queue from the seats' audit verdicts in the run transcripts/, 'the transcript re-derivation residual'],
+  ]) assert.match(b, re, `the resume-and-recovery.md Phase-close carry bullet must carry ${what} (Task 6.1)`)
+})
+
+test('afk-ask-prefix-pin — the SKILL.md Checkpoint `--afk` no-match arm files the unmatched ask as a follow-up with demote:ask-unruled-afk on the body prefix line, question preserved (End state 16, D13)', () => {
+  const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
+  assert.ok(checkpoint, 'could not locate the `## Checkpoint` section in SKILL.md — construct rotted')
+  // Per bullet (the ask ruling gate), spanning its `--afk` suppression-row tail — the D41 idiom.
+  const bullet = checkpoint[0].match(/^- \*\*Ask ruling gate[\s\S]*?(?=\n- \*\*|\n## |$)/m)
+  assert.ok(bullet, 'could not locate the ask ruling gate bullet in the `## Checkpoint` section — construct rotted')
+  const b = norm(bullet[0])
+  assert.match(b, /never mints one/, 'the ask ruling gate bullet must span its `--afk` suppression-row tail — extraction truncated (non-vacuity floor)')
+  const posture = b.indexOf('`--afk` posture:')
+  assert.ok(posture >= 0, 'the ask ruling gate bullet lost its `--afk` posture clause')
+  const afk = b.slice(posture)
+  assert.match(
+    afk,
+    /the unmatched ask files as a `follow-up` with `demote:ask-unruled-afk` on the body prefix line, question preserved/,
+    'the Checkpoint `--afk` posture must carry the one no-match sentence: the unmatched ask files as a `follow-up` with `demote:ask-unruled-afk` on the body prefix line, question preserved (D13; Task 6.1)',
+  )
+  // The prefix is a DEMOTE_REASONS member (land-decision.mjs is canonical) — a misspelt prefix here
+  // would file an issue the census cannot classify.
+  const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
+  assert.ok(JSON.parse(lit[1].replace(/'/g, '"')).includes('demote:ask-unruled-afk'), '`demote:ask-unruled-afk` must be a `DEMOTE_REASONS` member (land-decision.mjs)')
 })
