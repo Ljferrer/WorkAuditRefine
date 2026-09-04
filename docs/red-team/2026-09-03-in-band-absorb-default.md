@@ -1,13 +1,15 @@
 # Red Team — 2026-09-03-in-band-absorb-default (2026-09-03)
-**Verdict:** BLOCKED — round 4 (fresh entry seeded at 3, full 12-probe run against the seven-phase plan at `164d26e`) returned 21 blockers and 15 needsDecision rows across seventeen roots; the round limit stays reached, the gate emitted `routeUpstream: true`, and the residual questions go back to the interview (block below)
-**Rounds:** 4
+**Verdict:** BLOCKED — round 5 (fresh entry seeded at 4, full 12-probe run against the plan at `6b54bc0` after the nine round-4 rulings) returned 10 blockers and 9 needsDecision rows across sixteen roots, the smallest set of any round; the round limit stays reached, the gate emitted `routeUpstream: true`, and the residual questions go back to the interview (block below)
+**Rounds:** 5
 <!-- Cumulative grill sweeps: the Step-1 seed + this run's sweeps. Strict form — the next run's seeding re-reads exactly this line; an integer, nothing else. -->
 
 Artifact kind: `impl-plan`. Source of truth: the plan's own Part 1 (merged arm). Repo under test: a `git clone --no-hardlinks` of the plan branch at `5362295` (clean; the real worktree carried an uncommitted run-config edit). Model: opus / high from the run config. Round limit 3. Prior report: none, seed 0.
 
 ## Attack surface
 Spine: claims-vs-reality, executable-proof, coverage-vs-source, consistency-placeholders, dependency-feasibility, intent-vs-plan. Bespoke: `default-flip-old-absent` (executed, mandatory drift-guard probe), `baseline-repro` (executed), `command-diff` (executed), `ledger-files-field` (analyzed), `anchor-check` (analyzed), `enum-mirror-guard` (analyzed). Lead-run: `unguarded-new-mirror` pass, `guard-split-deps-edge` pass, `touched-doc-fact-coverage` two gaps patched pre-run, backstop-legitimacy pass, `judge:` grading vacuous, `ff-topology` not triggered (no merge-topology anchor in the plan). Executed in sandbox: four probes. 12 of 12 probes on target, none dropped.
-Fallback: none. Escape guard: exit 0 before and after every round (fresh snapshots at `cabd25b`, `e7a3505`, `164d26e`).
+Fallback: none. Escape guard: exit 0 before and after every round (fresh snapshots at `cabd25b`, `e7a3505`, `164d26e`, `6b54bc0`).
+
+Round 5 (fresh entry, plan at `6b54bc0`): six spine lenses plus `default-flip-old-absent`, `phase-ownership`, `engine-seams`, `command-diff`, `baseline-repro`, `anchor-check`. 12 of 12 on target, one pass (`command-diff`), three warn, eight fail. `phase-ownership` passed again.
 
 Round 4 (fresh entry, seven-phase plan at `164d26e`): six spine lenses plus `default-flip-old-absent`, `phase-ownership`, `gate-audit-route`, `command-diff`, `baseline-repro`, `anchor-check`. 12 of 12 on target, one pass (`claims-vs-reality`), eleven fail. `phase-ownership` found no same-file collision and no missing `deps` edge in the seven-phase shape.
 
@@ -23,7 +25,20 @@ Round 2 (this run's second sweep, plan at `cabd25b`): the same six spine lenses 
 - `command-diff` (re-verify, round 1, attempt 2) → rows 1 to 7 and 9 to 11 red at base, row 8 green (19 tests), row 6's `! grep -qi` clause exits 1 at base and 0 after the merged-arm line is removed, all referenced non-deliverable files exist, four Done-when suites green at base. One Major: rows 2 and 3 still used the bare `grep -c … prints at least N` form, so row 3's floor of 4 was not enforced. Patched to the `test "$(grep -c …)" -ge N` form and stamped adjudicated (re-verify attempts exhausted).
 
 ## Findings
-Round 1: 40 blockers and 29 `needsDecision` rows, twelve roots, all patched or ruled. Round 2: 29 blockers and 14 `needsDecision` rows, seven roots, five ruled at the regrill and the rest patched. Round 3: 24 blockers and 5 `needsDecision` rows, fourteen roots, four ruled at the regrill and the rest patched. Round 4: 21 blockers and 15 `needsDecision` rows, seventeen roots. Nine need a ruling and are the Route-upstream agenda; eight are enumeration misses and are patched on re-entry. The seven-phase shape itself passed the `phase-ownership` probe clean.
+Round 1: 40 blockers and 29 `needsDecision` rows, twelve roots, all patched or ruled. Round 2: 29 blockers and 14 `needsDecision` rows, seven roots, five ruled at the regrill and the rest patched. Round 3: 24 blockers and 5 `needsDecision` rows, fourteen roots, four ruled at the regrill and the rest patched. Round 4: 21 blockers and 15 `needsDecision` rows, seventeen roots, nine ruled at the regrill and eight patched. Round 5: 10 blockers and 9 `needsDecision` rows, sixteen roots. Seven need a ruling and are the Route-upstream agenda; nine are factual and are patched on re-entry. The seven-phase shape passed `phase-ownership` again.
+
+### Round 5 roots
+- [Major, needsDecision] Where the default flips: `dispositionOf` runs at seat-collection time and cannot see the diff, so Phase 3 can only change prompt text; the engine default stays `follow-up` until Phase 4's floor. The two behavioral default tests and a third assert must be re-titled, not re-asserted. Agenda.
+- [Major, needsDecision] `aceEligible` is a basename-suffix regex today; a two-full-path `RELEASE_SLOT_FILES` read narrows the refusal for foreign target repos. Agenda.
+- [Major, needsDecision] The `/war-room` row "(default 6)" restates a machine fact with no guard, de-mirror, or defer; the sibling `run.roundLimit` row states no default. Agenda.
+- [Major, needsDecision] The batch ace demotes on exhaustion today ("ace unavailable (open blocking findings or exhausted fix budget)"); it never routes to the sweep. Agenda.
+- [Major, needsDecision] `DEMOTE_REASONS` names five members; 23 existing sites have no mapping and would all fall to `demote:unclassified`. Agenda.
+- [Major, needsDecision] The gate-audit family runs after the merge queue, so the merge-queue floor never sees its rows; the barrier law has no engine enforcement for them. Agenda.
+- [Major, needsDecision] A merged task with `diff_files` absent is a fourth filing lane the Purpose does not name. Agenda.
+- [Major] The `economy-ace-flip` detector misses the two ace-off statements inside `war-room`'s 498-character economy bullet and fires across a test boundary in the post-flip `war-config.test.mjs`; line-scoped matching fixes both. Patched.
+- [Minor] Four test pins on the old sentence, not three; four checklist-duty asserts, not five; End state 12's grep is line-split-evadable; `finalPhase` and `sweepExcludeCount` need `schemas.md` run-manifest rows in Phase 6; the ledger CLI verb set is closed, so the Lead imports `extractFilesFromPlanFile` from Node; `skills/war/SKILL.md` has no assumption row though five tasks edit it; new-file slices need a "new" marker; the `aceEligible` byte pin at `workflow-template.test.mjs:4197` needs a re-key. Patched.
+
+### Round 4 roots
 
 ### Round 4 roots
 - [Major, needsDecision] The gate-audit family is per-task post-merge, integrated-tip, and end-state-only. All three run after the merge queue and before the sweep. No polish gate-audit seat exists; the polish re-audit is an ordinary roster panel. D15 and D3a name a non-existent seat and a terminal-pass input that the sweep would splice away first. The three gate-audit prompts carry no disposition instruction at all. Agenda.
@@ -130,7 +145,16 @@ Round 1: 40 blockers and 29 `needsDecision` rows, twelve roots, all patched or r
 
 ## Route upstream
 **Regrill:** `/war-strategy /Users/ljf/GitHub/WorkAuditRefine/docs/plans/2026-09-03-in-band-absorb-default.md` — run the interview on the agenda below; it patches the plan.
-**Agenda (residual questions), round 4:**
+**Agenda (residual questions), round 5:**
+- Default flip placement: (a) Phase 3 changes prompt text only, the engine default stays `follow-up` until Phase 4's floor, tests re-titled; (b) flip an engine arm in Phase 3, which cannot see the diff.
+- `aceEligible` semantics: (a) basename matching derived from `RELEASE_SLOT_FILES`, today's breadth kept; (b) exact repo-relative paths, a narrowing.
+- `/war-room` default row: (a) extend the existing extraction-and-equality war-room test in `war-config.test.mjs` to the new row; (b) de-mirror, state no default like the `run.roundLimit` row.
+- Batch-ace exhaustion: (a) split the shared arm, budget-exhausted routes to the sweep and open-blockers keeps a prefixed demote; (b) both route to the sweep.
+- `DEMOTE_REASONS` membership: ratify the axis and the member list, and a Task 4.1 step mapping every surviving site, with an End-state assert of zero unclassified sites at land.
+- Gate-audit barrier enforcement: (a) a second floor pass over gate-audit rows before the sweep, in/out-of-diff read from the post-merge evidence dispatch's phase-level diff; (b) file as stated with `demote:gate-audit-unfloored`; (c) accepted residual.
+- `diff_files`-absent merged tasks: (a) widen "logged floor-skip" to cover them and stamp `demote:floor-skipped`; (b) fail closed, every barrierless row reroutes to the sweep.
+
+**Agenda (residual questions), round 4 (ruled at the regrill, kept for the record):**
 - Gate-audit family reality: re-enumerate as per-task post-merge / integrated-tip / end-state-only, all before the sweep; their `phaseClose` absorbs drain in the sweep; the terminal pass's input is the polish panel's absorbs plus sweep leftovers; thread the DISPOSITION RULE and `barrier` field onto the three gate-audit prompts. Or keep D15 as written and move a seat after the polish merge.
 - `--afk` no-match ask lane: (a) withdraw the `demote:ask-unruled-afk` clause and record the lane as Lead-side beside ruled-ask filing; (b) keep the prefix Lead-side, owned by Phase 6 Task 1's Checkpoint prose with a `skill-doc-contracts` pin.
 - Release-slot files: (a) keep them in the sweep exclusion set (demote, owner "the release slot"), retire the `routeToSweep` release-slot comment, add a canonical `RELEASE_SLOT_FILES` export; (b) keep today's lane and drop them from the set.
@@ -163,6 +187,6 @@ Round 1: 40 blockers and 29 `needsDecision` rows, twelve roots, all patched or r
 - A Workflow that throws before returning loses `carriedPhaseClose`. The Lead re-derives from transcripts (recorded residual, Task 3.1).
 - The study rerun backstop needs two live runs after the release.
 - The patched End-state checks were re-verified red at base by the round-1 `command-diff` re-run; rows 2 and 3's final form and every other patched blocker are adjudicated, not re-proven.
-- Round-4 gate at terminal: 12 of 12 probes on target, 21 blockers and 15 needsDecision rows unstamped, 10 minors, `routeUpstream: true` at rounds 4 of limit 3.
+- Round-5 gate at terminal: 12 of 12 probes on target, 10 blockers and 9 needsDecision rows unstamped, 15 minors, `routeUpstream: true` at rounds 5 of limit 3. Root count per round: 12, 7, 14, 17, 16; blocker count: 40, 29, 24, 21, 10.
 - Round 3 decision 3 (the `--afk` no-match lane is engine-side) was wrong on the facts; round 4 caught it. Re-ruled on the round-4 agenda.
 - Pattern across three rounds: every round's new roots were enumeration misses on the surfaces the previous round's patches touched (pins, call sites, doc restatements). The plan's Task 1.2 bundles seven mechanisms in one engine diff, which is why each round finds the next layer.
