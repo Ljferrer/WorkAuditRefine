@@ -1356,6 +1356,52 @@ test('files-union: a plan with one empty block and one full block does not throw
   assert.deepEqual(ledger.plans[0].files, ['src/real.js'])
 })
 
+test('files-union: a plan whose every `- Files:` block is a bare `TODO` placeholder throws unparseable footprint at init (empty UNION under the multi-block path)', () => {
+  // RED if the union arm ever returns a non-empty array from empty blocks.
+  const root = tmpDir()
+  const planPath = path.join(root, 'plan.md')
+  fs.writeFileSync(planPath, [
+    '# Plan',
+    '### Task 1.1',
+    '- Files: `TODO`',
+    '- Plan slice: first',
+    '### Task 1.2',
+    '- Files: `TODO`',
+    '- Plan slice: second',
+    '',
+  ].join('\n'))
+  const campaignDir = path.join(root, 'campaign')
+  assert.throws(() => init(campaignDir, { plans: [planPath], mode: 'stack' }), /unparseable footprint/)
+})
+
+test('files-union: blocks present but every one backtick-only non-path (construct names) throws at init (RED if assertOrderable is skipped whenever any block was found)', () => {
+  const root = tmpDir()
+  const planPath = path.join(root, 'plan.md')
+  fs.writeFileSync(planPath, [
+    '# Plan',
+    '### Task 1.1',
+    '- Files: `resolveGate`',
+    '- Plan slice: first',
+    '### Task 1.2',
+    '- Files: `extractFiles`',
+    '- Plan slice: second',
+    '',
+  ].join('\n'))
+  const campaignDir = path.join(root, 'campaign')
+  assert.throws(() => init(campaignDir, { plans: [planPath], mode: 'stack' }), /unparseable|explicit position/i)
+})
+
+test('files-union: two adjacent dash-less bare `Files:` lines are two blocks, not one merged segment (collectBlocks breaks on the next anchor)', () => {
+  // RED without the FILES_ANCHOR break: the second line is swallowed as a
+  // continuation, the joined segment carries whitespace, and isPathShaped
+  // rejects the whole thing.
+  const plan = [
+    'Files: src/bare-one.js',
+    'Files: src/bare-two.js',
+  ]
+  assert.deepEqual(extractFiles(plan), ['src/bare-one.js', 'src/bare-two.js'])
+})
+
 test('files-union: a backticked block plus a bare comma-separated block yields the union of both (per-block fallback; RED under concatenate-then-scan)', () => {
   // Concatenate-then-scan sees a backtick from block 1, so the bare block's
   // backtick-absence fallback never fires and src/bare-b.js is dropped.
