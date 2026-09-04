@@ -752,10 +752,9 @@ affirmative issue (`follow-up` — must state why it is not absorbable), record 
 (`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
 A fully specified Minor/Nit defaults to `absorb` (in the task diff) or `absorb` + `phaseClose:true`
 (outside it); `follow-up` needs a tag from the **Barrier list**. Omitted → Minor becomes follow-up,
-Nit becomes note; `ask` is never a default. A failed or
-ineligible route **demotes one step toward durability**, logged — per subset under the ace bisection
-ladder — never dropped silently, while `demote()` refuses an ask (log + re-route onto `asks[]`); zero
-unrouted findings on every exit path.
+Nit becomes note; `ask` is never a default. A failed or ineligible route **demotes one step toward
+durability**, logged — per subset under the ace bisection ladder — never dropped silently, while
+`demote()` refuses an ask (log + re-route onto `asks[]`); zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
 
 **Ask disposition** (`ask`):
