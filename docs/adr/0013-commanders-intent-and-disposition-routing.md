@@ -479,7 +479,10 @@ slots held back for the merge-floor retry loop. That arithmetic is **superseded*
   (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Ace bisection**, **Re-entry**, and
   **Absorb budget** rows, `design.md` §18, `disposition-eligibility.md` widening 1, and
   `schemas.md`'s `aced` rows) carry the new arithmetic and are guard-bound; this ADR home stays
-  exempt from the OLD-absent guard because both historical clauses survive by design.
+  exempt from the OLD-absent guard because both historical clauses survive by design. The
+  2026-08-31 amendment's reserve sentences ("names the floor-retry reserve their sole bound" and
+  "The reserve therefore bounds the three wave-side sources only") are historical on the same
+  terms: ratified, byte-untouched, and describing the pre-absorb-budget boundary.
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
 body text above — beyond the Status currency line — byte-unchanged.

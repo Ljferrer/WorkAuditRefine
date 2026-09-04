@@ -3253,8 +3253,15 @@ test('D43 — the re-entry / absorb-budget boundary is present in all three livi
       )
     }
     // The retired reserve-stop demote route, construct-scoped: a home that still says the
-    // still-queued subsets DEMOTE states the pre-2026-09-03 arm (base-verified present on all
-    // three homes at this task's cut base).
+    // still-queued subsets DEMOTE states the pre-2026-09-03 arm. The key is forward-only
+    // (phrase, then `demote` within 60 chars). At this task's cut base it reds on two homes:
+    // CONTEXT.md's "the remaining subsets demote to `follow-up`" and design.md's "the remaining
+    // subsets demote straight to `follow-up`". SKILL.md's base placed `demote` AHEAD of the
+    // phrase ("subsets demote (plus the subsets still queued when the floor-retry reserve stops
+    // the ladder"), which this key does not match, so on SKILL.md it guards prospectively only
+    // and the three positive keys above bind that home. Do not widen the key to the
+    // `demote ... subsets still queued` direction: the re-authored SKILL.md bullet ("subsets
+    // demote (subsets still queued at a spent budget ride to the sweep") would false-red.
     assert.ok(
       !/(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,60}?demote/i.test(text),
       `${name} still states the retired reserve-stop demote arm (the still-queued subsets demote) — ` +
