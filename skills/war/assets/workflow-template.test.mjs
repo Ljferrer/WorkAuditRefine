@@ -14016,7 +14016,7 @@ const NEGATIVE_REF = "demote(f, 'follow-up', 'failed absorb — no prefix here a
 
 test('demote-census — every demote() site whose disposition can be follow-up leads its reason with a DEMOTE_REASONS member; the count is pinned; the negative reference is caught; zero shipped sites carry demote:unclassified', () => {
   const sites = demoteSites(src)
-  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 23 sites — release-slot at birth,
+  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 24 sites — release-slot at birth,
   // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
   // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
@@ -14592,13 +14592,17 @@ test('terminal-pass — a terminal-seat re-mint of a terminalRow (recorded aced 
 })
 
 test('terminal-pass — the terminal re-audit records a pinTransfers row (kind ace, mode terminal): the re-audit seat re-ran and every other default-roster seat transferred at the terminal sha (PIN-10)', async () => {
-  const { out } = await runPhase(SWEEP_ARGS(), terminalImpl())
+  // Two-seat roster: the transfer half of the row is only observable when a non-terminal seat exists.
+  const { out } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, { lens: 'security' }] } }), terminalImpl())
   const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.mode === 'terminal')
   assert.ok(row && row.task === 'p3-polish' && row.sha === 'terminalsha', 'the terminal row pins the polish pseudo-task and the terminal sha')
-  assert.ok(Array.isArray(row.seats) && row.seats.length > 0, 'every default-roster seat appears')
+  assert.ok(Array.isArray(row.seats), 'the row carries a seats array')
+  assert.equal(row.seats.length, 2, 'every default-roster seat appears — both seats')
   assert.ok(row.seats.every(s => s.sha === 'terminalsha' && (s.outcome === 're-ran' || s.outcome === 'transferred')), 'each seat row carries the sha and an outcome')
   assert.equal(row.seats.filter(s => s.outcome === 're-ran').length, 1, 'exactly one seat re-ran')
   assert.equal(row.seats.find(s => s.outcome === 're-ran').lens, 'correctness', 'the re-ran seat is the terminal seat')
+  assert.equal(row.seats.filter(s => s.outcome === 'transferred').length, 1, 'exactly one seat transferred')
+  assert.equal(row.seats.find(s => s.outcome === 'transferred').lens, 'security', 'the transferred seat is the non-terminal roster seat')
 })
 
 test('terminal-pass — a fileless polish-panel absorb on the terminal queue demotes demote:fileless (severity default) and never dispatches the pass', async () => {
