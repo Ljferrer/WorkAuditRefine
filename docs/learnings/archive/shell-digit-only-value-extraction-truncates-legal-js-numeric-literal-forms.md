@@ -57,3 +57,5 @@ the guarded surface with its own shape assertion.
 
 **Locate-cue:** the `sed -nE` extraction line in `classify_lines()` of
 `assert-budget-raise-cited.sh`.
+
+> archived 2026-09-04: resolved — moved to archive
