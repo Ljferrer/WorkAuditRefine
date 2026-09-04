@@ -137,6 +137,11 @@ const EVICTION_DESTINATIONS = [
   // (war-memory.mjs `query`, which resolves against the live VERBS dispatch) — verb-scanned
   // so a future verb rename rots that command loudly, never silently.
   'skills/war-strategy/references/plan-interview.md',
+  // in-band-absorb-default D6 (Task 6.1): sweep-exclusion.md carries the Lead's campaign
+  // contention-set duty — a Node one-liner importing the campaign-ledger.mjs EXPORT
+  // `extractFilesFromPlanFile` (never a ledger CLI verb; the verb set is closed) — verb-scanned
+  // so a future shell-out rephrasing of that import rots loudly, never silently.
+  'skills/war/references/sweep-exclusion.md',
 ]
 
 // Reason-excluded from the VERB scan only (D9/D10) — never from the posterity rule: every
