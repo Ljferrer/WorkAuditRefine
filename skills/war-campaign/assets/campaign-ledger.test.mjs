@@ -1388,7 +1388,12 @@ test('files-union: blocks present but every one backtick-only non-path (construc
     '',
   ].join('\n'))
   const campaignDir = path.join(root, 'campaign')
-  assert.throws(() => init(campaignDir, { plans: [planPath], mode: 'stack' }), /unparseable|explicit position/i)
+  // MESSAGE-MATCHED on purpose (same shape as the prose-only roadmap test):
+  // several init paths throw, so a loose alternation is near-vacuous.
+  assert.throws(
+    () => init(campaignDir, { plans: [planPath], mode: 'stack' }),
+    (err) => /unparseable footprint/.test(err.message) && err.message.includes(planPath),
+  )
 })
 
 test('files-union: two adjacent dash-less bare `Files:` lines are two blocks, not one merged segment (collectBlocks breaks on the next anchor)', () => {
