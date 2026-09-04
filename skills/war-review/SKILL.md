@@ -100,6 +100,10 @@ mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`,
 | reland / CAS-reject count | manifest `phases[].land` + any reland count, else `n/a` |
 | lessons written | manifest `phases[].lessonsWritten` |
 | issues filed | manifest `phases[].issuesFiled` |
+| sweepExcludeCount — the campaign contention set the Lead threaded (in-band-absorb-default D2/PIN-8) | manifest `phases[].sweepExcludeCount` (Task 6.1 of the in-band-absorb-default plan records it per phase, `null` when the Lead threaded no `args.sweepExclude`); render **`n/a`** when `null` and **`0`** when the set was present but empty (the workflow log's "campaign contention set empty for <n> entries" line corroborates the zero; "no campaign contention set threaded" corroborates the `n/a`) |
+| terminal-pass — the re-audit seat and the outcome per phase (D3a) | the workflow log's `terminal pass: phase <id> — … one re-audit seat: <lens>` line names the seat (`correctness` when the roster has one, else the roster's first seat with its own lens); the outcome is the log's follow-on line — committed at `<sha>` (`Ace-Charge <polish>:<n>`), skipped (no sweep this phase, or an empty terminal queue), no usable head, forward-reverted after a re-audit regression, or unmerged — corroborated by the `terminal:phase-<id>` dispatch (`dispatchKind: 'terminal-pass'`) in the transcripts; the pass is one hop per phase, so more than one terminal commit for a phase is itself a signal; no log line and no dispatch ⇒ **`n/a`** |
+| absorbRounds spent per task (D5) — the ace ladder's own meter, never `fixRounds` (PIN-7) | git-derived: the **highest** `Ace-Charge: <task>:<n>` trailer index on each task branch (`git log --format='%(trailers:key=Ace-Charge,valueonly)' <integrationBranch>..<branch>` — the highest index, never a count; a reverted ace commit's trailer still counts); corroborated by the `ace:<task>:a<n>` / `ace-gate:<task>:a<n>` dispatch labels and the `absorb-budget:` log lines; the polish pseudo-task's counter is the terminal pass's own charge (telemetry only, seeded 0); render against `run.absorbRounds` (from `$MAIN/.claude/war/config.json`, default 6; `n/a` if absent); a deleted task branch and no label or log line ⇒ **`n/a`** |
+| follow-ups filed per `DEMOTE_REASONS` prefix (D13/PIN-15) | tally the `minorsFiled` rows by the `DEMOTE_REASONS` member their reason string starts with — the members are canonical in [`../war/assets/land-decision.mjs`](../war/assets/land-decision.mjs) (`export const DEMOTE_REASONS`), read them there, never from memory — via the mined workflow-return record in the transcripts, else each filed war-followup issue body's fixed prefix line; a seat-cited `follow-up` (a `barrier` field, no `demote:` prefix) is its own bucket; unsourceable ⇒ **`n/a`**; any `demote:unclassified` row is the defect signal of §4, not a bucket to normalize away |
 
 **Plan-scoped telemetry** — four ratified rows keyed to the run's *plan* (and any campaign it
 rode), not the manifest; render them once per run, after the table above. The same honesty
@@ -140,6 +144,10 @@ string, its phase, and its task (where task-scoped):
   null and starts no later phase, so the signal stays silent there — that death already surfaces
   through the `held:*` / dropped-return signal classes above; this one fires only when a Lead
   demonstrably outlived the phase and still skipped the close stamp.
+- **`demote:unclassified` demotions** — any filed `follow-up` row whose reason string carries the
+  `demote:unclassified` prefix (the `DEMOTE_REASONS MISS` log line names the site). The engine
+  prepends it when a `demote()` call site cites no `DEMOTE_REASONS` member — a plugin defect at
+  that call site, never a run fault; one row per site, with the reason string as evidence.
 - **unfiled follow-ups** — any `handoff.followUps[]` entry with `issue: null` on a handoff-emitting
   phase (`landed` / `held:escalation`). Source the entries from the mined workflow-return record in
   the transcripts, else the run ledger's phase `handoff` field when discoverable; unsourceable ⇒ no
