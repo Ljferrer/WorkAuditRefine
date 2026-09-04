@@ -2873,9 +2873,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   assert.ok(
     !/`absorb` is never a default/.test(norm(contextMd)),
     'the retired singular `absorb` is never a default literal must be gone from CONTEXT.md — ' +
-      'the widened pair reads `absorb` and `ask` are never defaults, which shares no substring ' +
-      'with the retired form (OLD-absent, norm()-surface: the base literal wrapped across ' +
-      'lines; PIN-8)',
+      'the current wording reads a fully specified Minor/Nit defaults to `absorb`; `ask` is ' +
+      'never a default, which shares no substring with the retired form (OLD-absent, ' +
+      'norm()-surface: the base literal wrapped across lines; PIN-8)',
   )
   assert.ok(
     !/followUps, notes/.test(norm(contextMd)),
@@ -3642,15 +3642,17 @@ test('economy-ace-flip — NEW-present: every surface carries the inherited-on f
 // and the zero-token-gap `absorb` is never a default (the ADR rule-4 literal that once lived on
 // the card, `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — rule 7:
 // this row reads those three surfaces after the dep rebase). Detection runs on a NORMALIZED
-// surface — backticks and single and double quotes stripped, whitespace collapsed, case-folded —
-// so a single-quoted engine comment (`'absorb' and 'ask' are NEVER defaulted`), a wrapped
-// Markdown line, or a benign re-case cannot evade it (the recorded
-// [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]] lesson). The lawful rewrite keeps an
+// surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
+// across a comment boundary flattens contiguous), then backticks and single and double quotes
+// stripped, whitespace collapsed, case-folded — so a single-quoted engine comment (`'absorb' and
+// 'ask' are NEVER defaulted`), a `//`-wrapped one, a wrapped Markdown line, or a benign re-case
+// cannot evade it (the recorded [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]] lesson).
+// The lawful rewrite keeps an
 // `ask`-only tail ("defaults to absorb; ask is never a default"), which shares no shape with the
 // three retired forms — the self-check below proves both halves of the detector. ADR 0013 is
 // exempt (append-only law): Decision 4's ratified clause survives byte-untouched, and the
 // 2026-09-04 amendment section carries the supersession — pinned present in row (b).
-const oldDefaultFlat = (s) => s.replace(/[`'"]/g, '').replace(/\s+/g, ' ').toLowerCase()
+const oldDefaultFlat = (s) => norm(s).replace(/[`'"]/g, '').replace(/\s+/g, ' ').toLowerCase()
 const OLD_DEFAULT_SHAPES = [
   [/absorb and ask are never default/, '`absorb` and `ask` are never default*'],
   [/absorb and ask never defaulted/, '`absorb` and `ask` never defaulted'],
@@ -3668,32 +3670,72 @@ const OLD_DEFAULT_SURFACES = [
 ]
 const oldDefaultHits = (text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
 
-test('old-default-absent (self-check) — the lawful rewrite passes and a body carrying only the two single-quoted comment sites reds', () => {
+test('old-default-absent (self-check) — the lawful rewrite passes and each single-quoted comment site reds on its own', () => {
   // Positive fixture: the sanctioned `ask`-only tail is not an OLD hit.
   assert.deepEqual(
     oldDefaultHits('A fully specified Minor/Nit defaults to `absorb`; `ask` is never a default.'),
     [],
     'the lawful rewrite "defaults to absorb; ask is never a default" must pass the detector',
   )
-  // Negative fixture: a workflow-template.js body carrying ONLY the two retired single-quoted
-  // comment sites (the AUDIT_VERDICT schema comment and the dispositionOf header, as they read
-  // before Task 3.1) — quote-stripping, comment-prefix wrapping, and case-folding must all fire.
-  const retiredBody = [
+  // Negative fixtures: the two retired single-quoted workflow-template.js comment sites, each
+  // asserted ALONE so each proves its own shape. Site 1 is the AUDIT_VERDICT schema comment with
+  // the phrase deliberately wrapped across a `//` boundary (the real pre-3.1 line carried
+  // `are never defaulted` on one physical line) — only the `norm` leader strip makes it fire.
+  // Site 2 is the dispositionOf header as it read before Task 3.1, unwrapped and upper-cased —
+  // quote-stripping and case-folding make it fire.
+  const wrappedAuditVerdictSite = [
     "    // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → severity default",
     "    // (Minor → follow-up, Nit → note; 'absorb' and 'ask' are never",
     "    // defaulted). phaseClose:true routes an absorb to the phase-close queue.",
     "    disposition: { enum: ['absorb', 'follow-up', 'note', 'ask'] },",
+  ].join('\n')
+  assert.deepEqual(
+    oldDefaultHits(wrappedAuditVerdictSite),
+    ['`absorb` and `ask` are never default*'],
+    'a `//`-wrapped single-quoted AUDIT_VERDICT comment site must red on the detector (leader strip)',
+  )
+  const unwrappedDispositionOfSite = [
     "// Disposition classification (ADR 0013; ask member #1550): Defaults when omitted:",
     "// Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only",
   ].join('\n')
   assert.deepEqual(
-    oldDefaultHits(retiredBody),
+    oldDefaultHits(unwrappedDispositionOfSite),
     ['`absorb` and `ask` are never default*'],
-    'a workflow-template.js body carrying only the two single-quoted comment sites must red on the detector',
+    'the single-line upper-cased dispositionOf comment site must red on the detector (quote strip + case-fold)',
   )
   // Each shape fires on its own base-verified literal (no shape is dead).
   assert.deepEqual(oldDefaultHits('`absorb` and `ask` never defaulted (ADR 0013)'), ['`absorb` and `ask` never defaulted'])
   assert.deepEqual(oldDefaultHits('Nit → note; `absorb` is never a default.'), ['`absorb` is never a default (zero-token gap)'])
+})
+
+// (barrier-list) CONTEXT.md's **Barrier list** glossary entry hand-spells all four BARRIER_TOKENS.
+// The registry rows in workflow-template.test.mjs bind the inline mirror, the auditor card, the
+// eligibility doc, and the schemas.md row — this row binds the fifth hand copy to the canonical
+// array literal in land-decision.mjs (ADR 0025 same-commit mirror duty; the recorded
+// [[default-flip-must-audit-all-doc-surfaces]] class), extracted by construct (bolded term to
+// the next bolded term or `###` heading), never by line number.
+const landDecisionSrc = readFileSync(join(HERE, 'land-decision.mjs'), 'utf8')
+test('barrier-list — the CONTEXT.md **Barrier list** entry names every canonical BARRIER_TOKENS member', () => {
+  const lit = landDecisionSrc.match(/export const BARRIER_TOKENS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const BARRIER_TOKENS = [...]` literal in land-decision.mjs')
+  const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
+  assert.equal(canonical.length, 4, 'BARRIER_TOKENS must carry exactly four members (PIN-1)')
+  const entry = contextMd.match(/^\*\*Barrier list\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Barrier list**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Barrier list** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set(e.match(/barrier:[a-z-]+/g) || [])].sort()
+  assert.deepEqual(
+    named,
+    [...canonical].sort(),
+    'the CONTEXT.md **Barrier list** entry must name exactly the canonical BARRIER_TOKENS members — ' +
+      'update this glossary copy in the same commit as land-decision.mjs (ADR 0025)',
+  )
+  assert.match(
+    e,
+    /`barrier:rationale-comment` \(the fix removes or edits a `ponytail:`\/deliberate-mirror rationale line\)/,
+    'the CONTEXT.md barrier:rationale-comment gloss must keep the canonical `removes or edits` pair',
+  )
 })
 
 test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces after normalization (End state 8)', () => {

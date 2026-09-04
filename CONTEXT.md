@@ -875,8 +875,8 @@ _Avoid_: a seat-side exclusion judgment; a prose or size estimate in place of th
 **Barrier list** (`BARRIER_TOKENS`):
 The closed enum a seat cites in a finding's structured `barrier` field to route a fully specified
 Minor/Nit away from its `absorb` default: `barrier:release-slot` (a release-slot file),
-`barrier:underspecified` (the fix is not fully specified), `barrier:rationale-comment` (the fix edits a
-`ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (a nameable trade-off — routes
+`barrier:underspecified` (the fix is not fully specified), `barrier:rationale-comment` (the fix removes or
+edits a `ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (a nameable trade-off — routes
 `ask`, never `follow-up`). Three follow-up barriers plus one ask route; canonical in
 `skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js`, body in
 `skills/war/references/disposition-eligibility.md` (ADR 0013 amendment 2026-09-04). A scope argument is
