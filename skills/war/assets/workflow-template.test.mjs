@@ -4394,11 +4394,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly seven dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: six dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: seven dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4420,7 +4420,7 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   // then carriedPhaseClose / demote:terminal-pass as its absorb chain.
   assert.equal(sites.length, 7,
     `the floored order-census domain is exactly SEVEN dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
-  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(/
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
     const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
     const slice = src.slice(i, Math.min(i + 2600, end))
@@ -14316,7 +14316,7 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
 // (head_sha 'terminalsha'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
 // overrides the polish worker's result (e.g. a files_changed report).
 const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
-  terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null } = {}) => {
+  terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null } = {}) => {
   const base = sweepBase(queued)
   let polishAudits = 0
   return (prompt, opts) => {
@@ -14329,7 +14329,7 @@ const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity:
     if (seat === 'war-worker' && label.startsWith('terminal:')) return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: 'terminalsha', tests: { unit: 1 }, ace_diff_files: ['docs/y.md'] }
     if (seat === 'war-worker' && label.startsWith('polish:') && sweepWorker) return sweepWorker
     if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: 'term1nal12' }
-    if (seat === 'war-refiner' && label.startsWith('terminal-revert:')) return { ok: true }
+    if (seat === 'war-refiner' && label.startsWith('terminal-revert:')) return terminalRevert || { ok: true }
     return base(prompt, opts)
   }
 }
@@ -14365,9 +14365,12 @@ test('terminal-pass — a polish-panel absorb reaches the terminal pass: exactly
 })
 
 test('terminal-pass — a roster without `correctness` still convenes the pass: the roster\'s first seat re-audits with its own lens, logged', async () => {
-  const { calls, logs } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }, { lens: 'correctness' }] } }), terminalImpl())
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }, { lens: 'correctness' }] } }), terminalImpl())
   // the correctness seat wins when present
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-audit seat: correctness')), 'correctness is preferred when the roster carries it')
+  assert.equal(calls.filter(c => /^audit:p3-polish:/.test(c.opts.label || '')).length, 3, 'two panel seats + exactly ONE terminal seat (the [seat] rosterOverride)')
+  const tEntry = out.auditLog.find(e => e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry && tEntry.requested === 1 && tEntry.seat === 'correctness', 'the terminal auditLog entry requested exactly one seat')
   const r2 = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }] } }), terminalImpl())
   assert.equal(terminalCalls(r2.calls).length, 1, 'the pass still convenes without a correctness seat')
   assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('re-audit seat: security') && l.includes('no correctness seat on the roster')), 'the first seat re-audits with its own lens, logged')
@@ -14498,6 +14501,31 @@ test('terminal-pass — a terminal commit that does not merge, or a terminal wor
   assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (boom)')), 'logged')
   assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
   assert.ok(!dead.calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('terminalsha')), 'no re-audit without a commit')
+  const noSha = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }))
+  assert.ok(noSha.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal worker returned no usable head_sha)')), 'an implemented result without head_sha takes the no-usable-head_sha arm, logged')
+  assert.ok(carriedOf(noSha.out, 'polish-panel absorb'), 'and the row carries')
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
+  const badRevert = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected, terminalRevert: { ok: false, stderrTail: 'boom' } }))
+  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of terminalsha did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
+  assert.ok(carriedOf(badRevert.out, 'polish-panel absorb'), 'the row still carries')
+  assert.equal(terminalCalls(badRevert.calls).length, 1, 'never a second pass')
+})
+
+test('terminal-pass — a present-but-disjoint sweep report (no file in the queue footprint) keeps the re-approval ruling: every queued row is recorded aced at the polish sha and no terminal pass dispatches', async () => {
+  const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/other.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is aced at the polish sha')
+  assert.equal(terminalCalls(calls).length, 0, 'a disjoint report never diverts rows to the terminal queue')
+})
+
+test('terminal-pass — a fileless polish-panel absorb on the terminal queue demotes demote:fileless (severity default) and never dispatches the pass', async () => {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [{ severity: 'Minor', title: 'fileless terminal absorb', rationale: 'r', disposition: 'absorb' }] }))
+  const d = demotionOf(out, 'fileless terminal absorb')
+  assert.ok(d && /^demote:fileless/.test(d.demoteReason) && d.demoteReason.includes('terminal-pass'), 'a Minor fileless row demotes to follow-up with demote:fileless naming the terminal pass')
+  assert.equal(terminalCalls(calls).length, 0, 'nothing eligible ⇒ no terminal dispatch')
 })
 
 test('terminal-pass — the seat\'s own follow-up files with floorSkipped AND a log line (never a fourth silent floorSkipped site); its ask parks; its note routes to notes', async () => {
@@ -14514,7 +14542,7 @@ test('terminal-pass — the seat\'s own follow-up files with floorSkipped AND a 
 
 test('terminal-pass — retired text is absent from workflow-template.js under the normalized whole-file scan (wrapped comment copies included); the discard-path reason keeps its sweep-raised token', () => {
   const n = normalizedSrc()
-  for (const t of ['absorb has no later round', 'sweep-raised absorb at either terminal sweep arm', 'terminal-pass charge site (reserved']) {
+  for (const t of ['absorb has no later round', 'sweep-raised absorb at either terminal sweep arm', 'sweep-raised absorb at its terminal arms', 'terminal-pass charge site (reserved']) {
     assert.ok(!n.includes(t), `retired text absent (normalized): ${t}`)
   }
   assert.ok(!/absorb has no later/i.test(src), 'raw scan agrees')
@@ -14532,7 +14560,9 @@ test('terminal-pass — schema-slot pins: the schemas.md rows for carriedPhaseCl
   assert.ok(mainReturn[0].indexOf('carriedPhaseClose') < mainReturn[0].indexOf('handoff'), 'top-level, beside landDecision — not a handoff key')
   const catchReturn = src.slice(src.indexOf("landDecision: 'held:workflow-error'"), src.indexOf('workflowError: {'))
   assert.match(catchReturn, /\bcarriedPhaseClose\b/, 'the catch-block return emits the same key')
-  const returnDoc = schemasMd.slice(schemasMd.indexOf('## Workflow per-phase return'), schemasMd.indexOf('## GitHub conventions') > 0 ? schemasMd.length : schemasMd.length)
+  const rStart = schemasMd.indexOf('## Workflow per-phase return')
+  const rEnd = schemasMd.indexOf('\n## ', rStart + 1)   // the next H2 (none today — the section closes the file)
+  const returnDoc = schemasMd.slice(rStart, rEnd > 0 ? rEnd : schemasMd.length)
   assert.ok(new RegExp('^\\s*' + carriedKey + ':', 'm').test(returnDoc), 'schemas.md § Workflow per-phase return documents the same key name (' + carriedKey + ')')
   // seededPhaseClose + finalPhase: validated at entry under those exact arg names; documented in the args contract.
   for (const key of ['seededPhaseClose', 'finalPhase']) {

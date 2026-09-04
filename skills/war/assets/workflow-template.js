@@ -1404,7 +1404,9 @@ const revertedKeys = new Set()
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, and the
-// gate-audit floor pass's routeToSweep calls; the ruledAsks intake is the seeded exception), for
+// gate-audit floor pass's routeToSweep calls; the ruledAsks intake and the seededPhaseClose drain
+// are the two seeded exceptions — both run at entry, before this registry is declared, so a
+// same-phase re-mint of a seeded row is judged on the other registries alone), for
 // budget-bounded re-entry (r.reentryQueue), or HELD for the next ace batch (the batch-ace
 // blocker hold onto r.task.pendingAbsorbs) records its remintKey here, so a content-identical
 // re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
@@ -4162,6 +4164,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // pt-tagged prompt-feeding rows (sweep prompt, top-level-catch, fail-open polish): f.severity is a required
       // finding field (bare); title/task ?? absence-tolerant; file/rationale/suggested_fix already guarded/defaulted.
       + phaseCloseQueue.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
+      + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit (the git-derived list decides which queued rows the sweep landed; files_changed is only a cross-check).\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
       + provisionClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
@@ -4222,7 +4225,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // sweep's own changed-file report can disprove (D3a "any queued absorb the sweep could not
       // land"): when the report is present and overlaps the queue's footprint, a queued row whose
       // file the sweep never touched is NOT recorded aced — it joins the terminal queue instead
-      // (the recordAcedTouched overlap rule, mirrored). An absent/empty report keeps the ruling.
+      // (the recordAcedTouched touched-file rule, ADAPTED — its `every`/subset gate would be vacuous
+      // here because the sweep legitimately touches files outside the queue footprint, so this one
+      // intersects with `some`). An absent/empty report keeps the ruling.
       const sweepTouched = new Set((Array.isArray(sweep.ace_diff_files) && sweep.ace_diff_files.length ? sweep.ace_diff_files : (Array.isArray(sweep.files_changed) ? sweep.files_changed : [])).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
       const queueFootprint = new Set(phaseCloseQueue.map(f => aceRelPath(f.file)).filter(p => typeof p === 'string' && p.length > 0))
       const sweepOverlap = sweepTouched.size > 0 && [...sweepTouched].some(p => queueFootprint.has(p))
@@ -4271,7 +4276,11 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const routeTerminalMinors = (seats, sha) => {
         for (const f of minorsOf(seats).map(x => ({ task: polishTask.id, ...x }))) {
           const d = dispositionOf(f, null)
+          // Registry consult (mirrors routeReauditMinors): the terminal commit just fixed the terminalRows,
+          // recorded aced above — a seat re-mint of one of them corroborates, never a second record.
+          const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
           if (d === 'ask') parkAsk(f)
+          else if (b) { log('terminal pass: seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') at ' + sha + ' — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
           else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('terminal pass: seat-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
           else if (d === 'note') notes.push(f)
           else if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (raised by the terminal re-audit seat at ' + sha + ')')
@@ -4362,10 +4371,11 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       }
     } else {
       // DISCARD: the polish branch + _polish worktree are LEFT IN PLACE (never-lose-unmerged-commits;
-      // reaping is a human act). The queue demotes to follow-up; the pre-polish tip lands exactly as
+      // reaping is a human act). The queue carries on carriedPhaseClose (non-final phase) or demotes
+      // to follow-up (final phase); the pre-polish tip lands exactly as
       // it would have — a discarded sweep recomputes NOTHING (no re-gate, no land-decision change).
       polishStatus = 'discarded'
-      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
+      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${finalPhase ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
       // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
