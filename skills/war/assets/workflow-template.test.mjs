@@ -14019,7 +14019,7 @@ const NEGATIVE_REF = "demote(f, 'follow-up', 'failed absorb — no prefix here a
 
 test('demote-census — every demote() site whose disposition can be follow-up leads its reason with a DEMOTE_REASONS member; the count is pinned; the negative reference is caught; zero shipped sites carry demote:unclassified', () => {
   const sites = demoteSites(src)
-  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 24 sites — release-slot at birth,
+  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 25 sites — release-slot at birth,
   // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
   // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
