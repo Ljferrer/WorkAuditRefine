@@ -417,7 +417,8 @@ const asks = []
 const carriedPhaseClose = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
 // status/escalation (D6). Under disposition routing (ADR 0013) `aced` also records the phase-close
-// sweep's absorbed findings at the polish sha.
+// sweep's absorbed findings at the polish sha AND the terminal pass's rows at the terminal sha,
+// stamped `terminal: true` (D3a) — the schemas.md aced row names the same three sources.
 const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
@@ -1409,8 +1410,10 @@ const filedKeys = new Set()
 // gate-audit floor pass's routeToSweep calls; the ruledAsks intake and the seededPhaseClose drain
 // are the two seeded exceptions — both run at entry, before this registry is declared, so a
 // same-phase re-mint of a seeded row is judged on the other registries alone), for
-// budget-bounded re-entry (r.reentryQueue), or HELD for the next ace batch (the batch-ace
-// blocker hold onto r.task.pendingAbsorbs) records its remintKey here, so a content-identical
+// budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace
+// blocker hold onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch
+// (carryPhaseClose — a held phase's queue, a discarded sweep's absorbs and the terminal pass's
+// unlanded/fresh absorbs on a non-final phase) records its remintKey here, so a content-identical
 // re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
@@ -1492,7 +1495,7 @@ const remintBlock = f => {
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
-  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands'
+  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands'
   return null
 }
 // Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
@@ -1509,6 +1512,7 @@ const corroborateSurvivor = f => {
   const hit = minorsFiled.find(m => remintKey(m) === k)
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
+    || carriedPhaseClose.find(q => remintKey(q) === k)
   if (!hit) return
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   const ref = seatRefOf(f)
@@ -4222,7 +4226,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     if (sweepApproved && pmr && pmr.status === 'merged') {
       polishStatus = 'merged'
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
-      log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
+      log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) considered at the sweep tip.`)
       // RESIDUAL, ruled (#1944-class): a queued finding is recorded aced on the panel's re-approval
       // alone — no per-finding evidence the polish commit reached its file — EXCEPT the one case the
       // sweep's own changed-file report can disprove (D3a "any queued absorb the sweep could not
@@ -4243,6 +4247,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         }
         recordAced(f, polishSha)
       }
+      log('phase-close sweep: ' + terminalQueue.length + ' queued finding(s) diverted to the terminal queue (unlanded by the sweep commit); the rest recorded aced at ' + polishSha + '.')
       // Merged-arm routing (#1377, D3a): sweep-raised Minor/Nits route by disposition — an absorb
       // joins the terminal queue (the terminal pass is the sweep's successor; the eligibility filter
       // below judges it). A sweep-raised ask still parks (#1550) — the Checkpoint gate is Lead-side.
@@ -4306,7 +4311,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           + pt`Gate: ${plan.gate}\n`
           + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (one re-audit seat judges the new sha; a regression is forward-reverted). NEVER touch version/release-slot literals. Commit and push ${polishBranch}.\n`
           + terminalRows.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
-          + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit.`
+          // No ace_diff_files clause here: the terminal arm has no consumer for it (the merged arm
+          // records every terminalRow aced on the one seat's re-approval; the sweep arm's sweepTouched
+          // is the only landed-row check) — a prompt never asks for a field nothing reads.
           + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('fix') })
         } catch (err) {
@@ -4337,17 +4344,25 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
             seats: defaultRoster.map(s => ({ seat: s.lens, lens: s.lens, outcome: s.lens === seat.lens ? 're-ran' : 'transferred', sha: terminalSha })) })
           auditLog.push({ task: polishTask.id, verdict: tApproved ? 'approve' : 'terminal-rejected', terminal: true, sha: terminalSha, seat: seat.lens, findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length })
           if (!tApproved) {
-            // REGRESSION: forward-revert the terminal commit on the polish branch (tip-only clean
-            // inverse, conditional on HEAD — a sha is never reverted twice), then carry/demote. The
-            // revert result is logged, fail-open: the terminal commit never merged, so the landed
-            // tip is unaffected either way; never a second pass.
-            log('terminal pass: phase ' + ph.id + ' REGRESSED on the ' + seat.lens + ' re-audit at ' + terminalSha + ' — forward-reverting the terminal commit; ' + (finalPhase ? 'rows demote (final phase)' : 'rows carry on carriedPhaseClose (non-final phase)') + '; never a second pass.')
+            // REGRESSION (a seat returned request_changes or a blocking finding) OR NO VERDICT (the
+            // seat dispatch dropped after auditRound's two retries — tSeats.length < tExpected): both
+            // forward-revert the terminal commit on the polish branch (tip-only clean inverse,
+            // conditional on HEAD — a sha is never reverted twice), then carry/demote. Only the real
+            // regression demotes demote:absorb-regressed; a dropped seat judged nothing, so its rows
+            // demote demote:terminal-pass with the no-verdict wording (the reason string is the
+            // issue-body prefix and the DEMOTE_REASONS tally input — never assert a regression no seat
+            // judged). The revert result is logged, fail-open: the terminal commit never merged, so
+            // the landed tip is unaffected either way; never a second pass.
+            const tNoVerdict = tSeats.length < tExpected
+            const tOutcome = tNoVerdict ? 'the terminal re-audit seat returned no verdict' : 'regressed on the ' + seat.lens + ' re-audit'
+            log('terminal pass: phase ' + ph.id + ' — ' + (tNoVerdict ? 'the terminal re-audit seat returned no verdict (' + tSeats.length + ' of ' + tExpected + ' seat(s) returned)' : 'REGRESSED on the ' + seat.lens + ' re-audit') + ' at ' + terminalSha + ' — forward-reverting the terminal commit; ' + (finalPhase ? 'rows demote (final phase)' : 'rows carry on carriedPhaseClose (non-final phase)') + '; never a second pass.')
             const rv = await dispatchAgent(
               pt`FORWARD-REVERT the regressed terminal-pass commit for WAR phase ${ph.id}. ONLY if \`git -C ${polishWorktree} rev-parse HEAD\` is still ${terminalSha} (a moved HEAD is already reverted — SKIP; a sha is never reverted twice), run \`git -C ${polishWorktree} revert --no-edit ${terminalSha}\` (tip-only clean inverse) and push ${polishBranch}. Never reset --hard, never force. Return the env-outcome JSON: \`{ ok: true }\` on success (or an already-moved HEAD); \`{ ok: false, failedCommand, exitCode, stderrTail }\` otherwise.`,
               { agentType: NS + 'war-refiner', phase: 'Refine', label: `terminal-revert:phase-${ph.id}`, dispatchKind: 'terminal-revert', schema: ENV_OUTCOME, ...spawn('refiner') }).catch(err => { const c = infraDeathCause(err); if (!c) throw err; return { ok: false, stderrTail: c } })
             log('terminal pass: forward-revert of ' + terminalSha + ' ' + (rv && rv.ok === true ? 'done' : 'did NOT confirm (' + ((rv && rv.stderrTail) || 'no result') + ') — the commit stays on ' + polishBranch + ' unmerged; reaping is a human act'))
             for (const f of terminalRows) {
-              if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (the terminal commit at ' + terminalSha + ' regressed on re-audit and was forward-reverted)')
+              if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (the terminal commit at ' + terminalSha + ' ' + tOutcome + ' and was forward-reverted)')
+              else if (tNoVerdict) demote(f, 'follow-up', 'demote:terminal-pass — the terminal re-audit seat returned no verdict on the terminal-pass commit at ' + terminalSha + ', which was forward-reverted; final phase, no later round', { reverted: true })
               else demote(f, 'follow-up', 'demote:absorb-regressed — the terminal-pass commit at ' + terminalSha + ' regressed on the ' + seat.lens + ' re-audit and was forward-reverted; final phase, no later round', { reverted: true })
             }
             routeTerminalMinors(tSeats, terminalSha)

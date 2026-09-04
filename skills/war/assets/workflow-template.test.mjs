@@ -12273,12 +12273,12 @@ const registrySlice = () => {
   // aceRelPath is declared inside the slice (file scope, below askContentKey); RELEASE_SLOT_FILES /
   // BARRIER_TOKENS / DEMOTE_REASONS are the module-top mirrors — injected as the canonical exports
   // (the D2 registry rows deepEqual them).
-  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys, diffFilesByTask, dispositionOf, intakeFloor, demote }')
-  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [] }
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
   return { ...state, ...api }
 }
 
@@ -12328,7 +12328,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
   assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
-  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands')),
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
@@ -14020,9 +14020,10 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
   // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
-  // exclusion-set + release-slot at sweep time, terminal-pass ×3 (no commit / did not merge / a
-  // seat-raised absorb, final phase only), sweep-discarded ×2 (final phase only).
-  assert.equal(sites.length, 23, `the census domain is exactly TWENTY-THREE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // exclusion-set + release-slot at sweep time, terminal-pass ×4 (no commit / did not merge / a
+  // seat-raised absorb / a terminal seat that returned no verdict, final phase only),
+  // sweep-discarded ×2 (final phase only).
+  assert.equal(sites.length, 24, `the census domain is exactly TWENTY-FOUR follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
@@ -14316,7 +14317,8 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
 // (head_sha 'terminalsha'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
 // overrides the polish worker's result (e.g. a files_changed report).
 const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
-  terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null } = {}) => {
+  terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
+  terminalSeatDrop = false, terminalThrow = null } = {}) => {
   const base = sweepBase(queued)
   let polishAudits = 0
   return (prompt, opts) => {
@@ -14324,9 +14326,13 @@ const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity:
     if (seat === 'war-auditor' && /^audit:p3-polish:/.test(label)) {
       polishAudits++
       if (polishAudits === 1) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: polishFindings, confidence: 'high' }
+      if (terminalSeatDrop) return null   // a dropped seat dispatch — every terminal re-audit call (auditRound's two retries included) returns nothing
       return terminalSeat || { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: terminalFindings, confidence: 'high' }
     }
-    if (seat === 'war-worker' && label.startsWith('terminal:')) return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: 'terminalsha', tests: { unit: 1 }, ace_diff_files: ['docs/y.md'] }
+    if (seat === 'war-worker' && label.startsWith('terminal:')) {
+      if (terminalThrow) throw terminalThrow   // the infra-death arm (INFRA_DEATH_RE) — mirrors the sweepDeath fixture
+      return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: 'terminalsha', tests: { unit: 1 } }
+    }
     if (seat === 'war-worker' && label.startsWith('polish:') && sweepWorker) return sweepWorker
     if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: 'term1nal12' }
     if (seat === 'war-refiner' && label.startsWith('terminal-revert:')) return terminalRevert || { ok: true }
@@ -14357,6 +14363,8 @@ test('terminal-pass — a polish-panel absorb reaches the terminal pass: exactly
   const landIdx = calls.findIndex(isLand)
   assert.ok(mergeIdx !== -1 && landIdx !== -1 && mergeIdx < landIdx, 'the terminal commit merges through Refine before the single land')
   assert.match(calls[mergeIdx].prompt, /assert-no-submodule-mutation\.sh/, 'the terminal merge runs the unconditional floors like any ace commit')
+  assert.match(calls[mergeIdx].prompt, /assert-budget-raise-cited\.sh/, 'the terminal merge runs the budget-raise floor too')
+  assert.ok(!tws[0].prompt.includes('ace_diff_files'), 'the terminal prompt never asks for ace_diff_files — no consumer reads it on the terminal arm')
   assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === 'terminalsha'), 'the absorb is aced at the terminal sha')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('polish task absorbRounds now 1')), 'the polish task counter reads 1 after the pass (telemetry)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('re-audit seat: correctness')), 'the seat choice is logged')
@@ -14442,13 +14450,62 @@ test('terminal-pass — a re-audit regression forward-reverts the terminal commi
   assert.equal(terminalCalls(nonFinal.calls).length, 1, 'never a second pass')
   assert.ok(carriedOf(nonFinal.out, 'polish-panel absorb'), 'non-final: the row carries')
   assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
-  assert.ok(nonFinal.out.auditLog.some(e => e.verdict === 'terminal-rejected' && e.terminal === true && e.sha === 'terminalsha'), 'the terminal-rejected auditLog entry records the regression')
+  const tRejected = nonFinal.out.auditLog.find(e => e.verdict === 'terminal-rejected' && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tRejected, 'the terminal-rejected auditLog entry records the regression')
+  assert.ok((tRejected.findings || []).some(f => f.title === 'terminal broke it'), 'the terminal-rejected entry carries the blocking finding — its only channel')
   assert.equal(nonFinal.out.landDecision, 'landed', 'the land proceeds on the polished tip')
   const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeat: rejected }))
   const d = demotionOf(final.out, 'polish-panel absorb')
   assert.ok(d && /^demote:absorb-regressed/.test(d.demoteReason) && d.demoteReason.includes('forward-reverted'), 'final: demotes with demote:absorb-regressed naming the revert')
   assert.deepEqual(final.out.carriedPhaseClose, [], 'final: nothing carried')
   assert.equal(terminalCalls(final.calls).length, 1, 'final: never a second pass either')
+})
+
+test('terminal-pass — a terminal re-audit seat that returns no verdict (dropped after auditRound\'s retries) still forward-reverts, but demotes demote:terminal-pass with the no-verdict wording, never demote:absorb-regressed', async () => {
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatDrop: true }))
+  const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
+  assert.ok(!final.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'an unjudged terminal commit never merges')
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('the terminal re-audit seat returned no verdict') && l.includes('terminalsha')), 'the no-verdict outcome is logged by name')
+  assert.ok(!final.logs.some(l => typeof l === 'string' && l.includes('REGRESSED on the correctness re-audit at terminalsha')), 'no seat judged a regression, so none is logged')
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('returned no verdict') && d.demoteReason.includes('forward-reverted'), 'final: demotes demote:terminal-pass naming the missing verdict and the revert')
+  assert.ok(!/absorb-regressed/.test(d.demoteReason), 'never demote:absorb-regressed — no seat returned request_changes')
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry && tEntry.verdict === 'terminal-rejected' && tEntry.returned === 0 && tEntry.requested === 1, 'the auditLog row records 0 of 1 seats returned')
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeatDrop: true }))
+  const c = carriedOf(nonFinal.out, 'polish-panel absorb')
+  assert.ok(c && c.carriedFrom && c.carriedFrom.reason.includes('returned no verdict'), 'non-final: the row carries with the no-verdict reason')
+  assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
+})
+
+test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm, non-final) corroborates onto the carried row: the terminal seat joins its seats list, never a second carry and never a demotion', async () => {
+  // The carried row is a QUEUED absorb (raised by task t1's seat) the sweep left unlanded — its raiser
+  // ref differs from the terminal seat's, so the seats-list assertion is not vacuous.
+  const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/q.md', rationale: 'regressed' },
+      { severity: 'Nit', title: 'left unlanded', task: 't1', file: 'docs/q.md', rationale: 'still there', disposition: 'absorb' }] }
+  const { out, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker, terminalSeat: rejected }))
+  const carried = (out.carriedPhaseClose || []).filter(f => f && f.title === 'left unlanded')
+  assert.equal(carried.length, 1, 'exactly one carried record — the re-mint never carries a second copy')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of "left unlanded"') && l.includes('carried on carriedPhaseClose')), 'the re-mint is refused as carried, logged')
+  assert.deepEqual(carried[0].seats, ['audit:t1:correctness (task t1)', 'audit:p3-polish:correctness (task t1)'],
+    'the terminal seat joins the carried row\'s seats list behind its own raiser (corroborateSurvivor searches carriedPhaseClose)')
+  assert.ok(!demotionOf(out, 'left unlanded'), 'never demoted')
+})
+
+test('terminal-pass — a terminal worker dispatch that dies post-spawn (INFRA_DEATH_RE) takes the env-died arm: logged, no commit, the rows carry on a non-final phase', async () => {
+  const dead = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalThrow: new Error('529 Overloaded') }))
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('terminal:phase-3 dispatch died post-spawn (env-died)')), 'the infra-death arm logs the env-died line')
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal:phase-3 dispatch died post-spawn (env-died)')), 'the no-commit arm names the death as its reason')
+  assert.ok(carriedOf(dead.out, 'polish-panel absorb'), 'non-final: the row carries')
+  assert.ok(!demotionOf(dead.out, 'polish-panel absorb'), 'never demoted')
+  assert.ok(!dead.logs.some(l => typeof l === 'string' && l.includes('absorbRounds now')), 'no commit ⇒ no charge')
+  assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
+  assert.equal(dead.out.landDecision, 'landed', 'fail-open: the land proceeds on the polished tip')
 })
 
 test('terminal-pass — a discarded sweep on a non-final phase carries its absorbs (queued + sweep-raised) instead of demoting; the final phase keeps the discard-path demotion with its sweep-raised token', async () => {
