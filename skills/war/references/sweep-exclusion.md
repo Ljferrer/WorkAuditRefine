@@ -21,7 +21,7 @@ The campaign ledger is `$MAIN/.claude/campaigns/<id>/ledger.json` under the **ma
 One entry per ledger plan that is **not this plan** and whose `status` is **not `landed`** (`queued`, `running`, `held`, any other non-landed status all count). Shape: `[{ slug, files[] }]`, `slug` the entry's `slug`, `files` the re-extracted footprint (plan-relative paths, as the plan writes them, no normalization; the engine `aceRelPath`-normalizes both sides).
 
 ```bash
-# $MAIN = main checkout; $LEDGER = the resolved ledger path; $SLUG = this run's planSlug.
+# $CLAUDE_PLUGIN_ROOT = the plugin root; $LEDGER = the resolved ledger path; $SLUG = this run's planSlug.
 CLAUDE_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT" node --input-type=module -e '
   import { readFileSync } from "node:fs"
   import { pathToFileURL } from "node:url"
@@ -33,10 +33,10 @@ CLAUDE_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT" node --input-type=module -e '
     .filter((p) => p.slug !== slug && p.status !== "landed")
     .map((p) => ({ slug: p.slug, files: extractFilesFromPlanFile(p.plan) }))
   console.log(JSON.stringify(out))
-' -- "$LEDGER" "$SLUG" > "$MAIN/.claude/war/runs/<runId>/sweep-exclude.json"
+' -- "$LEDGER" "$SLUG"
 ```
 
-Thread the printed array **verbatim** as `args.sweepExclude` (through `--args <file>` when the phase args ride the staged script). The engine entry-validates each row (a missing `slug` or a non-string-array `files` refuses the launch, naming the entry index and field), so never hand-edit a row.
+Thread the printed array **verbatim** as `args.sweepExclude` (through `--args <file>` when the phase args ride the staged script). The engine entry-validates each row (a missing `slug` or a non-string-array `files` refuses the launch, naming the entry index and field), so never hand-edit a row. A non-zero exit means a qualifying entry's plan file is unreadable (`extractFilesFromPlanFile` throws ENOENT). Repair the ledger entry and re-run; never thread an empty list or omit the key on a failed run — that reads as an absent ledger. The step stops with the node error before any output, so never thread a truncated or empty list as though the union were empty.
 
 ## Log lines (one each, at launch)
 
@@ -51,4 +51,4 @@ Stamp per phase, in the launch stamp (fail-open, like every manifest write — [
 - `sweepExcludeCount`: the number of entries in the threaded `args.sweepExclude` (`0` for a threaded empty list, `null` when no list was threaded).
 - `finalPhase`: the boolean threaded as `args.finalPhase` at this launch (`null` when absent; the engine then reads the phase as final).
 
-`/war-review` renders both; a `null` `finalPhase` on a non-last phase is a Lead threading defect worth a friction row.
+`/war-review` renders `sweepExcludeCount`; `finalPhase` is manifest-only today. A `null` `finalPhase` on a non-last phase is a Lead threading defect worth a friction row.
