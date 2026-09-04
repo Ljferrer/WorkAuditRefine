@@ -14173,6 +14173,59 @@ test('gate-audit-route — the retired auditLog-only sink is absent: the three s
   assert.ok(auditorMd.includes('a note that names a fix in a touched file is applied') && src.includes('a note that names a fix in a touched file is applied'), 'the note clause is on the card AND the dispatched DISPOSITION RULE (PIN-17, one commit)')
 })
 
+// PIN-17 / PIN-12: the shared DISPOSITION RULE clause (BARRIER_TOKENS-rendered) rides each of the
+// three gate-audit dispatched prompts — asserted on the dispatched prompt by label, never on `src`
+// (a `src` grep is satisfied by the roster auditPrompt literal alone).
+const gaPromptOf = (calls, label) => (calls.find(c => (c.opts.label || '') === label) || {}).prompt || ''
+const assertDispositionRuleOn = (prompt, label) => {
+  assert.ok(prompt, 'presence guard: ' + label + ' convened')
+  assert.ok(prompt.includes('DISPOSITION RULE: every Minor/Nit finding carries a disposition'), label + ' carries the DISPOSITION RULE clause')
+  assert.ok(prompt.includes('follow-up is legal only with a barrier cited in the structured `barrier` field'), label + ' carries the `barrier` field instruction')
+  for (const tok of ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']) assert.ok(prompt.includes(tok), label + ' names ' + tok)
+  assert.ok(prompt.includes('a note that names a fix in a touched file is applied'), label + ' carries the note clause')
+}
+
+test('gate-audit-route — the per-task and integrated-tip gate-audit prompts carry the shared DISPOSITION RULE clause, the `barrier` field instruction and the four barrier tokens (PIN-17, PIN-12)', async () => {
+  const args = SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] })
+  const evidence = { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } }
+  const { calls } = await runPhase(args, p4Base({ evidence }))
+  assertDispositionRuleOn(gaPromptOf(calls, 'gate-audit:t1:execution-evidence'), 'gate-audit:t1:execution-evidence')
+  assertDispositionRuleOn(gaPromptOf(calls, 'gate-audit:phase-3:integrated-tip'), 'gate-audit:phase-3:integrated-tip')
+})
+
+test('gate-audit-route — the end-state-only gate-audit prompt carries the shared DISPOSITION RULE clause, the `barrier` field instruction and the four barrier tokens (PIN-17, PIN-12)', async () => {
+  const args = SWEEP_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const { calls } = await runPhase(args, p4Base())
+  assertDispositionRuleOn(gaPromptOf(calls, 'gate-audit:phase-3:end-state'), 'gate-audit:phase-3:end-state')
+  assert.equal((src.match(/^const DISPOSITION_RULE_CLAUSE = pt`/gm) || []).length, 1, 'ONE shared const')
+  assert.equal((src.match(/^\s*\+ DISPOSITION_RULE_CLAUSE,?$/gm) || []).length, 4, 'consumed by auditPrompt and the three gate-audit dispatches')
+})
+
+test('gate-audit-route — end-state-only arm (phase_diff_files structurally absent): an omitted-disposition fully specified Minor reads absorb + phaseClose:true and rides the sweep, never a barrierless follow-up', async () => {
+  const args = SWEEP_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const omitted = { severity: 'Minor', title: 'end-state omitted disposition', file: 'docs/ga.md', rationale: 'r', suggested_fix: 'fix it' }
+  const seatsOf = label => label === 'gate-audit:phase-3:end-state'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [omitted] }
+    : null
+  const { out, calls, logs } = await runPhase(args, p4Base({ seatsOf }))
+  assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat convened')
+  assert.ok(!calls.some(c => /^evidence:phase-/.test(c.opts.label || '')), 'presence guard: no evidence dispatch on this arm — phase_diff_files is structurally absent')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass REROUTED') && l.includes('end-state omitted disposition') && l.includes('phase_diff_files absent')), 'the reroute is logged')
+  assert.ok(polishPromptOf(calls).includes('end-state omitted disposition'), 'the row rides the sweep')
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'end-state omitted disposition')
+  assert.ok(aced && aced.finding.phaseClose === true && aced.finding.seat === 'gate-audit:phase-3:end-state', 'absorb + phaseClose:true, stamped with the seat label')
+  assert.ok(!demotionOf(out, 'end-state omitted disposition'), 'never filed as a barrierless follow-up')
+})
+
 test('gate-audit-route — a gate-audit re-mint of a finding the roster panel already aced is corroboration, never a second sweep record', async () => {
   const a = nit({ title: 'twice raised', file: 'skills/war/assets/x.js' })
   const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a])] }, p4Base({ gate: [gaAbsorb({ title: 'twice raised', file: 'skills/war/assets/x.js' })] }))

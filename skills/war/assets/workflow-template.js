@@ -1739,6 +1739,14 @@ const pinMismatch = (auditSha, pin) => {
   return !hi.startsWith(lo)
 }
 
+// DISPOSITION RULE clause (in-band-absorb-default D1/D15, PIN-17) — ONE shared const, rendered from
+// the inline BARRIER_TOKENS mirror. Appended to the roster-seat auditPrompt() AND to the three
+// gate-audit-family dispatches (per-task, integrated-tip, end-state), which sit outside auditPrompt():
+// routeGateAuditRows reads `disposition`, `barrier`, and `suggested_fix` off their rows, so the seats
+// must be told the rule the floor enforces (standing card + dispatched prompt, same commit, PIN-12).
+// The card sentence in agents/war-auditor.md byte-mirrors it (the `barrier-list` registry rows).
+const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine's diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default.`
+
 function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   let p = pt`Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth): the entry-validation plan.file
@@ -1776,7 +1784,8 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
     // The barrier list renders from the inline BARRIER_TOKENS mirror (in-band-absorb-default D1);
     // the card sentence spells the same four by hand — the `barrier-list` registry rows bind them.
-    + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine's diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default.`
+    // Shared with the three gate-audit-family seats (D15, PIN-17) — see DISPOSITION_RULE_CLAUSE.
+    + DISPOSITION_RULE_CLAUSE
     // DISPOSITION WIDENINGS (in-run-finding-resolution D3/D4/D5) — standing home:
     // skills/war/references/disposition-eligibility.md carries the same three rules (same commit;
     // the auditor card's live trigger pointer covers the standing leg). The dispatched block is
@@ -3687,6 +3696,9 @@ if (mergedTasksForGateAudit.length > 0) {
       // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
       // — this seat sits outside auditPrompt(); the five-surface registry row anchors it here.
       + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+      // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
+      // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
+      + DISPOSITION_RULE_CLAUSE
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
@@ -3791,6 +3803,9 @@ if (mergedTasksForGateAudit.length > 0) {
       // Evidence-precedence skeleton (ADR 0041) rides this AUTHORITATIVE seat directly, same as
       // adjudicationClause — outside auditPrompt(); the five-surface registry row anchors it here.
       + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+      // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
+      // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
+      + DISPOSITION_RULE_CLAUSE
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:phase-${ph.id}:integrated-tip`, schema: AUDIT_VERDICT, ...spawn('auditor') })
@@ -3826,7 +3841,9 @@ if (mergedTasksForGateAudit.length > 0) {
     + endStateBlock + intentClause + adjudicationClause
     // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
     // — outside auditPrompt(); the five-surface registry row anchors it here.
-    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`,
+    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
+    // DISPOSITION RULE (D15, PIN-17) rides this seat directly — same reason as the two seats above.
+    + DISPOSITION_RULE_CLAUSE,
     { agentType: NS + 'war-auditor', phase: 'Audit',
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   if (esVerdict) {
@@ -3861,8 +3878,11 @@ if (mergedTasksForGateAudit.length > 0) {
 // non-empty and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
 // ⇒ the note arm skips with a log while the follow-up arm still reroutes, and NO demote:floor-skipped
 // comes from this pass; an omitted-disposition fully specified row reads absorb (dispositionOf over
-// the phase diff), an unspecified one keeps the severity default. A release-slot file demotes at
-// birth (demote:release-slot, PIN-11). auditLog keeps every record — it is no longer the only sink.
+// the phase diff), an unspecified one keeps the severity default; with phase_diff_files ABSENT an
+// omitted-disposition fully specified row STILL reads absorb + phaseClose:true (the sweep is the only
+// lane left, no diff check — the end-state-only arm never stamps phase_diff_files, so without this
+// arm a Minor would file barrierless, breaching PIN-17). A release-slot file demotes at birth
+// (demote:release-slot, PIN-11). auditLog keeps every record — it is no longer the only sink.
 const routeGateAuditRows = () => {
   if (!gateAuditRows.length) return
   const noteArmSkipped = phaseDiffFiles === null
@@ -3872,6 +3892,10 @@ const routeGateAuditRows = () => {
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
     let d = dispositionOf(f, phaseDiffFiles)
     if (d === 'ask') { parkAsk(f); continue }       // ask precedes the absorb chain (#1550, D7)
+    if (noteArmSkipped && f.disposition == null && fix) {   // no diff ⇒ specified omitted row still absorbs (D15, PIN-17; header comment)
+      d = 'absorb'; f.phaseClose = true
+      log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') omitted disposition with a specified fix, phase_diff_files absent → absorb + phaseClose:true (no diff check; D15).')
+    }
     // Content-key registries (the dedup-registry law): a per-task seat re-raising a finding the
     // roster panel already aced, filed, or queued on the same task is corroboration — merged onto
     // the surviving record, logged, never a second record and never a re-queue.
