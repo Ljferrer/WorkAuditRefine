@@ -22,7 +22,9 @@ the amendment below; amended 2026-09-03 — the per-task absorb budget (`absorbR
 run.absorbRounds`) supersedes the floor-retry reserve as the ace ladder's stop condition; see the
 amendment below; amended 2026-09-04 — a fully specified in-diff Minor/Nit defaults to `absorb`
 and `follow-up` needs a `BARRIER_TOKENS` tag, superseding Decision 4's "`absorb` is never a
-default" for that case; see the amendment below)
+default" for that case; see the amendment below; amended 2026-09-04 (Phase 4) — with `run.ace` off a
+defaulted `absorb` routes `phaseClose:true` to the phase-close sweep, and every engine `follow-up`
+demotion carries a `DEMOTE_REASONS` prefix; see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -517,6 +519,43 @@ byte-untouched; this note supersedes its *currency* for the fully specified case
   dispatched rule carry the new default; the three retired `absorb`-is-never-a-default wordings
   are guard-bound absent there (`old-default-absent`). This ADR home stays exempt from
   that guard because Decision 4's clause survives by design (append-only law).
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-09-04) — ace-off routing to the sweep and the demote-reason prefix
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 —
+D13, D14, PIN-15, PIN-16) changes two things on the terminal-disposition ladder. Decision 4's ratified
+text and every amendment above stay byte-untouched; this note supersedes their *currency* on two
+points:
+
+- **Ace-off routing goes to the sweep.** `run.ace` gates the per-task ace ladder only (batch ace,
+  re-entry, bisection); the phase-close sweep and the terminal pass run regardless. With `run.ace`
+  off, a defaulted `absorb` (in-diff or out-of-diff, seat-set or floor-rerouted) routes
+  `phaseClose:true` to the phase-close sweep under the exclusion set and never demotes on the
+  ace-off path. The two "absorb requires --ace" demote arms in `workflow-template.js` are retired;
+  the `--ace` bullet's retired "with `--ace` off every absorb demotes this way" Residual-rule
+  wording describes the pre-Phase-4 ladder and is historical. Every preset resolves
+  `run.ace === true`; a user config may still set it false.
+- **Every engine `follow-up` demotion carries a `DEMOTE_REASONS` prefix.** The closed prefix enum
+  is canonical in `skills/war/assets/land-decision.mjs` and hand-mirrored in
+  `workflow-template.js` with a mirror-registry row and an `F07` registration. Twelve members:
+  `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`, `demote:task-unapproved`,
+  `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`, `demote:exclusion-set`,
+  `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, `demote:unclassified`.
+  `demote()` validates every `follow-up` reason against the enum at runtime; on a miss it prepends
+  `demote:unclassified` (itself a member) and logs the site loudly, never a throw. Three
+  failed-attempt sites (an untouched file, a dead ace worker, a red gate at the ace tip) stop
+  filing and route the row to the sweep as an absorb; a fix that broke something still files with
+  `demote:absorb-regressed`. Each engine-filed issue body carries the prefix on its first
+  `Demote-Reason:` line; the Checkpoint's `--afk` no-match ask lane files Lead-side with
+  `demote:ask-unruled-afk`.
+- **Living-doc homes.** CONTEXT.md's **Demote reason prefix** row, `skills/war/SKILL.md`'s `--ace`
+  bullet (the rewritten Residual rule), `schemas.md`'s `barrier` provenance row, and
+  `file-followups.md` carry the new facts; the retired Residual-rule wording is guard-bound absent
+  on `skills/war/SKILL.md` (`ace-off-route`). This ADR home stays exempt from that guard because
+  the superseded clauses survive by design (append-only law).
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
 body text above — beyond the Status currency line — byte-unchanged.

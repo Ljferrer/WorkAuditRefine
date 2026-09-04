@@ -10,7 +10,7 @@ import {
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
-import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, decideLand } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -2483,6 +2483,28 @@ test('drift-guard(F07): barrier-list — inline BARRIER_TOKENS equals the canoni
     'inline BARRIER_TOKENS must equal the canonical export exactly (no divergence)')
 })
 
+test('drift-guard(F07): sweep-exclude — inline RELEASE_SLOT_FILES equals the canonical export exactly (in-band-absorb-default D2)', () => {
+  // The two pure version-slot JSONs are canonical in land-decision.mjs with a hand-mirrored inline
+  // copy beside BARRIER_TOKENS; aceEligible and the sweep exclusion set derive their basename
+  // refusal from the mirror. Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+RELEASE_SLOT_FILES\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'RELEASE_SLOT_FILES not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...RELEASE_SLOT_FILES].sort(),
+    'inline RELEASE_SLOT_FILES must equal the canonical export exactly (no divergence)')
+})
+
+test('drift-guard(F07): demote-census — inline DEMOTE_REASONS equals the canonical export exactly (in-band-absorb-default D13)', () => {
+  // The closed follow-up demotion prefix enum is canonical in land-decision.mjs with a hand-mirrored
+  // inline copy beside RELEASE_SLOT_FILES; demote() validates every follow-up reason against the
+  // inline copy at runtime. Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+DEMOTE_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'DEMOTE_REASONS not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...DEMOTE_REASONS].sort(),
+    'inline DEMOTE_REASONS must equal the canonical export exactly (no divergence)')
+})
+
 // ---------------------------------------------------------------------------
 // Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
 // ---------------------------------------------------------------------------
@@ -2492,6 +2514,8 @@ test('drift-guard(F07): barrier-list — inline BARRIER_TOKENS equals the canoni
 //   the HARD_ESCALATION_REASONS marker → logic-mirror (same decideLand block)
 //   the SOFT_ENV_REASONS marker (#1411) → logic-mirror (its own inline-equality drift test)
 //   the BARRIER_TOKENS marker (in-band-absorb-default D1) → logic-mirror (its own inline-equality drift test)
+//   the RELEASE_SLOT_FILES marker (in-band-absorb-default D2) → logic-mirror (its own inline-equality drift test)
+//   the DEMOTE_REASONS marker (in-band-absorb-default D13) → logic-mirror (its own inline-equality drift test)
 //   the run.provision data-mirror marker → data-mirror (field names) — allowlisted, no behavioral test
 // A marker not in either registry → test fails.
 
@@ -2526,6 +2550,14 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     // → covered by its own inline-equality drift test (the D2 registry `barrier-list` rows in
     // workflow-template.test.mjs bind the card sentence and the eligibility-doc list too).
     ['BARRIER_TOKENS mirrors', ['drift-guard(F07): barrier-list — inline BARRIER_TOKENS']],
+    // Marker (in-band-absorb-default D2): "RELEASE_SLOT_FILES mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `sweep-exclude` row in
+    // workflow-template.test.mjs binds the inline copy too). Registry count: 7 logic-mirror keys → 8.
+    ['RELEASE_SLOT_FILES mirrors', ['drift-guard(F07): sweep-exclude — inline RELEASE_SLOT_FILES']],
+    // Marker (in-band-absorb-default D13): "DEMOTE_REASONS mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `demote-census` row in
+    // workflow-template.test.mjs binds the inline copy too). Registry count: 8 → 9.
+    ['DEMOTE_REASONS mirrors', ['drift-guard(F07): demote-census — inline DEMOTE_REASONS']],
     // Marker (absorb-budget, D5): "Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync"
     // → covered by the absorbRounds fallback drift guard (the roundLimit-fallback idiom).
     ['Mirror of DEFAULTS.run.absorbRounds', ['drift-guard(F07): absorb-budget — absorbRounds fallback']],
@@ -2614,13 +2646,14 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — exactly 7 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback; BARRIER_TOKENS)', () => {
+test('meta-guard(F07): sanity — exactly 9 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback; BARRIER_TOKENS; RELEASE_SLOT_FILES; DEMOTE_REASONS)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // Anchored by construct, not line number. If you add a new mirror, update BOTH the
-  // registry/allowlist above AND bump this count.
+  // registry/allowlist above AND bump this count. 7 → 9 (in-band-absorb-default Phase 4: the
+  // RELEASE_SLOT_FILES and DEMOTE_REASONS mirrors).
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
-  assert.equal(count, 7,
-    `Expected exactly 7 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+  assert.equal(count, 9,
+    `Expected exactly 9 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })

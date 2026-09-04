@@ -882,6 +882,20 @@ edits a `ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (
 never a barrier, and the why-not-absorbable prose stays free text beside the tag.
 _Avoid_: a prose barrier; a fifth member minted on a card; the engine estimating fix size.
 
+**Demote reason prefix** (`DEMOTE_REASONS`):
+The closed prefix enum every engine `follow-up` demotion cites, canonical in
+`skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js` (mirror-registry row and `F07`
+registration). Twelve members: `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`,
+`demote:task-unapproved`, `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`,
+`demote:exclusion-set`, `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, and
+`demote:unclassified`. `demote()` validates every `follow-up` reason at runtime; a miss prepends
+`demote:unclassified` with a loud log, never a throw. Each engine-filed issue body carries the prefix on its
+`Demote-Reason:` line, and `/war-review` tallies `demote:unclassified` as a defect signal. A failed ATTEMPT
+(an untouched file, a dead ace worker, a red gate at the ace tip) and an ace-off run route the row to the
+phase-close sweep instead of demoting (ADR 0013 amendment 2026-09-04, Phase 4).
+_Avoid_: an unprefixed `follow-up` demotion; a prefix minted outside the enum; reading a member as a
+`HARD_ESCALATION_REASONS` or `BARRIER_TOKENS` member.
+
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and
 whose outcome is an **executed absorb**, run through the **Re-entry** vehicle. **Match strictness**:

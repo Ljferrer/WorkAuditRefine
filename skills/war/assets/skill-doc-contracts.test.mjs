@@ -3784,3 +3784,120 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
     "Decision 4's ratified clause must survive byte-untouched in ADR 0013 (append-only law)",
   )
 })
+
+// (demote-prefix-term) CONTEXT.md's **Demote reason prefix** glossary entry hand-spells all twelve
+// DEMOTE_REASONS members (plan 2026-09-03-in-band-absorb-default, Task 4.2; D13, PIN-15). The
+// registry rows in workflow-template.test.mjs bind the inline mirror; this row binds the glossary
+// copy to the canonical array literal in land-decision.mjs (ADR 0025 same-commit mirror duty),
+// extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
+test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names every canonical DEMOTE_REASONS member', () => {
+  const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
+  const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
+  assert.equal(canonical.length, 12, 'DEMOTE_REASONS must carry its twelve ratified members (D13)')
+  const entry = contextMd.match(/^\*\*Demote reason prefix\*\* \(`DEMOTE_REASONS`\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Demote reason prefix**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Demote reason prefix** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set(e.match(/demote:[a-z-]+/g) || [])].sort()
+  assert.deepEqual(
+    named,
+    [...canonical].sort(),
+    'the CONTEXT.md **Demote reason prefix** entry must name exactly the canonical DEMOTE_REASONS members — ' +
+      'update this glossary copy in the same commit as land-decision.mjs (ADR 0025)',
+  )
+  for (const [re, what] of [
+    [/`demote\(\)` validates every `follow-up` reason at runtime/, 'the runtime validation clause'],
+    [/a miss prepends `demote:unclassified` with a loud log, never a throw/, 'the unclassified fallback'],
+    [/an ace-off run route the row to the phase-close sweep instead of demoting/, 'the failed-attempt / ace-off sweep route (D14)'],
+  ]) {
+    assert.match(e, re, `the CONTEXT.md **Demote reason prefix** entry must carry ${what} (D13/D14)`)
+  }
+})
+
+// (ace-off-route) THE RETIRED "with `--ace` off every absorb demotes this way" RESIDUAL-RULE WORDING
+// IS ABSENT FROM skills/war/SKILL.md (plan 2026-09-03-in-band-absorb-default, End state 12 · Task
+// 4.2; D14, PIN-16). Base-verified at this task's cut base: the `--ace` bullet's Residual rule read
+// "with `--ace` off every absorb demotes this way". With ace off a defaulted absorb now routes
+// `phaseClose:true` to the sweep, and the sweep and the terminal pass run regardless. Detection runs
+// on the NORMALIZED whole surface (line leaders stripped, backticks and quotes stripped, whitespace
+// collapsed, case-folded — the same flattening `old-default-absent` uses) so a re-wrapped or re-cased
+// copy cannot evade it. The positive half pins the D14 successor on the `--ace` bullet by construct.
+const ACE_OFF_RETIRED = /with --ace off every absorb demotes this way/
+const aceOffHits = (text) => ACE_OFF_RETIRED.test(oldDefaultFlat(text))
+
+test('ace-off-route (self-check) — the detector fires on the retired Residual-rule literal and passes the D14 rewrite', () => {
+  assert.equal(
+    aceOffHits('(→ `follow-up`, logged — per subset under bisection; with `--ace` off every absorb demotes this way, and'),
+    true,
+    'the base-verified retired literal must red on the detector',
+  )
+  assert.equal(
+    aceOffHits(['  - **`--ace`** ... with `--ace` off every', '    absorb DEMOTES this way'].join('\n')),
+    true,
+    'a wrapped, re-cased copy of the retired literal must red on the detector (leader strip + case-fold)',
+  )
+  assert.equal(
+    aceOffHits('With `run.ace` off a defaulted absorb routes `phaseClose:true` to the sweep; the sweep and the terminal pass run regardless.'),
+    false,
+    'the D14 rewrite must pass the detector',
+  )
+})
+
+test('ace-off-route — OLD-absent: skills/war/SKILL.md no longer says every absorb demotes with --ace off; NEW-present: the --ace bullet carries the D14 sweep route (End state 12)', () => {
+  assert.equal(
+    aceOffHits(skillMd),
+    false,
+    'skills/war/SKILL.md still carries the retired "with `--ace` off every absorb demotes this way" Residual-rule ' +
+      'wording (OLD-absent, base-verified; End state 12, D14, PIN-16) — with ace off a defaulted absorb routes ' +
+      'phaseClose:true to the sweep; rewrite the bullet, never drop this row',
+  )
+  const bullet = skillMd.match(/^ {2}- \*\*`--ace`[\s\S]*?(?=\n- \*\*)/m)
+  assert.ok(bullet, 'could not locate the skills/war/SKILL.md `--ace` bullet (`  - **`--ace`` → next top-level `- **` bullet) — the extraction construct rotted')
+  const b = norm(bullet[0])
+  for (const [re, what] of [
+    [/\*\*Residual rule:\*\*/, 'its `Residual rule:` tail'],
+    [/With `run\.ace` off a defaulted absorb routes `phaseClose:true` to the sweep; the sweep and the terminal pass run regardless\./, 'the D14 ace-off sweep route'],
+    [/→ `follow-up` with a `DEMOTE_REASONS` prefix, logged/, 'the DEMOTE_REASONS prefix on the demotion rung (PIN-15)'],
+  ]) {
+    assert.match(b, re, `the skills/war/SKILL.md \`--ace\` bullet must carry ${what} (D14/D13). Correct this row to a sanctioned rewording, never delete it`)
+  }
+})
+
+// (adr-0013-phase-4) ADR 0013 carries the Phase 4 amendment section — ace-off routing to the sweep
+// and the demote-reason prefix — pinned by construct (the dated heading through the NEXT H2 or EOF).
+// Two amendments share the 2026-09-04 date, so the extraction keys on the full heading, never the
+// bare date. The ADR home is exempt from the `ace-off-route` absence guard (append-only law): the
+// superseded 2026-08-20 narration survives byte-untouched, and this section records the supersession.
+test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefix amendment section and its Status currency clause (Task 4.2)', () => {
+  const block = adr0013.match(/^## Amendment \(2026-09-04\) — ace-off routing to the sweep and the demote-reason prefix(?:(?!\n## )[\s\S])*/m)
+  assert.ok(block, 'ADR 0013 must carry the `## Amendment (2026-09-04) — ace-off routing to the sweep and the demote-reason prefix` section (Task 4.2)')
+  const a = norm(block[0])
+  for (const [re, what] of [
+    [/`run\.ace` gates the per-task ace ladder only/, 'the run.ace scope clause (PIN-16)'],
+    [/routes `phaseClose:true` to the phase-close sweep/, 'the ace-off sweep route (D14)'],
+    [/the phase-close sweep and the terminal pass run regardless/, 'the sweep-and-terminal-pass-regardless clause'],
+    [/"absorb requires --ace" demote arms in `workflow-template\.js` are retired/, 'the retired demote arms'],
+    [/`DEMOTE_REASONS` prefix/, 'the demote-reason prefix (PIN-15)'],
+    [/`demote:unclassified` \(itself a member\)/, 'the unclassified fallback'],
+    [/byte-untouched/, 'the byte-untouched clause (append-only law)'],
+  ]) {
+    assert.match(a, re, `the ADR 0013 Phase 4 amendment must carry ${what}`)
+  }
+  const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
+  const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
+  assert.deepEqual(
+    [...new Set(a.match(/demote:[a-z-]+/g) || [])].sort(),
+    [...canonical].sort(),
+    'the ADR 0013 Phase 4 amendment must enumerate exactly the canonical DEMOTE_REASONS members',
+  )
+  assert.match(
+    norm(adr0013.slice(0, adr0013.indexOf('## Amendment'))),
+    /amended 2026-09-04 \(Phase 4\) — with `run\.ace` off a defaulted `absorb` routes `phaseClose:true`/,
+    "ADR 0013's Status currency line must name the Phase 4 amendment (the status line and the amendment land together)",
+  )
+  // The earlier 2026-09-04 in-diff-default amendment still resolves as the FIRST bare-date match.
+  const first = adr0013.match(/^## Amendment \(2026-09-04\)[^\n]*/m)
+  assert.match(first[0], /the in-diff `absorb` default and the barrier list/, 'the in-diff-default amendment must stay the first 2026-09-04 section (its bare-date pins read the first match)')
+})
