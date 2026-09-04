@@ -66,3 +66,5 @@ than re-deriving one.
 
 **Related:** [[template-defers-runtime-values-to-agent-via-literal-placeholder]] (a sibling
 `workflow-template.js` scanning-surface gotcha).
+
+> archived 2026-09-04: resolved — moved to archive

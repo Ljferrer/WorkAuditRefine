@@ -58,3 +58,5 @@ exact corruption shape the new arm targets — an arm added textually "alongside
 guard is not automatically reachable; ordering can make it either dead code or a false sense
 of coverage. Verify with a regression-gate row that actually reaches the new arm's branch,
 not just a row that reaches the sibling arm where ordering happens to work out.
+
+> archived 2026-09-04: resolved — moved to archive

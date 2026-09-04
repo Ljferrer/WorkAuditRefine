@@ -51,3 +51,5 @@ named symptom — single-quoted, double-quoted, **and** unquoted heredoc all nee
 narrower "never" reads as permission for the unnamed alternatives.
 
 **Related:** none yet in this store; first instance of this specific doc-clause-scope gap.
+
+> archived 2026-09-04: resolved — moved to archive

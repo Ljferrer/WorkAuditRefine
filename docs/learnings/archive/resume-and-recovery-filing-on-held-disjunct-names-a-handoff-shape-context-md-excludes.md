@@ -52,3 +52,5 @@ the one that moves, land it in the same commit as the matching drift-guard row. 
 
 **Locate-cue:** the "Segmented land (in-band marker) and filing-on-held" bullet in
 `resume-and-recovery.md`; the **Clean handoff** glossary entry in `CONTEXT.md`.
+
+> archived 2026-09-04: resolved — moved to archive
