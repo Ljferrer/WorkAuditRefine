@@ -109,7 +109,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (pinned to its historical effective config)', () => {
+test('economy preset (pins its historical knobs; ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'sonnet')
   assert.equal(c.agents.worker.effort, 'default')

@@ -127,7 +127,8 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Pins every knob that drifted from DEFAULTS so economy's effective config stays what it always was.
+    // Pins the knobs economy must keep historical; run.ace, run.absorbRounds, and
+    // memory.commitLearnings deliberately inherit DEFAULTS (see the notes below).
     agents: {
       worker:   { model: 'sonnet', effort: 'default', docs: { model: 'haiku', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'default' },
