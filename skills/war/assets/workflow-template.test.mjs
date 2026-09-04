@@ -3577,7 +3577,9 @@ test('absorb-budget (bisection budget): each subset COMMIT charges one absorbRou
   assert.ok(out.landed.includes('t1'), 't1 lands')
   const audEntry = out.auditLog.find(e => e && e.task === 't1' && e.verdict === 'approve')
   assert.ok(audEntry, 'presence guard: the t1 approve entry exists')
-  assert.equal(audEntry.fixRounds, 0, 'fixRounds stays 0 — neither the batch nor the subset commit charged it (PIN-7)')
+  // This read is ace-blind: auditLog rows stamp r.preAceRounds, frozen at the audit-loop exit before
+  // any ace charge. The live PIN-7 discrimination is 'absorb-budget (End state 4, fixRounds untouched by ace)'.
+  assert.equal(audEntry.fixRounds, 0, 'the audit-round provenance records the pre-ace round count (0 fix rounds)')
 })
 
 test('bisection — same-file findings never split across subsets (D3): two findings in one file regress as an ATOMIC batch (no subset dispatch); grouped halving keeps a file whole', async () => {
@@ -13264,7 +13266,7 @@ test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbChar
   }
 })
 
-test('absorb-budget (End state 4, Lead override): args.absorbCharges wins over the barrier read at a sanctioned relaunch, logged', async () => {
+test('absorb-budget (End state 4, Lead override): args.absorbCharges wins over the barrier read on a relaunch (no recovery gate), logged', async () => {
   const impl = withBarrier({ ok: true, absorbCharges: { t1: 5 } }, aceBase([nit()]))
   const { calls, logs } = await runPhase(ACE_ARGS({ absorbCharges: { t1: 2 } }), impl)
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 resumes at absorbRounds 2 (args.absorbCharges')), 'the override source is named')
@@ -13334,6 +13336,9 @@ test('absorb-budget (End state 4, held then approved): a row held on r.pendingAb
   assert.ok(ace.prompt.includes('held nit') && ace.prompt.includes('fresh nit'), 'the held row rides the batch beside the fresh row')
   assert.equal((ace.prompt.match(/held nit/g) || []).length, 1, 'the duplicate held copy is deduped by content key')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) joins this approve')), 'the fold is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) is a duplicate of a row already in this approve') && l.includes('the held copy is dropped')),
+    'the duplicate branch logs cause-neutrally (a held-vs-held collision is not a fresh re-raise)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('the fresh row rides the ace batch')), 'the retired fresh-row cause wording is gone')
   assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'held nit'), 'the held row is aced')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held nit'), 'the held row is not in minorsFiled')
 })
@@ -13384,7 +13389,7 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
   for (const [name, text] of [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]) {
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
     const mutated = text.replace(/trailers:key=Ace-Charge/g, 'REMOVED')
-    assert.doesNotMatch(mutated, /trailers:key=Ace-Charge/, `${name}: removing the read reds the anchor (non-vacuous)`)
+    assert.ok(ANCHORS.some(re => !re.test(mutated)), `${name}: removing the trailer read breaks at least one anchor (delete-and-trace control)`)
   }
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
   assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
@@ -13416,6 +13421,11 @@ test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbR
   assert.ok(src.includes('if (openBlockers === 0 && aceable.length && r.task.absorbRounds < absorbRounds)'), 'the batch ace gate reads the absorb budget, never fixRounds')
   assert.ok(!/aceable\.length && r\.task\.fixRounds < roundLimit/.test(src), 'the retired fixRounds batch gate is gone')
   assert.ok(!/roundLimit\s*(−|-)\s*2/.test(src), 'the roundLimit − 2 reserve arithmetic is gone (End state 5)')
-  assert.ok(!/r\.task\.fixRounds\+\+\s*\/\/ each (subset|re-entry)/.test(src), 'no ace-side commit charges fixRounds (PIN-7)')
+  assert.equal((src.match(/r\.task\.fixRounds\+\+/g) || []).length, 1, 'fixRounds is charged only by the merge-floor retry loop — one site in the whole engine (PIN-7)')
+  const bisectBody = src.slice(src.indexOf('const aceBisect = async'), src.indexOf('const aceReentry = async'))
+  const reentryBody = src.slice(src.indexOf('const aceReentry = async'), src.indexOf('const aceStage = async'))
+  assert.ok(bisectBody.length > 0 && reentryBody.length > 0, 'presence guard: both ace-ladder bodies were extracted')
+  assert.ok(!bisectBody.includes('r.task.fixRounds++'), 'aceBisect carries no fixRounds charge at all (PIN-7, comment-independent)')
+  assert.ok(!reentryBody.includes('r.task.fixRounds++'), 'aceReentry carries no fixRounds charge at all (PIN-7, comment-independent)')
   assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three ace-side charge sites: batch, subset, re-entry')
 })

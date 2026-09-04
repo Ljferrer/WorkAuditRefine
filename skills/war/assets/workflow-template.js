@@ -35,7 +35,9 @@ export const meta = {
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // pendingAbsorbs = RELAUNCH-SEED ONLY ([finding rows] held by a blocker-held batch ace at a prior launch); aceStage folds
+//                                     // them into the next approve's ace batch through the same routing chain as fresh rows. Absent ⇒ nothing folds.
 //                                     // planSlice = the task charter (REQUIRED non-empty string — the entry-validation
 //                                     // TASK-FIELD class (D5) refuses a missing/empty slice at intake naming the field).
 //                                     // doneWhen = the task's `Done when:` acceptance command (string|null; absent/null ⇒ legacy —
@@ -60,7 +62,10 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (opus default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, maxParallel, afk },                        // roundLimit used here; afk gates recordAced's
+//     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
+//                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
+//     run:    { roundLimit, absorbRounds, maxParallel, afk },          // roundLimit used here; absorbRounds = the per-task absorb budget (the ace
+//                                     // ladder's own meter, D5; absent ⇒ 6, the DEFAULTS.run.absorbRounds mirror); afk gates recordAced's
 //                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
 //                                     // maxParallel (optional positive integer) is the GLOBAL ceiling on agent dispatches
 //                                     // in flight across the whole run, held by one counting semaphore at the leaf dispatch
@@ -1800,7 +1805,7 @@ if (tasks.length) {
   // index (never a count) so a cherry-pick or duplicate trailer never double-charges; a reverted
   // ace commit's trailer still counts (the revert carries no charge trailer). Always-on; absent or
   // malformed ⇒ the engine seeds 0 with a loud log naming the task.
-  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' "$TIP"..<that task's branch>\` and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
+  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name — never "$TIP", which an agent shell does not carry across calls: an unset TIP reads as HEAD..<branch>, empty in the task worktree, and returns a plausible 0) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
   // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
@@ -1927,8 +1932,8 @@ if (tasks.length) {
   // ---- absorb-budget relaunch seed (D5) ----
   // r.task.absorbRounds seeds from the barrier's absorbCharges map — the highest `Ace-Charge`
   // trailer index git holds on the task branch (git > any in-memory count, ADR 0008). Both id
-  // dialects match (the preMergedIdOf normalization). A Lead override (args.absorbCharges, a
-  // sanctioned relaunch) wins over the barrier read, logged. Absent map, missing entry, or a
+  // dialects match (the preMergedIdOf normalization). A Lead override (args.absorbCharges, read
+  // unconditionally — never gated on args.recovery) wins over the barrier read, logged. Absent map, missing entry, or a
   // malformed value ⇒ 0 with a loud log naming the task — never silent, never a hold.
   const chargesOf = m => (m && typeof m === 'object' && !Array.isArray(m)) ? m : null
   const chargeMaps = [['args.absorbCharges', chargesOf(A.absorbCharges)], ['barrier absorbCharges', chargesOf(barrierOut.absorbCharges)]]
@@ -1936,6 +1941,7 @@ if (tasks.length) {
   // shape and fall through to the barrier read (a Lead override typo must not read as "none threaded").
   if (A.absorbCharges && !chargesOf(A.absorbCharges)) log('absorb-budget: args.absorbCharges is not an object map (' + (Array.isArray(A.absorbCharges) ? 'array' : typeof A.absorbCharges) + ') — ignored; the barrier absorbCharges read is used instead.')
   for (const t of tasks) {
+    if (done.has(t.id)) continue   // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
     let seeded = false
     const causes = []   // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
     for (const [srcName, m] of chargeMaps) {
@@ -2451,12 +2457,24 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // writes r.task.pendingAbsorbs sits at the bottom of this same call, so no in-run hold reaches
       // this fold; its only live producer is relaunch-seeded args.tasks[].pendingAbsorbs, and the
       // end-of-queue held-absorb drain owns every in-run held row.
+      // Trust boundary: that seeded producer reaches no entry validation, so every held row passes
+      // the SAME routing chain as a fresh row above (fileless, run.ace, phaseClose, aceEligible)
+      // before it may join aceable — a seeded release-slot row never rides an ace batch (PIN-11)
+      // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
       for (const f of heldRows) {
-        queuedKeys.delete(remintKey(f))   // no longer held — the fresh-row dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
-        if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') re-raised this round — the fresh row rides the ace batch; the held copy is dropped as a duplicate.'); continue }
-        log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
-        aceable.push(f)
+        queuedKeys.delete(remintKey(f))   // no longer held — the dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
+        // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
+        if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
+        if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless held absorb takes the severity default (never ace-eligible)')
+        else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
+        else if (!f.phaseClose && aceEligible(f)) {
+          log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
+          aceable.push(f)
+        } else {
+          log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is ' + (f.phaseClose ? 'phaseClose:true' : 'not ace-eligible (release-slot file)') + ' — routed to the phase-close sweep, never the ace batch.')
+          queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f)
+        }
       }
       // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. The BATCH attempt is
       // unchanged (one commit, one re-audit — the happy path is byte-identical): the ace worker commits one
