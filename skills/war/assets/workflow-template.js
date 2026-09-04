@@ -3406,7 +3406,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of taskMinors) {
         const d = dispositionOf(f, null)   // no floor on the escalation arm: nothing lands this phase for the task
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
       }
       if (r.verdict === 'env-blocked') {
@@ -3747,7 +3747,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // route (same doctrine as the pinMismatch strip: a finding raised against a different tree than
       // the judged tip is not routable).
       if (!mismatch) for (const f of findings) {
-        if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', lens: 'execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha), ...f })
+        if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ ...f, task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', lens: 'execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha) })
       }
       if (isHardGateEvidence) {
         // HARD: a provably-unrun mapped test OR a finding-less escalate → push gate-evidence to escalated so the land is held.
@@ -3822,7 +3822,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // Minor/Nit rows ride to the ONE floor pass (routeGateAuditRows), seat-stamped; auditLog keeps
       // the record. The retired #1692 record-only sink no longer applies.
       for (const f of findings) {
-        if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ task: 'phase-' + ph.id + '-integrated-tip', seat: 'gate-audit:phase-' + ph.id + ':integrated-tip', lens: 'execution-evidence', sha: auditShaOrSentinel(authVerdict.audit_sha), ...f })
+        if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ ...f, task: 'phase-' + ph.id + '-integrated-tip', seat: 'gate-audit:phase-' + ph.id + ':integrated-tip', lens: 'execution-evidence', sha: auditShaOrSentinel(authVerdict.audit_sha) })
       }
       if (isHard) escalated.push({ task: `phase-${ph.id}-integrated-tip`, reason: 'gate-evidence', detail: authVerdict })
     }
@@ -3863,7 +3863,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // rows ride to the ONE floor pass (routeGateAuditRows), seat-stamped; auditLog keeps the record.
     // The retired #1692 record-only sink no longer applies.
     for (const f of findings) {
-      if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ task: 'phase-' + ph.id + '-end-state', seat: 'gate-audit:phase-' + ph.id + ':end-state', lens: 'execution-evidence', sha: auditShaOrSentinel(esVerdict.audit_sha), ...f })
+      if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ ...f, task: 'phase-' + ph.id + '-end-state', seat: 'gate-audit:phase-' + ph.id + ':end-state', lens: 'execution-evidence', sha: auditShaOrSentinel(esVerdict.audit_sha) })
     }
     if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
   }
@@ -4156,7 +4156,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
         else if (d === 'note') notes.push(f)
         else demote(f, 'follow-up', "demote:terminal-pass — sweep-raised absorb — the phase-close sweep is the phase's terminal fix round; absorb has no later round to land")
       }
@@ -4181,7 +4181,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
         else if (d === 'note') notes.push(f)
         else demote(f, 'follow-up', 'demote:sweep-discarded — sweep-raised absorb — the phase-close sweep was discarded; the polish branch never merged')
       }

@@ -13945,6 +13945,15 @@ test('filing-floor — the intake floor is deterministic: BARRIER_TOKENS members
   assert.ok(!/rationale|\.length\s*[<>]\s*\d{2,}/.test(floor), 'the floor never reads prose or estimates a size')
   assert.ok(floor.includes("if (f.engineFiled === true) return d"), 'engineFiled rows pass through untouched (seat rows only)')
   assert.ok(src.includes('f.engineFiled = true'), 'demote() stamps engineFiled: true')
+  // Behavioral arm: the engineFiled guard is the ONLY thing separating these two rows — a
+  // barrierless in-diff follow-up reroutes to absorb unless the row is an engine demotion.
+  const h = registrySlice()
+  const stamped = { severity: 'Minor', task: 't1', title: 'stamped row', file: 'a.js', disposition: 'follow-up', suggested_fix: 'do x', engineFiled: true }
+  assert.equal(h.intakeFloor(stamped, 'follow-up', new Set(['a.js'])), 'follow-up', 'an engineFiled row is never rerouted')
+  assert.ok(!h.logs.some(l => typeof l === 'string' && l.includes('REROUTED')), 'and no reroute is logged')
+  const unstamped = { severity: 'Minor', task: 't1', title: 'seat row', file: 'a.js', disposition: 'follow-up', suggested_fix: 'do x', engineFiled: false }
+  assert.equal(h.intakeFloor(unstamped, 'follow-up', new Set(['a.js'])), 'absorb', 'the same row without the engineFiled stamp reroutes to absorb')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('REROUTED') && l.includes('seat row')), 'and that reroute is logged')
 })
 
 // ---- demote-census (D13, End state 11) --------------------------------------------------------
@@ -14108,13 +14117,20 @@ test('gate-audit-route — the integrated-tip seat\'s absorb reaches the sweep s
   ] })
   const evidence = { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } }
   const seatsOf = label => label === 'gate-audit:phase-3:integrated-tip'
-    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: 'beefcafe12', findings: [gaAbsorb({ title: 'integrated-tip absorb' })] }
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: 'beefcafe12', findings: [gaAbsorb({ title: 'integrated-tip absorb' }), gaAbsorb({ title: 'integrated-tip barred follow-up', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })] }
     : null
   const { out, calls } = await runPhase(args, p4Base({ evidence, seatsOf }))
   assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip'), 'presence guard: the integrated-tip seat convened')
   assert.ok(polishPromptOf(calls).includes('integrated-tip absorb'), 'its absorb reaches the sweep')
   const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'integrated-tip absorb')
   assert.ok(aced && aced.finding.seat === 'gate-audit:phase-3:integrated-tip', 'stamped with the seat label')
+  // The pseudo-task row has no auditEvidenceOf entry: the filing prompt's pinned sha falls back
+  // to the row's own seat-stamped sha, never the 'unrecorded' sentinel.
+  const filed = demotionOf(out, 'integrated-tip barred follow-up')
+  assert.ok(filed && filed.task === 'phase-3-integrated-tip' && filed.sha === 'beefcafe12', 'presence guard: the barred follow-up filed under the pseudo-task with the seat-stamped sha')
+  const fp = filingPromptOf(calls)
+  assert.ok(fp.includes('pinned sha beefcafe12'), 'the pseudo-task row renders the seat-stamped sha as its pin')
+  assert.ok(!fp.includes('pinned sha unrecorded'), 'and never the unrecorded sentinel')
 })
 
 test('gate-audit-route — the end-state-only seat\'s absorb reaches the sweep stamped gate-audit:phase-3:end-state', async () => {
@@ -14158,11 +14174,14 @@ test('gate-audit-route — a gate-audit note with a suggested_fix and a file in 
 test('gate-audit-route — phase_diff_files absent: the follow-up arm still reroutes, the note arm skips with a log, and no demote:floor-skipped comes from this pass', async () => {
   const bare = gaAbsorb({ title: 'ga follow-up no phase diff', disposition: 'follow-up' })
   const note = gaAbsorb({ title: 'ga note no phase diff', disposition: 'note' })
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bare, note] }))
+  const barred = gaAbsorb({ title: 'ga barred no phase diff', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bare, note, barred] }))
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase_diff_files absent') && l.includes('note arm skips')), 'the note-arm skip is logged')
   assert.ok(polishPromptOf(calls).includes('ga follow-up no phase diff'), 'the follow-up still reroutes into the sweep')
   assert.ok((out.notes || []).some(n => n && n.title === 'ga note no phase diff'), 'the note keeps its classification')
-  assert.ok(!(out.minorsFiled || []).some(m => m && m.floorSkipped === true), 'no demote:floor-skipped from the gate-audit pass')
+  const filed = demotionOf(out, 'ga barred no phase diff')
+  assert.ok(filed && filed.barrier === 'barrier:release-slot', 'presence guard: the barrier-tagged follow-up reached minorsFiled')
+  assert.ok(filed.floorSkipped !== true, 'no demote:floor-skipped from the gate-audit pass — measured on a row that actually filed')
 })
 
 test('gate-audit-route — an exclusion-set hit from a gate-audit seat demotes naming the owner; a gate-audit ask still parks', async () => {
