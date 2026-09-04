@@ -19,6 +19,8 @@ const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'ut
 // classification` byte-identical from the card into this reference file (the card keeps the heading
 // and the trigger pointer) — presence keys over the moved procedure relocate their read here.
 const gateFailureMd = readFileSync(join(here, '../references/gate-failure-classification.md'), 'utf8')
+// absorb-budget (D5): schemas.md documents the ENV_OUTCOME absorbCharges field the both-surfaces fixture pins.
+const schemasMdForAbsorb = readFileSync(join(here, '../references/schemas.md'), 'utf8')
 // UNION/relocated surface (prompt-surface simplification, adjudications E+I): Task 4.1 evicted the
 // submodule-as-repo provisioning recipe, the superproject reland discrimination (land step 3), and the
 // 2A/2B submodule land arms from the card into this reference file — presence keys over the moved text
@@ -3461,7 +3463,7 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   assert.equal(aces.length, 3, 'batch + two blind halves, applied serially')
   const labels = aces.map(c => c.opts.label)
   assert.deepEqual(labels, ['ace:t1:a1', 'ace:t1:a2', 'ace:t1:a3'],
-    'ace labels stay distinct and round-encoded (the ace:<task>:r<n> scheme extends to subsets)')
+    'ace labels stay distinct and round-encoded (the ace:<task>:a<n> scheme extends to subsets)')
   for (const c of aces.slice(1)) {
     assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
     assert.match(c.prompt, /ace00001\^\.\.HEAD/, 'the preflight scans the bisection range since the pre-batch base')
@@ -3576,7 +3578,10 @@ test('absorb-budget (bisection budget): each subset COMMIT charges one absorbRou
   assert.ok(out.landed.includes('t1'), 't1 lands')
   const audEntry = out.auditLog.find(e => e && e.task === 't1' && e.verdict === 'approve')
   assert.ok(audEntry, 'presence guard: the t1 approve entry exists')
-  assert.equal(audEntry.fixRounds, 0, 'fixRounds stays 0 — neither the batch nor the subset commit charged it (PIN-7)')
+  // This entry records the pre-ace audit-round count (`r.preAceRounds`), so it cannot see an ace-side
+  // charge. PIN-7 (no ace commit charges fixRounds) is guarded by the ace-versus-control fixture
+  // `absorb-budget (End state 4, fixRounds untouched by ace)` and the fallback-mirror source assert.
+  assert.equal(audEntry.fixRounds, 0, 'the approve entry records pre-ace audit-round provenance: 0 blocking fix rounds ran')
 })
 
 test('bisection — same-file findings never split across subsets (D3): two findings in one file regress as an ATOMIC batch (no subset dispatch); grouped halving keeps a file whole', async () => {
@@ -13256,7 +13261,7 @@ test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbChar
     assert.ok(logs.some(l => typeof l === 'string' && l.includes(expectLog)), `${name}: the log names the cause`)
     const ace = calls.find(isAce)
     assert.equal(ace && ace.opts.label, 'ace:t1:a1', `${name}: the ladder starts at slot 1`)
-    assert.ok(!(calls.some(c => (c.opts.label || '') === 'work:t1') === false), `${name}: the worker still dispatched — never a hold`)
+    assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), `${name}: the worker still dispatched — never a hold`)
   }
 })
 
@@ -13281,6 +13286,15 @@ test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt
     assert.match(c.prompt, /as its OWN final paragraph, separated from the body by a blank line/, 'the trailer is mandated as a distinct final block (git parses trailers only there)')
   }
   assert.match(aces[1].prompt, /`Ace-Subset: t1:reentry:a2:skills\/second\.js` and `Ace-Charge: t1:2`/, 'the re-entry commit carries BOTH trailers')
+  // bisection subset (bisectSubsetImpl): the subset dispatch at slot 2 carries the same grammar and mandate.
+  const bis = await runPhase(ACE_ARGS(), bisectSubsetImpl())
+  const subset = bis.calls.find(c => isAce(c) && c.opts.label === 'ace:t1:a2')
+  assert.ok(subset, 'presence guard: the bisection subset dispatch at slot 2')
+  const sm = subset.prompt.match(grammar)
+  assert.ok(sm, 'the bisection subset commit prompt carries the Ace-Charge trailer in the pinned grammar')
+  assert.equal(sm[1], 't1', 'the subset trailer names the task id')
+  assert.equal(Number(sm[2]), 2, 'the subset index is absorbRounds after the charge')
+  assert.match(subset.prompt, /as its OWN final paragraph, separated from the body by a blank line/, 'the subset trailer is mandated as a distinct final block')
   // Reverts excluded: the merge dispatch's FORWARD-REVERT clause (a red-gate ace tip) names no charge.
   const red = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': { gate_green: false, gate_output: 'FAIL' } })
   const merge = red.calls.find(isMergeTask)
@@ -13379,14 +13393,11 @@ test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-
   const ANCHORS = [/absorbCharges/, /Ace-Charge/, /trailers:key=Ace-Charge/, /highest/i, /never a count/i]
   for (const [name, text] of [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]) {
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the absorbCharges anchor ${re}`)
-    const mutated = text.replace(/trailers:key=Ace-Charge/g, 'REMOVED')
-    assert.doesNotMatch(mutated, /trailers:key=Ace-Charge/, `${name}: removing the read reds the anchor (non-vacuous)`)
   }
   assert.match(barrier.prompt, /the ONE git read allowed beside the named subcommands/, 'the dispatched prompt carries the explicit allowance beside its named commands')
   assert.match(refinerMd, /one\*\* `git log` read allowed beside the named subcommands/, 'the card carries the same allowance')
   assert.match(schemasMdForAbsorb, /absorbCharges/, 'schemas.md documents the ENV_OUTCOME absorbCharges field')
 })
-const schemasMdForAbsorb = readFileSync(join(here, '../references/schemas.md'), 'utf8')
 
 test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbRounds ?? <n>` fallback equals DEFAULTS.run.absorbRounds, and the three ace gates read absorbRounds — the retired reserve arithmetic is absent', () => {
   const m = src.match(/const\s+absorbRounds\s*=\s*run\.absorbRounds\s*\?\?\s*(\d+)/)
@@ -13397,5 +13408,9 @@ test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbR
   assert.ok(!/aceable\.length && r\.task\.fixRounds < roundLimit/.test(src), 'the retired fixRounds batch gate is gone')
   assert.ok(!/roundLimit\s*(−|-)\s*2/.test(src), 'the roundLimit − 2 reserve arithmetic is gone (End state 5)')
   assert.ok(!/r\.task\.fixRounds\+\+\s*\/\/ each (subset|re-entry)/.test(src), 'no ace-side commit charges fixRounds (PIN-7)')
+  const aceStart = src.indexOf('const aceBisect = async (r, aceable, batchSha, regressionSeats) =>')
+  const aceEnd = src.indexOf('const aceStage = async (r) =>', aceStart)
+  assert.ok(aceStart > 0 && aceEnd > aceStart, 'presence guard: the aceBisect and aceReentry bodies are located')
+  assert.ok(!src.slice(aceStart, aceEnd).includes('r.task.fixRounds++'), 'the aceBisect and aceReentry bodies carry no fixRounds charge at all (PIN-7, comment-independent)')
   assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three ace-side charge sites: batch, subset, re-entry')
 })
