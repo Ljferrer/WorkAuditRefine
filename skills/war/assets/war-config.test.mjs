@@ -109,7 +109,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (pinned to its historical effective config)', () => {
+test('economy preset (pins its historical knobs; ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'sonnet')
   assert.equal(c.agents.worker.effort, 'default')
@@ -123,9 +123,23 @@ test('economy preset (pinned to its historical effective config)', () => {
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
-  assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
+  assert.equal(c.run.ace, true)                     // inherited — the preset no longer pins it (D14, PIN-16)
+  assert.equal(c.run.absorbRounds, 6)               // inherited — absorb-budget: no preset pins it
   assert.equal(c.memory.commitLearnings, false)     // inherited — DEFAULTS is now false; economy no longer pins it
   assert.equal(validate(c).valid, true)
+})
+
+// preset-ace-on (D14, PIN-16): default-deny census over the LIVE preset names — every shipped preset
+// resolves run.ace === true, and no preset carries its own run.ace pin. Delete-the-feature: re-add a
+// run.ace pin to any preset → both clauses fail.
+test('preset-ace-on: every preset name resolves run.ace === true (default-deny census)', () => {
+  const names = Object.keys(PRESETS)
+  assert.ok(names.length >= 3, 'the census must see at least balanced/thorough/economy')
+  for (const name of names) {
+    assert.equal(presetConfig(name).run.ace, true, `${name} preset must resolve run.ace === true (PIN-16)`)
+    assert.ok(!(PRESETS[name].run && Object.prototype.hasOwnProperty.call(PRESETS[name].run, 'ace')),
+      `${name} preset must not pin run.ace — every preset inherits DEFAULTS.run.ace`)
+  }
 })
 
 test('unknown preset throws', () => {
@@ -409,6 +423,53 @@ test('roundLimit below 1 rejected', () => {
   assert.equal(validate({ run: { roundLimit: 0 } }).valid, false)
 })
 
+// --- run.absorbRounds (absorb-budget, D5): the per-task ace meter, validated like run.roundLimit ---
+// Integer >= 1, default 6; null and non-integers are rejected with run.roundLimit's message shape.
+// The shape is pinned by SUBSTITUTION against run.roundLimit's own error so the two cannot drift.
+
+test('absorb-budget: absent run.absorbRounds resolves to DEFAULTS 6; 3 resolves to 3', () => {
+  assert.equal(DEFAULTS.run.absorbRounds, 6)
+  assert.equal(fillDefaults({}).run.absorbRounds, 6)
+  assert.equal(fillDefaults({ run: { roundLimit: 2 } }).run.absorbRounds, 6)
+  const c = fillDefaults({ run: { absorbRounds: 3 } })
+  assert.equal(c.run.absorbRounds, 3)
+  assert.equal(validate(c).valid, true)
+  for (const name of Object.keys(PRESETS)) {
+    assert.equal(presetConfig(name).run.absorbRounds, 6, `${name} preset must inherit run.absorbRounds 6`)
+  }
+})
+
+test('absorb-budget: run.absorbRounds null rejected (no "null reads as unset" rider)', () => {
+  const r = validate({ run: { absorbRounds: null } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.absorbRounds must be an integer >= 1 \(got null\)/)
+})
+
+test('absorb-budget: run.absorbRounds 0 rejected', () => {
+  const r = validate({ run: { absorbRounds: 0 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.absorbRounds must be an integer >= 1 \(got 0\)/)
+})
+
+test('absorb-budget: non-integer run.absorbRounds rejected (1.5, "6")', () => {
+  for (const bad of [1.5, '6']) {
+    const r = validate({ run: { absorbRounds: bad } })
+    assert.equal(r.valid, false, `absorbRounds ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /run\.absorbRounds must be an integer >= 1/)
+  }
+})
+
+test('absorb-budget: run.absorbRounds error message shape == run.roundLimit\'s (key-substituted, cannot drift)', () => {
+  for (const bad of [null, 0, 1.5]) {
+    const rl = validate({ run: { roundLimit: bad } }).errors.filter(e => e.startsWith('run.roundLimit'))
+    const ab = validate({ run: { absorbRounds: bad } }).errors.filter(e => e.startsWith('run.absorbRounds'))
+    assert.equal(rl.length, 1, `exactly one run.roundLimit error for ${JSON.stringify(bad)}`)
+    assert.equal(ab.length, 1, `exactly one run.absorbRounds error for ${JSON.stringify(bad)}`)
+    assert.equal(ab[0], rl[0].replace('run.roundLimit', 'run.absorbRounds'),
+      `run.absorbRounds' message must be run.roundLimit's with the key substituted (got ${JSON.stringify(ab[0])})`)
+  }
+})
+
 // --- run.maxParallel (optional fan-out throttle) ------------------------------
 // No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). When present,
 // integer >= 1; anything else is rejected with an error naming the key.
@@ -517,6 +578,52 @@ test('war-room SKILL.md redteamRoundLimit constants == canonical DEFAULTS/PRESET
     `is ${PRESETS.economy.run.redteamRoundLimit} — bind the doc to the canonical value`)
 })
 
+// absorb-budget doc pin (Task 1.1, PIN-7): the /war-room step-2 row for run.absorbRounds restates the
+// default ("integer ≥ 1 (default 6)"). Slice the row at its key, bound to the text before the NEXT
+// `run.` key on the same line, and bind the stated number to DEFAULTS.run.absorbRounds — a changed doc
+// number goes red here (see the negative clause below).
+function warRoomAbsorbRoundsRow(text) {
+  const at = text.indexOf('run.absorbRounds')
+  assert.ok(at >= 0, 'war-room step 2 must whitelist run.absorbRounds beside run.roundLimit')
+  const lineEnd = text.indexOf('\n', at)
+  const line = text.slice(at, lineEnd === -1 ? text.length : lineEnd)
+  const next = line.indexOf('`run.', 1)
+  return next === -1 ? line : line.slice(0, next)
+}
+
+// Shared compare: the /integer ≥ 1/ check plus the equality against DEFAULTS.run.absorbRounds. The
+// positive test calls it on the live doc; the negative test wraps it in assert.throws on a mutated doc,
+// so the guard's own assertion is what fires on drift (not just the slicer seeing the mutation).
+function assertRowDefault(text) {
+  const row = warRoomAbsorbRoundsRow(text)
+  assert.ok(/integer ≥ 1/.test(row), 'the row must read "integer ≥ 1"')
+  const dm = row.match(/default\s+`?(\d+)`?/i)
+  assert.ok(dm, 'the run.absorbRounds row must state its default (e.g. "(default 6)")')
+  assert.equal(Number(dm[1]), DEFAULTS.run.absorbRounds,
+    `war-room's run.absorbRounds row states default ${dm[1]} but DEFAULTS.run.absorbRounds is ` +
+    `${DEFAULTS.run.absorbRounds} — bind the doc to the canonical value`)
+}
+
+test('absorb-budget: war-room SKILL.md run.absorbRounds row default == DEFAULTS.run.absorbRounds (extraction + equality)', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  const roundLimitAt = text.indexOf('`run.roundLimit`')
+  const absorbAt = text.indexOf('`run.absorbRounds`')
+  assert.ok(roundLimitAt >= 0 && absorbAt >= 0, 'both whitelist rows must exist')
+  assert.equal(text.slice(0, roundLimitAt).split('\n').length, text.slice(0, absorbAt).split('\n').length,
+    'the run.absorbRounds row must sit beside run.roundLimit (same physical line)')
+  assertRowDefault(text)
+})
+
+test('absorb-budget: a changed war-room default number goes red (negative reference through the same slicer)', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  const row = warRoomAbsorbRoundsRow(text)
+  const dm = row.match(/default\s+`?(\d+)`?/i)
+  assert.ok(dm)
+  const mutated = text.replace(row, row.replace(dm[0], dm[0].replace(dm[1], String(DEFAULTS.run.absorbRounds + 1))))
+  assert.notEqual(mutated, text, 'the mutation must change the doc')
+  assert.throws(() => assertRowDefault(mutated), 'the guard must fire on the drifted doc number')
+})
+
 // --- run.provision / provisionSource / provisionAuto (Part B) ----------------
 
 test('provision defaults: empty list, source none, auto true', () => {
@@ -568,14 +675,13 @@ test('non-boolean provisionAuto rejected', () => {
   assert.match(r.errors.join('\n'), /run\.provisionAuto/)
 })
 
-// --- run.ace (--ace opt-in pre-merge nit auto-fix; default false) -------------
+// --- run.ace (per-task ace ladder; default true, every preset inherits it — PIN-16) -------------
 
-test('ace defaults to true; economy pins false', () => {
+test('ace defaults to true; every preset inherits true (preset-ace-on)', () => {
   assert.equal(DEFAULTS.run.ace, true)
-  for (const preset of ['balanced', 'thorough']) {
+  for (const preset of ['balanced', 'thorough', 'economy']) {
     assert.equal(presetConfig(preset).run.ace, true, `${preset} preset must inherit run.ace === true`)
   }
-  assert.equal(presetConfig('economy').run.ace, false, 'economy preset must pin run.ace === false')
 })
 
 test('non-boolean ace rejected', () => {
