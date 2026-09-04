@@ -1322,7 +1322,8 @@ const parkAsk = f => {
 // (demote:terminal-pass), and a regressed terminal commit's rows (demote:absorb-regressed); on a
 // NON-final phase those same rows never demote — they ride carriedPhaseClose (D3a/D3b), as does a
 // held phase's whole queue; a fileless absorb (demote:fileless, severity default); a release-slot
-// absorb at birth (demote:release-slot); a sweep-time exclusion-set hit (demote:exclusion-set). A
+// absorb at birth (demote:release-slot); an exclusion-set hit at sweep time or at the terminal-pass
+// filter (demote:exclusion-set). A
 // FAILED ATTEMPT never demotes: an untouched-file ace row, a dead ace/subset/re-entry worker's rows,
 // and a red gate at an ace-family tip route to the sweep (routeToSweep, phaseClose:true) — the ace
 // attempt did not happen, so the sweep is the next rung. A FRESH absorb born at a re-audit re-enters
