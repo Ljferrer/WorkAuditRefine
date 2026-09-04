@@ -64,6 +64,10 @@ export const meta = {
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
+//     seededPhaseClose?,              // optional [finding rows] — a prior phase return's carriedPhaseClose, threaded by the Lead at a
+//                                     // relaunch (D3b, PIN-5); entry-validated + #1413 provenance-floored; drains into this phase's sweep queue.
+//     finalPhase?,                    // optional boolean — the terminal pass's finality signal (D3a): false ⇒ a terminal-born absorb
+//                                     // rides carriedPhaseClose; true/absent ⇒ it demotes (absent reads as FINAL); non-boolean refused at entry.
 //     run:    { roundLimit, absorbRounds, maxParallel, afk },          // roundLimit used here; absorbRounds = the per-task absorb budget (the ace
 //                                     // ladder's own meter, D5; absent ⇒ 6, the DEFAULTS.run.absorbRounds mirror); afk gates recordAced's
 //                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
@@ -87,8 +91,10 @@ const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], propert
   // ace_diff_files (#1913, D3/PIN-18 — the mappedTests precedent): the GIT-derived changed-file list of
   // an ace commit, filled by the ace/bisection/re-entry worker from `git diff --name-only <preAceTip>
   // <aceSha>`. It is the ONLY input to the delta-scaled re-audit's subset rule; the agent's own
-  // files_changed is a CROSS-CHECK, never the source. OPTIONAL — absent or empty routes the FULL panel
-  // (fail-closed), so every non-ace worker result stays byte-identical to today.
+  // files_changed is a CROSS-CHECK there, never the source. OPTIONAL — absent or empty routes the FULL
+  // panel (fail-closed), so every non-ace worker result stays byte-identical to today. The ONE consumer
+  // with a different precedence is the sweep's landed-row check (sweepTouched): ace_diff_files
+  // preferred, files_changed a fallback SOURCE when ace_diff_files is absent or empty.
   ace_diff_files: { type: 'array' },
   notes: { type: 'string' }, blocked_reason: { type: 'string' } } }
 
@@ -402,9 +408,17 @@ const pinTransfers = []
 // top-level return beside minorsFiled and the handoff's ninth (lossy) `asks` key; NEVER consumed by
 // the follow-up consolidation or the file-followups dispatch below (an unruled ask is never filed).
 const asks = []
+// carriedPhaseClose (in-band-absorb-default D3b, PIN-5): absorb findings this phase could not land
+// and did NOT demote — a held phase's whole phaseCloseQueue, a discarded sweep's absorbs on a
+// non-final phase, and a non-final terminal pass's regressed/fresh absorbs. A TOP-LEVEL key on the
+// phase return at BOTH return sites (never inside the handoff — its followUps projection is
+// explicit-key and drops new provenance, #1799), present as [] on a phase with nothing carried so
+// absence is never ambiguous. The Lead threads it back as args.seededPhaseClose at the relaunch.
+const carriedPhaseClose = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
 // status/escalation (D6). Under disposition routing (ADR 0013) `aced` also records the phase-close
-// sweep's absorbed findings at the polish sha.
+// sweep's absorbed findings at the polish sha AND the terminal pass's rows at the terminal sha,
+// stamped `terminal: true` (D3a) — the schemas.md aced row names the same three sources.
 const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
@@ -504,7 +518,8 @@ const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 const roundLimit = run.roundLimit ?? 6
 // absorbRounds (absorb-budget, D5): the per-task absorb meter — the ace ladder's OWN round budget,
 // charged once per ace-side COMMIT (batch ace, re-entry batch, bisection subset; the terminal pass
-// reserves a charge site) and read by all three ace gates as `r.task.absorbRounds < absorbRounds`.
+// charges the polish pseudo-task's own counter, telemetry only — it never gates) and read by all
+// three ace gates as `r.task.absorbRounds < absorbRounds`.
 // Reverts, re-audit panels, and fix rounds never charge it. Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync (drift-guarded in war-config.test.mjs).
 const absorbRounds = run.absorbRounds ?? 6
 // maxParallel (#1722, reshaped #1897): the GLOBAL agent-dispatch ceiling for rate-limited accounts —
@@ -853,7 +868,30 @@ if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
     if (!Array.isArray(e.files) || !e.files.every(f => typeof f === 'string')) problems.push('workflow-template: args.sweepExclude[' + i + '].files must be an array of repo-relative path strings (D2)')
   })
 }
+//   (6) SEEDED-PHASE-CLOSE class (in-band-absorb-default D3b, PIN-5) — args.seededPhaseClose is the
+//       Lead's relaunch carry of a prior phase return's carriedPhaseClose: absent/null, or an array of
+//       finding rows ({ severity, title, file?, … }). Any other shape is a malformed launch, refused at
+//       entry naming the entry index and field — never coerced, never a guessed queue.
+if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
+  if (!Array.isArray(A.seededPhaseClose)) problems.push('workflow-template: args.seededPhaseClose must be an array of carried finding rows or absent (got ' + typeof A.seededPhaseClose + ') (D3b)')
+  else A.seededPhaseClose.forEach((e, i) => {
+    if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: args.seededPhaseClose[' + i + '] must be a finding row object { severity, title, file? } (D3b)'); return }
+    if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: args.seededPhaseClose[' + i + '].title must be a non-empty string (D3b)')
+    if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: args.seededPhaseClose[' + i + '].severity must be a non-empty string (D3b)')
+    if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: args.seededPhaseClose[' + i + '].file must be a repo-relative path string or null (D3b)')
+  })
+}
+//   (7) FINAL-PHASE class (in-band-absorb-default D3a) — args.finalPhase is the terminal pass's
+//       finality signal: a boolean, or absent (reads as FINAL, so a missed thread files a visible
+//       issue instead of carrying into nothing). Any other value — null included — refuses loudly.
+if (A.finalPhase !== undefined && typeof A.finalPhase !== 'boolean') {
+  problems.push('workflow-template: args.finalPhase must be a boolean or absent (got ' + (A.finalPhase === null ? 'null' : typeof A.finalPhase) + ') — absent reads as final (D3a)')
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
+// finalPhase (D3a): absent reads as final. Logged once — the terminal pass and the discard/held carry
+// arms read it; the Lead records the threaded value per phase in the run manifest.
+const finalPhase = A.finalPhase !== false
+log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.finalPhase === undefined ? 'absent (reads as final)' : String(A.finalPhase)) + '; ' + (finalPhase ? 'a terminal-born or unlanded absorb demotes to follow-up' : 'a terminal-born or unlanded absorb rides carriedPhaseClose') + '.')
 
 // ---- Args provenance floor (#1413, recalibrated D6 / #1666 signal 1) — fail-closed, at entry ----
 // A dispatched seat can recover from a wrong plan slice by reading the plan file; the assembled
@@ -940,11 +978,26 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
     }
     return { text, exempt: false }
   }
+  // seededPhaseClose rows (D3b, PIN-5) JOIN the floor under the ruledAsks discipline: per-row
+  // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
+  // FIELD (stamped by the emitting engine's carryPhaseClose) is the provenance coordinate — a
+  // foreign slug refuses directly; the run's own slug exempts the row.
+  const seededPhaseCloseRowText = row => {
+    if (!row || typeof row !== 'object') return { text: '', exempt: true }
+    const text = ['title', 'rationale', 'suggested_fix']
+      .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
+    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+      if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
+      return { text, exempt: true }
+    }
+    return { text, exempt: false }
+  }
   const provenanceSurfaces = [
     ['intent', intent ? [{ text: intent, exempt: false }] : []],
     ['backstops', Array.isArray(backstops) ? backstops.map(rowText) : []],
     ['adjudications', adjudications.map(rowText)],
     ['ruledAsks', Array.isArray(A.ruledAsks) ? A.ruledAsks.map(ruledAskRowText) : []],
+    ['seededPhaseClose', Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose.map(seededPhaseCloseRowText) : []],
   ]
   for (const [argName, rows] of provenanceSurfaces) {
     const stamped = rows.find(r => r.foreignStamp)
@@ -1021,6 +1074,16 @@ for (const ra of ruledAsks) {
     task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
     ...(ra.line != null ? { line: ra.line } : {}),
     rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
+}
+// Seeded phase-close carry (D3b, PIN-5): the rows a prior phase return carried on carriedPhaseClose
+// (held phase, discarded sweep, or terminal pass on a non-final phase), threaded back by the Lead as
+// args.seededPhaseClose. Entry-validated above and provenance-floored (#1413); each row drains into
+// THIS phase's sweep queue as an absorb (phaseClose:true), logged per row — never demoted at intake,
+// never silent. The sweep-time exclusion set still judges it like any queued row.
+for (const s of (Array.isArray(A.seededPhaseClose) ? A.seededPhaseClose : [])) {
+  const f = { ...s, disposition: 'absorb', phaseClose: true, seeded: true, task: s.task ?? 'seeded-phase-close' }
+  log('held-carry (D3b): seeded phase-close row "' + f.title + '" (task ' + f.task + ', ' + (s.carriedFrom && s.carriedFrom.phase != null ? 'carried from phase ' + s.carriedFrom.phase : 'carried from a prior launch') + ') drains into this phase\'s sweep queue.')
+  phaseCloseQueue.push(f)
 }
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
@@ -1253,9 +1316,12 @@ const parkAsk = f => {
 // re-entry batch; a reverted finding never re-enters, the oscillation bound); non-approve-branch
 // findings (demote:task-unapproved, filed with the escalation); a held absorb (r.task.pendingAbsorbs)
 // on a task that ends escalated, audit-blocked, or never merged (demote:absorb-blocked); a held phase
-// or an unusable sweep roster / polish provisioning (demote:sweep-skipped); a discarded sweep
-// (demote:sweep-discarded) and a sweep-raised absorb at its terminal arms (demote:terminal-pass /
-// demote:sweep-discarded); a fileless absorb (demote:fileless, severity default); a release-slot
+// or an unusable sweep roster / polish provisioning (demote:sweep-skipped); a discarded sweep on the
+// FINAL phase — its queue and its sweep-raised absorbs alike (demote:sweep-discarded); the terminal
+// pass on the final phase — an absorb it could not commit or merge, or one its seat freshly raised
+// (demote:terminal-pass), and a regressed terminal commit's rows (demote:absorb-regressed); on a
+// NON-final phase those same rows never demote — they ride carriedPhaseClose (D3a/D3b), as does a
+// held phase's whole queue; a fileless absorb (demote:fileless, severity default); a release-slot
 // absorb at birth (demote:release-slot); a sweep-time exclusion-set hit (demote:exclusion-set). A
 // FAILED ATTEMPT never demotes: an untouched-file ace row, a dead ace/subset/re-entry worker's rows,
 // and a red gate at an ace-family tip route to the sweep (routeToSweep, phaseClose:true) — the ace
@@ -1332,18 +1398,23 @@ const revertedKeys = new Set()
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
 // finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
 // re-enters the ladder and never files a second record: the filed record is the durable home; the
-// re-mint is corroboration (logged). Stamped at the three sites a later same-task re-audit can see:
-// the round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, and demote()'s
-// minorsFiled push. The escalation-arm and phase-close-sweep DIRECT pushes are NOT stamped — no
-// later re-audit runs for that task/phase, so no re-mint window exists there (their demote()-routed
+// re-mint is corroboration (logged). Stamped at the four sites a later re-audit can see: the
+// round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, demote()'s minorsFiled
+// push, and the phase-close sweep's sweep-raised follow-up arm (fileFollowUp — the terminal pass's
+// one re-audit seat is the later window there). The escalation-arm DIRECT push is NOT stamped — no
+// later re-audit runs for that task, so no re-mint window exists there (its demote()-routed
 // siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
 // routing and re-entry drain).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, and the
-// gate-audit floor pass's routeToSweep calls; the ruledAsks intake is the seeded exception), for
-// budget-bounded re-entry (r.reentryQueue), or HELD for the next ace batch (the batch-ace
-// blocker hold onto r.task.pendingAbsorbs) records its remintKey here, so a content-identical
+// gate-audit floor pass's routeToSweep calls; the ruledAsks intake and the seededPhaseClose drain
+// are the two seeded exceptions — both run at entry, before this registry is declared, so a
+// same-phase re-mint of a seeded row is judged on the other registries alone), for
+// budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace
+// blocker hold onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch
+// (carryPhaseClose — a held phase's queue, a discarded sweep's absorbs and the terminal pass's
+// unlanded/fresh absorbs on a non-final phase) records its remintKey here, so a content-identical
 // re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
@@ -1393,6 +1464,16 @@ const routeToSweep = (f, why) => {
   queuedKeys.add(remintKey(f))
   phaseCloseQueue.push({ ...f, phaseClose: true })
 }
+// Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor —
+// a held phase's queue, a discarded sweep's absorbs and the terminal pass's unlanded/fresh absorbs
+// on a non-final phase ride carriedPhaseClose (top-level on the phase return) instead of demoting;
+// the Lead threads them back as args.seededPhaseClose. The engine stamps `planSlug` so the carried
+// row clears the #1413 own-token floor on the relaunch by construction. Logged, never silent.
+const carryPhaseClose = (f, why) => {
+  queuedKeys.add(remintKey(f))   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
+  log('held-carry: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → carriedPhaseClose — ' + why + '.')
+  carriedPhaseClose.push({ ...f, phaseClose: true, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
+}
 // Re-audit-born finding routing (D1/D2/D3, #1731 — replaces the retired "the ladder never opens
 // for fresh findings" demotions): fresh Minor/Nits raised at ANY re-audit (the plain batch
 // re-audit, a bisection subset's re-audit, a re-entry batch's own re-audit, or the merge-slot
@@ -1415,7 +1496,7 @@ const remintBlock = f => {
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
-  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands'
+  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands'
   return null
 }
 // Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
@@ -1432,6 +1513,7 @@ const corroborateSurvivor = f => {
   const hit = minorsFiled.find(m => remintKey(m) === k)
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
+    || carriedPhaseClose.find(q => remintKey(q) === k)
   if (!hit) return
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   const ref = seatRefOf(f)
@@ -3975,16 +4057,22 @@ const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId
 // registration (Open decision 4) — bookkeeping is a Lead-side ledger entry + the handoff block.
 // Drain-cause stamp (Phase 6 Task 1 (d)): when a phase-close DISPATCH DIES (polish-worktree
 // provision or the sweep worker — a tagged env-died throw, or a dead dispatch returning nothing),
-// every finding the resulting drain demotes carries WHICH dispatch died and WHY it was demoted — an
-// in-band field on the finding row (rides minorsFiled and the escalation records; the field name is
-// mechanism latitude), replacing the flat untriaged dump. Ordinary non-death drains (held phase,
-// invalid roster, panel non-approval) stay unstamped — they were never "a dispatch died".
+// every finding the resulting drain demotes or carries carries WHICH dispatch died and WHY — an
+// in-band field on the finding row (rides minorsFiled, the escalation records, and carriedPhaseClose
+// into the next phase's seededPhaseClose; the field name is mechanism latitude), replacing the flat
+// untriaged dump. Ordinary non-death drains (invalid roster, panel non-approval) and the held-phase
+// carry stay unstamped — they were never "a dispatch died".
 const stampDrainCause = (f, dispatch, why) => { f.drainCause = { dispatch, why }; return f }
 let polishStatus = 'skipped'
+// Phase-scoped exclusion map (PIN-3): built by the sweep-time drain below and read AGAIN by the
+// terminal-pass filter — a polish-panel absorb never passed the drain, so the pass consults the
+// same map before it commits (a campaign- or task-owned file is refused there too).
+const sweepExcl = new Map()
 if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
-  // Demotion arm (ADR 0013): a held phase never dispatches the sweep — drain the queue.
-  log(`phase-close sweep: the phase is ${landDecision} — the sweep never dispatches; draining ${phaseCloseQueue.length} queued finding(s) to follow-up.`)
-  for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'demote:sweep-skipped — held phase — the phase-close sweep never dispatched')
+  // Carry arm (D3b, PIN-5 — replaces the ADR 0013 held-phase demotion): a held phase never
+  // dispatches the sweep — the queue rides carriedPhaseClose for the relaunch and demotes NOTHING.
+  log(`phase-close sweep: the phase is ${landDecision} — the sweep never dispatches; carrying ${phaseCloseQueue.length} queued finding(s) on carriedPhaseClose for the relaunch (nothing demotes).`)
+  for (const f of phaseCloseQueue.splice(0)) carryPhaseClose(f, 'held phase (' + landDecision + ') — the phase-close sweep never dispatched; carried for the relaunch')
 } else if (phaseCloseQueue.length > 0) {
   // ---- SWEEP EXCLUSION SET (in-band-absorb-default D2/D6, PIN-3) — built at sweep time, before the
   // dispatch: the files of every args.sweepExclude entry (campaign contention, owner = the plan slug)
@@ -3994,8 +4082,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // file is in the set demotes to follow-up naming the owner (demote:exclusion-set / demote:release-slot);
   // the seat never decides exclusion. First owner wins per path (construction order is latitude).
   {
-    const excl = new Map()
-    const claim = (p, owner) => { const k = aceRelPath(p); if (typeof k === 'string' && k && !excl.has(k)) excl.set(k, owner) }
+    const claim = (p, owner) => { const k = aceRelPath(p); if (typeof k === 'string' && k && !sweepExcl.has(k)) sweepExcl.set(k, owner) }
     if (Array.isArray(A.sweepExclude)) {
       let n = 0
       for (const e of A.sweepExclude) for (const p of e.files) { claim(p, 'plan ' + e.slug); n++ }
@@ -4005,7 +4092,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     for (const p of RELEASE_SLOT_FILES) claim(p, 'the release slot')
     const kept = []
     for (const f of phaseCloseQueue.splice(0)) {
-      const owner = (typeof f.file === 'string' && f.file) ? (excl.get(aceRelPath(f.file)) ?? (isReleaseSlotFile(f.file) ? 'the release slot' : null)) : null
+      const owner = (typeof f.file === 'string' && f.file) ? (sweepExcl.get(aceRelPath(f.file)) ?? (isReleaseSlotFile(f.file) ? 'the release slot' : null)) : null
       if (owner === null) { kept.push(f); continue }
       queuedKeys.delete(remintKey(f))
       if (owner === 'the release slot') demote(f, 'follow-up', 'demote:release-slot — sweep exclusion set: ' + aceRelPath(f.file) + ' is owned by the release slot; the sweep never touches it')
@@ -4033,6 +4120,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     const polishTask = { id: `p${ph.id}-polish`, issue: ph.epicIssue || `<phase-${ph.id}-epic>`,
       title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
       roster: defaultRoster,
+      absorbRounds: 0,   // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
       planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
     // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree.
     // provision mode (agents/war-refiner.md ## provision): phase-close polish worktree — env-outcome return.
@@ -4088,11 +4176,12 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // pt-tagged prompt-feeding rows (sweep prompt, top-level-catch, fail-open polish): f.severity is a required
       // finding field (bare); title/task ?? absence-tolerant; file/rationale/suggested_fix already guarded/defaulted.
       + phaseCloseQueue.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
+      + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit (the git-derived list decides which queued rows the sweep landed; files_changed is read only as a fallback source when ace_diff_files is absent or empty).\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
       + provisionClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
-      // never agents.worker.fix. (The three fix-follow-up classes — fix:/ace:/add-test:|package-it: — are
+      // never agents.worker.fix. (The four fix-follow-up classes — fix:/ace:/add-test:|package-it:/terminal: — are
       // tier-aware via spawnWorker('fix'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
@@ -4105,15 +4194,15 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
     const sweepWhy = sweepDeath || blockedReason(sweep)
     let sweepApproved = false
-    // Sweep-raised finding routing (D1/D2, #1377): the re-audit panel's Minor/Nit findings, hoisted
-    // out of the `if (!sweepWhy)` block (pSeats is block-scoped there) so BOTH terminal arms below
-    // can route them through the disposition ladder — nothing sweep-raised may enter `aced`,
-    // `aceable`, or `phaseCloseQueue` (the sweep is the phase's terminal fix round; there is no later
-    // round to land an absorb). Critical/Major keep today's visibility: they block re-approval and
-    // ride the `polish-rejected`/`polish-discarded` auditLog entries. Vacuous arms: blocked (sweepWhy
-    // — no panel convened), skipped (invalid roster / failed provisioning — the sweep never
-    // dispatched), and held (the held-phase drain above) never reach these arms with a convened
-    // panel, so no sweep-raised findings exist there and this stays empty.
+    // Sweep-raised finding routing (D1/D2, #1377; terminal pass D3a): the re-audit panel's Minor/Nit
+    // findings, hoisted out of the `if (!sweepWhy)` block (pSeats is block-scoped there) so BOTH
+    // arms below can route them through the disposition ladder. On the MERGED arm a sweep-raised
+    // absorb is the terminal pass's input (one more hop, then done); on the DISCARD arm it rides
+    // carriedPhaseClose (non-final) or demotes (final). Critical/Major keep today's visibility: they
+    // block re-approval and ride the `polish-rejected`/`polish-discarded` auditLog entries. Vacuous
+    // arms: blocked (sweepWhy — no panel convened), skipped (invalid roster / failed provisioning —
+    // the sweep never dispatched), and held (the held-phase carry above) never reach these arms
+    // with a convened panel, so no sweep-raised findings exist there and this stays empty.
     let sweepMinors = []
     if (!sweepWhy) {
       const { seats: pSeats, expected: pExpected } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha)
@@ -4142,53 +4231,225 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     if (sweepApproved && pmr && pmr.status === 'merged') {
       polishStatus = 'merged'
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
-      log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
-      // RESIDUAL, ruled (#1944-class): every queued finding is recorded aced on the panel's
-      // re-approval alone — no per-finding evidence the polish commit reached its file. The
-      // recordAcedTouched comment cross-references this ruling.
-      for (const f of phaseCloseQueue.splice(0)) recordAced(f, polishSha)
-      // TERMINAL-PASS CHARGE SITE (reserved, D5 / Phase 5): the one-hop terminal pass after the
-      // polish merge charges the polish task's absorbRounds here and carries an `Ace-Charge`
-      // trailer on its single commit — telemetry, never a gate. No dispatch yet.
-      // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
-      // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later
-      // round. A sweep-raised ask still parks (#1550) — the Checkpoint gate has no terminal round.
+      log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) considered at the sweep tip.`)
+      // RESIDUAL, ruled (#1944-class): a queued finding is recorded aced on the panel's re-approval
+      // alone — no per-finding evidence the polish commit reached its file — EXCEPT the one case the
+      // sweep's own changed-file report can disprove (D3a "any queued absorb the sweep could not
+      // land"): when the report is present and overlaps the queue's footprint, a queued row whose
+      // file the sweep never touched is NOT recorded aced — it joins the terminal queue instead
+      // (the recordAcedTouched touched-file rule, ADAPTED — its `every`/subset gate would be vacuous
+      // here because the sweep legitimately touches files outside the queue footprint, so this one
+      // intersects with `some`). An absent/empty report keeps the ruling.
+      const sweepTouched = new Set((Array.isArray(sweep.ace_diff_files) && sweep.ace_diff_files.length ? sweep.ace_diff_files : (Array.isArray(sweep.files_changed) ? sweep.files_changed : [])).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
+      const queueFootprint = new Set(phaseCloseQueue.map(f => aceRelPath(f.file)).filter(p => typeof p === 'string' && p.length > 0))
+      const sweepOverlap = sweepTouched.size > 0 && [...sweepTouched].some(p => queueFootprint.has(p))
+      const terminalQueue = []
+      for (const f of phaseCloseQueue.splice(0)) {
+        if (sweepOverlap && typeof f.file === 'string' && f.file && !sweepTouched.has(aceRelPath(f.file))) {
+          log('terminal pass: queued absorb "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the sweep commit at ' + polishSha + ' never touched ' + aceRelPath(f.file) + '; not recorded aced, it joins the terminal queue.')
+          terminalQueue.push(f)
+          continue
+        }
+        recordAced(f, polishSha)
+      }
+      log('phase-close sweep: ' + terminalQueue.length + ' queued finding(s) diverted to the terminal queue (unlanded by the sweep commit); the rest recorded aced at ' + polishSha + '.')
+      // Merged-arm routing (#1377, D3a): sweep-raised Minor/Nits route by disposition — an absorb
+      // joins the terminal queue (the terminal pass is the sweep's successor; the eligibility filter
+      // below judges it). A sweep-raised ask still parks (#1550) — the Checkpoint gate is Lead-side.
+      // A sweep-raised follow-up is stamped floorSkipped (no diff probe ran for the polish
+      // pseudo-task; #2050-class, logged here so the stamp site is never silent).
+      // Registry consult (mirrors routeTerminalMinors): a polish-seat re-mint of an already aced,
+      // filed, or queued finding corroborates — never a second terminal-queue line or filed row.
+      // The follow-up arm files through fileFollowUp so filedKeys carries the row: the terminal
+      // seat's later re-audit consults that registry and re-mints it as corroboration, never twice.
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
+        const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
+        else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
+        else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
-        else demote(f, 'follow-up', "demote:terminal-pass — sweep-raised absorb — the phase-close sweep is the phase's terminal fix round; absorb has no later round to land")
+        else terminalQueue.push(f)
+      }
+      // ---- TERMINAL PASS (D3a, PIN-4/PIN-9) — ONE hop after the polish merge, never a second ----
+      // Input: the polish panel's absorbs + the queued absorbs the sweep could not land. Filtered
+      // through aceEligible (a fileless row takes the severity default; a release-slot row is
+      // REFUSED and demoted, PIN-11). Then ONE ace-shaped commit in the polish worktree at the
+      // post-polish integrated tip carrying an `Ace-Charge: p<N>-polish:<n>` trailer, charging the
+      // polish pseudo-task's absorbRounds (telemetry only — the pass never budget-blocks), ONE
+      // read-only re-audit seat (the roster's `correctness` seat when present, else its first seat
+      // with its own lens — logged), then Refine like any ace commit (floors, gate, merge). The pass
+      // convenes with run.ace off — run.ace gates the per-task ladder only (PIN-16). A re-audit
+      // regression forward-reverts the terminal commit, then the rows carry (non-final) or demote
+      // (final) — never a second pass. A fresh absorb the seat raises rides carriedPhaseClose on a
+      // non-final phase and demotes demote:terminal-pass "raised on the terminal pass" on the final.
+      const terminalRows = []
+      for (const f of terminalQueue) {
+        if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless terminal-pass absorb takes the severity default (never ace-eligible)')
+        else if (!aceEligible(f)) { log('terminal pass: REFUSED "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — ' + aceRelPath(f.file) + ' is a release-slot file (RELEASE_SLOT_FILES, PIN-11); never committed by the pass.'); demoteReleaseSlot(f) }
+        else if (sweepExcl.has(aceRelPath(f.file))) {
+          // Exclusion-set arm (PIN-3): a polish-panel absorb never passed the sweep-time drain, so the
+          // pass consults the same phase-scoped map — a campaign- or task-owned file is refused here.
+          const owner = sweepExcl.get(aceRelPath(f.file))
+          log('terminal pass: REFUSED "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase (sweep exclusion set, PIN-3); never committed by the pass.')
+          demote(f, 'follow-up', 'demote:exclusion-set — terminal pass: ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase; the pass never touches it')
+        }
+        else terminalRows.push(f)
+      }
+      // Terminal-arm routing: every non-landing exit (could-not-commit, regression, merge failure)
+      // and the seat's fresh absorbs CARRY on a non-final phase and DEMOTE on the final — each
+      // demote site below leads with its DEMOTE_REASONS literal (the census reads the literal).
+      const routeTerminalMinors = (seats, sha) => {
+        for (const f of minorsOf(seats).map(x => ({ task: polishTask.id, ...x }))) {
+          const d = dispositionOf(f, null)
+          // Registry consult (mirrors routeReauditMinors): the terminalRows were recorded aced on the
+          // merged arm and demoted or carried on the regressed and unmerged arms (filedKeys / queuedKeys
+          // stamped either way) — a seat re-mint of one of them corroborates, never a second record.
+          const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
+          if (d === 'ask') parkAsk(f)
+          else if (b) { log('terminal pass: seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') at ' + sha + ' — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
+          else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('terminal pass: seat-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
+          else if (d === 'note') notes.push(f)
+          else if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (raised by the terminal re-audit seat at ' + sha + ')')
+          else demote(f, 'follow-up', 'demote:terminal-pass — raised on the terminal pass (at ' + sha + ') — the pass is one hop per phase and this is the final phase; no later round')
+        }
+      }
+      if (!terminalRows.length) {
+        log('terminal pass: phase ' + ph.id + ' — the terminal queue is empty (no eligible polish-panel absorb and nothing the sweep left unlanded) — skipped.')
+      } else {
+        const terminalCharge = polishTask.id + ':' + (polishTask.absorbRounds + 1)
+        const seat = defaultRoster.find(s => s && s.lens === 'correctness') || defaultRoster[0]
+        log('terminal pass: phase ' + ph.id + ' — ' + terminalRows.length + ' absorb(s) on the terminal queue; ONE ace-shaped commit in ' + polishWorktree + ' at the post-polish tip, then one re-audit seat: ' + seat.lens + (seat.lens === 'correctness' ? '' : ' (no correctness seat on the roster — the first seat, with its own lens)') + ' (run.ace ' + (run.ace ? 'on' : 'off') + ' — the pass convenes regardless).')
+        let tw = null
+        let twDeath = null
+        try {
+        tw = await dispatchAgent(
+          pt`TERMINAL PASS for WAR phase ${ph.id} "${ph.title}" (the one-hop successor of the merged phase-close sweep). Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, now at the post-polish integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          + intentClause
+          + pt`Gate: ${plan.gate}\n`
+          + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (one re-audit seat judges the new sha; a regression is forward-reverted). NEVER touch version/release-slot literals. Commit and push ${polishBranch}.\n`
+          + terminalRows.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
+          // No ace_diff_files clause here: the terminal arm has no consumer for it (the merged arm
+          // records every terminalRow aced on the one seat's re-approval; the sweep arm's sweepTouched
+          // is the only landed-row check) — a prompt never asks for a field nothing reads.
+          + provisionClause,
+          { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('fix') })
+        } catch (err) {
+          const c = infraDeathCause(err)
+          if (!c) throw err
+          twDeath = 'terminal:phase-' + ph.id + ' dispatch died post-spawn (env-died): ' + c
+          log('terminal pass: ' + twDeath + ' — an environment event; fail-open, the rows carry or demote below.')
+        }
+        const twWhy = twDeath || blockedReason(tw)
+        if (twWhy || typeof tw.head_sha !== 'string' || !tw.head_sha) {
+          const why = twWhy || 'terminal worker returned no usable head_sha'
+          log('terminal pass: phase ' + ph.id + ' — no terminal commit (' + why + '); the pass is spent (one hop per phase, never a second); ' + terminalRows.length + ' row(s) ' + (finalPhase ? 'demote' : 'carry') + '.')
+          for (const f of terminalRows) {
+            if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (no terminal commit: ' + why + ')')
+            else demote(f, 'follow-up', 'demote:terminal-pass — the terminal pass made no commit (' + why + ') on the final phase; no later round')
+          }
+        } else {
+          const terminalSha = tw.head_sha
+          polishTask.absorbRounds++   // the terminal COMMIT charges the polish pseudo-task's counter — telemetry only (D3a)
+          log('terminal pass: phase ' + ph.id + ' committed at ' + terminalSha + ' (Ace-Charge ' + terminalCharge + '; polish task absorbRounds now ' + polishTask.absorbRounds + ', telemetry only).')
+          // ONE seat re-audits the terminal sha (rosterOverride — the roster's correctness seat or its
+          // first seat). The pass is bound at one hop: no fix round, no bisection, no re-entry.
+          const { seats: tSeats, expected: tExpected } = await auditRound(polishTask, null, tw.tests ? tw.tests : null, terminalSha, null, [seat])
+          const tApproved = allApprove(tSeats, tExpected) && blockingOf(tSeats).length === 0
+          // Ledger row (PIN-10): the terminal seat re-ran; every other default-roster seat transfers
+          // from the polish panel — every rosterOverride site records its transfer, this one included.
+          pinTransfers.push({ task: polishTask.id, kind: 'ace', mode: 'terminal', why: 'one-hop terminal pass — one re-audit seat, the rest transfer from the polish panel', sha: terminalSha,
+            seats: defaultRoster.map(s => ({ seat: s.lens, lens: s.lens, outcome: s.lens === seat.lens ? 're-ran' : 'transferred', sha: terminalSha })) })
+          auditLog.push({ task: polishTask.id, verdict: tApproved ? 'approve' : 'terminal-rejected', terminal: true, sha: terminalSha, seat: seat.lens, findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length })
+          if (!tApproved) {
+            // REGRESSION (a seat returned request_changes or a blocking finding) OR NO VERDICT (the
+            // seat dispatch dropped after auditRound's two retries — tSeats.length < tExpected): both
+            // forward-revert the terminal commit on the polish branch (tip-only clean inverse,
+            // conditional on HEAD — a sha is never reverted twice), then carry/demote. Only the real
+            // regression demotes demote:absorb-regressed; a dropped seat judged nothing, so its rows
+            // demote demote:terminal-pass with the no-verdict wording (the reason string is the
+            // issue-body prefix and the DEMOTE_REASONS tally input — never assert a regression no seat
+            // judged). The revert result is logged, fail-open: the terminal commit never merged, so
+            // the landed tip is unaffected either way; never a second pass.
+            const tNoVerdict = tSeats.length < tExpected
+            const tOutcome = tNoVerdict ? 'the terminal re-audit seat returned no verdict' : 'regressed on the ' + seat.lens + ' re-audit'
+            log('terminal pass: phase ' + ph.id + ' — ' + (tNoVerdict ? 'the terminal re-audit seat returned no verdict (' + tSeats.length + ' of ' + tExpected + ' seat(s) returned)' : 'REGRESSED on the ' + seat.lens + ' re-audit') + ' at ' + terminalSha + ' — forward-reverting the terminal commit; ' + (finalPhase ? 'rows demote (final phase)' : 'rows carry on carriedPhaseClose (non-final phase)') + '; never a second pass.')
+            const rv = await dispatchAgent(
+              pt`FORWARD-REVERT the regressed terminal-pass commit for WAR phase ${ph.id}. ONLY if \`git -C ${polishWorktree} rev-parse HEAD\` is still ${terminalSha} (a moved HEAD is already reverted — SKIP; a sha is never reverted twice), run \`git -C ${polishWorktree} revert --no-edit ${terminalSha}\` (tip-only clean inverse) and push ${polishBranch}. Never reset --hard, never force. Return the env-outcome JSON: \`{ ok: true }\` on success (or an already-moved HEAD); \`{ ok: false, failedCommand, exitCode, stderrTail }\` otherwise.`,
+              { agentType: NS + 'war-refiner', phase: 'Refine', label: `terminal-revert:phase-${ph.id}`, dispatchKind: 'terminal-revert', schema: ENV_OUTCOME, ...spawn('refiner') }).catch(err => { const c = infraDeathCause(err); if (!c) throw err; return { ok: false, stderrTail: c } })
+            log('terminal pass: forward-revert of ' + terminalSha + ' ' + (rv && rv.ok === true ? 'done' : 'did NOT confirm (' + ((rv && rv.stderrTail) || 'no result') + ') — the commit stays on ' + polishBranch + ' unmerged; reaping is a human act'))
+            for (const f of terminalRows) {
+              if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (the terminal commit at ' + terminalSha + ' ' + tOutcome + ' and was forward-reverted)')
+              else if (tNoVerdict) demote(f, 'follow-up', 'demote:terminal-pass — the terminal re-audit seat returned no verdict on the terminal-pass commit at ' + terminalSha + ', which was forward-reverted; final phase, no later round', { reverted: true })
+              else demote(f, 'follow-up', 'demote:absorb-regressed — the terminal-pass commit at ' + terminalSha + ' regressed on the ' + seat.lens + ' re-audit and was forward-reverted; final phase, no later round', { reverted: true })
+            }
+            routeTerminalMinors(tSeats, terminalSha)
+          } else {
+            // Re-approved → Refine like any ace commit: the refiner merges the polish branch (now
+            // carrying the terminal commit) at the serial queue's tail; the land proceeds on it.
+            const tmr = await dispatch(
+              pt`Merge WAR polish branch ${polishBranch} (now carrying the terminal-pass commit ${terminalSha}) into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
+              + reattachClause(refineryLandPath)
+              + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch sits at the integrated tip plus one commit, so this is normally a no-op).\n`
+              + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
+              + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The terminal commit is an ace-shaped absorb commit, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and the pass has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). On gate failure return gate_failed (no classification); the Workflow fail-open leaves the commit unmerged. On conflict return conflict; never force.`
+              + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
+              + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
+              { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') })
+            if (tmr && tmr.status === 'merged') {
+              log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
+              for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true })
+            } else {
+              log('terminal pass: phase ' + ph.id + ' — the terminal commit ' + terminalSha + ' did not merge (' + ((tmr && tmr.status) || 'no result') + '); left on ' + polishBranch + ' unmerged (reaping is a human act); the pass is spent — ' + (finalPhase ? 'rows demote' : 'rows carry') + '.')
+              for (const f of terminalRows) {
+                if (!finalPhase) carryPhaseClose(f, 'carried from phase ' + ph.id + ' terminal pass (the terminal commit at ' + terminalSha + ' did not merge: ' + ((tmr && tmr.status) || 'no result') + ')')
+                else demote(f, 'follow-up', 'demote:terminal-pass — the terminal-pass commit at ' + terminalSha + ' did not merge (' + ((tmr && tmr.status) || 'no result') + ') on the final phase; no later round')
+              }
+            }
+            routeTerminalMinors(tSeats, terminalSha)
+          }
+        }
       }
     } else {
       // DISCARD: the polish branch + _polish worktree are LEFT IN PLACE (never-lose-unmerged-commits;
-      // reaping is a human act). The queue demotes to follow-up; the pre-polish tip lands exactly as
+      // reaping is a human act). The queue carries on carriedPhaseClose (non-final phase) or demotes
+      // to follow-up (final phase); the pre-polish tip lands exactly as
       // it would have — a discarded sweep recomputes NOTHING (no re-gate, no land-decision change).
       polishStatus = 'discarded'
-      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
+      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${finalPhase ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
       // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
+      // Finality (D3a/D3b): on a NON-final phase the queue rides carriedPhaseClose (the next phase's
+      // sweep is the vehicle); on the final phase it demotes as before.
       const sweepDrainCause = sweepDeath || (!sweep ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
       for (const f of phaseCloseQueue.splice(0)) {
         if (sweepDrainCause) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause)
-        demote(f, 'follow-up', 'demote:sweep-discarded — ' + (sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands' : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands'))
+        if (!finalPhase) carryPhaseClose(f, 'phase-close sweep discarded (' + (sweepDrainCause || 'the polish branch never merged') + ') on a non-final phase; carried for the relaunch')
+        else demote(f, 'follow-up', 'demote:sweep-discarded — ' + (sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands' : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands'))
       }
-      // Discard-arm routing (#1377): sweep-raised Minor/Nits route through the same ladder — an
-      // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
-      // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
-      // A sweep-raised ask still parks (#1550): the ruling gate is Lead-side, not branch-bound.
+      // Discard-arm routing (#1377, D3a): sweep-raised Minor/Nits route through the same ladder — an
+      // absorb has nothing to absorb into (the polish branch never merged), so it CARRIES on a
+      // non-final phase and DEMOTES naming the discard on the final. A blocked sweep (sweepWhy)
+      // reaches here with NO panel convened, so sweepMinors is empty — vacuous. A sweep-raised ask
+      // still parks (#1550): the ruling gate is Lead-side, not branch-bound.
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
+        const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null   // registry consult (mirrors routeTerminalMinors)
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
+        else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
+        else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
-        else demote(f, 'follow-up', 'demote:sweep-discarded — sweep-raised absorb — the phase-close sweep was discarded; the polish branch never merged')
+        else if (!finalPhase) carryPhaseClose(f, 'sweep-raised absorb on a discarded sweep (the polish branch never merged) on a non-final phase; carried for the relaunch')
+        else demote(f, 'follow-up', 'demote:sweep-discarded — sweep-raised absorb — the phase-close sweep was discarded on the final phase (the polish branch never merged; nothing to absorb into)')
       }
     }
     }
   }
 }
+// Terminal-pass skip (D3a): the pass runs only on the merged-sweep path — every other outcome
+// (no queue, held phase, unusable roster, failed provisioning, a discarded sweep) logs the skip.
+if (polishStatus !== 'merged') log('terminal pass: phase ' + ph.id + ' — no merged sweep this phase (polish ' + polishStatus + ') — skipped; a pass without a sweep has no input.')
 
 // Reland-loop transient-vs-divergence discrimination (Task 1.2 / D4). BYTE-PARALLEL with
 // skills/war/references/refiner-recovery.md (the standing copy — evicted from war-refiner.md
@@ -4728,7 +4989,8 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   }
 }
 
-return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult, servitorResult, auditLog, landDecision, ...(handoff ? { handoff } : {}) }
+// carriedPhaseClose (D3b): TOP-LEVEL at both return sites — [] on a phase that carried nothing.
+return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult, servitorResult, auditLog, landDecision, carriedPhaseClose, ...(handoff ? { handoff } : {}) }
 } catch (err) {
   // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
   // teardown is NOT run (git state kept for resume/inspection). NO handoff block here (ADR 0013):
@@ -4736,6 +4998,7 @@ return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinT
   return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
+           carriedPhaseClose,   // D3b: whatever was carried before the throw (the held-phase arm may not have run — see resume-and-recovery.md's re-derivation residual)
            // recovery (D9, spec §9): an ADDITIVE field naming the sanctioned retry — held:workflow-error is
            // Lead/infra-side, so it retries via a FRESH Recovery relaunch (new runId), NEVER resumeFromRunId
            // (the journal replays the cached error). Conforms to the ratified "Resume vs. recovery

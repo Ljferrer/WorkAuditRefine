@@ -3901,3 +3901,72 @@ test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefi
   const first = adr0013.match(/^## Amendment \(2026-09-04\)[^\n]*/m)
   assert.match(first[0], /the in-diff `absorb` default and the barrier list/, 'the in-diff-default amendment must stay the first 2026-09-04 section (its bare-date pins read the first match)')
 })
+
+// (terminal-pass-term) CONTEXT.md carries the Phase 5 glossary terms **Terminal pass** and
+// **Carried queue** (plan 2026-09-03-in-band-absorb-default, Task 5.2; D3a/D3b), and the
+// **sweep-raised finding** entry no longer claims "never aced, never re-queued" — on the merged arm
+// a sweep-raised absorb joins the terminal pass (the retired merged-sweep demote arm's successor).
+// Extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
+// ADR 0012 carries the one-line dated cross-reference naming the terminal pass as that successor
+// (its existing cross-reference line style; the ratified body stays byte-untouched).
+test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried queue**, retires the sweep-raised never-re-queued sentence, and ADR 0012 names the successor (Task 5.2)', () => {
+  const pick = (label, re) => {
+    const m = contextMd.match(re)
+    assert.ok(m, `could not locate the \`**${label}**\` glossary entry in CONTEXT.md — the extraction construct rotted`)
+    const e = norm(m[0])
+    assert.match(e, /_Avoid_/, `the extracted **${label}** entry must span its \`_Avoid_\` line — extraction truncated`)
+    return e
+  }
+  const tp = pick('Terminal pass', /^\*\*Terminal pass\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  for (const [re, what] of [
+    [/one-hop ace commit plus one re-audit seat after the polish merge/, 'the one-hop definition (D3a)'],
+    [/successor of the merged-sweep demote arm/, 'the successor clause (PIN-4)'],
+    [/`aceEligible`/, 'the eligibility filter'],
+    [/`Ace-Charge`/, 'the charge trailer'],
+    [/forward-reverted/, 'the regression forward-revert'],
+    [/`demote:terminal-pass`/, 'the final-phase demote prefix'],
+    [/`run\.ace` off/, 'the ace-off convening clause (PIN-16)'],
+    [/a second pass/, 'the one-pass-per-phase Avoid'],
+  ]) assert.match(tp, re, `the CONTEXT.md **Terminal pass** entry must carry ${what}`)
+  const cq = pick('Carried queue', /^\*\*Carried queue\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  for (const [re, what] of [
+    [/`carriedPhaseClose`/, 'the phase-return key (D3b)'],
+    [/always present, `\[\]` when nothing was carried, so absence is never ambiguous/, 'the always-present empty-when-nothing-carried clause (a landed phase can carry)'],
+    [/`args\.seededPhaseClose`/, 'the relaunch args key (PIN-5)'],
+    [/held phase'?s whole queue/, 'the held-phase carry'],
+    [/discarded sweep'?s absorbs/, 'the discard-arm carry'],
+    [/non-final terminal pass'?s rows/, 'the terminal-pass carry'],
+  ]) assert.match(cq, re, `the CONTEXT.md **Carried queue** entry must carry ${what}`)
+  // The two corrected carry-or-demote sentences (ace re-entry r3): the **Re-entry** budget-spent
+  // route and the **Phase-close coherence sweep** discard clause each carry `carriedPhaseClose`
+  // with its non-final qualifier. The lookahead is `**:`-anchored because the **Re-entry** body
+  // opens a line with a bolded cross-reference (`**Absorb budget** (...)`) before its `_Avoid_`.
+  const rr = pick('Re-entry', /^\*\*Re-entry\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the CONTEXT.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
+  const pc = pick('Phase-close coherence sweep', /^\*\*Phase-close coherence sweep\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the CONTEXT.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
+  // The two sentences corrected at ace re-entry r3 (same revert-green rationale as the pair above):
+  // the **Absorb budget** terminal-pass charge clause and the **Drain cause** carry route.
+  const ab = pick('Absorb budget', /^\*\*Absorb budget\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(ab, /and the terminal pass, on the polish pseudo-task, telemetry only/, 'the CONTEXT.md **Absorb budget** entry must charge the terminal pass on the polish pseudo-task, telemetry only')
+  const dc = pick('Drain cause', /^\*\*Drain cause\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(dc, /carried on `carriedPhaseClose` on a non-final one/, 'the CONTEXT.md **Drain cause** entry must carry the discard-route non-final carry clause (`carriedPhaseClose`)')
+  // The retired sentence: OLD-absent on the sweep-raised entry, NEW-present in its place.
+  const sr = contextMd.match(/^\*\*sweep-raised finding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(sr, 'could not locate the `**sweep-raised finding**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const s = norm(sr[0])
+  assert.doesNotMatch(s, /never aced, never re-queued/i, 'the CONTEXT.md **sweep-raised finding** entry must retire "never aced, never re-queued" — a merged-arm absorb joins the terminal pass now (Task 5.2, PIN-4)')
+  assert.match(s, /on the merged arm an absorb joins the terminal pass/, 'the CONTEXT.md **sweep-raised finding** entry must carry the merged-arm terminal-pass route')
+  assert.match(s, /on the discard arm it rides the carried queue \(non-final phase\) or demotes `demote:sweep-discarded`/, 'the CONTEXT.md **sweep-raised finding** entry must carry the discard-arm carry-or-demote route')
+  // ADR 0012: the dated successor line, in its cross-reference line style (append-only law).
+  const xref = adr0012.match(/^\*Cross-reference \(2026-09-04\):[^\n]*$/m)
+  assert.ok(xref, 'ADR 0012 must carry the one-line 2026-09-04 cross-reference naming the terminal pass (Task 5.2)')
+  for (const [re, what] of [
+    [/merged-sweep demote arm[^\n]*is retired/, 'the retired-arm clause'],
+    [/its successor is the terminal pass/, 'the successor clause'],
+    [/once per phase/, 'the one-pass bound'],
+    [/`carriedPhaseClose`/, 'the carry key'],
+    [/2026-09-03-in-band-absorb-default\.md/, "the plan's file (the decision record it points at)"],
+  ]) assert.match(xref[0], re, `the ADR 0012 2026-09-04 cross-reference must carry ${what}`)
+  assert.ok(adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m), 'the pre-existing 2026-08-25 cross-reference must still be present (append-only law)')
+})

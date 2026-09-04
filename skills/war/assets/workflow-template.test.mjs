@@ -485,11 +485,13 @@ const isProvisionTopology = (c) =>
   !/^provision-run:/.test(c.opts.label || '')
 // A merge-task dispatch is a Refine-phase refiner seat that is NOT one of the phase's other
 // Refine-phase refiner dispatches: the land-barrier endstate-check, the post-merge evidence seat, the
-// phase-close polish worktree, and the #1913 pin-transfer probe (which rebases and measures patch-ids
-// but never merges). Keyed on dispatchKind, the stable discriminator, never a label-prefix regex.
+// phase-close polish worktree, the #1913 pin-transfer probe (which rebases and measures patch-ids
+// but never merges), and the terminal-pass forward-revert (a Refine-phase refiner dispatch that
+// reverts a regressed terminal commit but never merges). Keyed on dispatchKind, the stable
+// discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
-const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check']
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
   !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
@@ -4394,11 +4396,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly seven dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: six dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: seven dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4415,9 +4417,12 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   // route through ONE new producer, routeGateAuditRows — its dispositionOf site carries the ask arm
   // first (parkAsk), then the sweep queue as its absorb chain (routeToSweep). The retired #1692
   // comment-named sinks no longer register here.
-  assert.equal(sites.length, 6,
-    `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
-  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(/
+  // 6 → 7 (in-band-absorb-default D3a, terminal-pass): the terminal re-audit seat's own Minor/Nits
+  // route through routeTerminalMinors — its dispositionOf site carries the ask arm first (parkAsk),
+  // then carriedPhaseClose / demote:terminal-pass as its absorb chain.
+  assert.equal(sites.length, 7,
+    `the floored order-census domain is exactly SEVEN dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
     const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
     const slice = src.slice(i, Math.min(i + 2600, end))
@@ -4973,34 +4978,35 @@ test('phase-close sweep discard (criterion 5): a rejected polish is DISCARDED �
 // reaches demote(), so the 'Disposition demotion' log assert fails; minorsFiled never receives either
 // sweep-raised finding, so the minorsFiled and handoff.followUps asserts fail; only the aced-is-queue-
 // only invariant would stay green, and it cannot green the tests alone.
-test('sweep-raised finding routing (End state 1, #1377): a MERGED sweep re-audit Minor/absorb demotes through the ladder (terminal-round reason) to minorsFiled + followUps; disposition:follow-up files WITHOUT demotion; aced carries only the queued findings', async () => {
+test('sweep-raised finding routing (End state 1, #1377; terminal-pass D3a): a MERGED sweep re-audit Minor/absorb rides the terminal pass (never the old terminal-round demotion); disposition:follow-up files WITHOUT demotion, floorSkipped and logged; note routes to notes; aced carries the queued finding at the polish sha and the sweep-raised absorb at the terminal sha', async () => {
   const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
   const sweepFollowUp = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
   const sweepNote = { severity: 'Nit', title: 'sweep-raised note', file: 'docs/w.md', rationale: 'informational', disposition: 'note' }
   const impl = buildSeqImpl(
     { 'audit:p3-polish:correctness': [approveWith('audit:p3-polish:correctness', [sweepAbsorb, sweepFollowUp, sweepNote])] },
-    sweepBase([queuedAbsorb()]))
-  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+    terminalImpl())
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
   assert.equal(out.handoff.polish, 'merged', 'the sweep merged (presence guard — an approve verdict with Minor/Nit findings still re-approves)')
-  // absorb → demote(…, 'follow-up', …): the ladder is the vehicle, the reason names the terminal round.
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb') && l.includes('terminal fix round')),
-    "the sweep-raised absorb takes the LOGGED demotion naming the sweep as the phase's terminal fix round (never dropped silently)")
-  const filedAbsorb = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised absorb')
-  assert.ok(filedAbsorb && filedAbsorb.task === 'p3-polish', 'the demoted absorb lands in minorsFiled, task-stamped with the polish pseudo-task id')
-  // follow-up → filed directly, no demotion log line for it.
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'sweep-raised follow-up'), 'a disposition:follow-up sweep finding files to minorsFiled')
+  // absorb → the terminal pass: ONE terminal worker carries it; no demotion names the retired terminal-round reason.
+  const tw = calls.find(c => (c.opts.label || '') === 'terminal:phase-3')
+  assert.ok(tw && tw.prompt.includes('sweep-raised absorb'), 'the sweep-raised absorb is the terminal pass input (verbatim in the terminal worker prompt)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb')),
+    'the sweep-raised absorb is never demoted on the merged arm (the retired terminal-round demotion is gone)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'sweep-raised absorb'), 'the absorb never files')
+  // follow-up → filed directly, no demotion log line for it; floorSkipped stamped AND logged (never a silent stamp site).
+  const filedFu = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised follow-up')
+  assert.ok(filedFu && filedFu.floorSkipped === true, 'a disposition:follow-up sweep finding files to minorsFiled with floorSkipped (no diff probe ran for the polish pseudo-task)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep-raised follow-up') && l.includes('floorSkipped')), 'the floorSkipped stamp is logged')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised follow-up')),
     'the follow-up finding routes WITHOUT a demotion (it is already at its durable disposition)')
   // note → notes.
   assert.ok((out.notes || []).some(n => n && n.title === 'sweep-raised note'), 'a disposition:note sweep finding routes to notes')
   // handoff observable: followUps derive from minorsFiled.
-  assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised absorb/.test(fu.reason || '')), 'the handoff followUps observable carries the demoted absorb')
   assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised follow-up/.test(fu.reason || '')), 'the handoff followUps observable carries the filed follow-up')
-  // Invariant: aced carries ONLY the queued findings absorbed at the polish sha — nothing sweep-raised.
-  assert.equal((out.aced || []).length, 1, 'aced carries exactly the one queued finding')
-  assert.equal(out.aced[0].finding.title, 'dangling link', 'aced is queue-only — the queued finding, absorbed at the polish sha')
-  assert.ok(!(out.aced || []).some(a => a && a.finding && /^sweep-raised/.test(a.finding.title || '')), 'nothing sweep-raised rides aced')
-  assert.ok(!(out.handoff.absorbed || []).some(a => (a.findings || []).some(t => /^sweep-raised/.test(t))), 'nothing sweep-raised rides the handoff absorbed observable')
+  // aced: the queued finding at the polish sha, the sweep-raised absorb at the terminal sha (D3a).
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'dangling link' && a.sha === 'polishsha'), 'the queued finding is absorbed at the polish sha')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'sweep-raised absorb' && a.sha === 'terminalsha' && a.terminal === true), 'the sweep-raised absorb is aced at the terminal sha, terminal-stamped')
+  assert.ok((out.handoff.absorbed || []).some(a => a.sha === 'terminalsha' && (a.findings || []).includes('sweep-raised absorb')), 'the handoff absorbed observable carries the terminal commit')
 })
 
 test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejected sweep routes its re-audit Minor/Nits through the same ladder with the unmerged-branch reason; the polish-rejected auditLog entry pins verdict + findings payload", async () => {
@@ -5030,7 +5036,7 @@ test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejec
   assert.equal(rejected.returned, 1, 'the entry records the returned seat count')
 })
 
-test('phase-close sweep: a held phase never dispatches the sweep — queue drains to follow-up; handoff degrades with polish:skipped', async () => {
+test('phase-close sweep (held-carry D3b): a held phase never dispatches the sweep — the queue rides carriedPhaseClose (never a demotion); handoff degrades with polish:skipped', async () => {
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'conflict' }
@@ -5039,10 +5045,12 @@ test('phase-close sweep: a held phase never dispatches the sweep — queue drain
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
   assert.equal(out.landDecision, 'held:escalation', 'the merge conflict holds the phase (presence guard)')
   assert.ok(!calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatches on a held phase')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue drains to follow-up (never dropped)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('draining')), 'the held-phase drain is log()ged')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue never demotes on a held phase')
+  assert.ok((out.carriedPhaseClose || []).some(f => f && f.title === 'dangling link'), 'the queue rides carriedPhaseClose (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('carrying') && l.includes('carriedPhaseClose')), 'the held-phase carry is log()ged')
   assert.ok(out.handoff, 'handoff still emitted on held:escalation (degraded)')
   assert.equal(out.handoff.polish, 'skipped')
+  assert.ok(!('carriedPhaseClose' in out.handoff), 'carriedPhaseClose is a TOP-LEVEL key, never inside the handoff (#1799)')
 })
 
 test('phase-close sweep: an empty queue skips the sweep entirely — polish:skipped, zero polish dispatches', async () => {
@@ -9166,9 +9174,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), bisectSubsetImpl()),
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), reentryImpl()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
+    await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:/, /^polish:/]) {
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:/, /^polish:/, /^terminal:/]) {
     assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
       `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
   }
@@ -9190,8 +9199,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   // real source (the established `//`-strip idiom in this file, made index-preserving). Blanking is
   // fail-CLOSED for this pin: an over-blanked line loses its occurrence and reds the count.
   const censusSrc = src.replace(/\/\/[^\n]*/g, m => ' '.repeat(m.length))
+  // 8 → 9 (in-band-absorb-default D3a): the terminal-pass prompt joined; its fixture (terminalImpl)
+  // rides the sweep above.
   const census = [...censusSrc.matchAll(/keep the gate\b/gi)]
-  assert.equal(census.length, 8,
+  assert.equal(census.length, 9,
     'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
   // Per-occurrence membership (#1686) — the count alone is RELOCATION-blind: an occurrence that
   // moves out of a dispatched prompt into a comment, or into a dispatch site no fixture drives,
@@ -9208,6 +9219,7 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
     { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
+    { site: 'terminal pass (TERMINAL PASS)', from: 'pt`TERMINAL PASS for WAR phase', reachedBy: /^terminal:/ },
   ]
   const keepGreenRanges = KEEP_GREEN_SITES.map(s => {
     const start = censusSrc.indexOf(s.from)
@@ -10253,6 +10265,10 @@ const LITERAL_REGISTRY = [
   ["polish:phase-${ph.id}`, schema: WORKER_RESUL"],
   ["merge:p${ph.id}-polish`, schema: MERGE_RESUL"],
   ["phase-close sweep MERGED at ${polishSha} — t"],
+  // terminal pass (in-band-absorb-default D3a): the three dispatch labels — worker, forward-revert, merge.
+  ["terminal:phase-${ph.id}`, dispatchKind: 'ter"],
+  ["terminal-revert:phase-${ph.id}`, dispatchKin"],
+  ["merge:p${ph.id}-terminal`, schema: MERGE_RES"],
   ["phase-close sweep DISCARDED (${sweepWhy || ("],
   ["polish merge returned ${pmr && pmr.status ||"],
   ["land:phase-${ph.id}`, schema: MERGE_RESULT, "],
@@ -11272,6 +11288,11 @@ const BARE_INTERPOLATION_CENSUS = [
   // string, always defined. tip (D4): the diff-probe prompt's task tip — a const with an explicit
   // 'HEAD' fallback when the worker returned no usable head_sha — construction-guaranteed a string.
   'phaseBaseCmd', 'tip',
+  // terminalCharge / terminalSha (in-band-absorb-default D3a, terminal-pass): the `Ace-Charge:
+  // p<N>-polish:<n>` trailer value (concatenation-built from the polish pseudo-task id and its
+  // seeded integer counter) and the terminal worker's head_sha, guarded truthy-string before the
+  // prompts that interpolate it are built — both construction-guaranteed strings.
+  'terminalCharge', 'terminalSha',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
@@ -12254,12 +12275,12 @@ const registrySlice = () => {
   // aceRelPath is declared inside the slice (file scope, below askContentKey); RELEASE_SLOT_FILES /
   // BARRIER_TOKENS / DEMOTE_REASONS are the module-top mirrors — injected as the canonical exports
   // (the D2 registry rows deepEqual them).
-  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys, diffFilesByTask, dispositionOf, intakeFloor, demote }')
-  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [] }
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
   return { ...state, ...api }
 }
 
@@ -12309,7 +12330,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
   assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
-  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, or held for the next ace batch, this phase — the queued record stands')),
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
@@ -13121,12 +13142,14 @@ test('#1944 — recordAced call-site census: every occurrence is a NAMED legitim
   // recordAcedTouched or ruled here by name.
   const code = src.replace(/^\s*\/\/.*$/gm, '')
   const total = (code.match(/recordAced\(/g) || []).length
-  assert.equal(total, 2, 'exactly 2 recordAced( occurrences — the recordAcedTouched interior and the sweep polish arm; a new one must be ruled here')
+  assert.equal(total, 3, 'exactly 3 recordAced( occurrences — the recordAcedTouched interior, the sweep polish arm, and the terminal-pass merged arm; a new one must be ruled here')
   const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
   assert.ok(helper, 'the recordAcedTouched helper exists')
   assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
-  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) recordAced\(f, polishSha\)/,
-    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction, though the #1944 partial-fix shape applies to it too (a queued finding the polish commit never touched is still recorded aced; ruled a known residual, not silently)")
+  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha\)/,
+    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual)")
+  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true \}\)/,
+    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent)')
   assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
     'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
   assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
@@ -13213,11 +13236,13 @@ test('#1941 — the rebase-skip predicate: authoritative on the refiner card, po
   // rebase is spelled `(2) REBASE` and is the RULED exclusion — it IS the skip's origin, so the
   // predicate cannot apply to it. A merge prompt labelling its rebase differently escapes this
   // census; keep the `(a)` form when adding one.
+  // 5 → 6 (in-band-absorb-default D3a): the terminal-pass merge rebases the POLISH worktree too —
+  // the second pointer-free site, for the same reason (no pin-transfer probe ever rebases it).
   const rebasePrompts = (src.replace(/^\s*\/\/.*$/gm, '').match(/\(a\) REBASE in the (?:TASK|POLISH) worktree/g) || [])
-  assert.equal(rebasePrompts.length, 5,
-    'exactly 5 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge — a new one must be ruled here')
-  assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 1,
-    'the one pointer-free site is the polish merge, by name')
+  assert.equal(rebasePrompts.length, 6,
+    'exactly 6 merge-task REBASE prompt lines: 4 pointered task-branch sites + the polish merge + the terminal-pass merge — a new one must be ruled here')
+  assert.equal((src.match(/\(a\) REBASE in the POLISH worktree/g) || []).length, 2,
+    'the two pointer-free sites are the polish merge and the terminal-pass merge, by name')
 })
 
 test('#1951 anchor — the ace-gate prompt still carries the tip phrase the harness default parses', () => {
@@ -13649,7 +13674,7 @@ test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbR
   assert.ok(bisectBody.length > 0 && reentryBody.length > 0, 'presence guard: both ace-ladder bodies were extracted')
   assert.ok(!bisectBody.includes('r.task.fixRounds++'), 'aceBisect carries no fixRounds charge at all (PIN-7, comment-independent)')
   assert.ok(!reentryBody.includes('r.task.fixRounds++'), 'aceReentry carries no fixRounds charge at all (PIN-7, comment-independent)')
-  assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three ace-side charge sites: batch, subset, re-entry')
+  assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three `r.task.absorbRounds++` sites: batch, subset, re-entry — the terminal pass charges the polish pseudo-task on its own receiver')
 })
 
 // ===========================================================================
@@ -13993,10 +14018,14 @@ const NEGATIVE_REF = "demote(f, 'follow-up', 'failed absorb — no prefix here a
 
 test('demote-census — every demote() site whose disposition can be follow-up leads its reason with a DEMOTE_REASONS member; the count is pinned; the negative reference is caught; zero shipped sites carry demote:unclassified', () => {
   const sites = demoteSites(src)
-  // Pinned snapshot at land (2026-09-04): 20 sites — release-slot at birth, fileless ×4 (routeReauditMinors,
-  // aceStage fresh + held, the gate-audit pass), absorb-regressed ×5, task-unapproved, absorb-blocked,
-  // sweep-skipped ×3, exclusion-set + release-slot at sweep time, terminal-pass, sweep-discarded ×2.
-  assert.equal(sites.length, 20, `the census domain is exactly TWENTY follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 24 sites — release-slot at birth,
+  // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
+  // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
+  // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
+  // exclusion-set ×2 (sweep time + the terminal-pass filter) + release-slot at sweep time,
+  // terminal-pass ×4 (no commit / did not merge / a seat-raised absorb / a terminal seat that
+  // returned no verdict, final phase only), sweep-discarded ×2 (final phase only).
+  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
@@ -14277,4 +14306,452 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
   assert.ok(polishPromptOf(calls).includes('queued twice'), 'the queued row reaches the sweep')
   assert.deepEqual(rows[0].finding.seats, ['audit:t1:correctness (task t1)', 'gate-audit:t1:execution-evidence (task t1)'],
     'the second seat lands on the queued row\'s seats list, seeded with the first raiser')
+})
+
+// ===========================================================================
+// in-band-absorb-default Phase 5 (Task 5.1): the terminal pass (D3a) and the held-phase carry (D3b).
+// Fixture families: terminal-pass, held-carry.
+// ===========================================================================
+
+// Terminal-pass base: sweepBase with a merged sweep whose POLISH PANEL raises `polishFindings` on its
+// first call (the terminal re-audit — the same seat label, second call — answers `terminalSeat`, an
+// approve with `terminalFindings` by default); the terminal worker returns `terminalWorker`
+// (head_sha 'terminalsha'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
+// overrides the polish worker's result (e.g. a files_changed report).
+const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
+  terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
+  terminalSeatDrop = false, terminalThrow = null } = {}) => {
+  const base = sweepBase(queued)
+  let polishAudits = 0
+  return (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && /^audit:p3-polish:/.test(label)) {
+      polishAudits++
+      if (polishAudits === 1) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: polishFindings, confidence: 'high' }
+      if (terminalSeatDrop) return null   // a dropped seat dispatch — every terminal re-audit call (auditRound's two retries included) returns nothing
+      return terminalSeat || { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: terminalFindings, confidence: 'high' }
+    }
+    if (seat === 'war-worker' && label.startsWith('terminal:')) {
+      if (terminalThrow) throw terminalThrow   // the infra-death arm (INFRA_DEATH_RE) — mirrors the sweepDeath fixture
+      return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: 'terminalsha', tests: { unit: 1 } }
+    }
+    if (seat === 'war-worker' && label.startsWith('polish:') && sweepWorker) return sweepWorker
+    if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: 'term1nal12' }
+    if (seat === 'war-refiner' && label.startsWith('terminal-revert:')) return terminalRevert || { ok: true }
+    return base(prompt, opts)
+  }
+}
+const terminalCalls = calls => calls.filter(c => (c.opts.label || '') === 'terminal:phase-3')
+const carriedOf = (out, title) => (out.carriedPhaseClose || []).find(f => f && f.title === title)
+
+// ---- terminal-pass (D3a, End state 14) ----------------------------------------------------------
+
+test('terminal-pass — a polish-panel absorb reaches the terminal pass: exactly ONE terminal commit with an Ace-Charge trailer, one re-audit seat, Refine merge before the land, aced at the terminal sha; the polish task counter reads 1 after the pass', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), terminalImpl())
+  const tws = terminalCalls(calls)
+  assert.equal(tws.length, 1, 'exactly one terminal worker dispatch (one hop per phase)')
+  assert.ok(tws[0].prompt.includes('polish-panel absorb'), 'the polish-panel absorb is the terminal input, verbatim')
+  assert.match(tws[0].prompt, /Ace-Charge: p3-polish:1/, 'the one commit carries the Ace-Charge trailer on the polish pseudo-task (counter seeded 0 ⇒ charge 1)')
+  assert.match(tws[0].prompt, /EXACTLY ONE commit/, 'one commit only')
+  assert.equal(tws[0].opts.dispatchKind, 'terminal-pass', 'dispatchKind terminal-pass')
+  assert.ok(tws[0].prompt.includes('/abs/repo/.claude/worktrees/run-2026/p3-polish'), 'the commit is made in the polish worktree at the post-polish tip')
+  // one re-audit seat at the terminal sha, then the Refine merge, then the land
+  const polishAudits = calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:correctness')
+  assert.equal(polishAudits.length, 2, 'the polish panel (1) + exactly one terminal re-audit seat (1)')
+  assert.ok(calls.indexOf(polishAudits[1]) > calls.indexOf(tws[0]), 'the terminal seat convenes AFTER the terminal commit')
+  const tEntry = (out.auditLog || []).find(e => e && e.terminal === true)
+  assert.ok(tEntry && tEntry.sha === 'terminalsha' && tEntry.seat === 'correctness' && tEntry.verdict === 'approve' && tEntry.requested === 1, 'the terminal auditLog entry pins the sha, the seat and the one-seat roster')
+  const mergeIdx = calls.findIndex(c => (c.opts.label || '') === 'merge:p3-terminal')
+  const landIdx = calls.findIndex(isLand)
+  assert.ok(mergeIdx !== -1 && landIdx !== -1 && mergeIdx < landIdx, 'the terminal commit merges through Refine before the single land')
+  assert.match(calls[mergeIdx].prompt, /assert-no-submodule-mutation\.sh/, 'the terminal merge runs the unconditional floors like any ace commit')
+  assert.match(calls[mergeIdx].prompt, /assert-budget-raise-cited\.sh/, 'the terminal merge runs the budget-raise floor too')
+  assert.ok(!tws[0].prompt.includes('ace_diff_files'), 'the terminal prompt never asks for ace_diff_files — no consumer reads it on the terminal arm')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === 'terminalsha'), 'the absorb is aced at the terminal sha')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('polish task absorbRounds now 1')), 'the polish task counter reads 1 after the pass (telemetry)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('re-audit seat: correctness')), 'the seat choice is logged')
+  assert.deepEqual(out.carriedPhaseClose, [], 'nothing carried on a clean pass — the key is present as []')
+  assert.equal(out.landDecision, 'landed')
+})
+
+test('terminal-pass — a roster without `correctness` still convenes the pass: the roster\'s first seat re-audits with its own lens, logged', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }, { lens: 'correctness' }] } }), terminalImpl())
+  // the correctness seat wins when present
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-audit seat: correctness')), 'correctness is preferred when the roster carries it')
+  assert.equal(calls.filter(c => /^audit:p3-polish:/.test(c.opts.label || '')).length, 3, 'two panel seats + exactly ONE terminal seat (the [seat] rosterOverride)')
+  assert.equal(calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:security').length, 1, 'the security seat runs on the polish panel only — the terminal round convenes ONE seat')
+  const tEntry = out.auditLog.find(e => e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry && tEntry.requested === 1 && tEntry.seat === 'correctness', 'the terminal auditLog entry requested exactly one seat')
+  const r2 = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }] } }), terminalImpl())
+  assert.equal(terminalCalls(r2.calls).length, 1, 'the pass still convenes without a correctness seat')
+  assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('re-audit seat: security') && l.includes('no correctness seat on the roster')), 'the first seat re-audits with its own lens, logged')
+  assert.equal(r2.calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:security').length, 2, 'the polish panel + one terminal re-audit under the security lens')
+  assert.ok(terminalCalls(calls).length === 1, 'presence guard on the first run')
+})
+
+test('terminal-pass — the pass convenes with run.ace off (run.ace gates the per-task ladder only, PIN-16) and a polish task that never carried a counter still dispatches it', async () => {
+  const { calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: false } }), terminalImpl())
+  assert.ok(!calls.some(isAce), 'no per-task ace under run.ace off (presence guard)')
+  assert.equal(terminalCalls(calls).length, 1, 'the terminal pass dispatches regardless of run.ace')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('run.ace off — the pass convenes regardless')), 'logged')
+  assert.match(src, /absorbRounds: 0,\s*\/\/ the terminal pass's telemetry counter/, 'the polish pseudo-task seeds absorbRounds: 0 at construction')
+})
+
+test('terminal-pass — a terminal-born absorb on a release-slot file is REFUSED and logged (demote:release-slot), never committed; an emptied terminal queue skips with a log', async () => {
+  const impl = terminalImpl({ polishFindings: [{ severity: 'Minor', title: 'slot absorb', file: 'plugin.json', rationale: 'bump', disposition: 'absorb' }] })
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(terminalCalls(calls).length, 0, 'no terminal commit — the only input was refused')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: REFUSED') && l.includes('plugin.json')), 'the refusal is logged')
+  const d = demotionOf(out, 'slot absorb')
+  assert.ok(d && /^demote:release-slot/.test(d.demoteReason), 'demoted with demote:release-slot')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal queue is empty') && l.includes('skipped')), 'the empty terminal queue skip is logged')
+})
+
+test('terminal-pass — finalPhase:false: a fresh absorb from the terminal seat emits exactly ONE carriedPhaseClose entry (planSlug-stamped, reason names the phase) and no demotion', async () => {
+  const fresh = { severity: 'Nit', title: 'terminal-born absorb', file: 'docs/t.md', rationale: 'seen on the terminal diff', disposition: 'absorb' }
+  const { out, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalFindings: [fresh] }))
+  assert.equal(out.landDecision, 'landed')
+  assert.equal((out.carriedPhaseClose || []).length, 1, 'exactly one carried entry')
+  const c = out.carriedPhaseClose[0]
+  assert.equal(c.title, 'terminal-born absorb')
+  assert.equal(c.planSlug, 'wtprov-a', 'the engine stamps the run planSlug so the relaunch clears the #1413 floor by construction')
+  assert.equal(c.carriedFrom.phase, 3)
+  assert.match(c.carriedFrom.reason, /carried from phase 3 terminal pass/)
+  assert.ok(!demotionOf(out, 'terminal-born absorb'), 'never demoted on a non-final phase')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held-carry') && l.includes('terminal-born absorb')), 'the carry is logged')
+})
+
+test('terminal-pass — finalPhase:true files exactly ONE demotion with reason "raised on the terminal pass" (demote:terminal-pass); an absent finalPhase demotes the same way', async () => {
+  const fresh = { severity: 'Nit', title: 'terminal-born absorb', file: 'docs/t.md', rationale: 'seen on the terminal diff', disposition: 'absorb' }
+  for (const [name, args] of [['finalPhase:true', SWEEP_ARGS({ finalPhase: true })], ['absent finalPhase', SWEEP_ARGS()]]) {
+    const { out, logs } = await runPhase(args, terminalImpl({ terminalFindings: [fresh] }))
+    const ds = (out.minorsFiled || []).filter(m => m && m.title === 'terminal-born absorb')
+    assert.equal(ds.length, 1, name + ': exactly one demotion')
+    assert.ok(/^demote:terminal-pass/.test(ds[0].demoteReason) && ds[0].demoteReason.includes('raised on the terminal pass'), name + ': the reason carries the prefix + "raised on the terminal pass"')
+    assert.deepEqual(out.carriedPhaseClose, [], name + ': nothing carried')
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('args.finalPhase ' + (name === 'absent finalPhase' ? 'absent (reads as final)' : 'true'))), name + ': the finality read is logged')
+  }
+})
+
+test('terminal-pass — a non-boolean finalPhase is refused at entry (held:workflow-error naming args.finalPhase), zero dispatches', async () => {
+  for (const bad of ['yes', 1, null, {}]) {
+    const { out, calls } = await runPhase(SWEEP_ARGS({ finalPhase: bad }), terminalImpl())
+    assert.equal(out.landDecision, 'held:workflow-error', JSON.stringify(bad) + ' is refused')
+    assert.match(out.workflowError.message, /args\.finalPhase must be a boolean or absent/, 'the refusal names the arg')
+    assert.equal(calls.length, 0, 'zero agents on the refused launch')
+    assert.deepEqual(out.carriedPhaseClose, [], 'the catch-block return still carries the key (D3b)')
+  }
+})
+
+test('terminal-pass — a re-audit regression forward-reverts the terminal commit, then carries (non-final) or demotes (final, demote:absorb-regressed); never a second pass', async () => {
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected }))
+  const rv = nonFinal.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the forward-revert of the terminal sha is dispatched')
+  assert.ok(!nonFinal.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'a regressed terminal commit never merges')
+  assert.equal(terminalCalls(nonFinal.calls).length, 1, 'never a second pass')
+  assert.ok(carriedOf(nonFinal.out, 'polish-panel absorb'), 'non-final: the row carries')
+  assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
+  const tRejected = nonFinal.out.auditLog.find(e => e.verdict === 'terminal-rejected' && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tRejected, 'the terminal-rejected auditLog entry records the regression')
+  assert.ok((tRejected.findings || []).some(f => f.title === 'terminal broke it'), 'the terminal-rejected entry carries the blocking finding — its only channel')
+  assert.equal(nonFinal.out.landDecision, 'landed', 'the land proceeds on the polished tip')
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeat: rejected }))
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:absorb-regressed/.test(d.demoteReason) && d.demoteReason.includes('forward-reverted'), 'final: demotes with demote:absorb-regressed naming the revert')
+  assert.deepEqual(final.out.carriedPhaseClose, [], 'final: nothing carried')
+  assert.equal(terminalCalls(final.calls).length, 1, 'final: never a second pass either')
+})
+
+test('terminal-pass — a terminal re-audit seat that returns no verdict (dropped after auditRound\'s retries) still forward-reverts, but demotes demote:terminal-pass with the no-verdict wording, never demote:absorb-regressed', async () => {
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatDrop: true }))
+  const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
+  assert.ok(!final.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'an unjudged terminal commit never merges')
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('the terminal re-audit seat returned no verdict') && l.includes('terminalsha')), 'the no-verdict outcome is logged by name')
+  assert.ok(!final.logs.some(l => typeof l === 'string' && l.includes('REGRESSED on the correctness re-audit at terminalsha')), 'no seat judged a regression, so none is logged')
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('returned no verdict') && d.demoteReason.includes('forward-reverted'), 'final: demotes demote:terminal-pass naming the missing verdict and the revert')
+  assert.ok(!/absorb-regressed/.test(d.demoteReason), 'never demote:absorb-regressed — no seat returned request_changes')
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry && tEntry.verdict === 'terminal-rejected' && tEntry.returned === 0 && tEntry.requested === 1, 'the auditLog row records 0 of 1 seats returned')
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeatDrop: true }))
+  const c = carriedOf(nonFinal.out, 'polish-panel absorb')
+  assert.ok(c && c.carriedFrom && c.carriedFrom.reason.includes('returned no verdict'), 'non-final: the row carries with the no-verdict reason')
+  assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
+})
+
+test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm, non-final) corroborates onto the carried row: the terminal seat joins its seats list, never a second carry and never a demotion', async () => {
+  // The carried row is a QUEUED absorb (raised by task t1's seat) the sweep left unlanded — its raiser
+  // ref differs from the terminal seat's, so the seats-list assertion is not vacuous.
+  const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/q.md', rationale: 'regressed' },
+      { severity: 'Nit', title: 'left unlanded', task: 't1', file: 'docs/q.md', rationale: 'still there', disposition: 'absorb' }] }
+  const { out, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker, terminalSeat: rejected }))
+  const carried = (out.carriedPhaseClose || []).filter(f => f && f.title === 'left unlanded')
+  assert.equal(carried.length, 1, 'exactly one carried record — the re-mint never carries a second copy')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of "left unlanded"') && l.includes('carried on carriedPhaseClose')), 'the re-mint is refused as carried, logged')
+  assert.deepEqual(carried[0].seats, ['audit:t1:correctness (task t1)', 'audit:p3-polish:correctness (task t1)'],
+    'the terminal seat joins the carried row\'s seats list behind its own raiser (corroborateSurvivor searches carriedPhaseClose)')
+  assert.ok(!demotionOf(out, 'left unlanded'), 'never demoted')
+})
+
+test('terminal-pass — a terminal worker dispatch that dies post-spawn (INFRA_DEATH_RE) takes the env-died arm: logged, no commit, the rows carry on a non-final phase', async () => {
+  const dead = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalThrow: new Error('529 Overloaded') }))
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('terminal:phase-3 dispatch died post-spawn (env-died)')), 'the infra-death arm logs the env-died line')
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal:phase-3 dispatch died post-spawn (env-died)')), 'the no-commit arm names the death as its reason')
+  assert.ok(carriedOf(dead.out, 'polish-panel absorb'), 'non-final: the row carries')
+  assert.ok(!demotionOf(dead.out, 'polish-panel absorb'), 'never demoted')
+  assert.ok(!dead.logs.some(l => typeof l === 'string' && l.includes('absorbRounds now')), 'no commit ⇒ no charge')
+  assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
+  assert.equal(dead.out.landDecision, 'landed', 'fail-open: the land proceeds on the polished tip')
+})
+
+test('terminal-pass — a discarded sweep on a non-final phase carries its absorbs (queued + sweep-raised) instead of demoting; the final phase keeps the discard-path demotion with its sweep-raised token', async () => {
+  const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const reject = { seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [sweepAbsorb] }
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), buildSeqImpl({ 'audit:p3-polish:correctness': [reject] }, sweepBase([queuedAbsorb()])))
+  assert.equal(nonFinal.out.handoff.polish, 'discarded', 'presence guard')
+  assert.ok(carriedOf(nonFinal.out, 'dangling link') && carriedOf(nonFinal.out, 'sweep-raised absorb'), 'both the queued row and the sweep-raised absorb carry')
+  assert.equal((nonFinal.out.minorsFiled || []).length, 0, 'no demotion on the non-final discard')
+  assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('no merged sweep this phase') && l.includes('discarded')), 'the no-sweep skip is logged naming the polish status')
+  assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('carries on carriedPhaseClose')), 'the DISCARDED log names the non-final carry')
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), buildSeqImpl({ 'audit:p3-polish:correctness': [reject] }, sweepBase([queuedAbsorb()])))
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('demotes to follow-up')), 'the DISCARDED log names the final-phase demotion')
+  const d = demotionOf(final.out, 'sweep-raised absorb')
+  assert.ok(d && /^demote:sweep-discarded — sweep-raised absorb/.test(d.demoteReason), 'the discard-path reason keeps its sweep-raised token and names the discard')
+  assert.ok(demotionOf(final.out, 'dangling link'), 'the queued row demotes on the final phase')
+  assert.deepEqual(final.out.carriedPhaseClose, [], 'nothing carried on the final phase')
+})
+
+test('terminal-pass — no sweep (empty queue) logs the skip; a clean polish panel with nothing unlanded logs the empty-queue skip; zero terminal dispatches either way', async () => {
+  const noSweep = await runPhase(SWEEP_ARGS(), sweepBase([]))
+  assert.equal(terminalCalls(noSweep.calls).length, 0)
+  assert.ok(noSweep.logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('no merged sweep this phase (polish skipped)')), 'no sweep ⇒ skip logged')
+  const emptyQueue = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [] }))
+  assert.equal(emptyQueue.out.handoff.polish, 'merged', 'presence guard')
+  assert.equal(terminalCalls(emptyQueue.calls).length, 0)
+  assert.ok(emptyQueue.logs.some(l => typeof l === 'string' && l.includes('terminal queue is empty') && l.includes('skipped')), 'empty terminal queue ⇒ skip logged')
+})
+
+test('terminal-pass — a queued absorb the sweep could not land (its file absent from the sweep\'s changed-file report) joins the terminal queue instead of being recorded aced at the polish sha', async () => {
+  const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  // ace_diff_files (git-derived) names docs/x.md only; the self-reported files_changed disagrees and
+  // also claims docs/q.md — the git-derived list wins, so the row on docs/q.md still diverts.
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'], files_changed: ['docs/x.md', 'docs/q.md'] }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok(polishPromptOf(calls).includes('ace_diff_files'), 'the sweep prompt asks for ace_diff_files')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'landed by the sweep' && a.sha === 'polishsha'), 'the touched row is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'polishsha'), 'the untouched row is NOT recorded aced at the polish sha')
+  const tw = terminalCalls(calls)
+  assert.equal(tw.length, 1, 'the terminal pass dispatches for it')
+  assert.ok(tw[0].prompt.includes('left unlanded'), 'the unlanded row is the terminal input')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('never touched docs/q.md') && l.includes('joins the terminal queue')), 'logged')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'terminalsha'), 'and it aces at the terminal sha')
+})
+
+test('terminal-pass — a terminal commit that does not merge, or a terminal worker that makes no commit, carries (non-final) or demotes demote:terminal-pass (final); the counter is charged only by a commit', async () => {
+  const noMerge = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalMerge: { mode: 'merge-task', status: 'gate_failed', gate_output: 'red' } }))
+  const d = demotionOf(noMerge.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('did not merge'), 'final + no merge ⇒ demote:terminal-pass naming the merge outcome')
+  assert.ok(noMerge.logs.some(l => typeof l === 'string' && l.includes('polish task absorbRounds now 1')), 'the commit charged the counter even though the merge failed (telemetry)')
+  const dead = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'blocked', blocked_reason: 'boom' } }))
+  assert.ok(carriedOf(dead.out, 'polish-panel absorb'), 'non-final + no commit ⇒ carried')
+  assert.ok(!dead.logs.some(l => typeof l === 'string' && l.includes('absorbRounds now')), 'no commit ⇒ no charge')
+  assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (boom)')), 'logged')
+  assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
+  assert.ok(!dead.calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('terminalsha')), 'no re-audit without a commit')
+  const noSha = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }))
+  assert.ok(noSha.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal worker returned no usable head_sha)')), 'an implemented result without head_sha takes the no-usable-head_sha arm, logged')
+  assert.ok(carriedOf(noSha.out, 'polish-panel absorb'), 'and the row carries')
+  const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
+  const badRevert = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected, terminalRevert: { ok: false, stderrTail: 'boom' } }))
+  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of terminalsha did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
+  assert.ok(carriedOf(badRevert.out, 'polish-panel absorb'), 'the row still carries')
+  assert.equal(terminalCalls(badRevert.calls).length, 1, 'never a second pass')
+})
+
+test('terminal-pass — a present-but-disjoint sweep report (no file in the queue footprint) keeps the re-approval ruling: every queued row is recorded aced at the polish sha and no terminal pass dispatches', async () => {
+  const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/other.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is aced at the polish sha')
+  assert.equal(terminalCalls(calls).length, 0, 'a disjoint report never diverts rows to the terminal queue')
+})
+
+test('terminal-pass — a sweep report carrying files_changed ONLY (no ace_diff_files) that overlaps the queue footprint is read as the fallback SOURCE: the touched row aces at the polish sha and the untouched row joins the terminal queue', async () => {
+  const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/x.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is NOT aced at the polish sha')
+  const tw = terminalCalls(calls)
+  assert.equal(tw.length, 1, 'the files_changed fallback diverts the untouched row to the terminal pass')
+  assert.ok(tw[0].prompt.includes('row on q'), 'the terminal prompt carries the untouched row')
+})
+
+test('terminal-pass — a terminal-seat re-mint of the sweep-raised follow-up (filed on the merged arm, filedKeys-stamped) corroborates: minorsFiled holds exactly ONE row plus the re-mint log line', async () => {
+  const fu = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up', barrier: 'barrier:release-slot' }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [fu, { severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }], terminalFindings: [{ ...fu }] }))
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'sweep-raised follow-up').length, 1, 'exactly one filed row — the terminal re-mint never files a second')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('sweep-raised follow-up') && l.includes('already filed')), 'the re-mint is logged as corroboration')
+})
+
+test('terminal-pass — a polish-panel absorb on an args.sweepExclude-owned file is REFUSED by the terminal filter (demote:exclusion-set naming the owner), logged, and never in the terminal worker prompt', async () => {
+  const args = SWEEP_ARGS({ sweepExclude: [{ slug: 'other-plan', files: ['docs/y.md'] }] })
+  const { out, calls, logs } = await runPhase(args, terminalImpl())
+  const d = demotionOf(out, 'polish-panel absorb')
+  assert.ok(d && /^demote:exclusion-set — terminal pass:/.test(d.demoteReason) && d.demoteReason.includes('owned by plan other-plan'), 'the row demotes naming the owner')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: REFUSED "polish-panel absorb"') && l.includes('owned by plan other-plan')), 'the refusal is logged')
+  assert.ok(!terminalCalls(calls).some(c => c.prompt.includes('polish-panel absorb')), 'never a terminal worker input')
+  assert.ok(!(out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'never aced')
+})
+
+test('terminal-pass — a terminal-seat re-mint of a terminalRow (recorded aced on the merged arm) corroborates via remintBlock: logged, never a second aced record, never a demotion', async () => {
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ terminalFindings: [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'still there', disposition: 'absorb' }] }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('polish-panel absorb')), 'the re-mint arm logs')
+  assert.equal((out.aced || []).filter(a => a.finding && a.finding.title === 'polish-panel absorb').length, 1, 'exactly one aced record — never a second')
+  assert.ok(!demotionOf(out, 'polish-panel absorb'), 'never demoted')
+  assert.deepEqual(out.carriedPhaseClose, [], 'never carried a second time')
+})
+
+test('terminal-pass — the terminal re-audit records a pinTransfers row (kind ace, mode terminal): the re-audit seat re-ran and every other default-roster seat transferred at the terminal sha (PIN-10)', async () => {
+  // Two-seat roster: the transfer half of the row is only observable when a non-terminal seat exists.
+  const { out } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, { lens: 'security' }] } }), terminalImpl())
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.mode === 'terminal')
+  assert.ok(row && row.task === 'p3-polish' && row.sha === 'terminalsha', 'the terminal row pins the polish pseudo-task and the terminal sha')
+  assert.ok(Array.isArray(row.seats), 'the row carries a seats array')
+  assert.equal(row.seats.length, 2, 'every default-roster seat appears — both seats')
+  assert.ok(row.seats.every(s => s.sha === 'terminalsha' && (s.outcome === 're-ran' || s.outcome === 'transferred')), 'each seat row carries the sha and an outcome')
+  assert.equal(row.seats.filter(s => s.outcome === 're-ran').length, 1, 'exactly one seat re-ran')
+  assert.equal(row.seats.find(s => s.outcome === 're-ran').lens, 'correctness', 'the re-ran seat is the terminal seat')
+  assert.equal(row.seats.filter(s => s.outcome === 'transferred').length, 1, 'exactly one seat transferred')
+  assert.equal(row.seats.find(s => s.outcome === 'transferred').lens, 'security', 'the transferred seat is the non-terminal roster seat')
+})
+
+test('terminal-pass — a fileless polish-panel absorb on the terminal queue demotes demote:fileless (severity default) and never dispatches the pass', async () => {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [{ severity: 'Minor', title: 'fileless terminal absorb', rationale: 'r', disposition: 'absorb' }] }))
+  const d = demotionOf(out, 'fileless terminal absorb')
+  assert.ok(d && /^demote:fileless/.test(d.demoteReason) && d.demoteReason.includes('terminal-pass'), 'a Minor fileless row demotes to follow-up with demote:fileless naming the terminal pass')
+  assert.equal(terminalCalls(calls).length, 0, 'nothing eligible ⇒ no terminal dispatch')
+})
+
+test('terminal-pass — the seat\'s own follow-up files with floorSkipped AND a log line (never a fourth silent floorSkipped site); its ask parks; its note routes to notes', async () => {
+  const fu = { severity: 'Minor', title: 'terminal follow-up', file: 'docs/f.md', rationale: 'substantive', disposition: 'follow-up', barrier: 'barrier:release-slot' }
+  const note = { severity: 'Nit', title: 'terminal note', file: 'docs/n.md', rationale: 'fyi', disposition: 'note' }
+  const ask = { severity: 'Minor', title: 'terminal ask', file: 'docs/a.md', rationale: 'which?', disposition: 'ask', ask: { question: 'A or B?', fork: ['A', 'B'] } }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ terminalFindings: [fu, note, ask] }))
+  const filed = (out.minorsFiled || []).find(m => m && m.title === 'terminal follow-up')
+  assert.ok(filed && filed.floorSkipped === true, 'the follow-up files floorSkipped')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal follow-up') && l.includes('floorSkipped')), 'the stamp is logged')
+  assert.ok((out.notes || []).some(n => n.title === 'terminal note'), 'the note routes to notes')
+  assert.ok((out.asks || []).some(a => a.question === 'A or B?'), 'the ask parks')
+})
+
+test('terminal-pass — retired text is absent from workflow-template.js under the normalized whole-file scan (wrapped comment copies included); the discard-path reason keeps its sweep-raised token', () => {
+  const n = normalizedSrc()
+  for (const t of ['absorb has no later round', 'sweep-raised absorb at either terminal sweep arm', 'sweep-raised absorb at its terminal arms', 'terminal-pass charge site (reserved']) {
+    assert.ok(!n.includes(t), `retired text absent (normalized): ${t}`)
+  }
+  assert.ok(!/absorb has no later/i.test(src), 'raw scan agrees')
+  assert.ok(src.includes("demote:sweep-discarded — sweep-raised absorb"), 'the discard-path reason keeps its sweep-raised token')
+  assert.ok(!src.includes("demote:terminal-pass — sweep-raised absorb"), 'the merged-path sweep-raised demote arm is retired')
+  assert.ok(src.includes('pt`TERMINAL PASS for WAR phase'), 'the terminal pass prompt is the successor')
+})
+
+test('terminal-pass — schema-slot pins: the schemas.md rows for carriedPhaseClose, seededPhaseClose and finalPhase bind to the engine\'s emitted / validated key names', () => {
+  // carriedPhaseClose: emitted TOP-LEVEL at BOTH return sites (never inside the handoff).
+  const mainReturn = src.match(/^return \{ phase: phaseId, landed, [^\n]*\}$/m)
+  assert.ok(mainReturn, 'the main return line is extracted')
+  const carriedKey = (mainReturn[0].match(/\b(carriedPhaseClose)\b/) || [])[1]
+  assert.equal(carriedKey, 'carriedPhaseClose', 'the main return emits the key (non-vacuous extraction)')
+  assert.ok(mainReturn[0].indexOf('carriedPhaseClose') < mainReturn[0].indexOf('handoff'), 'top-level, beside landDecision — not a handoff key')
+  const catchReturn = src.slice(src.indexOf("landDecision: 'held:workflow-error'"), src.indexOf('workflowError: {'))
+  assert.match(catchReturn, /\bcarriedPhaseClose\b/, 'the catch-block return emits the same key')
+  const rStart = schemasMd.indexOf('## Workflow per-phase return')
+  const rEnd = schemasMd.indexOf('\n## ', rStart + 1)   // the next H2 (none today — the section closes the file)
+  const returnDoc = schemasMd.slice(rStart, rEnd > 0 ? rEnd : schemasMd.length)
+  assert.ok(new RegExp('^\\s*' + carriedKey + ':', 'm').test(returnDoc), 'schemas.md § Workflow per-phase return documents the same key name (' + carriedKey + ')')
+  // seededPhaseClose + finalPhase: validated at entry under those exact arg names; documented in the args contract.
+  for (const key of ['seededPhaseClose', 'finalPhase']) {
+    const validated = (src.match(new RegExp("A\\.(" + key + ") !== undefined")) || [])[1]
+    assert.equal(validated, key, 'the entry validation reads args.' + key + ' (non-vacuous extraction)')
+    assert.ok(src.includes("'workflow-template: args." + key), 'the refusal message names args.' + key)
+    const argsDoc = schemasMd.slice(schemasMd.indexOf('## Workflow per-phase args contract'), schemasMd.indexOf('## Workflow per-phase return'))
+    assert.ok(new RegExp('^Optional `' + validated + '`', 'm').test(argsDoc), 'schemas.md § Workflow per-phase args contract carries an `Optional `' + key + '`` row')
+  }
+})
+
+// ---- held-carry (D3b, End state 15) --------------------------------------------------------------
+
+test('held-carry — a held:nothing-merged phase emits carriedPhaseClose on the phase return with the queued absorb and ZERO demotions with the retired held-phase reason', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'gate_failed', gate_output: 'boom' }   // no class ⇒ soft
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:nothing-merged', 'presence guard')
+  assert.ok(carriedOf(out, 'dangling link'), 'the queued absorb rides carriedPhaseClose')
+  assert.equal(carriedOf(out, 'dangling link').planSlug, 'wtprov-a', 'planSlug-stamped for the relaunch floor')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'never demoted')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('held phase — the phase-close sweep never dispatched')), 'zero demotions with the retired reason')
+  assert.ok(!src.includes('demote:sweep-skipped — held phase'), 'the held-phase demote arm is retired from the engine')
+})
+
+test('held-carry — default-deny census: carriedPhaseClose is present on EVERY Workflow-emitted hold class (escalation, nothing-merged, land-failed, submodule-pr, workflow-error from the catch block) and is [] on landed', async () => {
+  const refine = status => (prompt, opts) => seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' ? { mode: 'merge-task', status } : sweepBase([])(prompt, opts)
+  const land = result => (prompt, opts) => seatOf(opts) === 'war-refiner' && opts.phase === 'Land' ? result : sweepBase([])(prompt, opts)
+  const runs = {
+    'landed': await runPhase(SWEEP_ARGS(), sweepBase([])),
+    'held:escalation': await runPhase(SWEEP_ARGS(), refine('conflict')),
+    'held:nothing-merged': await runPhase(SWEEP_ARGS(), refine('gate_failed')),
+    'held:land-failed': await runPhase(SWEEP_ARGS(), land({ mode: 'land-phase', status: 'error' })),
+    'held:submodule-pr': await runPhase(SWEEP_ARGS(), land({ mode: 'land-phase', status: 'submodule-pr', pr_number: 7, pr_remote: 'org/sub' })),
+    'held:workflow-error': await runPhase(SWEEP_ARGS({ finalPhase: 'nope' }), sweepBase([])),
+  }
+  for (const [expected, r] of Object.entries(runs)) {
+    assert.equal(r.out.landDecision, expected, expected + ': the fixture reaches its hold class (presence guard)')
+    assert.ok(Array.isArray(r.out.carriedPhaseClose), expected + ': carriedPhaseClose is present as an array on the phase return')
+    if (expected === 'landed') assert.deepEqual(r.out.carriedPhaseClose, [], 'landed with nothing carried ⇒ []')
+  }
+  // Default-deny: every Workflow-emitted member of the canonical enum is covered above; the one
+  // Lead-side member (held:phase-incomplete — a non-completed notification, never a Workflow return) is the ruled exclusion.
+  const workflowEmitted = KNOWN_LAND_DECISIONS.filter(d => d !== 'held:phase-incomplete')
+  assert.deepEqual(Object.keys(runs).sort(), [...workflowEmitted].sort(), 'the census covers exactly the Workflow-emitted land decisions')
+})
+
+test('held-carry — a relaunch with args.seededPhaseClose drains the seeded entries into the sweep (logged per row); entry validation refuses a malformed seed; a foreign planSlug refuses at entry (#1413)', async () => {
+  const seed = [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r', disposition: 'absorb', planSlug: 'wtprov-a', carriedFrom: { phase: 2, reason: 'held phase' } }]
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ seededPhaseClose: seed }), sweepBase([]))
+  assert.ok(polishPromptOf(calls).includes('carried nit'), 'the seeded row reaches the sweep dispatch')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held-carry (D3b): seeded phase-close row "carried nit"') && l.includes('carried from phase 2')), 'the drain is logged per row')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'carried nit' && a.sha === 'polishsha'), 'and it aces at the polish sha')
+  for (const [bad, msg] of [
+    ['nope', 'args.seededPhaseClose must be an array'],
+    [['x'], 'args.seededPhaseClose[0] must be a finding row object'],
+    [[{ severity: 'Minor' }], 'args.seededPhaseClose[0].title must be a non-empty string'],
+    [[{ title: 't' }], 'args.seededPhaseClose[0].severity must be a non-empty string'],
+    [[{ title: 't', severity: 'Nit', file: 5 }], 'args.seededPhaseClose[0].file must be a repo-relative path string or null'],
+  ]) {
+    const r = await runPhase(SWEEP_ARGS({ seededPhaseClose: bad }), sweepBase([]))
+    assert.equal(r.out.landDecision, 'held:workflow-error', JSON.stringify(bad) + ' is refused at entry')
+    assert.ok(r.out.workflowError.message.includes(msg), 'the refusal names the field: ' + msg)
+    assert.equal(r.calls.length, 0, 'zero agents')
+  }
+  const foreign = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ ...seed[0], planSlug: 'other-plan' }] }), sweepBase([]))
+  assert.equal(foreign.out.landDecision, 'held:workflow-error', 'a foreign planSlug stamp refuses')
+  assert.match(foreign.out.workflowError.message, /args\.seededPhaseClose carries a planSlug provenance stamp naming a foreign plan \(other-plan\)/, 'the #1413 refusal names the surface and the stamp')
+  // an own-token-less, stamp-less row fails the own-token floor (the carried row's planSlug stamp is what exempts it)
+  const bare = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r' }] }), sweepBase([]))
+  assert.equal(bare.out.landDecision, 'held:workflow-error')
+  assert.match(bare.out.workflowError.message, /args\.seededPhaseClose contains none of the run's own plan-slug tokens/, 'the own-token floor applies to the surface')
 })
