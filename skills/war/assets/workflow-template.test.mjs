@@ -485,8 +485,10 @@ const isProvisionTopology = (c) =>
   !/^provision-run:/.test(c.opts.label || '')
 // A merge-task dispatch is a Refine-phase refiner seat that is NOT one of the phase's other
 // Refine-phase refiner dispatches: the land-barrier endstate-check, the post-merge evidence seat, the
-// phase-close polish worktree, and the #1913 pin-transfer probe (which rebases and measures patch-ids
-// but never merges). Keyed on dispatchKind, the stable discriminator, never a label-prefix regex.
+// phase-close polish worktree, the #1913 pin-transfer probe (which rebases and measures patch-ids
+// but never merges), and the terminal-pass forward-revert (a Refine-phase refiner dispatch that
+// reverts a regressed terminal commit but never merges). Keyed on dispatchKind, the stable
+// discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
 const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert']
@@ -13672,7 +13674,7 @@ test('absorb-budget (End state 4, fallback mirror): the template\'s `run.absorbR
   assert.ok(bisectBody.length > 0 && reentryBody.length > 0, 'presence guard: both ace-ladder bodies were extracted')
   assert.ok(!bisectBody.includes('r.task.fixRounds++'), 'aceBisect carries no fixRounds charge at all (PIN-7, comment-independent)')
   assert.ok(!reentryBody.includes('r.task.fixRounds++'), 'aceReentry carries no fixRounds charge at all (PIN-7, comment-independent)')
-  assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three ace-side charge sites: batch, subset, re-entry')
+  assert.equal((src.match(/r\.task\.absorbRounds\+\+/g) || []).length, 3, 'exactly three `r.task.absorbRounds++` sites: batch, subset, re-entry — the terminal pass charges the polish pseudo-task on its own receiver')
 })
 
 // ===========================================================================
@@ -14020,10 +14022,10 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
   // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
-  // exclusion-set + release-slot at sweep time, terminal-pass ×4 (no commit / did not merge / a
-  // seat-raised absorb / a terminal seat that returned no verdict, final phase only),
-  // sweep-discarded ×2 (final phase only).
-  assert.equal(sites.length, 24, `the census domain is exactly TWENTY-FOUR follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  // exclusion-set ×2 (sweep time + the terminal-pass filter) + release-slot at sweep time,
+  // terminal-pass ×4 (no commit / did not merge / a seat-raised absorb / a terminal seat that
+  // returned no verdict, final phase only), sweep-discarded ×2 (final phase only).
+  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
@@ -14377,6 +14379,7 @@ test('terminal-pass — a roster without `correctness` still convenes the pass: 
   // the correctness seat wins when present
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-audit seat: correctness')), 'correctness is preferred when the roster carries it')
   assert.equal(calls.filter(c => /^audit:p3-polish:/.test(c.opts.label || '')).length, 3, 'two panel seats + exactly ONE terminal seat (the [seat] rosterOverride)')
+  assert.equal(calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:security').length, 1, 'the security seat runs on the polish panel only — the terminal round convenes ONE seat')
   const tEntry = out.auditLog.find(e => e.terminal === true && e.sha === 'terminalsha')
   assert.ok(tEntry && tEntry.requested === 1 && tEntry.seat === 'correctness', 'the terminal auditLog entry requested exactly one seat')
   const r2 = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }] } }), terminalImpl())
@@ -14581,6 +14584,35 @@ test('terminal-pass — a present-but-disjoint sweep report (no file in the queu
   assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
   assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is aced at the polish sha')
   assert.equal(terminalCalls(calls).length, 0, 'a disjoint report never diverts rows to the terminal queue')
+})
+
+test('terminal-pass — a sweep report carrying files_changed ONLY (no ace_diff_files) that overlaps the queue footprint is read as the fallback SOURCE: the touched row aces at the polish sha and the untouched row joins the terminal queue', async () => {
+  const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+  const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/x.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is NOT aced at the polish sha')
+  const tw = terminalCalls(calls)
+  assert.equal(tw.length, 1, 'the files_changed fallback diverts the untouched row to the terminal pass')
+  assert.ok(tw[0].prompt.includes('row on q'), 'the terminal prompt carries the untouched row')
+})
+
+test('terminal-pass — a terminal-seat re-mint of the sweep-raised follow-up (filed on the merged arm, filedKeys-stamped) corroborates: minorsFiled holds exactly ONE row plus the re-mint log line', async () => {
+  const fu = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up', barrier: 'barrier:release-slot' }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ polishFindings: [fu, { severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }], terminalFindings: [{ ...fu }] }))
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'sweep-raised follow-up').length, 1, 'exactly one filed row — the terminal re-mint never files a second')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('sweep-raised follow-up') && l.includes('already filed')), 'the re-mint is logged as corroboration')
+})
+
+test('terminal-pass — a polish-panel absorb on an args.sweepExclude-owned file is REFUSED by the terminal filter (demote:exclusion-set naming the owner), logged, and never in the terminal worker prompt', async () => {
+  const args = SWEEP_ARGS({ sweepExclude: [{ slug: 'other-plan', files: ['docs/y.md'] }] })
+  const { out, calls, logs } = await runPhase(args, terminalImpl())
+  const d = demotionOf(out, 'polish-panel absorb')
+  assert.ok(d && /^demote:exclusion-set — terminal pass:/.test(d.demoteReason) && d.demoteReason.includes('owned by plan other-plan'), 'the row demotes naming the owner')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: REFUSED "polish-panel absorb"') && l.includes('owned by plan other-plan')), 'the refusal is logged')
+  assert.ok(!terminalCalls(calls).some(c => c.prompt.includes('polish-panel absorb')), 'never a terminal worker input')
+  assert.ok(!(out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'never aced')
 })
 
 test('terminal-pass — a terminal-seat re-mint of a terminalRow (recorded aced on the merged arm) corroborates via remintBlock: logged, never a second aced record, never a demotion', async () => {

@@ -3968,5 +3968,5 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
     [/`carriedPhaseClose`/, 'the carry key'],
     [/2026-09-03-in-band-absorb-default\.md/, "the plan's file (the decision record it points at)"],
   ]) assert.match(xref[0], re, `the ADR 0012 2026-09-04 cross-reference must carry ${what}`)
-  assert.ok(adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m), 'the pre-existing 2026-08-25 cross-reference must survive byte-intact above the new line (append-only law)')
+  assert.ok(adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m), 'the pre-existing 2026-08-25 cross-reference must still be present (append-only law)')
 })

@@ -1398,10 +1398,11 @@ const revertedKeys = new Set()
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
 // finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
 // re-enters the ladder and never files a second record: the filed record is the durable home; the
-// re-mint is corroboration (logged). Stamped at the three sites a later same-task re-audit can see:
-// the round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, and demote()'s
-// minorsFiled push. The escalation-arm and phase-close-sweep DIRECT pushes are NOT stamped — no
-// later re-audit runs for that task/phase, so no re-mint window exists there (their demote()-routed
+// re-mint is corroboration (logged). Stamped at the four sites a later re-audit can see: the
+// round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, demote()'s minorsFiled
+// push, and the phase-close sweep's sweep-raised follow-up arm (fileFollowUp — the terminal pass's
+// one re-audit seat is the later window there). The escalation-arm DIRECT push is NOT stamped — no
+// later re-audit runs for that task, so no re-mint window exists there (its demote()-routed
 // siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
 // routing and re-entry drain).
 const filedKeys = new Set()
@@ -4056,12 +4057,17 @@ const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId
 // registration (Open decision 4) — bookkeeping is a Lead-side ledger entry + the handoff block.
 // Drain-cause stamp (Phase 6 Task 1 (d)): when a phase-close DISPATCH DIES (polish-worktree
 // provision or the sweep worker — a tagged env-died throw, or a dead dispatch returning nothing),
-// every finding the resulting drain demotes carries WHICH dispatch died and WHY it was demoted — an
-// in-band field on the finding row (rides minorsFiled and the escalation records; the field name is
-// mechanism latitude), replacing the flat untriaged dump. Ordinary non-death drains (held phase,
-// invalid roster, panel non-approval) stay unstamped — they were never "a dispatch died".
+// every finding the resulting drain demotes or carries carries WHICH dispatch died and WHY — an
+// in-band field on the finding row (rides minorsFiled, the escalation records, and carriedPhaseClose
+// into the next phase's seededPhaseClose; the field name is mechanism latitude), replacing the flat
+// untriaged dump. Ordinary non-death drains (invalid roster, panel non-approval) and the held-phase
+// carry stay unstamped — they were never "a dispatch died".
 const stampDrainCause = (f, dispatch, why) => { f.drainCause = { dispatch, why }; return f }
 let polishStatus = 'skipped'
+// Phase-scoped exclusion map (PIN-3): built by the sweep-time drain below and read AGAIN by the
+// terminal-pass filter — a polish-panel absorb never passed the drain, so the pass consults the
+// same map before it commits (a campaign- or task-owned file is refused there too).
+const sweepExcl = new Map()
 if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // Carry arm (D3b, PIN-5 — replaces the ADR 0013 held-phase demotion): a held phase never
   // dispatches the sweep — the queue rides carriedPhaseClose for the relaunch and demotes NOTHING.
@@ -4076,8 +4082,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // file is in the set demotes to follow-up naming the owner (demote:exclusion-set / demote:release-slot);
   // the seat never decides exclusion. First owner wins per path (construction order is latitude).
   {
-    const excl = new Map()
-    const claim = (p, owner) => { const k = aceRelPath(p); if (typeof k === 'string' && k && !excl.has(k)) excl.set(k, owner) }
+    const claim = (p, owner) => { const k = aceRelPath(p); if (typeof k === 'string' && k && !sweepExcl.has(k)) sweepExcl.set(k, owner) }
     if (Array.isArray(A.sweepExclude)) {
       let n = 0
       for (const e of A.sweepExclude) for (const p of e.files) { claim(p, 'plan ' + e.slug); n++ }
@@ -4087,7 +4092,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     for (const p of RELEASE_SLOT_FILES) claim(p, 'the release slot')
     const kept = []
     for (const f of phaseCloseQueue.splice(0)) {
-      const owner = (typeof f.file === 'string' && f.file) ? (excl.get(aceRelPath(f.file)) ?? (isReleaseSlotFile(f.file) ? 'the release slot' : null)) : null
+      const owner = (typeof f.file === 'string' && f.file) ? (sweepExcl.get(aceRelPath(f.file)) ?? (isReleaseSlotFile(f.file) ? 'the release slot' : null)) : null
       if (owner === null) { kept.push(f); continue }
       queuedKeys.delete(remintKey(f))
       if (owner === 'the release slot') demote(f, 'follow-up', 'demote:release-slot — sweep exclusion set: ' + aceRelPath(f.file) + ' is owned by the release slot; the sweep never touches it')
@@ -4253,10 +4258,16 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // below judges it). A sweep-raised ask still parks (#1550) — the Checkpoint gate is Lead-side.
       // A sweep-raised follow-up is stamped floorSkipped (no diff probe ran for the polish
       // pseudo-task; #2050-class, logged here so the stamp site is never silent).
+      // Registry consult (mirrors routeTerminalMinors): a polish-seat re-mint of an already aced,
+      // filed, or queued finding corroborates — never a second terminal-queue line or filed row.
+      // The follow-up arm files through fileFollowUp so filedKeys carries the row: the terminal
+      // seat's later re-audit consults that registry and re-mints it as corroboration, never twice.
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
+        const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
+        else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
+        else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
         else terminalQueue.push(f)
       }
@@ -4276,6 +4287,13 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       for (const f of terminalQueue) {
         if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless terminal-pass absorb takes the severity default (never ace-eligible)')
         else if (!aceEligible(f)) { log('terminal pass: REFUSED "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — ' + aceRelPath(f.file) + ' is a release-slot file (RELEASE_SLOT_FILES, PIN-11); never committed by the pass.'); demoteReleaseSlot(f) }
+        else if (sweepExcl.has(aceRelPath(f.file))) {
+          // Exclusion-set arm (PIN-3): a polish-panel absorb never passed the sweep-time drain, so the
+          // pass consults the same phase-scoped map — a campaign- or task-owned file is refused here.
+          const owner = sweepExcl.get(aceRelPath(f.file))
+          log('terminal pass: REFUSED "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase (sweep exclusion set, PIN-3); never committed by the pass.')
+          demote(f, 'follow-up', 'demote:exclusion-set — terminal pass: ' + aceRelPath(f.file) + ' is owned by ' + owner + ' this phase; the pass never touches it')
+        }
         else terminalRows.push(f)
       }
       // Terminal-arm routing: every non-landing exit (could-not-commit, regression, merge failure)
@@ -4417,8 +4435,10 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // still parks (#1550): the ruling gate is Lead-side, not branch-bound.
       for (const f of sweepMinors) {
         const d = dispositionOf(f, null)   // the polish pseudo-task has no diff probe — the old default
+        const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null   // registry consult (mirrors routeTerminalMinors)
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
+        else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
+        else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
         else if (!finalPhase) carryPhaseClose(f, 'sweep-raised absorb on a discarded sweep (the polish branch never merged) on a non-final phase; carried for the relaunch')
         else demote(f, 'follow-up', 'demote:sweep-discarded — sweep-raised absorb — the phase-close sweep was discarded on the final phase (the polish branch never merged; nothing to absorb into)')
