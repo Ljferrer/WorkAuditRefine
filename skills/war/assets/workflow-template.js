@@ -883,7 +883,7 @@ const pushFindingRowProblems = (at, rows, tag, severities = null) => rows.forEac
 })
 if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
   if (!Array.isArray(A.seededPhaseClose)) problems.push('workflow-template: args.seededPhaseClose must be an array of carried finding rows or absent (got ' + typeof A.seededPhaseClose + ') (D3b)')
-  else pushFindingRowProblems('args.seededPhaseClose', A.seededPhaseClose, 'D3b')
+  else pushFindingRowProblems('args.seededPhaseClose', A.seededPhaseClose, 'D3b', ['Minor', 'Nit'])   // every carriedPhaseClose producer emits absorbs — a seeded blocker refuses at entry (snipe: cascading-impact)
 }
 //   (7) FINAL-PHASE class (in-band-absorb-default D3a) — args.finalPhase is the terminal pass's
 //       finality signal: a boolean, or absent (reads as FINAL, so a missed thread files a visible

@@ -14877,6 +14877,7 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
     [['x'], 'args.seededPhaseClose[0] must be a finding row object'],
     [[{ severity: 'Minor' }], 'args.seededPhaseClose[0].title must be a non-empty string'],
     [[{ title: 't' }], 'args.seededPhaseClose[0].severity must be a non-empty string'],
+    [[{ title: 't', severity: 'Major', file: 'docs/c.md', planSlug: 'wtprov-a' }], 'args.seededPhaseClose[0].severity must be one of Minor|Nit'],
     [[{ title: 't', severity: 'Nit', file: 5 }], 'args.seededPhaseClose[0].file must be a repo-relative path string or null'],
   ]) {
     const r = await runPhase(SWEEP_ARGS({ seededPhaseClose: bad }), sweepBase([]))
