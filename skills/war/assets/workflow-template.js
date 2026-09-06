@@ -1492,16 +1492,18 @@ const routeToSweep = (f, why) => {
 // (ponytail: unreachable by construction — class-8 entry validation pins Minor|Nit — kept as the
 // defensive arm), dispositionOf + the D4 intake floor classify, an ask parks (never an absorb a
 // worker executes, #1550), a registry hit corroborates onto the survivor, a follow-up files, a note
-// notes. Returns 'absorb' only for a row the caller may route; every other token names the sink.
-const judgeHeldRow = (f, taskId, diff, sink) => {
-  if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ' + sink + ' and recorded on notes (never silent).'); notes.push(f); return 'refused' }
+// notes. Returns true only for an absorb the caller may route; every other row was sunk here.
+// `sinkNoun` names where a refused row was kept from; `inputNoun` names what a filed row never
+// becomes — two explicit words, never one string doubling as a branch key (snipe: simplicity).
+const judgeHeldRow = (f, taskId, diff, sinkNoun, inputNoun) => {
+  if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ' + sinkNoun + ' and recorded on notes (never silent).'); notes.push(f); return false }
   const hd = intakeFloor(f, dispositionOf(f, diff), diff)
-  if (hd === 'ask') { parkAsk(f); return 'parked' }
+  if (hd === 'ask') { parkAsk(f); return false }
   const hb = (hd === 'follow-up' || hd === 'absorb') ? remintBlock(f) : null
-  if (hb) { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') — ' + hb + '; not recorded again (logged, never silent).'); corroborateSurvivor(f); return 'blocked' }
-  if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') is a follow-up' + (f.disposition === 'follow-up' ? ' (seat-set)' : ' (the severity default)') + ' — filed, never ' + (sink === 'ace batch' ? 'an ace input' : 'a sweep input') + '.'); return 'filed' }
-  if (hd === 'note') { notes.push(f); return 'noted' }
-  return 'absorb'
+  if (hb) { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') — ' + hb + '; not recorded again (logged, never silent).'); corroborateSurvivor(f); return false }
+  if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') is a follow-up' + (f.disposition === 'follow-up' ? ' (seat-set)' : ' (the severity default)') + ' — filed, never ' + inputNoun + '.'); return false }
+  if (hd === 'note') { notes.push(f); return false }
+  return true
 }
 // Held-absorb drain (D5, #2034): rows held on t.pendingAbsorbs that never met a later approve. Runs
 // over EVERY task in `done` — a task with a wave result AND a task that entered `done` before
@@ -1530,7 +1532,7 @@ const drainHeldAbsorbs = (t, verdict) => {
   const absorbs = []
   for (const f of held) {
     queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
-    if (judgeHeldRow(f, t.id, diff, 'sweep') !== 'absorb') continue
+    if (!judgeHeldRow(f, t.id, diff, 'held-absorb drain', 'a drain input')) continue
     if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless held absorb takes the severity default (never sweep-eligible)'); continue }   // the guard every sibling router applies (snipe: correctness)
     if (absorbs.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + t.id + ') is a duplicate of a row already in this drain — the second copy is dropped (logged, never silent).'); continue }
     absorbs.push(f)
@@ -2825,7 +2827,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // #2036: a seeded row is judged like a fresh one BEFORE the absorb chain (judgeHeldRow — the
         // head shared with the never-ran drain): ask parks, registry hit corroborates, follow-up
         // files, note notes, non-Minor/Nit refused. Only an 'absorb' reaches the tail below.
-        if (judgeHeldRow(f, r.task.id, diff, 'ace batch') !== 'absorb') continue
+        if (!judgeHeldRow(f, r.task.id, diff, 'ace batch', 'an ace input')) continue
         // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
         const route = routeAbsorbTail(f, 'held absorb')
