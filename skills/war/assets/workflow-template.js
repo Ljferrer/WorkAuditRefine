@@ -1602,7 +1602,8 @@ const seatRefOf = f => f.seat != null
 // that owns an r registers it here so corroborateSurvivor can search those two queues too.
 const liveTaskRecords = new Set()
 // Seats-list merge (snipe: correctness): the dropped copy's raiser joins the survivor's seats list —
-// shared by corroborateSurvivor and the two in-batch duplicate drops, so no collision loses a raiser.
+// shared by corroborateSurvivor and the in-batch duplicate drops (the never-ran drain and the absorb
+// tail's ace-batch arm), so no collision loses a raiser.
 const mergeSeat = (hit, f) => {
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   const ref = seatRefOf(f)
