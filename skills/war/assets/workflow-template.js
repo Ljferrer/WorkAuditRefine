@@ -1484,6 +1484,29 @@ const routeToSweep = (f, why) => {
   queuedKeys.add(remintKey(f))
   phaseCloseQueue.push({ ...f, phaseClose: true })
 }
+// Held-absorb drain (D5, #2034): rows held on t.pendingAbsorbs that never met a later approve. Runs
+// over EVERY task in `done` — a task with a wave result AND a task that entered `done` before
+// nextWave() (barrier preMerged, staleRemote env-blocked, dep-failed pre-check, post-loop
+// unrunnable-deps) — so a relaunch-seeded held row on a task that never runs a wave is never
+// dropped silently. `succeeded` ⇒ the phase-close sweep at the merged tip; else demote:absorb-blocked.
+// splice(0) empties the field, so a second call over the same task is a no-op.
+const drainHeldAbsorbs = (t, verdict) => {
+  const held = Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []
+  if (!held.length) return
+  if (succeeded.has(t.id)) {
+    log('absorb-budget: task ' + t.id + ' merged with ' + held.length + ' held absorb(s) and no later approve (verdict ' + verdict + ') — routing them to the phase-close sweep.')
+    for (const f of held) routeToSweep(f, 'held absorb — the task merged before a later approve could ace it')
+  } else {
+    log('absorb-budget: task ' + t.id + ' never merged (verdict ' + verdict + ') — ' + held.length + ' held absorb(s) demote with demote:absorb-blocked.')
+    for (const f of held) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never merged (verdict ' + verdict + '; open blocking findings held the ace batch and no later approve came)')
+  }
+}
+// The exit verdict a task carries when it produced no wave result: its latest auditLog entry
+// (recovered:pre-merged, env-blocked:stale-remote, dep-failed, unrunnable-deps) or 'never ran a wave'.
+const auditVerdictOf = id => {
+  for (let i = auditLog.length - 1; i >= 0; i--) if (auditLog[i] && auditLog[i].task === id) return auditLog[i].verdict
+  return 'never ran a wave'
+}
 // Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor —
 // a held phase's queue, a discarded sweep's absorbs and the terminal pass's unlanded/fresh absorbs
 // on a non-final phase ride carriedPhaseClose (top-level on the phase return) instead of demoting;
@@ -3554,21 +3577,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
     }
   }
-  // ---- Held-absorb drain (D5): rows held on r.task.pendingAbsorbs never met a later approve ----
+  // ---- Held-absorb drain (D5, #2034): rows held on t.pendingAbsorbs never met a later approve ----
   // A task that ends escalated, audit-blocked, or never merged demotes its held rows with
   // demote:absorb-blocked (a DEMOTE_REASONS member); a task that merged with rows
   // still held (a seat approved beside its own blocking finding) sends them to the phase-close
-  // sweep as absorbs — the merged tip is the sweep's base, so nothing is dropped. Logged.
-  for (const r of results.filter(Boolean)) {
-    const held = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
-    if (!held.length) continue
-    if (succeeded.has(r.task.id)) {
-      log('absorb-budget: task ' + r.task.id + ' merged with ' + held.length + ' held absorb(s) and no later approve — routing them to the phase-close sweep.')
-      for (const f of held) routeToSweep(f, 'held absorb — the task merged before a later approve could ace it')
-    } else {
-      log('absorb-budget: task ' + r.task.id + ' never merged (verdict ' + r.verdict + ') — ' + held.length + ' held absorb(s) demote with demote:absorb-blocked.')
-      for (const f of held) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never merged (verdict ' + r.verdict + '; open blocking findings held the ace batch and no later approve came)')
-    }
+  // sweep as absorbs — the merged tip is the sweep's base, so nothing is dropped. Logged. Iterates
+  // every task in `done`, not results.filter(Boolean): a task that entered `done` before nextWave()
+  // (preMerged, staleRemote, dep-failed) has no result object yet still drains its seeded rows.
+  // An undispatched later-wave task is not in `done` and keeps its rows for its own wave.
+  for (const t of tasks) {
+    if (!done.has(t.id)) continue
+    const r = results.find(x => x && x.task && x.task.id === t.id)
+    drainHeldAbsorbs(t, r ? r.verdict : auditVerdictOf(t.id))
   }
 }
 
@@ -4003,11 +4023,11 @@ if (mergedTasksForGateAudit.length > 0) {
 // trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix is
 // non-empty and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
 // ⇒ the note arm skips with a log while the follow-up arm still reroutes, and NO demote:floor-skipped
-// comes from this pass; an omitted-disposition fully specified row reads absorb (dispositionOf over
-// the phase diff), an unspecified one keeps the severity default; with phase_diff_files ABSENT an
-// omitted-disposition fully specified row STILL reads absorb + phaseClose:true (the sweep is the only
-// lane left, no diff check — the end-state-only arm never stamps phase_diff_files, so without this
-// arm a Minor would file barrierless, breaching PIN-17). A release-slot file demotes at birth
+// comes from this pass; an omitted-disposition fully specified row reads absorb + phaseClose:true
+// (dispositionOf over an EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff
+// membership has no meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17
+// holds with the phase diff present or absent), an unspecified one keeps the severity default. A
+// release-slot file demotes at birth
 // (demote:release-slot, PIN-11). auditLog keeps every record — it is no longer the only sink.
 const routeGateAuditRows = () => {
   if (!gateAuditRows.length) return
@@ -4016,12 +4036,11 @@ const routeGateAuditRows = () => {
   for (const f of gateAuditRows.splice(0)) {
     const fix = typeof f.suggested_fix === 'string' && f.suggested_fix.trim().length > 0
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
-    let d = dispositionOf(f, phaseDiffFiles)
+    // An EMPTY Set, never phase_diff_files (#2058): an omitted-disposition fully specified row reads
+    // absorb + phaseClose:true whether the phase diff is present or absent (PIN-17), and the null arm
+    // (floorSkipped) never fires from this pass. The note arm below reads phase_diff_files itself.
+    let d = dispositionOf(f, new Set())
     if (d === 'ask') { parkAsk(f); continue }       // ask precedes the absorb chain (#1550, D7)
-    if (noteArmSkipped && f.disposition == null && fix) {   // no diff ⇒ specified omitted row still absorbs (D15, PIN-17; header comment)
-      d = 'absorb'; f.phaseClose = true
-      log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') omitted disposition with a specified fix, phase_diff_files absent → absorb + phaseClose:true (no diff check; D15).')
-    }
     if (f.disposition === 'follow-up') {
       if (!barrier) { d = 'absorb'; f.phaseClose = true; log('gate-audit floor pass REROUTED: [' + f.severity + '] "' + (f.title ?? '') + '" (' + f.seat + ') follow-up carried no barrier tag → absorb + phaseClose:true (the sweep is the only lane left; follow-up is legal only with a BARRIER_TOKENS member, D15).') }
       else if (barrier === 'barrier:trade-off') {
@@ -4060,6 +4079,10 @@ for (const t of tasks) {
     done.add(t.id)
   }
 }
+// #2034 catch-all: every task is in `done` here. A phase whose wave loop never ran (every task entered
+// `done` at the barrier — preMerged or staleRemote) and the unrunnable-deps tasks above never reached the
+// per-wave drain; their seeded held rows drain now (splice(0) makes this a no-op for already-drained tasks).
+for (const t of tasks) drainHeldAbsorbs(t, auditVerdictOf(t.id))
 
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs — the Workflow sandbox can't import. Keep in sync. The Workflow
@@ -4131,6 +4154,9 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       if (n === 0) log('campaign contention set empty for ' + A.sweepExclude.length + ' entries (args.sweepExclude present; no files) — the in-phase and release-slot arms still run.')
     } else log('no campaign contention set threaded (args.sweepExclude absent) — the in-phase and release-slot arms still run.')
     for (const t of (tasks || [])) if (!succeeded.has(t.id)) for (const p of (Array.isArray(t.files) ? t.files : [])) claim(p, 'task ' + t.id)
+    // Plan-faithful, not load-bearing (#2059): the owner lookup below falls back to isReleaseSlotFile for
+    // these same paths, and a campaign or in-phase claim wins first either way. Kept so the set IS the
+    // stated union (campaign ∪ not-merged task files ∪ RELEASE_SLOT_FILES) and reads as one.
     for (const p of RELEASE_SLOT_FILES) claim(p, 'the release slot')
     const kept = []
     for (const f of phaseCloseQueue.splice(0)) {
@@ -4858,8 +4884,9 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : (landedShaByTask.get(t) ?? 'unrecorded') }
   }
   // filedByOf (D13, PIN-15): the row's fixed-line prefix value — the DEMOTE_REASONS member leading an
-  // engine-demoted row's reason (demote() guarantees one), demote:floor-skipped for a seat row on a
-  // task whose diff probe failed, else the seat's barrier tag (or 'none' when the seat cited none).
+  // engine-demoted row's reason (demote() guarantees one), demote:floor-skipped for a seat row that no
+  // intake floor ran on (#2051: a failed probe, or the escalation arm / sweep / terminal pass, where no
+  // probe applies), else the seat's barrier tag (or 'none' when the seat cited none).
   const filedByOf = m => m.engineFiled === true
     ? ((DEMOTE_REASONS.find(p => typeof m.demoteReason === 'string' && m.demoteReason.startsWith(p))) || 'demote:unclassified')
     : m.floorSkipped === true ? 'demote:floor-skipped'
@@ -4880,8 +4907,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // Demote-reason prefix line (in-band-absorb-default D13, PIN-15) — standing mirror:
       // skills/war/references/file-followups.md (same commit). Every engine-filed issue body carries
       // its DEMOTE_REASONS prefix on a FIXED line; a seat-filed row carries its barrier tag, and a
-      // seat row on a task whose diff probe failed carries demote:floor-skipped.
-      + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row whose task had no diff probe, or \`seat-filed (barrier: <tag>)\` otherwise; a clustered issue lists one such line per member row.\n`
+      // seat row that no intake floor ran on carries demote:floor-skipped (#2051).
+      + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row that no intake floor ran on (a failed probe, or a row raised at the escalation arm, the sweep, or the terminal pass), or \`seat-filed (barrier: <tag>)\` otherwise; a clustered issue lists one such line per member row.\n`
       + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens follows the FAMILY-PREFIX rule: a seat label whose FIRST \`:\`-segment is \`gate-audit\` yields the lens \`execution-evidence\` whatever its trailing segments (a phase-level segment like \`phase-1\` or a dispatch suffix like \`integrated-tip\`/\`end-state\` is never a lens); otherwise the lens is the trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).

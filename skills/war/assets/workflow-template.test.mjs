@@ -4444,7 +4444,7 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
     const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
-    const slice = src.slice(i, Math.min(i + 2600, end))
+    const slice = src.slice(i, end)   // site-bounded only (#2060): the next site is the wall — no byte cap to outgrow
     const askIdx = slice.indexOf("=== 'ask'")
     assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
     const parkIdx = slice.indexOf('parkAsk(')
@@ -13707,6 +13707,35 @@ test('absorb-budget (End state 4, held then merged): a task that merges with row
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held-merged nit'), 'never a follow-up')
 })
 
+test('absorb-budget (D5, #2034, never ran a wave — preMerged): a relaunch-seeded held row on a task the barrier reports preMerged drains to the phase-close sweep with the recovered verdict — logged, never dropped', async () => {
+  // t1 enters `done`+`succeeded` before nextWave() (no result object). The drain must still see it.
+  const held = { severity: 'Nit', title: 'seeded on pre-merged', file: 'skills/pm.js', rationale: 'held earlier', autoFixable: true, task: 't1', seat: 'audit:t1:correctness' }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] })
+  const { out, logs } = await runPhase(args, barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.ok(out.landed.includes('t1'), 'presence guard: t1 is the pre-merged task')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 merged with 1 held absorb(s)') && l.includes('verdict recovered:pre-merged')),
+    'the drain logs the pre-merged task with its auditLog verdict')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('seeded on pre-merged') && l.includes('held absorb — the task merged')),
+    'the held row is routed to the phase-close sweep')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('seeded on pre-merged') && l.includes('demote:absorb-blocked')), 'a succeeded task never demotes its held rows')
+})
+
+test('absorb-budget (D5, #2034, never ran a wave — staleRemote): a relaunch-seeded held row on a task classified env-blocked by the barrier demotes with demote:absorb-blocked naming the env-blocked verdict — logged, never dropped', async () => {
+  const held = { severity: 'Nit', title: 'seeded on stale', file: 'skills/st.js', rationale: 'held earlier', autoFixable: true, task: 'tStale', seat: 'audit:tStale:correctness' }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held] },
+  ] })
+  const { out, calls, logs } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:tStale'), 'presence guard: no worker ran for the stale-remote task')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task tStale never merged (verdict env-blocked:stale-remote)') && l.includes('1 held absorb(s) demote with demote:absorb-blocked')),
+    'the drain logs the never-ran task with its env-blocked verdict')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'seeded on stale'), 'the held row demotes to follow-up (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('seeded on stale') && l.includes('demote:absorb-blocked')), 'the demotion carries the demote:absorb-blocked reason')
+})
+
 test('absorb-budget (D5 both-surfaces): the absorbCharges read is on agents/war-refiner.md AND the dispatched barrier prompt, with the one-git-read allowance; delete-the-feature per surface', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const barrier = calls.find(isProvision)
@@ -14380,7 +14409,10 @@ test('gate-audit-route — end-state-only arm (phase_diff_files structurally abs
   const { out, calls, logs } = await runPhase(args, p4Base({ seatsOf }))
   assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat convened')
   assert.ok(!calls.some(c => /^evidence:phase-/.test(c.opts.label || '')), 'presence guard: no evidence dispatch on this arm — phase_diff_files is structurally absent')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('gate-audit floor pass REROUTED') && l.includes('end-state omitted disposition') && l.includes('phase_diff_files absent')), 'the reroute is logged')
+  // #2058: the omitted-disposition default is the classifier's own (dispositionOf over an empty Set), not
+  // a special-case reroute — the logged step is the route into the sweep queue.
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('end-state omitted disposition') && l.includes('gate-audit-family absorb')), 'the sweep routing is logged')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('end-state omitted disposition') && l.includes('phase_diff_files absent')), 'the retired special-case reroute line is gone (#2058)')
   assert.ok(polishPromptOf(calls).includes('end-state omitted disposition'), 'the row rides the sweep')
   const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'end-state omitted disposition')
   assert.ok(aced && aced.finding.phaseClose === true && aced.finding.seat === 'gate-audit:phase-3:end-state', 'absorb + phaseClose:true, stamped with the seat label')
