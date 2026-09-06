@@ -2813,7 +2813,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (hb) { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + hb + '; not recorded again (logged, never silent).'); corroborateSurvivor(f); continue }
         if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a seat-set follow-up — filed, never an ace input.'); continue }
         if (hd === 'note') { notes.push(f); continue }
-        queuedKeys.delete(remintKey(f))   // no longer held — the dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
         // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
         const route = routeAbsorbTail(f, 'held absorb')
