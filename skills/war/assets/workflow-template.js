@@ -2914,11 +2914,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // skipped (its filed seat rows carry demote:floor-skipped). Never a hold, never a fix loop.
       {
         const tip = (typeof impl.head_sha === 'string' && impl.head_sha) ? impl.head_sha : 'HEAD'
+        // #2057: a submodule task's worktree is the submodule checkout, where the superproject's
+        // integration branch does not exist — its dispatch base is the submodule base (targetBase),
+        // the same split the worker prompt and the merge dispatch already model.
+        const probeBase = task.taskType === 'submodule' ? (task.targetBase || '<targetBase>') : ph.integrationBranch
         let probe = null
         try {
           probe = await dispatch(
             pt`DIFF PROBE for WAR task ${task.id} (you are the refiner; a read-only git read, no merge, no push, no rebase, no gate). `
-            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${task.worktree} diff --name-only $(git -C ${task.worktree} merge-base ${ph.integrationBranch} ${tip})..${tip} — the dispatch base is the merge-base of the integration branch and the task tip. `
+            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${task.worktree} diff --name-only $(git -C ${task.worktree} merge-base ${probeBase} ${tip})..${tip} — the dispatch base is the merge-base of ${probeBase} (the integration branch; for a submodule task its submodule base) and the task tip. `
             + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
             { agentType: NS + 'war-refiner', phase: 'Audit', label: 'diff-probe:' + task.id, dispatchKind: 'diff-probe', schema: DIFF_PROBE_RESULT, ...spawn('refiner') })
         } catch (err) {

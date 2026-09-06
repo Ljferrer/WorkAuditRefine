@@ -11303,7 +11303,9 @@ const BARE_INTERPOLATION_CENSUS = [
   // the same merge-base shell substitution const the evItems fallback uses — a template-built
   // string, always defined. tip (D4): the diff-probe prompt's task tip — a const with an explicit
   // 'HEAD' fallback when the worker returned no usable head_sha — construction-guaranteed a string.
-  'phaseBaseCmd', 'tip',
+  // probeBase (#2057): the diff-probe range base — ph.integrationBranch, or a submodule task's
+  // targetBase with its own '<targetBase>' placeholder fallback — construction-guaranteed a string.
+  'phaseBaseCmd', 'tip', 'probeBase',
   // terminalCharge / terminalSha (in-band-absorb-default D3a, terminal-pass): the `Ace-Charge:
   // p<N>-polish:<n>` trailer value (concatenation-built from the polish pseudo-task id and its
   // seeded integer counter) and the terminal worker's head_sha, guarded truthy-string before the
@@ -13857,6 +13859,16 @@ test('filing-floor — the diff-probe dispatch runs per task after the worker\'s
   assert.ok(p.opts.schema && p.opts.schema.properties && p.opts.schema.properties.diff_files, 'its own DIFF_PROBE_RESULT schema carries diff_files')
   assert.ok(!(p.opts.schema.required || []).includes('diff_files'), 'diff_files is optional (fail-open)')
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'diff-probe').length, 1, 'exactly one probe per task')
+})
+
+test('filing-floor — a submodule task\'s diff probe resolves its base against the submodule base (targetBase), never the superproject integration branch that does not exist in that checkout (#2057)', async () => {
+  const { calls } = await runPhase(SUBMOD_PHASE_ARGS({ run: { ace: true } }), floorImpl([]), PROBE)
+  const p = calls.find(c => c.opts.dispatchKind === 'diff-probe' && c.opts.label === 'diff-probe:tsub')
+  assert.ok(p, 'the submodule task\'s probe dispatched')
+  assert.ok(p.prompt.includes('merge-base main '), 'the range base is the submodule base (targetBase: main)')
+  assert.ok(!p.prompt.includes('merge-base integration/submod-test/phase-5'), 'never the superproject integration branch')
+  const q = calls.find(c => c.opts.dispatchKind === 'diff-probe' && c.opts.label === 'diff-probe:tbump')
+  assert.ok(!q || q.prompt.includes('merge-base integration/submod-test/phase-5'), 'a non-submodule task keeps the integration-branch base')
 })
 
 test('filing-floor — an omitted-disposition in-diff Minor with a suggested_fix defaults absorb and rides the task\'s ace batch, never the sweep', async () => {
