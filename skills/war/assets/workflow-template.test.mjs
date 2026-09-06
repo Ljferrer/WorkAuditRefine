@@ -13669,6 +13669,7 @@ test('absorb-budget (D5, #2036): a seeded held row is judged by disposition befo
   for (const t of ['held ask', 'held follow-up', 'already queued']) assert.ok(!ace.prompt.includes(t), t + ' never rides the ace batch')
   assert.ok((out.asks || []).some(a => a && a.question === 'keep or drop?' && a.finding && a.finding.title === 'held ask'), 'the seeded ask parks')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'held follow-up' && !m.demoteReason), 'the seeded follow-up files as stated (seat-filed, no demotion)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "held follow-up"') && l.includes('is a follow-up (seat-set)')), 'the log names the seat-set cause')
   const queued = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'already queued')
   assert.equal(queued.length, 1, 'the sweep records the queued row ONCE')
   assert.ok((queued[0].finding.seats || []).some(s => /style/.test(s)), 'the held copy corroborates onto the queued row (its seat joins the seats list)')
@@ -13838,9 +13839,25 @@ test('absorb-budget (D5, #2034, snipe: correctness): a FILELESS seed on a never-
   const args = PROVISION_ARGS({ tasks: [
     { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held] },
   ] })
-  const { out } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  const { out, logs } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
   const row = (out.minorsFiled || []).find(m => m && m.title === 'fileless seed on stale')
-  assert.ok(row && /^demote:fileless/.test(row.demoteReason || ''), 'the fileless seed demotes with demote:fileless')
+  assert.ok(row && /^demote:fileless/.test(row.demoteReason || ''), 'the Minor fileless seed demotes to minorsFiled with demote:fileless')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('fileless seed on stale')), 'never a sweep input')
+  // the Nit arm of the severity default lands on notes with the same reason
+  const nitArgs = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [{ ...held, severity: 'Nit', title: 'fileless nit on stale' }] },
+  ] })
+  const nit = await runPhase(nitArgs, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  const noted = (nit.out.notes || []).find(n => n && n.title === 'fileless nit on stale')
+  assert.ok(noted && /^demote:fileless/.test(noted.demoteReason || ''), 'the Nit fileless seed takes the note default with demote:fileless')
+  // the severity-default follow-up arm: a Minor seed with no fix and no disposition files via judgeHeldRow, logged as the severity default
+  const dflt = { severity: 'Minor', title: 'default-minor seed on stale', file: 'skills/st.js', rationale: 'r' }
+  const dArgs = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [dflt] },
+  ] })
+  const d = await runPhase(dArgs, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  assert.ok((d.out.minorsFiled || []).some(m => m && m.title === 'default-minor seed on stale'), 'a Minor seed with no fix files under the severity default')
+  assert.ok(d.logs.some(l => typeof l === 'string' && l.includes('held row "default-minor seed on stale"') && l.includes('is a follow-up (the severity default)')), 'the log names the severity-default cause')
 })
 
 test('absorb-budget (D5, snipe: three seats): a task that RAN with a failed probe and then escalated keeps null at the drain — its seeded barrier-less follow-up files WITH floorSkipped, never rerouted', async () => {
