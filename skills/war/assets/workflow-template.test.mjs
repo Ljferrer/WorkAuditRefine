@@ -13656,14 +13656,15 @@ test('absorb-budget (D5, #2036): a seeded held row is judged by disposition befo
 
 test('absorb-budget (D5, snipe: correctness): a seeded held row WITHOUT a task key is minted with the task id, so the dedup key matches a fresh copy and the held duplicate is dropped, never double-queued', async () => {
   const taskless = { severity: 'Nit', title: 'fresh nit', file: 'skills/war/assets/x.js', rationale: 'r', autoFixable: true }   // no task, no seat: the documented seed shape
+  const foreign = { severity: 'Nit', title: 'fresh nit', file: 'skills/war/assets/x.js', rationale: 'r', autoFixable: true, task: 'p3-t1' }   // a worktree-dialect task id: the stamp must win
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'fresh nit' })]), approveWith('audit:t1:correctness', [])] },
     aceBase([]))
-  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [taskless] }] })
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [taskless, foreign] }] })
   const { out, calls, logs } = await runPhase(args, impl)
   const ace = calls.find(isAce)
   assert.ok(ace, 'the ace batch dispatched')
-  assert.equal((ace.prompt.match(/fresh nit/g) || []).length, 1, 'the taskless seed dedups against the fresh copy (same content key once task is stamped)')
+  assert.equal((ace.prompt.match(/fresh nit/g) || []).length, 1, 'the taskless AND the foreign-task seeds dedup against the fresh copy (the stamped task id wins)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "fresh nit" (task t1) is a duplicate')), 'the drop is logged with the stamped task id')
   assert.equal((out.aced || []).filter(a => a && a.finding && a.finding.title === 'fresh nit').length, 1, 'one aced record')
 })
