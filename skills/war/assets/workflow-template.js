@@ -1588,12 +1588,15 @@ const remintBlock = f => {
   if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands'
   return null
 }
+// Seat ref (D8) — the ONE renderer for every seats list and filing row: seat+task when both are
+// present; seat alone; 'task <id>' fallback; the 'unattributed' terminal arm for seatless, taskless
+// rows is a LIVE contract the filing prompt's Evidence-artifacts clause names verbatim — any change
+// to this arm changes that clause (and its file-followups.md mirror) in the same commit. The follow-up
+// consolidation block below calls this helper too (snipe: simplicity — the scoped mirror is gone).
 // Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
 // record lives in minorsFiled (or on an aced record's finding) merges the SECOND seat onto the
-// surviving row's seats list — never dropped, never double-filed. Entry shape mirrors the filing
-// consolidation's seatRef contract (seat+task, both when present; that block is scoped below, so
-// the shape is inlined here — change both together). The survivor's own ref seeds the list so the
-// handoff's seats rendering never loses the first raiser.
+// surviving row's seats list — never dropped, never double-filed. The survivor's own ref seeds the
+// list so the handoff's seats rendering never loses the first raiser.
 const seatRefOf = f => f.seat != null
   ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
   : (f.task != null ? 'task ' + f.task : 'unattributed')
@@ -4888,20 +4891,14 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   const FOLLOWUP_LINE_WINDOW = 10
   const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   // Concatenation-built strings throughout this block (census-safe — #931).
-  // seatRef (D8): seat+task when both are present; seat alone; 'task <id>' fallback; the
-  // 'unattributed' terminal arm for seatless, taskless rows is a LIVE contract the filing prompt's
-  // Evidence-artifacts clause names verbatim — any change to this arm changes that clause (and its
-  // file-followups.md mirror) in the same commit.
-  const seatRef = f => f.seat != null
-    ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
-    : (f.task != null ? 'task ' + f.task : 'unattributed')
+  // seatRefOf (module-level, D8) renders every seat ref here — one helper, no scoped mirror.
   // Array.isArray (not truthiness): auditor-supplied JSON can carry a non-array `seats` key — a
   // string would throw on .push/.includes below, and a throw here is caught only by the TOP-LEVEL
   // held:workflow-error catch (the sole try enclosing this block), converting a LANDED phase into
   // held:workflow-error.
   // .length too (snipe: three seats): an auditor-supplied `seats: []` must fall back to the row's own
   // ref, or the same-seat guard is vacuous and the merge carries nothing — mergeSeat's own rule.
-  const seatsOf = c => (Array.isArray(c.seats) && c.seats.length) ? c.seats : [seatRef(c)]
+  const seatsOf = c => (Array.isArray(c.seats) && c.seats.length) ? c.seats : [seatRefOf(c)]
   const collapsed = []
   for (const f of minorsFiled) {
     // Both sides read through seatsOf (snipe: correctness): a merged-away row may already carry a
@@ -4917,7 +4914,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
       // the container AND drops auditor-supplied non-object elements at the single write point.
       hit.merged = mergedRowsOf(hit)
-      hit.merged.push({ seat: seatRef(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
+      hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {
@@ -4989,7 +4986,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
       // the row down the seatRef fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRefOf(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
