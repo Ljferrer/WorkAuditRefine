@@ -2761,7 +2761,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // parks (never dropped by a collision, never committed by an ace worker), a seat-set follow-up
         // files as stated, a note notes, and a non-Minor/Nit severity is refused (a seeded Critical or
         // Major never rides an ace batch — the seed is a held ABSORB by contract).
-        // Unreachable by construction (class-8 entry validation pins Minor|Nit); kept as the defensive arm.
+        // ponytail: unreachable by construction (class-8 entry validation pins Minor|Nit); kept as the defensive arm.
         if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ace batch and recorded on notes (never silent).'); notes.push(f); continue }
         const hd = intakeFloor(f, dispositionOf(f, diff), diff)
         if (hd === 'ask') { parkAsk(f); continue }
