@@ -1507,14 +1507,17 @@ const judgeHeldRow = (f, taskId, diff, sink) => {
 // over EVERY task in `done` — a task with a wave result AND a task that entered `done` before
 // nextWave() (barrier preMerged, staleRemote env-blocked, dep-failed pre-check, post-loop
 // unrunnable-deps) — so a relaunch-seeded held row on a task that never runs a wave is never
-// dropped silently. `succeeded` ⇒ the phase-close sweep at the merged tip; else demote:absorb-blocked.
-// splice(0) empties the field, so a second call over the same task is a no-op.
+// dropped silently. After judgeHeldRow, a fileless absorb takes the severity default
+// (demote:fileless), a content-key duplicate within the batch is dropped (logged), and the rest
+// go to the phase-close sweep at the merged tip (`succeeded`) or demote:absorb-blocked (never
+// merged). splice(0) empties the field, so a second call over the same task is a no-op.
 const drainHeldAbsorbs = (t, verdict) => {
   // Each row is minted with the task id and judged like a fresh seat row FIRST (snipe: test-fidelity
   // Major) — a never-ran task never reached aceStage's fold, so this drain is the only judgment a
   // relaunch-seeded ask / follow-up / note ever gets: an ask parks (never an absorb the polish
   // worker executes, #1550), a follow-up files, a note notes, a registry hit corroborates, and only
-  // a true absorb reaches the sweep (succeeded) or demote:absorb-blocked (never merged).
+  // a true absorb goes on: fileless ⇒ demote:fileless, an in-batch duplicate ⇒ dropped (logged),
+  // else the sweep (succeeded) or demote:absorb-blocked (never merged).
   const held = (Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []).map(raw => ({ ...raw, task: t.id }))
   if (!held.length) return
   // A task that NEVER registered a probe (never ran a wave: barrier preMerged, staleRemote, dep-
