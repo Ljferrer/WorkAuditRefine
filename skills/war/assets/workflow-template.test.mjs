@@ -13843,6 +13843,19 @@ test('absorb-budget (D5, #2034, snipe: correctness): a FILELESS seed on a never-
   assert.ok(row && /^demote:fileless/.test(row.demoteReason || ''), 'the fileless seed demotes with demote:fileless')
 })
 
+test('absorb-budget (D5, snipe: three seats): a task that RAN with a failed probe and then escalated keeps null at the drain — its seeded barrier-less follow-up files WITH floorSkipped, never rerouted', async () => {
+  const seeded = { severity: 'Minor', title: 'seeded barrierless on probe-failed', file: 'skills/war/assets/x.js', rationale: 'r', suggested_fix: 'do it', disposition: 'follow-up' }
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high', findings: [] }
+    return aceBase([])(prompt, opts)
+  }
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [seeded] }] })
+  const { out, calls } = await runPhase(args, impl)   // no PROBE ⇒ the harness probe returns { detail } ⇒ diffFilesByTask has t1 → null
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'diff-probe'), 'presence guard: the probe dispatched (and failed)')
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'seeded barrierless on probe-failed')
+  assert.ok(row && row.floorSkipped === true && !row.demoteReason, 'the row files as stated with the floorSkipped stamp (probe failed ≠ never ran)')
+})
+
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }

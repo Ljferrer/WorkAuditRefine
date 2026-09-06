@@ -1517,11 +1517,13 @@ const drainHeldAbsorbs = (t, verdict) => {
   // a true absorb reaches the sweep (succeeded) or demote:absorb-blocked (never merged).
   const held = (Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []).map(raw => ({ ...raw, task: t.id }))
   if (!held.length) return
-  // A never-ran task has no diff probe. An EMPTY Set (not null) keeps the D1 absorb default for a
-  // fully specified seed that carries no disposition field: every row is out-of-diff by
-  // construction, so it reads absorb + phaseClose:true, never the severity default that would drop
-  // a Nit onto notes (snipe: cascading-impact, test-fidelity Majors).
-  const diff = diffFilesOf(t) ?? new Set()
+  // A task that NEVER registered a probe (never ran a wave: barrier preMerged, staleRemote, dep-
+  // failed, unrunnable-deps) judges over an EMPTY Set: every row is out-of-diff by construction, so
+  // a fully specified seed with no disposition field keeps the D1 absorb default instead of falling
+  // to the severity default that would drop a Nit onto notes (snipe: two Majors). A task that RAN
+  // and whose probe failed keeps null, so intakeFloor's probe-absent arm still logs the skip and
+  // stamps floorSkipped on a filed row — the two states are distinct by contract (snipe: three seats).
+  const diff = diffFilesByTask.has(t.id) ? diffFilesOf(t) : new Set()
   const absorbs = []
   for (const f of held) {
     queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
