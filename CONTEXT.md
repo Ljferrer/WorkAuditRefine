@@ -941,8 +941,9 @@ merged-sweep demote arm): the polish panel's absorbs plus what the sweep left un
 through `aceEligible`, land as ONE `Ace-Charge` commit at the post-polish tip; a regression is
 forward-reverted, then the rows carry (non-final) or demote `demote:absorb-regressed` (final); an
 unlanded or seat-raised absorb demotes `demote:terminal-pass` (final); it
-convenes with `run.ace` off and never budget-blocks.
-_Avoid_: a second pass; reading its charge as a gate; a release-slot file in its commit.
+convenes with `run.ace` off and never budget-blocks. Its second filter is the phase-scoped sweep
+exclusion map: a row whose file the map owns demotes `demote:exclusion-set` and is never committed.
+_Avoid_: a second pass; reading its charge as a gate; a release-slot or exclusion-owned file in its commit.
 
 **Carried queue**:
 The absorb rows a phase could not land and did not demote — a held phase's whole queue, a
