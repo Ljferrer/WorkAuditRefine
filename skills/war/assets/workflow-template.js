@@ -2920,7 +2920,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         for (const f of aceable) {
           if (r.task.pendingAbsorbs.some(h => remintKey(h) === remintKey(f))) continue
           queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
-          if (f.disposition == null) f.disposition = 'absorb'   // the row was classified absorb here; a later judgment with no probe must not fall to the severity default (snipe: two Majors)
+          f.disposition = 'absorb'   // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
           r.task.pendingAbsorbs.push(f)
         }
         log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')

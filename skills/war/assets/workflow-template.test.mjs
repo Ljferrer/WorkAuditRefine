@@ -13720,6 +13720,23 @@ test('absorb-budget (D5, snipe: simplicity/correctness): a seeded held row runs 
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('seeded barrierless follow-up') && /rerout/i.test(l)), 'the floor reroute is logged')
 })
 
+test('absorb-budget (D5, snipe: test-fidelity Major): a floor-rerouted NOTE that is then held by open blockers carries disposition:absorb on the hold, so the drain sweeps it instead of noting it', async () => {
+  // in-diff note with a fix → intakeFloor reroutes to absorb → aceable → HELD (open Major) → the task merges with the row still held → drain
+  const rerouted = { severity: 'Nit', title: 'rerouted note then held', file: 'skills/war/assets/x.js', rationale: 'r', suggested_fix: 'do it', disposition: 'note' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) return approveBesideMajor([rerouted])
+    return sweepBase([])(prompt, opts)
+  }
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl, PROBE)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('note with a specified fix rerouted') && l.includes('rerouted note then held')), 'presence guard: the floor rerouted the note')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 merged with 1 held absorb(s)')), 'presence guard: the row was held and drained')
+  const aced = (out.aced || []).find(a => a && a.finding && a.finding.title === 'rerouted note then held')
+  assert.ok(aced && aced.sha === 'polishsha', 'the held row aces at the polish sha via the sweep')
+  assert.equal(aced.finding.disposition, 'absorb', 'the hold stamped disposition:absorb over the seat-set note')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'rerouted note then held'), 'never dropped onto notes')
+})
+
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
 // blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
 const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',
