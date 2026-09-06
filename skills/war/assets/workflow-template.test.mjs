@@ -12328,6 +12328,8 @@ test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor r
   assert.deepEqual(survivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)'], 'mergeSeat seeds the survivor\'s own ref then appends the raiser (the shared seats-list merge)')
   h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:style' })
   assert.equal(survivor.seats.length, 2, 'a same-seat re-raise never appends (the includes short-circuit)')
+  h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:x', seats: ['audit:t9:x (task t9)', 'audit:t9:y (task t9)', 'audit:t9:style (task t9)'] })
+  assert.deepEqual(survivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)', 'audit:t9:x (task t9)', 'audit:t9:y (task t9)'], 'a dropped copy that already carries a seats list contributes every ref it holds, deduped (snipe: correctness)')
   h.corroborateSurvivor({ severity: 'Nit', task: 't9', title: 'orphan', file: 'skills/z.js', seat: 'audit:t9:style' })
   assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('corroboration: no surviving record found for re-mint "orphan"')), 'an unresolvable re-mint is logged')
 })

@@ -1606,8 +1606,9 @@ const liveTaskRecords = new Set()
 // tail's ace-batch arm), so no collision loses a raiser.
 const mergeSeat = (hit, f) => {
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
-  const ref = seatRefOf(f)
-  if (!hit.seats.includes(ref)) hit.seats.push(ref)
+  // A dropped copy may itself carry a merged seats list (a held row that already corroborated a
+  // second raiser rides the relaunch seed with it) — carry every ref, never just the head raiser.
+  for (const ref of (Array.isArray(f.seats) && f.seats.length ? f.seats : [seatRefOf(f)])) if (!hit.seats.includes(ref)) hit.seats.push(ref)
 }
 const corroborateSurvivor = f => {
   const k = remintKey(f)
