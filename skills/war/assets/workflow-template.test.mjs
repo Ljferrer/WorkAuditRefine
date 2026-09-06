@@ -4412,11 +4412,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly nine dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: nine dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4439,8 +4439,10 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   // 7 → 8 (#2036, absorb-budget D5): aceStage's held-row fold judges a relaunch-seeded
   // tasks[].pendingAbsorbs row by disposition before the absorb chain — its dispositionOf site
   // carries the ask arm first (parkAsk), then the fileless/aceEligible/run.ace/phaseClose chain.
-  assert.equal(sites.length, 8,
-    `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  // 8 → 9 (snipe: test-fidelity Major, #2034): drainHeldAbsorbs judges a seeded row on a task that
+  // never ran a wave the same way — ask arm first (parkAsk), then routeToSweep / demote as its chain.
+  assert.equal(sites.length, 9,
+    `the floored order-census domain is exactly NINE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
     const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
@@ -13764,6 +13766,23 @@ test('absorb-budget (D5, #2034, never ran a wave — preMerged): a relaunch-seed
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('seeded on pre-merged') && l.includes('held absorb — the task merged')),
     'the held row is routed to the phase-close sweep')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('seeded on pre-merged') && l.includes('demote:absorb-blocked')), 'a succeeded task never demotes its held rows')
+})
+
+test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
+  const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
+  const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }
+  const note = { severity: 'Nit', title: 'seeded note on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'note', seat: 'audit:t1:correctness' }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [ask, fu, note] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] })
+  const { out, calls, logs } = await runPhase(args, barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.ok(out.landed.includes('t1'), 'presence guard: t1 is the pre-merged task')
+  assert.ok((out.asks || []).some(a => a && a.question === 'keep or drop?' && a.finding && a.finding.title === 'seeded ask on pre-merged'), 'the seeded ask parks (never an absorb)')
+  assert.ok(!calls.some(c => (c.opts.label || '').startsWith('polish:') && c.prompt.includes('seeded ask on pre-merged')), 'the ask never reaches a polish worker prompt')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('seeded ask on pre-merged') && l.includes('Re-entry routing')), 'the ask is never routed to the sweep')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'seeded follow-up on pre-merged' && !m.demoteReason), 'the seeded follow-up files as stated')
+  assert.ok((out.notes || []).some(n => n && n.title === 'seeded note on pre-merged'), 'the seeded note notes')
 })
 
 test('absorb-budget (D5, #2034, never ran a wave — staleRemote): a relaunch-seeded held row on a task classified env-blocked by the barrier demotes with demote:absorb-blocked naming the env-blocked verdict — logged, never dropped', async () => {

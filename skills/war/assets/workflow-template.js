@@ -1492,14 +1492,32 @@ const routeToSweep = (f, why) => {
 // dropped silently. `succeeded` ⇒ the phase-close sweep at the merged tip; else demote:absorb-blocked.
 // splice(0) empties the field, so a second call over the same task is a no-op.
 const drainHeldAbsorbs = (t, verdict) => {
-  const held = Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []
+  // Each row is minted with the task id and judged like a fresh seat row FIRST (snipe: test-fidelity
+  // Major) — a never-ran task never reached aceStage's fold, so this drain is the only judgment a
+  // relaunch-seeded ask / follow-up / note ever gets: an ask parks (never an absorb the polish
+  // worker executes, #1550), a follow-up files, a note notes, a registry hit corroborates, and only
+  // a true absorb reaches the sweep (succeeded) or demote:absorb-blocked (never merged).
+  const held = (Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []).map(raw => ({ ...raw, task: t.id }))
   if (!held.length) return
+  const diff = diffFilesOf(t)
+  const absorbs = []
+  for (const f of held) {
+    queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
+    const hd = intakeFloor(f, dispositionOf(f, diff), diff)
+    if (hd === 'ask') { parkAsk(f); continue }
+    const hb = (hd === 'follow-up' || hd === 'absorb') ? remintBlock(f) : null
+    if (hb) { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + t.id + ') — ' + hb + '; not recorded again (logged, never silent).'); corroborateSurvivor(f); continue }
+    if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + t.id + ') is a seat-set follow-up — filed, never a sweep input.'); continue }
+    if (hd === 'note') { notes.push(f); continue }
+    absorbs.push(f)
+  }
+  if (!absorbs.length) return
   if (succeeded.has(t.id)) {
-    log('absorb-budget: task ' + t.id + ' merged with ' + held.length + ' held absorb(s) and no later approve (verdict ' + verdict + ') — routing them to the phase-close sweep.')
-    for (const f of held) routeToSweep(f, 'held absorb — the task merged before a later approve could ace it')
+    log('absorb-budget: task ' + t.id + ' merged with ' + absorbs.length + ' held absorb(s) and no later approve (verdict ' + verdict + ') — routing them to the phase-close sweep.')
+    for (const f of absorbs) routeToSweep(f, 'held absorb — the task merged before a later approve could ace it')
   } else {
-    log('absorb-budget: task ' + t.id + ' never merged (verdict ' + verdict + ') — ' + held.length + ' held absorb(s) demote with demote:absorb-blocked.')
-    for (const f of held) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never merged (verdict ' + verdict + '; open blocking findings held the ace batch and no later approve came)')
+    log('absorb-budget: task ' + t.id + ' never merged (verdict ' + verdict + ') — ' + absorbs.length + ' held absorb(s) demote with demote:absorb-blocked.')
+    for (const f of absorbs) demote(f, 'follow-up', 'demote:absorb-blocked — held absorb on a task that never merged (verdict ' + verdict + '; open blocking findings held the ace batch and no later approve came)')
   }
 }
 // The exit verdict a task carries when it produced no wave result: its latest auditLog entry
