@@ -1607,11 +1607,14 @@ const liveTaskRecords = new Set()
 // Seats-list merge (snipe: correctness): the dropped copy's raiser joins the survivor's seats list —
 // shared by corroborateSurvivor and the in-batch duplicate drops (the never-ran drain and the absorb
 // tail's ace-batch and phase-close arms), so no collision loses a raiser.
+// The ONE seats-list reader (snipe: three seats): a non-empty seats array, else the row's own ref.
+// An auditor-supplied `seats: []` therefore never erases a raiser, on either side of a merge.
+const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : [seatRefOf(f)]
 const mergeSeat = (hit, f) => {
-  if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
+  hit.seats = seatsListOf(hit)
   // A dropped copy may itself carry a merged seats list (a held row that already corroborated a
   // second raiser rides the relaunch seed with it) — carry every ref, never just the head raiser.
-  for (const ref of (Array.isArray(f.seats) && f.seats.length ? f.seats : [seatRefOf(f)])) if (!hit.seats.includes(ref)) hit.seats.push(ref)
+  for (const ref of seatsListOf(f)) if (!hit.seats.includes(ref)) hit.seats.push(ref)
 }
 const corroborateSurvivor = f => {
   const k = remintKey(f)
@@ -4896,9 +4899,9 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // string would throw on .push/.includes below, and a throw here is caught only by the TOP-LEVEL
   // held:workflow-error catch (the sole try enclosing this block), converting a LANDED phase into
   // held:workflow-error.
-  // .length too (snipe: three seats): an auditor-supplied `seats: []` must fall back to the row's own
-  // ref, or the same-seat guard is vacuous and the merge carries nothing — mergeSeat's own rule.
-  const seatsOf = c => (Array.isArray(c.seats) && c.seats.length) ? c.seats : [seatRefOf(c)]
+  // seatsListOf (module level) reads every seats list here — the same rule mergeSeat applies, so an
+  // auditor-supplied `seats: []` never makes the same-seat guard vacuous.
+  const seatsOf = seatsListOf
   const collapsed = []
   for (const f of minorsFiled) {
     // Both sides read through seatsOf (snipe: correctness): a merged-away row may already carry a

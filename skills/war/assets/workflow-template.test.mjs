@@ -5878,6 +5878,21 @@ test('follow-up consolidation (multi-ref merged-away row, snipe: correctness): a
   const r3 = await runPhase(args, impl3)
   assert.equal(r3.out.minorsFiled.length, 1, 'the empty-seats row still collapses')
   assert.deepEqual(r3.out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'], 'the empty-seats row contributes its own ref (never lost)')
+  // survivor side: the REPRESENTATIVE carries `seats: []` — its own raiser still seeds the list (mergeSeat reads both sides through seatsListOf)
+  const impl4 = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const f = (opts.label || '').endsWith(':correctness')
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100, seats: [] }
+        : { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105 }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const r4 = await runPhase(args, impl4)
+  assert.equal(r4.out.minorsFiled.length, 1, 'the pair collapses')
+  assert.deepEqual(r4.out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'], 'a representative carrying an empty seats array keeps its own raiser (survivor side of mergeSeat)')
 })
 
 test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
@@ -12356,7 +12371,7 @@ const registrySlice = () => {
   // (the D2 registry rows deepEqual them).
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
-    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
   const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
@@ -12377,6 +12392,9 @@ test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor r
   assert.deepEqual(survivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)'], 'mergeSeat seeds the survivor\'s own ref then appends the raiser (the shared seats-list merge)')
   h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:style' })
   assert.equal(survivor.seats.length, 2, 'a same-seat re-raise never appends (the includes short-circuit)')
+  const emptySurvivor = { severity: 'Nit', task: 't9', title: 'empty', file: 'skills/e.js', seat: 'audit:t9:correctness', seats: [] }
+  h.mergeSeat(emptySurvivor, { ...emptySurvivor, seat: 'audit:t9:style', seats: [] })
+  assert.deepEqual(emptySurvivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)'], 'an empty seats array on EITHER side falls back to that row\'s own ref (seatsListOf, snipe: three seats)')
   h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:x', seats: ['audit:t9:x (task t9)', 'audit:t9:y (task t9)', 'audit:t9:style (task t9)'] })
   assert.deepEqual(survivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)', 'audit:t9:x (task t9)', 'audit:t9:y (task t9)'], 'a dropped copy that already carries a seats list contributes every ref it holds, deduped (snipe: correctness)')
   h.corroborateSurvivor({ severity: 'Nit', task: 't9', title: 'orphan', file: 'skills/z.js', seat: 'audit:t9:style' })
