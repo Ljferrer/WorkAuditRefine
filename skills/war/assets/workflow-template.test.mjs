@@ -4412,11 +4412,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly nine dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: nine dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4437,13 +4437,13 @@ test('#1550 (D7) — ask order-census: nine dispositionOf sites with ask precedi
   // route through routeTerminalMinors — its dispositionOf site carries the ask arm first (parkAsk),
   // then carriedPhaseClose / demote:terminal-pass as its absorb chain.
   // 7 → 8 (#2036, absorb-budget D5): aceStage's held-row fold judges a relaunch-seeded
-  // tasks[].pendingAbsorbs row by disposition before the absorb chain — its dispositionOf site
-  // carries the ask arm first (parkAsk), then the fileless/aceEligible/run.ace/phaseClose chain.
-  // 8 → 9 (snipe: test-fidelity Major, #2034): drainHeldAbsorbs judges a seeded row on a task that
-  // never ran a wave the same way — ask arm first (parkAsk), then routeToSweep / demote as its chain.
-  assert.equal(sites.length, 9,
-    `the floored order-census domain is exactly NINE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
-  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(/
+  // tasks[].pendingAbsorbs row by disposition before the absorb chain. 8 → 9 (#2034): the never-ran
+  // drain judged its rows the same way. 9 → 8 (snipe: simplicity): both folds now call ONE helper,
+  // judgeHeldRow — its dispositionOf site carries the ask arm first (parkAsk), then the registry
+  // consult / fileFollowUp / notes as its chain; the callers route only the returned 'absorb'.
+  assert.equal(sites.length, 8,
+    `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(|fileFollowUp\(/
   for (let k = 0; k < sites.length; k++) {
     // Wall (snipe: three seats, after #2060 dropped the byte cap): the EARLIER of the next site and the
     // enclosing top-level construct's close — the first `}` at column 0 after the site (a col-0 function
