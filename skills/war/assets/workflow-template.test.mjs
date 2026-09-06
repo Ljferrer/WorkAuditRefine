@@ -4297,6 +4297,20 @@ test('demotion ladder: findings on a never-approved task demote to follow-up and
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('never reached the approve branch')), 'the demotion is log()ged')
 })
 
+test('escalation arm — a seat-raised follow-up on a task that never reached the approve branch files with floorSkipped AND a log line naming the stamp (#2050: every skip is logged)', async () => {
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') {
+      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high',
+        findings: [{ severity: 'Minor', title: 'follow-up on escalated task', file: 'docs/e.md', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified' }] }
+    }
+    return aceBase([])(prompt, opts)
+  }
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'follow-up on escalated task')
+  assert.ok(row && row.floorSkipped === true, 'the filed row carries the floorSkipped stamp')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('escalation arm: seat-raised follow-up "follow-up on escalated task"') && l.includes('floorSkipped')), 'the stamp is logged (never a silent skip)')
+})
+
 // ---------------------------------------------------------------------------
 // The ask channel (#1550, ADR 0013 amendment 2026-08-25 — End states 1+2):
 // disposition:'ask' parks on asks[] at every dispositionOf site (ask arm preceding the absorb

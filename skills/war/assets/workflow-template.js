@@ -3495,7 +3495,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of taskMinors) {
         const d = dispositionOf(f, null)   // no floor on the escalation arm: nothing lands this phase for the task
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f) }   // no intake floor ran here: stamp the floor-skip so the filed row carries demote:floor-skipped
+        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped — no intake floor ran on a task that never reached the approve branch (the filed row carries demote:floor-skipped).') }   // #2050: the stamp site is never silent
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
       }
       if (r.verdict === 'env-blocked') {
