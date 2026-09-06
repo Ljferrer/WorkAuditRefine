@@ -2744,7 +2744,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // files as stated, a note notes, and a non-Minor/Nit severity is refused (a seeded Critical or
         // Major never rides an ace batch — the seed is a held ABSORB by contract).
         if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ace batch and recorded on notes (never silent).'); notes.push(f); continue }
-        const hd = dispositionOf(f, diffFilesByTask.get(r.task.id) ?? null)
+        const hd = dispositionOf(f, diff)
         if (hd === 'ask') { parkAsk(f); continue }
         if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a seat-set follow-up — filed, never an ace input.'); continue }
         if (hd === 'note') { notes.push(f); continue }
