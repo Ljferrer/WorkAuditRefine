@@ -13738,6 +13738,26 @@ test('absorb-budget (D5, snipe: test-fidelity Major): a floor-rerouted NOTE that
   assert.ok(!(out.notes || []).some(n => n && n.title === 'rerouted note then held'), 'never dropped onto notes')
 })
 
+test('absorb-budget (D5, snipe: cascading-impact): two seats raising one absorb on a blocker-held task hold ONE row whose seats list names both raisers, logged', async () => {
+  const row = { severity: 'Nit', title: 'held twice', file: 'skills/h2.js', rationale: 'r', disposition: 'absorb' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) {
+      return label.endsWith(':correctness')
+        ? approveBesideMajor([row])
+        : { seat: label, lens: 'simplicity', verdict: 'approve', confidence: 'high', findings: [{ ...row }] }
+    }
+    return sweepBase([])(prompt, opts)
+  }
+  // the TASK roster picks the wave seats (audit.roster is the default/polish roster) — two seats here
+  const { out, logs } = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('aceable row "held twice"') && l.includes('duplicate of a row already held')), 'the second copy\'s drop is logged')
+  const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'held twice')
+  assert.equal(aced.length, 1, 'one record for the finding once the merged-with-held drain sweeps it')
+  const seats = aced[0].finding.seats || []
+  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'the held row names both raisers')
+})
+
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
 // blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
 const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',

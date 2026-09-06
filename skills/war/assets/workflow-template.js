@@ -2933,7 +2933,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // demote:absorb-blocked (the merge-queue drain below). Never dropped silently.
         r.task.pendingAbsorbs = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : []
         for (const f of aceable) {
-          if (r.task.pendingAbsorbs.some(h => remintKey(h) === remintKey(f))) continue
+          const dupH = r.task.pendingAbsorbs.find(h => remintKey(h) === remintKey(f))
+          if (dupH) { log('absorb-budget: aceable row "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already held — the second copy is dropped, its seat corroborated onto the held row (logged, never silent).'); mergeSeat(dupH, f); continue }   // the third in-batch duplicate drop, converted like its two siblings (snipe: cascading-impact)
           queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
           f.disposition = 'absorb'   // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
           r.task.pendingAbsorbs.push(f)
