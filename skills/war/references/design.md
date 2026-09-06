@@ -91,7 +91,7 @@ Per-role models are the `war-config.mjs` DEFAULTS (the authority — `DEFAULTS.a
 - **Changes:** durable state → GitHub issues + a JSON ledger; propulsion → Workflow control flow (no polling); auditor read-only → tool restriction (Read/Grep/Glob + a fail-closed guard restricting Bash to read-only git) instead of detached-checkout-push-unset; the merge queue → a serial Workflow loop instead of batch-then-bisect.
 
 ## 11. Validation criteria
-- Lead never edits code (only orchestrates/gates). · Auditors cannot write/commit/push. · A task can't merge with an open Critical/Major, without a green gate, or before unanimous audit on one SHA. · "Green by deletion" is caught and escalated. · A killed Lead resumes from ledger + issues. · Each phase lands as one `--no-ff` commit; the run ends in exactly one PR. · `/cost` < 3× a single-agent baseline.
+- Lead never edits code (only orchestrates/gates). · Auditors cannot write/commit/push. · A task can't merge with an open Critical/Major, without a green gate, or before unanimous audit on one SHA. · "Green by deletion" is caught and escalated. · A killed Lead resumes from ledger + issues. · Each phase lands as one `--no-ff` commit; the run ends in exactly one PR. · `/cost` reported per run from `/war-review` totals; the < 3× single-agent figure is the section 8 aspiration, not a gate.
 
 ## 12. Deferred (post-v1)
 Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concurrent phases · multi-repo · per-task GitHub PRs as the review surface · learned roster seeding (flagging high-blast-radius tasks from history).

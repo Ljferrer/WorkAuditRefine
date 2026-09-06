@@ -40,7 +40,7 @@ export const DEFAULTS = {
     // snipe: the model/effort /snipe spawns its one-shot auditor seats at (#1920). NOT a phase
     // role (never in ROLES/agentMatrix). Ladder at consumption (snipe-args.mjs snipeTier):
     // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Operator-set
-    // default: opus/high.
+    // default: opus/high, overridden by thorough (fable/default).
     snipe:    { model: 'opus',   effort: 'high' },
   },
   audit: {
@@ -108,9 +108,9 @@ export const PRESETS = {
     agents: {
       // worker tiers inherit DEFAULTS (fable/default on base, docs and fix).
       auditor:  { model: 'fable',  effort: 'default' },
-      // Refiner pinned one effort tier above the DEFAULTS refiner (sonnet/high). Thorough is the
-      // fable-everywhere preset: auditor, red-team and snipe seats run fable at session effort,
-      // which is a model step up from balanced's opus/high on those axes, not an effort step up.
+      // Refiner pinned one effort tier above the DEFAULTS refiner (sonnet/high). Thorough runs
+      // fable at session effort on the auditor, red-team and snipe seats; refiner and servitor
+      // stay on sonnet and opus.
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
