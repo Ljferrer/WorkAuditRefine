@@ -2802,13 +2802,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless ' + who + ' takes the severity default (never ace-eligible)'); return 'fileless' }
         if (!aceEligible(f)) { demoteReleaseSlot(f); return 'release-slot' }
         if (!run.ace) { routeToSweep(f, (who === 'absorb' ? '' : who + ' with ') + 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)'); return 'ace-off' }
+        // The absorb tail's in-batch duplicate drop, sibling of the never-ran drain's: two seats raising
+        // one absorb put ONE row in the ace batch (in-diff) or ONE row in the phase-close queue
+        // (out-of-diff), the second raiser's seat merged onto the survivor (snipe: three seats).
         if (!f.phaseClose) {
-          // The fourth in-batch duplicate drop (snipe: correctness): two seats raising one absorb on an
-          // unblocked task put ONE row in the batch, the second raiser's seat merged onto it.
           const dupF = aceable.find(a => remintKey(a) === remintKey(f))
           if (dupF) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this ace batch — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).'); mergeSeat(dupF, f); return 'dropped' }
           aceable.push(f); return 'aceable'
         }
+        const dupQ = phaseCloseQueue.find(q => remintKey(q) === remintKey(f))
+        if (dupQ) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already queued for the phase-close sweep — the second copy is dropped, its seat corroborated onto the queued row (logged, never silent).'); mergeSeat(dupQ, f); return 'dropped' }
         queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f); return 'queued'   // stamps queuedKeys — a later re-audit re-mint never queues twice
       }
       for (const f of taskMinors) {

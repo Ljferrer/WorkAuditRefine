@@ -13783,6 +13783,22 @@ test('absorb-budget (D5, snipe: correctness): two seats raising one absorb on an
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "raised twice"') && l.includes('duplicate of a row already in this ace batch')), 'the drop is logged')
 })
 
+test('absorb-budget (D5, snipe: three seats): two seats raising one OUT-OF-DIFF absorb queue ONE phase-close row — one sweep prompt line, one aced record naming both raisers, the drop logged', async () => {
+  const row = { severity: 'Nit', title: 'queued twice', file: 'docs/outside.md', rationale: 'r', suggested_fix: 'do it' }   // omitted disposition + out-of-diff file ⇒ absorb + phaseClose:true
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', confidence: 'high', findings: [{ ...row }] }
+    return sweepBase([])(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), impl, PROBE)
+  assert.equal((polishPromptOf(calls).match(/queued twice/g) || []).length, 1, 'the sweep prompt lists the finding ONCE')
+  const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'queued twice')
+  assert.equal(aced.length, 1, 'one aced record at the polish sha')
+  const seats = aced[0].finding.seats || []
+  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'both raisers on the queued row')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "queued twice"') && l.includes('already queued for the phase-close sweep')), 'the drop is logged')
+})
+
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
 // blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
 const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',
