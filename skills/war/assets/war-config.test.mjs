@@ -1411,6 +1411,11 @@ test('drift-guard: README roles table, gastown role table and war SKILL.md defau
     ['skills/war/references/gastown-design-params.md', /^\| Nun \(Refinery audit gate\) \| `war-auditor` \| read-only `Agent` \((\w+)\)/m, 'auditor'],
     ['skills/war/SKILL.md', /\*\*defaults\*\* are `war-worker` = (\w+) at session effort/, 'worker'],
     ['skills/war/SKILL.md', /`war-auditor` = (\w+) on `(\w+)`, `war-refiner`/, 'auditor'],
+    // README /war-room intro and the "today's defaults" paragraph restate the same two facts.
+    ['README.md', /^By default WAR runs (\w+) workers at session effort and/m, 'worker'],
+    ['README.md', /^By default WAR runs \w+ workers at session effort and (\w+) auditors on `(\w+)`/m, 'auditor'],
+    ['README.md', /built-in `DEFAULTS`: (\w+) workers on `default` effort/, 'worker'],
+    ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'auditor'],
   ]
   for (const [rel, re, role] of rows) {
     const m = readDoc(rel).match(re)
