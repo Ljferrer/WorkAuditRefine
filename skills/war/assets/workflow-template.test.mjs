@@ -12323,6 +12323,9 @@ test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor r
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...g }] }])
   assert.equal(r.reentryQueue.length, 1, 'the re-mint never double-queues')
   assert.deepEqual(r.reentryQueue[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:style (task t1)'], 'the second seat joins the queued row\'s seats list (the per-task queue is searched)')
+  const survivor = { severity: 'Nit', task: 't9', title: 'kept', file: 'skills/k.js', seat: 'audit:t9:correctness' }
+  h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:style' })
+  assert.deepEqual(survivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)'], 'mergeSeat seeds the survivor\'s own ref then appends the raiser (the shared seats-list merge)')
   h.corroborateSurvivor({ severity: 'Nit', task: 't9', title: 'orphan', file: 'skills/z.js', seat: 'audit:t9:style' })
   assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('corroboration: no surviving record found for re-mint "orphan"')), 'an unresolvable re-mint is logged')
 })
@@ -13638,11 +13641,13 @@ test('absorb-budget (End state 4, held then approved): a row held on r.pendingAb
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [fresh]), approveWith('audit:t1:correctness', [])] },
     aceBase([]))
-  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held, { ...held }] }] })
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held, { ...held, seat: 'audit:t1:style' }] }] })
   const { out, calls, logs } = await runPhase(args, impl)
   const ace = calls.find(isAce)
   assert.ok(ace, 'the ace batch dispatched')
   assert.ok(ace.prompt.includes('held nit') && ace.prompt.includes('fresh nit'), 'the held row rides the batch beside the fresh row')
+  const acedHeld = (out.aced || []).find(a => a && a.finding && a.finding.title === 'held nit')
+  assert.ok(acedHeld && (acedHeld.finding.seats || []).some(s => /style/.test(s)), 'the dropped duplicate\'s seat is corroborated onto the surviving held row (mergeSeat, snipe: test-fidelity)')
   assert.equal((ace.prompt.match(/held nit/g) || []).length, 1, 'the duplicate held copy is deduped by content key')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) joins this approve')), 'the fold is logged')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) is a duplicate of a row already in this approve') && l.includes('the held copy is dropped')),
