@@ -1417,15 +1417,14 @@ const revertedKeys = new Set()
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
 // finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
 // re-enters the ladder and never files a second record: the filed record is the durable home; the
-// re-mint is corroboration (logged). Stamped at five sites: the round-1 approve-branch follow-up
-// arm, routeReauditMinors' follow-up arm, demote()'s minorsFiled push, and the phase-close sweep's
-// sweep-raised follow-up arm on BOTH the merged arm (the terminal pass's one re-audit seat is the
-// later window there) and the discard arm (no later window — the stamp is harmless surplus), plus
-// the escalation arm's DIRECT push (the never-ran drain's judgeHeldRow consults this registry AFTER
-// the merge queue, so a relaunch seed matching a just-filed row must find it — snipe: cascading-
-// impact). ONE direct push is NOT stamped: routeTerminalMinors' follow-up arm — no later re-audit
-// runs after it, so no re-mint window exists. Consultation sites: re-audit routing, the re-entry
-// drain, and the held-row judgment (judgeHeldRow — the ace fold and the never-ran drain) (#2066).
+// re-mint is corroboration (logged). Stamped by EVERY fileFollowUp caller (the round-1 approve-
+// branch arm, routeReauditMinors, routeGateAuditRows, judgeHeldRow — the ace fold and the never-ran
+// drain — and the phase-close sweep's merged and discard arms), by demote()'s minorsFiled push, and
+// by the escalation arm's DIRECT push (the never-ran drain's judgeHeldRow consults this registry
+// AFTER the merge queue, so a relaunch seed matching a just-filed row must find it). ONE direct push
+// is NOT stamped: routeTerminalMinors' follow-up arm — no later re-audit runs after it, so no re-mint
+// window exists. Consultation sites: re-audit routing, the re-entry drain, and the held-row judgment
+// (judgeHeldRow). No count word here — a new caller joins by calling fileFollowUp (#2066).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, and the
