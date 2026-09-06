@@ -5890,6 +5890,21 @@ test('follow-up consolidation (multi-ref merged-away row, snipe: correctness): a
     if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
     return handoffImpl(undefined)(prompt, opts)
   }
+  // same-seat guard through the rule: a second row from the SAME seat carrying `seats: []` reads its own ref, so it never collapses into that seat's row
+  const impl5 = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      if (!(opts.label || '').endsWith(':correctness')) return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [], confidence: 'high' }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', confidence: 'high', findings: [
+        { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 },
+        { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105, seats: [] },
+      ] }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }, { n: 2, issue: 43 }], clusters: [{ ordinals: [1], issue: 42 }, { ordinals: [2], issue: 43 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const r5 = await runPhase(args, impl5)
+  assert.equal(r5.out.minorsFiled.length, 2, 'a same-seat row with an empty seats array is judged by its own ref and never collapses (the .length arm of the guard)')
   const r4 = await runPhase(args, impl4)
   assert.equal(r4.out.minorsFiled.length, 1, 'the pair collapses')
   assert.deepEqual(r4.out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'], 'a representative carrying an empty seats array keeps its own raiser (survivor side of mergeSeat)')
