@@ -1420,11 +1420,12 @@ const revertedKeys = new Set()
 // re-mint is corroboration (logged). Stamped at five sites: the round-1 approve-branch follow-up
 // arm, routeReauditMinors' follow-up arm, demote()'s minorsFiled push, and the phase-close sweep's
 // sweep-raised follow-up arm on BOTH the merged arm (the terminal pass's one re-audit seat is the
-// later window there) and the discard arm (no later window — the stamp is harmless surplus). Two
-// DIRECT minorsFiled pushes are NOT stamped: the escalation arm and routeTerminalMinors' follow-up
-// arm — no later re-audit runs after either, so no re-mint window exists (their demote()-routed
-// siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
-// routing and re-entry drain) (#2066).
+// later window there) and the discard arm (no later window — the stamp is harmless surplus), plus
+// the escalation arm's DIRECT push (the never-ran drain's judgeHeldRow consults this registry AFTER
+// the merge queue, so a relaunch seed matching a just-filed row must find it — snipe: cascading-
+// impact). ONE direct push is NOT stamped: routeTerminalMinors' follow-up arm — no later re-audit
+// runs after it, so no re-mint window exists. Consultation sites: re-audit routing, the re-entry
+// drain, and the held-row judgment (judgeHeldRow — the ace fold and the never-ran drain) (#2066).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, and the
@@ -3608,7 +3609,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of taskMinors) {
         const d = dispositionOf(f, null)   // no floor on the escalation arm: nothing lands this phase for the task
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') { f.floorSkipped = true; minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped — no intake floor ran on a task that never reached the approve branch (the filed row carries demote:floor-skipped).') }   // #2050: the stamp site is never silent
+        else if (d === 'follow-up') { f.floorSkipped = true; filedKeys.add(remintKey(f)); minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped — no intake floor ran on a task that never reached the approve branch (the filed row carries demote:floor-skipped).') }   // #2050: the stamp site is never silent
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
       }
       if (r.verdict === 'env-blocked') {

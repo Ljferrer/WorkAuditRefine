@@ -13875,6 +13875,21 @@ test('absorb-budget (D5, snipe: three seats): a task that RAN with a failed prob
   assert.ok(row && row.floorSkipped === true && !row.demoteReason, 'the row files as stated with the floorSkipped stamp (probe failed ≠ never ran)')
 })
 
+test('absorb-budget (D5, snipe: cascading-impact): a seed matching a row the escalation arm just filed corroborates onto it — one minorsFiled row, never a second record through the never-ran drain', async () => {
+  const seat = { severity: 'Minor', title: 'filed at escalation', file: 'docs/e.md', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified' }
+  const seeded = { severity: 'Minor', title: 'filed at escalation', file: 'docs/e.md', rationale: 'r', disposition: 'absorb', seat: 'audit:t1:style' }
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high', findings: [seat] }
+    return aceBase([])(prompt, opts)
+  }
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [seeded] }] })
+  const { out, logs } = await runPhase(args, impl)
+  const rows = (out.minorsFiled || []).filter(m => m && m.title === 'filed at escalation')
+  assert.equal(rows.length, 1, 'exactly one filed row — the escalation push stamped filedKeys, so the drain\'s seed corroborates')
+  assert.ok((rows[0].seats || []).some(s => /style/.test(s)), 'the seed\'s seat joins the filed row')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "filed at escalation"') && l.includes('already filed')), 'the refusal is logged with the registry reason')
+})
+
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }
