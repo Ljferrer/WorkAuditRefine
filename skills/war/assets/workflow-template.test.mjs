@@ -12307,7 +12307,7 @@ const registrySlice = () => {
   // (the D2 registry rows deepEqual them).
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
-    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
   const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
@@ -13827,10 +13827,12 @@ test('absorb-budget (D5, #2034, snipe: two Majors): a BARE seed (suggested_fix, 
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a duplicate seed pair on a never-ran task drains to exactly ONE filed row — the second copy is dropped, logged', async () => {
   const held = { severity: 'Minor', title: 'dup seed on stale', file: 'skills/st.js', rationale: 'r', disposition: 'absorb', seat: 'audit:tStale:correctness' }
   const args = PROVISION_ARGS({ tasks: [
-    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held, { ...held }] },
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held, { ...held, seat: 'audit:tStale:style' }] },
   ] })
   const { out, logs } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
-  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'dup seed on stale').length, 1, 'exactly one filed row for the pair')
+  const dupRow = (out.minorsFiled || []).filter(m => m && m.title === 'dup seed on stale')
+  assert.equal(dupRow.length, 1, 'exactly one filed row for the pair')
+  assert.ok((dupRow[0].seats || []).some(s => /style/.test(s)), 'the dropped copy\'s seat is corroborated onto the survivor')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "dup seed on stale"') && l.includes('is a duplicate of a row already in this drain')), 'the drop is logged')
 })
 

@@ -1534,7 +1534,8 @@ const drainHeldAbsorbs = (t, verdict) => {
     queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
     if (!judgeHeldRow(f, t.id, diff, 'held-absorb drain', 'a drain input')) continue
     if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless held absorb takes the severity default (never sweep-eligible)'); continue }   // the guard every sibling router applies (snipe: correctness)
-    if (absorbs.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + t.id + ') is a duplicate of a row already in this drain — the second copy is dropped (logged, never silent).'); continue }
+    const dup = absorbs.find(a => remintKey(a) === remintKey(f))
+    if (dup) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + t.id + ') is a duplicate of a row already in this drain — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).'); mergeSeat(dup, f); continue }
     absorbs.push(f)
   }
   if (!absorbs.length) return
@@ -1600,6 +1601,13 @@ const seatRefOf = f => f.seat != null
 // producers that live on the task record, out of the module-level containers' reach — every router
 // that owns an r registers it here so corroborateSurvivor can search those two queues too.
 const liveTaskRecords = new Set()
+// Seats-list merge (snipe: correctness): the dropped copy's raiser joins the survivor's seats list —
+// shared by corroborateSurvivor and the two in-batch duplicate drops, so no collision loses a raiser.
+const mergeSeat = (hit, f) => {
+  if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
+  const ref = seatRefOf(f)
+  if (!hit.seats.includes(ref)) hit.seats.push(ref)
+}
 const corroborateSurvivor = f => {
   const k = remintKey(f)
   const hit = minorsFiled.find(m => remintKey(m) === k)
@@ -1609,9 +1617,7 @@ const corroborateSurvivor = f => {
     || terminalQueue.find(q => remintKey(q) === k)   // last: a resolved terminal row lives on aced/carried by then (#2069)
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
   if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return }
-  if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
-  const ref = seatRefOf(f)
-  if (!hit.seats.includes(ref)) hit.seats.push(ref)
+  mergeSeat(hit, f)
 }
 const routeReauditMinors = (r, seats, opts) => {
   liveTaskRecords.add(r)
@@ -2829,7 +2835,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // files, note notes, non-Minor/Nit refused. Only an 'absorb' reaches the tail below.
         if (!judgeHeldRow(f, r.task.id, diff, 'ace batch', 'an ace input')) continue
         // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
-        if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
+        const dupA = aceable.find(a => remintKey(a) === remintKey(f))
+        if (dupA) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped, its seat corroborated onto the survivor.'); mergeSeat(dupA, f); continue }
         const route = routeAbsorbTail(f, 'held absorb')
         if (route === 'aceable') log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
         else if (route === 'queued') log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is phaseClose:true — routed to the phase-close sweep, never the ace batch.')
