@@ -887,6 +887,22 @@ if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
 if (A.finalPhase !== undefined && typeof A.finalPhase !== 'boolean') {
   problems.push('workflow-template: args.finalPhase must be a boolean or absent (got ' + (A.finalPhase === null ? 'null' : typeof A.finalPhase) + ') — absent reads as final (D3a)')
 }
+//   (8) TASK-PENDING-ABSORBS class (#2037, absorb-budget D5) — tasks[].pendingAbsorbs is the Lead's
+//       relaunch seed of rows a blocker-held batch ace held at a prior launch: absent/null, or an
+//       array of finding rows ({ severity, title, file?, … }) — the class-6 shape. The ace prompt
+//       row interpolates severity bare, so an unvalidated seed without one would throw inside
+//       aceStage's fail-open catch and vanish; refuse at entry instead, naming the task and index.
+for (const [ti, t] of (Array.isArray(A.tasks) ? A.tasks : []).entries()) {
+  if (!t || t.pendingAbsorbs === undefined || t.pendingAbsorbs === null) continue
+  const at = 'args.tasks[' + ti + '].pendingAbsorbs'
+  if (!Array.isArray(t.pendingAbsorbs)) { problems.push('workflow-template: ' + at + ' must be an array of held finding rows or absent (got ' + typeof t.pendingAbsorbs + ') (D5)'); continue }
+  t.pendingAbsorbs.forEach((e, i) => {
+    if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (D5)'); return }
+    if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: ' + at + '[' + i + '].title must be a non-empty string (D5)')
+    if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: ' + at + '[' + i + '].severity must be a non-empty string (D5)')
+    if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: ' + at + '[' + i + '].file must be a repo-relative path string or null (D5)')
+  })
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 // finalPhase (D3a): absent reads as final. Logged once — the terminal pass and the discard/held carry
 // arms read it; the Lead records the threaded value per phase in the run manifest.
@@ -2717,8 +2733,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // writes r.task.pendingAbsorbs sits at the bottom of this same call, so no in-run hold reaches
       // this fold; its only live producer is relaunch-seeded args.tasks[].pendingAbsorbs, and the
       // end-of-queue held-absorb drain owns every in-run held row.
-      // Trust boundary: that seeded producer reaches no entry validation, so every held row passes
-      // the SAME routing chain as a fresh row above (fileless, aceEligible, run.ace, phaseClose)
+      // Trust boundary: that seeded producer is shape-validated at entry (class 8, #2037), and every
+      // held row passes the SAME routing chain as a fresh row above (fileless, aceEligible, run.ace, phaseClose)
       // before it may join aceable — a seeded release-slot row never rides an ace batch (PIN-11)
       // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []

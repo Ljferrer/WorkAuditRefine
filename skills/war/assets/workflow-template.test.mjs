@@ -13587,6 +13587,24 @@ test('absorb-budget (End state 4, distinct re-entry trailers): two successive re
   assert.ok(['second', 'third'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t)), 'both re-entry absorbs aced')
 })
 
+test('absorb-budget (D5, #2037): a malformed tasks[].pendingAbsorbs seed is refused at entry naming the task index and field — never a throw inside aceStage that drops the held rows silently', async () => {
+  const task = over => ({ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], ...over })
+  for (const [bad, msg] of [
+    ['nope', 'args.tasks[0].pendingAbsorbs must be an array'],
+    [['x'], 'args.tasks[0].pendingAbsorbs[0] must be a finding row object'],
+    [[{ severity: 'Nit' }], 'args.tasks[0].pendingAbsorbs[0].title must be a non-empty string'],
+    [[{ title: 'no severity', file: 'skills/a.js' }], 'args.tasks[0].pendingAbsorbs[0].severity must be a non-empty string'],
+    [[{ title: 't', severity: 'Nit', file: 5 }], 'args.tasks[0].pendingAbsorbs[0].file must be a repo-relative path string or null'],
+  ]) {
+    const r = await runPhase(ACE_ARGS({ tasks: [task({ pendingAbsorbs: bad })] }), aceBase([]))
+    assert.equal(r.out.landDecision, 'held:workflow-error', JSON.stringify(bad) + ' is refused at entry')
+    assert.ok(r.out.workflowError.message.includes(msg), 'the refusal names the field: ' + msg)
+    assert.equal(r.calls.length, 0, 'zero agents')
+  }
+  const ok = await runPhase(ACE_ARGS({ tasks: [task({ pendingAbsorbs: null })] }), aceBase([]))
+  assert.notEqual(ok.out.landDecision, 'held:workflow-error', 'null reads as absent')
+})
+
 test('absorb-budget (End state 4, held then approved): a row held on r.pendingAbsorbs by a blocker-held batch rides the NEXT approve\'s ace batch — aced, never minorsFiled', async () => {
   // The held state is seeded on the task (the shape the batch-ace hold writes); the fresh approve
   // folds it into the aceable set beside the round's own nit, deduped by content key.
