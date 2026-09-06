@@ -112,7 +112,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (cheaper agent tiers; roster policy, roundLimit, ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
+test('economy preset (sonnet review seats, opus workers; roster policy, roundLimit, ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'default')
@@ -123,6 +123,8 @@ test('economy preset (cheaper agent tiers; roster policy, roundLimit, ace, absor
   assert.equal(c.agents.refiner.effort, 'high')
   // The refiner pin equals DEFAULTS, so the resolved value cannot discriminate it — guard the pin itself.
   assert.deepEqual(PRESETS.economy.agents.refiner, { model: 'sonnet', effort: 'high' }, 'economy pins its refiner explicitly')
+  // Same hazard for the worker block: its effort pin equals DEFAULTS, so guard the literal, not the merge.
+  assert.deepEqual(PRESETS.economy.agents.worker, { model: 'opus', effort: 'default', docs: { model: 'opus', effort: 'default' } }, 'economy pins base + docs workers explicitly; fix is inherited')
   // pinned — DEFAULTS carries a 5-seat pool; economy keeps the historical quartet.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
@@ -221,6 +223,11 @@ test('agents.redteam is preset-populated: balanced opus/high in DEFAULTS, thorou
   const REDTEAM = { balanced: { model: 'opus', effort: 'high' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'sonnet', effort: 'default' } }
   for (const [preset, expected] of Object.entries(REDTEAM)) {
     assert.deepEqual(presetConfig(preset).agents.redteam, expected, `${preset} preset red-team must be ${JSON.stringify(expected)}`)
+  }
+  // Sibling per-preset table for the snipe tier: only thorough overrides it; balanced and economy inherit DEFAULTS.
+  const SNIPE = { balanced: { model: 'opus', effort: 'high' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'opus', effort: 'high' } }
+  for (const [preset, expected] of Object.entries(SNIPE)) {
+    assert.deepEqual(presetConfig(preset).agents.snipe, expected, `${preset} preset snipe tier must be ${JSON.stringify(expected)}`)
   }
   // A partial input that omits redteam still validates (the block is optional at the input layer;
   // fillDefaults injects the balanced default, and a missing config FILE still lets /red-team inherit).
@@ -1300,7 +1307,7 @@ test('resolveWidenSource: own-lens nomination is legal — widenRoster dedupes i
 
 test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent models (#10 Nit)', () => {
   // Extract the ROLE_MODEL literal from the template text.
-  // It looks like: const ROLE_MODEL = { worker: 'opus', auditor: 'sonnet', ... }
+  // It looks like: const ROLE_MODEL = { worker: 'fable', auditor: 'opus', ... }
   const match = templateText.match(/const\s+ROLE_MODEL\s*=\s*\{([^}]+)\}/)
   assert.ok(match, 'ROLE_MODEL not found in workflow-template.js')
   // Normalize single-quoted keys/values to double-quoted so JSON.parse can handle it.
@@ -1389,6 +1396,27 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
     // redteamRoundLimit's own default-3 prose never false-positives the assert.
     const scoped = text.replace(/redteamRoundLimit[^\n]*/g, '')
     assert.doesNotMatch(scoped, oldAbsent, `${rel}: old roundLimit default (3) literal still present`)
+  }
+})
+
+// Drift-guard (0.21.11 re-tier): the prose surfaces that restate the worker/auditor default
+// MODEL word are bound to DEFAULTS by extraction + equality, the shape the redteamRoundLimit
+// doc pin uses. Each row: [file, construct regex with ONE capture = the model word, role].
+// The README roles table row was silently false for a whole release window before this pin.
+test('drift-guard: README roles table, gastown role table and war SKILL.md defaults bullet state DEFAULTS worker/auditor models', () => {
+  const rows = [
+    ['README.md', /^\| Worker \| Polecat \| `war-worker` — `Agent` \((\w+)\)/m, 'worker'],
+    ['README.md', /`war-auditor` — read-only `Agent` \((\w+) on `(\w+)` by default\)/, 'auditor'],
+    ['skills/war/references/gastown-design-params.md', /^\| Polecat \| `war-worker` \| `Agent` \((\w+)\)/m, 'worker'],
+    ['skills/war/references/gastown-design-params.md', /^\| Nun \(Refinery audit gate\) \| `war-auditor` \| read-only `Agent` \((\w+)\)/m, 'auditor'],
+    ['skills/war/SKILL.md', /\*\*defaults\*\* are `war-worker` = (\w+) at session effort/, 'worker'],
+    ['skills/war/SKILL.md', /`war-auditor` = (\w+) on `(\w+)`, `war-refiner`/, 'auditor'],
+  ]
+  for (const [rel, re, role] of rows) {
+    const m = readDoc(rel).match(re)
+    assert.ok(m, `${rel}: the ${role} default-model construct was not found — re-anchor the pin, do not drop it`)
+    assert.equal(m[1], DEFAULTS.agents[role].model, `${rel}: ${role} model word "${m[1]}" must equal DEFAULTS.agents.${role}.model`)
+    if (m[2] !== undefined) assert.equal(m[2], DEFAULTS.agents[role].effort, `${rel}: ${role} effort word "${m[2]}" must equal DEFAULTS.agents.${role}.effort`)
   }
 })
 
