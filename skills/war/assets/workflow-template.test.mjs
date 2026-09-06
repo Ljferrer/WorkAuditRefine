@@ -13806,6 +13806,16 @@ test('absorb-budget (D5, #2034, snipe: two Majors): a BARE seed (suggested_fix, 
   assert.ok(!(out.notes || []).some(n => n && n.title === 'bare seed on stale'), 'never dropped onto notes')
 })
 
+test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a duplicate seed pair on a never-ran task drains to exactly ONE filed row — the second copy is dropped, logged', async () => {
+  const held = { severity: 'Minor', title: 'dup seed on stale', file: 'skills/st.js', rationale: 'r', disposition: 'absorb', seat: 'audit:tStale:correctness' }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held, { ...held }] },
+  ] })
+  const { out, logs } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'dup seed on stale').length, 1, 'exactly one filed row for the pair')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "dup seed on stale"') && l.includes('is a duplicate of a row already in this drain')), 'the drop is logged')
+})
+
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }

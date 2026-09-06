@@ -1526,6 +1526,7 @@ const drainHeldAbsorbs = (t, verdict) => {
   for (const f of held) {
     queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
     if (judgeHeldRow(f, t.id, diff, 'sweep') !== 'absorb') continue
+    if (absorbs.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + t.id + ') is a duplicate of a row already in this drain — the second copy is dropped (logged, never silent).'); continue }
     absorbs.push(f)
   }
   if (!absorbs.length) return
