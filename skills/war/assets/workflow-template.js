@@ -4890,11 +4890,11 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // rows (a lined row never collapses into a lineless one). Fileless rows never collapse, and TWO ROWS
   // FROM THE SAME SEAT never collapse (D8 — a collapse is cross-seat corroboration; a seat repeating
   // itself is not corroboration, so the survivor's seats[] entries are distinct by construction).
-  // First occurrence is the representative; merged rows carry a seats[] corroboration list (seatRef —
+  // First occurrence is the representative; merged rows carry a seats[] corroboration list (seatRefOf —
   // seat+task, both when present) AND a merged[] sub-list preserving each merged-away row's title and
   // rationale (rendered through the filing prompt, the issue-body instruction, handoff followUps, and
   // the consolidation log line — nothing merges away silently); a non-collapsed row renders its single
-  // raising seat via seatRef (End state 9 — the lens is in hand on every row).
+  // raising seat via seatRefOf (End state 9 — the lens is in hand on every row).
   const FOLLOWUP_LINE_WINDOW = 10
   const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   // Concatenation-built strings throughout this block (census-safe — #931).
@@ -4991,7 +4991,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // file-clustering impossible. seats gate is Array.isArray, NOT truthiness (D9, Phase 5 Task 1):
       // an auditor-supplied STRING seats key is truthy with a length, and String.prototype.join does
       // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
-      // the row down the seatRef fallback instead. merged[] (D8) renders per row so the filing agent
+      // the row down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
       + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRefOf(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
