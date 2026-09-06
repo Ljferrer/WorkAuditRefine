@@ -1202,7 +1202,9 @@ const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.
 // severity. The ask arm precedes the absorb chain (D7 order-census). 'ask' is NEVER defaulted — an
 // ask exists only when the seat set disposition:'ask' explicitly. Omitted disposition (in-band-
 // absorb-default D1/D4, the diff-probe default): `diff` is the task's git-derived diff_files Set
-// (null when the probe failed or never ran — the polish pseudo-task, the escalation arm). A fully
+// (null when the probe failed or never ran — the polish pseudo-task, the escalation arm; an EMPTY
+// Set when every row is out-of-diff by construction — routeGateAuditRows passes one so a fully
+// specified row reads absorb + phaseClose:true). A fully
 // specified finding (non-empty suggested_fix) on a probed task reads 'absorb' — and when its file is
 // OUTSIDE the diff the classifier stamps phaseClose:true on the row so the absorb rides the sweep
 // (the one side effect here; every caller keeps its single-arg-shaped routing chain). Otherwise the
