@@ -13816,6 +13816,16 @@ test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a duplicate seed pa
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "dup seed on stale"') && l.includes('is a duplicate of a row already in this drain')), 'the drop is logged')
 })
 
+test('absorb-budget (D5, #2034, snipe: correctness): a FILELESS seed on a never-ran task takes the severity default with demote:fileless, never a sweep or demote:absorb-blocked row', async () => {
+  const held = { severity: 'Minor', title: 'fileless seed on stale', file: null, rationale: 'r', disposition: 'absorb', seat: 'audit:tStale:correctness' }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held] },
+  ] })
+  const { out } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'fileless seed on stale')
+  assert.ok(row && /^demote:fileless/.test(row.demoteReason || ''), 'the fileless seed demotes with demote:fileless')
+})
+
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }
@@ -14247,14 +14257,15 @@ const NEGATIVE_REF = "demote(f, 'follow-up', 'failed absorb — no prefix here a
 test('demote-census — every demote() site whose disposition can be follow-up leads its reason with a DEMOTE_REASONS member; the count is pinned; the negative reference is caught; zero shipped sites carry demote:unclassified', () => {
   const sites = demoteSites(src)
   // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b), re-pinned after the fresh + held
-  // ace tails merged into aceStage's routeAbsorbTail (snipe: simplicity): 24 sites — release-slot at
-  // birth, fileless ×4 (routeReauditMinors, aceStage's shared tail, the gate-audit pass, the terminal queue),
+  // ace tails merged into aceStage's routeAbsorbTail (snipe: simplicity), then the never-ran drain
+  // gained its fileless guard (snipe: correctness): 25 sites — release-slot at birth, fileless ×5
+  // (routeReauditMinors, aceStage's shared tail, the gate-audit pass, the terminal queue, the drain),
   // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
   // exclusion-set ×2 (sweep time + the terminal-pass filter) + release-slot at sweep time,
   // terminal-pass ×4 (no commit / did not merge / a seat-raised absorb / a terminal seat that
   // returned no verdict, final phase only), sweep-discarded ×2 (final phase only).
-  assert.equal(sites.length, 24, `the census domain is exactly TWENTY-FOUR follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)
