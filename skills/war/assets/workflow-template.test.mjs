@@ -13940,7 +13940,8 @@ test('filing-floor — a submodule task\'s diff probe resolves its base against 
   assert.ok(p.prompt.includes('merge-base main '), 'the range base is the submodule base (targetBase: main)')
   assert.ok(!p.prompt.includes('merge-base integration/submod-test/phase-5'), 'never the superproject integration branch')
   const q = calls.find(c => c.opts.dispatchKind === 'diff-probe' && c.opts.label === 'diff-probe:tbump')
-  assert.ok(!q || q.prompt.includes('merge-base integration/submod-test/phase-5'), 'a non-submodule task keeps the integration-branch base')
+  assert.ok(q, "the gitlink-bump task's probe dispatched (presence guard — never a vacuous negative arm)")
+  assert.ok(q.prompt.includes('merge-base integration/submod-test/phase-5'), 'a non-submodule task keeps the integration-branch base')
 })
 
 test('filing-floor — an omitted-disposition in-diff Minor with a suggested_fix defaults absorb and rides the task\'s ace batch, never the sweep', async () => {
