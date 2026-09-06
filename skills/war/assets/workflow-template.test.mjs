@@ -4441,7 +4441,7 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   // carries the ask arm first (parkAsk), then the fileless/aceEligible/run.ace/phaseClose chain.
   assert.equal(sites.length, 8,
     `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
-  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|terminalQueue\.push|carryPhaseClose\(/
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
     const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
     const slice = src.slice(i, Math.min(i + 2600, end))
@@ -12362,7 +12362,7 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...g }] }])
   assert.equal(r.reentryQueue.length, 1, 'a re-mint of the queued re-entry finding never double-queues')
   // Engine pin: the round-1 approve arm's direct phaseCloseQueue push stamps queuedKeys too.
-  assert.ok(src.includes('else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }'),
+  assert.ok(src.includes('queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f); return \'queued\''),
     'the round-1 approve arm stamps queuedKeys at its direct sweep push')
   // Engine pin: the drain deletes drained keys BEFORE the re-check (a drained finding is no
   // longer queued — its own stamp must never refuse its own dispatch).
@@ -13656,6 +13656,19 @@ test('absorb-budget (D5, #2036): a seeded held row is judged by disposition and 
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "already queued"') && l.includes('corroborated onto the queued row')), 'the collision is logged')
 })
 
+test('absorb-budget (D5, snipe: simplicity/correctness): a seeded held row runs the D4 intake floor like a fresh row — a barrier-less seeded follow-up on an in-diff file reroutes to absorb and rides the ace batch', async () => {
+  const seeded = { severity: 'Minor', title: 'seeded barrierless follow-up', file: 'skills/war/assets/x.js', rationale: 'r', suggested_fix: 'do it', disposition: 'follow-up', task: 't1', seat: 'audit:t1:correctness' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'fresh nit' })]), approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [seeded] }] })
+  const { out, calls, logs } = await runPhase(args, impl, PROBE)
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('seeded barrierless follow-up'), 'the rerouted seeded row rides the ace batch')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'seeded barrierless follow-up'), 'never filed as stated')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('seeded barrierless follow-up') && /rerout/i.test(l)), 'the floor reroute is logged')
+})
+
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
 // blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
 const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',
@@ -14093,14 +14106,15 @@ const NEGATIVE_REF = "demote(f, 'follow-up', 'failed absorb — no prefix here a
 
 test('demote-census — every demote() site whose disposition can be follow-up leads its reason with a DEMOTE_REASONS member; the count is pinned; the negative reference is caught; zero shipped sites carry demote:unclassified', () => {
   const sites = demoteSites(src)
-  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b): 25 sites — release-slot at birth,
-  // fileless ×5 (routeReauditMinors, aceStage fresh + held, the gate-audit pass, the terminal queue),
+  // Pinned snapshot at land (2026-09-04, terminal-pass D3a/D3b), re-pinned after the fresh + held
+  // ace tails merged into aceStage's routeAbsorbTail (snipe: simplicity): 24 sites — release-slot at
+  // birth, fileless ×4 (routeReauditMinors, aceStage's shared tail, the gate-audit pass, the terminal queue),
   // absorb-regressed ×6 (the five ace-ladder arms + the regressed terminal commit on a final phase),
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
   // exclusion-set ×2 (sweep time + the terminal-pass filter) + release-slot at sweep time,
   // terminal-pass ×4 (no commit / did not merge / a seat-raised absorb / a terminal seat that
   // returned no verdict, final phase only), sweep-discarded ×2 (final phase only).
-  assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
+  assert.equal(sites.length, 24, `the census domain is exactly TWENTY-FOUR follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
     assert.ok(p, `demote site @${s.index}: the reason leads with a literal prefix (got: ${s.reason.slice(0, 60)})`)

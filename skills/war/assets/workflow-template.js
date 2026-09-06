@@ -2715,16 +2715,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // per-task ace exactly as today; phaseClose:true → phaseCloseQueue (the sweep's feed).
       const aceable = []
       const diff = diffFilesOf(r.task)
+      // ONE absorb tail for fresh and held rows (snipe: simplicity) — the copies had drifted once.
+      // Returns the route token so the held fold can log its own wording per arm.
+      const routeAbsorbTail = (f, who) => {
+        if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless ' + who + ' takes the severity default (never ace-eligible)'); return 'fileless' }
+        if (!aceEligible(f)) { demoteReleaseSlot(f); return 'release-slot' }
+        if (!run.ace) { routeToSweep(f, (who === 'absorb' ? '' : who + ' with ') + 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)'); return 'ace-off' }
+        if (!f.phaseClose) { aceable.push(f); return 'aceable' }
+        queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f); return 'queued'   // stamps queuedKeys — a later re-audit re-mint never queues twice
+      }
       for (const f of taskMinors) {
         const d = intakeFloor(f, dispositionOf(f, diff), diff)
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
         else if (d === 'follow-up') fileFollowUp(f) // stamps filedKeys (End state 6) — a later re-audit re-mint never also aces
         else if (d === 'note') notes.push(f)
-        else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless absorb takes the severity default (never ace-eligible)')
-        else if (!aceEligible(f)) demoteReleaseSlot(f)
-        else if (!run.ace) routeToSweep(f, 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)')
-        else if (!f.phaseClose) aceable.push(f)
-        else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }   // stamps queuedKeys — a later re-audit re-mint never queues twice
+        else routeAbsorbTail(f, 'absorb')
       }
       // Held absorbs (D5): rows held on r.task.pendingAbsorbs by an earlier blocker-held batch join
       // THIS approve's aceable set (deduped by content key against the fresh rows), logged.
@@ -2734,7 +2739,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // this fold; its only live producer is relaunch-seeded args.tasks[].pendingAbsorbs, and the
       // end-of-queue held-absorb drain owns every in-run held row.
       // Trust boundary: that seeded producer is shape-validated at entry (class 8, #2037), and every
-      // held row passes the SAME routing chain as a fresh row above (fileless, aceEligible, run.ace, phaseClose)
+      // held row passes the SAME classification and absorb tail as a fresh row above — dispositionOf,
+      // the D4 intake floor (a barrier-less seeded follow-up reroutes to absorb like any seat row),
+      // then routeAbsorbTail (fileless, aceEligible, run.ace, phaseClose) —
       // before it may join aceable — a seeded release-slot row never rides an ace batch (PIN-11)
       // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
@@ -2744,7 +2751,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // files as stated, a note notes, and a non-Minor/Nit severity is refused (a seeded Critical or
         // Major never rides an ace batch — the seed is a held ABSORB by contract).
         if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ace batch and recorded on notes (never silent).'); notes.push(f); continue }
-        const hd = dispositionOf(f, diff)
+        const hd = intakeFloor(f, dispositionOf(f, diff), diff)
         if (hd === 'ask') { parkAsk(f); continue }
         if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a seat-set follow-up — filed, never an ace input.'); continue }
         if (hd === 'note') { notes.push(f); continue }
@@ -2754,16 +2761,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         queuedKeys.delete(remintKey(f))   // no longer held — the dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
         // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
-        if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless held absorb takes the severity default (never ace-eligible)')
-        else if (!aceEligible(f)) demoteReleaseSlot(f)
-        else if (!run.ace) routeToSweep(f, 'held absorb with ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)')
-        else if (!f.phaseClose) {
-          log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
-          aceable.push(f)
-        } else {
-          log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is phaseClose:true — routed to the phase-close sweep, never the ace batch.')
-          queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f)
-        }
+        const route = routeAbsorbTail(f, 'held absorb')
+        if (route === 'aceable') log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
+        else if (route === 'queued') log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is phaseClose:true — routed to the phase-close sweep, never the ace batch.')
       }
       // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. The BATCH attempt is
       // unchanged (one commit, one re-audit — the happy path is byte-identical): the ace worker commits one
