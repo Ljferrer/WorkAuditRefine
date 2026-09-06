@@ -4412,11 +4412,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly seven dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: seven dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4436,8 +4436,11 @@ test('#1550 (D7) — ask order-census: seven dispositionOf sites with ask preced
   // 6 → 7 (in-band-absorb-default D3a, terminal-pass): the terminal re-audit seat's own Minor/Nits
   // route through routeTerminalMinors — its dispositionOf site carries the ask arm first (parkAsk),
   // then carriedPhaseClose / demote:terminal-pass as its absorb chain.
-  assert.equal(sites.length, 7,
-    `the floored order-census domain is exactly SEVEN dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  // 7 → 8 (#2036, absorb-budget D5): aceStage's held-row fold judges a relaunch-seeded
+  // tasks[].pendingAbsorbs row by disposition before the absorb chain — its dispositionOf site
+  // carries the ask arm first (parkAsk), then the fileless/aceEligible/run.ace/phaseClose chain.
+  assert.equal(sites.length, 8,
+    `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
     const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
@@ -13625,6 +13628,32 @@ test('absorb-budget (End state 4, held then approved): a row held on r.pendingAb
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('the fresh row rides the ace batch')), 'the retired fresh-row cause wording is gone')
   assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'held nit'), 'the held row is aced')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held nit'), 'the held row is not in minorsFiled')
+})
+
+test('absorb-budget (D5, #2036): a seeded held row is judged by disposition and severity before the absorb chain — an ask parks, a seat-set follow-up files, a Major is refused to notes, and a row already queued for the sweep corroborates instead of queueing twice', async () => {
+  const held = over => ({ severity: 'Nit', title: 'held nit', file: 'skills/held.js', rationale: 'held earlier', autoFixable: true, task: 't1', seat: 'audit:t1:correctness', ...over })
+  const askRow = held({ title: 'held ask', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] } })
+  const fuRow = held({ title: 'held follow-up', disposition: 'follow-up', barrier: 'barrier:underspecified' })
+  const majorRow = held({ title: 'held major', severity: 'Major' })
+  const queuedRow = held({ title: 'already queued', file: 'skills/q.js', phaseClose: true, seat: 'audit:t1:style' })
+  // the fresh approve raises the same content as queuedRow with phaseClose:true, so it is queued for the sweep first
+  const fresh = nit({ title: 'already queued', file: 'skills/q.js', phaseClose: true })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [fresh, nit({ title: 'fresh nit' })]), approveWith('audit:t1:correctness', [])] },
+    sweepBase([]))   // a default roster, so the sweep runs and the queued row aces at the polish sha
+  const args = SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [askRow, fuRow, majorRow, queuedRow] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'the ace batch dispatched for the fresh nit')
+  for (const t of ['held ask', 'held follow-up', 'held major', 'already queued']) assert.ok(!ace.prompt.includes(t), t + ' never rides the ace batch')
+  assert.ok((out.asks || []).some(a => a && a.question === 'keep or drop?' && a.finding && a.finding.title === 'held ask'), 'the seeded ask parks')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'held follow-up' && !m.demoteReason), 'the seeded follow-up files as stated (seat-filed, no demotion)')
+  assert.ok((out.notes || []).some(n => n && n.title === 'held major'), 'the seeded Major is refused to notes')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "held major"') && l.includes('carries severity Major')), 'the refusal is logged')
+  const queued = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'already queued')
+  assert.equal(queued.length, 1, 'the sweep records the queued row ONCE')
+  assert.ok((queued[0].finding.seats || []).some(s => /style/.test(s)), 'the held copy corroborates onto the queued row (its seat joins the seats list)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "already queued"') && l.includes('corroborated onto the queued row')), 'the collision is logged')
 })
 
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open

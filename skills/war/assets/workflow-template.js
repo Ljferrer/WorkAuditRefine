@@ -2739,6 +2739,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
       const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
       for (const f of heldRows) {
+        // #2036: a seeded row is judged like a fresh one BEFORE the absorb chain — the ask arm always
+        // parks (never dropped by a collision, never committed by an ace worker), a seat-set follow-up
+        // files as stated, a note notes, and a non-Minor/Nit severity is refused (a seeded Critical or
+        // Major never rides an ace batch — the seed is a held ABSORB by contract).
+        if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ace batch and recorded on notes (never silent).'); notes.push(f); continue }
+        const hd = dispositionOf(f, diffFilesByTask.get(r.task.id) ?? null)
+        if (hd === 'ask') { parkAsk(f); continue }
+        if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a seat-set follow-up — filed, never an ace input.'); continue }
+        if (hd === 'note') { notes.push(f); continue }
+        // A collision with a row ALREADY queued for the phase-close sweep corroborates onto the queued
+        // row (seats merged) — never a second content-identical sweep line (#2036).
+        if (queuedKeys.has(remintKey(f)) && phaseCloseQueue.some(q => remintKey(q) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is already queued for the phase-close sweep — corroborated onto the queued row, never queued twice.'); corroborateSurvivor(f); continue }
         queuedKeys.delete(remintKey(f))   // no longer held — the dedup below judges it (the aceReentry drain's stamp-and-clear idiom)
         // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
         if (aceable.some(a => remintKey(a) === remintKey(f))) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped.'); continue }
