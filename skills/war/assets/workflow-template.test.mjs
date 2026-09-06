@@ -13651,7 +13651,24 @@ test('absorb-budget (D5, #2036): a seeded held row is judged by disposition befo
   const queued = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'already queued')
   assert.equal(queued.length, 1, 'the sweep records the queued row ONCE')
   assert.ok((queued[0].finding.seats || []).some(s => /style/.test(s)), 'the held copy corroborates onto the queued row (its seat joins the seats list)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "already queued"') && l.includes('corroborated onto the queued row')), 'the collision is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "already queued"') && l.includes('already queued for the phase-close sweep')), 'the collision is logged with the registry reason')
+})
+
+test('absorb-budget (D5, snipe: correctness): a seeded held row whose content key is ALREADY FILED by a fresh barrier-tagged follow-up corroborates onto the filed row — one minorsFiled row, no aced record', async () => {
+  const fresh = nit({ severity: 'Minor', title: 'dup follow-up', file: 'skills/war/assets/x.js', disposition: 'follow-up', barrier: 'barrier:underspecified', autoFixable: false })
+  const seeded = { severity: 'Minor', title: 'dup follow-up', file: 'skills/war/assets/x.js', rationale: 'r', autoFixable: true, seat: 'audit:t1:style' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [fresh, nit({ title: 'fresh nit' })]), approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [seeded] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  const filed = (out.minorsFiled || []).filter(m => m && m.title === 'dup follow-up')
+  assert.equal(filed.length, 1, 'exactly one filed row')
+  assert.ok((filed[0].seats || []).some(s => /style/.test(s)), 'the seed corroborates onto the filed row')
+  assert.ok(!(out.aced || []).some(a => a && a.finding && a.finding.title === 'dup follow-up'), 'never also aced')
+  const ace = calls.find(isAce)
+  assert.ok(ace && !ace.prompt.includes('dup follow-up'), 'never an ace input')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "dup follow-up"') && l.includes('already filed')), 'the refusal is logged with the registry reason')
 })
 
 test('absorb-budget (D5, snipe: correctness): a seeded held row WITHOUT a task key is minted with the task id, so the dedup key matches a fresh copy and the held duplicate is dropped, never double-queued', async () => {
