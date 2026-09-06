@@ -13598,6 +13598,7 @@ test('absorb-budget (D5, #2037): a malformed tasks[].pendingAbsorbs seed is refu
     [[{ severity: 'Nit' }], 'args.tasks[0].pendingAbsorbs[0].title must be a non-empty string'],
     [[{ title: 'no severity', file: 'skills/a.js' }], 'args.tasks[0].pendingAbsorbs[0].severity must be a non-empty string'],
     [[{ title: 't', severity: 'Nit', file: 5 }], 'args.tasks[0].pendingAbsorbs[0].file must be a repo-relative path string or null'],
+    [[{ title: 'held major', severity: 'Major', file: 'skills/a.js' }], 'args.tasks[0].pendingAbsorbs[0].severity must be one of Minor|Nit'],
   ]) {
     const r = await runPhase(ACE_ARGS({ tasks: [task({ pendingAbsorbs: bad })] }), aceBase([]))
     assert.equal(r.out.landDecision, 'held:workflow-error', JSON.stringify(bad) + ' is refused at entry')
@@ -13630,26 +13631,23 @@ test('absorb-budget (End state 4, held then approved): a row held on r.pendingAb
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held nit'), 'the held row is not in minorsFiled')
 })
 
-test('absorb-budget (D5, #2036): a seeded held row is judged by disposition and severity before the absorb chain — an ask parks, a seat-set follow-up files, a Major is refused to notes, and a row already queued for the sweep corroborates instead of queueing twice', async () => {
+test('absorb-budget (D5, #2036): a seeded held row is judged by disposition before the absorb chain — an ask parks, a seat-set follow-up files, and a row already queued for the sweep corroborates instead of queueing twice', async () => {
   const held = over => ({ severity: 'Nit', title: 'held nit', file: 'skills/held.js', rationale: 'held earlier', autoFixable: true, task: 't1', seat: 'audit:t1:correctness', ...over })
   const askRow = held({ title: 'held ask', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] } })
   const fuRow = held({ title: 'held follow-up', disposition: 'follow-up', barrier: 'barrier:underspecified' })
-  const majorRow = held({ title: 'held major', severity: 'Major' })
   const queuedRow = held({ title: 'already queued', file: 'skills/q.js', phaseClose: true, seat: 'audit:t1:style' })
   // the fresh approve raises the same content as queuedRow with phaseClose:true, so it is queued for the sweep first
   const fresh = nit({ title: 'already queued', file: 'skills/q.js', phaseClose: true })
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [fresh, nit({ title: 'fresh nit' })]), approveWith('audit:t1:correctness', [])] },
     sweepBase([]))   // a default roster, so the sweep runs and the queued row aces at the polish sha
-  const args = SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [askRow, fuRow, majorRow, queuedRow] }] })
+  const args = SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [askRow, fuRow, queuedRow] }] })
   const { out, calls, logs } = await runPhase(args, impl)
   const ace = calls.find(isAce)
   assert.ok(ace, 'the ace batch dispatched for the fresh nit')
-  for (const t of ['held ask', 'held follow-up', 'held major', 'already queued']) assert.ok(!ace.prompt.includes(t), t + ' never rides the ace batch')
+  for (const t of ['held ask', 'held follow-up', 'already queued']) assert.ok(!ace.prompt.includes(t), t + ' never rides the ace batch')
   assert.ok((out.asks || []).some(a => a && a.question === 'keep or drop?' && a.finding && a.finding.title === 'held ask'), 'the seeded ask parks')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'held follow-up' && !m.demoteReason), 'the seeded follow-up files as stated (seat-filed, no demotion)')
-  assert.ok((out.notes || []).some(n => n && n.title === 'held major'), 'the seeded Major is refused to notes')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held row "held major"') && l.includes('carries severity Major')), 'the refusal is logged')
   const queued = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'already queued')
   assert.equal(queued.length, 1, 'the sweep records the queued row ONCE')
   assert.ok((queued[0].finding.seats || []).some(s => /style/.test(s)), 'the held copy corroborates onto the queued row (its seat joins the seats list)')

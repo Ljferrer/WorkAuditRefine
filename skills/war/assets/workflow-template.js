@@ -874,10 +874,11 @@ if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
 //       entry naming the entry index and field — never coerced, never a guessed queue.
 // Shared finding-row validator for the two seeded-row classes (6 and 8): each row is an object with a
 // non-empty title and severity and a string-or-null file; every refusal names the row path and field.
-const pushFindingRowProblems = (at, rows, tag) => rows.forEach((e, i) => {
+const pushFindingRowProblems = (at, rows, tag, severities = null) => rows.forEach((e, i) => {
   if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (' + tag + ')'); return }
   if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: ' + at + '[' + i + '].title must be a non-empty string (' + tag + ')')
   if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: ' + at + '[' + i + '].severity must be a non-empty string (' + tag + ')')
+  else if (severities && !severities.includes(e.severity)) problems.push('workflow-template: ' + at + '[' + i + '].severity must be one of ' + severities.join('|') + ' — the seed is a held absorb, never a blocker (got ' + e.severity + ') (' + tag + ')')
   if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: ' + at + '[' + i + '].file must be a repo-relative path string or null (' + tag + ')')
 })
 if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
@@ -900,7 +901,7 @@ for (const [ti, t] of (Array.isArray(A.tasks) ? A.tasks : []).entries()) {
   if (!t || t.pendingAbsorbs === undefined || t.pendingAbsorbs === null) continue
   const at = 'args.tasks[' + ti + '].pendingAbsorbs'
   if (!Array.isArray(t.pendingAbsorbs)) { problems.push('workflow-template: ' + at + ' must be an array of held finding rows or absent (got ' + typeof t.pendingAbsorbs + ') (D5)'); continue }
-  pushFindingRowProblems(at, t.pendingAbsorbs, 'D5')
+  pushFindingRowProblems(at, t.pendingAbsorbs, 'D5', ['Minor', 'Nit'])   // a seeded Critical/Major refuses at entry — notes never file (snipe: cascading-impact)
 }
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 // finalPhase (D3a): absent reads as final. Logged once — the terminal pass and the discard/held carry
@@ -2752,6 +2753,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // parks (never dropped by a collision, never committed by an ace worker), a seat-set follow-up
         // files as stated, a note notes, and a non-Minor/Nit severity is refused (a seeded Critical or
         // Major never rides an ace batch — the seed is a held ABSORB by contract).
+        // Unreachable by construction (class-8 entry validation pins Minor|Nit); kept as the defensive arm.
         if (f.severity !== 'Minor' && f.severity !== 'Nit') { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + r.task.id + ') carries severity ' + f.severity + ' — not a Minor/Nit absorb; refused from the ace batch and recorded on notes (never silent).'); notes.push(f); continue }
         const hd = intakeFloor(f, dispositionOf(f, diff), diff)
         if (hd === 'ask') { parkAsk(f); continue }
