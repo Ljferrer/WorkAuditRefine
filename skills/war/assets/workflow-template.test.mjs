@@ -4445,8 +4445,14 @@ test('#1550 (D7) — ask order-census: nine dispositionOf sites with ask precedi
     `the floored order-census domain is exactly NINE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(/
   for (let k = 0; k < sites.length; k++) {
-    const i = sites[k], end = sites[k + 1] ?? src.length            // site-bounded: never a neighbor's arm
-    const slice = src.slice(i, end)   // site-bounded only (#2060): the next site is the wall — no byte cap to outgrow
+    // Wall (snipe: three seats, after #2060 dropped the byte cap): the EARLIER of the next site and the
+    // enclosing top-level construct's close — the first `}` at column 0 after the site (a col-0 function
+    // or block; an inner `  }` is a loop close that may precede the chain, so it is not a wall). Never a
+    // byte cap to outgrow, never a neighbor's arm, and the last site no longer scans to end of file.
+    const i = sites[k], nextSite = sites[k + 1] ?? src.length
+    const closeAt = (() => { const m = /\n\}\n/.exec(src.slice(i)); return m ? i + m.index + m[0].length : src.length })()
+    const end = Math.min(nextSite, closeAt)
+    const slice = src.slice(i, end)
     const askIdx = slice.indexOf("=== 'ask'")
     assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
     const parkIdx = slice.indexOf('parkAsk(')
