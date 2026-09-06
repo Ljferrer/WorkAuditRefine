@@ -1,6 +1,6 @@
 ---
 name: dedup-registry-must-cover-every-queue-producer-and-every-resolver-consumer
-description: "Adding a new content-key dedup registry (queuedKeys) over a shared queue (phaseCloseQueue / r.reentryQueue) landed incomplete on BOTH sides: the header comment claimed queuedKeys is stamped at 'BOTH phaseCloseQueue entry points' but a THIRD producer (the ruledAsks intake loop) already pushed into the same queue unstamped, and the pre-existing companion resolver (corroborateSurvivor) that merges a re-raising seat onto a finding's surviving row was never extended to search the queue containers at all — so a queued survivor's cross-seat corroboration silently drops even though the queue itself correctly refuses to double-queue"
+description: "A new dedup registry must stamp every push site of its queue, and every pre-existing lookup helper must search that queue too."
 metadata: 
   node_type: memory
   type: project
@@ -136,3 +136,12 @@ dispositionOf(f, null)` and ends `else terminalQueue.push(f)` (immediately befor
 TERMINAL PASS` comment block).
 
 > archived 2026-09-03: resolved — moved to archive
+
+## Resolution — 2026-09-04, `dev/2026-09-03-2026-09-03-in-band-absorb-default` (PR #2065)
+
+The phase-5 recurrence above is closed. #2069 (commit d6289ea) stamped the merged-arm `sweepMinors`
+producer — that loop now ends `else { queuedKeys.add(remintKey(f)); terminalQueue.push(f) }` — and
+`corroborateSurvivor` now searches `phaseCloseQueue`, `carriedPhaseClose`, `terminalQueue`, and, through
+the `liveTaskRecords` set, the per-task `r.reentryQueue` and `r.task.pendingAbsorbs`. An unresolvable
+re-mint logs instead of returning silently. The durable rule stands; only the instance status above is
+historical. Locate-cue now: the `liveTaskRecords` declaration directly above `corroborateSurvivor`.
