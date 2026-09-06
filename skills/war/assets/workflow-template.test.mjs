@@ -5831,6 +5831,39 @@ test('follow-up consolidation (line-window hit): cross-seat same-file findings w
   assert.match(fp, /clusters: \[\{ ordinals, issue \}\]/, 'the return shape names the clusters[] manifest')
 })
 
+test('follow-up consolidation (multi-ref merged-away row, snipe: correctness): a collapsed row that already carries a seats list contributes every ref to the representative; a row sharing ANY ref with the representative never collapses', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const f = (opts.label || '').endsWith(':correctness')
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 }
+        : { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105, seats: ['audit:t1:cascading-impact (task t1)', 'audit:t1:extra (task t1)'] }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }] }] })
+  const { out } = await runPhase(args, impl)
+  assert.equal(out.minorsFiled.length, 1, 'the pair collapses to one row')
+  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)', 'audit:t1:extra (task t1)'],
+    'every ref on the merged-away row survives on the representative (not only its head raiser)')
+  // same-seat guard through the list: a row whose seats list already holds the representative's ref never collapses into it
+  const impl2 = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const f = (opts.label || '').endsWith(':correctness')
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 }
+        : { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105, seats: ['audit:t1:cascading-impact (task t1)', 'audit:t1:correctness (task t1)'] }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }, { n: 2, issue: 43 }], clusters: [{ ordinals: [1], issue: 42 }, { ordinals: [2], issue: 43 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const r2 = await runPhase(args, impl2)
+  assert.equal(r2.out.minorsFiled.length, 2, 'a row already corroborated by the representative\'s seat is a distinct finding, never collapsed (D8, through the whole list)')
+})
+
 test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
   // EVERY control row carries its OWN distinct seat: the collapse predicate short-circuits on the
   // D8 cross-seat term FIRST, so same-seat controls would be blocked by the seat check alone and
