@@ -1499,7 +1499,7 @@ const judgeHeldRow = (f, taskId, diff, sink) => {
   if (hd === 'ask') { parkAsk(f); return 'parked' }
   const hb = (hd === 'follow-up' || hd === 'absorb') ? remintBlock(f) : null
   if (hb) { log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') — ' + hb + '; not recorded again (logged, never silent).'); corroborateSurvivor(f); return 'blocked' }
-  if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') is a seat-set follow-up — filed, never ' + (sink === 'ace batch' ? 'an ace input' : 'a sweep input') + '.'); return 'filed' }
+  if (hd === 'follow-up') { fileFollowUp(f); log('absorb-budget: held row "' + (f.title ?? '') + '" (task ' + taskId + ') is a follow-up' + (f.disposition === 'follow-up' ? ' (seat-set)' : ' (the severity default)') + ' — filed, never ' + (sink === 'ace batch' ? 'an ace input' : 'a sweep input') + '.'); return 'filed' }
   if (hd === 'note') { notes.push(f); return 'noted' }
   return 'absorb'
 }
