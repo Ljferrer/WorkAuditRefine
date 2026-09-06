@@ -13768,6 +13768,27 @@ test('absorb-budget (D5, #2034, never ran a wave — preMerged): a relaunch-seed
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('seeded on pre-merged') && l.includes('demote:absorb-blocked')), 'a succeeded task never demotes its held rows')
 })
 
+test('absorb-budget (D5, #2034, never ran a wave — unrunnable-deps): a relaunch-seeded held row on a task whose deps name a ghost id drains through the post-loop catch-all and demotes naming the unrunnable-deps verdict (snipe: test-fidelity)', async () => {
+  const held = { severity: 'Nit', title: 'seeded on ghost-dep', file: 'skills/gd.js', rationale: 'held earlier', autoFixable: true, seat: 'audit:t2:correctness' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    return {}
+  }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Ghost dep', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['ghost'], pendingAbsorbs: [held] },
+  ] })
+  const { out, logs } = await runPhase(args, impl)
+  assert.ok((out.escalated || []).some(e => e.task === 't2' && e.reason === 'unrunnable-deps'), 'presence guard: t2 escalates as unrunnable-deps')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t2 never merged (verdict unrunnable-deps)')), 'the catch-all drain logs the unrunnable-deps verdict')
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'seeded on ghost-dep')
+  assert.ok(row && /^demote:absorb-blocked/.test(row.demoteReason || ''), 'the held row demotes with demote:absorb-blocked (never dropped)')
+})
+
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }
