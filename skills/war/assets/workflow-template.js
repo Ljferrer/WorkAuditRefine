@@ -4899,7 +4899,9 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // string would throw on .push/.includes below, and a throw here is caught only by the TOP-LEVEL
   // held:workflow-error catch (the sole try enclosing this block), converting a LANDED phase into
   // held:workflow-error.
-  const seatsOf = c => Array.isArray(c.seats) ? c.seats : [seatRef(c)]
+  // .length too (snipe: three seats): an auditor-supplied `seats: []` must fall back to the row's own
+  // ref, or the same-seat guard is vacuous and the merge carries nothing — mergeSeat's own rule.
+  const seatsOf = c => (Array.isArray(c.seats) && c.seats.length) ? c.seats : [seatRef(c)]
   const collapsed = []
   for (const f of minorsFiled) {
     // Both sides read through seatsOf (snipe: correctness): a merged-away row may already carry a
@@ -4910,8 +4912,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
     if (hit) {
-      hit.seats = seatsOf(hit)
-      for (const r of seatsOf(f)) if (!hit.seats.includes(r)) hit.seats.push(r)
+      mergeSeat(hit, f)   // the shared seats-list merge (snipe: simplicity) — never a hand copy here
       // merged[] (D8): the merged-away row's title and rationale survive on the representative —
       // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
       // the container AND drops auditor-supplied non-object elements at the single write point.
