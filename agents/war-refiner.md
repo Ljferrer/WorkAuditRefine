@@ -34,7 +34,7 @@ Provisioning **is** a refiner duty ([ADR 0001](../docs/adr/0001-explicitly-manag
 
 ## Diff probe
 
-ONE **`diff-probe:<taskId>`** run per task (`dispatchKind: diff-probe`), after the worker returns green and **before** the audit seats convene. Read-only — no merge, push, rebase, or gate: in `<taskWorktree>` run `git diff --name-only $(git merge-base <integrationBranch> <tip>)..<tip>` and return `{ diff_files: [<one repo-relative path per output line, verbatim>] }` (`DiffProbeResult`) — the git-derived changed-file list the engine's disposition default and intake filing floor read; never the worker's own file report. Idempotent on resume. On a git error return `{ detail }` with **no** `diff_files` — the engine keeps its old default for that task (fail-open); never block, never a `MergeResult`.
+ONE **`diff-probe:<taskId>`** run per task (`dispatchKind: diff-probe`), after the worker returns green and **before** the audit seats convene. Read-only — no merge, push, rebase, or gate: in `<taskWorktree>` run `git diff --name-only $(git merge-base <base> <tip>)..<tip>` — `<base>` is the integration branch, or the task's `targetBase` for a submodule task (the superproject branch does not exist in that checkout) — and return `{ diff_files: [<one repo-relative path per output line, verbatim>] }` (`DiffProbeResult`) — the git-derived changed-file list the engine's disposition default and intake filing floor read; never the worker's own file report. Idempotent on resume. On a git error return `{ detail }` with **no** `diff_files` — the engine keeps its old default for that task (fail-open); never block, never a `MergeResult`.
 
 ## pin-transfer probe
 
