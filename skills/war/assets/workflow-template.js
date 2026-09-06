@@ -2808,22 +2808,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const routeAbsorbTail = (f, who) => {
         if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless ' + who + ' takes the severity default (never ace-eligible)'); return 'fileless' }
         if (!aceEligible(f)) { demoteReleaseSlot(f); return 'release-slot' }
-        // The absorb tail's in-batch duplicate drop, sibling of the never-ran drain's: two seats raising
-        // one absorb put ONE row in the ace batch (in-diff, ace on) or ONE row in the phase-close queue
-        // (out-of-diff, or any row with ace off), the second raiser's seat merged onto the survivor
-        // (snipe: three seats). The queue consult runs BEFORE the ace-off arm so every queue push in
-        // this function passes one dedup site (snipe: correctness).
-        if (!run.ace || f.phaseClose) {
-          const dupQ = phaseCloseQueue.find(q => remintKey(q) === remintKey(f))
-          if (dupQ) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already queued for the phase-close sweep — the second copy is dropped, its seat corroborated onto the queued row (logged, never silent).'); mergeSeat(dupQ, f); return 'dropped' }
-        }
+        // The absorb tail's in-batch duplicate drop, sibling of the never-ran drain's: ONE lookup over
+        // BOTH sinks before either push (snipe: correctness) — two seats raising one finding put one
+        // row in the ace batch OR one row in the phase-close queue, whichever the first copy chose,
+        // even when the copies disagree on phaseClose; the second raiser's seat merges onto the
+        // survivor. Every push below (ace batch, ace-off sweep route, phase-close queue) passes here.
+        const key = remintKey(f)
+        const dupQ = phaseCloseQueue.find(q => remintKey(q) === key)
+        const dupA = dupQ ? null : aceable.find(a => remintKey(a) === key)
+        if (dupQ || dupA) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already ' + (dupQ ? 'queued for the phase-close sweep' : 'in this ace batch') + ' — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).'); mergeSeat(dupQ || dupA, f); return 'dropped' }
         if (!run.ace) { routeToSweep(f, (who === 'absorb' ? '' : who + ' with ') + 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)'); return 'ace-off' }
-        if (!f.phaseClose) {
-          const dupF = aceable.find(a => remintKey(a) === remintKey(f))
-          if (dupF) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this ace batch — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).'); mergeSeat(dupF, f); return 'dropped' }
-          aceable.push(f); return 'aceable'
-        }
-        queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f); return 'queued'   // stamps queuedKeys — a later re-audit re-mint never queues twice
+        if (!f.phaseClose) { aceable.push(f); return 'aceable' }
+        queuedKeys.add(key); phaseCloseQueue.push(f); return 'queued'   // stamps queuedKeys — a later re-audit re-mint never queues twice
       }
       for (const f of taskMinors) {
         const d = intakeFloor(f, dispositionOf(f, diff), diff)
