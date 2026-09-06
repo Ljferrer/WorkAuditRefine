@@ -4901,13 +4901,12 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // held:workflow-error.
   // seatsListOf (module level) reads every seats list here — the same rule mergeSeat applies, so an
   // auditor-supplied `seats: []` never makes the same-seat guard vacuous.
-  const seatsOf = seatsListOf
   const collapsed = []
   for (const f of minorsFiled) {
-    // Both sides read through seatsOf (snipe: correctness): a merged-away row may already carry a
+    // Both sides read through seatsListOf (snipe: correctness): a merged-away row may already carry a
     // multi-ref seats list (corroborateSurvivor / mergeSeat wrote it), so the same-seat guard and the
     // merge below carry every ref, never just the head raiser.
-    const hit = f.file ? collapsed.find(c => !seatsOf(f).some(r => seatsOf(c).includes(r)) && c.file === f.file
+    const hit = f.file ? collapsed.find(c => !seatsListOf(f).some(r => seatsListOf(c).includes(r)) && c.file === f.file
       && (Number.isFinite(c.line) && Number.isFinite(f.line)
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
