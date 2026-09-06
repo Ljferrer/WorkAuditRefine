@@ -12314,7 +12314,7 @@ const registrySlice = () => {
   return { ...state, ...api }
 }
 
-test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor reaches the per-task re-entry queue — a second seat\'s re-mint of a row queued for re-entry joins that row\'s seats list; an unresolvable re-mint is logged, never silent', () => {
+test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor reaches the per-task re-entry queue — a second seat\'s re-mint of a row queued for re-entry joins that row\'s seats list; an unresolvable re-mint is logged, never silent — and the shared mergeSeat seats-list merge appends a new raiser once, never a same-seat re-raise', () => {
   const h = registrySlice()
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
   const r = { task: { id: 't1' } }
@@ -12326,6 +12326,8 @@ test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor r
   const survivor = { severity: 'Nit', task: 't9', title: 'kept', file: 'skills/k.js', seat: 'audit:t9:correctness' }
   h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:style' })
   assert.deepEqual(survivor.seats, ['audit:t9:correctness (task t9)', 'audit:t9:style (task t9)'], 'mergeSeat seeds the survivor\'s own ref then appends the raiser (the shared seats-list merge)')
+  h.mergeSeat(survivor, { ...survivor, seat: 'audit:t9:style' })
+  assert.equal(survivor.seats.length, 2, 'a same-seat re-raise never appends (the includes short-circuit)')
   h.corroborateSurvivor({ severity: 'Nit', task: 't9', title: 'orphan', file: 'skills/z.js', seat: 'audit:t9:style' })
   assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('corroboration: no surviving record found for re-mint "orphan"')), 'an unresolvable re-mint is logged')
 })
