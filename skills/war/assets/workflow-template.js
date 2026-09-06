@@ -1517,7 +1517,11 @@ const drainHeldAbsorbs = (t, verdict) => {
   // a true absorb reaches the sweep (succeeded) or demote:absorb-blocked (never merged).
   const held = (Array.isArray(t.pendingAbsorbs) ? t.pendingAbsorbs.splice(0) : []).map(raw => ({ ...raw, task: t.id }))
   if (!held.length) return
-  const diff = diffFilesOf(t)
+  // A never-ran task has no diff probe. An EMPTY Set (not null) keeps the D1 absorb default for a
+  // fully specified seed that carries no disposition field: every row is out-of-diff by
+  // construction, so it reads absorb + phaseClose:true, never the severity default that would drop
+  // a Nit onto notes (snipe: cascading-impact, test-fidelity Majors).
+  const diff = diffFilesOf(t) ?? new Set()
   const absorbs = []
   for (const f of held) {
     queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
@@ -2914,6 +2918,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         for (const f of aceable) {
           if (r.task.pendingAbsorbs.some(h => remintKey(h) === remintKey(f))) continue
           queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
+          if (f.disposition == null) f.disposition = 'absorb'   // the row was classified absorb here; a later judgment with no probe must not fall to the severity default (snipe: two Majors)
           r.task.pendingAbsorbs.push(f)
         }
         log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')

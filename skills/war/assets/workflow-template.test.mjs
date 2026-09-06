@@ -13795,6 +13795,17 @@ test('absorb-budget (D5, #2034, never ran a wave — unrunnable-deps): a relaunc
   assert.ok(row && /^demote:absorb-blocked/.test(row.demoteReason || ''), 'the held row demotes with demote:absorb-blocked (never dropped)')
 })
 
+test('absorb-budget (D5, #2034, snipe: two Majors): a BARE seed (suggested_fix, no disposition, no autoFixable) on a never-ran task keeps its absorb class — it demotes with demote:absorb-blocked and never lands on notes', async () => {
+  const bare = { severity: 'Nit', title: 'bare seed on stale', file: 'skills/st.js', rationale: 'r', suggested_fix: 'do it' }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale', planSlice: 's1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [bare] },
+  ] })
+  const { out } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'bare seed on stale')
+  assert.ok(row && /^demote:absorb-blocked/.test(row.demoteReason || ''), 'the bare seed demotes with demote:absorb-blocked (its absorb class survives a missing probe)')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'bare seed on stale'), 'never dropped onto notes')
+})
+
 test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded ASK on a pre-merged task parks on asks[] and never reaches the polish worker; a seeded follow-up files and a seeded note notes on the same never-ran path', async () => {
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }
