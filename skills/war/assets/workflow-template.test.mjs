@@ -13868,6 +13868,23 @@ test('absorb-budget (D5, snipe: three seats): two seats raising one OUT-OF-DIFF 
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "queued twice"') && l.includes('already queued for the phase-close sweep')), 'the drop is logged')
 })
 
+test('absorb-budget (D14, snipe: correctness): with run.ace OFF two seats raising one absorb queue ONE phase-close row — the queue dedup runs before the ace-off arm', async () => {
+  const row = { severity: 'Nit', title: 'ace-off twice', file: 'skills/ao.js', rationale: 'r', disposition: 'absorb' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', confidence: 'high', findings: [{ ...row }] }
+    return sweepBase([])(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: false }, tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), impl)
+  assert.ok(!calls.some(isAce), 'presence guard: no ace batch with run.ace off')
+  assert.equal((polishPromptOf(calls).match(/ace-off twice/g) || []).length, 1, 'the sweep prompt lists the finding ONCE')
+  const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'ace-off twice')
+  assert.equal(aced.length, 1, 'one aced record')
+  const seats = aced[0].finding.seats || []
+  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'both raisers on the queued row')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "ace-off twice"') && l.includes('already queued for the phase-close sweep')), 'the drop is logged')
+})
+
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
 // blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
 const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',
