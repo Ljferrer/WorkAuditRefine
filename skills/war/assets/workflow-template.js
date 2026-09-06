@@ -4286,7 +4286,6 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const sweepTouched = new Set((Array.isArray(sweep.ace_diff_files) && sweep.ace_diff_files.length ? sweep.ace_diff_files : (Array.isArray(sweep.files_changed) ? sweep.files_changed : [])).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
       const queueFootprint = new Set(phaseCloseQueue.map(f => aceRelPath(f.file)).filter(p => typeof p === 'string' && p.length > 0))
       const sweepOverlap = sweepTouched.size > 0 && [...sweepTouched].some(p => queueFootprint.has(p))
-      terminalQueue.length = 0
       for (const f of phaseCloseQueue.splice(0)) {
         if (sweepOverlap && typeof f.file === 'string' && f.file && !sweepTouched.has(aceRelPath(f.file))) {
           log('terminal pass: queued absorb "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the sweep commit at ' + polishSha + ' never touched ' + aceRelPath(f.file) + '; not recorded aced, it joins the terminal queue.')
