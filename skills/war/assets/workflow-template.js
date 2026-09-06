@@ -1603,7 +1603,7 @@ const seatRefOf = f => f.seat != null
 const liveTaskRecords = new Set()
 // Seats-list merge (snipe: correctness): the dropped copy's raiser joins the survivor's seats list —
 // shared by corroborateSurvivor and the in-batch duplicate drops (the never-ran drain and the absorb
-// tail's ace-batch arm), so no collision loses a raiser.
+// tail's ace-batch and phase-close arms), so no collision loses a raiser.
 const mergeSeat = (hit, f) => {
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   // A dropped copy may itself carry a merged seats list (a held row that already corroborated a
