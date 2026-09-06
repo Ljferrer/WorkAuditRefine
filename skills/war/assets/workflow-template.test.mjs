@@ -13650,8 +13650,8 @@ test('absorb-budget (End state 4, held then approved): a row held on r.pendingAb
   assert.ok(acedHeld && (acedHeld.finding.seats || []).some(s => /style/.test(s)), 'the dropped duplicate\'s seat is corroborated onto the surviving held row (mergeSeat, snipe: test-fidelity)')
   assert.equal((ace.prompt.match(/held nit/g) || []).length, 1, 'the duplicate held copy is deduped by content key')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) joins this approve')), 'the fold is logged')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) is a duplicate of a row already in this approve') && l.includes('the held copy is dropped')),
-    'the duplicate branch logs cause-neutrally (a held-vs-held collision is not a fresh re-raise)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('held absorb "held nit" (task t1) is a duplicate of a row already in this ace batch') && l.includes('the second copy is dropped')),
+    'the duplicate is dropped by the shared absorb tail (one dedup site for fresh and held rows)')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('the fresh row rides the ace batch')), 'the retired fresh-row cause wording is gone')
   assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'held nit'), 'the held row is aced')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held nit'), 'the held row is not in minorsFiled')
@@ -13756,11 +13756,29 @@ test('absorb-budget (D5, snipe: cascading-impact): two seats raising one absorb 
   }
   // the TASK roster picks the wave seats (audit.roster is the default/polish roster) — two seats here
   const { out, logs } = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), impl)
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('aceable row "held twice"') && l.includes('duplicate of a row already held')), 'the second copy\'s drop is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "held twice"') && l.includes('duplicate of a row already in this ace batch')), 'the second copy\'s drop is logged by the shared absorb tail before the hold')
   const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'held twice')
   assert.equal(aced.length, 1, 'one record for the finding once the merged-with-held drain sweeps it')
   const seats = aced[0].finding.seats || []
   assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'the held row names both raisers')
+})
+
+test('absorb-budget (D5, snipe: correctness): two seats raising one absorb on an UNBLOCKED task put ONE row in the ace batch — one prompt row, one aced record naming both raisers, the drop logged', async () => {
+  const row = { severity: 'Nit', title: 'raised twice', file: 'skills/r2.js', rationale: 'r', disposition: 'absorb' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [{ ...row }]), approveWith('audit:t1:correctness', [])],
+      'audit:t1:simplicity': [{ seat: 'audit:t1:simplicity', lens: 'simplicity', verdict: 'approve', confidence: 'high', findings: [{ ...row }] }, { seat: 'audit:t1:simplicity', lens: 'simplicity', verdict: 'approve', confidence: 'high', findings: [] }] },
+    aceBase([]))
+  const args = ACE_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'the ace batch dispatched')
+  assert.equal((ace.prompt.match(/raised twice/g) || []).length, 1, 'the ace prompt lists the finding ONCE')
+  const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'raised twice')
+  assert.equal(aced.length, 1, 'one aced record')
+  const seats = aced[0].finding.seats || []
+  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'both raisers on the surviving row')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "raised twice"') && l.includes('duplicate of a row already in this ace batch')), 'the drop is logged')
 })
 
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open

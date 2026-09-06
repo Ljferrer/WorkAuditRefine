@@ -2802,7 +2802,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless ' + who + ' takes the severity default (never ace-eligible)'); return 'fileless' }
         if (!aceEligible(f)) { demoteReleaseSlot(f); return 'release-slot' }
         if (!run.ace) { routeToSweep(f, (who === 'absorb' ? '' : who + ' with ') + 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)'); return 'ace-off' }
-        if (!f.phaseClose) { aceable.push(f); return 'aceable' }
+        if (!f.phaseClose) {
+          // The fourth in-batch duplicate drop (snipe: correctness): two seats raising one absorb on an
+          // unblocked task put ONE row in the batch, the second raiser's seat merged onto it.
+          const dupF = aceable.find(a => remintKey(a) === remintKey(f))
+          if (dupF) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this ace batch — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).'); mergeSeat(dupF, f); return 'dropped' }
+          aceable.push(f); return 'aceable'
+        }
         queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f); return 'queued'   // stamps queuedKeys — a later re-audit re-mint never queues twice
       }
       for (const f of taskMinors) {
@@ -2835,9 +2841,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // head shared with the never-ran drain): ask parks, registry hit corroborates, follow-up
         // files, note notes, non-Minor/Nit refused. Only an 'absorb' reaches the tail below.
         if (!judgeHeldRow(f, r.task.id, diff, 'ace batch', 'an ace input')) continue
-        // The collision may be a fresh row OR an earlier held copy already folded — worded cause-neutrally.
-        const dupA = aceable.find(a => remintKey(a) === remintKey(f))
-        if (dupA) { log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this approve\'s ace batch — the held copy is dropped, its seat corroborated onto the survivor.'); mergeSeat(dupA, f); continue }
         const route = routeAbsorbTail(f, 'held absorb')
         if (route === 'aceable') log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') joins this approve\'s ace batch (r.pendingAbsorbs → aceable).')
         else if (route === 'queued') log('absorb-budget: held absorb "' + (f.title ?? '') + '" (task ' + r.task.id + ') is phaseClose:true — routed to the phase-close sweep, never the ace batch.')
@@ -2932,9 +2935,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // approve; a task that ends escalated, audit-blocked, or never merged demotes them with
         // demote:absorb-blocked (the merge-queue drain below). Never dropped silently.
         r.task.pendingAbsorbs = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : []
+        // aceable is content-key unique by construction (routeAbsorbTail dedups fresh and held rows
+        // alike), and pendingAbsorbs was spliced empty at the fold above — no hold-time dedup is needed.
         for (const f of aceable) {
-          const dupH = r.task.pendingAbsorbs.find(h => remintKey(h) === remintKey(f))
-          if (dupH) { log('absorb-budget: aceable row "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already held — the second copy is dropped, its seat corroborated onto the held row (logged, never silent).'); mergeSeat(dupH, f); continue }   // the third in-batch duplicate drop, converted like its two siblings (snipe: cascading-impact)
           queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
           f.disposition = 'absorb'   // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
           r.task.pendingAbsorbs.push(f)
