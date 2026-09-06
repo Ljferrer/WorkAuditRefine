@@ -14642,6 +14642,30 @@ test('terminal-pass — a polish-panel absorb on an args.sweepExclude-owned file
   assert.ok(!(out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb'), 'never aced')
 })
 
+test('terminal-pass — two polish seats raising ONE absorb yield one terminal-queue row, one aced record, and a seats list naming both (#2069: the terminal queue stamps queuedKeys and corroborateSurvivor searches it)', async () => {
+  const base = terminalImpl()
+  const absorb = { severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  let polishAudits = 0
+  const impl = (prompt, opts) => {
+    const label = opts.label || ''
+    if (seatOf(opts) === 'war-auditor' && /^audit:p3-polish:/.test(label)) {
+      polishAudits++
+      // two polish seats (correctness + simplicity) each raise the same absorb; the terminal re-audit seat raises nothing
+      return { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: polishAudits <= 2 ? [{ ...absorb }] : [], confidence: 'high' }
+    }
+    return base(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] } }), impl)
+  const tws = terminalCalls(calls)
+  assert.equal(tws.length, 1, 'one terminal dispatch')
+  assert.equal((tws[0].prompt.match(/polish-panel absorb/g) || []).length, 1, 'the terminal prompt lists the finding ONCE')
+  const acedRows = (out.aced || []).filter(a => a.finding && a.finding.title === 'polish-panel absorb')
+  assert.equal(acedRows.length, 1, 'exactly one aced record for the finding')
+  const seats = acedRows[0].finding.seats || []
+  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'the surviving row names both raising seats (corroboration, never a duplicate)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase-close sweep: polish-seat re-mint of "polish-panel absorb"')), 'the second seat\'s copy is logged as a re-mint')
+})
+
 test('terminal-pass — a terminal-seat re-mint of a terminalRow (recorded aced on the merged arm) corroborates via remintBlock: logged, never a second aced record, never a demotion', async () => {
   const { out, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ terminalFindings: [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'still there', disposition: 'absorb' }] }))
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass: seat re-mint of') && l.includes('polish-panel absorb')), 'the re-mint arm logs')

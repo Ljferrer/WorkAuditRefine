@@ -1422,6 +1422,9 @@ const filedKeys = new Set()
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
 // no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
 const queuedKeys = new Set()
+// Terminal queue (D3a, #2069): the merged sweep arm's input to the terminal pass — declared beside
+// the registries so corroborateSurvivor can find a queued row; every push stamps queuedKeys.
+const terminalQueue = []
 const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(remintKey(f)) }
 const recordAced = (f, sha, extra) => {
   acedKeys.add(remintKey(f))
@@ -1516,6 +1519,7 @@ const corroborateSurvivor = f => {
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
     || carriedPhaseClose.find(q => remintKey(q) === k)
+    || terminalQueue.find(q => remintKey(q) === k)   // last: a resolved terminal row lives on aced/carried by then (#2069)
   if (!hit) return
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   const ref = seatRefOf(f)
@@ -4250,7 +4254,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const sweepTouched = new Set((Array.isArray(sweep.ace_diff_files) && sweep.ace_diff_files.length ? sweep.ace_diff_files : (Array.isArray(sweep.files_changed) ? sweep.files_changed : [])).map(aceRelPath).filter(p => typeof p === 'string' && p.length > 0))
       const queueFootprint = new Set(phaseCloseQueue.map(f => aceRelPath(f.file)).filter(p => typeof p === 'string' && p.length > 0))
       const sweepOverlap = sweepTouched.size > 0 && [...sweepTouched].some(p => queueFootprint.has(p))
-      const terminalQueue = []
+      terminalQueue.length = 0
       for (const f of phaseCloseQueue.splice(0)) {
         if (sweepOverlap && typeof f.file === 'string' && f.file && !sweepTouched.has(aceRelPath(f.file))) {
           log('terminal pass: queued absorb "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the sweep commit at ' + polishSha + ' never touched ' + aceRelPath(f.file) + '; not recorded aced, it joins the terminal queue.')
@@ -4276,7 +4280,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         else if (b) { log('phase-close sweep: polish-seat re-mint of "' + (f.title ?? '') + '" (task ' + polishTask.id + ') — ' + b + '; not recorded again (logged, never silent).'); corroborateSurvivor(f) }
         else if (d === 'follow-up') { f.floorSkipped = true; fileFollowUp(f); log('phase-close sweep: sweep-raised follow-up "' + (f.title ?? '') + '" files with floorSkipped — no intake floor ran for the polish pseudo-task (the filed row carries demote:floor-skipped).') }
         else if (d === 'note') notes.push(f)
-        else terminalQueue.push(f)
+        else { queuedKeys.add(remintKey(f)); terminalQueue.push(f) }   // #2069: stamp the registry so a second seat's copy corroborates
       }
       // ---- TERMINAL PASS (D3a, PIN-4/PIN-9) — ONE hop after the polish merge, never a second ----
       // Input: the polish panel's absorbs + the queued absorbs the sweep could not land. Filtered
