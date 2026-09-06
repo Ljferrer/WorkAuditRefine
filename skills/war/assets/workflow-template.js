@@ -1529,6 +1529,10 @@ const remintBlock = f => {
 const seatRefOf = f => f.seat != null
   ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
   : (f.task != null ? 'task ' + f.task : 'unattributed')
+// Live per-task records (snipe: correctness): r.reentryQueue and r.task.pendingAbsorbs are queuedKeys
+// producers that live on the task record, out of the module-level containers' reach — every router
+// that owns an r registers it here so corroborateSurvivor can search those two queues too.
+const liveTaskRecords = new Set()
 const corroborateSurvivor = f => {
   const k = remintKey(f)
   const hit = minorsFiled.find(m => remintKey(m) === k)
@@ -1536,12 +1540,14 @@ const corroborateSurvivor = f => {
     || phaseCloseQueue.find(q => remintKey(q) === k)
     || carriedPhaseClose.find(q => remintKey(q) === k)
     || terminalQueue.find(q => remintKey(q) === k)   // last: a resolved terminal row lives on aced/carried by then (#2069)
-  if (!hit) return
+    || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
+  if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return }
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
   const ref = seatRefOf(f)
   if (!hit.seats.includes(ref)) hit.seats.push(ref)
 }
 const routeReauditMinors = (r, seats, opts) => {
+  liveTaskRecords.add(r)
   // noReentry (#1931): the caller is PAST the wave side, so r.reentryQueue has no drain left —
   // aceReentry is wave-side only. The absorb-eligible arm then routes to the phase-close sweep
   // instead of the re-entry queue, with the caller's reason. Every other arm is unchanged, so a
@@ -2701,6 +2707,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // budget (PIN-13). Fail-open (PIN-2): an engine error inside the stage is caught, logged, and the
   // approved task still merges its pre-ace tip.
   const aceStage = async (r) => {
+    liveTaskRecords.add(r)
     // Classify-at-collection (ADR 0013), now classified wave-side: each Minor/Nit routes ONCE, by
     // disposition. Minted once and stashed on r so the merge queue never re-mints the same findings.
     const taskMinors = minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f }))

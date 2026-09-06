@@ -12299,12 +12299,25 @@ const registrySlice = () => {
   // (the D2 registry rows deepEqual them).
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
-    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys, diffFilesByTask, dispositionOf, intakeFloor, demote }')
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
   const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
   return { ...state, ...api }
 }
+
+test('reaudit-sweep (queued registry, snipe: correctness): corroborateSurvivor reaches the per-task re-entry queue — a second seat\'s re-mint of a row queued for re-entry joins that row\'s seats list; an unresolvable re-mint is logged, never silent', () => {
+  const h = registrySlice()
+  const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
+  const r = { task: { id: 't1' } }
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:correctness', findings: [{ ...g }] }])
+  assert.equal(r.reentryQueue.length, 1, 'the row queues for re-entry once')
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...g }] }])
+  assert.equal(r.reentryQueue.length, 1, 'the re-mint never double-queues')
+  assert.deepEqual(r.reentryQueue[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:style (task t1)'], 'the second seat joins the queued row\'s seats list (the per-task queue is searched)')
+  h.corroborateSurvivor({ severity: 'Nit', task: 't9', title: 'orphan', file: 'skills/z.js', seat: 'audit:t9:style' })
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('corroboration: no surviving record found for re-mint "orphan"')), 'an unresolvable re-mint is logged')
+})
 
 test('ask-content-key (registry re-key, D8 both directions on the FINDING tuple): remintKey is stable across seat/sha churn and ./-path drift, and distinguishes same-task findings by file AND title — askContentKey stays parkAsk-only', () => {
   const h = registrySlice()
