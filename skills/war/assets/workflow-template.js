@@ -878,7 +878,7 @@ const pushFindingRowProblems = (at, rows, tag, severities = null) => rows.forEac
   if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (' + tag + ')'); return }
   if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: ' + at + '[' + i + '].title must be a non-empty string (' + tag + ')')
   if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: ' + at + '[' + i + '].severity must be a non-empty string (' + tag + ')')
-  else if (severities && !severities.includes(e.severity)) problems.push('workflow-template: ' + at + '[' + i + '].severity must be one of ' + severities.join('|') + ' — the seed is a held absorb, never a blocker (got ' + e.severity + ') (' + tag + ')')
+  else if (severities && !severities.includes(e.severity)) problems.push('workflow-template: ' + at + '[' + i + '].severity must be one of ' + severities.join('|') + ' — the seed is an absorb row, never a blocker (got ' + e.severity + ') (' + tag + ')')
   if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: ' + at + '[' + i + '].file must be a repo-relative path string or null (' + tag + ')')
 })
 if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
