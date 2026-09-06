@@ -2743,7 +2743,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // then routeAbsorbTail (fileless, aceEligible, run.ace, phaseClose) —
       // before it may join aceable — a seeded release-slot row never rides an ace batch (PIN-11)
       // and a seeded row never dispatches an ace worker with run.ace off (PIN-16).
-      const heldRows = Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []
+      // Each held row is minted { task: r.task.id, ...raw } like a fresh taskMinors row: the seed's
+      // documented shape (the AuditVerdict finding) carries no task key, and remintKey / the
+      // corroboration search / the aced and demote records all read it (snipe: correctness).
+      const heldRows = (Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []).map(raw => ({ task: r.task.id, ...raw }))
       for (const f of heldRows) {
         // #2036: a seeded row is judged like a fresh one BEFORE the absorb chain — the ask arm always
         // parks (never dropped by a collision, never committed by an ace worker), a seat-set follow-up
