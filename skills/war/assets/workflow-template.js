@@ -872,14 +872,17 @@ if (A.sweepExclude !== undefined && A.sweepExclude !== null) {
 //       Lead's relaunch carry of a prior phase return's carriedPhaseClose: absent/null, or an array of
 //       finding rows ({ severity, title, file?, … }). Any other shape is a malformed launch, refused at
 //       entry naming the entry index and field — never coerced, never a guessed queue.
+// Shared finding-row validator for the two seeded-row classes (6 and 8): each row is an object with a
+// non-empty title and severity and a string-or-null file; every refusal names the row path and field.
+const pushFindingRowProblems = (at, rows, tag) => rows.forEach((e, i) => {
+  if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (' + tag + ')'); return }
+  if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: ' + at + '[' + i + '].title must be a non-empty string (' + tag + ')')
+  if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: ' + at + '[' + i + '].severity must be a non-empty string (' + tag + ')')
+  if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: ' + at + '[' + i + '].file must be a repo-relative path string or null (' + tag + ')')
+})
 if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
   if (!Array.isArray(A.seededPhaseClose)) problems.push('workflow-template: args.seededPhaseClose must be an array of carried finding rows or absent (got ' + typeof A.seededPhaseClose + ') (D3b)')
-  else A.seededPhaseClose.forEach((e, i) => {
-    if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: args.seededPhaseClose[' + i + '] must be a finding row object { severity, title, file? } (D3b)'); return }
-    if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: args.seededPhaseClose[' + i + '].title must be a non-empty string (D3b)')
-    if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: args.seededPhaseClose[' + i + '].severity must be a non-empty string (D3b)')
-    if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: args.seededPhaseClose[' + i + '].file must be a repo-relative path string or null (D3b)')
-  })
+  else pushFindingRowProblems('args.seededPhaseClose', A.seededPhaseClose, 'D3b')
 }
 //   (7) FINAL-PHASE class (in-band-absorb-default D3a) — args.finalPhase is the terminal pass's
 //       finality signal: a boolean, or absent (reads as FINAL, so a missed thread files a visible
@@ -889,19 +892,15 @@ if (A.finalPhase !== undefined && typeof A.finalPhase !== 'boolean') {
 }
 //   (8) TASK-PENDING-ABSORBS class (#2037, absorb-budget D5) — tasks[].pendingAbsorbs is the Lead's
 //       relaunch seed of rows a blocker-held batch ace held at a prior launch: absent/null, or an
-//       array of finding rows ({ severity, title, file?, … }) — the class-6 shape. The ace prompt
+//       array of finding rows ({ severity, title, file?, … }) — the class-6 shape, checked by the
+//       shared pushFindingRowProblems validator. The ace prompt
 //       row interpolates severity bare, so an unvalidated seed without one would throw inside
 //       aceStage's fail-open catch and vanish; refuse at entry instead, naming the task and index.
 for (const [ti, t] of (Array.isArray(A.tasks) ? A.tasks : []).entries()) {
   if (!t || t.pendingAbsorbs === undefined || t.pendingAbsorbs === null) continue
   const at = 'args.tasks[' + ti + '].pendingAbsorbs'
   if (!Array.isArray(t.pendingAbsorbs)) { problems.push('workflow-template: ' + at + ' must be an array of held finding rows or absent (got ' + typeof t.pendingAbsorbs + ') (D5)'); continue }
-  t.pendingAbsorbs.forEach((e, i) => {
-    if (!e || typeof e !== 'object' || Array.isArray(e)) { problems.push('workflow-template: ' + at + '[' + i + '] must be a finding row object { severity, title, file? } (D5)'); return }
-    if (typeof e.title !== 'string' || !e.title) problems.push('workflow-template: ' + at + '[' + i + '].title must be a non-empty string (D5)')
-    if (typeof e.severity !== 'string' || !e.severity) problems.push('workflow-template: ' + at + '[' + i + '].severity must be a non-empty string (D5)')
-    if (e.file !== undefined && e.file !== null && typeof e.file !== 'string') problems.push('workflow-template: ' + at + '[' + i + '].file must be a repo-relative path string or null (D5)')
-  })
+  pushFindingRowProblems(at, t.pendingAbsorbs, 'D5')
 }
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 // finalPhase (D3a): absent reads as final. Logged once — the terminal pass and the discard/held carry
