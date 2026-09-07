@@ -4350,9 +4350,14 @@ test('#1550 ask parking (approve path): an ask parks on asks[] with question+for
   // The ninth handoff key (lossy projection, ADDITIVE — adjacent to the follow-ups row).
   const h = out.handoff
   assert.ok(h, 'handoff present on landed')
+  // aceBase answers EVERY auditor dispatch with the same findings, so the post-merge gate-audit
+  // seat re-mints the ask and the collision merges as a corroborator — the projection now carries
+  // that list (#1872).
   assert.deepEqual(h.asks, [{ task: 't1', seat: 'audit:t1:correctness', sha: null,
-    question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'] }],
-    'handoff.asks is the LOSSY projection — question + fork + task/seat/sha, no finding row')
+    question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'],
+    corroborators: [{ seat: 'gate-audit:t1:execution-evidence', sha: null, file: 'docs/x.md', title: 'mirror or point',
+      fork: ['mirror the value', 'point at the source'] }] }],
+    'handoff.asks is the LOSSY projection — question + fork + task/seat/sha + corroborators, no finding row')
   assert.ok(!('finding' in h.asks[0]), 'the handoff projection drops the full finding (lossy by design)')
   const keys = Object.keys(h)
   assert.equal(keys.indexOf('asks'), keys.indexOf('followUps') + 1,
@@ -8694,8 +8699,10 @@ test('Task 1.1 (e) — no surviving single- or two-producer phrasing on the two 
   // present at this task's base a60221a; the widened literal is presence-pinned beside it).
   assert.ok(!src.includes('TWO producers feed this arg, never one'),
     'the retired two-producer count literal ("TWO producers feed this arg, never one") must be absent from workflow-template.js (OLD-absent)')
-  assert.ok(src.includes('THREE producers feed this arg, never one or two'),
-    'the widened producer-count literal ("THREE producers feed this arg, never one or two") is present (NEW-present, lock-step with the OLD-absent half)')
+  assert.ok(!src.includes('THREE producers feed this arg, never one or two'),
+    'the count-word producer literal ("THREE producers feed this arg, never one or two") is de-mirrored (rule 7 of D24, Task 3.1) — the header names the producers, never counts them')
+  assert.ok(src.includes('The producers that feed this arg are named here, never counted'),
+    'the de-mirrored header sentence is present (NEW-present, lock-step with the OLD-absent halves)')
 })
 
 test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch re-runs the integrated tip AND one authoritative execution-evidence seat consumes it', async () => {
@@ -15764,4 +15771,149 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
   // The worker card: the trigger pointer, never a rule body.
   assert.ok(workerMd.includes(pointer), 'the worker card carries the plugin-root-anchored pointer')
   assert.ok(!workerMd.includes(rules), 'the worker card carries no rule body (it is not a fix-round surface until dispatch)')
+})
+
+// ---------------------------------------------------------------------------
+// Ask records carry their evidence (engine-and-audit-verdict-integrity D3, PIN-7, Task 3.1):
+// the widened parkAsk corroborator entry (#1876) reaching the handoff (#1872), the side-Map key
+// (#1878), the ruledAsks queuedKeys stamp (#1875), the queued-arm corroboration (#1874) and the
+// coordinate-less ruled-ask refusal naming the coordinate (#1882).
+// ---------------------------------------------------------------------------
+
+// Two-seat roster: the SAME question raised by two seats on two files with two forks collides on
+// askContentKey (task + question) — the second site and its option set must survive the merge.
+const ASK_EVIDENCE_ARGS = () => PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's',
+  roster: [{ lens: 'correctness' }, { lens: 'security' }] }] })
+const askEvidenceImpl = (prompt, opts) => {
+  const seat = seatOf(opts), label = opts.label || ''
+  if (seat === 'war-auditor') {
+    if (label.startsWith('gate-audit:')) return { seat: label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' }
+    // audit_sha echoes the worker's head_sha (handoffImpl: deadbeef) — a mismatched pin would demote every row to a note.
+    if (label === 'audit:t1:security') return { seat: label, lens: 'security', verdict: 'approve', confidence: 'high', audit_sha: 'deadbeef',
+      findings: [askFinding({ title: 'mirror or point (y)', file: './docs/y.md',
+        ask: { question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source', 'drop the value'] } })] }
+    return { seat: label, lens: 'correctness', verdict: 'approve', confidence: 'high', audit_sha: 'deadbeef',
+      findings: [askFinding(), askFinding({ title: 'lone question', ask: { question: 'keep or retire the contract?', fork: ['keep', 'retire'] } })] }
+  }
+  if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+  return handoffImpl(undefined)(prompt, opts)
+}
+
+test('parkAsk collision: corroborator carries file/title/fork and reaches the handoff', async () => {
+  const { out, logs } = await runPhase(ASK_EVIDENCE_ARGS(), askEvidenceImpl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  const merged = (out.asks || []).find(a => a && a.question === 'mirror the value or point at the source?')
+  assert.ok(merged, 'the colliding question parks once')
+  assert.equal((out.asks || []).filter(a => a && a.question === 'mirror the value or point at the source?').length, 1, 'one surviving record for the shared question')
+  // The widened entry (#1876): seat + sha + file + title + fork. `file` is the repo-relative path —
+  // normalizeFinding ran at intake, so the seat's `./docs/y.md` records as `docs/y.md`.
+  const entry = { seat: 'audit:t1:security', sha: 'deadbeef', file: 'docs/y.md', title: 'mirror or point (y)',
+    fork: ['mirror the value', 'point at the source', 'drop the value'] }
+  assert.deepEqual(merged.corroborators, [entry], 'the surviving record\'s corroborator carries the re-raiser\'s seat, sha, repo-relative file, title and fork')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration') && l.includes('on docs/y.md')), 'the collision log names the re-raiser\'s file')
+  // The handoff projection (#1872): corroborators ride the Checkpoint's input when non-empty, and
+  // the key is ABSENT when the record never collided.
+  const hMerged = out.handoff.asks.find(a => a.question === 'mirror the value or point at the source?')
+  assert.deepEqual(hMerged.corroborators, [entry], 'handoff.asks carries the corroborators list verbatim')
+  const hLone = out.handoff.asks.find(a => a.question === 'keep or retire the contract?')
+  assert.ok(hLone && !('corroborators' in hLone), 'an uncorroborated record projects without a corroborators key (added when non-empty only)')
+  assert.ok(!('finding' in hMerged), 'the projection stays lossy — no finding row')
+  // The side-Map key (#1878): no parked record, top-level or projected, carries the NUL-joined key.
+  assert.ok(out.asks.every(a => !('key' in a)), 'the top-level asks[] carries no key (the content key lives on the askKeyOf side Map)')
+  assert.ok(out.handoff.asks.every(a => !('key' in a)), 'the handoff projection carries no key either')
+  assert.ok(!JSON.stringify(out.asks).includes('\\u0000'), 'no embedded NUL reaches the operator-facing asks[] artifact')
+  // Engine pins: the Map exists and every asks[] lookup by key reads it (no record-field key left).
+  assert.ok(src.includes('const askKeyOf = new Map()'), 'the side Map is declared')
+  const parkBody = src.slice(src.indexOf('const parkAsk'), src.indexOf('const demote ='))
+  assert.ok(!/asks\.push\(\{\s*key/.test(parkBody), 'parkAsk never pushes the key onto the record')
+  assert.ok(parkBody.includes('askKeyOf.set(record, key)'), 'parkAsk registers the record on the side Map')
+  assert.equal((src.match(/a\.key\b/g) || []).length, 0, 'no `a.key` reader survives on asks[] records (findAsk / askKeyOf.get are the readers)')
+})
+
+test('parkAsk unpark (#1878 side Map): the --afk citation unpark splices the record AND its Map entry, so a later re-raise of the resolved question parks fresh instead of matching a ghost key', () => {
+  const h = registrySlice()
+  const ask = { severity: 'Minor', task: 't1', title: 'mirror or point', file: 'docs/x.md', disposition: 'ask', seat: 'audit:t1:correctness',
+    ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] } }
+  h.parkAsk(ask)
+  assert.equal(h.asks.length, 1, 'parked once')
+  // The harness run has afk unset, so recordAced's citation arm leaves the record parked with a
+  // prefill (interactive) — the Map lookup still resolves the record by key.
+  h.recordAced({ ...ask, disposition: 'absorb' }, 'abc1234', { citation: { row: 'ADJ-1', rationale: 'covered' } })
+  assert.ok(h.asks[0].citationPrefill && h.asks[0].citationPrefill.row === 'ADJ-1', 'the citation match resolves the parked record through the side Map (interactive arm: prefill, still parked)')
+  assert.ok(!('key' in h.asks[0]), 'the parked record still carries no key after the citation match')
+})
+
+test('corroborateSurvivor: queued-arm seats merge', () => {
+  // #1874's owed fixture: a re-mint refused on the queued reason lands its seat on the surviving
+  // QUEUED row — the phase-close queue, the relaunch carry, and a task's held absorbs alike.
+  const h = registrySlice()
+  const f = { severity: 'Minor', task: 't1', title: 'stale count', file: 'skills/a.js', disposition: 'absorb', phaseClose: true, seat: 'audit:t1:correctness' }
+  h.routeToSweep({ ...f }, 'fixture')
+  assert.equal(h.phaseCloseQueue.length, 1, 'presence guard: one queued row')
+  assert.ok(h.remintBlock({ ...f, seat: 'audit:t1:security' }), 'the re-mint is refused on the queued registry (the arm under test)')
+  h.corroborateSurvivor({ ...f, seat: 'audit:t1:security' })
+  assert.deepEqual(h.phaseCloseQueue[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:security (task t1)'],
+    'the second seat joins the QUEUED survivor\'s seats list (phaseCloseQueue is searched)')
+  const carried = { severity: 'Nit', task: 't2', title: 'carried row', file: 'skills/c.js', seat: 'audit:t2:correctness' }
+  h.carriedPhaseClose.push(carried)
+  h.corroborateSurvivor({ ...carried, seat: 'audit:t2:style' })
+  assert.deepEqual(carried.seats, ['audit:t2:correctness (task t2)', 'audit:t2:style (task t2)'], 'a carriedPhaseClose survivor merges the re-raiser too')
+  const held = { severity: 'Nit', task: 't3', title: 'held row', file: 'skills/h.js', seat: 'audit:t3:correctness' }
+  h.liveTaskRecords.add({ task: { id: 't3', pendingAbsorbs: [held] } })
+  h.corroborateSurvivor({ ...held, seat: 'audit:t3:style' })
+  assert.deepEqual(held.seats, ['audit:t3:correctness (task t3)', 'audit:t3:style (task t3)'], 'a held pendingAbsorbs survivor merges the re-raiser too')
+  assert.ok(!h.logs.some(l => typeof l === 'string' && l.includes('no surviving record found')), 'no queued-arm re-mint fell through to the unresolvable log')
+})
+
+test('ruled-ask intake (#1875): a ruled ask stamps queuedKeys — a re-audit re-mint of the ruled finding is refused with one queued record, its seat corroborated, never a second sweep row or a re-entry batch', async () => {
+  const ruled = { task: 't1', findingTitle: 'flip the retention default', file: 'docs/retention.md',
+    planSlug: 'wtprov-a', phase: '2', suggested_fix: 'set the documented default to 30d', ruling: 'adopt the 30d default' }
+  // Round 1: an aceable nit dispatches the batch ace; the ace re-audit re-mints the RULED finding
+  // (same task + file + title) as an absorb — the re-entry arm, which without the stamp would
+  // queue it a second time (r.reentryQueue → a re-entry ace dispatch).
+  const remint = { severity: 'Minor', title: 'flip the retention default', file: 'docs/retention.md', rationale: 'still 90d', disposition: 'absorb' }
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [remint])] },
+    quietGate(sweepBase([])))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ ruledAsks: [ruled] }), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)') && l.includes('flip the retention default')), 'presence guard: the ruled ask queues')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('flip the retention default') && l.includes('already queued for the phase-close sweep')),
+    'the re-audit re-mint is refused on the queued registry (the ruledAsks push stamped it)')
+  assert.equal(calls.filter(isAce).length, 1, 'the round-1 batch ace only — no re-entry batch for the re-mint')
+  const acedRuled = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'flip the retention default')
+  assert.equal(acedRuled.length, 1, 'exactly one aced record for the ruled finding (the polish sha)')
+  assert.equal(acedRuled[0].sha, 'polishsha', 'it is the sweep\'s record')
+  assert.deepEqual(acedRuled[0].finding.seats, ['task t1', 'audit:t1:correctness (task t1)'],
+    'the re-raising seat was merged onto the queued ruled row (corroborateSurvivor searched phaseCloseQueue)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'flip the retention default'), 'the re-mint never files a second record')
+  // Engine pin: the push site stamps beside the push, and it sits past the registry declarations.
+  const push = src.indexOf('queuedKeys.add(remintKey(row)); phaseCloseQueue.push(row)')
+  assert.ok(push !== -1 && push > src.indexOf('const queuedKeys = new Set()'), 'the ruledAsks push stamps queuedKeys after the registry is declared')
+})
+
+test('ruled-ask intake: coordinate-less record names the coordinate', async () => {
+  // #1882: a legacy-shaped record (no planSlug) whose prose carries none of the run's own slug
+  // tokens refuses the launch — and the refusal names the ACTUAL cause (the missing coordinate),
+  // not the own-token floor.
+  const legacy = { findingTitle: 'legacy ruling', ruling: 'do it', suggested_fix: 'one line', phase: '3' }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ ruledAsks: [legacy] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'a token-less coordinate-less record refuses at entry')
+  assert.match(out.workflowError.message, /args\.ruledAsks record "legacy ruling" is missing required planSlug coordinate/, 'the refusal names the record and the missing coordinate')
+  assert.doesNotMatch(out.workflowError.message, /contains none of the run's own plan-slug tokens/, 'the own-token cause is never the named cause for a coordinate-less record')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+  // Control 1: the same record carrying an own token clears the floor and is dropped LOUDLY at the
+  // intake (fail-open, the existing S3 fixture's arm) — the pre-check never widens the refusal.
+  const tokened = { ...legacy, ruling: 'do it per the wtprov-a call' }
+  const ok = await runPhase(PROVISION_ARGS({ ruledAsks: [tokened] }), defaultImpl)
+  assert.notEqual(ok.out.landDecision, 'held:workflow-error', 'a coordinate-less record with an own token still launches')
+  assert.ok(ok.logs.some(l => typeof l === 'string' && l.includes('ruled-ask intake DROPPED') && l.includes('"legacy ruling"') && l.includes('planSlug (required provenance coordinate')),
+    'the intake drops it loudly naming the failed conjunct')
+  // Control 2: a slug-stamped token-less record is exempt — the pre-check reads coordinate-less
+  // rows only, so the field-read fail-open arm (#1879 RULING 2) is untouched.
+  const stamped = { ...legacy, planSlug: 'wtprov-a' }
+  const ex = await runPhase(PROVISION_ARGS({ ruledAsks: [stamped] }), defaultImpl)
+  assert.notEqual(ex.out.landDecision, 'held:workflow-error', 'the own-slug coordinate exempts the row (fail-open preserved)')
+  // Control 3: a foreign stamp still refuses with the stamp message — the stamp check precedes the pre-check.
+  const foreign = { ...legacy, planSlug: 'other-plan' }
+  const fr = await runPhase(PROVISION_ARGS({ ruledAsks: [foreign] }), defaultImpl)
+  assert.match(fr.out.workflowError.message, /carries a planSlug provenance stamp naming a foreign plan \(other-plan\)/, 'a foreign stamp keeps its own refusal')
 })
