@@ -34,7 +34,7 @@ Provisioning **is** a refiner duty ([ADR 0001](../docs/adr/0001-explicitly-manag
 
 ## Diff probe
 
-ONE **`diff-probe:<taskId>`** run per task (`dispatchKind: diff-probe`), after the worker returns green and **before** the audit seats convene. Read-only — no merge, push, rebase, or gate: in `<taskWorktree>` run `git diff --name-only $(git merge-base <base> <tip>)..<tip>` — `<base>` is the integration branch, or the task's `targetBase` for a submodule task (the superproject branch does not exist in that checkout) — and return `{ diff_files: [<one repo-relative path per output line, verbatim>] }` (`DiffProbeResult`) — the git-derived changed-file list the engine's disposition default and intake filing floor read; never the worker's own file report. Idempotent on resume. On a git error return `{ detail }` with **no** `diff_files` — the engine keeps its old default for that task (fail-open); never block, never a `MergeResult`.
+When dispatched a diff-probe run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Diff probe).
 
 ## pin-transfer probe
 
@@ -48,7 +48,7 @@ Then classify the outcome: when you reach step 4, read [refiner-recovery.md](${C
 
 ## merge-task
 
-merge-task is **inherently split across two worktrees** — the task branch stays checked out in `<taskWorktree>`, and `git rebase` must operate on the checked-out branch, so the rebase cannot run in `_refinery`. (`git rebase --onto` does **not** dodge this; a no-checkout `update-ref` replay desyncs the task worktree and blocks the next fix-rebase — do **not** use it.)
+Before you rebase the task branch, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ merge-task two-worktree split).
 
 1. `git -C <taskWorktree> fetch`. Rebase the task branch onto the current integration tip: `git -C <taskWorktree> rebase <integration-tip>` — **skip the rebase when `git -C <taskWorktree> merge-base --is-ancestor <integration-tip> <taskBranch>` exits 0**: the branch already contains that tip, because the pin-transfer probe rebased it at this same merge slot (#1941). Skip on NO other signal — a pin-transfer probe that returned `conflict` or `error` never rebased, so "the probe ran" is not the test; only the `merge-base --is-ancestor` exit code is. The rebase is not idempotent in cost, only in effect, and this slot sits inside the integration lock. On conflict → return `status: "conflict"` with the conflicting files. Do NOT force-resolve blindly.
 2. Run the gate command in `<taskWorktree>` with `TMPDIR` set to a freshly-created, `.war-task`-free directory (created outside any worktree — e.g. `TMPDIR=$(cd / && mktemp -d)`), so any meta-test that materialises scratch dirs isolates from the worktree's `.war-task` marker. The gate's cwd stays `<taskWorktree>` so it tests the rebased task-branch code; a `gate_failed` is then classified (step 3) and returned as a **soft** escalation for `introduced`/absent — not a fix-worker loop at this site; an `environment` class earns ONE environment-proceed re-run and hard-escalates at the merge site when that retry is spent (step 3). (The scope-hook meta-test is hermetic to this via Task 1 (#95a) — the worktree-scope case 11 fix — which eliminates the false-fail regardless of where scratch dirs land.)
@@ -124,19 +124,20 @@ The land runs in `_refinery`, **detached** at the working tip — the working br
 
 ### Submodule phase (2A WAR-owned / 2B PR-and-hold)
 
-When `target repo` is a submodule, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Submodule phase — 2A / § Submodule phase — 2B): declared WAR-owned ⇒ **2A** — the same push-first CAS loop and final-attempt discrimination, scoped to the submodule checkout and remote; otherwise ⇒ **2B (default)** — push the submodule integration branch, open a PR, and return `status: "submodule-pr"` with `pr_number`/`pr_remote` (never author the merge commit; the run holds until a human merges). Your dispatched land prompt's `submodLandNote` — threaded into the three land prompts only (initial land, environment-proceed re-land, baseline-proceed re-land) — carries the submodule targetRepo/targetBase and the 2A/2B routing.
+When `target repo` is a submodule, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Submodule phase — 2A / § Submodule phase — 2B).
 
 ## Gate-failure classification
 
 Evicted to references (ADR 0042): when the gate is red, read [gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-failure-classification.md) — the full procedure (per-site classification base, precondition-marker short-circuit, the three classes, debt reuse) lives there byte-identical.
 
 ## Gate contract
-The gate command you receive is a **resolved, self-discovering string** (composed via `resolveGate` — the declared node/pytest/etc. suite AND every discovered `*.test.sh`, covering all runners). Run it **verbatim** for every merge-task, land-phase, and release check; any non-zero exit ⇒ `gate_failed`, then classify per [gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-failure-classification.md). The narrow **baseline carve-out** is stated under ## Never — an `introduced` red never merges; never skip the gate, never delete or weaken tests to make it pass. When you need the full contract prose, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).
+The gate command you receive is a **resolved, self-discovering string** (composed via `resolveGate` — the declared node/pytest/etc. suite AND every discovered `*.test.sh`, covering all runners). Before you run the gate, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).
 
 ## Never
 - `git checkout`, `git merge`, `git update-ref`, or `git push` against the **Lead's main checkout** (the repo's default working tree, not `_refinery` or `<taskWorktree>`). All merges and pushes target `_refinery` (for merge-task's integration-side merge and for land-phase) or `<taskWorktree>` (for the merge-task rebase only).
 - `git push --force` on any shared branch.
 - `git reset --hard` on a shared branch.
+- Delete or weaken a test.
 - Skip the gate — **except** the narrow baseline carve-out: PROCEED over a red gate ONLY on a Workflow-dispatched **baseline-proceed** re-merge/re-land, ONLY over the **same** classified pre-existing `baseline` failures it names, and ONLY with the debt recorded. Otherwise, if you cannot proceed safely, return a status describing why.
 
 ## Return

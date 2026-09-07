@@ -35,7 +35,8 @@ const fileFollowupsMd = readFileSync(join(here, '../references/file-followups.md
 const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
+// `source` defaults to the live template; a fixture passes a mutated copy for a delete-and-trace control.
+const build = (source = src) => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', source)
 
 // --- Behavioral harness (mirrors red-team workflow-scaffold.test.mjs) ----------------------
 // Run the template with a mock `agent` that records every { prompt, opts } in call order, plus a
@@ -78,10 +79,10 @@ const answerNewSeat = (seats, prompt, opts) => {
   return typeof r === 'function' ? r(prompt, opts) : r
 }
 
-async function runPhase(args, agentImpl, seats = {}) {
+async function runPhase(args, agentImpl, seats = {}, source = src) {
   const calls = []
   const logs = []
-  const fn = build()
+  const fn = build(source)
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
     if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe') return answerNewSeat(seats, prompt, opts)
@@ -9665,6 +9666,11 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const workerP = (calls.find(isWorker) || {}).prompt
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
   const servitorP = (calls.find(isServitor) || {}).prompt
+  // Fix-round doctrine (#2097): the FIX_NEEDED fix prompt is only emitted on a blocking finding — drive
+  // it with the fixNeededImpl fixture and capture the LIVE prompt (the worker-card pointer's twin).
+  const fixP = ((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls
+    .find(c => /^fix:t1:/.test(c.opts.label || '')) || {}).prompt
+  assert.ok(fixP, 'the FIX_NEEDED fix prompt dispatched (presence guard)')
   // Task 2.3 (done-when floor): the merge-task dispatch carries doneWhenFloorClause only for a
   // doneWhen-bearing task — capture that prompt from its own fixture run.
   const mergeP = ((await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
@@ -9943,8 +9949,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                 /exit 1[\s\S]{0,400}budget-uncited/i,
                 /floor_route: ['"]budget-uncited['"]/,
                 /exit 2[\s\S]{0,240}never the budget-uncited route/i] },
+    // Fix-round doctrine pointer (#2097, engine-and-audit-verdict-integrity Task 1.4, PIN-1): the worker
+    // card's trigger sentence and the FIX_NEEDED build's own pointer line both name the reference by its
+    // plugin-root-anchored path (ADR 0047) and the dispatch trigger. Anchor precondition: the pointer
+    // path and the dispatch trigger each count 0 in agents/war-worker.md and in workflow-template.js
+    // at the task base, so a per-surface revert REDs this row. The rule bodies are pinned separately by the fixture `fix-round doctrine:
+    // every fix-applying build mirrors the reference` — never by this row (the card carries no rule body).
+    { name: 'fix-round doctrine pointer (#2097): worker card trigger sentence ↔ FIX_NEEDED build pointer line',
+      surfaces: [['war-worker.md', workerMd], ['FIX_NEEDED fix prompt', fixP]],
+      anchors: [/\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/fix-round-doctrine\.md/, /fix round or an ace commit/i] },
   ]
-  assert.ok(REGISTRY.length >= 23, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 24, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -15296,4 +15311,102 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
   const bare = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'r' }] }), sweepBase([]))
   assert.equal(bare.out.landDecision, 'held:workflow-error')
   assert.match(bare.out.workflowError.message, /args\.seededPhaseClose contains none of the run's own plan-slug tokens/, 'the own-token floor applies to the surface')
+})
+
+// ===========================================================================
+// FIX-ROUND DOCTRINE (#2097, engine-and-audit-verdict-integrity Task 1.4, D24/PIN-27) — the
+// `## The rules` section of skills/war/references/fix-round-doctrine.md is the canonical body; the
+// enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE
+// shared constant carrying it byte-equal. The batch ace ADVISORY POLISH (--ace) build, the
+// phase-close sweep polish build and the TERMINAL PASS build are deliberately excluded under the
+// plan scope (agents/war-worker.md's trigger pointer still reaches those workers). The first-pass worker prompt
+// and the auditor prompts carry nothing.
+// Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
+// section while its siblings keep it) and a no-false-positive control (a reworded rule never
+// appears in any prompt; the byte-sensitive pin is the includes(rules) equality itself).
+// ---------------------------------------------------------------------------
+const fixRoundDoctrineMd = readFileSync(join(here, '../references/fix-round-doctrine.md'), 'utf8')
+const fixRoundRulesSection = () => {
+  const after = fixRoundDoctrineMd.split('## The rules\n')[1]
+  assert.ok(after, 'fix-round-doctrine.md carries a `## The rules` section')
+  return after.split('\n## ')[0].trim()
+}
+// Each fix-applying build: the fixture that reaches it, the capture predicate, and the build's head
+// string (the anchor the delete-and-trace control mutates after).
+const FIX_APPLYING_BUILDS = [
+  { site: 'FIX_NEEDED fix prompt', head: 'pt`FIX_NEEDED for WAR task',
+    run: (source) => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl(), {}, source),
+    find: (c) => c.find(x => /^fix:t1:/.test(x.opts.label || '')) },
+  { site: 'ACE BISECTION SUBSET prompt', head: 'pt`ACE BISECTION SUBSET for WAR task',
+    run: (source) => runPhase(ACE_ARGS(), bisectSubsetImpl(), {}, source),
+    find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE BISECTION SUBSET')) },
+  { site: 'ACE RE-ENTRY BATCH prompt', head: 'pt`ACE RE-ENTRY BATCH for WAR task',
+    run: (source) => runPhase(ACE_ARGS(), reentryImpl(), {}, source),
+    find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')) },
+]
+// Drop the interpolation line at ONE build only: the first `+ FIX_ROUND_DOCTRINE_CLAUSE` after that
+// build's head string. The census below proves the mutation targets exactly one site.
+const dropDoctrineAt = (head) => {
+  const at = src.indexOf(head)
+  assert.ok(at >= 0, `build head present in the template: ${head}`)
+  const re = /\n[ ]*\+ FIX_ROUND_DOCTRINE_CLAUSE(?=\n)/
+  const tail = src.slice(at)
+  assert.ok(re.test(tail), `an interpolation line follows the build head: ${head}`)
+  return src.slice(0, at) + tail.replace(re, '')
+}
+
+test('fix-round doctrine: every fix-applying build mirrors the reference', async () => {
+  const rules = fixRoundRulesSection()
+  assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
+  const pointer = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
+  // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
+  // carry none (the constant is interpolated at exactly the enumerated sites).
+  const sites = (src.match(/\n[ ]*\+ FIX_ROUND_DOCTRINE_CLAUSE(?=\n)/g) || []).length
+  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the batch ace ADVISORY POLISH build, the phase-close sweep polish build and the TERMINAL PASS build are deliberately outside this set under the plan scope)')
+  // Extraction-and-equality (rule 5 of the block): the FIX_ROUND_RULES literal itself equals the
+  // reference section, so an engine-side superset (an eleventh rule) is red — containment alone
+  // would pass it.
+  const rulesHead = 'const FIX_ROUND_RULES = pt`'
+  const rulesAt = src.indexOf(rulesHead)
+  assert.ok(rulesAt >= 0, 'FIX_ROUND_RULES template literal present in the template')
+  const rulesBody = src.slice(rulesAt + rulesHead.length)
+  const rulesEnd = rulesBody.indexOf('`\n')
+  assert.ok(rulesEnd >= 0, 'FIX_ROUND_RULES template literal closes')
+  const extracted = rulesBody.slice(0, rulesEnd).replace(/\\`/g, '`')
+  assert.equal(extracted.trim(), rules, 'FIX_ROUND_RULES equals the reference section (extraction-and-equality; a superset or a subset is red)')
+  const reworded = rules.replace('Sibling sweep before commit', 'Sibling sweep after commit')
+  assert.notEqual(reworded, rules, 'the reference-edit control rewords a rule')
+  for (const b of FIX_APPLYING_BUILDS) {
+    const live = b.find((await b.run(src)).calls)
+    assert.ok(live && live.prompt, `${b.site}: dispatched (presence guard)`)
+    assert.ok(live.prompt.includes(rules), `${b.site}: carries the reference's rule section byte-equal`)
+    assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
+    assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(the cause-then-class-then-fix rule\)/, `${b.site}: asks for the cause line before the fix`)
+    assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round \(the note-absorb rule\)/, `${b.site}: names the note-absorb rule`)
+    assert.ok(!live.prompt.includes(reworded), `${b.site}: a reworded rule never appears (no-false-positive; byte-sensitivity is pinned by the includes(rules) assert above)`)
+    // Delete-and-trace: drop this build's interpolation ⇒ this prompt loses the section; each sibling keeps it.
+    const mutated = dropDoctrineAt(b.head)
+    const dropped = b.find((await b.run(mutated)).calls)
+    assert.ok(dropped && dropped.prompt, `${b.site}: still dispatched under the mutation`)
+    assert.ok(!dropped.prompt.includes(rules), `${b.site}: delete-and-trace — dropping its interpolation removes the section`)
+    for (const other of FIX_APPLYING_BUILDS.filter(o => o !== b)) {
+      const kept = other.find((await other.run(mutated)).calls)
+      assert.ok(kept && kept.prompt.includes(rules), `${other.site}: keeps the section when only ${b.site} drops its interpolation`)
+    }
+  }
+  // The first-pass worker prompt and the auditor prompt carry nothing of the block.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const workerP = (calls.find(isWorker) || {}).prompt
+  const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  assert.ok(workerP && auditP, 'worker and auditor prompts dispatched (presence guard)')
+  assert.ok(!workerP.includes(rules) && !workerP.includes(pointer), 'the first-pass worker prompt carries neither the rules nor the pointer')
+  assert.ok(!auditP.includes(rules) && !auditP.includes(pointer), 'the auditor prompt carries neither the rules nor the pointer')
+  // /snipe: the plugin-root-anchored pointer on the closing options line, plus the loop bound (no registry reader there).
+  const snipeMd = readFileSync(join(here, '../../snipe/SKILL.md'), 'utf8')
+  assert.ok(snipeMd.includes(pointer), '/snipe carries the plugin-root-anchored pointer to the reference')
+  assert.match(snipeMd, /absorb by hand — per `\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/fix-round-doctrine\.md`/, '/snipe carries the pointer on the closing options line')
+  assert.match(snipeMd, /two consecutive all-approve rounds/i, '/snipe carries the loop bound')
+  // The worker card: the trigger pointer, never a rule body.
+  assert.ok(workerMd.includes(pointer), 'the worker card carries the plugin-root-anchored pointer')
+  assert.ok(!workerMd.includes(rules), 'the worker card carries no rule body (it is not a fix-round surface until dispatch)')
 })

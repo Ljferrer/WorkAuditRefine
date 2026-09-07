@@ -498,8 +498,9 @@ test('absorb-budget: run.absorbRounds error message shape == run.roundLimit\'s (
 })
 
 // --- run.maxParallel (optional fan-out throttle) ------------------------------
-// No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). When present,
-// integer >= 1; anything else is rejected with an error naming the key.
+// No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). An explicit null
+// is unset too (the overrides.* convention). When set, integer >= 1; anything else is
+// rejected with an error naming the key.
 
 test('maxParallel valid integer accepted', () => {
   assert.equal(validate({ run: { maxParallel: 3 } }).valid, true)
@@ -521,6 +522,15 @@ test('maxParallel non-integer rejected', () => {
 
 test('maxParallel string rejected', () => {
   assert.equal(validate({ run: { maxParallel: '4' } }).valid, false)
+})
+
+test('maxParallel: null is unset', () => {
+  // #2088: explicit null reads as unset, like overrides.*; it is never a validation error
+  // and fillDefaults does not replace it with a number.
+  const r = validate({ run: { maxParallel: null } })
+  assert.equal(r.valid, true, r.errors.join('\n'))
+  assert.equal(r.errors.some(e => /run\.maxParallel/.test(e)), false)
+  assert.equal(fillDefaults({ run: { maxParallel: null } }).run.maxParallel, null)
 })
 
 test('maxParallel absent passes and has no DEFAULTS.run entry', () => {

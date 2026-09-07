@@ -1,8 +1,10 @@
-# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run
+# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split
 
 Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
 the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
-budget eviction; each moved block was byte-identical to its pre-eviction card text at eviction
+budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and
+the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115 —
+ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
@@ -40,6 +42,8 @@ Trigger: the final failed CAS attempt of a land (after `roundLimit` rejected pus
 ## Submodule land arms (2A / 2B)
 
 Trigger: a land-phase (or 2A merge) dispatch whose phase's `target repo` is a submodule.
+
+Routing (the card's `### Submodule phase` tail, evicted #2115): declared WAR-owned ⇒ **2A** — the same push-first CAS loop and final-attempt discrimination, scoped to the submodule checkout and remote; otherwise ⇒ **2B (default)** — push the submodule integration branch, open a PR, and return `status: "submodule-pr"` with `pr_number`/`pr_remote` (never author the merge commit; the run holds until a human merges). Your dispatched land prompt's `submodLandNote` — threaded into the three land prompts only (initial land, environment-proceed re-land, baseline-proceed re-land) — carries the submodule targetRepo/targetBase and the 2A/2B routing.
 
 ### Submodule phase — 2A (WAR-owned submodule)
 
@@ -85,3 +89,15 @@ The merge slot's pin-transfer probe (see `agents/war-refiner.md` § pin-transfer
 5. **Fail closed.** Post-rebase diff EMPTY **and** (`N` is 0, **or** any `CHERRY` line starts `+`, **or** `PRE` is empty) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR → `status: "empty-unmatched"`, `detail` naming the failing leg. Never `already_upstream`, never a transfer: empty-equals-empty is not equality, and a zero-commit branch is vacuously an ancestor.
 6. **Otherwise compare patch-ids**, returning `rebased_tip` and both ids either way: `PRE` non-empty and `PRE == POST` → `status: "transferred"` (the rebase carried the task's own diff unchanged, so the pin transfers); `PRE != POST` → `status: "mismatch"` (the Workflow re-audits the rebased tip full-panel, in the lock, before the merge).
 7. Any unclassifiable git/env error → `status: "error"` with `detail`; merge-task then runs unchanged — the probe is fail-open.
+
+## Diff probe
+
+Trigger: a `diff-probe` dispatch (the card's `## Diff probe` body, evicted #2115).
+
+ONE **`diff-probe:<taskId>`** run per task (`dispatchKind: diff-probe`), after the worker returns green and **before** the audit seats convene. Read-only — no merge, push, rebase, or gate: in `<taskWorktree>` run `git diff --name-only $(git merge-base <base> <tip>)..<tip>` — `<base>` is the integration branch, or the task's `targetBase` for a submodule task (the superproject branch does not exist in that checkout) — and return `{ diff_files: [<one repo-relative path per output line, verbatim>] }` (`DiffProbeResult`) — the git-derived changed-file list the engine's disposition default and intake filing floor read; never the worker's own file report. Idempotent on resume. On a git error return `{ detail }` with **no** `diff_files` — the engine keeps its old default for that task (fail-open); never block, never a `MergeResult`.
+
+## merge-task two-worktree split
+
+Trigger: before the merge-task rebase of the task branch (the card's `## merge-task` opening paragraph, evicted #2115).
+
+merge-task is **inherently split across two worktrees** — the task branch stays checked out in `<taskWorktree>`, and `git rebase` must operate on the checked-out branch, so the rebase cannot run in `_refinery`. (`git rebase --onto` does **not** dodge this; a no-checkout `update-ref` replay desyncs the task worktree and blocks the next fix-rebase — do **not** use it.)

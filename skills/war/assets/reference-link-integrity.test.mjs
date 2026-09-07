@@ -25,6 +25,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -590,4 +591,75 @@ test('reference link integrity — every agents/ seat card carries the plugin-re
     [],
     `seat card(s) missing the merged D3 fallback sentence verbatim — requalify every card in one touch, never one at a time:\n  ${missing.join('\n  ')}`,
   );
+});
+
+// --- Arm 7: the #2115 refiner-card headroom evictions (ADR 0042, PIN-5) --------------
+// engine-and-audit-verdict-integrity Task 1.1 moved four tier-2 blocks off agents/war-refiner.md
+// byte-identical: the `## Diff probe` body and the `## merge-task` two-worktree paragraph into
+// refiner-recovery.md (each under its own `##` heading), the `### Submodule phase` routing tail
+// into refiner-recovery.md's `## Submodule land arms (2A / 2B)` section, and the `## Gate
+// contract` middle sentences into budget-raise-floor.md's evicted Gate-contract section (the
+// card's existing pointer to that section already covers them). Each moved block is pinned by
+// SHA-256 of its pre-eviction card bytes (`git show 5da801f:agents/war-refiner.md`); the card
+// keeps a trigger pointer per block and none of the moved bodies. A sanctioned later edit
+// re-pins the digest in the same commit with its rationale.
+const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
+const refinerCardText = readFileSync(join(REPO_ROOT, 'agents/war-refiner.md'), 'utf8');
+const refinerRecoveryText = readFileSync(join(REPO_ROOT, 'skills/war/references/refiner-recovery.md'), 'utf8');
+const budgetRaiseFloorText = readFileSync(join(REPO_ROOT, 'skills/war/references/budget-raise-floor.md'), 'utf8');
+// Section body by construct: `## <heading>` → next `## ` or EOF; the body follows the
+// heading and its `Trigger:` line (two blank-line-separated paragraphs in).
+function evictedSectionBody(text, heading) {
+  const at = text.indexOf(`\n${heading}\n`);
+  assert.ok(at >= 0, `refiner-recovery.md lost its \`${heading}\` heading`);
+  const next = text.indexOf('\n## ', at + 1);
+  const section = next < 0 ? text.slice(at + 1) : text.slice(at + 1, next);
+  const parts = section.split('\n\n');
+  assert.ok(parts.length >= 3 && /^Trigger:/.test(parts[1]), `\`${heading}\` must carry a Trigger: line before its body`);
+  return parts.slice(2).join('\n\n').replace(/\n+$/, '');
+}
+const EVICTED_2115 = [
+  ['refiner-recovery.md § Diff probe', () => evictedSectionBody(refinerRecoveryText, '## Diff probe'),
+    846, '7513cb0e1042c0216e184c3d94e2efa5cea49c111a4cc104d79de6bbbf3ef532'],
+  ['refiner-recovery.md § merge-task two-worktree split', () => evictedSectionBody(refinerRecoveryText, '## merge-task two-worktree split'),
+    373, '2fe2c5679e6e35e823317680184ed17ce3110675fbc0cde0e78094243af085cf'],
+  ['refiner-recovery.md § Submodule land arms routing tail', () => {
+    const m = refinerRecoveryText.match(/^Routing \(the card's `### Submodule phase` tail, evicted #2115\): (.*)$/m);
+    assert.ok(m, 'refiner-recovery.md lost the `Routing (…evicted #2115): ` lead-in under ## Submodule land arms (2A / 2B)');
+    return m[1];
+  }, 594, '6a05868441fb8d1435d36ce859c4796ed46e81618e57caeed0e07fbd8a4a3b5a'],
+  ['budget-raise-floor.md § Gate contract card sentences', () => {
+    const m = budgetRaiseFloorText.match(/^> (Run it \*\*verbatim\*\* for every merge-task.*)$/m);
+    assert.ok(m, 'budget-raise-floor.md lost the blockquoted card Gate-contract sentences');
+    return m[1];
+  }, 401, '2f5e33a128fae159fc2aa527ac8adeb12de7e719f8e258fb912a2c9d2650a28b'],
+];
+
+test('reference link integrity — the #2115 refiner-card evictions landed byte-identical at their references/ homes (ADR 0042, PIN-5)', () => {
+  assert.equal(EVICTED_2115.length, 4, 'the #2115 eviction census lists all four moved blocks — an emptied list would pass vacuously');
+  for (const [name, extract, bytes, digest] of EVICTED_2115) {
+    const body = extract();
+    assert.equal(Buffer.byteLength(body, 'utf8'), bytes, `${name}: the moved block is ${bytes} B (pre-eviction card bytes)`);
+    assert.equal(sha256(body), digest, `${name}: the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale`);
+  }
+});
+
+test('reference link integrity — the refiner card keeps a trigger pointer per #2115 eviction and none of the moved bodies', () => {
+  // Plain-text plugin-root pointers (the gate-failure-classification.md precedent): the card's
+  // exact-four markdown-link census of refiner-recovery.md pointers must not grow, so the two new
+  // pointers are trigger + bare path, never a `](…)` link. Pinned with String.includes — the
+  // pointer carries `${CLAUDE_PLUGIN_ROOT}`, which a template literal would interpolate.
+  for (const pointer of [
+    'When dispatched a diff-probe run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Diff probe).',
+    'Before you rebase the task branch, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ merge-task two-worktree split).',
+    '(§ Submodule phase — 2A / § Submodule phase — 2B).',
+    'Before you run the gate, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).',
+  ]) {
+    assert.ok(refinerCardText.includes(pointer), `war-refiner.md must carry the trigger pointer: ${pointer}`);
+  }
+  for (const literal of ['`diff-probe:<taskId>`', 'inherently split across two worktrees', 'submodLandNote', 'Run it **verbatim** for every merge-task']) {
+    assert.ok(!refinerCardText.includes(literal), `war-refiner.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
+  }
+  // The pinned Gate-contract sentence stays on the card (war-config.test.mjs's all-runners pin).
+  assert.ok(refinerCardText.includes('covering all runners). Before you run the gate'), 'the card keeps the resolved-gate all-runners sentence directly before its budget-raise-floor pointer');
 });

@@ -37,6 +37,7 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 
 ## Comment hygiene (before commit)
 Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior. (Mirrored in the dispatched worker prompt; the auditor's cascading-impact lens holds the standing review duty. ADR 0025.)
+When dispatched for a fix round or an ace commit, read [fix-round-doctrine.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md) — the rules ride the dispatched prompt too; the card carries only this pointer.
 
 ## Prior lessons (memory)
 You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>' --repo <repo root>` mid-task when you hit something unfamiliar — it never writes a lesson, and without a `--local` root it appends no query log (the CLI never guesses one from the cwd). Add `--repo <repo root>` (the run's resolved learnings repo root, e.g. `docs/learnings/`) so the query also walks the published corpus, not just the local root; your spawn prompt's self-query line already carries the resolved root when the run publishes learnings — drop the flag when it does not.
