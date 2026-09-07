@@ -4910,11 +4910,10 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   // Concatenation-built strings throughout this block (census-safe — #931).
   // seatRefOf (module-level, D8) renders every seat ref here — one helper, no scoped mirror.
-  // Array.isArray (not truthiness): auditor-supplied JSON can carry a non-array `seats` key — a
-  // string would throw on .push/.includes below, and a throw here is caught only by the TOP-LEVEL
-  // held:workflow-error catch (the sole try enclosing this block), converting a LANDED phase into
-  // held:workflow-error.
-  // seatsListOf (module level) reads every seats list here — the same rule mergeSeat applies, so an
+  // seatsListOf (module level) reads every seats list here — its Array.isArray + length gate (never
+  // truthiness) is the same rule mergeSeat applies: an auditor-supplied non-array `seats` key would
+  // otherwise throw on .includes, and a throw here is caught only by the TOP-LEVEL held:workflow-error
+  // catch (the sole try enclosing this block), converting a LANDED phase into held:workflow-error; an
   // auditor-supplied `seats: []` never makes the same-seat guard vacuous.
   const collapsed = []
   for (const f of minorsFiled) {
