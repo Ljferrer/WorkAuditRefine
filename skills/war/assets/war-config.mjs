@@ -138,7 +138,8 @@ export const PRESETS = {
     // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers and the
     // auditor, refiner, servitor and red-team seats, and roundLimit 4. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
-    // autoEscalate widening fallback and the terminal-pass seat source, never a per-task seat count.
+    // autoEscalate widening fallback, the phase-close polish panel, and the terminal-pass seat source,
+    // never a per-task seat count.
     // The fix tier, snipe, and every knob not pinned in this preset inherit DEFAULTS.
     agents: {
       worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },

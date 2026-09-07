@@ -596,7 +596,7 @@ test('war-room SKILL.md redteamRoundLimit constants == canonical DEFAULTS/PRESET
   assert.equal(Number(pm[1]), PRESETS.economy.run.redteamRoundLimit,
     `war-room's step-2 bullet states an economy pin of ${pm[1]} but PRESETS.economy.run.redteamRoundLimit ` +
     `is ${PRESETS.economy.run.redteamRoundLimit} — bind the doc to the canonical value`)
-  // Step-1 economy blurb: the redteamRoundLimit: 2 pin beside the inherited roundLimit (the colon form
+  // Step-1 economy blurb: the redteamRoundLimit: 2 pin beside the roundLimit: 4 pin (the colon form
   // appears only there — the step-2 bullet writes the dotted run.redteamRoundLimit with no colon).
   const bm = text.match(/redteamRoundLimit:\s*`?(\d+)/)
   assert.ok(bm, 'the step-1 economy blurb must carry the redteamRoundLimit: 2 sibling pin (#1376)')
@@ -1424,15 +1424,45 @@ const DOC_TIER_PINS = [
   ['README.md', /^By default WAR runs \w+ workers at session effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
   ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+  // ADR 0050's effort-compensation example names the economy auditor seat.
+  ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /for example (\w+) auditors on `(\w+)`\)/, 'economy', 'auditor'],
 ]
+// Run-knob pins: prose that restates a preset's run.* value. Each row: [file, regex with ONE capture
+// = the integer, preset, run key]. The redteamRoundLimit doc pins for /war-room live in their own
+// test above; these rows cover the economy roundLimit copies and ADR 0050's run sentence.
+const RUN_PINS = [
+  ['skills/war-room/SKILL.md', /^\s*- \*\*economy\*\* — [^\n]*`roundLimit: (\d+)`/m, 'economy', 'roundLimit'],
+  ['README.md', /shortens its fix budget \(`roundLimit: (\d+)`\)/, 'economy', 'roundLimit'],
+  ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /`roundLimit: (\d+)`\s+and\s+`redteamRoundLimit: \d+` are pinned/, 'economy', 'roundLimit'],
+  ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /`roundLimit: \d+`\s+and\s+`redteamRoundLimit: (\d+)` are pinned/, 'economy', 'redteamRoundLimit'],
+]
+test('RUN_PINS: every prose restatement of a preset run.* value equals presetConfig() (extraction + equality)', () => {
+  for (const [rel, re, preset, key] of RUN_PINS) {
+    const m = readDoc(rel).match(re)
+    assert.ok(m, `${rel}: the ${preset} run.${key} construct was not found — re-anchor the pin, do not drop it`)
+    assert.equal(Number(m[1]), presetConfig(preset).run[key], `${rel}: ${preset} run.${key} literal ${m[1]} must equal presetConfig('${preset}').run.${key}`)
+  }
+})
 const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetConfig(preset).agents)
 
 // ADR 0050: presets order by MODEL_RANK on every tier, thorough >= balanced >= economy. Effort is
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
-// compared. Delete-the-feature: seat economy's auditor on opus or thorough's on sonnet → red.
+// compared. The relation is non-strict, so an equal-rank move stays green by design.
+// Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'servitor', 'redteam', 'snipe']
-test('MODEL_RANK is a permutation of MODELS, and preset model rank is monotone thorough >= balanced >= economy on every tier (ADR 0050)', () => {
+test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
+  // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
+  const expected = Object.keys(DEFAULTS.agents).flatMap(k =>
+    k === 'worker' ? ['worker', ...Object.keys(DEFAULTS.agents.worker).filter(s => isObj(DEFAULTS.agents.worker[s])).map(s => `worker.${s}`)] : [k])
+  assert.deepEqual([...TIER_PATHS].sort(), [...expected].sort(), 'TIER_PATHS must cover every DEFAULTS.agents tier exactly once')
+  assert.deepEqual(Object.values(BULLET_LABELS).sort(), [...expected].sort(), 'BULLET_LABELS must map onto every DEFAULTS.agents tier exactly once')
+})
+test('MODEL_RANK is a permutation of MODELS, its ADR 0050 order sentence matches, and preset model rank is monotone thorough >= balanced >= economy on every tier', () => {
   assert.deepEqual([...MODEL_RANK].sort(), [...MODELS].sort(), 'MODEL_RANK must rank every MODELS member exactly once')
+  const adr = readDoc('docs/adr/0050-preset-tiers-order-by-model-capability.md').match(/ascending in capability and cost: ([\w, ]+)\./)
+  assert.ok(adr, 'ADR 0050 must state the MODEL_RANK order sentence — re-anchor the pin, do not drop it')
+  assert.deepEqual(adr[1].split(',').map(s => s.trim()), MODEL_RANK, 'ADR 0050 order sentence must equal MODEL_RANK')
   const rank = m => MODEL_RANK.indexOf(m)
   for (const path of TIER_PATHS) {
     const [e, b, t] = ['economy', 'balanced', 'thorough'].map(p => tierAt(p, path).model)
@@ -1507,6 +1537,8 @@ const DEMIRRORED = [
   ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^)]*\)/],
   ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^)]*\)/],
+  // ADR 0050's economy paragraph describes the preset by MODEL_RANK relation and pointer, never by value.
+  ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /\*\*`economy` means cheaper models[\s\S]*?inherit `DEFAULTS`\./],
 ]
 test('DEMIRRORED: de-mirrored constructs carry a pointer, never a model or effort literal', () => {
   const modelWord = new RegExp(`\\b(${MODELS.join('|')})\\b`)

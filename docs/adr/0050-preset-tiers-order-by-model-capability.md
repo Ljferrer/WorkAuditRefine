@@ -26,12 +26,14 @@ forced high effort as costing more than it returns, so the session keeps that de
 models carry a pinned effort as compensation (for example sonnet auditors on `xhigh`), which is
 why the effort axis is deliberately *not* monotone across presets and is not an invariant.
 
-**`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** Every review
-seat is sonnet, the first-pass workers are opus, and the fix tier inherits fable. `roundLimit: 4`
-and `redteamRoundLimit: 2` are pinned. `rosterPolicy` inherits `auto` on purpose: a config cannot
-predict what a task will entail, so the Lead composes each task's seats from the lens catalog, and
-the preset's four-lens roster serves only as the `autoEscalate` widening pool and the terminal-pass
-seat source. The ace ladder, the absorb budget, memory and hooks inherit `DEFAULTS`.
+**`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** It pins its
+own worker (base and docs), auditor, refiner, servitor and red-team tiers, each at or below
+`balanced`'s `MODEL_RANK`, and the fix tier and snipe inherit `DEFAULTS`; the values are the
+`/war-room` economy bullet. `roundLimit: 4` and `redteamRoundLimit: 2` are pinned. `rosterPolicy`
+inherits `auto` on purpose: a config cannot predict what a task will entail, so the Lead composes
+each task's seats from the lens catalog, and the preset's four-lens roster serves as the
+`autoEscalate` widening pool, the phase-close polish panel, and the terminal-pass seat source,
+never a per-task seat count. The ace ladder, the absorb budget, memory and hooks inherit `DEFAULTS`.
 
 **What an auditor checks.** The model-rank monotone test, the whole-literal `PRESETS` pins, and
 the `/war-room` bullet parser are the machine record of these values. A preset name describes the
