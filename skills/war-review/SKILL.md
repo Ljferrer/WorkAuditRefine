@@ -63,7 +63,9 @@ half-stamped relaunch (one field overwritten, not both — `skills/war/reference
 § Relaunch) — mine the dir the `workflowRunId` names when it exists, else render that phase `n/a`,
 and report the mismatch as the **half-stamped relaunch** friction row (§ 4); never mix two attempts' transcripts into one phase. A
 phase carrying `attempts[]` is a relaunched phase: its `dispatches` are summed across attempts, and
-each archived attempt's `transcriptDir` may be mined separately, labelled by attempt.
+each archived attempt's `transcriptDir` may be mined separately, labelled by attempt; its `envelope`
+totals cover the current attempt only, so label a relaunched phase's token and tool-call totals
+attempt-scoped, never as the phase total.
 The `journal.jsonl` and `agent-*.jsonl` files are **harness-internal, line-delimited
 JSON** — read them **defensively**:
 
@@ -152,8 +154,8 @@ string, its phase, and its task (where task-scoped):
   through the `held:*` / dropped-return signal classes above; this one fires only when a Lead
   demonstrably outlived the phase and still skipped the close stamp.
 - **half-stamped relaunch** — a phase whose `transcriptDir` basename differs from its
-  `workflowRunId` (one field overwritten at relaunch, not both — § 2's basename check; all three
-  close-stamp fields are present, so the class above never fires on it). Evidence: both values.
+  `workflowRunId` (one field overwritten at relaunch, not both — § 2's basename check; `endedAt`,
+  `tasks` and `land` are all present, so the class above never fires on it). Evidence: both values.
 - **`demote:unclassified` demotions** — any filed `follow-up` row whose reason string carries the
   `demote:unclassified` prefix (the `DEMOTE_REASONS MISS` log line names the site). The engine
   prepends it when a `demote()` call site cites no `DEMOTE_REASONS` member — a plugin defect at

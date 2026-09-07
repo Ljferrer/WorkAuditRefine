@@ -37,6 +37,7 @@ A **relaunch attempt** is one Workflow run of a phase that a prior run of the sa
       transcriptDir: "… | null",                // the died attempt's transcript dir — /war-review may still mine it
       startedAt: "<ISO 8601>", endedAt: "<ISO 8601> | null",   // that attempt's boundaries (endedAt = the clock read when the death was observed)
       dispatches: { worker, auditor, fixRounds, refiner, servitor },   // that attempt's own counts by role
+      envelope: { totalTokens, totalToolCalls, agentCount } | null,   // that attempt's own envelope aggregates; null when unsurfaced
       cause: "held:phase-incomplete | held:workflow-error | escalated | …" } ]   // why it did not finish — the landDecision or task status that ended it
   ```
 - **Dispatch counts are summed across attempts.** The phase's top-level `dispatches` is the sum of every attempt's counts (archived entries + the current attempt) — the phase paid for every seat it ran, and `/war-review`'s cost view must see them all. `envelope` aggregates stay **binding-to-attempt** (the current attempt's envelope only; a died attempt's envelope, when sourced, rides its `attempts[]` entry).
