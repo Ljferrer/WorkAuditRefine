@@ -72,7 +72,8 @@ export const SCRIPT_BYTE_CAP = 524288
 // a number, a closing `)`/`]`, a property named like a keyword (`o.in / 2`), or a postfix `++`/`--`
 // (the operator set is checked against the char BEFORE lastSig for those two) — is division and
 // passes through. A keyword is read from the source bytes: a word starts fresh after any non-word
-// char, whitespace included, so `return /re/` on a fresh line is a regex. The string, regex and
+// char, whitespace included, so `return /re/` on a fresh line is a regex; a word is a property when
+// the significant char before it is `.`, whitespace between them or not. The string, regex and
 // line-comment arms stop at an unescaped newline and never consume it; the string arm follows a
 // `\`-escaped newline (a JS line continuation), the regex arm never crosses one (a regex cannot hold a
 // line terminator), and the block-comment arm spans lines by design. One misread is known: a `/`
@@ -161,8 +162,8 @@ export function stripFullLineComments(src) {
         prevSig = lastSig
         lastSig = c
         if (/[\w$]/.test(c)) {
-          const fresh = !(i > 0 && /[\w$]/.test(src[i - 1]))
-          if (fresh) wordProp = src[i - 1] === '.'
+          const fresh = !/[\w$]/.test(src[i - 1]) // src[-1] is undefined, which also reads as fresh
+          if (fresh) wordProp = prevSig === '.' // the significant char before the word, whitespace-blind
           lastWord = fresh ? c : lastWord + c
         } else lastWord = ''
       }
@@ -236,17 +237,20 @@ const META_STATEMENT = /^export const meta\s*=\s*\{[\s\S]*?^\}$/m
 // already run, so an args payload that quotes any anchor's bytes cannot fork the stage. JSON.stringify
 // output is valid JS source as-is (ES2019's JSON-superset grammar admits raw U+2028/U+2029 in string
 // literals) — no re-escaping pass, and it never contains a literal newline, which keeps the prelude
-// exactly two lines for the restore-roundtrip test. The match ends AT the newline that closes the
-// `}` line, so the prelude goes in after that newline (#2099 round 3): the staged copy gains exactly
-// the two prelude lines, no blank line, and a line number past `meta` is the template's plus two.
+// exactly two lines for the restore-roundtrip test. The match ends AT the line ending that closes
+// the `}` line (`\n`, or `\r\n` — a multiline `$` matches before `\r` too), so the prelude goes in
+// after that line ending (#2099 rounds 3 and 4): the staged copy gains exactly the two prelude lines,
+// no blank line, and a line number past `meta` is the template's plus two. The one other shape is a
+// `}` that is the file's last byte, where the prelude is appended after a newline of its own.
 function insertArgsPrelude(text, embedded) {
   const m = text.match(META_STATEMENT)
   if (!m) {
     throw new Error('stage-workflow: could not locate the `export const meta = { … }` statement to insert the embedded-args prelude after')
   }
   const at = m.index + m[0].length
-  const after = text[at] === '\n' ? at + 1 : at
-  const lead = text[at] === '\n' ? '' : '\n'
+  const ending = text.startsWith('\r\n', at) ? 2 : text[at] === '\n' ? 1 : 0
+  const after = at + ending
+  const lead = ending ? '' : '\n'
   const prelude = '// Embedded phase args (stage-workflow.mjs --args) — the absent-args fallback; dispatched args always win.\n'
     + `const EMBEDDED_ARGS = ${JSON.stringify(embedded)}\n`
   return text.slice(0, after) + lead + prelude + text.slice(after)

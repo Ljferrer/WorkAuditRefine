@@ -290,6 +290,7 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
   assert.ok(preludeAt > metaAt, 'the prelude must follow the `export const meta` statement, never precede it')
   assert.equal(staged.split('\n').length, original.split('\n').length + 2, 'an --args stage adds exactly the two prelude lines — no blank line left behind (#2099 round 3)')
   assert.match(staged, /^\}\n\/\/ Embedded phase args/m, 'the prelude comment sits on the line right after the `}` that closes meta')
+  assert.equal(staged.indexOf('// Embedded phase args'), staged.indexOf('\n}\n') + 3, 'and that `}` is the FIRST column-0 `}` of the file — meta\'s own, not a later one')
   for (const line of staged.slice(0, metaAt).split('\n')) {
     assert.ok(
       line.trim() === '' || line.trim().startsWith('//'),
@@ -311,6 +312,25 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
     .split(': (args || EMBEDDED_ARGS)').join(ARGS_FALLBACK_ANCHOR)
     .replace(PRELUDE_STRIP, '')
   assert.equal(restored, original)
+})
+
+// (i) The two other line-ending shapes insertArgsPrelude must handle (#2099 round 4): a CRLF template,
+// where a multiline `$` matches before `\r` and the prelude must still go in after the whole `\r\n`
+// (no blank third line); and a template whose meta `}` is the file's last byte, where the prelude is
+// appended after a newline of its own instead of glued onto the `}`. Both carry the fallback tail
+// inside meta so the --args path reaches the insert.
+const TAIL_IN_META = `export const meta = {\n  ${NAME_ANCHOR},\n  description: '${DESCRIPTION_ANCHOR}',\n  a${ARGS_FALLBACK_ANCHOR},\n}`
+test('(i) --args prelude under CRLF endings adds exactly two lines; a `}` as the last byte gets the prelude on its own line', () => {
+  const dir = scratch('stage-args-endings-')
+  const crlf = join(dir, 'crlf.js')
+  writeFileSync(crlf, (TAIL_IN_META + '\nexport const other = 1\n').replace(/\n/g, '\r\n'))
+  const stagedCrlf = readFileSync(runStager([crlf, dir, 'crlf-slug', '1', '--args', writeArgs(dir, { k: 1 })]).stdout.trim(), 'utf8')
+  assert.ok(stagedCrlf.includes('}\r\n// Embedded phase args'), 'the prelude follows the whole CRLF line ending')
+  assert.equal(stagedCrlf.split('\n').length, (TAIL_IN_META + '\nexport const other = 1\n').split('\n').length + 2, 'exactly two lines added under CRLF — no blank third line')
+  const lastByte = join(dir, 'last-byte.js')
+  writeFileSync(lastByte, TAIL_IN_META)
+  const stagedLast = readFileSync(runStager([lastByte, dir, 'last-slug', '1', '--args', writeArgs(dir, { k: 1 })]).stdout.trim(), 'utf8')
+  assert.ok(stagedLast.includes('}\n// Embedded phase args'), 'a `}` that is the last byte gets the prelude on its own line, never glued on')
 })
 
 // (j) Injection-ordering invariant (End state 4) — a payload that string-quotes all three anchors AND
@@ -470,17 +490,19 @@ test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the in
 //     an escaped backtick (the template escape arm);
 //   - interpolation brace depth: a closed plain brace inside a `${…}` body, then a code comment;
 //   - regex arm: a `[…]` class holding a `/`, a class holding a `/` and a backtick, an escaped `/`
-//     before an escaped backtick, a keyword-led regex holding a backtick after `{`, and one on a fresh
-//     line after a digit (REGEX_AFTER_WORD, and the fresh-word rule);
+//     before an escaped backtick, a regex whose `\` sits at the line end (the escape step's newline
+//     bound), a keyword-led regex holding a backtick after `{`, and one on a fresh line after a digit
+//     (REGEX_AFTER_WORD, and the fresh-word rule);
 //   - regex-vs-division tie-break: a division chain, a division followed on the same line by a
 //     multi-line template, a postfix `x++` divided before a multi-line template, a regex after a single
-//     binary `+` (the postfix conjunct), and a property named like a keyword divided before a
-//     multi-line template (the `wordProp` rule);
+//     binary `+` (the postfix conjunct), a property named like a keyword divided before a multi-line
+//     template, and the same with whitespace around the dot (the `wordProp` rule, whitespace-blind);
 //   - block-comment arm: a block comment holding a `//` line.
-// Each arm was deleted in turn and the compare went red (the proof list rides the commit body). Two
-// branches have no discriminating mutant by construction and are not fixture arms: the regex flags
-// loop (flag letters scanned as code spell no keyword and read as division either way) and the
-// `lastSig === ''` disjunct (true only at byte 0 of the source).
+// Each arm was deleted in turn and the compare went red (the proof list rides the commit body). The
+// branches with no discriminating mutant by construction, and so not fixture arms: the regex flags
+// loop (flag letters scanned as code spell no keyword and read as division either way), the
+// `lastSig === ''` disjunct (true only at byte 0 of the source), and `src[i - 1]` at i === 0 in the
+// fresh-word test (undefined is not a word char, so byte 0 starts a word either way).
 const STRIP_FIXTURE = `// header comment
 export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
   // indented code comment
@@ -527,6 +549,11 @@ const bp = a + /[\`]/.test(x)
 // after the binary-plus regex: still code
 const tb = \`esc \\\` still template
 // a line inside a template after an escaped backtick
+\`
+const le = /a\\
+// after a regex whose escape sits at the line end: still code
+const g2 = o . of / 2 + \`t
+// a line inside a template after a property split from its dot by whitespace
 \`
 /* block
 // a line inside a block comment
@@ -579,6 +606,11 @@ const bp = a + /[\`]/.test(x)
 
 const tb = \`esc \\\` still template
 // a line inside a template after an escaped backtick
+\`
+const le = /a\\
+
+const g2 = o . of / 2 + \`t
+// a line inside a template after a property split from its dot by whitespace
 \`
 /* block
 // a line inside a block comment
