@@ -651,7 +651,7 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
   // pointer carries `${CLAUDE_PLUGIN_ROOT}`, which a template literal would interpolate.
   for (const pointer of [
     'When dispatched a diff-probe run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Diff probe).',
-    'When the rebase looks movable into `_refinery`, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ merge-task two-worktree split).',
+    'Before you rebase the task branch, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ merge-task two-worktree split).',
     '(§ Submodule phase — 2A / § Submodule phase — 2B).',
     'Before you run the gate, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).',
   ]) {

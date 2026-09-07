@@ -98,6 +98,6 @@ ONE **`diff-probe:<taskId>`** run per task (`dispatchKind: diff-probe`), after t
 
 ## merge-task two-worktree split
 
-Trigger: a merge-task rebase that looks movable into `_refinery` (the card's `## merge-task` opening paragraph, evicted #2115).
+Trigger: before the merge-task rebase of the task branch (the card's `## merge-task` opening paragraph, evicted #2115).
 
 merge-task is **inherently split across two worktrees** — the task branch stays checked out in `<taskWorktree>`, and `git rebase` must operate on the checked-out branch, so the rebase cannot run in `_refinery`. (`git rebase --onto` does **not** dodge this; a no-checkout `update-ref` replay desyncs the task worktree and blocks the next fix-rebase — do **not** use it.)
