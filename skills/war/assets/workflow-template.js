@@ -2434,9 +2434,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into the enumerated
   // fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE
   // RE-ENTRY BATCH prompt (the extract-on-the-second-copy rule of the block, applied to the block itself). The batch ace
-  // ADVISORY POLISH (--ace) build and the phase-close sweep polish build also apply findings and
-  // are deliberately outside this set under the plan scope (agents/war-worker.md's trigger pointer
-  // still reaches those workers). FIX_ROUND_RULES is byte-equal to the
+  // ADVISORY POLISH (--ace) build, the phase-close sweep polish build and the TERMINAL PASS build
+  // also apply findings and are deliberately outside this set under the plan scope
+  // (agents/war-worker.md's trigger pointer still reaches those workers). FIX_ROUND_RULES is byte-equal to the
   // `## The rules` section of skills/war/references/fix-round-doctrine.md (the canonical home);
   // the workflow-template.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
   // reference` pins the equality, so an edit lands in the reference first and here second. The
