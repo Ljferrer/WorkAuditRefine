@@ -12676,7 +12676,9 @@ test('ask-content-key (End state 6, cross-round stability): a persisting ask re-
     quietGate(aceBase([askFinding(), a])))
   const { out, logs } = await runPhase(ACE_ARGS(), impl)
   assert.equal((out.asks || []).length, 1, 'ONE parked record for the persisting ask across two rounds (content-key identity beats minorsOf\'s fresh copies, #1810)')
-  assert.equal((out.asks[0].corroborators || []).length, 1, 'the round-2 re-mint lands on the surviving record\'s corroborators list')
+  // The round-2 re-mint comes from the seat that parked the record (one seat, two rounds), so it is
+  // the survivor's own raiser: parkAsk's dup arm skips it and the handoff row counts distinct seats.
+  assert.deepEqual(out.asks[0].corroborators || [], [], 'the round-2 re-mint by the parking seat never lands on its own corroborators list')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration')), 'the collision is logged (never a silent drop, #1790)')
 })
 
@@ -15842,16 +15844,18 @@ test('parkAsk unpark (#1878 side Map): the --afk citation unpark splices the rec
   h.recordAced({ ...ask, disposition: 'absorb' }, 'abc1234', { citation: { row: 'ADJ-1', rationale: 'covered' } })
   assert.ok(h.asks[0].citationPrefill && h.asks[0].citationPrefill.row === 'ADJ-1', 'the citation match resolves the parked record through the side Map (interactive arm: prefill, still parked)')
   assert.ok(!('key' in h.asks[0]), 'the parked record still carries no key after the citation match')
-  // --afk arm: the citation unpark splices the record AND its Map entry, so a fresh park of the
-  // same question lands a new record instead of matching a ghost key (a surviving entry would
-  // route the re-raise to the dup arm and h.asks would stay empty).
+  // --afk arm: the citation unpark splices the record out of asks[], and a later re-raise of the
+  // same question parks fresh. That is what the exported slice can observe: findAsk scans asks[],
+  // so a spliced record is unreachable through it whether or not its askKeyOf entry survives.
+  // recordAced's askKeyOf.delete is Map hygiene (no entry for a spliced record), not a behavior
+  // these asserts guard.
   const afk = registrySlice({ afk: true })
   afk.parkAsk(ask)
   assert.equal(afk.asks.length, 1, '--afk arm: parked once')
   afk.recordAced({ ...ask, disposition: 'absorb' }, 'abc1234', { citation: { row: 'ADJ-1', rationale: 'covered' } })
   assert.equal(afk.asks.length, 0, '--afk arm: the citation unpark splices the record')
   afk.parkAsk(ask)
-  assert.equal(afk.asks.length, 1, '--afk arm: a later re-raise of the resolved question parks fresh (its Map entry left with the record)')
+  assert.equal(afk.asks.length, 1, '--afk arm: a later re-raise of the resolved question parks fresh (the unpark spliced the record out of asks[])')
   assert.ok(!afk.asks[0].corroborators, '--afk arm: the fresh record is a new park, not a corroboration of a ghost')
 })
 
@@ -15868,6 +15872,20 @@ test('parkAsk collision: one seat re-raising across rounds lands one corroborato
     'the same seat+file+title re-raise dedups to one entry, and the ./-prefixed file records repo-relative')
   assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('merged as corroboration') && l.includes('on docs/y.md')).length, 2,
     'every re-raise is still journalled per round')
+})
+
+test('parkAsk collision: the survivor\'s own raiser never lands on its own corroborators list', () => {
+  const h = registrySlice()
+  const ask = { severity: 'Minor', task: 't1', title: 'mirror or point', file: './docs/x.md', disposition: 'ask', seat: 'audit:t1:correctness',
+    ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] } }
+  h.parkAsk(ask)
+  h.parkAsk({ ...ask })  // a second audit round re-mints the parking seat's own ask (minorsOf copies per round)
+  h.parkAsk({ ...ask, file: 'docs/x.md' })  // the raiser's file arrives normalized at the re-raise
+  assert.equal(h.asks.length, 1, 'one surviving record')
+  assert.deepEqual(h.asks[0].corroborators, [], 'the parking seat re-raising its own record on the same file+title is not a corroborator')
+  h.parkAsk({ ...ask, seat: 'audit:t1:security' })
+  assert.deepEqual(h.asks[0].corroborators.map(c => c.seat), ['audit:t1:security'], 'negative control: a second seat still corroborates')
+  assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('merged as corroboration')).length, 3, 'every re-raise is still journalled')
 })
 
 test('corroborateSurvivor: queued-arm seats merge', () => {

@@ -632,9 +632,9 @@ const intentClause = intent
 // no-adjudication run (back-compat, spec constraint 4). The clause carries the version-precedence rule
 // (task instruction > red-team adjudication > plan body literal) and the adjudication-match rule
 // (a matching finding is a confirmation note, never an escalation) — and is emitted at the roster-seat
-// auditPrompt AND at the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only).
-// Both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (the both-surfaces drift test
-// asserts both surfaces).
+// auditPrompt AND at the gate-audit-family seats it names — per-task (post-merge), integrated-tip
+// and end-state-only. The version-precedence and adjudication-match sentence bodies are mirrored
+// VERBATIM in agents/war-auditor.md (the both-surfaces drift test asserts both surfaces).
 const adjudications = Array.isArray(A.adjudications)
   ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
 const adjRow = r => typeof r === 'string' ? r
@@ -1346,11 +1346,15 @@ const askKeyOf = new Map()
 const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
 // The corroborator entry (#1876) carries the re-raiser's evidence — seat, sha, file (normalized
 // through aceRelPath at the push: seat rows arrive normalized, but judgeHeldRow parks engine-seeded
-// pendingAbsorbs rows that never passed normalizeFinding), title and fork — so a second site or a
-// diverging option set survives the merge and reaches the Checkpoint through the handoff projection
-// (#1872). One seat re-raising one persisting ask across audit rounds (minorsOf re-mints every
-// Minor/Nit per round) lands ONE corroborator entry, never one per round: a same seat+file+title
-// entry is skipped, while the collision log still journals every re-raise.
+// pendingAbsorbs rows that never passed normalizeFinding), title and fork — so a second seat, or
+// the same seat on a second file, survives the merge and reaches the Checkpoint through the handoff
+// projection (#1872). One seat re-raising one persisting ask across audit rounds (minorsOf re-mints
+// every Minor/Nit per round) lands ONE corroborator entry, never one per round: a same
+// seat+file+title entry is skipped and keeps its first entry, fork included (the dedup predicate
+// reads seat, file and title, never fork), while the collision log still journals every re-raise.
+// The survivor's own raiser is part of that skip test: the seat that parked the record re-raising
+// it (minorsOf re-mints per round; demote()'s ask-refusal re-route reaches the same arm) never
+// lands on its own corroborators list, so the handoff row counts distinct seats.
 const parkAsk = f => {
   const key = askContentKey(f)
   const dup = findAsk(key)
@@ -1358,7 +1362,9 @@ const parkAsk = f => {
     dup.corroborators = Array.isArray(dup.corroborators) ? dup.corroborators : []
     const e = { seat: f.seat ?? null, sha: f.sha ?? null, file: typeof f.file === 'string' ? aceRelPath(f.file) : null, title: f.title ?? null,
       fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [] }
-    if (!dup.corroborators.some(c => c.seat === e.seat && c.file === e.file && c.title === e.title)) dup.corroborators.push(e)
+    const own = { seat: dup.seat, file: (dup.finding && typeof dup.finding.file === 'string') ? aceRelPath(dup.finding.file) : null, title: dup.finding && dup.finding.title }
+    const same = c => c.seat === e.seat && c.file === e.file && c.title === e.title
+    if (!same(own) && !dup.corroborators.some(same)) dup.corroborators.push(e)
     log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
     return
   }
@@ -1785,12 +1791,14 @@ const routeReauditMinors = (r, seats, opts) => {
   }
 }
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
+const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 // Ruled-ask queueing (D15(b), #1875): the intake-filtered ruledAsks records (the entry block above)
 // ride the phase-close sweep as absorbs; every push stamps queuedKeys, so a re-audit re-mint of the
 // same task + file + title (a seat re-raising the finding the operator already ruled) is refused by
 // remintBlock and corroborates the queued record instead of queueing a second copy. The loop sits
-// past the dispositionOf→allApprove slice the registry fixtures evaluate standalone, and past the
-// seededPhaseClose drain — seeded rows now precede ruled rows in phaseCloseQueue.
+// past the dispositionOf→allApprove slice the registry fixtures evaluate standalone (allApprove and
+// isSplit stay adjacent above it), and past the seededPhaseClose drain — seeded rows now precede
+// ruled rows in phaseCloseQueue.
 for (const ra of ruledAsks) {
   log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
   const row = { severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
@@ -1799,7 +1807,6 @@ for (const ra of ruledAsks) {
     rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix }
   queuedKeys.add(remintKey(row)); phaseCloseQueue.push(row)
 }
-const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
 const blockedReason = r => !r ? 'worker returned no result'
