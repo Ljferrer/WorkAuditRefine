@@ -2015,10 +2015,11 @@ const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && 
 // NORMALIZED internal status 'budget-uncited' so the floor sub-loop's verdict/log/prompt surfaces name
 // the real tripped floor without touching the wire schema. floor_route absent ⇒ identity (set-minus:
 // every budget-floor-less result flows through byte-identical). Workflow-internal only — the routed
-// status is never returned to a refiner and never re-enters a MERGE_RESULT. Applied at EVERY merge-task
-// dispatch site (primary, floor-retry, environment-proceed, baseline-proceed): 'budget-uncited' is a
-// HARD_ESCALATION_REASONS member (D6, ADR 0005), so a normalized result escalates as hard as the raw
-// 'no-test' did, under its real name.
+// status is never returned to a refiner and never re-enters a MERGE_RESULT. Applied at every PER-TASK
+// merge-task dispatch site (primary, floor-retry, environment-proceed, baseline-proceed); the
+// class-exempt phase-close polish merge is deliberately unwrapped — a budget-uncited there fail-open
+// DISCARDS the sweep (#1744). 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005), so a
+// normalized result escalates as hard as the raw 'no-test' did, under its real name.
 const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
   ? { ...mr, status: 'budget-uncited' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
@@ -4393,8 +4394,8 @@ for (const t of tasks) drainHeldAbsorbs(t, auditVerdictOf(t.id))
 
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs — the Workflow sandbox can't import. Keep in sync. The Workflow
-// emits a SUPERSET of decideLand's 3 outputs (6 emitted: those 3 + held:submodule-pr, held:land-failed,
-// and the catch block's held:workflow-error); all 6 ⊆ the KNOWN_LAND_DECISIONS export.
+// emits a SUPERSET of decideLand's outputs (those plus held:submodule-pr, held:land-failed, and the
+// catch block's held:workflow-error); every emitted value is in the KNOWN_LAND_DECISIONS export.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
 const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']

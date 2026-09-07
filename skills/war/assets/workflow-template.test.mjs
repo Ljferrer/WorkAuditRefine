@@ -12324,6 +12324,41 @@ test('re-merge: budget-uncited escalates as budget-uncited — the environment-p
   }
 })
 
+// Floor-retry exhaustion arm (D6): the primary merge AND every floor-retry re-merge return the wire
+// route status:'no-test' + floor_route:'budget-uncited' until the shared fix budget is spent. The
+// exhaustion push names the routedMr-normalized status ('budget-uncited', never the old generic
+// 'escalate'), carries the exhaustedBudgetDetail string naming the route, and the auditLog verdict
+// is 'budget-uncited:exhausted'.
+test('floor-retry exhaustion: budget-uncited escalates as budget-uncited — the primary merge and every floor-retry re-merge return the route until the budget is spent', async () => {
+  const uncited = { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }
+  let merges = 0
+  const { out, calls } = await runPhase(NO_TEST_ARGS({ run: { roundLimit: 1 } }), (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') { merges++; return uncited }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  })
+  assert.ok(merges >= 2, 'the primary merge and at least one floor-retry re-merge both dispatched')
+  assert.ok(calls.some(c => /^merge:t1:floor-retry:r\d+$/.test(c.opts.label || '')), 'the floor-retry sub-loop ran (the exhaustion arm is the floor sub-loop, not a *-proceed site)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalates on budget exhaustion')
+  assert.equal(esc.reason, 'budget-uncited', "the exhaustion arm escalates under the normalized floor name, never 'escalate' or the wire status 'no-test'")
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'escalate'), "no 'escalate'-reason row rides beside it")
+  assert.equal(esc.fixRounds, 1, 'the budget (roundLimit 1) is spent before the exhaustion arm fires')
+  assert.equal(typeof esc.detail, 'string', 'the exhaustedBudgetDetail string rides the escalation')
+  assert.match(esc.detail, /^budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after 1 fix round\(s\)$/, 'the detail names the budget-uncited route')
+  const log = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'budget-uncited:exhausted')
+  assert.ok(log, "auditLog records verdict 'budget-uncited:exhausted'")
+  assert.equal(log.detail, esc.detail, 'the auditLog entry carries the same detail')
+  assert.ok(HARD_ESCALATION_REASONS.includes(esc.reason), 'the reason is a hard escalation reason (D6, ADR 0005)')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
+  assert.ok(!out.landed.includes('t1'), 't1 is not recorded merged')
+})
+
 // --- recovery-holder (End state 27, #1712 fix 3, Phase 6 Task 1 (e)) ------------------------
 
 // Sanctioned relaunch: the barrier prompt carries the pre-checkout ref-holder auto-free clause —
