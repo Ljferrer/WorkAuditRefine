@@ -119,7 +119,7 @@ The lightest skill in the plugin: convene 1–5 of WAR's own read-only auditor s
 - **Lenses** — trailing comma-separated list; `auto` entries are seats whose lens the Lead picks itself, with a one-line rationale each. Default all-`auto`. Duplicate lenses and the reserved built-ins (`execution-evidence`, `pin-validity`) are refused. A bare single word counts as a lens only when it's `auto` or a catalog lens — `master` is a target, `correctness` is a lens.
 - **Target** — a ref range, PR number, or path list. Default: the current branch against its merge-base with the default branch. A dirty working tree (with no explicit target) is audited as-is and the whole report is marked **advisory** — there's no stable SHA to pin.
 
-**Seats** spawn in parallel as the same read-only `war-auditor` agents a phase convenes — standing card, `agent_type` guard confinement, severity + disposition vocabulary — always at `deep` depth, at the model/effort from your run config: `agents.snipe` (default `opus`/`high`; thorough → `fable`/`default`), falling back to `agents.auditor` on an explicit `null`. Override it via `/war-room` or by hand in `.claude/war/config.json`.
+**Seats** spawn in parallel as the same read-only `war-auditor` agents a phase convenes — standing card, `agent_type` guard confinement, severity + disposition vocabulary — always at `deep` depth, at the model/effort from your run config: `agents.snipe` (default and per-preset values: the `/war-room` preset bullets), falling back to `agents.auditor` on an explicit `null`. Override it via `/war-room` or by hand in `.claude/war/config.json`.
 
 **The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. `/snipe` never fixes, never files; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
 
@@ -139,7 +139,7 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 
 **What "today's defaults" actually are.** With no config file WAR runs the built-in `DEFAULTS`: fable workers on `default` effort (base, docs and fix tiers alike), opus auditors on `high`, `rosterPolicy: auto` (the Lead composes each task's roster), the pre-merge ace-fix on, and a 6-round fix budget (`run.roundLimit`).
 For **memory** the defaults are `retrieval: true` with `topK: 10` (prefetch the ten most relevant lessons into each seat's prompt) and **`commitLearnings: false`** — distilled `project`-typed lessons stay local to your machine unless you opt in via `/war-room` (see [Tidy the memory](#tidy-the-memory-lessons-learned) for the publication pitch).
-The three presets move the whole profile at once: **`balanced`** *is* the defaults, **`thorough`** swaps in its own five deep lenses on fable auditor seats at session effort, lifts the refiner to `xhigh` and the servitor to opus on `high`, and puts red-team and snipe seats on fable, and **`economy`** puts sonnet on the auditor, refiner, servitor and red-team seats (auditors on `xhigh`, refiner and servitor on `high`, red-team at session effort) behind opus first-pass workers and the inherited fable fix tier, over its own four-lens pool, with roster policy and the 6-round budget inherited, while `run.ace` stays inherited on (no preset pins the ace ladder; it gates only the per-task ace ladder).
+The three presets move the whole profile at once: **`balanced`** *is* the defaults, **`thorough`** swaps in its own five deep lenses and pins its own review-side tiers (auditor, refiner, servitor, red-team, snipe) over inherited worker tiers, and **`economy`** keeps its own four-lens pool and pins every tier but the fix worker and snipe — the per-role values for all three are the `/war-room` preset bullets, printed by `node skills/war/assets/war-config.mjs --preset <name>` — with roster policy and the 6-round budget inherited by every preset, while `run.ace` stays inherited on (no preset pins the ace ladder; it gates only the per-task ace ladder).
 `/war-room` only ever asks about the overrides you want *on top of* the chosen preset.
 
 ### Author a plan (`/war-strategy`)
@@ -337,10 +337,10 @@ Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (una
 | WAR | Gas Town | Built on |
 |---|---|---|
 | Lead (your chat) | Mayor | the main Claude Code session |
-| Worker | Polecat | `war-worker` — `Agent` (fable) in a git worktree |
-| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (opus on `high` by default); file tools plus a fail-closed guard restricting Bash to read-only git |
+| Worker | Polecat | `war-worker` — `Agent` in a git worktree |
+| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent`; file tools plus a fail-closed guard restricting Bash to read-only git |
 | Refinery (merge queue) | Refinery | `war-refiner` — `Agent` + the serial Workflow merge loop |
-| Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (sonnet); records per-phase learnings to memory |
+| Servitor | `bd remember` | `war-servitor` — write-scoped `Agent`; records per-phase learnings to memory |
 | -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
 
 See [`skills/war/references/design.md`](skills/war/references/design.md) for the full architecture.

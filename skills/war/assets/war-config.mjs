@@ -26,21 +26,23 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.docs: the tier that dispatches all-*.md tasks (defaults fable/default). worker.fix
-    // (fix-round + --ace tier) defaults to fable/default — the balanced profile's value, which
-    // economy overrides on the base + docs tiers; a config may still override any tier per-run.
+    // worker.docs dispatches all-*.md tasks; worker.fix dispatches fix rounds and --ace. All three
+    // worker tiers are defaulted here; a preset may re-pin any of them (see PRESETS) and a config may
+    // override any tier per run. Every prose surface that restates a value from this object is bound
+    // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
+    // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
     auditor:  { model: 'opus',   effort: 'high' },
     refiner:  { model: 'sonnet', effort: 'high' },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
-    // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/high,
-    // overridden by thorough (fable/default) and economy (sonnet/default). Consumed only when /red-team runs against this repo.
+    // sub-agents. NOT a phase role (never in ROLES/agentMatrix); defaulted here (the balanced value)
+    // and re-pinned by the other presets (see PRESETS). Consumed only when /red-team runs against this repo.
     redteam:  { model: 'opus',   effort: 'high' },
     // snipe: the model/effort /snipe spawns its one-shot auditor seats at (#1920). NOT a phase
     // role (never in ROLES/agentMatrix). Ladder at consumption (snipe-args.mjs snipeTier):
-    // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Operator-set
-    // default: opus/high, overridden by thorough (fable/default).
+    // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Defaulted here;
+    // a preset may re-pin it (see PRESETS).
     snipe:    { model: 'opus',   effort: 'high' },
   },
   audit: {
@@ -106,11 +108,9 @@ export const PRESETS = {
   thorough: {
     profile: 'thorough',
     agents: {
-      // worker tiers inherit DEFAULTS (fable/default on base, docs and fix).
+      // The worker tiers (base, docs, fix) inherit DEFAULTS. Every seat pinned below carries its
+      // own value; the refiner pin sits one effort tier above the DEFAULTS refiner.
       auditor:  { model: 'fable',  effort: 'default' },
-      // Refiner pinned one effort tier above the DEFAULTS refiner (sonnet/high). Thorough runs
-      // fable at session effort on the auditor, red-team and snipe seats; refiner and servitor
-      // stay on sonnet and opus.
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
@@ -129,9 +129,8 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Sonnet on the auditor, refiner, servitor and red-team seats; opus first-pass workers (base and
-    // docs) with the fable/default fix tier inherited from DEFAULTS. snipe deliberately inherits
-    // DEFAULTS (opus/high). Roster policy, round limit and ace inherit DEFAULTS (auto / 6 / on).
+    // Pins the base and docs worker tiers and the auditor, refiner, servitor and red-team seats.
+    // The fix tier, snipe, and every knob not pinned in this preset inherit DEFAULTS.
     agents: {
       worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'xhigh' },
@@ -191,9 +190,8 @@ export function agentMatrix() {
 // 'base' (the worker role's own model/effort), 'docs' (defaulted in DEFAULTS — the all-*.md tier),
 // and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
 // row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
-// enumerated automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g.
-// docs=fable/default with the economy override opus/default, fix=fable/default on every preset)
-// match this canonical source, not a hand-copied literal.
+// enumerated automatically. The doc-honesty lens consults it to prove documented tier values (the
+// docs and fix tiers per preset) match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker
@@ -241,7 +239,7 @@ export function validate(input) {
   }
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
-  // agentMatrix stays four roles). Defaulted in DEFAULTS (balanced opus/high, preset-overridden); a config
+  // agentMatrix stays four roles). Defaulted in DEFAULTS (preset-overridden); a config
   // that omits it still validates and red-team then inherits the session.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
   // agents.snipe — /snipe's one-shot seat tier (#1920), validated like redteam when present and

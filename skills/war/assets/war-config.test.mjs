@@ -104,6 +104,13 @@ test('thorough preset', () => {
   assert.equal(c.agents.servitor.model, 'opus')
   assert.equal(c.agents.servitor.effort, 'high')
   assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default' })
+  assert.deepEqual(PRESETS.thorough.agents, {
+    auditor:  { model: 'fable',  effort: 'default' },
+    refiner:  { model: 'sonnet', effort: 'xhigh' },
+    servitor: { model: 'opus',   effort: 'high' },
+    redteam:  { model: 'fable',  effort: 'default' },
+    snipe:    { model: 'fable',  effort: 'default' },
+  }, 'thorough agents literal (worker absent = inherited)')
   assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
@@ -122,9 +129,15 @@ test('economy preset (sonnet review seats, opus workers; roster policy, roundLim
   assert.equal(c.agents.servitor.effort, 'high')    // pinned — DEFAULTS is xhigh
   assert.equal(c.agents.refiner.effort, 'high')
   // The refiner pin equals DEFAULTS, so the resolved value cannot discriminate it — guard the pin itself.
-  assert.deepEqual(PRESETS.economy.agents.refiner, { model: 'sonnet', effort: 'high' }, 'economy pins its refiner explicitly')
-  // Same hazard for the worker block: its effort pin equals DEFAULTS, so guard the literal, not the merge.
-  assert.deepEqual(PRESETS.economy.agents.worker, { model: 'opus', effort: 'default', docs: { model: 'opus', effort: 'default' } }, 'economy pins base + docs workers explicitly; fix is inherited')
+  // Pins whose merged value equals DEFAULTS (refiner, worker effort, servitor model) cannot be
+  // discriminated through presetConfig(), so the whole agents literal is pinned as written.
+  assert.deepEqual(PRESETS.economy.agents, {
+    worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
+    auditor:  { model: 'sonnet', effort: 'xhigh' },
+    refiner:  { model: 'sonnet', effort: 'high' },
+    servitor: { model: 'sonnet', effort: 'high' },
+    redteam:  { model: 'sonnet', effort: 'default' },
+  }, 'economy agents literal (fix and snipe absent = inherited)')
   // pinned — DEFAULTS carries a 5-seat pool; economy keeps the historical quartet.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
@@ -214,8 +227,7 @@ test('matrix stays four roles: ROLES is exactly the four phase roles and exclude
     'agentMatrix must have exactly |PRESETS| × 4 rows (four roles, redteam excluded)')
 })
 
-test('agents.redteam is preset-populated: balanced opus/high in DEFAULTS, thorough/economy override (fix + red-team asks)', () => {
-  // thorough → fable/default, economy → sonnet/default.
+test('agents.redteam and agents.snipe: DEFAULTS value plus a per-preset table for each (fix + red-team asks, #1920)', () => {
   // /war-room now asks for the red-team model/effort and never leaves it blank — the values live in
   // DEFAULTS (balanced) + the two overriding presets. Delete-the-feature: drop the redteam blocks and
   // the deepEquals below go red.
@@ -281,7 +293,7 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.docs defaults to { fable, default }; balanced and thorough inherit, economy → opus/default (T1.1)', () => {
+test('agents.worker.docs: DEFAULTS value plus a per-preset table (T1.1)', () => {
   // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
   assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'fable', effort: 'default' })
   const DOCS = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'opus', effort: 'default' } }
@@ -311,7 +323,7 @@ test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (valid
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.fix is preset-populated (fable/default in DEFAULTS, inherited by every preset) and validated when present (fix + red-team asks)', () => {
+test('agents.worker.fix: DEFAULTS value, per-preset table, and tier validation when present (fix + red-team asks)', () => {
   // /war-room now asks for the fix-worker model/effort and never leaves it blank — the value lives in
   // DEFAULTS and every shipped preset inherits it. Delete-the-feature: drop the fix block → these fail.
   assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'default' }, 'DEFAULTS (balanced) fix tier must be fable/default')
@@ -1307,7 +1319,7 @@ test('resolveWidenSource: own-lens nomination is legal — widenRoster dedupes i
 
 test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent models (#10 Nit)', () => {
   // Extract the ROLE_MODEL literal from the template text.
-  // It looks like: const ROLE_MODEL = { worker: 'fable', auditor: 'opus', ... }
+  // It looks like: const ROLE_MODEL = { worker: '<model>', auditor: '<model>', ... }
   const match = templateText.match(/const\s+ROLE_MODEL\s*=\s*\{([^}]+)\}/)
   assert.ok(match, 'ROLE_MODEL not found in workflow-template.js')
   // Normalize single-quoted keys/values to double-quoted so JSON.parse can handle it.
@@ -1399,29 +1411,93 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
   }
 })
 
-// Drift-guard (0.21.11 re-tier): the prose surfaces that restate the worker/auditor default
-// MODEL word are bound to DEFAULTS by extraction + equality, the shape the redteamRoundLimit
-// doc pin uses. Each row: [file, construct regex with ONE capture = the model word, role].
-// The README roles table row was silently false for a whole release window before this pin.
-test('drift-guard: README roles table, gastown role table and war SKILL.md defaults bullet state DEFAULTS worker/auditor models', () => {
-  const rows = [
-    ['README.md', /^\| Worker \| Polecat \| `war-worker` — `Agent` \((\w+)\)/m, 'worker'],
-    ['README.md', /`war-auditor` — read-only `Agent` \((\w+) on `(\w+)` by default\)/, 'auditor'],
-    ['skills/war/references/gastown-design-params.md', /^\| Polecat \| `war-worker` \| `Agent` \((\w+)\)/m, 'worker'],
-    ['skills/war/references/gastown-design-params.md', /^\| Nun \(Refinery audit gate\) \| `war-auditor` \| read-only `Agent` \((\w+)\)/m, 'auditor'],
-    ['skills/war/SKILL.md', /\*\*defaults\*\* are `war-worker` = (\w+) at session effort/, 'worker'],
-    ['skills/war/SKILL.md', /`war-auditor` = (\w+) on `(\w+)`, `war-refiner`/, 'auditor'],
-    // README /war-room intro and the "today's defaults" paragraph restate the same two facts.
-    ['README.md', /^By default WAR runs (\w+) workers at session effort and/m, 'worker'],
-    ['README.md', /^By default WAR runs \w+ workers at session effort and (\w+) auditors on `(\w+)`/m, 'auditor'],
-    ['README.md', /built-in `DEFAULTS`: (\w+) workers on `default` effort/, 'worker'],
-    ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'auditor'],
-  ]
-  for (const [rel, re, role] of rows) {
+// Doc-tier pins (0.21.11 re-tier, #2097 root cause: hand-copied tier literals across prose with no
+// binding rotted one surface per audit round). Discipline: a prose surface either restates a tier
+// value AND appears in DOC_TIER_PINS (extraction + equality against presetConfig()), or it carries a
+// pointer to war-config.mjs and appears in DEMIRRORED (a re-introduction ban). The /war-room preset
+// bullets are the one prose table of per-preset values and are parsed whole below. Each pin row:
+// [file, construct regex, preset, path] — capture 1 = model word, optional capture 2 = effort word.
+const DOC_TIER_PINS = [
+  ['README.md', /read-only auditor seats \((\w+)\/`(\w+)` by default/, 'balanced', 'snipe'],
+  ['README.md', /^By default WAR runs (\w+) workers at session effort and/m, 'balanced', 'worker'],
+  ['README.md', /^By default WAR runs \w+ workers at session effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
+  ['README.md', /built-in `DEFAULTS`: (\w+) workers on `default` effort/, 'balanced', 'worker'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+]
+const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetConfig(preset).agents)
+
+test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig() (extraction + equality)', () => {
+  assert.ok(DOC_TIER_PINS.length > 0, 'the pin table must not be empty')
+  for (const [rel, re, preset, path] of DOC_TIER_PINS) {
     const m = readDoc(rel).match(re)
-    assert.ok(m, `${rel}: the ${role} default-model construct was not found — re-anchor the pin, do not drop it`)
-    assert.equal(m[1], DEFAULTS.agents[role].model, `${rel}: ${role} model word "${m[1]}" must equal DEFAULTS.agents.${role}.model`)
-    if (m[2] !== undefined) assert.equal(m[2], DEFAULTS.agents[role].effort, `${rel}: ${role} effort word "${m[2]}" must equal DEFAULTS.agents.${role}.effort`)
+    assert.ok(m, `${rel}: the ${preset} ${path} construct was not found — re-anchor the pin, do not drop it`)
+    const want = tierAt(preset, path)
+    assert.equal(m[1], want.model, `${rel}: ${preset} ${path} model word "${m[1]}" must equal presetConfig('${preset}').agents.${path}.model`)
+    if (m[2] !== undefined) assert.equal(m[2], want.effort, `${rel}: ${preset} ${path} effort word "${m[2]}" must equal presetConfig('${preset}').agents.${path}.effort`)
+  }
+})
+
+// /war-room preset bullets: one `- **<preset>** — ...` line per PRESETS key, carrying every tier as a
+// `<label> <model>/`<effort>`` token. The parser binds the whole bullet: every label present exactly
+// once, no unknown label, every value equal to presetConfig(). A new preset without a bullet, a bullet
+// that drops a tier, or a reworded token all red here.
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
+test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  for (const preset of Object.keys(PRESETS)) {
+    const line = text.split('\n').find(l => new RegExp(`^\\s*- \\*\\*${preset}\\*\\* — `).test(l))
+    assert.ok(line, `/war-room has no preset bullet for ${preset}`)
+    const tokenRe = new RegExp(`\\b(${Object.keys(BULLET_LABELS).join('|')}) (${MODELS.join('|')})/\`(\\w+)\``, 'g')
+    const seen = new Map()
+    for (const [, label, model, effort] of line.matchAll(tokenRe)) {
+      assert.ok(!seen.has(label), `${preset} bullet names ${label} twice`)
+      seen.set(label, { model, effort })
+    }
+    assert.deepEqual([...seen.keys()].sort(), Object.keys(BULLET_LABELS).sort(), `${preset} bullet must carry exactly one token per tier label`)
+    for (const [label, path] of Object.entries(BULLET_LABELS)) {
+      const want = tierAt(preset, path)
+      assert.deepEqual(seen.get(label), { model: want.model, effort: want.effort }, `${preset} bullet ${label} must equal presetConfig('${preset}').agents.${path}`)
+    }
+  }
+})
+
+// Re-introduction ban: these constructs were de-mirrored to pointers in 0.21.11. A model word inside
+// any of them means a restatement came back without a pin — add a DOC_TIER_PINS row or restore the
+// pointer. Each row: [file, region regex]; the region must match (a vanished construct is a rot signal too).
+const DEMIRRORED = [
+  ['README.md', /^\| Worker \| Polecat \|[^\n]*$/m],
+  ['README.md', /^\| Auditor \|[^\n]*$/m],
+  ['README.md', /^\| Servitor \|[^\n]*$/m],
+  ['README.md', /^\*\*Seats\*\* spawn in parallel[^\n]*$/m],
+  ['README.md', /^The three presets move the whole profile at once[^\n]*$/m],
+  ['skills/war/references/gastown-design-params.md', /^\| Polecat \|[^\n]*$/m],
+  ['skills/war/references/gastown-design-params.md', /^\| Nun \(Refinery audit gate\) \|[^\n]*$/m],
+  ['skills/war/references/gastown-design-params.md', /^\| Refinery \|[^\n]*$/m],
+  ['skills/war/references/gastown-design-params.md', /^\| bd remember \|[^\n]*$/m],
+  ['skills/war/references/design.md', /^- \*\*Workers\*\* = worktree-isolated[^\n]*$/m],
+  ['skills/war/references/design.md', /^Per-role models are the `war-config\.mjs` DEFAULTS[^\n]*$/m],
+  ['skills/war/references/design.md', /^- \*\*New role — `war-servitor`\*\*[^\n]*$/m],
+  ['CONTEXT.md', /tier ladder `agents\.snipe`[^\n]*$/m],
+  ['CONTEXT.md', /\*\*Docs tier\*\*:\n[\s\S]*?\n_Avoid_/],
+  ['CONTEXT.md', /\*\*Fix bump\*\*:\n[\s\S]*?\n_Avoid_/],
+  ['skills/war/SKILL.md', /^- Models\/effort come from the resolved run config[^\n]*$/m],
+  ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^)]*\)/],
+  ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^)]*\)/],
+  ['skills/war/references/schemas.md', /^\s*redteam\?: \{ model, effort \},[^\n]*$/m],
+  ['skills/war/references/schemas.md', /^\s*snipe\?: \{ model, effort \} \},[^\n]*$/m],
+  ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.docs \{ model, effort \}[^\n]*$/m],
+  ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.fix\s+\{ model, effort \}[^\n]*$/m],
+  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.docs` \([^)]*\)/m],
+  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^)]*\)/m],
+  ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^)]*\)/],
+  ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^)]*\)/],
+]
+test('DEMIRRORED: de-mirrored constructs carry a pointer, never a model literal', () => {
+  const modelWord = new RegExp(`\\b(${MODELS.join('|')})\\b`)
+  for (const [rel, re] of DEMIRRORED) {
+    const m = readDoc(rel).match(re)
+    assert.ok(m, `${rel}: de-mirrored construct ${re} not found — re-anchor the ban, do not drop it`)
+    assert.doesNotMatch(m[0], modelWord, `${rel}: construct ${re} restates a model literal — add a DOC_TIER_PINS row or restore the pointer`)
   }
 })
 

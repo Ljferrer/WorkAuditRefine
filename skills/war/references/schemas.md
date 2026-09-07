@@ -280,10 +280,10 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     auditor:  { model, effort },
     refiner:  { model, effort },
     servitor: { model, effort },
-    redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (balanced opus/high); only a MISSING config file → red-team inherits the session
-    snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), default opus/high (thorough → fable/default); explicit null = unset (falls back to the auditor tier); validated like redteam
-  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "fable", effort: "default" }; balanced and thorough inherit, economy → opus/default)
-  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; every preset populates it (fable/default in DEFAULTS, inherited by all three); an omitted block inherits the base worker config
+    redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session
+    snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), defaulted in `war-config.mjs` DEFAULTS, presets may re-pin it; explicit null = unset (falls back to the auditor tier); validated like redteam
+  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (defaulted in DEFAULTS; presets may re-pin it)
+  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config
   audit: {
     roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)

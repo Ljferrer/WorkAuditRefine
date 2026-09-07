@@ -60,7 +60,7 @@ export const meta = {
 //     ghUser,                         // optional expected gh account for the file-followups preflight (from
 //                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
-//                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (fable default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
+//                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (defaulted in war-config DEFAULTS), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     absorbCharges?,                 // optional { <task>: n } Lead override of the barrier's Ace-Charge read at a relaunch — read unconditionally
 //                                     // (no recovery gate); wins over the barrier map, logged; a non-object map is logged and ignored.
@@ -710,14 +710,14 @@ const spawn = role => {
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
 // Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
-// row in workflow-template.test.mjs (fable by default). fix (the fix-round + --ace tier) is NOT listed
+// row in workflow-template.test.mjs. fix (the fix-round + --ace tier) is NOT listed
 // here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
 // BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
 // worker (the correct fallback for a partial/hand-passed config — nothing to bind).
 const WORKER_TIER_DEFAULTS = { docs: { model: 'fable', effort: 'default' } }
 // spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix') — the configured agents.worker[tier]
 // block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
-// a null/absent tier ⇒ base). A partial tier block falls back to ITS tier's default model (docs⇒fable),
+// a null/absent tier ⇒ base). A partial tier block falls back to ITS tier's default model (docs ⇒ WORKER_TIER_DEFAULTS.docs),
 // matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
 const spawnWorker = tier => {
   if (!tier) return spawn('worker')

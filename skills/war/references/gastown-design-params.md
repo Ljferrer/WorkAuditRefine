@@ -6,11 +6,11 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | Gas Town | WAR | Built on |
 |---|---|---|
 | Mayor | Lead | the main Claude Code session (your chat) |
-| Polecat | `war-worker` | `Agent` (fable) in a git worktree |
-| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (opus): Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
-| Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` (sonnet) + Workflow control flow |
+| Polecat | `war-worker` | `Agent` in a git worktree (model per `war-config.mjs` DEFAULTS) |
+| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent`: Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
+| Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` + Workflow control flow |
 | Witness | (dissolved) | Workflow control flow + lifecycle hooks |
-| bd remember | war-servitor | write-scoped `Agent` (sonnet); records per-phase learnings |
+| bd remember | war-servitor | write-scoped `Agent`; records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
 - **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the 5-seat roster at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**
