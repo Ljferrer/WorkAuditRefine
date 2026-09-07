@@ -11850,7 +11850,7 @@ const BARE_INTERPOLATION_CENSUS = [
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
   'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'trailer',
   'workerIntentClause', 'workerSelfQueryRepoFlag', 'working',
-  // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the four
+  // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the
   // pt-built module consts (GATE_LOG_STAMP / PARTIAL_LOG_RULE / GATE_LOG_READ_RULE / GATE_LOG_UNTHREADED)
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
   // both call sites; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
@@ -16285,6 +16285,26 @@ test('segmented-gate: a persisting merge-task marker is BOUNDED by roundLimit �
   const b = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), bare)
   assert.equal(b.calls.filter(isMergeT1).length, 1, 'a marker-absent error merge dispatches exactly once')
   assert.ok((b.out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'error'), 'and escalates under its own status')
+})
+
+test('segmented loops: segmentedMerge and segmentedLand share one loop shape — each reads status:error plus its own marker as a pair and bounds at roundLimit (source-shape drift guard)', () => {
+  // The two helpers are deliberate twins (segmentedLand is block-scoped on refineryLandPath, so the
+  // pair is not hoisted). This pin reds a one-sided edit: both bodies must carry the same pair read,
+  // the same roundLimit bound and the same segment counter.
+  const bodyOf = (name) => {
+    const at = src.indexOf('const ' + name + ' = async (prompt, opts) => {')
+    assert.notEqual(at, -1, name + ' is defined with the (prompt, opts) signature')
+    return src.slice(at, src.indexOf('return result', at))
+  }
+  const pairs = [['segmentedMerge', 'gate_segment'], ['segmentedLand', 'land_segment']]
+  for (const [name, field] of pairs) {
+    const body = bodyOf(name)
+    assert.ok(body.includes("const isSegment = res => !!res && res.status === 'error' && res." + field + " === 'incomplete'"), name + ' reads status:error AND ' + field + ":'incomplete' as a pair")
+    assert.ok(body.includes('while (isSegment(result) && segments < roundLimit) {'), name + ' bounds the re-dispatch loop at roundLimit')
+    assert.ok(body.includes('segments++'), name + ' counts segments')
+    assert.ok(body.includes("label: opts.label + ':segment-' + (segments + 1)"), name + ' labels the continuation by segment')
+    assert.ok(body.includes('if (isSegment(result)) {'), name + ' logs exhaustion on a still-incomplete result')
+  }
 })
 
 test('segmented-gate: re-merge sites — the environment-proceed and baseline-proceed re-merges carry the clause and re-dispatch on status:error + gate_segment:incomplete', async () => {
