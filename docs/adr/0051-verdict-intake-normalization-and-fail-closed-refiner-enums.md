@@ -2,12 +2,13 @@
 
 **Status:** accepted (ratified by
 [the plan](../plans/2026-09-06-engine-and-audit-verdict-integrity.md), decisions D2/D4/D5/D6,
-pins PIN-2/PIN-6/PIN-8/PIN-9; originating incidents: issues #1869, #1870, #1973, #1797 and #1805)
+pins PIN-2/PIN-6/PIN-8/PIN-9/PIN-10; originating incidents: issues #1788, #1811, #1869, #1870, #1973,
+#1797 and #1805)
 
 A WAR run let a dispatched agent's own words decide a task's fate. Three shapes of that trust
 composed. An auditor payload could carry `seats` and `merged` fields, and the follow-up collapse
 read them as if the engine had written them, so one seat could forge corroboration by a second
-(issue #1869 and the D8 collapse). A refiner could report `already_upstream` for a task whose own
+(issue #1788 and the D8 collapse). A refiner could report `already_upstream` for a task whose own
 result fields said otherwise — `rebased_tip` equal to the dispatch base and a non-empty post-rebase
 patch-id — and the consumer recorded the task `merged` with nothing on the integration branch
 (issue #1973). A land dispatch could return with the `land_segment: 'incomplete'` marker on one of
@@ -28,12 +29,16 @@ applied here to every verdict and every refiner status). Three forms follow.
 
 **Intake normalization** is the step that runs on every finding of every `AUDIT_VERDICT` before any
 router, collapse or filing reads it: roster seats, the rebuttal-successor re-audit, the ace
-re-audits, the three gate-audit-family seats and the end-state seat. `normalizeFinding` in
+re-audits, the three gate-audit-family seats (post-merge, integrated-tip, end-state-only).
+`normalizeFinding` in
 `workflow-template.js` strips the auditor-supplied `seats` and `merged` fields, so `seatsListOf`
-only ever reads a list the engine wrote and a forged seat never renders as corroboration; it
+only ever reads a list the engine wrote and a forged seat never renders as corroboration (the
+corroboration LIST is engine-written; the finding-level `seat`, `task` and `lens` keys stay
+auditor-supplied, a residual out of PIN-6's slice recorded on `seatsListOf`); it
 normalizes `file` through `aceRelPath`, so one path spelled two ways never splits a record. Its
-caller `normalizeSeat` demotes an empty-title-and-rationale finding to a logged note, because a
-finding with nothing routable is not a verdict (#1869), and `remintKey` folds a content hash in
+caller `normalizeSeat` demotes a finding with no title and no routable content (`contentTextOf`:
+`rationale`, `suggested_fix`, `ask.question`) to a logged note, sparing an ask-shaped, `scopeBreach`
+or `plan_ref`-carrying row, because a finding with nothing routable is not a verdict (#1869), and `remintKey` folds a content hash in
 when file and title are both absent, so two content-distinct empty-key findings both file (#1870).
 The card and the gate-audit-family prompts carry the FINDING-PATH FORM sentence as belt and braces;
 they are not the guard (PIN-6).
