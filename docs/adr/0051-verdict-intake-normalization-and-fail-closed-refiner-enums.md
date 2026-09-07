@@ -28,18 +28,23 @@ applied here to every verdict and every refiner status). Three forms follow.
 ### 1. Intake normalization — every seat finding passes through `normalizeFinding`
 
 **Intake normalization** is the step that runs on every finding of every `AUDIT_VERDICT` before any
-router, collapse or filing reads it: roster seats, the rebuttal-successor re-audit, the ace
-re-audits, the three gate-audit-family seats (post-merge, integrated-tip, end-state-only).
+router, collapse or filing reads it: roster seats, the rebuttal round, every re-audit (ace,
+pin-transfer, floor-fix, sweep, terminal), the three gate-audit-family seats (post-merge,
+integrated-tip, end-state-only).
 `normalizeFinding` in
 `workflow-template.js` strips the auditor-supplied `seats` and `merged` fields, so `seatsListOf`
-only ever reads a list the engine wrote and a forged seat never renders as corroboration (the
-corroboration LIST is engine-written; the finding-level `seat`, `task` and `lens` keys stay
+only ever reads a list the engine wrote and a forged `seats` list never renders as corroboration
+(the corroboration LIST is engine-written; the finding-level `seat`, `task` and `lens` keys stay
 auditor-supplied, a residual out of PIN-6's slice recorded on `seatsListOf`); it
 normalizes `file` through `aceRelPath`, so one path spelled two ways never splits a record. Its
 caller `normalizeSeat` demotes a finding with no title and no routable content (`contentTextOf`:
-`rationale`, `suggested_fix`, `ask.question`) to a logged note, sparing an ask-shaped, `scopeBreach`
-or `plan_ref`-carrying row, because a finding with nothing routable is not a verdict (#1869), and `remintKey` folds a content hash in
-when file and title are both absent, so two content-distinct empty-key findings both file (#1870).
+`rationale`, `suggested_fix`, `ask.question`) to a logged note, because a finding with nothing
+routable is not a verdict (#1869). The spare covers a `scopeBreach` or `plan_ref`-carrying row, a
+non-blank `ask.question` at any severity (it is content through `contentTextOf`), and a bare
+`disposition:'ask'` only on the Minor/Nit severities the ask channel serves: a Critical or Major
+carrying only `disposition:'ask'` never reaches `parkAsk`, so it demotes. `remintKey` folds a
+content hash in when file and title are both absent, so two content-distinct empty-key findings
+both file (#1870).
 The card and the gate-audit-family prompts carry the FINDING-PATH FORM sentence as belt and braces;
 they are not the guard (PIN-6).
 
