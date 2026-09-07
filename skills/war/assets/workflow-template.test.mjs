@@ -5980,6 +5980,9 @@ test('seatsListOf read-site guard (engine row): a non-array or empty ENGINE-writ
   const rep = { seat: 'audit:t1:x', task: 't1', title: 'rep', seats: 'correctness' }
   h.mergeSeat(rep, { seat: 'audit:t1:y', task: 't1', title: 'dup', seats: [] })
   assert.deepEqual(rep.seats, ['audit:t1:x (task t1)', 'audit:t1:y (task t1)'], 'mergeSeat reads both malformed engine sides through the guard — never a .push on a string, never a lost raiser')
+  const rep2 = { seat: 'audit:t1:x', task: 't1', title: 'rep' }
+  h.mergeSeat(rep2, { seat: 'audit:t1:y', task: 't1', title: 'dup', seats: ['audit:t1:y (task t1)', 'audit:t1:z (task t1)'] })
+  assert.deepEqual(rep2.seats, ['audit:t1:x (task t1)', 'audit:t1:y (task t1)', 'audit:t1:z (task t1)'], 'a dup carrying a multi-ref ENGINE list contributes every ref, not just its head raiser')
   // intake-strip control: the auditor-supplied string key vanishes before the consolidation runs, so
   // the representative carries the ENGINE-written two-ref list, not a normalized copy of the string.
   const findings = [
@@ -6109,6 +6112,14 @@ test('intake normalization: empty-content Critical demotes to note — a title-l
   assert.ok(entry && entry.hard === false && entry.findings.length === 0, 'the gate-audit entry is SOFT with no finding — the empty Critical demoted at intake')
   assert.ok(!ga.out.escalated.some(e => e && e.reason === 'gate-evidence'), 'no gate-evidence escalation rides an empty-content finding')
   assert.ok((ga.out.notes || []).some(n => n && n.demoteReason === 'intake:empty-content' && n.task === 't1'), 'the gate-audit demotion lands in notes')
+  // plan_ref is spared: a plan_ref-only Critical from the gate-audit seat still keys its condition
+  // 'unmet' in the handoff endState projection (the projection reads severity + plan_ref only), so
+  // the invariant 'a Critical/Major can never be laundered by a met attestation' holds at intake.
+  const keyedOnly = await runPhase(ES_ARGS(), esImpl([{ severity: 'Critical', plan_ref: ES_CONDS[0] }]))
+  assert.ok(keyedOnly.out.handoff, 'presence guard: handoff emitted')
+  const keyedRow = keyedOnly.out.handoff.endState.find(e => e.condition === ES_CONDS[0])
+  assert.equal(keyedRow && keyedRow.status, 'unmet', 'a plan_ref-only Critical survives intake and keys its condition unmet')
+  assert.ok(!(keyedOnly.out.notes || []).some(n => n && n.demoteReason === 'intake:empty-content'), 'nothing demoted — plan_ref is a routing key, never empty content')
 })
 
 test('intake normalization: content-distinct empty-key findings both file on re-mint — a second fileless, titleless follow-up arriving at the ace re-audit files beside the first; a content-identical one is still refused as a re-mint (#1870)', async () => {
@@ -6162,6 +6173,8 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.equal(h.remintKey(t({ title: 'k' })), 't1\u0000\u0000k', 'a keyed tuple is byte-identical to the pre-fold form')
   assert.notEqual(h.remintKey(t({ title: '', rationale: 'a' })), h.remintKey(t({ title: '', rationale: 'b' })), 'an EMPTY title reads as absent for the fold')
   assert.notEqual(h.remintKey(t({ title: '  ', rationale: 'a' })), h.remintKey(t({ title: '  ', rationale: 'b' })), 'a WHITESPACE title reads as absent for the fold too (#2129 — trim-blind, both keyed as one titled finding)')
+  assert.notEqual(h.remintKey(t({ file: '  ', rationale: 'a' })), h.remintKey(t({ file: '  ', rationale: 'b' })), 'a WHITESPACE file reads as absent for the fold too (one blankText spelling for file and title)')
+  assert.ok(keyBody.includes('!blankText(f.file)'), 'the fold arm reads file through the same blankText as title — no hand-rolled truthiness copy')
   assert.notEqual(h.remintKey(t({ suggested_fix: 'a' })), h.remintKey(t({ suggested_fix: 'b' })), 'suggested_fix is content for the fold')
   assert.notEqual(h.remintKey(t({ ask: { question: 'a' } })), h.remintKey(t({ ask: { question: 'b' } })), 'ask.question is content for the fold')
   const seat = { seat: 'audit:t1:correctness', verdict: 'request_changes', findings: [
@@ -6194,6 +6207,29 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   h.normalizeSeat(spared, 't1')
   assert.deepEqual(spared.findings.map(f => f.severity), ['Nit', 'Minor', 'Minor', 'Major'], 'scopeBreach, disposition:ask, a non-blank ask.question and a suggested_fix each survive intake; a blank ask.question alone is still empty content')
   assert.equal(h.notes.length - notesBefore, 1, 'only the blank-question finding demoted')
+  // ask spare is bound to the ask channel's severities: a blocking severity carrying only
+  // disposition:'ask' never reaches parkAsk (minorsOf filters to Minor/Nit), so it demotes;
+  // a Minor with the same shape still survives to the ask channel.
+  const askBound = { seat: 's', verdict: 'request_changes', findings: [
+    { severity: 'Critical', disposition: 'ask' },
+    { severity: 'Minor', disposition: 'ask' },
+  ] }
+  h.normalizeSeat(askBound, 't1')
+  assert.deepEqual(askBound.findings, [{ severity: 'Minor', disposition: 'ask' }], 'a Critical carrying only disposition:ask demotes (no ask channel serves it); the Minor survives')
+  assert.equal(askBound.verdict, 'approve', 'the blocker-less request_changes is neutralized')
+  // plan_ref is a routing key, not content: the handoff endState projection keys 'unmet' on
+  // severity + plan_ref alone, so a plan_ref-only blocking finding survives intake.
+  const keyed = { seat: 's', verdict: 'request_changes', findings: [{ severity: 'Critical', plan_ref: 'condition text' }] }
+  h.normalizeSeat(keyed, 't1')
+  assert.deepEqual(keyed.findings, [{ severity: 'Critical', plan_ref: 'condition text' }], 'a plan_ref-only Critical survives normalizeSeat (its plan_ref routes the endState projection)')
+  assert.equal(keyed.verdict, 'request_changes', 'the surviving blocker keeps the verdict')
+  // a non-object drop is a removal too: the verdict never stands on a findings item it no longer has
+  const dropped = { seat: 's', verdict: 'request_changes', findings: [null] }
+  const logsBefore = h.logs.length
+  h.normalizeSeat(dropped, 't1')
+  assert.deepEqual(dropped.findings, [], 'the non-object item is dropped')
+  assert.equal(dropped.verdict, 'approve', 'a request_changes whose only findings item was a non-object neutralizes to approve')
+  assert.ok(h.logs.slice(logsBefore).some(l => l.includes('non-object findings item')), 'the drop is logged')
   const keep = { seat: 's', verdict: 'request_changes', findings: [{ severity: 'Major', title: 'real' }, { severity: 'Critical', title: '' }] }
   h.normalizeSeat(keep, 't1')
   assert.equal(keep.verdict, 'request_changes', 'a surviving blocker keeps the verdict')
@@ -6458,15 +6494,15 @@ test('collapse-fidelity (End state 7, terminal arm): a seatless, taskless row st
     'the seatless, taskless row renders the \'unattributed\' terminal arm in row position')
 })
 
-test('string-seats-fixture (End state 8): an auditor-supplied string `seats` on a NON-collapsing row renders via the Array.isArray fallback without throwing — landDecision stays landed', async () => {
-  // Delete-the-feature: a truthiness gate on m.seats would take the seats-join branch for this
-  // truthy, lengthful STRING — String.prototype.join does not exist and the row builder throws.
-  // But the row builder is evaluated as an ARGUMENT to the filing `agent(...)` call inside the
-  // filing block's own fail-open try, so the throw is caught locally (`filingOut = null`), the
-  // dispatch never fires, and the phase still lands — landDecision is non-discriminating here.
-  // The load-bearing pin is therefore the `calls.find(...).prompt` read below: with a truthiness
-  // gate no file-followups dispatch exists and `.prompt` throws. Array.isArray sends the row down
-  // the seatRef fallback so the dispatch fires and the row renders.
+test('string-seats-fixture (End state 8): a string `seats` on an ENGINE row falls to the row\'s own ref through the Array.isArray gate; an auditor-supplied string `seats` is stripped at intake, so the seat-driven leg proves the strip, not the gate — landDecision stays landed', async () => {
+  // The Array.isArray + length gate is driven DIRECTLY on an engine row through registrySlice: a
+  // truthiness gate would take the seats-join branch for this truthy, lengthful STRING and throw
+  // on String.prototype.join. A seat payload can no longer reach the gate — normalizeFinding
+  // strips `seats` at intake, so the auditor-supplied string below is ABSENT at seatsListOf, not
+  // malformed, and the seat-driven leg is an explicit intake-strip control: the row renders
+  // through the seatRef fallback whichever gate spelling is in place.
+  const h = registrySlice()
+  assert.deepEqual(h.seatsListOf({ seat: 'audit:t1:correctness', task: 't1', seats: 'audit:bogus' }), ['audit:t1:correctness (task t1)'], 'a string seats key on an engine row falls to the row\'s own ref (the Array.isArray gate)')
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-auditor')
@@ -6480,7 +6516,7 @@ test('string-seats-fixture (End state 8): an auditor-supplied string `seats` on 
   assert.equal(out.landDecision, 'landed', 'presence guard: the phase lands (the filing dispatch fails open by design — the load-bearing pin is the row render below)')
   const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
   assert.match(fp, /"string seats row"[^\n]* · seats: audit:t1:correctness \(task t1\)/,
-    'the row renders via the seatRef fallback (Array.isArray gate) — never the raw string, never a throw')
+    'intake-strip control: the auditor string never reaches the row — it renders via the seatRef fallback, never the raw string, never a throw')
   assert.equal(out.handoff.followUps.length, 1, 'the row rides the handoff (projected from minorsFiled independently of the filing dispatch)')
 })
 

@@ -1315,7 +1315,7 @@ const contentHash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = 
 const remintKey = f => (f.task ?? '') + '\u0000'
   + (typeof f.file === 'string' ? aceRelPath(f.file) : '') + '\u0000'
   + (f.title ?? '')
-  + ((typeof f.file === 'string' && f.file) || !blankText(f.title) ? '' : '\u0000' + contentHash(JSON.stringify([...contentTextOf(f).map(v => v ?? ''), f.line ?? null, f.plan_ref ?? ''])))
+  + (!blankText(f.file) || !blankText(f.title) ? '' : '\u0000' + contentHash(JSON.stringify([...contentTextOf(f).map(v => v ?? ''), f.line ?? null, f.plan_ref ?? ''])))
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
@@ -1652,37 +1652,46 @@ const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : 
 // note (#1869: an empty stripped Critical rode a blocking verdict into escalation triage), and a
 // `request_changes` verdict left with no blocking finding after that demotion is neutralized to
 // `approve` with a log (a verdict cannot stand on findings it no longer has; `escalate` stands on
-// its escalate_reason and is never touched). The demotion SPARES an ask-shaped finding
-// (disposition:'ask', or an `ask.question` — demote()'s ASK REFUSAL invariant: an ask is ruled at
-// the Checkpoint, never machine-demoted into notes; it falls through to parkAsk / the routers) and
-// a `scopeBreach: true` finding (aceReaudit's fail-closed pin-transfer refusal reads the
-// finding-level disjunct, PIN-18 — the breach flag IS its content). Non-object findings items are
-// dropped with a log. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in
-// place and returns it, and every site assigns the return.
+// its escalate_reason and is never touched). A third consumer reads such a finding: the handoff
+// `endState` projection's plan_ref-keyed `rel` filter reads severity + plan_ref only, so a demoted
+// plan_ref-carrying blocking finding would no longer drive 'unmet' and the condition would fall to
+// the attestation channel ('unverified' absent a met row, never a silent green) — which is why
+// plan_ref is SPARED below as a routing key (not content: contentTextOf's field list is unchanged;
+// plan_ref rides the fold's hash as a locator). The demotion also SPARES an ask-shaped finding
+// (a non-blank `ask.question` is spared through contentTextOf; a bare `disposition: 'ask'` row on
+// the Minor/Nit severities the ask channel serves is spared through askShaped — a blocking
+// severity carrying only disposition:'ask' has no ask channel to reach, never parks, and would
+// otherwise ride the verdict fix-less into a PIN-29 escalation — demote()'s ASK REFUSAL invariant:
+// an ask is ruled at the Checkpoint, never machine-demoted into notes; it falls through to parkAsk
+// / the routers) and a `scopeBreach: true` finding (aceReaudit's fail-closed pin-transfer refusal
+// reads the finding-level disjunct, PIN-18 — the breach flag IS its content). Non-object findings
+// items are dropped with a log and count as removals for the verdict neutralization the same as a
+// demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in place and
+// returns it, and every site assigns the return.
 const normalizeFinding = f => {
   const { seats, merged, ...rest } = f
   if (typeof rest.file === 'string') rest.file = aceRelPath(rest.file)
   return rest
 }
-const askShaped = f => f.disposition === 'ask' || !!(f.ask && typeof f.ask === 'object' && !blankText(f.ask.question))
+const askShaped = f => (f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask'
 const normalizeSeat = (seat, taskId) => {
   if (!seat || typeof seat !== 'object') return seat
   const kept = []
-  let demoted = 0
+  let removed = 0
   for (const raw of (Array.isArray(seat.findings) ? seat.findings : [])) {
-    if (!raw || typeof raw !== 'object') { log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned a non-object findings item — dropped (logged, never silent).'); continue }
+    if (!raw || typeof raw !== 'object') { removed++; log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned a non-object findings item — dropped (logged, never silent).'); continue }
     const f = normalizeFinding(raw)
-    if (blankText(f.title) && contentTextOf(f).every(blankText) && !askShaped(f) && f.scopeBreach !== true) {
-      demoted++
-      log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title, no rationale, no suggested_fix, no ask question) from seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') demoted to a note — it carries nothing a router or fixer could act on (#1869).')
+    if (blankText(f.title) && contentTextOf(f).every(blankText) && !askShaped(f) && f.scopeBreach !== true && blankText(f.plan_ref)) {
+      removed++
+      log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title, no rationale, no suggested_fix, no ask question, no plan_ref) from seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') demoted to a note — it carries nothing a router or fixer could act on (#1869).')
       notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, demoteReason: 'intake:empty-content' })
       continue
     }
     kept.push(f)
   }
   seat.findings = kept
-  if (demoted && seat.verdict === 'request_changes' && !kept.some(f => f.severity === 'Critical' || f.severity === 'Major')) {
-    log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned request_changes whose every blocking finding was empty-content — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
+  if (removed && seat.verdict === 'request_changes' && !kept.some(f => f.severity === 'Critical' || f.severity === 'Major')) {
+    log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned request_changes whose every blocking finding was removed at intake (empty-content demoted or non-object dropped) — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
     seat.verdict = 'approve'
   }
   return seat
