@@ -1,0 +1,246 @@
+# Snipe for Codex — implementation plan and durable checklist
+
+Date: 2026-09-07. Status: planned; implementation has not started. This document is the continuation record for the first Codex feature port. Checkbox completion requires evidence, not an agent's recollection.
+
+## Start here after compaction
+
+- Canonical repository: `Ljferrer/WorkAuditRefine`.
+- Working branch: `codex-port`.
+- Isolated checkout: `/Users/ljf/Documents/Codex/worktrees/war-codex-port`.
+- Tracking PR: [#2152, against master](https://github.com/Ljferrer/WorkAuditRefine/pull/2152).
+- Original repository checkout: `/Users/ljf/GitHub/WorkAuditRefine`; it belongs to an active Claude campaign. Do not switch its branch, stage its files, reset it, clean its worktrees, or modify its configuration.
+- Branch base: `ba08a77f812fe3e00fdf21aa5114a3f00f90df4b`, the recorded remote master at branch creation and analyzed WAR 0.21.12 snapshot. Do not assume this is the campaign's eventual engine.
+- Already committed: source analysis (`16803ca`) and GitHub testing design (`0fb91fe`), both under `docs/port/`.
+- User decision: one source repository, separate runtime integration, shared behavior kept in sync. Port **snipe first**, before the broader GitHub parity-testing implementation.
+- User-reported campaign context: 4/14 phases of plan 1/3 complete, approximately 48–72 hours remaining when reported. No automatic monitor is established; do not infer completion from elapsed time.
+- This task saves the plan only. Later implementation should follow the gates below and record actual results here.
+
+On re-entry, run `git status --short`, `git branch --show-current`, and `git log -5 --oneline` **inside the isolated checkout**. Read this checklist and applicable instructions before editing. If another task has changed the branch, preserve its work and inspect the diff. Consult the execution record at the end; the first unfinished checklist item is the next action.
+
+Related documents: [port analysis](2026-09-07-codex-port-analysis.md), [GitHub parity plan](2026-09-07-github-parity-testing-plan.md).
+
+## Intended outcome
+
+A user explicitly invokes the Codex snipe skill against a diff. It resolves one review target, chooses one to five distinct audit lenses, runs independent read-only reviewers using supported Codex configuration, validates their responses, and reports findings in the parent task. It stops after that report.
+
+No fixes, commits, issues, PR comments, merge gates, automatic widening, phase engine, refinery, servitor, campaign execution, or automatic follow-up actions belong to snipe. “Absorb” and “follow-up” are classifications in its report, not permission to perform those actions. An `ask` finding is surfaced for the operator; snipe does not pause indefinitely to resolve it.
+
+The Codex port must preserve Claude's existing snipe behavior and installation. It must be independently useful while the engine campaign is unfinished.
+
+## Verified starting facts
+
+The current `skills/snipe/SKILL.md` has no Workflow dependency. It invokes `skills/snipe/assets/snipe-args.mjs`, resolves a target, and requests parallel `work-audit-refine:war-auditor` seats. It explicitly assumes Claude's role tools and `agent_type` hooks apply unchanged.
+
+The parser exports `parseSnipeArgs(raw)` separately from `snipeTier(config)`. Parsing can be reused without invoking the Claude-specific tier resolver. The module imports `war-config.mjs`, so there remains a source dependency on its pure configuration exports; do not mistake that import for a need to run the phase engine.
+
+Observed checks in the prior turn:
+
+```text
+node skills/snipe/assets/snipe-args.mjs 'master 2 correctness,security'
+  -> target master; 2 seats; named correctness/security; tier opus/high
+
+snipeTier({agents:{snipe:{model:'gpt-6-astra',effort:'high'}}})
+  -> opus/high
+
+node --test skills/snipe/assets/snipe-args.test.mjs
+  -> 13 passed, 0 failed
+```
+
+These prove the current parser's baseline and model mismatch. They do not prove Codex agent confinement or a working live snipe run.
+
+The shared auditor card also contains phase-specific assumptions: missing task/plan fields, submodule task classifications, automatic widening, pin transfer, and assertions about Claude's Read/Grep/Glob/Bash tooling. Loading it unmodified as operative Codex instructions would import duties snipe does not perform.
+
+## Architecture to implement
+
+Use a **thin Codex skill entry point**, the existing parser, an explicit Codex model/profile resolver, a small result validator, and a Codex-specific read-only auditor role. Reuse shared doctrine by explicit references or bounded composition; do not copy the full auditor card into a second maintained implementation.
+
+The preferred transport is native Codex subagents **only if the actual host exposes a way to select the configured read-only role and honor its policy**. The currently exposed collaboration API in the analysis session does not itself provide `agent_type`, cwd, or sandbox arguments. The presence of a spawn tool does not prove that a TOML role is selected or permissions are narrowed.
+
+Perform a capability spike first. If native dispatch cannot demonstrably provide the required policy, use a minimal `codex exec` seat runner with explicit cwd, read-only sandbox, supported model/effort configuration, and structured output. That fallback runs only audit seats; it does not build the full WAR execution runner or App Server controller. State which transport is used in the report. Never silently substitute an ordinary writable subagent with “please do not edit” instructions.
+
+Official references to recheck against the installed client before implementation:
+
+- [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents): custom role configuration and read-only sandbox support.
+- [Codex skills](https://learn.chatgpt.com/docs/build-skills): explicit invocation and `agents/openai.yaml` policy.
+- [Codex package format](https://developers.openai.com/plugins/build/plugins): component paths and explicit hook selection.
+- [Codex hooks](https://learn.chatgpt.com/docs/hooks): payloads, trust and enforcement limits.
+
+Documentation supports the configuration concepts; acceptance depends on the installed integration actually enforcing them.
+
+## Scope and proposed files
+
+Keep new production files under a Codex-specific subtree such as `adapters/codex/`. Exact subdirectory names may change after the packaging spike; record them below rather than creating unused skeletons.
+
+| Surface | Planned responsibility |
+|---|---|
+| `adapters/codex/skills/snipe/SKILL.md` | Explicit invocation, target/seat coordination, report-only behavior |
+| `adapters/codex/skills/snipe/agents/openai.yaml` | `allow_implicit_invocation: false`; concise display metadata |
+| Codex auditor profile/prompt in the adapter subtree | Actual read-only policy and snipe-specific role instructions |
+| Small helper module(s) beside that skill | Reuse parsing, resolve Codex settings, validate seat results; target helpers only as needed |
+| Seat runner, only if native role dispatch fails the spike | Bound subprocess lifecycle, collect structured results, enforce timeout/cancellation |
+| `.codex-plugin/plugin.json` | Expose only implemented Codex entry points and explicit compatible components |
+| Tests colocated with the adapter | Narrow regression, policy, target and result tests |
+| This document | Checklist, decisions, tested versions and evidence |
+
+Do not edit `.claude-plugin/*`, the phase engine, Claude model defaults, the active campaign config, or the shared agent card just to get this port working. If a shared change becomes unavoidable, document why, add the corresponding Claude regression proof, and keep it in a separate commit. Never add a Codex dependency to the Claude-only install path.
+
+The packaging check must demonstrate that Codex does not accidentally discover Claude's default `hooks/hooks.json`. Use an explicitly supported manifest selection, including a validated no-op hook configuration if no Codex hook is needed. Avoid fake/dummy enforcement hooks. A package must contain every referenced shared asset within its installed root; no dependency on a neighboring development checkout.
+
+## Target resolution contract
+
+Resolve the review scope **once in the coordinator**. All reviewers receive the same canonical repository identity, target description, base revision, head revision and optional path filters. Keep refs and paths separate; pass git arguments as arrays, with `--` before pathspecs. Never interpolate a raw user target into a shell command.
+
+- **Clean default:** determine the repository's actual default-branch ref, calculate merge-base with HEAD, resolve both ends to commit IDs, then review that fixed range. Do not assume the branch is named main or use a stale local master as the remote baseline without disclosure.
+- **Explicit ref/range:** resolve and validate it before dispatch. Preserve the distinction between a two-dot range and a merge-base comparison. Missing or ambiguous refs produce a useful error, not an empty successful audit.
+- **Explicit PR:** resolve the intended repository, PR base and head and then pin commits. Prefer a PR URL or an explicit target option. The legacy parser interprets a trailing bare integer as seat count, so it cannot reliably distinguish a bare PR number. Do not change that grammar silently. If needed, add a small Codex-only `--target` envelope that bypasses this ambiguity while continuing to reuse the existing seat/lens parser.
+- **Path filters:** retain path boundaries and spaces without shell evaluation. If the existing raw-string parser cannot represent a requested path unambiguously, use structured/explicit target input or refuse with an example rather than guess.
+- **Dirty default:** include staged, unstaged and relevant untracked changes; label the report advisory. Do not claim that HEAD identifies dirty content. Capture a scope/content fingerprint before and after review; if the inspected material changes, report instability rather than return a clean pinned approval. If content cannot be captured completely, disclose the missing scope. Temporary review evidence may live outside the target repository; reviewers themselves remain read-only.
+- **Explicit committed target in a dirty checkout:** review immutable git blobs at the requested revisions, not unrelated working-tree content. State that scope; do not silently add local edits.
+
+Avoid checking out a different branch, stashing, changing the index, or creating commits to construct a review target. For a PR whose objects are absent, coordinator-side fetching is a separately declared preparation action with bounded ref ownership; never ask a read-only auditor to fetch. It must not move the user's branches. A v1 implementation may clearly refuse unavailable remote targets until this path is implemented, but must document that support gap.
+
+For committed reviews, file evidence must come from the pinned blobs. A read-only sandbox prevents writes but does not stop another process changing the checkout. Working-tree reads must not be the sole evidence for claims about a commit.
+
+## Seats, model settings and independence
+
+- Reuse `parseSnipeArgs()` for seat/lens grammar. Examine `errors`; the existing CLI exits zero even for invalid arguments. Refuse dispatch when errors are present.
+- Add wrapper validation for reserved lenses, duplicates and target ambiguities. Verify bare reserved-lens inputs rather than assuming the legacy catalog classifies every reserved name as a lens. Preserve valid custom comma-separated lenses.
+- Default Codex reviewers to the invoking session's configured model/effort when supported. An explicit Codex override must be validated against the selected host. Do not pass `opus`, invent equivalences, or silently downgrade unsupported settings.
+- Keep Codex overrides separate from `.claude/war/config.json` model fields. Shared parsing is appropriate; shared provider-name validation is not.
+- Select distinct lenses with a short rationale, matching requested named lenses. Keep the requested seat count; queue seats in batches when host capacity is lower, rather than silently dropping them. The analysis session had four concurrent agent slots including the parent, but that is a session observation, not a portable constant.
+- Each seat receives only the shared target, its lens and relevant doctrine. Do not seed it with another seat's verdict. Prefer fresh context rather than inheriting the parent's exploratory findings.
+- Always retain seat identity, requested and observed configuration where available, and outcome. If actual model identity cannot be independently observed, label configured versus verified values honestly.
+
+## Auditor doctrine and permission contract
+
+Carry over evidence-based review, distinct lenses, severity vocabulary, disposition semantics, anti-cheat test review, calibrated confidence and named code locators. Read shared maintained references when their trigger applies; resolve plugin-root references through known installed paths.
+
+Construct a snipe-specific role that has no task issue, no merge authority and no assumed gate output. A missing plan means code-only review. A `widen` recommendation may be reported but must not launch more seats. No gate execution, package installation, formatter, test run or git mutation belongs to the reviewer.
+
+Claude's ban on non-git Bash commands partly compensates for its separate Read/Grep/Glob tools. Codex may use sandboxed shell reads instead. Preserve the semantic read-only contract through supported tools and actual policy; do not claim byte-identical tool allowlists when the hosts differ. Disable or exclude mutating MCP/connectors and escalation paths for audit seats. A filesystem sandbox alone does not prevent a network connector from filing an issue.
+
+Do not carry over a phase rule that declares every unclassified gitlink change Critical merely because snipe has no task type. Detect and explicitly describe submodule scope; if nested contents are unavailable, report that limitation. Shared phase-only rules need a documented scope boundary, not blanket precedence from a copied agent card.
+
+Permission acceptance requires both sides: a legitimate read succeeds and a attempted mutation is observed and denied. A model declining to try a write is inconclusive. Verify target files, git refs/index and scoped sibling sentinels remain unchanged. Exercise shell writes and patch/file-edit paths actually available in the chosen host. Avoid testing with dangerous real-user paths; use a disposable repository and controlled sibling fixture.
+
+## Result contract and reporting
+
+Use a versioned snipe result contract compatible with WAR concepts. Inspect the standing card, `schemas.md`, and snipe's trimmed example before choosing field spellings: they currently use overlapping forms such as `suggested_fix` versus `fix`, and `rationale` versus `evidence`. Normalize only explicitly supported aliases at intake; do not erase fields or treat all plausible objects as valid.
+
+Minimum validated information:
+
+```text
+seat, lens, verdict, confidence, findings[]
+scope: pinned audit_sha OR explicit dirty/advisory identity
+finding: severity, title, file/locator where applicable,
+         evidence/rationale, proposed correction where applicable
+Minor/Nit: disposition; ask additionally has question and alternatives
+escalate: nonempty explanation of the decision required
+```
+
+Validate seat/lens identity and exact committed revision against the coordinator's request. Reject `approve` carrying unresolved Critical/Major findings. Handle wrong scope, duplicate seats, invalid enums, missing JSON, truncation and failed dispatch explicitly. Do not infer success from process exit zero or from an agent's prose summary.
+
+Allow at most one schema-repair attempt per seat as an initial design default, with the same review scope and no added authority. Record the repair. A timeout, permission-policy failure or missing capability is not fixed by repeatedly asking for valid JSON. Retain valid peers' findings and mark the overall report incomplete if a seat cannot complete. Never summarize an incomplete panel as “clean.”
+
+The parent reports scope first, then per-seat outcomes, followed by severity-ranked findings. Corroborating duplicates can be grouped while retaining each seat's attribution. Contradictory findings remain visible; do not vote them away. Critical/Major findings are labeled “would block in a phase,” without creating an actual gate. Surface ask-disposition questions and stop. No automatic issue filing or implementation offer that triggers further work.
+
+## Implementation checklist
+
+### S0 — capability and packaging spike
+
+- [ ] Read applicable instructions and verify clean isolated branch status; record current source/client versions.
+- [ ] Inspect actual native dispatch API and custom-role loading. Prove whether role-specific read-only policy is selected.
+- [ ] Choose native subagents or bounded `codex exec` fallback; record evidence and limitations in the decision log.
+- [ ] Verify explicit-only skill policy, installed shared references and compatible hook selection in a temporary local package.
+- [ ] Establish an observed denied-write test and a successful read test in disposable fixtures.
+
+**Exit gate:** a concrete dispatch path provides verifiable read-only enforcement. If neither path can, record the missing capability and stop implementation at this gate; do not ship a prompt-only approximation as equivalent.
+
+### S1 — parsing and target resolution
+
+- [ ] Reuse the shared parser without `snipeTier()`; preserve existing Claude parser tests.
+- [ ] Implement only the needed Codex profile resolver; unsupported settings fail visibly.
+- [ ] Define accepted explicit-target syntax and resolve PR-number/path-space ambiguities.
+- [ ] Pin committed scope and handle dirty/advisory scope with before/after stability evidence.
+- [ ] Test missing refs, no diff, invalid seat counts, duplicates, reserved/custom lenses and command-injection-shaped targets.
+
+**Exit gate:** no reviewer dispatch happens for invalid inputs; every accepted seat receives identical canonical scope.
+
+### S2 — auditor instructions and coordination
+
+- [ ] Add the thin Codex skill entry point and `openai.yaml` invocation policy.
+- [ ] Compose shared doctrine with a narrowly scoped Codex auditor role; document phase-only exclusions.
+- [ ] Implement fresh independent seats with capacity-aware scheduling and complete seat accounting.
+- [ ] If using subprocesses, handle bounded output, deadlines, interrupts, child cleanup and nonzero exit status.
+- [ ] Ensure no mutating connector, unrestricted escalation or automatic widening is inherited.
+
+**Exit gate:** one-seat and multi-seat executions use the selected role/profile, retain scope, and perform no target writes.
+
+### S3 — validation and report
+
+- [ ] Implement the explicit result schema and supported alias normalization.
+- [ ] Reject wrong revision/lens/seat, malformed findings, inconsistent approval and incomplete JSON.
+- [ ] Implement the single bounded schema-repair path and incomplete-panel reporting.
+- [ ] Produce the informational report with attribution, limitations, dirty-state caveat and surfaced asks.
+- [ ] Prove report handling never invokes fixes, git mutation, issue filing or PR comments.
+
+**Exit gate:** valid findings survive partial failure; missing evidence cannot become a clean result.
+
+### S4 — acceptance and regression
+
+- [ ] Run all focused cases below against the helper/transport boundary.
+- [ ] Run a real installed-host audit of a seeded bug through two independent lenses.
+- [ ] Run the actual-host denied-write check; refusal to attempt is not enough.
+- [ ] Run the 13 existing parser cases and applicable shared/config/package regressions if those files changed.
+- [ ] Validate installed package paths from a fresh cache/root with the development checkout unavailable.
+- [ ] Check `git diff --check`, commit only intended files, record results, push to PR #2152 and update its scope accurately.
+
+**Exit gate:** declare usable only for targets and host versions actually tested. Any deferred target support or enforcement limitation remains explicit.
+
+## Focused acceptance matrix
+
+| ID | Test | Required result |
+|---|---|---|
+| S-A01 | Default one seat and two named lenses | Correct count/lenses; all requested seats accounted for |
+| S-A02 | Invalid seats, duplicate/reserved lenses, invalid profile | Clear refusal; zero dispatch |
+| S-A03 | Custom lens list and explicit target ambiguity | Supported form preserved; ambiguous form rejected or resolved by documented envelope |
+| S-A04 | Committed target while checkout changes | Evidence/verdict stays at pinned revision |
+| S-A05 | Dirty staged/unstaged/untracked changes | Advisory report includes declared scope; mid-run change prevents stable claim |
+| S-A06 | Missing ref, empty diff, unavailable PR objects | Distinct outcomes; no false clean audit for failed resolution |
+| S-A07 | Target/path contains spaces, quotes or shell metacharacters | Literal interpretation or safe rejection; no command execution |
+| S-A08 | Five seats on lower-capacity host | Bounded scheduling; no lost or duplicate seat; independent inputs |
+| S-A09 | Wrong SHA, wrong lens, malformed JSON, approve plus Major | Invalid result rejected; bounded repair or incomplete status |
+| S-A10 | One failed seat plus one valid finding | Valid finding reported; panel clearly incomplete |
+| S-A11 | Legitimate read and attempted shell/patch write | Read succeeds; write attempt denied with host evidence; fixtures unchanged |
+| S-A12 | Mutation through inherited connector/escalation surface | Capability absent or enforced denial; never policy bypass |
+| S-A13 | Submodule diff without phase task metadata | Scope disclosed; no spurious phase-only refusal |
+| S-A14 | Ask/absorb/follow-up and widening fields returned | Informational report only; no extra seats or external side effects |
+| S-A15 | Cancellation/timeout during a seat | Work stops, child cleanup completes, incomplete review reported |
+| S-A16 | Fresh package install with wrong/missing component | Loading failure detected; correct package resolves shared assets and selects only intended hooks |
+
+Every critical rejection test needs a positive counterpart and a targeted regression proof. For example, remove the revision check in a disposable test copy and demonstrate S-A09 fails for the intended reason. Comparing two equally wrong outputs is not a substitute for an independent expected result. Do not build the entire GitHub parity infrastructure to run this focused suite.
+
+## Safe delivery sequence
+
+Suggested small commits: (1) capability decision and helper tests; (2) explicit target/profile handling; (3) skill/role integration; (4) result/report behavior and actual-host validation. Combine tiny changes when that produces a more coherent review; do not commit nonworking scaffolding just to match this list.
+
+Keep engine-independent changes on `codex-port`. Fetch and inspect remote changes before pushing, but do not automatically merge or rebase campaign branches. If the shared parser/card changed upstream, compare semantics before adopting updates. Preserve the accepted single-source doctrine rather than solving conflicts by copying a stale card.
+
+No new GitHub Actions workflows or branch protections are needed for the first snipe port. Record local validation now; migrate the focused tests into the planned CI system later. No plugin marketplace publication or automatic installation into the user's global configuration is part of this plan without a concrete follow-up instruction.
+
+## Decision and execution record
+
+| Decision | Current state | Evidence required to finalize |
+|---|---|---|
+| Single canonical repository | Accepted by user | Conversation decision; already recorded in parity plan |
+| First feature is snipe | Accepted by user | Current request sequence |
+| Native versus subprocess dispatch | Pending S0 | Actual role selection and denied-write result |
+| Codex model default | Proposed session inheritance | Verified transport support; explicit override validation |
+| Explicit target envelope | Pending S1 | Parser ambiguity cases and documented accepted syntax |
+| Dirty-state strategy | Proposed advisory fingerprint | Coverage of staged/unstaged/untracked and mid-run edits |
+| Result field compatibility | Pending S3 | Shared card/schema comparison and alias tests |
+| Package layout and hooks | Pending S0 | Fresh installed-package discovery and no wrong hooks |
+
+Current completed work: this plan only; the earlier source check passed all 13 existing snipe parser tests. No live Codex snipe audit or denied-write acceptance has run. No runtime implementation, test infrastructure, model configuration, or installed plugin files were changed when this plan was authored.
+
+After each implementation session, append: commit id; files changed; checklist items completed; exact test commands/results; actual host/model versions; remaining limitations; and the next unchecked action. Replace proposed decisions with evidence-backed choices, retaining material tradeoffs. Do not mark a checkbox complete because a file exists or a previous agent said it was done.
