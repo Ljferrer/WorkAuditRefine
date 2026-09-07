@@ -2811,13 +2811,27 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (!aceEligible(f)) { demoteReleaseSlot(f); return 'release-slot' }
         // The absorb tail's in-batch duplicate drop, sibling of the never-ran drain's: ONE lookup over
         // BOTH sinks before either push (snipe: correctness) — two seats raising one finding put one
-        // row in the ace batch OR one row in the phase-close queue, whichever the first copy chose,
-        // even when the copies disagree on phaseClose; the second raiser's seat merges onto the
-        // survivor. Every push below (ace batch, ace-off sweep route, phase-close queue) passes here.
+        // row in the ace batch OR one row in the phase-close queue; the second raiser's seat merges
+        // onto the survivor. phaseClose wins the tie-break, never arrival order (snipe: two seats):
+        // a later copy carrying phaseClose:true promotes an ace-batch survivor to the queue, because
+        // the queue is the strictly safer sink (the sweep at the integrated tip can do everything the
+        // per-task ace can) and phaseClose is the seat's statement that the fix needs it. Every push
+        // below (ace batch, ace-off sweep route, phase-close queue) passes here.
         const key = remintKey(f)
-        const dupQ = phaseCloseQueue.find(q => remintKey(q) === key)
-        const dupA = dupQ ? null : aceable.find(a => remintKey(a) === key)
-        if (dupQ || dupA) { log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already ' + (dupQ ? 'queued for the phase-close sweep' : 'in this ace batch') + ' — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).'); mergeSeat(dupQ || dupA, f); return 'dropped' }
+        const dup = phaseCloseQueue.find(q => remintKey(q) === key) || aceable.find(a => remintKey(a) === key)
+        if (dup) {
+          const queued = phaseCloseQueue.includes(dup)
+          mergeSeat(dup, f)
+          if (!queued && f.phaseClose) {
+            aceable.splice(aceable.indexOf(dup), 1)
+            dup.phaseClose = true
+            queuedKeys.add(key); phaseCloseQueue.push(dup)
+            log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already in this ace batch and carries phaseClose:true — the survivor is PROMOTED to the phase-close queue (phaseClose wins the tie-break), the second copy dropped, its seat corroborated (logged, never silent).')
+          } else {
+            log('absorb-budget: ' + who + ' "' + (f.title ?? '') + '" (task ' + r.task.id + ') is a duplicate of a row already ' + (queued ? 'queued for the phase-close sweep' : 'in this ace batch') + ' — the second copy is dropped, its seat corroborated onto the survivor (logged, never silent).')
+          }
+          return 'dropped'
+        }
         if (!run.ace) { routeToSweep(f, (who === 'absorb' ? '' : who + ' with ') + 'ace off this run (run.ace false) — the per-task ladder never dispatches; the sweep is the vehicle (D14)'); return 'ace-off' }
         if (!f.phaseClose) { aceable.push(f); return 'aceable' }
         queuedKeys.add(key); phaseCloseQueue.push(f); return 'queued'   // stamps queuedKeys — a later re-audit re-mint never queues twice

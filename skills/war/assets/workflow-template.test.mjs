@@ -13919,7 +13919,27 @@ test('absorb-budget (D5, snipe: correctness): two seats raising one finding that
   const inAce = calls.filter(isAce).some(c => c.prompt.includes('split across sinks'))
   const inSweep = polishPromptOf(calls).includes('split across sinks')
   assert.ok(inAce !== inSweep, 'the finding rides exactly one vehicle (ace batch XOR sweep), never both')
+  assert.ok(inSweep, 'phaseClose wins: the queued copy arrived first, the row rides the sweep')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "split across sinks"') && l.includes('duplicate of a row already')), 'the drop is logged')
+  // reversed arrival: the NON-phaseClose copy lands in the ace batch first, then the phaseClose:true copy arrives —
+  // the survivor is PROMOTED to the queue, never left on the per-task ace (snipe: two seats)
+  const implRev = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) {
+      const f = label.endsWith(':correctness')
+        ? { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb' }
+        : { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb', phaseClose: true }
+      return { seat: label, lens: label.split(':').pop(), verdict: 'approve', confidence: 'high', findings: [f] }
+    }
+    return sweepBase([])(prompt, opts)
+  }
+  const rev = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), implRev, PROBE)
+  assert.ok(!rev.calls.filter(isAce).some(c => c.prompt.includes('split across sinks')), 'reversed order: never in the ace batch')
+  assert.ok(polishPromptOf(rev.calls).includes('split across sinks'), 'reversed order: the promoted survivor rides the sweep')
+  const revAced = (rev.out.aced || []).filter(a => a && a.finding && a.finding.title === 'split across sinks')
+  assert.equal(revAced.length, 1, 'reversed order: one record')
+  assert.ok((revAced[0].finding.seats || []).some(s => /correctness/.test(s)) && (revAced[0].finding.seats || []).some(s => /simplicity/.test(s)), 'reversed order: both raisers on the promoted row')
+  assert.ok(rev.logs.some(l => typeof l === 'string' && l.includes('split across sinks') && l.includes('PROMOTED to the phase-close queue')), 'the promotion is logged, naming the discarded-then-honored phaseClose')
 })
 
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
