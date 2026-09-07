@@ -109,8 +109,9 @@ from GitHub and never confused with a *target's* `$REPO_ROOT`.
 
 6. **Report.** Placed (count + slugs) / skipped-collision (slugs) / lint outcome / projection
    bytes+verdict — surface `render-index`'s own advisory-warning text **verbatim** whenever it
-   prints one (the `WARN_BYTES` = 17,000 B line; 29 seeds add roughly 5–7 KB of `[repo]` rows, so
-   a warmly-seeded store presses it more often than an organic one), never paraphrased.
+   prints one (the `WARN_BYTES` = 17,000 B line; the shipped corpus's members (count: the Current-corpus
+   line in `docs/seed/README.md`) add roughly 150–200 B of `[repo]` row each, so a
+   warmly-seeded store presses it more often than an organic one), never paraphrased.
 
 ## Nominate — propose portable lessons back into the corpus
 

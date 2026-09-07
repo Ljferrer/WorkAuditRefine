@@ -49,7 +49,8 @@ case. Before each commit of a review-driven fix, run this checklist:
    (a different scanner, a compiler, a census of names) and make the guard rest on that.
 4. **Prove each guard red.** Mutate the thing it guards (delete the arm, flip the comparison,
    change one digit in a restated value) and watch the exact assertion fail. A guard that was
-   never red is a hope. Name the proof in the commit body.
+   never red is a hope. Enumerate the arms from the code's own branches, never from the
+   reviewer's list. Name the proof in the commit body.
 5. **Bind or de-mirror every restated value.** A number or a tier written by hand into prose
    rots silently. Either pin it (extract the restatement and compare it to the constant, and
    ban a bare rendering outside the pinned grammar) or replace it with a pointer to its source.
@@ -73,11 +74,14 @@ as written, the fix text was eight site edits. Applied as a class, it became:
   second scanner (`ptSpanRanges`, seeded on the `pt` tag, with expression ranges) became the
   prompt-byte oracle, and the oracle got its own synthetic negative because the real template had
   no line that could exercise it.
-- One fixture line per scanner arm, each proven red by deleting that arm. Two arms the reviewer
-  said were undiscriminated were undiscriminated. Four more arms had never been proven either.
-- The `524,288`-byte cap was restated by hand on three doctrine surfaces. A pin now extracts every
-  restatement and bans a bare rendering outside the grammar. It went red on `524,289` and on a
-  bare "524,288 bytes" before it went green.
+- One fixture line per scanner arm, each proven red by deleting that arm. The reviewer named two
+  undiscriminated arms. The first pass proved those plus four more and claimed completeness. The
+  next round found four further arms (class tracking, escape, string newline stop, brace depth)
+  that survived deletion, because the arms had been enumerated from the reviewer's list and not
+  from the scanner's branches. Rule 4's second sentence is that recurrence.
+- The `scriptPath` cap was restated by hand on three doctrine surfaces. A pin now extracts every
+  restatement and bans a bare rendering outside the grammar. It went red on a one-digit change and
+  on a bare rendering before it went green.
 - A stale sentence the reviewer named ("plain substitution") had three siblings the reviewer did
   not name: the write-if-absent prose in the glossary, the ADR and the skill card. All four moved.
 - A budget with 20 bytes of headroom was filed as a follow-up by the reviewer. An ADR 0042
