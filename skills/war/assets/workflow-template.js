@@ -1295,8 +1295,8 @@ const askContentKey = f => (f.task ?? '') + '\u0000' + ((f.ask && f.ask.question
 // aceRelPath (#1813, culprit-path form D12): repo-relative normalization with any leading `./` run
 // stripped, so a `./`-prefixed report and a bare plan path attribute identically. Non-strings pass
 // through untouched (callers filter them as falsy). File scope (hoisted out of the wave loop,
-// in-band-absorb-default Phase 3): remintKey, the ace grouping key, the culprit compare, both
-// `Ace-Subset` trailer builds, and recordAcedTouched all normalize through this one helper.
+// in-band-absorb-default Phase 3): every path-comparing site normalizes through this one helper;
+// no list here — a new caller joins by calling aceRelPath.
 const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
 // Cross-round FINDING re-mint identity (registry-coverage fix, D8 property floor): the FINDING
 // registries (acedKeys / revertedKeys / filedKeys / queuedKeys) key on the richer tuple
@@ -1364,8 +1364,9 @@ const parkAsk = f => {
       fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [] }
     const own = { seat: dup.seat, file: (dup.finding && typeof dup.finding.file === 'string') ? aceRelPath(dup.finding.file) : null, title: (dup.finding && dup.finding.title) ?? null }
     const same = c => c.seat === e.seat && c.file === e.file && c.title === e.title
-    if (!same(own) && !dup.corroborators.some(same)) dup.corroborators.push(e)
-    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
+    const recorded = !same(own) && !dup.corroborators.some(same)
+    if (recorded) dup.corroborators.push(e)
+    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, ' + (recorded ? 'the re-raise recorded on its corroborators list' : "this re-raise is the survivor's own raiser or duplicates an entry already on its corroborators list — journalled here, not recorded again") + ' (never a silent drop, #1790).')
     return
   }
   const record = { task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
