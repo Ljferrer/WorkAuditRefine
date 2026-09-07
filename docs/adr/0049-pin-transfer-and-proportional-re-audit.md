@@ -59,7 +59,10 @@ records `merged` with an `already_upstream` provenance field naming the matched 
 no panel and no content merge (PIN-16). Its git legs run against the pre-rebase task tip. An
 empty diff with zero task commits, an unmatched patch, or an empty pre-rebase patch-id fails
 **closed** to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
-empty-equals-empty must never transfer a pin (#1895).
+empty-equals-empty must never transfer a pin (#1895). The consumer refuses an `already_upstream`
+whose fields contradict it — `rebased_tip` equal to `dispatch_base`, a non-empty post-rebase
+patch-id, or an empty `already_upstream_commits` — and routes by patch-ids instead (D4, PIN-8,
+#1973).
 
 The canonical arms and wire shape live in the `PIN_TRANSFER` schema and the merge-slot
 pin-transfer region of `workflow-template.js`; the ledger is `pinTransfers` there. The merge-floor
