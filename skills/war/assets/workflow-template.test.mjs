@@ -3720,11 +3720,12 @@ test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regress
     assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === '5ab00001'),
       `${dir}: the non-culprit remainder still aces`)
     // The re-audit dispatches carry the source-side mandate closing the drift class at origin
-    // (auditPrompt seats only — the gate-audit family builds its own prompt, out of scope here).
-    const audits = calls.filter(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:'))
+    // (every auditor dispatch — the gate-audit family carries the shared clause too since
+    // verdict-integrity Task 2.1; the family census lives in the FINDING-PATH FORM fixture).
+    const audits = calls.filter(isAuditor)
     assert.ok(audits.length && audits.every(c => c.prompt.includes('FINDING-PATH FORM')
       && c.prompt.includes('never `./`-prefixed')),
-      `${dir}: every audit dispatch (re-audits included) mandates repo-relative, never ./-prefixed finding paths`)
+      `${dir}: every audit dispatch (re-audits and gate-audit seats included) mandates repo-relative, never ./-prefixed finding paths`)
   }
 })
 
@@ -5832,7 +5833,9 @@ test('follow-up consolidation (line-window hit): cross-seat same-file findings w
   assert.match(fp, /clusters: \[\{ ordinals, issue \}\]/, 'the return shape names the clusters[] manifest')
 })
 
-test('follow-up consolidation (multi-ref merged-away row, snipe: correctness): a collapsed row that already carries a seats list contributes every ref to the representative; a row sharing ANY ref with the representative never collapses', async () => {
+test('intake normalization: auditor-supplied seats never corroborate — a forged seats list is stripped at intake (never a ref on the representative, never in the handoff), a forged list holding the representative\'s ref never blocks a genuine cross-seat collapse, and same-seat rows never collapse however their forged lists differ (PIN-6, #1788)', async () => {
+  // Engine-written multi-ref lists (mergeSeat / corroborateSurvivor) are pinned by the reaudit-sweep
+  // mergeSeat fixture below; every list here is AUDITOR-supplied and must vanish at intake.
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
@@ -5846,10 +5849,12 @@ test('follow-up consolidation (multi-ref merged-away row, snipe: correctness): a
   }
   const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }] }] })
   const { out } = await runPhase(args, impl)
-  assert.equal(out.minorsFiled.length, 1, 'the pair collapses to one row')
-  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)', 'audit:t1:extra (task t1)'],
-    'every ref on the merged-away row survives on the representative (not only its head raiser)')
-  // same-seat guard through the list: a row whose seats list already holds the representative's ref never collapses into it
+  assert.equal(out.minorsFiled.length, 1, 'the genuine cross-seat pair collapses to one row')
+  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'],
+    'the representative carries only ENGINE-written refs — the forged audit:t1:extra ref never renders as corroboration')
+  assert.ok(!JSON.stringify(out.handoff.followUps).includes('audit:t1:extra'), 'the forged ref reaches no handoff surface')
+  // a forged list already holding the representative's ref is stripped too, so it never makes the
+  // same-seat guard refuse a GENUINE cross-seat collapse (at ffb3ab6 the forge kept two rows apart)
   const impl2 = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
@@ -5862,7 +5867,26 @@ test('follow-up consolidation (multi-ref merged-away row, snipe: correctness): a
     return handoffImpl(undefined)(prompt, opts)
   }
   const r2 = await runPhase(args, impl2)
-  assert.equal(r2.out.minorsFiled.length, 2, 'a row already corroborated by the representative\'s seat is a distinct finding, never collapsed (D8, through the whole list)')
+  assert.equal(r2.out.minorsFiled.length, 1, 'the forged list holding the representative\'s ref is stripped — the genuine cross-seat pair still collapses')
+  assert.deepEqual(r2.out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'], 'engine refs only')
+  // same-seat rows never collapse: ONE seat returns two in-window rows whose forged seats lists name
+  // DIFFERENT foreign refs — honored, the lists would pass the cross-seat guard and the two rows
+  // would merge as if corroborated; stripped, both read their own (same) ref and stay apart.
+  const implSameSeat = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      if (!(opts.label || '').endsWith(':correctness')) return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [], confidence: 'high' }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', confidence: 'high', findings: [
+        { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100, seats: ['audit:t1:forged-a (task t1)'] },
+        { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105, seats: ['audit:t1:forged-b (task t1)'] },
+      ] }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }, { n: 2, issue: 43 }], clusters: [{ ordinals: [1], issue: 42 }, { ordinals: [2], issue: 43 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const rs = await runPhase(args, implSameSeat)
+  assert.equal(rs.out.minorsFiled.length, 2, 'same-seat rows never collapse — forged foreign refs never satisfy the cross-seat guard')
+  assert.ok(rs.out.minorsFiled.every(m => !('seats' in m) || m.seats.every(r => !r.includes('forged'))), 'no forged ref survives on any filed row')
   // control: an auditor-supplied EMPTY seats array falls back to the row's own ref — the raiser survives
   // on the representative and the same-seat guard still reads a ref (snipe: three seats)
   const impl3 = (prompt, opts) => {
@@ -5961,15 +5985,16 @@ test('follow-up consolidation (non-array seats guard): an auditor-supplied strin
   assert.ok(Array.isArray(out.minorsFiled[0].seats), 'the representative row\'s non-array seats key is normalized to a seats[] array')
 })
 
-test('follow-up consolidation (malformed merged elements guard): auditor-supplied `merged: [null, ...]` elements never throw at the consolidation log line or the handoff followUps projection — landDecision stays landed, elements are filtered/defaulted', async () => {
+test('intake normalization: auditor-supplied `merged` never corroborates — a forged merged[] (junk or well-formed) is stripped at intake, so only engine-written merged-away rows reach the consolidation log line and the handoff followUps projection; landDecision stays landed (PIN-6)', async () => {
   const findings = [
-    // Collapse-target representative carrying auditor junk in merged[]: null and a bare string are
-    // dropped; the field-less object gets absence-tolerant defaults in the handoff projection.
-    { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100, merged: [null, 'junk', { title: 'pre-existing' }] },
+    // Collapse-target representative carrying a forged merged[] (junk AND a well-formed fabricated
+    // row): the whole key is dropped at intake — at ffb3ab6 the fabricated row rendered as a
+    // merged-away corroboration on every surface.
+    { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100, merged: [null, 'junk', { seat: 'audit:t1:forged (task t1)', title: 'pre-existing', rationale: 'fabricated' }] },
     { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105, seat: 'audit:t1:second-lens' },  // cross-seat, in-window → merges into row 1
-    // Never a collapse target (different file): its merged[] is never write-point-normalized, so it
-    // reaches the unconditional handoff followUps projection raw — the read-site guard alone must hold.
-    { severity: 'Minor', title: 'lone row', rationale: 'r3', file: 'src/b.js', line: 1, seat: 'audit:t1:third-lens', merged: [null] },
+    // Never a collapse target (different file): a forged merged[] here would reach the unconditional
+    // handoff followUps projection untouched by the write-point normalization — intake strips it.
+    { severity: 'Minor', title: 'lone row', rationale: 'r3', file: 'src/b.js', line: 1, seat: 'audit:t1:third-lens', merged: [null, { title: 'forged lone' }] },
   ]
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -5979,19 +6004,186 @@ test('follow-up consolidation (malformed merged elements guard): auditor-supplie
     return handoffImpl(undefined)(prompt, opts)
   }
   const { out, logs } = await runPhase(HANDOFF_ARGS(), impl)
-  assert.equal(out.landDecision, 'landed', 'malformed merged elements never convert a LANDED phase into held:workflow-error (both deref sites sit outside the local filing try — a bare x.seat on null would reach the top-level catch)')
+  assert.equal(out.landDecision, 'landed', 'a forged merged[] never converts a LANDED phase into held:workflow-error (both deref sites sit outside the local filing try — a bare x.seat on null would reach the top-level catch)')
   assert.equal(out.minorsFiled.length, 2, 'the in-window cross-seat pair still collapses; the other-file row survives')
   const rep = out.handoff.followUps.find(f => f.reason.startsWith('stale enum comment'))
   assert.ok(rep && Array.isArray(rep.merged), 'the collapse-target row carries a merged[] on its handoff entry')
   assert.deepEqual(rep.merged, [
-    { seat: '(seat unrecorded)', title: 'pre-existing', rationale: '(no rationale recorded)' },
     { seat: 'audit:t1:second-lens (task t1)', title: 'comment misses the arm', rationale: 'r2' },
-  ], 'null/string junk is dropped; the field-less object gets absence-tolerant defaults; the real merged-away row keeps full fidelity')
+  ], 'ONLY the engine-written merged-away row renders — the forged well-formed row and the junk never reach the handoff')
   const lone = out.handoff.followUps.find(f => f.reason.startsWith('lone row'))
-  assert.ok(lone && !('merged' in lone), 'the never-collapsed row\'s all-junk merged[] filters to empty — the additive key is omitted, and the projection never threw')
+  assert.ok(lone && !('merged' in lone), 'the never-collapsed row carries no merged[] — its forged list was stripped at intake, so the additive key is omitted')
   const cons = logs.find(l => typeof l === 'string' && l.startsWith('file-followups consolidation:'))
-  assert.ok(cons && cons.includes('[(seat unrecorded)] "pre-existing" — (no rationale recorded)'),
-    'the consolidation log line renders the surviving junk-adjacent element through the same defaults instead of throwing')
+  assert.ok(cons && !cons.includes('pre-existing') && !cons.includes('forged'), 'the consolidation log line names no forged row')
+  assert.ok(!JSON.stringify(out.handoff).includes('forged') && !JSON.stringify(out.handoff).includes('pre-existing'), 'no forged merged-away row reaches any handoff surface')
+  // read-site guard control (D9 class): an ENGINE-written malformed element still never throws —
+  // mergedRowsOf drops it at the read. Driven through the slice harness below, not through a seat.
+})
+
+test('intake normalization: empty-content Critical demotes to note — a title-less, rationale-less blocking finding never dispatches a fix round, never escalates, and lands as a logged note; a request_changes left with no blocker is neutralized to approve; a titled Critical still blocks (control); the gate-audit family demotes too (#1869)', async () => {
+  const empty = { severity: 'Critical', title: '', rationale: '', disposition: 'note' }
+  const seatImpl = (findings, verdict = 'request_changes') => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict, findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(HANDOFF_ARGS(), seatImpl([empty]))
+  assert.equal(calls.filter(isFixWorker).length, 0, 'no fix round is dispatched on an empty-content blocker')
+  assert.deepEqual(out.escalated, [], 'nothing escalates')
+  assert.ok(out.landed.includes('t1'), 'the task lands — the malformed verdict never decides its fate')
+  const note = (out.notes || []).find(n => n && n.demoteReason === 'intake:empty-content')
+  assert.ok(note && note.task === 't1' && note.originalSeverity === 'Critical', 'the finding lands in notes carrying its task and original severity')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('empty-content finding') && l.includes('#1869')), 'the demotion is logged (never silent)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('verdict neutralized to approve')), 'the blocker-less request_changes is neutralized with a log')
+  // whitespace-only content is empty content too
+  const ws = await runPhase(HANDOFF_ARGS(), seatImpl([{ severity: 'Major', title: '  ', rationale: '\n' }]))
+  assert.equal(ws.calls.filter(isFixWorker).length, 0, 'whitespace-only title and rationale read as empty')
+  // control: a titled Critical keeps blocking (delete-the-feature proof — the demotion is content-keyed)
+  const ctl = await runPhase(HANDOFF_ARGS(), buildSeqImpl(
+    { 'audit:t1:correctness': [
+      { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Critical', title: 'real defect', rationale: '' }] },
+      { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high', findings: [] } ] },
+    seatImpl([])))
+  assert.equal(ctl.calls.filter(isFixWorker).length, 1, 'a Critical with a title (rationale empty) still dispatches the fix round')
+  assert.ok(!(ctl.out.notes || []).some(n => n && n.demoteReason === 'intake:empty-content'), 'and is never demoted')
+  // a rationale-only finding is content too (either field suffices)
+  const rat = await runPhase(HANDOFF_ARGS(), buildSeqImpl(
+    { 'audit:t1:correctness': [
+      { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', rationale: 'the arm is unreachable' }] },
+      { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high', findings: [] } ] },
+    seatImpl([])))
+  assert.equal(rat.calls.filter(isFixWorker).length, 1, 'a rationale-only Major still blocks')
+  // escalate is never touched: it stands on escalate_reason, not on findings
+  const esc = await runPhase(HANDOFF_ARGS(), seatImpl([empty], 'escalate'))
+  assert.ok(esc.out.escalated.some(e => e && e.task === 't1'), 'an escalate verdict with an empty-content finding still escalates (the reason, not the finding, carries it)')
+  // gate-audit family: the per-task post-merge seat's empty-content Critical is never HARD
+  const gaImpl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && (opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes', findings: [{ severity: 'Critical', title: '' }], confidence: 'high' }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const ga = await runPhase(HANDOFF_ARGS(), gaImpl)
+  assert.ok(ga.calls.some(c => (c.opts.label || '').startsWith('gate-audit:t1:')), 'presence guard: the per-task gate-audit seat convened')
+  const entry = ga.out.auditLog.find(e => e && e.gateEvidence && e.task === 't1')
+  assert.ok(entry && entry.hard === false && entry.findings.length === 0, 'the gate-audit entry is SOFT with no finding — the empty Critical demoted at intake')
+  assert.ok(!ga.out.escalated.some(e => e && e.reason === 'gate-evidence'), 'no gate-evidence escalation rides an empty-content finding')
+  assert.ok((ga.out.notes || []).some(n => n && n.demoteReason === 'intake:empty-content' && n.task === 't1'), 'the gate-audit demotion lands in notes')
+})
+
+test('intake normalization: content-distinct empty-key findings both file on re-mint — a second fileless, titleless follow-up arriving at the ace re-audit files beside the first; a content-identical one is still refused as a re-mint (#1870)', async () => {
+  // The first filing files both at ffb3ab6 — only the re-mint path refuses, so the second finding
+  // MUST arrive at a re-audit: round 1 files A beside an absorb nit (the ace ladder runs), the ace
+  // re-audit raises B (same task, no file, no title, different rationale).
+  const a = { severity: 'Minor', rationale: 'the migration note never says which release drops the alias' }
+  const b = { severity: 'Minor', rationale: 'the CLI usage line omits the --repo flag' }
+  const absorb = nit({ title: 'absorbed nit', file: 'skills/a.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [absorb, a]),
+                               approveWith('audit:t1:correctness', [b]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([absorb, a])))
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  const fileless = (out.minorsFiled || []).filter(m => m && !m.file && !m.title)
+  assert.deepEqual(fileless.map(m => m.rationale).sort(), [a.rationale, b.rationale].sort(), 'BOTH content-distinct empty-key findings file — the second is never refused as a re-mint of the first')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('re-audit re-mint of ""') && l.includes('already filed')), 'no refusal log for the distinct finding')
+  // control: a content-IDENTICAL empty-key re-mint is still refused (the fold keys on content, not on arrival)
+  const impl2 = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [absorb, a]),
+                               approveWith('audit:t1:correctness', [{ ...a }]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([absorb, a])))
+  const r2 = await runPhase(ACE_ARGS(), impl2)
+  assert.equal((r2.out.minorsFiled || []).filter(m => m && !m.file && !m.title).length, 1, 'the identical re-mint files once')
+  assert.ok(r2.logs.some(l => typeof l === 'string' && l.includes('already filed as a follow-up')), 'the identical re-mint is refused with a log')
+})
+
+test('intake normalization: default-deny census (#1871, D26) — exactly one seatRefOf definition, zero `const seatRef =` bodies, remintKey and normalizeFinding both normalize through aceRelPath, the empty-key fold is content-keyed, and normalizeSeat strips seats/merged and demotes empty content', () => {
+  assert.equal((src.match(/^const seatRefOf = /gm) || []).length, 1, 'ONE seatRefOf definition')
+  assert.equal((src.match(/const seatRef\s*=/g) || []).length, 0, 'no hand copy `const seatRef =` body exists (default-deny: the alias never returns)')
+  const keyBody = windowOf(src, 'const remintKey = f =>', '\n// asks[] parking')
+  assert.ok(keyBody.includes('aceRelPath(f.file)'), 'remintKey normalizes file through aceRelPath (the ONE path normalizer)')
+  assert.ok(keyBody.includes('contentHash('), 'remintKey folds the content hash on the empty-key arm')
+  const nfBody = windowOf(src, 'const normalizeFinding = f =>', '\nconst blankText')
+  assert.ok(nfBody.includes('const { seats, merged, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged and normalizes file through aceRelPath')
+  const h = registrySlice()
+  const t = (over) => ({ task: 't1', severity: 'Minor', ...over })
+  assert.notEqual(h.remintKey(t({ rationale: 'a' })), h.remintKey(t({ rationale: 'b' })), 'two fileless, titleless findings with distinct rationale get distinct keys')
+  assert.equal(h.remintKey(t({ rationale: 'a' })), h.remintKey(t({ rationale: 'a', seat: 'x', sha: 'abc1234' })), 'seat/sha churn never changes the empty-key fold')
+  assert.equal(h.remintKey(t({ title: 'k', rationale: 'a' })), h.remintKey(t({ title: 'k', rationale: 'b' })), 'a titled finding keys on the tuple alone — content never enters a keyed tuple')
+  assert.equal(h.remintKey(t({ file: './x.js', rationale: 'a' })), h.remintKey(t({ file: 'x.js', rationale: 'b' })), 'a filed finding keys on the aceRelPath-normalized tuple alone')
+  assert.equal(h.remintKey(t({ title: 'k' })), 't1\u0000\u0000k', 'a keyed tuple is byte-identical to the pre-fold form')
+  assert.notEqual(h.remintKey(t({ title: '', rationale: 'a' })), h.remintKey(t({ title: '', rationale: 'b' })), 'an EMPTY title reads as absent for the fold')
+  const seat = { seat: 'audit:t1:correctness', verdict: 'request_changes', findings: [
+    { severity: 'Minor', title: 'x', rationale: 'r', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }] },
+    { severity: 'Critical', title: '', rationale: ' ' },
+    null,
+  ] }
+  h.normalizeSeat(seat, 't1')
+  assert.deepEqual(seat.findings, [{ severity: 'Minor', title: 'x', rationale: 'r', file: 'skills/a.js' }], 'seats and merged are stripped, file is normalized, the empty-content and non-object items are gone')
+  assert.equal(seat.verdict, 'approve', 'a request_changes left without a blocker is neutralized')
+  assert.equal(h.notes.length, 1, 'the empty-content finding is a note')
+  assert.equal(h.notes[0].demoteReason, 'intake:empty-content')
+  assert.ok(h.logs.some(l => l.includes('non-object findings item')), 'the dropped non-object item is logged')
+  const keep = { seat: 's', verdict: 'request_changes', findings: [{ severity: 'Major', title: 'real' }, { severity: 'Critical', title: '' }] }
+  h.normalizeSeat(keep, 't1')
+  assert.equal(keep.verdict, 'request_changes', 'a surviving blocker keeps the verdict')
+  const esc = { seat: 's', verdict: 'escalate', findings: [{ severity: 'Critical', title: '' }] }
+  h.normalizeSeat(esc, 't1')
+  assert.equal(esc.verdict, 'escalate', 'escalate is never neutralized')
+  // read-site guard control (D9 class): an ENGINE-written malformed merged element still never throws
+  const merged = { title: 'rep', merged: [null, 'junk', { title: 'ok' }] }
+  h.mergeSeat(merged, { seat: 'audit:t1:b', task: 't1', title: 'dup' })
+  assert.ok(Array.isArray(merged.seats), 'mergeSeat still reads a malformed engine row without throwing')
+})
+
+test('intake normalization: FINDING-PATH FORM is ONE shared const consumed by auditPrompt and the three gate-audit-family builds, byte-mirrored on the auditor card, and every must-reach-every-seat directive reaches every seat prompt build (default-deny directive census, PIN-1/PIN-4)', () => {
+  assert.equal((src.match(/^const FINDING_PATH_FORM_CLAUSE = pt`/gm) || []).length, 1, 'ONE shared const')
+  assert.equal((src.match(/^\s*\+ FINDING_PATH_FORM_CLAUSE,?$/gm) || []).length, 4, 'consumed by auditPrompt and the three gate-audit dispatches')
+  const dispatched = windowOf(src, 'const FINDING_PATH_FORM_CLAUSE = pt`\\n', '`\n').replace(/\\`/g, '`')
+  const card = windowOf(auditorMd, '- **FINDING-PATH FORM:** ', '\n')
+  assert.ok(dispatched && card, 'both FINDING-PATH FORM sentences are locatable')
+  assert.equal('FINDING-PATH FORM: ' + card.trim(), dispatched.trim(), 'the card sentence byte-mirrors the dispatched clause (standing card + dispatched prompt, one commit)')
+  // Directive census: every `<NAME> RULE:|CONTRACT:|FORM:` directive found in the four auditor
+  // prompt builds is classified — MUST_REACH_EVERY_SEAT rows are asserted present in all four builds
+  // (clause consts expanded to their bodies); every other directive needs an explicit per-task-seat
+  // reason below; an unclassified directive reds the census (default-deny).
+  const clauses = Object.fromEntries([...src.matchAll(/^const ([A-Z_]+_CLAUSE) = pt`([\s\S]*?)`\n/gm)].map(m => [m[1], m[2]]))
+  assert.ok(clauses.DISPOSITION_RULE_CLAUSE && clauses.FINDING_PATH_FORM_CLAUSE, 'both shared clause consts are extracted')
+  // Clause consts expand to their bodies; a source-literal `\n` escape becomes a real newline so the
+  // word-boundary directive scan sees `FINDING-PATH FORM:` whole, never `PATH FORM:` after the `n`.
+  const expand = t => t.replace(/\b([A-Z_]+_CLAUSE)\b/g, (m, n) => clauses[n] ?? m).replace(/\\n/g, '\n')
+  const builds = {
+    'auditPrompt()': expand(sliceSrc('function auditPrompt', 'async function auditRound')),
+    'POST-MERGE GATE-AUDIT': expand(sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')),
+    'INTEGRATED-TIP GATE-AUDIT': expand(sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')),
+    'END-STATE CHECK': expand(sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')),
+  }
+  const directiveRe = /\b([A-Z][A-Z-]*(?: [A-Z][A-Z-]*)* (?:RULE|CONTRACT|FORM)):/g
+  const found = new Set(Object.values(builds).flatMap(t => [...t.matchAll(directiveRe)].map(m => m[1])))
+  const MUST_REACH_EVERY_SEAT = ['DISPOSITION RULE', 'FINDING-PATH FORM']
+  // Per-task-seat-only directives (each reason is a hand-scan fact, PIN-4): the gate-audit family
+  // judges execution evidence at a confirmed tip, never a worker diff — so the diff-judging rules
+  // stay on auditPrompt alone. VERSION-PRECEDENCE RULE and ADJUDICATION-MATCH RULE ride every build
+  // through `adjudicationClause` (asserted by name below; the literal lives outside all four slices).
+  const PER_TASK_SEAT_ONLY = {
+    'READ-ONLY GIT GUARD CONTRACT': 'the gate-audit family prompts name their read-only git verbs inline (rev-parse / Read in the _refinery worktree)',
+    'SEARCH-TOOLING RULE': 'a diff-search duty for the per-task lens review',
+    'LATITUDE RULE': 'plan-faithfulness judgment is a per-task lens duty; the family judges End states via endStateBlock',
+    'ESCALATE-BOUNDARY CONTRACT': 'the family prompts carry their own NEVER-escalate-for-unconfirmable-tip rule inline',
+    'CALIBRATION RULE': 'peer-pressure calibration exists only where a rebuttal round exists (auditRound)',
+    'COST-CLAIM RULE': 'a lens-review finding rule; the family records gate-evidence findings only',
+    'RELEASE-BASELINE RULE': 'a per-task diff rule on release-slot baselines',
+  }
+  for (const d of found) assert.ok(MUST_REACH_EVERY_SEAT.includes(d) || PER_TASK_SEAT_ONLY[d], `directive "${d}" is unclassified — add it to MUST_REACH_EVERY_SEAT or give it a per-task-seat-only reason`)
+  for (const d of MUST_REACH_EVERY_SEAT) {
+    assert.ok(found.has(d), `must-reach directive "${d}" exists in some build`)
+    for (const [name, text] of Object.entries(builds)) assert.ok(text.includes(d + ':'), `"${d}" reaches the ${name} build`)
+  }
+  for (const d of Object.keys(PER_TASK_SEAT_ONLY)) assert.ok(builds['auditPrompt()'].includes(d + ':'), `per-task-seat-only directive "${d}" still exists on auditPrompt (a retired row must leave the allowlist)`)
+  for (const [name, text] of Object.entries(builds)) assert.ok(text.includes('adjudicationClause'), `adjudicationClause (VERSION-PRECEDENCE + ADJUDICATION-MATCH) rides the ${name} build`)
 })
 
 test('clusters manifest asserts (fail-open): a partition violation, a duplicate ordinal, and a missing manifest each get ONE violation log line; a conforming manifest logs none; landDecision untouched', async () => {
@@ -9706,6 +9898,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { id: 't1', issue: 101, title: 'Docs task', planSlice: 's', roster: [{ lens: 'correctness' }], requiresTest: false },
   ] }), gateAuditImpl)).calls.find(x => (x.opts.label || '') === 'gate-audit:phase-3:end-state') || {}).prompt
   assert.ok(esSeatP && esCheckP && esOnlyP, 'claims-bearing per-task + endstate-check + end-state-only prompts dispatched (presence guard, Task 3.2 rows)')
+  // The integrated-tip seat convenes only on a dep-crossing phase with an integrated-tip gate run —
+  // the p4Base evidence fixture drives it LIVE (the finding-path form row's fourth dispatched surface).
+  const itSeatP = ((await runPhase(SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] }), p4Base({ evidence: { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } } }))).calls
+    .find(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip') || {}).prompt
+  assert.ok(itSeatP, 'the integrated-tip gate-audit seat prompt dispatched (presence guard, finding-path form row)')
   // The inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
@@ -9958,8 +10158,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'fix-round doctrine pointer (#2097): worker card trigger sentence ↔ FIX_NEEDED build pointer line',
       surfaces: [['war-worker.md', workerMd], ['FIX_NEEDED fix prompt', fixP]],
       anchors: [/\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/fix-round-doctrine\.md/, /fix round or an ace commit/i] },
+    // FINDING-PATH FORM (#1811, #2005; engine-and-audit-verdict-integrity Task 2.1, PIN-1): the
+    // repo-relative `file` mandate on the auditor card AND every dispatched auditor build —
+    // auditPrompt() plus the three gate-audit-family seats (per-task post-merge, integrated-tip,
+    // end-state-only), each captured LIVE. `FINDING-PATH FORM` counted 0 on the card and on every
+    // gate-audit build at the task base, so a per-surface revert reds this row.
+    { name: 'finding-path form (#1811/#2005): repo-relative finding `file` on the auditor card + auditPrompt() + the three gate-audit-family seat prompts',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['per-task gate-audit seat prompt', esSeatP],
+                 ['integrated-tip gate-audit seat prompt', itSeatP], ['end-state-only gate-audit seat prompt', esOnlyP]],
+      anchors: [/FINDING-PATH FORM/, /repo-relative path/, /never `\.\/`-prefixed/, /exact-string routing compares/] },
   ]
-  assert.ok(REGISTRY.length >= 24, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 25, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -12401,7 +12610,7 @@ const registrySlice = () => {
   // (the D2 registry rows deepEqual them).
   const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'carriedPhaseClose', 'minorsOf', 'run', 'RELEASE_SLOT_FILES', 'BARRIER_TOKENS', 'DEMOTE_REASONS',
     src.slice(sliceStart, sliceEnd)
-    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, normalizeFinding, normalizeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
   const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
