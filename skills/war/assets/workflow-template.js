@@ -2792,6 +2792,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     liveTaskRecords.add(r)
     // Classify-at-collection (ADR 0013), now classified wave-side: each Minor/Nit routes ONCE, by
     // disposition. Minted once and stashed on r so the merge queue never re-mints the same findings.
+    // Spread-LAST on purpose (D8, pinned by the collapse-fidelity 'unattributed' fixture): a seat may
+    // set task:null / seat:null to reach the 'unattributed' filing arm, a live prompt contract. The
+    // held-row and drain mintings spread-FIRST instead because a relaunch seed's documented shape
+    // carries no task key and a carried row may carry a foreign one — two different inputs, two
+    // deliberate orders (snipe: cascading-impact, recorded rather than unified).
     const taskMinors = minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f }))
     r.taskMinors = taskMinors
     if (r.verdict !== 'approve') return          // the non-approve demotion arm stays at the merge slot
