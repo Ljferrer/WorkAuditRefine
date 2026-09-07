@@ -137,6 +137,11 @@ const EVICTION_DESTINATIONS = [
   // (war-memory.mjs `query`, which resolves against the live VERBS dispatch) — verb-scanned
   // so a future verb rename rots that command loudly, never silently.
   'skills/war-strategy/references/plan-interview.md',
+  // in-band-absorb-default D6 (Task 6.1): sweep-exclusion.md carries the Lead's campaign
+  // contention-set duty — a Node one-liner importing the campaign-ledger.mjs EXPORT
+  // `extractFilesFromPlanFile` (never a ledger CLI verb; the verb set is closed) — verb-scanned
+  // so a future shell-out rephrasing of that import rots loudly, never silently.
+  'skills/war/references/sweep-exclusion.md',
 ]
 
 // Reason-excluded from the VERB scan only (D9/D10) — never from the posterity rule: every
@@ -157,6 +162,14 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/budget-rebaseline.md',
   'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
   'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
+  // gate-failure-classification.md holds the `## Gate-failure classification` section evicted
+  // byte-identical from agents/war-refiner.md (in-band-absorb-default D12, ADR 0042); its only
+  // command prose is git (the base re-run / re-attach idiom) — no scanned-module verb.
+  'skills/war/references/gate-failure-classification.md',
+  // gate-audit-checklist.md holds the `execution-evidence` gate-audit checklist section evicted
+  // byte-identical from agents/war-auditor.md (in-band-absorb-default D16, ADR 0042); its only
+  // command prose is read-only git (`cat-file -t` / `rev-parse`) — no scanned-module verb.
+  'skills/war/references/gate-audit-checklist.md',
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund

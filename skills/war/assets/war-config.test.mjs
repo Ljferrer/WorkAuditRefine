@@ -10,7 +10,7 @@ import {
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
-import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, decideLand } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -109,7 +109,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (pinned to its historical effective config)', () => {
+test('economy preset (pins its historical knobs; ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'sonnet')
   assert.equal(c.agents.worker.effort, 'default')
@@ -123,9 +123,23 @@ test('economy preset (pinned to its historical effective config)', () => {
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
-  assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
+  assert.equal(c.run.ace, true)                     // inherited — the preset no longer pins it (D14, PIN-16)
+  assert.equal(c.run.absorbRounds, 6)               // inherited — absorb-budget: no preset pins it
   assert.equal(c.memory.commitLearnings, false)     // inherited — DEFAULTS is now false; economy no longer pins it
   assert.equal(validate(c).valid, true)
+})
+
+// preset-ace-on (D14, PIN-16): default-deny census over the LIVE preset names — every shipped preset
+// resolves run.ace === true, and no preset carries its own run.ace pin. Delete-the-feature: re-add a
+// run.ace pin to any preset → both clauses fail.
+test('preset-ace-on: every preset name resolves run.ace === true (default-deny census)', () => {
+  const names = Object.keys(PRESETS)
+  assert.ok(names.length >= 3, 'the census must see at least balanced/thorough/economy')
+  for (const name of names) {
+    assert.equal(presetConfig(name).run.ace, true, `${name} preset must resolve run.ace === true (PIN-16)`)
+    assert.ok(!(PRESETS[name].run && Object.prototype.hasOwnProperty.call(PRESETS[name].run, 'ace')),
+      `${name} preset must not pin run.ace — every preset inherits DEFAULTS.run.ace`)
+  }
 })
 
 test('unknown preset throws', () => {
@@ -409,6 +423,53 @@ test('roundLimit below 1 rejected', () => {
   assert.equal(validate({ run: { roundLimit: 0 } }).valid, false)
 })
 
+// --- run.absorbRounds (absorb-budget, D5): the per-task ace meter, validated like run.roundLimit ---
+// Integer >= 1, default 6; null and non-integers are rejected with run.roundLimit's message shape.
+// The shape is pinned by SUBSTITUTION against run.roundLimit's own error so the two cannot drift.
+
+test('absorb-budget: absent run.absorbRounds resolves to DEFAULTS 6; 3 resolves to 3', () => {
+  assert.equal(DEFAULTS.run.absorbRounds, 6)
+  assert.equal(fillDefaults({}).run.absorbRounds, 6)
+  assert.equal(fillDefaults({ run: { roundLimit: 2 } }).run.absorbRounds, 6)
+  const c = fillDefaults({ run: { absorbRounds: 3 } })
+  assert.equal(c.run.absorbRounds, 3)
+  assert.equal(validate(c).valid, true)
+  for (const name of Object.keys(PRESETS)) {
+    assert.equal(presetConfig(name).run.absorbRounds, 6, `${name} preset must inherit run.absorbRounds 6`)
+  }
+})
+
+test('absorb-budget: run.absorbRounds null rejected (no "null reads as unset" rider)', () => {
+  const r = validate({ run: { absorbRounds: null } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.absorbRounds must be an integer >= 1 \(got null\)/)
+})
+
+test('absorb-budget: run.absorbRounds 0 rejected', () => {
+  const r = validate({ run: { absorbRounds: 0 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.absorbRounds must be an integer >= 1 \(got 0\)/)
+})
+
+test('absorb-budget: non-integer run.absorbRounds rejected (1.5, "6")', () => {
+  for (const bad of [1.5, '6']) {
+    const r = validate({ run: { absorbRounds: bad } })
+    assert.equal(r.valid, false, `absorbRounds ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /run\.absorbRounds must be an integer >= 1/)
+  }
+})
+
+test('absorb-budget: run.absorbRounds error message shape == run.roundLimit\'s (key-substituted, cannot drift)', () => {
+  for (const bad of [null, 0, 1.5]) {
+    const rl = validate({ run: { roundLimit: bad } }).errors.filter(e => e.startsWith('run.roundLimit'))
+    const ab = validate({ run: { absorbRounds: bad } }).errors.filter(e => e.startsWith('run.absorbRounds'))
+    assert.equal(rl.length, 1, `exactly one run.roundLimit error for ${JSON.stringify(bad)}`)
+    assert.equal(ab.length, 1, `exactly one run.absorbRounds error for ${JSON.stringify(bad)}`)
+    assert.equal(ab[0], rl[0].replace('run.roundLimit', 'run.absorbRounds'),
+      `run.absorbRounds' message must be run.roundLimit's with the key substituted (got ${JSON.stringify(ab[0])})`)
+  }
+})
+
 // --- run.maxParallel (optional fan-out throttle) ------------------------------
 // No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). When present,
 // integer >= 1; anything else is rejected with an error naming the key.
@@ -517,6 +578,52 @@ test('war-room SKILL.md redteamRoundLimit constants == canonical DEFAULTS/PRESET
     `is ${PRESETS.economy.run.redteamRoundLimit} — bind the doc to the canonical value`)
 })
 
+// absorb-budget doc pin (Task 1.1, PIN-7): the /war-room step-2 row for run.absorbRounds restates the
+// default ("integer ≥ 1 (default 6)"). Slice the row at its key, bound to the text before the NEXT
+// `run.` key on the same line, and bind the stated number to DEFAULTS.run.absorbRounds — a changed doc
+// number goes red here (see the negative clause below).
+function warRoomAbsorbRoundsRow(text) {
+  const at = text.indexOf('run.absorbRounds')
+  assert.ok(at >= 0, 'war-room step 2 must whitelist run.absorbRounds beside run.roundLimit')
+  const lineEnd = text.indexOf('\n', at)
+  const line = text.slice(at, lineEnd === -1 ? text.length : lineEnd)
+  const next = line.indexOf('`run.', 1)
+  return next === -1 ? line : line.slice(0, next)
+}
+
+// Shared compare: the /integer ≥ 1/ check plus the equality against DEFAULTS.run.absorbRounds. The
+// positive test calls it on the live doc; the negative test wraps it in assert.throws on a mutated doc,
+// so the guard's own assertion is what fires on drift (not just the slicer seeing the mutation).
+function assertRowDefault(text) {
+  const row = warRoomAbsorbRoundsRow(text)
+  assert.ok(/integer ≥ 1/.test(row), 'the row must read "integer ≥ 1"')
+  const dm = row.match(/default\s+`?(\d+)`?/i)
+  assert.ok(dm, 'the run.absorbRounds row must state its default (e.g. "(default 6)")')
+  assert.equal(Number(dm[1]), DEFAULTS.run.absorbRounds,
+    `war-room's run.absorbRounds row states default ${dm[1]} but DEFAULTS.run.absorbRounds is ` +
+    `${DEFAULTS.run.absorbRounds} — bind the doc to the canonical value`)
+}
+
+test('absorb-budget: war-room SKILL.md run.absorbRounds row default == DEFAULTS.run.absorbRounds (extraction + equality)', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  const roundLimitAt = text.indexOf('`run.roundLimit`')
+  const absorbAt = text.indexOf('`run.absorbRounds`')
+  assert.ok(roundLimitAt >= 0 && absorbAt >= 0, 'both whitelist rows must exist')
+  assert.equal(text.slice(0, roundLimitAt).split('\n').length, text.slice(0, absorbAt).split('\n').length,
+    'the run.absorbRounds row must sit beside run.roundLimit (same physical line)')
+  assertRowDefault(text)
+})
+
+test('absorb-budget: a changed war-room default number goes red (negative reference through the same slicer)', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  const row = warRoomAbsorbRoundsRow(text)
+  const dm = row.match(/default\s+`?(\d+)`?/i)
+  assert.ok(dm)
+  const mutated = text.replace(row, row.replace(dm[0], dm[0].replace(dm[1], String(DEFAULTS.run.absorbRounds + 1))))
+  assert.notEqual(mutated, text, 'the mutation must change the doc')
+  assert.throws(() => assertRowDefault(mutated), 'the guard must fire on the drifted doc number')
+})
+
 // --- run.provision / provisionSource / provisionAuto (Part B) ----------------
 
 test('provision defaults: empty list, source none, auto true', () => {
@@ -568,14 +675,13 @@ test('non-boolean provisionAuto rejected', () => {
   assert.match(r.errors.join('\n'), /run\.provisionAuto/)
 })
 
-// --- run.ace (--ace opt-in pre-merge nit auto-fix; default false) -------------
+// --- run.ace (per-task ace ladder; default true, every preset inherits it — PIN-16) -------------
 
-test('ace defaults to true; economy pins false', () => {
+test('ace defaults to true; every preset inherits true (preset-ace-on)', () => {
   assert.equal(DEFAULTS.run.ace, true)
-  for (const preset of ['balanced', 'thorough']) {
+  for (const preset of ['balanced', 'thorough', 'economy']) {
     assert.equal(presetConfig(preset).run.ace, true, `${preset} preset must inherit run.ace === true`)
   }
-  assert.equal(presetConfig('economy').run.ace, false, 'economy preset must pin run.ace === false')
 })
 
 test('non-boolean ace rejected', () => {
@@ -1211,6 +1317,15 @@ test('drift-guard: roundLimit fallback in workflow-template.js matches DEFAULTS.
   assert.ok(match, 'roundLimit fallback (`run.roundLimit ?? <n>`) not found in workflow-template.js')
   assert.equal(Number(match[1]), DEFAULTS.run.roundLimit,
     'workflow-template.js roundLimit fallback literal drifted from DEFAULTS.run.roundLimit')
+})
+
+// absorb-budget (D5, PIN-7): the template's `run.absorbRounds ?? <n>` fallback is a hand-mirror of
+// DEFAULTS.run.absorbRounds (the sandbox cannot import) — the roundLimit-fallback idiom above.
+test('drift-guard(F07): absorb-budget — absorbRounds fallback in workflow-template.js matches DEFAULTS.run.absorbRounds', () => {
+  const match = templateText.match(/const\s+absorbRounds\s*=\s*run\.absorbRounds\s*\?\?\s*(\d+)/)
+  assert.ok(match, 'absorbRounds fallback (`run.absorbRounds ?? <n>`) not found in workflow-template.js')
+  assert.equal(Number(match[1]), DEFAULTS.run.absorbRounds,
+    'workflow-template.js absorbRounds fallback literal drifted from DEFAULTS.run.absorbRounds')
 })
 
 // roundLimit default flip (3 → 6): pin the NEW value and assert the OLD literal is absent
@@ -2357,6 +2472,39 @@ test('drift-guard(F07): inline SOFT_ENV_REASONS equals the canonical export exac
     'inline SOFT_ENV_REASONS must equal the canonical export exactly (no divergence)')
 })
 
+test('drift-guard(F07): barrier-list — inline BARRIER_TOKENS equals the canonical export exactly (in-band-absorb-default D1)', () => {
+  // The seat's structured `barrier` enum is canonical in land-decision.mjs with a hand-mirrored inline
+  // copy above AUDIT_VERDICT (the schema enum and the dispatched DISPOSITION RULE render from it).
+  // Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+BARRIER_TOKENS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'BARRIER_TOKENS not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...BARRIER_TOKENS].sort(),
+    'inline BARRIER_TOKENS must equal the canonical export exactly (no divergence)')
+})
+
+test('drift-guard(F07): sweep-exclude — inline RELEASE_SLOT_FILES equals the canonical export exactly (in-band-absorb-default D2)', () => {
+  // The two pure version-slot JSONs are canonical in land-decision.mjs with a hand-mirrored inline
+  // copy beside BARRIER_TOKENS; aceEligible and the sweep exclusion set derive their basename
+  // refusal from the mirror. Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+RELEASE_SLOT_FILES\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'RELEASE_SLOT_FILES not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...RELEASE_SLOT_FILES].sort(),
+    'inline RELEASE_SLOT_FILES must equal the canonical export exactly (no divergence)')
+})
+
+test('drift-guard(F07): demote-census — inline DEMOTE_REASONS equals the canonical export exactly (in-band-absorb-default D13)', () => {
+  // The closed follow-up demotion prefix enum is canonical in land-decision.mjs with a hand-mirrored
+  // inline copy beside RELEASE_SLOT_FILES; demote() validates every follow-up reason against the
+  // inline copy at runtime. Exact equality, order-insensitive.
+  const m = templateText.match(/const\s+DEMOTE_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(m, 'DEMOTE_REASONS not found in workflow-template.js')
+  const inline = JSON.parse(m[1].replace(/'/g, '"'))
+  assert.deepEqual([...inline].sort(), [...DEMOTE_REASONS].sort(),
+    'inline DEMOTE_REASONS must equal the canonical export exactly (no divergence)')
+})
+
 // ---------------------------------------------------------------------------
 // Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
 // ---------------------------------------------------------------------------
@@ -2365,6 +2513,9 @@ test('drift-guard(F07): inline SOFT_ENV_REASONS equals the canonical export exac
 //   the landDecision marker → logic-mirror covering landDecision (decideLand)
 //   the HARD_ESCALATION_REASONS marker → logic-mirror (same decideLand block)
 //   the SOFT_ENV_REASONS marker (#1411) → logic-mirror (its own inline-equality drift test)
+//   the BARRIER_TOKENS marker (in-band-absorb-default D1) → logic-mirror (its own inline-equality drift test)
+//   the RELEASE_SLOT_FILES marker (in-band-absorb-default D2) → logic-mirror (its own inline-equality drift test)
+//   the DEMOTE_REASONS marker (in-band-absorb-default D13) → logic-mirror (its own inline-equality drift test)
 //   the run.provision data-mirror marker → data-mirror (field names) — allowlisted, no behavioral test
 // A marker not in either registry → test fails.
 
@@ -2395,6 +2546,21 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     // → covered by its own inline-equality drift test (the D2 registry row in
     // workflow-template.test.mjs deepEquals the pair independently).
     ['SOFT_ENV_REASONS mirrors', ['drift-guard(F07): inline SOFT_ENV_REASONS']],
+    // Marker (in-band-absorb-default D1): "BARRIER_TOKENS mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `barrier-list` rows in
+    // workflow-template.test.mjs bind the card sentence and the eligibility-doc list too).
+    ['BARRIER_TOKENS mirrors', ['drift-guard(F07): barrier-list — inline BARRIER_TOKENS']],
+    // Marker (in-band-absorb-default D2): "RELEASE_SLOT_FILES mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `sweep-exclude` row in
+    // workflow-template.test.mjs binds the inline copy too). Registry count: 7 logic-mirror keys → 8.
+    ['RELEASE_SLOT_FILES mirrors', ['drift-guard(F07): sweep-exclude — inline RELEASE_SLOT_FILES']],
+    // Marker (in-band-absorb-default D13): "DEMOTE_REASONS mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry `demote-census` row in
+    // workflow-template.test.mjs binds the inline copy too). Registry count: 8 → 9.
+    ['DEMOTE_REASONS mirrors', ['drift-guard(F07): demote-census — inline DEMOTE_REASONS']],
+    // Marker (absorb-budget, D5): "Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync"
+    // → covered by the absorbRounds fallback drift guard (the roundLimit-fallback idiom).
+    ['Mirror of DEFAULTS.run.absorbRounds', ['drift-guard(F07): absorb-budget — absorbRounds fallback']],
   ])
 
   // DATA mirrors → allowlisted (field names, no canonical function to behavioral-test).
@@ -2480,13 +2646,14 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — exactly 5 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS)', () => {
+test('meta-guard(F07): sanity — exactly 9 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS; absorbRounds fallback; BARRIER_TOKENS; RELEASE_SLOT_FILES; DEMOTE_REASONS)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // Anchored by construct, not line number. If you add a new mirror, update BOTH the
-  // registry/allowlist above AND bump this count.
+  // registry/allowlist above AND bump this count. 7 → 9 (in-band-absorb-default Phase 4: the
+  // RELEASE_SLOT_FILES and DEMOTE_REASONS mirrors).
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
-  assert.equal(count, 5,
-    `Expected exactly 5 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+  assert.equal(count, 9,
+    `Expected exactly 9 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })

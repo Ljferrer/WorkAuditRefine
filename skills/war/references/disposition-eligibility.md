@@ -5,13 +5,14 @@ eligibility blockquotes below were byte-identical to their pre-eviction card tex
 time** — the `> ` blockquote form kept intact). The card keeps the DISPOSITION RULE sentence (the
 byte-mirror of the dispatched prompt) plus one fixed-shape trigger pointer to this file.
 Positional words inside the moved blocks refer to their original card position — they sat in the
-card's Verdict section, directly under the Cost-claim rule bullet. The Ask eligibility section
-below is NEW prose (this plan's channel), not an eviction.
+card's Verdict section, directly under the Cost-claim rule bullet. The Ask eligibility and Barrier
+list sections below are NEW prose (the ask-disposition and in-band-absorb-default channels), not
+evictions.
 
 ## Absorb eligibility (evicted card text)
 
-> **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise route it honestly (`follow-up` with the why-not-absorbable, or `note`; fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop (`plugin.json`/`marketplace.json`). Omitting `disposition` is always safe — the severity default applies. Absorbs are attempted as ONE ace batch commit; on a re-audit regression the engine's bounded ace bisection ladder (`aceBisect` in `workflow-template.js`) salvages what it can — you may be re-convened at batch or subset SHAs; only finally-failing subsets demote to `follow-up`, every demotion logged per subset. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
-> **Source-derivable eligibility.** A doc fact deterministically re-derivable from a machine-readable in-repo source (a JSON field, an exported constant, an enum member) is **mechanical regardless of value count**; "single-file" reads on the fix's **write footprint** — the doc being corrected — never the source it reads from. Only the accompanying policy question (mirror the value vs point at the source) routes as an issue.
+> **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a fully specified `Minor`/`Nit` — the in-diff and out-of-diff default (Barrier list below); `follow-up` is legal **only** with a `barrier` tag from that list — a scope argument (another task's file, several files, a load-bearing line) is never a barrier — and `note`/`ask` route on their own tests. You read the code, so you own the barrier calls; the orchestrator adds the deterministic release-slot refusal (`plugin.json`/`marketplace.json`, `RELEASE_SLOT_FILES`), the sweep exclusion set (a foreign-owned file demotes naming its owner), and the diff-probe intake floor that applies the same default when `disposition` is omitted. Absorbs are attempted as ONE ace batch commit; on a re-audit regression the engine's bounded ace bisection ladder (`aceBisect` in `workflow-template.js`) salvages what it can — you may be re-convened at batch or subset SHAs; only finally-failing subsets demote to `follow-up`, every demotion logged per subset. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
+> **Source-derivable eligibility.** A doc fact deterministically re-derivable from a machine-readable in-repo source (a JSON field, an exported constant, an enum member) is **mechanical regardless of value count**; the fix's **write footprint** is the doc being corrected — never the source it reads from. Only the accompanying policy question (mirror the value vs point at the source) routes as an `ask`.
 
 ## Disposition widenings (in-run-finding-resolution D3/D4/D5)
 
@@ -20,10 +21,13 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
 
 1. **Re-audit-born default-absorb (D3).** A mechanical, fully-specified finding **born at a re-audit**
    (the batch-ace re-audit, a bisection subset's re-audit, or a re-entry batch's own)
-   **defaults `absorb`** — it re-enters the ace ladder while `fixRounds < roundLimit − 2`, and the
-   phase-close sweep is its vehicle when re-entry is reserve-blocked (set `phaseClose:true` when
-   the fix wants the integrated tip). `follow-up` stays correct for unspecified, decision-shaped,
-   or sweep-excluded (release-slot / cross-task) findings.
+   **defaults `absorb`** — it re-enters the ace ladder while the task's absorb budget remains
+   (`absorbRounds < run.absorbRounds`, D5), and the phase-close sweep is its vehicle when that
+   budget is spent (set `phaseClose:true` when the fix wants the integrated tip). `follow-up` stays correct only with a barrier tag
+   (unspecified → `barrier:underspecified`, release-slot → `barrier:release-slot`; decision-shaped
+   routes `ask` via `barrier:trade-off`); a finding whose file is outside the task diff routes
+   `absorb` + `phaseClose:true`, and the engine exclusion set demotes a foreign-owned file naming
+   its owner.
 2. **New-test eligibility (D4).** A fully-specified **new test** (or test-harness) addition in a
    task-owned test file is a legitimate `absorb`/ace-batch member — "needs a new test" is not by
    itself a why-not-absorbable reason. Adding only: the never-delete/never-weaken-tests law is
@@ -39,6 +43,26 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
    past a present operator, #1879) — and a citation without the echoed `ask` cannot reliably
    unpark or prefill the question (the miss is logged, never silent). The re-audit panel verifies
    citation soundness. Ambiguity is NO-match: park the ask (match strictness, PIN-6).
+
+## Barrier list — the in-diff `absorb` default and its four barriers (in-band-absorb-default D1/D2)
+
+A **fully specified** `Minor`/`Nit` (non-empty `suggested_fix`) **defaults to `absorb`** when its
+file is in the task diff, and to `absorb` + `phaseClose:true` when its file is outside the task diff
+— you read the diff, so you set that disposition yourself (the engine's diff-probe intake floor
+applies the same default when you omit it, from the task branch's git-derived diff). On such a finding `follow-up` is legal
+**only** with a barrier cited in the structured `barrier` field, never as prose. The list is exactly
+`BARRIER_TOKENS` (canonical in `skills/war/assets/land-decision.mjs`, mirrored inline in
+`workflow-template.js`; the `barrier-list` registry rows bind this list to the export):
+
+- `barrier:release-slot` — the fix touches a release-slot file (`plugin.json` / `marketplace.json`).
+- `barrier:underspecified` — the fix is not fully specified.
+- `barrier:rationale-comment` — the fix removes or edits a line carrying a `ponytail:` /
+  deliberate-mirror rationale comment.
+- `barrier:trade-off` — a behavior change with a nameable trade-off; this one routes `ask` (the
+  trade-off IS the fork — carry the `ask` field), never `follow-up`.
+
+Three follow-up barriers plus one ask-routing tag. A **scope argument is never a barrier**; the
+why-not-absorbable prose stays free text beside the tag. `ask` is never a default.
 
 ## Ask eligibility (`disposition:'ask'` — the operator's question channel)
 
