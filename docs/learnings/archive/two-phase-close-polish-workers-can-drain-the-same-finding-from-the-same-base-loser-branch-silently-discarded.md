@@ -50,3 +50,5 @@ same comment-lag defect in the `cmd_ensure_publication_worktree` header of
 named the `#1712` fix-1 holder-naming divergence) was discarded. The header has since been rewritten into a
 numbered divergence list that names that divergence, but the publication `git worktree add` die still names
 no holder.
+
+> archived 2026-09-04: resolved — moved to archive

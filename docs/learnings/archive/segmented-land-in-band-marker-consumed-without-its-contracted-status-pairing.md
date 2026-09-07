@@ -83,3 +83,5 @@ re-land` and `BASELINE-PROCEED re-land` prompt builders carry no equivalent clau
 
 **Related:** [[normalizing-in-band-floor-route-marker-can-flip-hard-escalation-to-soft]], the
 merge-family sibling of this land-family gap, same campaign.
+
+> archived 2026-09-04: resolved — moved to archive

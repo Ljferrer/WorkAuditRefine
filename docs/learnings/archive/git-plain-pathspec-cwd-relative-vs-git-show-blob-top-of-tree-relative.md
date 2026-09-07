@@ -56,3 +56,5 @@ sensitivity; add a fixture that invokes from a subdirectory if this shape recurs
 
 **Locate-cue:** `skills/war/assets/assert-budget-raise-cited.sh`, the "Fast path" comment
 block and the `":(top)$BUDGET_FILE"` diff line.
+
+> archived 2026-09-04: resolved — moved to archive

@@ -63,3 +63,5 @@ them is neither surface.
 - [[endstate-check-cmd-capture-truncates-at-embedded-backtick-in-check-literal]]: the transport defect whose fix introduced this gap.
 - [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]]: SOFT-not-a-hold precedent for an artifact-channel gap.
 - [[source-comment-lags-emitted-prompt-after-rewrite]]: the general comment-versus-prompt drift pattern.
+
+> archived 2026-09-04: resolved — moved to archive
