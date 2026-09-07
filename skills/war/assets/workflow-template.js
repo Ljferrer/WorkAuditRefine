@@ -2431,12 +2431,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // GIT-derived changed-file list of its single commit. It is the delta-scale input; files_changed stays
   // the worker's own report and is only cross-checked against it.
   const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It scales the re-audit (a diff confined to the findings' own files re-runs only the seats that raised them, and the other seats' approvals transfer to your new sha), so report it from git, never from memory. Absent, empty, or disagreeing with files_changed re-runs the full panel.`
-  // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into the three enumerated
+  // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into the enumerated
   // fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE
-  // RE-ENTRY BATCH prompt (rule 6 of the block applied to the block itself). Two other builds also
-  // apply findings and are deliberately outside this set under the plan scope: the batch ace
-  // ADVISORY POLISH (--ace) build and the phase-close sweep polish build (agents/war-worker.md's
-  // trigger pointer still reaches those workers). FIX_ROUND_RULES is byte-equal to the
+  // RE-ENTRY BATCH prompt (rule 6 of the block applied to the block itself). The batch ace
+  // ADVISORY POLISH (--ace) build and the phase-close sweep polish build also apply findings and
+  // are deliberately outside this set under the plan scope (agents/war-worker.md's trigger pointer
+  // still reaches those workers). FIX_ROUND_RULES is byte-equal to the
   // `## The rules` section of skills/war/references/fix-round-doctrine.md (the canonical home);
   // the workflow-template.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
   // reference` pins the equality, so an edit lands in the reference first and here second. The
@@ -2455,7 +2455,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 10. A \`note\`-rated finding on a surface the same commit edits is an absorb, never left for the next round.`
   const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched for a fix round or an ace commit, so the rules below scope your diff (canonical home: `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
-    + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (rule 9). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (rule 10).\n`
+    + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (the cause-then-class-then-fix rule). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (the note-absorb rule).\n`
     + FIX_ROUND_RULES + '\n'
   // Citation-soundness re-audit charge (D6, PIN-7): appended to the panel prompt whenever the batch
   // under re-audit contains citation-resolved findings — the panel, not the engine, judges the match
