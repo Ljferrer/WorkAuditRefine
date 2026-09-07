@@ -4998,10 +4998,11 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // exact-title match keys on the finding's own title — never the whole composite row, whose
       // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
       // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
-      // file-clustering impossible. seats gate is Array.isArray, NOT truthiness (D9, Phase 5 Task 1):
-      // an auditor-supplied STRING seats key is truthy with a length, and String.prototype.join does
-      // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
-      // the row down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
+      // file-clustering impossible. The seats cell renders through seatsListOf (module level), whose
+      // gate is Array.isArray + length, NOT truthiness (D9, Phase 5 Task 1): an auditor-supplied STRING
+      // seats key is truthy with a length, and String.prototype.join does not exist — a truthiness gate
+      // would throw here and kill the whole batch; seatsListOf sends a non-array or empty seats key
+      // down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
       + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${pt` · seats: ${seatsListOf(m).join(', ')}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
