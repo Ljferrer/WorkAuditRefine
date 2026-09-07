@@ -620,20 +620,21 @@ const intentClause = intent
   : ''
 // Adjudications (Task 1.5, ADR 0032; producers widened by audit-adjudication-threading Task 1.1,
 // widened again — Checkpoint ask rulings — by ask-disposition Task 1.1, ADR 0013 amendment
-// 2026-08-25). THREE producers feed this arg, never one or two: the Lead assembles rows from the
+// 2026-08-25). The producers that feed this arg are named here, never counted (rule 7 of D24 —
+// a count word goes stale the moment a producer joins): the Lead assembles rows from the
 // red-team report's `## Adjudications` block for this plan (docs/red-team/<plan-slug>.md) AND from
 // its own scope adjudications made at the decompose gate or at an escalation AND from the
 // Checkpoint ask rulings — each ruled ask minted as an adjudication row at the strike-list gate —
-// the latter two per `skills/war/SKILL.md`, then
+// the scope adjudications and the ask rulings per `skills/war/SKILL.md`, then
 // threads the accumulated set here as args.adjudications (array|null of { adjudicated, supersedes }
 // objects or preformatted strings) — a Lead-read arg, like intent. FOLLOWS the intentClause threading
 // pattern: empty/absent ⇒ adjudicationClause is '' ⇒ every prompt below is byte-identical to a
-// no-adjudication run (back-compat, spec constraint 4). The clause carries TWO rules — version
-// precedence (task instruction > red-team adjudication > plan body literal) and adjudication-match
+// no-adjudication run (back-compat, spec constraint 4). The clause carries the version-precedence rule
+// (task instruction > red-team adjudication > plan body literal) and the adjudication-match rule
 // (a matching finding is a confirmation note, never an escalation) — and is emitted at the roster-seat
-// auditPrompt AND at the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only).
-// Both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (the both-surfaces drift test
-// asserts both surfaces).
+// auditPrompt AND at the gate-audit-family seats it names — per-task (post-merge), integrated-tip
+// and end-state-only. The version-precedence and adjudication-match sentence bodies are mirrored
+// VERBATIM in agents/war-auditor.md (the both-surfaces drift test asserts both surfaces).
 const adjudications = Array.isArray(A.adjudications)
   ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
 const adjRow = r => typeof r === 'string' ? r
@@ -982,17 +983,20 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // fail-open (#1893). The anchor IS the guard here; a launch with neither planSlug nor plan.file
   // is already refused for a tasks-bearing DAG by the entry belt (#1430).
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
+  const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
-    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+    if (hasOwnSlug(row) && ruledAskAnchor) {
       if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
       return { text, exempt: true }
     }
-    return { text, exempt: false }
+    // A coordinate-less record (no planSlug) is flagged so the surface loop's pre-check (#1882) can
+    // name the missing coordinate instead of the own-token cause when the surface fails the floor.
+    return { text, exempt: false, ...(hasOwnSlug(row) ? {} : { coordinateLessName: (typeof row.findingTitle === 'string' && row.findingTitle) ? row.findingTitle : '(untitled)' }) }
   }
   // seededPhaseClose rows (D3b, PIN-5) JOIN the floor under the ruledAsks discipline: per-row
   // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
@@ -1002,7 +1006,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['title', 'rationale', 'suggested_fix']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
-    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+    if (hasOwnSlug(row) && ruledAskAnchor) {
       if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
       return { text, exempt: true }
     }
@@ -1028,10 +1032,19 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     if (!scanText) continue
     const planIds = scanText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
     const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
+    const ownTokenMiss = ownTokens.length && !ownTokens.some(t => new RegExp('\\b' + t + '\\b', 'i').test(evidenceText))
+    // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
+    // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
+    // is what fails the own-token floor, the refusal names the missing coordinate — the actual
+    // cause — before the generic own-token message could misname it. A coordinate-less record whose
+    // surface still carries an own token clears the floor and is dropped LOUDLY at the intake below.
+    const coordinateLess = rows.find(r => r.coordinateLessName)
     if (foreignIds.length) {
       provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
-    } else if (ownTokens.length && !ownTokens.some(t => new RegExp('\\b' + t + '\\b', 'i').test(evidenceText))) {
-      provenanceProblems.push('workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
+    } else if (ownTokenMiss) {
+      provenanceProblems.push(coordinateLess
+        ? 'workflow-template: args.' + argName + ' record "' + coordinateLess.coordinateLessName + '" is missing required planSlug coordinate (#1879 RULING 2) — a coordinate-less ruled-ask record carrying none of the run\'s own plan-slug tokens [' + ownTokens.join(', ') + '] cannot prove its provenance; refused at entry (#1882)'
+        : 'workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
     }
   }
   if (provenanceProblems.length) throw new Error(provenanceProblems.join('; '))
@@ -1084,13 +1097,8 @@ for (const x of (Array.isArray(A.ruledAsks) ? A.ruledAsks : [])) {
 if (!Array.isArray(A.ruledAsks) && A.ruledAsks != null) {
   log('ruled-ask intake IGNORED a non-array args.ruledAsks (' + typeof A.ruledAsks + ') — the channel takes an array of records; an operator ruling never vanishes silently (#1879 S3).')
 }
-for (const ra of ruledAsks) {
-  log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
-  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
-    task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
-    ...(ra.line != null ? { line: ra.line } : {}),
-    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
-}
+// The conforming records queue BELOW, past the registries (the `for (const ra of ruledAsks)`
+// push loop stamps queuedKeys, #1875 — remintKey and queuedKeys are declared after this block).
 // Seeded phase-close carry (D3b, PIN-5): the rows a prior phase return carried on carriedPhaseClose
 // (held phase, discarded sweep, or terminal pass on a non-final phase), threaded back by the Lead as
 // args.seededPhaseClose. Entry-validated above and provenance-floored (#1413); each row drains into
@@ -1287,8 +1295,8 @@ const askContentKey = f => (f.task ?? '') + '\u0000' + ((f.ask && f.ask.question
 // aceRelPath (#1813, culprit-path form D12): repo-relative normalization with any leading `./` run
 // stripped, so a `./`-prefixed report and a bare plan path attribute identically. Non-strings pass
 // through untouched (callers filter them as falsy). File scope (hoisted out of the wave loop,
-// in-band-absorb-default Phase 3): remintKey, the ace grouping key, the culprit compare, both
-// `Ace-Subset` trailer builds, and recordAcedTouched all normalize through this one helper.
+// in-band-absorb-default Phase 3): every path-comparing site normalizes through this one helper;
+// no list here — a new caller joins by calling aceRelPath.
 const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
 // Cross-round FINDING re-mint identity (registry-coverage fix, D8 property floor): the FINDING
 // registries (acedKeys / revertedKeys / filedKeys / queuedKeys) key on the richer tuple
@@ -1321,27 +1329,55 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
 // dropped. Exactly-once membership by CONTENT identity (#1810 — the old object-identity check
 // false-missed minorsOf's per-round fresh copies, parking a persisting ask once per round): every
-// route into asks[] — the six dispositionOf-site ask arms (the gate-audit floor pass among them,
-// in-band-absorb-default D15: the three gate-audit-family seats' rows route through that ONE
-// producer, so its ask arm is a census member like any seat's), AND the demote() ask refusal —
+// route into asks[] — every dispositionOf-site ask arm (the gate-audit floor pass among them,
+// in-band-absorb-default D15: the gate-audit-family seats (per-task (post-merge), integrated-tip
+// and end-state-only) route through that ONE producer, so its ask arm is a census member like any
+// seat's), AND the demote() ask refusal —
 // funnels through here, so one finding can never park twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
-// drop): the colliding raiser lands on the surviving record's `corroborators` list. Record floor:
+// drop): a raiser NEW to the record lands on its `corroborators` list; the survivor's own raiser
+// and a duplicate entry are journalled only (the entry paragraph below states the skip test). Record floor:
 // question + fork (the decision needed + the two branches, from the finding's schema-mandatory
 // `ask` field; absence-tolerant fallbacks — fail-open, never a throw) plus task/seat/sha
 // provenance; `finding` keeps the full row (the handoff block projects a lossy subset without it).
+// askKeyOf (#1878): the NUL-joined content key lives on this side WeakMap (parked record → key),
+// never on the asks[] record itself — asks[] rides the top-level return and the handoff, so an
+// internal dedup token (an embedded NUL byte plus a second copy of the question) never reaches an
+// operator-facing artifact. Every asks[] lookup by key reads this WeakMap; a spliced record's
+// entry goes with the record (weak keys — no hand-written delete to forget).
+const askKeyOf = new WeakMap()
+const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
+// The corroborator entry (#1876) carries the re-raiser's evidence — seat, sha, file (normalized
+// through aceRelPath at the push: seat rows arrive normalized, but judgeHeldRow parks engine-seeded
+// pendingAbsorbs rows that never passed normalizeFinding), title and fork — so a second seat, or
+// the same seat on a second file, survives the merge and reaches the Checkpoint through the handoff
+// projection (#1872). One seat re-raising one persisting ask across audit rounds (minorsOf re-mints
+// every Minor/Nit per round) lands ONE corroborator entry, never one per round: a same
+// seat+file+title entry is skipped and keeps its first entry, fork included (the dedup predicate
+// reads seat, file and title — never fork and never sha; the first entry's sha stands), while the
+// collision log still journals every re-raise.
+// The survivor's own raiser is part of that skip test: the seat that parked the record re-raising
+// it (minorsOf re-mints per round; demote()'s ask-refusal re-route reaches the same arm) never
+// lands on its own corroborators list, so the handoff row counts distinct seats.
 const parkAsk = f => {
   const key = askContentKey(f)
-  const dup = asks.find(a => a.key === key)
+  const dup = findAsk(key)
   if (dup) {
     dup.corroborators = Array.isArray(dup.corroborators) ? dup.corroborators : []
-    dup.corroborators.push({ seat: f.seat ?? null, sha: f.sha ?? null })
-    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
+    const e = { seat: f.seat ?? null, sha: f.sha ?? null, file: typeof f.file === 'string' ? aceRelPath(f.file) : null, title: f.title ?? null,
+      fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [] }
+    const own = { seat: dup.seat, file: (dup.finding && typeof dup.finding.file === 'string') ? aceRelPath(dup.finding.file) : null, title: (dup.finding && dup.finding.title) ?? null }
+    const same = c => c.seat === e.seat && c.file === e.file && c.title === e.title
+    const recorded = !same(own) && !dup.corroborators.some(same)
+    if (recorded) dup.corroborators.push(e)
+    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, ' + (recorded ? 'the re-raise recorded on its corroborators list' : "this re-raise is the survivor's own raiser or duplicates an entry already on its corroborators list — journalled here, not recorded again") + ' (never a silent drop, #1790).')
     return
   }
-  asks.push({ key, task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
+  const record = { task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
     question: (f.ask && f.ask.question) || f.title || '(question unrecorded)',
     fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [],
-    finding: f })
+    finding: f }
+  askKeyOf.set(record, key)
+  asks.push(record)
 }
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms (each follow-up reason leads with its DEMOTE_REASONS
@@ -1444,10 +1480,10 @@ const revertedKeys = new Set()
 // (judgeHeldRow). No count word here — a new caller joins by calling fileFollowUp (#2066).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
-// phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, and the
-// gate-audit floor pass's routeToSweep calls; the ruledAsks intake and the seededPhaseClose drain
-// are the two seeded exceptions — both run at entry, before this registry is declared, so a
-// same-phase re-mint of a seeded row is judged on the other registries alone), for
+// phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
+// gate-audit floor pass's routeToSweep calls, and the ruledAsks push loop below (#1875);
+// the seededPhaseClose drain is the seeded exception — it runs at entry, before this registry is
+// declared, so a same-phase re-mint of a seeded row is judged on the other registries alone), for
 // budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace
 // blocker hold onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch
 // (carryPhaseClose — a held phase's queue, a discarded sweep's absorbs and the terminal pass's
@@ -1472,7 +1508,7 @@ const recordAced = (f, sha, extra) => {
     const keys = new Set([askContentKey(f)])
     if (typeof f.title === 'string' && f.title) keys.add(askContentKey({ task: f.task, title: f.title }))
     if (f.ask && f.ask.question) keys.add(askContentKey({ task: f.task, ask: { question: f.ask.question } }))
-    const i = asks.findIndex(a => keys.has(a.key))
+    const i = asks.findIndex(a => keys.has(askKeyOf.get(a)))
     if (i !== -1) {
       if (run.afk === true) {
         asks.splice(i, 1)
@@ -1759,6 +1795,21 @@ const routeReauditMinors = (r, seats, opts) => {
 }
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
+// Ruled-ask queueing (D15(b), #1875): the intake-filtered ruledAsks records (the entry block above)
+// ride the phase-close sweep as absorbs; every push stamps queuedKeys, so a re-audit re-mint of the
+// same task + file + title (a seat re-raising the finding the operator already ruled) is refused by
+// remintBlock and corroborates the queued record instead of queueing a second copy. The loop sits
+// past the dispositionOf→allApprove slice the registry fixtures evaluate standalone (allApprove and
+// isSplit stay adjacent above it), and past the seededPhaseClose drain — seeded rows now precede
+// ruled rows in phaseCloseQueue.
+for (const ra of ruledAsks) {
+  log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
+  const row = { severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
+    task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
+    ...(ra.line != null ? { line: ra.line } : {}),
+    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix }
+  queuedKeys.add(remintKey(row)); phaseCloseQueue.push(row)
+}
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
 const blockedReason = r => !r ? 'worker returned no result'
@@ -5251,13 +5302,16 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
       ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}) })),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
-    // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
+    // question + fork + task/seat/sha provenance, plus `corroborators` when a collision merged a
+    // re-raise onto the record (#1872 — the gate sees how many seats raised the fork, and each
+    // re-raiser's file/title/fork), minus the full finding row (the top-level
     // return's asks[] keeps it). This key is the Checkpoint strike-list ruling gate's input; the
     // absolute advance floor reads it (skills/war/SKILL.md § Checkpoint). A citation-matched ask
     // in an INTERACTIVE run additionally carries its `citationPrefill` (matched row + rationale +
     // executed sha + recommended ruling, #1879 RULING 1) so the strike list renders the
     // one-confirm prefill row.
     asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork,
+      ...(Array.isArray(a.corroborators) && a.corroborators.length ? { corroborators: a.corroborators } : {}),
       ...(a.citationPrefill ? { citationPrefill: a.citationPrefill } : {}) })),
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
