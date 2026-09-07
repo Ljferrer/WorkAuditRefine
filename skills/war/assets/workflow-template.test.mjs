@@ -15826,7 +15826,7 @@ test('parkAsk collision: corroborator carries file/title/fork and reaches the ha
   assert.ok(out.handoff.asks.every(a => !('key' in a)), 'the handoff projection carries no key either')
   assert.ok(!JSON.stringify(out.asks).includes('\\u0000'), 'no embedded NUL reaches the operator-facing asks[] artifact')
   // Engine pins: the Map exists and every asks[] lookup by key reads it (no record-field key left).
-  assert.ok(src.includes('const askKeyOf = new Map()'), 'the side Map is declared')
+  assert.ok(src.includes('const askKeyOf = new WeakMap()'), 'the side WeakMap is declared')
   const parkBody = src.slice(src.indexOf('const parkAsk'), src.indexOf('const demote ='))
   assert.ok(!/asks\.push\(\{\s*key/.test(parkBody), 'parkAsk never pushes the key onto the record')
   assert.ok(parkBody.includes('askKeyOf.set(record, key)'), 'parkAsk registers the record on the side Map')
@@ -15846,9 +15846,8 @@ test('parkAsk unpark (#1878 side Map): the --afk citation unpark splices the rec
   assert.ok(!('key' in h.asks[0]), 'the parked record still carries no key after the citation match')
   // --afk arm: the citation unpark splices the record out of asks[], and a later re-raise of the
   // same question parks fresh. That is what the exported slice can observe: findAsk scans asks[],
-  // so a spliced record is unreachable through it whether or not its askKeyOf entry survives.
-  // recordAced's askKeyOf.delete is Map hygiene (no entry for a spliced record), not a behavior
-  // these asserts guard.
+  // so a spliced record is unreachable through it; askKeyOf is a WeakMap, so the spliced record's
+  // entry goes with the record and no hand-written delete exists to guard.
   const afk = registrySlice({ afk: true })
   afk.parkAsk(ask)
   assert.equal(afk.asks.length, 1, '--afk arm: parked once')

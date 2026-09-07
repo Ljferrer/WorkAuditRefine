@@ -1329,7 +1329,7 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
 // dropped. Exactly-once membership by CONTENT identity (#1810 — the old object-identity check
 // false-missed minorsOf's per-round fresh copies, parking a persisting ask once per round): every
-// route into asks[] — the six dispositionOf-site ask arms (the gate-audit floor pass among them,
+// route into asks[] — every dispositionOf-site ask arm (the gate-audit floor pass among them,
 // in-band-absorb-default D15: the three gate-audit-family seats' rows route through that ONE
 // producer, so its ask arm is a census member like any seat's), AND the demote() ask refusal —
 // funnels through here, so one finding can never park twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
@@ -1337,12 +1337,12 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // question + fork (the decision needed + the two branches, from the finding's schema-mandatory
 // `ask` field; absence-tolerant fallbacks — fail-open, never a throw) plus task/seat/sha
 // provenance; `finding` keeps the full row (the handoff block projects a lossy subset without it).
-// askKeyOf (#1878): the NUL-joined content key lives on this side Map (parked record → key), never
-// on the asks[] record itself — asks[] rides the top-level return and the handoff, so an internal
-// dedup token (an embedded NUL byte plus a second copy of the question) never reaches an
-// operator-facing artifact. Every asks[] lookup by key reads this Map; recordAced's unpark splice
-// deletes the entry with the record.
-const askKeyOf = new Map()
+// askKeyOf (#1878): the NUL-joined content key lives on this side WeakMap (parked record → key),
+// never on the asks[] record itself — asks[] rides the top-level return and the handoff, so an
+// internal dedup token (an embedded NUL byte plus a second copy of the question) never reaches an
+// operator-facing artifact. Every asks[] lookup by key reads this WeakMap; a spliced record's
+// entry goes with the record (weak keys — no hand-written delete to forget).
+const askKeyOf = new WeakMap()
 const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
 // The corroborator entry (#1876) carries the re-raiser's evidence — seat, sha, file (normalized
 // through aceRelPath at the push: seat rows arrive normalized, but judgeHeldRow parks engine-seeded
@@ -1507,7 +1507,6 @@ const recordAced = (f, sha, extra) => {
     const i = asks.findIndex(a => keys.has(askKeyOf.get(a)))
     if (i !== -1) {
       if (run.afk === true) {
-        askKeyOf.delete(asks[i])
         asks.splice(i, 1)
         log('parked ask resolved by citation (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — the aced record carries row-id + match rationale.')
       } else {
