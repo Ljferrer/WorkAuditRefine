@@ -37,7 +37,8 @@ const specProseDrift = readFileSync(
 )
 // Glossary + contract reads (D19/D20) — same construct-anchored style as the rows above.
 // CONTEXT.md is the repo-root ubiquitous-language glossary; schemas.md is the war skill's contract
-// sheet (skills/war/references/), so the two roots differ — both resolved from HERE, never cwd.
+// sheet (skills/war/references/), so the two roots differ — each resolved from HERE, never cwd;
+// run-manifest.md is the war skill's cold per-stamp reference, same root as schemas.md.
 const contextMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
 const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
 const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
@@ -696,6 +697,13 @@ test('D21 (extended) — CONTEXT.md **Clean handoff** names the engine emit pair
     h,
     /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
     'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is still in the **Clean handoff** row — the handoff never emits on held:land-failed (#1801)',
+  )
+  // File-scoped companion: the same OLD sentence must be absent from ALL of CONTEXT.md, not only
+  // the **Clean handoff** row — a reintroduction elsewhere in the glossary would otherwise stay green.
+  assert.doesNotMatch(
+    norm(contextMd),
+    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
+    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is present somewhere in CONTEXT.md outside the **Clean handoff** row (#1801)',
   )
 })
 
