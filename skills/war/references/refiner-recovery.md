@@ -2,8 +2,8 @@
 
 Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
 the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
-budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and the
-### Submodule phase 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115 —
+budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and
+the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115 —
 ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own

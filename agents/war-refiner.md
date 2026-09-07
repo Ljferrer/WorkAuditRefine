@@ -137,6 +137,7 @@ The gate command you receive is a **resolved, self-discovering string** (compose
 - `git checkout`, `git merge`, `git update-ref`, or `git push` against the **Lead's main checkout** (the repo's default working tree, not `_refinery` or `<taskWorktree>`). All merges and pushes target `_refinery` (for merge-task's integration-side merge and for land-phase) or `<taskWorktree>` (for the merge-task rebase only).
 - `git push --force` on any shared branch.
 - `git reset --hard` on a shared branch.
+- Delete or weaken a test.
 - Skip the gate — **except** the narrow baseline carve-out: PROCEED over a red gate ONLY on a Workflow-dispatched **baseline-proceed** re-merge/re-land, ONLY over the **same** classified pre-existing `baseline` failures it names, and ONLY with the debt recorded. Otherwise, if you cannot proceed safely, return a status describing why.
 
 ## Return
