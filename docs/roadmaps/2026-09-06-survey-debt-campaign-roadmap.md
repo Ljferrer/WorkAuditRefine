@@ -15,32 +15,32 @@ Converted by `/war-machine` (interactive, operator rulings recorded per plan) fr
 ```
 #2099 hotfix PR — workflow-template.js under the 524,288 B script cap (hand-landed, outside the campaign)
         ▼
-  1  engine-and-audit-verdict-integrity        (11 phases; Phase 1 evicts agents/war-refiner.md to ≥ 2,048 B headroom)
+  1  engine-and-audit-verdict-integrity        (14 phases; Phase 1 evicts agents/war-refiner.md to ≥ 2,048 B headroom)
         │ lands (advances the four slots + CHANGELOG head)
         ▼
   2  shell-floors-guards-and-provisioning       (8 phases; PIN-28: no refiner-card edit before plan 1 Phase 1 has landed;
-        │                                        Phase 7's ownTokens lock-step pin targets plan 1's post-Phase-4 expression)
+        │                                        Phase 7's ownTokens lock-step pin targets plan 1's post-Phase-6 expression)
         │ lands (advances the four slots + CHANGELOG head)
         ▼
   3  doc-truth-drift-guards-and-authoring-doctrine (7 phases; Phase 4 folds ADR 0013 after plan 1's in-place edits;
                                                     Phase 6 Vale pass sees every sibling pin landed)
 ```
 
-Plan 2 follows plan 1 by footprint (`workflow-template.js` prompt lines rebase after plan 1's Phase 10 dispatch reshuffle; `agents/war-refiner.md` has 130 B of headroom until plan 1's eviction lands; the args-provenance mirror pins plan 1's Phase 4 expression). Plan 3 follows plan 2 by footprint (`skill-doc-contracts.test.mjs`, `war-strategy-structure.test.sh`, `auditor-teach.md`, `setup.md`, ADR 0044 Decision-log lines) and by ruling (the Vale pass lands last so its freeze list is complete by construction). Ordering caveats recorded in each plan's Pivotal constraints: plan 1's Phase 1 grows `skills/war/SKILL.md` (228 B headroom at conversion) and self-funds by ADR 0042 eviction; plan 3's Task 2.2 evicts the preflight span and is self-contained in either order; `QUALIFIED_HEADERS` is registered by plan 1 Task 1.1 and replaced by a directory census in plan 3 Task 3.2 (both orders recorded).
+Plan 2 follows plan 1 by footprint (`workflow-template.js` prompt lines rebase after plan 1's Phase 13 dispatch reshuffle; `agents/war-refiner.md` has 130 B of headroom until plan 1's eviction lands; the args-provenance mirror pins plan 1's Phase 6 expression). Plan 3 follows plan 2 by footprint (`skill-doc-contracts.test.mjs`, `war-strategy-structure.test.sh`, `auditor-teach.md`, `setup.md`, ADR 0044 Decision-log lines) and by ruling (the Vale pass lands last so its freeze list is complete by construction). Ordering caveats recorded in each plan's Pivotal constraints: plan 1's Phase 1 grows `skills/war/SKILL.md` (228 B headroom at conversion) and self-funds by ADR 0042 eviction; plan 3's Task 2.2 evicts the preflight span and is self-contained in either order; `QUALIFIED_HEADERS` is registered by plan 1 Task 1.1 and replaced by a directory census in plan 3 Task 3.2 (both orders recorded).
 
 ## Shared-file contention
 
 | File | Plans | Risk |
 |------|-------|------|
 | `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md` (`## Status`), `CHANGELOG.md` (head entry) | 1, 2, 3 | Release-slot stack: every plan bumps all four slots and appends the CHANGELOG head. Serial landing + the directive form is the resolution. Plan 3's release blurb is the first consumer of the categorical guard (Task 3.6). |
-| `skills/war/assets/workflow-template.js` + `.test.mjs` | 1, 2 | Plan 1 rewrites routing in ten phases and every dispatch site in Phase 10; plan 2 makes three prompt-line touches plus registry rows and one lock-step text pin. Serial 1 → 2; plan 2's `REGISTRY.length` bump rebases onto plan 1's last bump. |
+| `skills/war/assets/workflow-template.js` + `.test.mjs` | 1, 2 | Plan 1 rewrites routing in thirteen phases and every dispatch site in Phase 13; plan 2 makes three prompt-line touches plus registry rows and one lock-step text pin. Serial 1 → 2; plan 2's `REGISTRY.length` bump rebases onto plan 1's last bump. |
 | `agents/war-auditor.md`, `agents/war-refiner.md`, `agents/war-worker.md` | 1, 2, 3 | Byte budgets: refiner 130 B, worker 1,752 B, auditor 3,661 B hard headroom at conversion. Plan 1 Phase 1 evicts the refiner card; every card-touching task in plans 2 and 3 measures at its rebased base and evicts under 512 B (eviction over Budget-Raise). Plan 3 Phase 6 (Vale) rewords last with a mechanical freeze list. |
 | `CONTEXT.md` | 1, 2, 3 | Over its advisory line at conversion (114,280 B vs 111,616 B). Only plan 3 evicts (Task 1.2, mandatory first step, ≥ 3.5 KB named entries). Plans 1 and 2 add rows and measure per commit. |
 | `skills/war/SKILL.md` | 1, 2, 3 | 228 B hard headroom at conversion. Plan 1 Task 1.2 and plan 2 Task 5.2 grow it (self-funded evictions); plan 3 Task 2.2 evicts the 1,594 B preflight span. Every touch measures before and after. |
 | `skills/war/references/schemas.md`, `resume-and-recovery.md`, `refiner-recovery.md` | 1, 2, 3 | Plan 1 owns them one task per phase; plan 2 adds the task-less hygiene row and the eviction fallback destination; plan 3 rewords in Phase 6. Rebase-only, one owner per phase within each plan. |
 | `skills/war/assets/skill-doc-contracts.test.mjs`, `prompt-surface-budgets.test.mjs` | 1, 2, 3 | Append-only rows in plans 1 and 2; plan 3 owns the D43 fourth-home row, the budget derivation guard and the Phase 4 re-anchor. Serial by plan; plan 3's Phase 4 is one commit. |
 | `skills/war/assets/war-config.mjs` + `.test.mjs`, `skills/war-room/SKILL.md` | 1, 2, 3 | Plan 1 (`maxParallel: null`), plan 2 (`doneWhenPreamble` knob + key-list guard), plan 3 (leading-star qualifier, Vale). Disjoint lines; rebase-clean. |
-| `skills/war/assets/provision-worktrees.sh` + `.test.sh` | 1, 2 | Plan 1 Task 4.3 changes one die (calls `branch_holder_path`, which plan 2 keeps); plan 2 rewrites the SIGPIPE helper, the hygiene arm and the land-advance retry. Test file append-only. |
+| `skills/war/assets/provision-worktrees.sh` + `.test.sh` | 1, 2 | Plan 1 Task 6.2 changes one die (calls `branch_holder_path`, which plan 2 keeps); plan 2 rewrites the SIGPIPE helper, the hygiene arm and the land-advance retry. Test file append-only. |
 | `docs/adr/0044-*.md`, ADR 0013 | 1, 2, 3 | All edits are living-form (in place + Decision-log line) under the 2026-09-06 ruling; plan 3 Phase 4 folds the remaining dated sections in one commit. Fold-compatible in either order. |
 | `skills/war-strategy/war-strategy-structure.test.sh`, `skills/war/references/auditor-teach.md`, `setup.md` | 2, 3 | Plan 2 renames a ctl label and adds the guard-class section; plan 3 adds pins and rewords. Serial 2 → 3. |
 | `skills/snipe/SKILL.md`, `skills/war-review/SKILL.md`, `design.md`, `disposition-eligibility.md`, `file-followups.md`, `run-manifest.md`, `submodule-flows.md`, `reference-link-integrity.test.mjs` | 1, 3 | Plan 1 authors the doctrine; plan 3 pins or rewords it. Serial 1 → 3. |
