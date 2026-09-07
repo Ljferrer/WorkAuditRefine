@@ -2431,9 +2431,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // GIT-derived changed-file list of its single commit. It is the delta-scale input; files_changed stays
   // the worker's own report and is only cross-checked against it.
   const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It scales the re-audit (a diff confined to the findings' own files re-runs only the seats that raised them, and the other seats' approvals transfer to your new sha), so report it from git, never from memory. Absent, empty, or disagreeing with files_changed re-runs the full panel.`
-  // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into every fix-applying
-  // build — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE RE-ENTRY BATCH
-  // prompt (rule 6 of the block applied to the block itself). FIX_ROUND_RULES is byte-equal to the
+  // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into the three enumerated
+  // fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE
+  // RE-ENTRY BATCH prompt (rule 6 of the block applied to the block itself). Two other builds also
+  // apply findings and are deliberately outside this set under the plan scope: the batch ace
+  // ADVISORY POLISH (--ace) build and the phase-close sweep polish build (agents/war-worker.md's
+  // trigger pointer still reaches those workers). FIX_ROUND_RULES is byte-equal to the
   // `## The rules` section of skills/war/references/fix-round-doctrine.md (the canonical home);
   // the workflow-template.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
   // reference` pins the equality, so an edit lands in the reference first and here second. The

@@ -15316,8 +15316,11 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
 // ===========================================================================
 // FIX-ROUND DOCTRINE (#2097, engine-and-audit-verdict-integrity Task 1.4, D24/PIN-27) — the
 // `## The rules` section of skills/war/references/fix-round-doctrine.md is the canonical body; the
-// fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE shared
-// constant carrying it byte-equal. The first-pass worker prompt and the auditor prompts carry nothing.
+// enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE
+// shared constant carrying it byte-equal. Two other fix-applying prompts are deliberately excluded under
+// the plan scope: the batch ace ADVISORY POLISH (--ace) build and the phase-close sweep polish build
+// (agents/war-worker.md's trigger pointer still reaches those workers). The first-pass worker prompt
+// and the auditor prompts carry nothing.
 // Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
 // section while its siblings keep it) and a no-false-positive control (a reworded rule never
 // appears in any prompt; the byte-sensitive pin is the includes(rules) equality itself).
@@ -15354,12 +15357,12 @@ const dropDoctrineAt = (head) => {
 
 test('fix-round doctrine: every fix-applying build mirrors the reference', async () => {
   const rules = fixRoundRulesSection()
-  assert.ok(/sibling sweep/i.test(rules) && /^10\. /m.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
+  assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
   const pointer = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
   // carry none (the constant is interpolated at exactly the enumerated sites).
   const sites = (src.match(/\n[ ]*\+ FIX_ROUND_DOCTRINE_CLAUSE(?=\n)/g) || []).length
-  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at every fix-applying build and nowhere else')
+  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the batch ace ADVISORY POLISH build and the phase-close sweep polish build are deliberately outside this set under the plan scope)')
   const reworded = rules.replace('Sibling sweep before commit', 'Sibling sweep after commit')
   assert.notEqual(reworded, rules, 'the reference-edit control rewords a rule')
   for (const b of FIX_APPLYING_BUILDS) {
