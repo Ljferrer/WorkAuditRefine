@@ -41,8 +41,9 @@ model tier it buys, never an effort ordering.
 
 ## Considered options
 
-- **Restore opus/`max` auditors on `thorough` (rejected).** That reinstates a forced high effort
-  on the strongest review seat, the exact cost the operator measured as not worth paying.
+- **Restore opus/`max` auditors on `thorough` (rejected).** That reinstates a forced top effort on
+  the thorough auditor seat, the axis the operator ruled against; the fable measurement is the
+  evidence for the ruling, not a cost figure for an opus seat.
 - **Rename the presets (rejected).** The names already describe the model tier each preset buys
   under `MODEL_RANK`, and a rename breaks every committed `.claude/war/config.json` that names one.
 - **Pin `rosterPolicy: all` on `economy` for a fixed four seats (rejected).** Four seats on every

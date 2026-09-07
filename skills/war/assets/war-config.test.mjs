@@ -1420,8 +1420,8 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
 // [file, construct regex, preset, path] — capture 1 = model word, optional capture 2 = effort word.
 const DOC_TIER_PINS = [
   ['README.md', /read-only auditor seats \((\w+)\/`(\w+)` by default/, 'balanced', 'snipe'],
-  ['README.md', /^By default WAR runs (\w+) workers at session effort and/m, 'balanced', 'worker'],
-  ['README.md', /^By default WAR runs \w+ workers at session effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
+  ['README.md', /^By default WAR runs (\w+) workers on `(\w+)` effort and/m, 'balanced', 'worker'],
+  ['README.md', /^By default WAR runs \w+ workers on `\w+` effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
   ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
   // ADR 0050's effort-compensation example names the economy auditor seat.
@@ -1435,6 +1435,7 @@ const RUN_PINS = [
   ['README.md', /shortens its fix budget \(`roundLimit: (\d+)`\)/, 'economy', 'roundLimit'],
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /`roundLimit: (\d+)`\s+and\s+`redteamRoundLimit: \d+` are pinned/, 'economy', 'roundLimit'],
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /`roundLimit: \d+`\s+and\s+`redteamRoundLimit: (\d+)` are pinned/, 'economy', 'redteamRoundLimit'],
+  ['skills/war/references/schemas.md', /redteamRoundLimit[^\n]*economy preset (\d+)\)/, 'economy', 'redteamRoundLimit'],
 ]
 test('RUN_PINS: every prose restatement of a preset run.* value equals presetConfig() (extraction + equality)', () => {
   for (const [rel, re, preset, key] of RUN_PINS) {
@@ -1468,6 +1469,17 @@ test('MODEL_RANK is a permutation of MODELS, its ADR 0050 order sentence matches
     const [e, b, t] = ['economy', 'balanced', 'thorough'].map(p => tierAt(p, path).model)
     assert.ok(rank(t) >= rank(b), `thorough ${path} (${t}) must rank >= balanced (${b})`)
     assert.ok(rank(b) >= rank(e), `balanced ${path} (${b}) must rank >= economy (${e})`)
+  }
+})
+
+// ADR 0050: every fable seat carries effort 'default' — the session's knob decides fable's effort.
+// Delete-the-feature: pin thorough's auditor at fable/'high' → red.
+test('every fable seat in every preset carries effort default (ADR 0050)', () => {
+  for (const preset of Object.keys(PRESETS)) {
+    for (const path of TIER_PATHS) {
+      const t = tierAt(preset, path)
+      if (t.model === 'fable') assert.equal(t.effort, 'default', `${preset} ${path} seats fable and must carry effort default, got ${t.effort}`)
+    }
   }
 })
 
@@ -1514,6 +1526,7 @@ const DEMIRRORED = [
   ['README.md', /^\| Worker \| Polecat \|[^\n]*$/m],
   ['README.md', /^\| Auditor \|[^\n]*$/m],
   ['README.md', /^\| Servitor \|[^\n]*$/m],
+  ['README.md', /^\| Refinery \(merge queue\) \|[^\n]*$/m],
   ['README.md', /^\*\*Seats\*\* spawn in parallel[^\n]*$/m],
   ['README.md', /^The three presets move the whole profile at once[^\n]*$/m],
   ['skills/war/references/gastown-design-params.md', /^\| Polecat \|[^\n]*$/m],
@@ -1535,8 +1548,8 @@ const DEMIRRORED = [
   ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.fix\s+\{ model, effort \}[^\n]*$/m],
   ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.docs` \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^\n]*$/m],
-  ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^)]*\)/],
-  ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^)]*\)/],
+  ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^\n]*$/m],
+  ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^\n]*$/m],
   // ADR 0050's economy paragraph describes the preset by MODEL_RANK relation and pointer, never by value.
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /\*\*`economy` means cheaper models[\s\S]*?inherit `DEFAULTS`\./],
 ]

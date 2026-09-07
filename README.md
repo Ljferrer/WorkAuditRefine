@@ -127,7 +127,7 @@ Never auto-invoked. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); 
 
 ### Configure a run (`/war-room`)
 
-By default WAR runs fable workers at session effort and opus auditors on `high`, and under `rosterPolicy: auto` the Lead composes each task's audit roster from the lens catalog — 1–5 seats, each at its own depth with a one-line rationale — at the approval gate (a triggered lone seat later widens toward the auditor's own nomination, or the default roster if it names none). To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
+By default WAR runs fable workers on `default` effort and opus auditors on `high`, and under `rosterPolicy: auto` the Lead composes each task's audit roster from the lens catalog — 1–5 seats, each at its own depth with a one-line rationale — at the approval gate (a triggered lone seat later widens toward the auditor's own nomination, or the default roster if it names none). To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
 
 ```
 /war-room
