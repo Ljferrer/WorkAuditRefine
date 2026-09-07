@@ -97,6 +97,14 @@
       "provenance": "user-confirmed"
     },
     {
+      "slug": "fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit",
+      "bytes": 5261,
+      "sha256": "3169ac5b98cfda774170a15a85fb4b45b135be527e8928ba105b5949eed6c7ab",
+      "description": "Treat an audit finding's fix text as a floor: sweep every sibling site of the same rule, give each new guard an independent oracle and a proven-red mutation, bind restated values with a pin, and extract on the second copy — or the next review round finds the mirror case.",
+      "type": "project",
+      "provenance": "user-confirmed"
+    },
+    {
       "slug": "git-common-dir-anchor-idiom-fail-open-gotchas",
       "bytes": 4341,
       "sha256": "f349db1ef31ccda6e4afe454bb3822a4d4b4d67ba3566de0fd45114bd0a4c8e9",
