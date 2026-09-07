@@ -4911,10 +4911,11 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // Concatenation-built strings throughout this block (census-safe — #931).
   // seatRefOf (module-level, D8) renders every seat ref here — one helper, no scoped mirror.
   // seatsListOf (module level) reads every seats list here — its Array.isArray + length gate (never
-  // truthiness) is the same rule mergeSeat applies: an auditor-supplied non-array `seats` key would
-  // otherwise throw on .includes, and a throw here is caught only by the TOP-LEVEL held:workflow-error
-  // catch (the sole try enclosing this block), converting a LANDED phase into held:workflow-error; an
-  // auditor-supplied `seats: []` never makes the same-seat guard vacuous.
+  // truthiness) is the same rule mergeSeat applies: a string `seats` key would otherwise throw on
+  // .some in the collapse lookup below and on .push inside mergeSeat, and a throw here is caught only
+  // by the TOP-LEVEL held:workflow-error catch (the sole try enclosing this block), converting a
+  // LANDED phase into held:workflow-error; an auditor-supplied `seats: []` never makes the same-seat
+  // guard vacuous.
   const collapsed = []
   for (const f of minorsFiled) {
     // Both sides read through seatsListOf (snipe: correctness): a merged-away row may already carry a
