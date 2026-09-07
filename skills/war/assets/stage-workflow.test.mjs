@@ -460,16 +460,18 @@ test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the in
 
 // (p) Comment strip (#2099). The Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes and the
 // shipped template alone crossed it at 0.21.11, so the stager blanks every full-line `//` comment in
-// code state. The fixture carries one construct per scanner arm, each followed by a code comment the
-// strip must blank, so deleting that arm (or its tie-break) changes the expected bytes:
-//   - a `//` inside a single-quoted string, and a backtick inside one (string arm);
-//   - a `//` line inside a template literal and inside a nested `${…}` template (template arm);
-//   - a regex with a `[…]` class holding a `/`, one holding a backtick, and a keyword-led regex
-//     holding a backtick (regex arm and its keyword set);
-//   - a division chain, and a division followed on the same line by a multi-line template (the
-//     regex-vs-division tie-break);
-//   - a block comment holding a `//` line (block-comment arm).
-// Expected output is written out whole, so a scanner that desyncs on any construct reds on bytes.
+// code state. The fixture carries one construct per scanner arm, each followed by a line whose
+// expected treatment flips if that arm is deleted, so the whole-file byte compare reds per arm:
+//   - string arm: a `//` inside a single-quoted string, a backtick inside one, and an unterminated
+//     string (the line-local newline stop);
+//   - template arm: a `//` line inside a template literal and inside a nested `${…}` template;
+//   - interpolation brace depth: a closed plain brace inside a `${…}` body, then a code comment;
+//   - regex arm: a `[…]` class holding a `/`, a class holding a `/` and a backtick, an escaped `/`
+//     before an escaped backtick, and a keyword-led regex holding a backtick (REGEX_AFTER_WORD);
+//   - regex-vs-division tie-break: a division chain, a division followed on the same line by a
+//     multi-line template, and a postfix `x++` divided before a multi-line template;
+//   - block-comment arm: a block comment holding a `//` line.
+// Each arm was deleted in turn and the compare went red (the proof list rides the commit body).
 const STRIP_FIXTURE = `// header comment
 export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
   // indented code comment
@@ -493,6 +495,19 @@ const d = a / b / c
 const q = a / b + \`tail
 // a line inside a template that follows a division
 \`
+const s3 = 'unterminated
+// after an unterminated string: still code
+const ok = 'x'
+const rx = /[/\`]/
+// after the class-held slash and backtick: still code
+const rr = /a\\/\\\`b/
+// after the escaped slash and backtick: still code
+const pp = x++ / y + \`t
+// a line inside a template after a postfix increment
+\`
+const o = \`x \${ { a: 1 }
+// a code comment after a closed brace inside the interpolation
+} y\`
 /* block
 // a line inside a block comment
 */
@@ -521,6 +536,19 @@ const d = a / b / c
 const q = a / b + \`tail
 // a line inside a template that follows a division
 \`
+const s3 = 'unterminated
+
+const ok = 'x'
+const rx = /[/\`]/
+
+const rr = /a\\/\\\`b/
+
+const pp = x++ / y + \`t
+// a line inside a template after a postfix increment
+\`
+const o = \`x \${ { a: 1 }
+
+} y\`
 /* block
 // a line inside a block comment
 */
@@ -537,10 +565,12 @@ test('(p) stripFullLineComments blanks only full-line code comments, keeps every
 // (p) On the shipped template the strip is proven by three oracles that do not share the scanner
 // under test. (1) Line shape: every changed line was a `//`-led line and is now empty. (2) Prompt
 // bytes: `ptSpanRanges` (assert-args-complete.mjs — seeded on the pt` tag, its own state machine)
-// locates every prompt span in the stripped copy with its `${…}` expression bodies, and no blanked
-// line may fall inside a span's prose (a blank inside an expression body is a code comment inside
-// the interpolation — legal); this is what catches a prompt line that begins with `//` and was
-// wrongly blanked, which oracle (1) alone would accept. (3) `node --check` parses the result, and the fallback-free interpolation census the
+// locates every prompt span in the stripped copy, nested spans included, with each span's `${…}`
+// expression bodies; for a blanked line the INNERMOST enclosing span is judged, and the line may not
+// fall in that span's prose (a blank inside an expression body is a code comment inside the
+// interpolation — legal). This is what catches a prompt line that begins with `//` and was wrongly
+// blanked, which oracle (1) alone would accept. Scope: the oracle proves pt-tagged prompt spans; a
+// plain (untagged) template literal is outside it and rests on oracle (1) plus the fixture arms. (3) `node --check` parses the result, and the fallback-free interpolation census the
 // args preflight reads is unchanged, occurrence counts included. The staged size must also sit under
 // the cap with headroom for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 128
 // KiB so a template growth that eats the margin reds here before a campaign launch dies at dispatch.
@@ -561,13 +591,13 @@ function assertStripKeptPromptBytes (original, stripped) {
   const lineStarts = [0]
   for (let i = 0; i < stripped.length; i++) if (stripped[i] === '\n') lineStarts.push(i + 1)
   const lineOf = (offset) => { let lo = 0, hi = lineStarts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid] <= offset) lo = mid; else hi = mid - 1 } return lo + 1 }
-  const spans = ptSpanRanges(stripped).map(({ start, end, exprs }) => ({
-    lo: lineOf(start), hi: lineOf(end - 1), exprs: exprs.map(([x, y]) => [lineOf(x), lineOf(y - 1)]),
+  const spans = ptSpanRanges(stripped, { nested: true }).map(({ start, end, exprs }) => ({
+    start, end, lo: lineOf(start), hi: lineOf(end - 1), exprs: exprs.map(([x, y]) => [lineOf(x), lineOf(y - 1)]),
   }))
   const inExpr = (sp, k) => sp.exprs.some(([x, y]) => k >= x && k <= y)
   let insideExpr = 0
   for (const k of blanked) {
-    const hit = spans.find((sp) => k > sp.lo && k <= sp.hi)
+    const hit = spans.filter((sp) => k > sp.lo && k <= sp.hi).sort((a, b) => (a.end - a.start) - (b.end - b.start))[0] // innermost
     if (!hit) continue
     assert.ok(inExpr(hit, k), `line ${k} was blanked inside the prose of the pt prompt span on lines ${hit.lo}-${hit.hi} — the strip touched dispatched prompt bytes`)
     insideExpr++
@@ -585,7 +615,10 @@ test('(p) the prompt-byte oracle refuses a blanked `//` line inside prompt prose
   const expr = 'const p = pt`items: ${list.map(t =>\n  // a code comment inside the interpolation\n  t.id).join(\', \')}`\n'
   const { insideExpr } = assertStripKeptPromptBytes(expr, expr.replace('  // a code comment inside the interpolation', ''))
   assert.equal(insideExpr, 1)
+  const inner = 'const p = pt`a ${c ? pt`b\n// inner prose, inside the outer span\'s expression\n` : \'\'} d`\n'
+  assert.throws(() => assertStripKeptPromptBytes(inner, inner.replace('// inner prose, inside the outer span\'s expression', '')), /inside the prose of the pt prompt span/, 'a nested span\'s prose is judged by the innermost span, not excused as the outer span\'s expression')
   assert.equal(stripFullLineComments(prose), prose, 'and the real strip leaves the prose line alone')
+  assert.equal(stripFullLineComments(inner), inner, 'and the real strip leaves the nested prose line alone')
 })
 
 test('(p) shipped template: only `//`-led lines blank, no prompt byte moves, the copy parses, the census holds, headroom stays', () => {
@@ -680,8 +713,10 @@ test('(q) write-if-absent refuses a pre-existing staged file over the cap, namin
 // grammar — `<n>-byte `scriptPath` cap` — and this arm extracts each restatement and compares it to
 // the imported SCRIPT_BYTE_CAP (the DOC_TIER_PINS discipline from war-config.test.mjs: extraction
 // plus equality, never a hand-copied number). A bare rendering of the number outside that grammar is
-// banned on the same surfaces, so a restatement cannot slip out from under the pin. README.md and
-// CHANGELOG.md are release-slot prose and stay out.
+// banned on the same surfaces, so a restatement cannot slip out from under the pin; the one other
+// permitted rendering is the stager's quoted stderr message (`<n>-byte scriptPath cap`, no backticks,
+// no thousands separator), which the ban's arithmetic counts separately. README.md, CHANGELOG.md and
+// docs/learnings/ are release-slot or narrative prose and stay out.
 const DOC_CAP_PINS = ['CONTEXT.md', 'skills/war/references/staged-script.md', 'docs/adr/0037-run-scoped-staged-phase-scripts.md']
 test('(r) DOC_CAP_PINS: every prose restatement of the scriptPath cap equals SCRIPT_BYTE_CAP, and no bare rendering escapes the grammar', () => {
   const rendered = SCRIPT_BYTE_CAP.toLocaleString('en-US')

@@ -77,8 +77,12 @@ export const EXEMPT_FIELDS = new Map([
 // scanner; it returns each span with its [start, end) source offsets (start at the pt` tag, end
 // just past the closing backtick) and the [start, end) offsets of its top-level `${…}` bodies
 // (`exprs`), so a caller can tell prompt prose from code inside a span by line as well as read it —
-// stage-workflow.test.mjs's strip oracle does. ptSpans is the text-only view of the same result.
-export function ptSpanRanges (source) {
+// stage-workflow.test.mjs's strip oracle does. A nested pt span (an inner pt`…` inside an outer
+// span's `${…}` ternary) is part of the outer span's text and, by default, not a separate entry —
+// `{ nested: true }` also emits each inner span (found by re-scanning every top-level expression
+// body, offsets in the caller's source) after its outer span, so a prose-vs-code judgment can pick
+// the innermost enclosing span. ptSpans is the text-only, top-level view of the same result.
+export function ptSpanRanges (source, { nested = false } = {}) {
   const spans = []
   const re = /\bpt`/g
   let m
@@ -107,6 +111,13 @@ export function ptSpanRanges (source) {
       out += c; i++
     }
     spans.push({ start, end: Math.min(i + 1, source.length), text: out, exprs })
+    if (nested) {
+      for (const [a, b] of exprs) {
+        for (const inner of ptSpanRanges(source.slice(a, b), { nested: true })) {
+          spans.push({ ...inner, start: inner.start + a, end: inner.end + a, exprs: inner.exprs.map(([x, y]) => [x + a, y + a]) })
+        }
+      }
+    }
     re.lastIndex = i
   }
   return spans

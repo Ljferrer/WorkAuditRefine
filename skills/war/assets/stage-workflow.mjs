@@ -21,13 +21,11 @@
 //   cap is the one reuse refused: it cannot dispatch, so the stager exits non-zero naming --force.
 //   Fail-loud: a missing OR duplicated anchor exits NON-ZERO with a named error (never a silent
 //   fork).
-//   Comment strip (#2099): the staged copy drops the shipped template's full-line `//` comments in
-//   code state (never a line inside a string, template literal, regex or block comment), each
-//   replaced by an empty line so the line count is preserved — a line number in a staged copy is the
-//   shipped template's line, plus the two prelude lines under --args. The Workflow tool refuses a
-//   scriptPath over SCRIPT_BYTE_CAP bytes, and the shipped template alone crossed it at 0.21.11
-//   (measured 525,209 bytes on 2026-09-06) — so a staged copy that would still exceed the cap after
-//   the strip exits NON-ZERO with a named error and writes nothing.
+//   Comment strip (#2099): step (0) of every stage blanks the shipped template's full-line code
+//   comments out of the staged copy (contract and mechanics: stripFullLineComments below). The
+//   Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes, and the shipped template alone
+//   crossed it at 0.21.11 (measured 525,209 bytes on 2026-09-06) — so a staged copy that would still
+//   exceed the cap after the strip exits NON-ZERO with a named error and writes nothing.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -70,17 +68,24 @@ export const SCRIPT_BYTE_CAP = 524288
 // string arm also stops at a newline, so a stray quote can never swallow the rest of the file; (3) a
 // regex-literal arm — a `/` that opens an expression (after `(`, `,`, `=`, `:`, `[`, `!`, `&`, `|`,
 // `?`, `{`, `}`, `;`, an operator, or one of the REGEX_AFTER_WORD keywords such as `return`) reads to
-// its closing `/`, honouring `\` escapes and `[…]` classes; a `/` after an operand is division and
-// passes through. Two known misreads, both fail-safe (a misread body is scanned as code and resyncs at
-// the newline; a backtick met in that state trips the nesting throw below, never a wrong blank): a
-// regex after a postfix `++`/`--`, and a division right after a keyword. stage-workflow.test.mjs arm
-// (p) is the arbiter — one fixture line per arm, and a prompt-byte oracle over the shipped template.
+// its closing `/`, honouring `\` escapes and `[…]` classes; a `/` after an operand — an identifier,
+// a number, a closing `)`/`]`, or a postfix `++`/`--` (the operator set is checked against the char
+// BEFORE lastSig for those two) — is division and passes through. Every string, regex and comment arm
+// is line-local: it stops at the newline and never consumes it. One misread is known: a `/` after a
+// closing `}` is read as a regex (an object literal divided is not real code). A misread of that shape
+// skips the rest of its line, so a template opener on that same line is missed and a `//`-led line
+// inside that template can be blanked; the nesting throw below catches the desync only when the
+// residual backtick count is odd. stage-workflow.test.mjs arm (p) is the arbiter — one fixture line
+// per arm, each proven red under that arm's deletion, and a prompt-byte oracle over the shipped
+// template's pt spans.
 const REGEX_AFTER_WORD = new Set(['return', 'case', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'yield', 'await', 'do', 'else', 'throw'])
+const REGEX_AFTER_SIG = '(,=:[!&|?{};+-*%<>~^'
 export function stripFullLineComments(src) {
   const n = src.length
   const stack = [{ type: 'code' }] // 'code' | 'template'; a code frame with interp:true is a ${…} body
   const drop = [] // [start, end) byte ranges of the comment text to blank
   let lastSig = '' // last significant (non-blank, non-comment) code char — the regex/division tie-break
+  let prevSig = '' // the significant char before lastSig — tells a postfix `x++` from a binary `a +`
   let lastWord = '' // the identifier or keyword those chars spell, '' after any non-word char
   let i = 0
   while (i < n) {
@@ -107,12 +112,14 @@ export function stripFullLineComments(src) {
           if (src[j] === '\\') j++
           j++
         }
-        i = j + 1
+        i = j < n && src[j] === '\n' ? j : j + 1 // line-local: an unterminated string stops AT the newline
         lastSig = c
+        prevSig = ''
         lastWord = ''
         continue
       }
-      if (c === '/' && (lastSig === '' || '(,=:[!&|?{};+-*%<>~^'.includes(lastSig) || REGEX_AFTER_WORD.has(lastWord))) {
+      const postfix = (lastSig === '+' || lastSig === '-') && prevSig === lastSig
+      if (c === '/' && (lastSig === '' || (REGEX_AFTER_SIG.includes(lastSig) && !postfix) || REGEX_AFTER_WORD.has(lastWord))) {
         let j = i + 1
         let inClass = false
         while (j < n && src[j] !== '\n') {
@@ -122,8 +129,9 @@ export function stripFullLineComments(src) {
           else if (d === '/') break
           j++
         }
-        i = j + 1
+        i = j < n && src[j] === '\n' ? j : j + 1 // line-local: an unterminated regex stops AT the newline
         while (i < n && /[a-z]/.test(src[i])) i++ // flags
+        prevSig = lastSig
         lastSig = '/'
         lastWord = ''
         continue
@@ -145,6 +153,7 @@ export function stripFullLineComments(src) {
         }
       }
       if (!/\s/.test(c)) {
+        prevSig = lastSig
         lastSig = c
         lastWord = /[\w$]/.test(c) ? lastWord + c : ''
       }
@@ -153,9 +162,10 @@ export function stripFullLineComments(src) {
     }
     // template context
     if (c === '\\') { i += 2; continue }
-    if (c === '`') { stack.pop(); lastSig = '`'; lastWord = ''; i++; continue }
+    if (c === '`') { stack.pop(); prevSig = lastSig; lastSig = '`'; lastWord = ''; i++; continue }
     if (c === '$' && c2 === '{') {
       stack.push({ type: 'code', interp: true, depth: 0 })
+      prevSig = lastSig
       lastSig = '{'
       lastWord = ''
       i += 2
@@ -331,7 +341,8 @@ function main(argv) {
     staged = replaceExactlyOnce(staged, NAME_ANCHOR, `name: '${deriveName(planSlug, phaseId, campaignOrdinal)}'`, 'name')
     staged = replaceExactlyOnce(staged, DESCRIPTION_ANCHOR, deriveDescription(planSlug, phaseId, campaignOrdinal), 'description')
     // Steps (2)+(3), --args only: rewrite the fallback tail, THEN inject the payload. Without the
-    // flag neither runs and the output is byte-identical to a stage predating this flag.
+    // flag neither runs: the staged copy is the comment-stripped substitution with no prelude and
+    // no fallback rewrite.
     if (embedded !== null) {
       staged = replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, ': (args || EMBEDDED_ARGS)', 'args fallback')
       staged = insertArgsPrelude(staged, embedded)

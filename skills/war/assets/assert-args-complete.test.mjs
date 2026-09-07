@@ -40,6 +40,13 @@ test('ptSpanRanges: offsets start at the pt` tag and end just past the closing b
   assert.equal(src.slice(16, 20), '${x}', 'an expr range covers `${` through its closing brace')
   const nested = 'pt`a ${cond ? pt`b ${y}` : \'\'} c`'
   assert.deepEqual(ptSpanRanges(nested)[0].exprs, [[5, 30]], 'a nested template inside the expression stays inside that one top-level expr range')
+  assert.equal(ptSpanRanges(nested).length, 1, 'by default the inner pt span is not a separate entry')
+  assert.deepEqual(ptSpanRanges(nested, { nested: true }).map((r) => [r.start, r.end, r.text, r.exprs]),
+    [[0, 33, 'a ${cond ? pt`b ${y}` : \'\'} c', [[5, 30]]], [14, 24, 'b ${y}', [[19, 23]]]],
+    'nested: true also emits the inner span after its outer, offsets in the caller\'s source')
+  const braces = 'pt`x ${JSON.stringify({ a: 1 })} y`'
+  assert.deepEqual(ptSpanRanges(braces)[0].exprs, [[5, 32]], 'a plain-brace object inside the expression does not split or end the expr range')
+  assert.equal(braces.slice(5, 32), '${JSON.stringify({ a: 1 })}')
   assert.deepEqual(ptSpans(src), ranges.map((r) => r.text))
 })
 
