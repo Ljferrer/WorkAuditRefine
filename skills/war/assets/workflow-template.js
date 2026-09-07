@@ -2098,23 +2098,28 @@ const PARTIAL_LOG_RULE = pt`On a re-dispatch, before anything else, read \`.war/
 // writes a log). A rendered marker is distinct from genuine absence: the seat decides at read time.
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — conventional path used)`
 const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. A path marked \`(gate_log_path unthreaded — conventional path used)\` is the conventional path, not a recorded one: read it the same way.`
-// backgroundGateRule(shape): the run_in_background instruction, parameterized by the in-band return
-// shape (merge-task: gate_segment; land: land_segment — A4, no status enum change), and closed by
-// PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule.
-const backgroundGateRule = shape =>
-  pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. ${PARTIAL_LOG_RULE}`
-const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
-// segmentedMerge(prompt, opts): one helper on every task merge-task dispatch site (initial merge,
-// floor-retry re-merge, environment-proceed and baseline-proceed re-merges). Appends
-// segmentedGateClause, dispatches, and re-dispatches while the result carries the marker WITH its
+// backgroundGateRule(shape, logPath): the run_in_background instruction, parameterized by the in-band
+// return shape (merge-task: gate_segment; land: land_segment — A4, no status enum change) and by the
+// ABSOLUTE gate-log path (merge-task: _refinery/.war/gate-<taskId>.log; land: gate-land-phase-<id>.log).
+// The log is removed before the backgrounded gate starts (5.1 polish): all four merge-task sites share
+// one task-id-keyed path, and the *-proceed re-merges gate the SAME task tip as the failed merge
+// before them, so a complete log another dispatch left there would satisfy both PARTIAL_LOG_RULE
+// arms. Closed by PARTIAL_LOG_RULE (byte-equal on the card, so its path token stays generic) plus a
+// bridge naming the absolute file the rule reads — the refiner's cwd is the main repo, not _refinery.
+const backgroundGateRule = (shape, logPath) =>
+  pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, first remove any existing ${logPath} (so a re-dispatch never adopts a complete log a different dispatch wrote at the same tip), then start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. ${PARTIAL_LOG_RULE} The file that rule reads is ${logPath} (an ABSOLUTE path — the subagent cwd is the main repo, not _refinery).`
+const segmentedGateClause = (refineryP, taskId) => pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`, pt`${refineryP}/.war/gate-${taskId}.log`)
+// segmentedMerge(prompt, opts, refineryP, taskId): one helper on every task merge-task dispatch site
+// (initial merge, floor-retry re-merge, environment-proceed and baseline-proceed re-merges). Appends
+// segmentedGateClause (built on the site's absolute gate-log path), dispatches, and re-dispatches while the result carries the marker WITH its
 // contracted status pair — status:'error' AND gate_segment:'incomplete' — bounded by roundLimit
 // (segmentedLand's shape; PIN-9's pair read: a merged result carrying a stray marker is a merge, a
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
 // its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
-const segmentedMerge = async (prompt, opts) => {
+const segmentedMerge = async (prompt, opts, refineryP, taskId) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  const body = prompt + segmentedGateClause
+  const body = prompt + segmentedGateClause(refineryP, taskId)
   let result = await dispatch(body, opts)
   let segments = 0
   while (isSegment(result) && segments < roundLimit) {
@@ -3634,7 +3639,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }))
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
 
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
       // ponytail: reuses existing 'escalate' reason (DP3 — no new HARD_ESCALATION_REASONS member, no land-decision.mjs cascade)
@@ -3770,7 +3775,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
@@ -3861,7 +3866,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
           if (ep && ep.status === 'merged') landMerged(r.task, ep)
           else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
           else if (ep && ep.status === 'gate_failed') escalated.push({ task: r.task.id, reason: ep.status, detail: ep })   // introduced OR baseline→introduced (bounded)
@@ -3894,7 +3899,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
           if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
           else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })
           else if (bp && bp.status === 'gate_failed') escalated.push({ task: r.task.id, reason: 'gate_failed', detail: bp })   // introduced OR baseline→introduced (bounded)
@@ -4101,13 +4106,16 @@ if (mergedTasksForGateAudit.length > 0) {
   // (over-counts across a requiresTest:false skip / can be a sentinel), NOT <merge>^1 (void: no merge commit),
   // and NOT the post-merge integration tip (an empty three-dot no-op).
   const phaseBaseCmd = `$(git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch})`
+  // conventionalGateLog(id) (5.1 polish): the ONE spelling of the unthreaded gate-log fallback — the
+  // evItems refiner row and the seat prompt's artifactLine must name the same file, by reference.
+  const conventionalGateLog = id => pt`${refineryPath}/.war/gate-${id}.log ${GATE_LOG_UNTHREADED}`
   const evItems = mergedTasksForGateAudit.map((m) => ({
     taskId: m.taskId, gateHeadSha: m.gateHeadSha,
     // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
     // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
     preMergeTip: m.preMergeTip || phaseBaseCmd,
     // D8 fallback (#2094): an unthreaded gate_log_path renders the conventional path + `unthreaded` marker.
-    gateLogPath: m.gateLogPath || pt`${refineryPath}/.war/gate-${m.taskId}.log ${GATE_LOG_UNTHREADED}` }))
+    gateLogPath: m.gateLogPath || conventionalGateLog(m.taskId) }))
   const evidence = await dispatch(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
@@ -4161,7 +4169,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // D8 fallback (#2094): an unthreaded gate_log_path renders the CONVENTIONAL artifact path with the
     // `unthreaded` marker — distinct from genuine absence (a file that cannot be read), which the seat
     // determines at read time under GATE_LOG_READ_RULE.
-    const artifactLine = gateLogPath || pt`${refineryPath}/.war/gate-${taskId}.log ${GATE_LOG_UNTHREADED}`
+    const artifactLine = gateLogPath || conventionalGateLog(taskId)
     // mappedTestsLine (D7, Task 3.2): the floor-matched test paths (MergeResult.mappedTests) make the
     // HARD provably-unrun trigger MECHANICAL — the seat greps each path against the CAPTURED gate log.
     // Enumeration-conditional (round-3 fix-forward adjudication): absence is HARD only where the log
@@ -4920,8 +4928,8 @@ if (landDecision === 'landed') {
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
-    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. Tee the step-2 gate's FULL stdout+stderr to ${refineryLandPath}/.war/gate-land-phase-${ph.id}.log — ${GATE_LOG_STAMP} That file is this land's \`.war/gate-<taskId>.log\` below. `
-    + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. Tee the step-2 gate's FULL stdout+stderr to ${refineryLandPath}/.war/gate-land-phase-${ph.id}.log — first ensure .war/ is git-excluded inside _refinery (append \`.war/\` once to the path printed by \`git -C ${refineryLandPath} rev-parse --git-path info/exclude\`) — ${GATE_LOG_STAMP} `
+    + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`, pt`${refineryLandPath}/.war/gate-land-phase-${ph.id}.log`)
   const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + pt`Perform the land entirely inside the _refinery worktree at ${refineryLandPath} (spec §5.3, push-first CAS):\n`

@@ -10362,14 +10362,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // per-surface revert reds this row. Byte-equality of the rule itself is pinned by that fixture.
     { name: 'backgrounded gate — merge-task (D7, PIN-11, #2086): refiner card step 10 ↔ merge-task + environment-proceed dispatch prompts',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
-      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun from scratch/, /never read as a partial result/] },
+      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /first remove any existing [`\S]*\/\.war\/gate-[^\s`]+\.log/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun from scratch/, /never read as a partial result/] },
     // Backgrounded gate, land (D7, PIN-11): the card's segmented-land bullet and every land build (the
     // initial land — captured here — and the environment-proceed re-land; the baseline-proceed re-land
     // and the continuation ride the same segmentedLandClause, walked by the fixture above) carry
     // run_in_background, the land_segment return shape, the phase-keyed land gate log, and the rule.
     { name: 'backgrounded gate — land (D7, PIN-11, #2086): refiner card segmented-land bullet ↔ land + environment-proceed re-land prompts',
       surfaces: [['war-refiner.md', refinerMd], ['land dispatch prompt', landP], ['environment-proceed re-land prompt', epLandP]],
-      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /rerun from scratch/] },
+      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /info\/exclude/, /rerun from scratch/] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
@@ -11856,6 +11856,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // both call sites; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
   // `opts.label` is the segmentedMerge continuation header's site label — every call site passes one.
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // 5.1 polish: `logPath` is backgroundGateRule's second param — a pt-built absolute gate-log path at
+  // both call sites (segmentedGateClause, segmentedLandClause); `id` is conventionalGateLog's param —
+  // m.taskId / taskId at its two call sites, both already censused above.
+  'logPath', 'id',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
