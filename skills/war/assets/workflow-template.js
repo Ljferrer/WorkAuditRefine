@@ -1214,7 +1214,7 @@ const dispositionOf = (f, diff) => {
   if (f.disposition === 'ask') return 'ask'
   if (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') return f.disposition
   if (f.autoFixable === true) return 'absorb'
-  if (diff instanceof Set && typeof f.suggested_fix === 'string' && f.suggested_fix.trim()) {
+  if (diff instanceof Set && !blankText(f.suggested_fix)) {
     if (!(typeof f.file === 'string' && f.file && diff.has(aceRelPath(f.file)))) f.phaseClose = true
     return 'absorb'
   }
@@ -1252,7 +1252,7 @@ const intakeFloor = (f, d, diff) => {
     return d
   }
   const inDiff = typeof f.file === 'string' && f.file.length > 0 && diff.has(aceRelPath(f.file))
-  const fix = typeof f.suggested_fix === 'string' && f.suggested_fix.trim().length > 0
+  const fix = !blankText(f.suggested_fix)
   const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
   if (f.disposition === 'follow-up') {
     if (!barrier) {
@@ -1296,9 +1296,26 @@ const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
 // (seat/sha churn and `./`-form path drift never change the key — the file-scope aceRelPath
 // above) while distinguishing distinct same-task findings by file AND title. The
 // question-derived askContentKey stays parkAsk-only.
+// ONE finding-content definition (verdict-integrity D2, #2124 fix round): the text fields a router
+// or a fixer can act on beyond the key tuple — rationale, suggested_fix, and the ask's question
+// (askContentKey / parkAsk derive the question from `ask.question` first; dispositionOf reads a
+// non-empty suggested_fix as a fully specified absorb, and PIN-29 dispatches a fix round on it).
+// BOTH readers consume this list: the empty-key fold below hashes it (plus the line / plan_ref
+// locators), and normalizeSeat's empty-content demotion tests it — never two field lists.
+const blankText = v => typeof v !== 'string' || !v.trim()
+const contentTextOf = f => [f.rationale, f.suggested_fix, (f.ask && typeof f.ask === 'object') ? f.ask.question : undefined]
+// Empty-key fold (#1870, verdict-integrity D2): when file AND title are both absent (or blank —
+// the same trim-aware blankText the demotion arm reads, so a whitespace title never keys as a
+// titled finding), the tuple degenerates to task alone and two distinct fileless, titleless
+// findings would share one key — the second is then refused as a re-mint and its rationale, the
+// only content it carries, never files. A content hash of contentTextOf plus the line / plan_ref
+// locators is folded in ONLY on that degenerate arm, so a keyed finding's tuple is byte-identical
+// to before.
+const contentHash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (Math.imul(h, 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(16) }
 const remintKey = f => (f.task ?? '') + '\u0000'
   + (typeof f.file === 'string' ? aceRelPath(f.file) : '') + '\u0000'
   + (f.title ?? '')
+  + (!blankText(f.file) || !blankText(f.title) ? '' : '\u0000' + contentHash(JSON.stringify([...contentTextOf(f).map(v => v ?? ''), f.line ?? null, f.plan_ref ?? ''])))
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
@@ -1609,8 +1626,91 @@ const liveTaskRecords = new Set()
 // never-ran drain and the absorb tail's one cross-sink lookup, which serves the ace batch, the
 // phase-close queue, and every row with ace off), so no collision loses a raiser.
 // The ONE seats-list reader (snipe: three seats): a non-empty seats array, else the row's own ref.
-// An auditor-supplied `seats: []` therefore never erases a raiser, on either side of a merge.
+// Every seats LIST it reads is ENGINE-WRITTEN (mergeSeat / the consolidation below): normalizeSeat
+// strips an auditor-supplied `seats` at intake (PIN-6), so a seat can never forge a cross-seat
+// corroboration LIST. Residual, out of PIN-6's slice: the finding-level `seat`, `task` and `lens`
+// keys are still auditor-supplied — minorsOf spreads the finding LAST, so all three override the
+// engine's stamps: seatRefOf renders `seat` AND `task`, so a forged `task` also moves the ref (one
+// seat returning two rows under two forged `seat` values still reads as two refs); `task` is kept
+// on purpose — the normalizeFinding comment below records why (the terminal / polish seats attribute
+// a re-mint to its originating task through it); and `lens` additionally steers the PIN-10
+// originating-seat selection (the roster is keyed by lens, so a forged `lens` picks which entries
+// re-run after an ace commit).
+// The Array.isArray + length gate stays as the read-site guard for an engine row whose
+// list is malformed or still empty, so a raiser is never erased on either side of a merge.
 const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : [seatRefOf(f)]
+// Intake normalization (verdict-integrity D2, PIN-6 — #1869, #1870, #1788, #1811): the ONE
+// normalization every AUDIT_VERDICT passes through before any router reads it. Applied at every
+// verdict-ingestion site — auditRound's collection site (roster seats, the rebuttal round, every
+// re-audit: ace, pin-transfer, floor-fix, sweep, terminal) and the three gate-audit-family seats
+// (post-merge, integrated-tip, end-state-only). Per finding: (1) the auditor-supplied `seats` and
+// `merged` attribution keys are DROPPED — seats lists and merged-away rows are engine-written only,
+// so seatsListOf / mergedRowsOf only ever read engine corroboration (#1788); a finding-level `task`
+// is KEPT: the terminal / polish seats attribute a re-mint to its originating task through it (the
+// carried-row corroboration), so minorsOf's spread-last order stands and the note below stamps the
+// engine task only because a demoted note has no originating task to name; (2) `file` is normalized
+// through aceRelPath at the source, so every downstream exact-string compare (remintKey, the ace
+// grouping key, the culprit compare, the diff-membership floor) sees one form (#1811 — the
+// FINDING-PATH FORM prompt mandate is belt, this is braces); (3) a finding with NO title and NO
+// content field (contentTextOf: rationale, suggested_fix, ask.question — the ONE definition the
+// remintKey fold hashes) carries nothing a router or a fixer could act on — it demotes to a logged
+// note (#1869: an empty stripped Critical rode a blocking verdict into escalation triage), and a
+// `request_changes` verdict left with no blocking finding after that demotion is neutralized to
+// `approve` with a log (a verdict cannot stand on findings it no longer has; `escalate` stands on
+// its escalate_reason and is never touched). A third consumer reads such a finding: the handoff
+// `endState` projection's plan_ref-keyed `rel` filter reads severity + plan_ref only, so a demoted
+// plan_ref-carrying blocking finding would no longer drive 'unmet' and the condition would fall to
+// the attestation channel ('unverified' absent a met row, never a silent green) — which is why
+// plan_ref is SPARED below as a routing key (not content: contentTextOf's field list is unchanged;
+// plan_ref rides the fold's hash as a locator). That reader is gateFindings — built from the
+// auditLog's gateEvidence entries, the gate-audit family only — yet the spare is global: a ROSTER
+// seat's plan_ref-only blocking finding has no endState reader to pay for, is spared all the same
+// (the pre-task behavior, unchanged here), and can still ride a fix-less PIN-29 escalation; narrowing
+// the spare to the gate-audit sites is a behavior change beyond this slice. The demotion also SPARES
+// an ask-shaped finding (a non-blank `ask.question` is spared through contentTextOf; a bare
+// `disposition: 'ask'` row on the Minor/Nit severities the ask channel serves is spared through
+// askShaped — a blocking severity carrying only disposition:'ask' has no ask channel to reach, never
+// parks, and would otherwise ride the verdict fix-less into a PIN-29 escalation — demote()'s ASK
+// REFUSAL invariant: an ask is ruled at the Checkpoint, never machine-demoted into notes; it falls
+// through to parkAsk / the routers) and a `scopeBreach: true` finding (aceReaudit's fail-closed
+// pin-transfer refusal reads the finding-level disjunct, PIN-18 — the breach flag IS its content). A
+// demoted note is re-stamped `severity: 'Nit'` beside `originalSeverity` (the pairing the pin-equality
+// strip uses), so notes never carry a blocking severity. Non-object findings items and a non-array
+// findings container are dropped with a log and count as removals for the verdict neutralization the
+// same as a demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in
+// place and returns it, and every site assigns the return.
+const normalizeFinding = f => {
+  const { seats, merged, ...rest } = f
+  if (typeof rest.file === 'string') rest.file = aceRelPath(rest.file)
+  return rest
+}
+const askShaped = f => (f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask'
+const normalizeSeat = (seat, taskId) => {
+  if (!seat || typeof seat !== 'object') return seat
+  const who = 'seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ')'
+  const kept = []
+  let removed = 0
+  let items = []
+  if (Array.isArray(seat.findings)) items = seat.findings
+  else if (seat.findings !== undefined && seat.findings !== null) { removed++; log('intake normalization: ' + who + ' returned a non-array findings container — dropped (logged, never silent).') }
+  for (const raw of items) {
+    if (!raw || typeof raw !== 'object') { removed++; log('intake normalization: ' + who + ' returned a non-object findings item — dropped (logged, never silent).'); continue }
+    const f = normalizeFinding(raw)
+    if (blankText(f.title) && contentTextOf(f).every(blankText) && !askShaped(f) && f.scopeBreach !== true && blankText(f.plan_ref)) {
+      removed++
+      log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title and no routable content) from ' + who + ' demoted to a note — it carries nothing a router or fixer could act on (#1869).')
+      notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, severity: 'Nit', demoteReason: 'intake:empty-content' })
+      continue
+    }
+    kept.push(f)
+  }
+  seat.findings = kept
+  if (removed && seat.verdict === 'request_changes' && !kept.some(f => f.severity === 'Critical' || f.severity === 'Major')) {
+    log('intake normalization: ' + who + ' returned request_changes whose every blocking finding was removed at intake (empty-content demoted, non-object item or non-array container dropped) — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
+    seat.verdict = 'approve'
+  }
+  return seat
+}
 const mergeSeat = (hit, f) => {
   hit.seats = seatsListOf(hit)
   // A dropped copy may itself carry a merged seats list (a held row that already corroborated a
@@ -1939,6 +2039,12 @@ const pinMismatch = (auditSha, pin) => {
 // routeGateAuditRows reads `disposition`, `barrier`, and `suggested_fix` off their rows, so the seats
 // must be told the rule the floor enforces (standing card + dispatched prompt, same commit, PIN-12).
 // The card sentence in agents/war-auditor.md byte-mirrors it (the `barrier-list` registry rows).
+// FINDING-PATH FORM (D12, verdict-integrity D2 — #1811, #2005): the repo-relative `file` mandate.
+// ONE shared const consumed by auditPrompt AND the three gate-audit-family seat builds (the same
+// four sites DISPOSITION_RULE_CLAUSE rides), mirrored verbatim on agents/war-auditor.md (same
+// commit; the `finding-path form` registry row binds every surface). The prompt mandate is belt;
+// normalizeSeat's aceRelPath pass at intake is braces.
+const FINDING_PATH_FORM_CLAUSE = pt`\nFINDING-PATH FORM: report every finding's \`file\` as a repo-relative path — never absolute, never \`./\`-prefixed; these values feed exact-string routing compares downstream.`
 const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine's diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default.`
 
 function auditPrompt(task, lens, depth, peers, workerTests, pin) {
@@ -1985,10 +2091,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // the auditor card's live trigger pointer covers the standing leg). The dispatched block is
     // pinned by the `disposition-prompt-widened` fixture in workflow-template.test.mjs.
     + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while the task's absorb budget remains (absorbRounds < run.absorbRounds), and the phase-close sweep is its vehicle when that budget is spent (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct only with a barrier tag (unspecified → barrier:underspecified, release-slot → barrier:release-slot; decision-shaped routes ask via barrier:trade-off); a finding whose file is outside the task diff routes absorb + phaseClose:true, and the engine exclusion set demotes a foreign-owned file naming its owner. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask.`
-    // FINDING-PATH FORM (D12) — dispatched-prompt only, no standing-card behavior change: finding
-    // `file` values feed exact-string routing compares (ace culprit attribution normalizes only a
-    // leading `./` run), so the re-audit prompt mandates the repo-relative form at the source.
-    + pt`\nFINDING-PATH FORM: report every finding's \`file\` as a repo-relative path — never absolute, never \`./\`-prefixed; these values feed exact-string routing compares downstream.`
+    // FINDING-PATH FORM (D12; both surfaces since verdict-integrity Task 2.1, #1811/#2005) — shared
+    // with the three gate-audit-family seats and mirrored on agents/war-auditor.md; see the const.
+    + FINDING_PATH_FORM_CLAUSE
     // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
     // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)
     // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
@@ -2091,7 +2196,9 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride) 
     let ri = 0
     results = results.map(r => r != null ? r : retried[ri++])
   }
-  const seats = results.filter(Boolean)
+  // Intake normalization (verdict-integrity D2, PIN-6) at the ONE collection site every auditRound
+  // caller shares — roster seats, the rebuttal round and every re-audit pass through here.
+  const seats = results.filter(Boolean).map(s => normalizeSeat(s, task.id))
   // Pin-equality demotion (D2), the single collection-site enforcement feeding allApprove/blockingOf/the
   // escalate check: a seat whose well-formed audit_sha differs from its well-formed dispatched pin reviewed
   // a DIFFERENT tree than the worker's committed tip — its findings cannot be trusted for the HARD path.
@@ -3936,7 +4043,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // nested pt-tagged interior (first-class census entry): ${guardEvidence} is ternary-guarded.
       ? pt`\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? pt` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
       : ''
-    const gateAuditVerdict = await dispatch(
+    let gateAuditVerdict = await dispatch(
       pt`POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
       + pt`${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.\n`
@@ -3965,6 +4072,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
       // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
       + DISPOSITION_RULE_CLAUSE
+      + FINDING_PATH_FORM_CLAUSE
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
@@ -3975,6 +4083,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // MISSING mapped test (genuinely absent at the confirmed tip, artifact-confirmed on an enumerating half).
     // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
     if (gateAuditVerdict) {
+      gateAuditVerdict = normalizeSeat(gateAuditVerdict, taskId)   // intake normalization (D2, PIN-6) — this seat sits outside auditRound
       const rawFindings = gateAuditVerdict.findings || []
       // D2 pin-equality: the gate-audit seat's expected tip is observedHead (the tree it judged, stamped by
       // the evidence dispatch above); fall back to gateHeadSha when absent (fail-open — the evidence dispatch
@@ -4055,7 +4164,7 @@ if (mergedTasksForGateAudit.length > 0) {
         + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
         + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
-    const authVerdict = await dispatch(
+    let authVerdict = await dispatch(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
       + pt`Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
@@ -4072,10 +4181,12 @@ if (mergedTasksForGateAudit.length > 0) {
       // DISPOSITION RULE (D15, PIN-17) rides this seat directly — its Minor/Nit rows route through
       // routeGateAuditRows, so the seat is told the rule the floor enforces (shared const, same commit).
       + DISPOSITION_RULE_CLAUSE
+      + FINDING_PATH_FORM_CLAUSE
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:phase-${ph.id}:integrated-tip`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     if (authVerdict) {
+      authVerdict = normalizeSeat(authVerdict, 'phase-' + ph.id + '-integrated-tip')   // intake normalization (D2, PIN-6) — outside auditRound
       const findings = authVerdict.findings || []
       // Same gate-evidence lane as the end-state seat: severity OR the D8 verdict disjunct gates HARD.
       const isHard = authVerdict.verdict === 'escalate' || findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
@@ -4096,7 +4207,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
   // phase cannot skip its own claimed conditions. The per-task pass's cost saving stands.
   log(`gate-audit: mergedTasksForGateAudit is empty but this phase claims ${endStateClaims.length} End-state condition(s) — spawning ONE End-state-only seat at the confirmed tip (D7 cost saving preserved for the per-task pass).`)
-  const esVerdict = await dispatch(
+  let esVerdict = await dispatch(
     pt`END-STATE-ONLY GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence). `
     + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
     + pt`${refineryPath} (the _refinery worktree).\n`
@@ -4109,10 +4220,12 @@ if (mergedTasksForGateAudit.length > 0) {
     // — outside auditPrompt(); the five-surface registry row anchors it here.
     + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
     // DISPOSITION RULE (D15, PIN-17) rides this seat directly — same reason as the two seats above.
-    + DISPOSITION_RULE_CLAUSE,
+    + DISPOSITION_RULE_CLAUSE
+    + FINDING_PATH_FORM_CLAUSE,
     { agentType: NS + 'war-auditor', phase: 'Audit',
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   if (esVerdict) {
+    esVerdict = normalizeSeat(esVerdict, 'phase-' + ph.id + '-end-state')   // intake normalization (D2, PIN-6) — outside auditRound
     const findings = esVerdict.findings || []
     // D8: severity OR a finding-less `verdict === 'escalate'` gates the hard path (identical disjunct to the
     // per-task gate-audit site); Minor/Nit stay SOFT-by-default. This end-state-only seat (nothing merged) is
@@ -4154,7 +4267,7 @@ const routeGateAuditRows = () => {
   const noteArmSkipped = phaseDiffFiles === null
   if (noteArmSkipped) log('gate-audit floor pass: phase_diff_files absent — the note arm skips (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
   for (const f of gateAuditRows.splice(0)) {
-    const fix = typeof f.suggested_fix === 'string' && f.suggested_fix.trim().length > 0
+    const fix = !blankText(f.suggested_fix)
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
     // An EMPTY Set, never phase_diff_files (#2058): an omitted-disposition fully specified row reads
     // absorb + phaseClose:true whether the phase diff is present or absent (PIN-17), and the null arm
@@ -4919,11 +5032,11 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // (Task 2.1, #1566): minorsFiled is deterministically collapsed above before the rows render, and
 // the agent clusters the survivors by file + root cause — one issue per cluster, so several rows
 // may share one issue number (ordinal→issue stamping semantics unchanged).
-// mergedRowsOf (D9's class, Phase 5 Task 1 fix round): `merged` rides minorsOf's wholesale spread
-// like any other auditor key (the finding items schema is non-strict — the AUDIT_VERDICT comment
-// records the deriver fallback), so ELEMENTS are auditor-controlled too, not just the container. An
-// element-level deref (`x.seat`) on an auditor-supplied `merged: [null]` at the consolidation log
-// line or the handoff followUps projection sits OUTSIDE the local filing try — caught only by the
+// mergedRowsOf (D9's class, Phase 5 Task 1 fix round): every merged[] list is ENGINE-WRITTEN —
+// normalizeSeat strips an auditor-supplied `merged` at intake (PIN-6, verdict-integrity D2), so a
+// seat can no longer fabricate merged-away rows. The element-shape guard stays as read-site
+// defense: an element-level deref (`x.seat`) on a malformed element at the consolidation log line
+// or the handoff followUps projection sits OUTSIDE the local filing try — caught only by the
 // top-level held:workflow-error catch, converting a LANDED phase and destroying the handoff. Guard
 // element shape at every read: array-normalize the container, drop non-object elements. Hoisted
 // above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
@@ -4949,8 +5062,9 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // truthiness) is the same rule mergeSeat applies: a string `seats` key would otherwise throw on
   // .some in the collapse lookup below and on .push inside mergeSeat, and a throw here is caught only
   // by the TOP-LEVEL held:workflow-error catch (the sole try enclosing this block), converting a
-  // LANDED phase into held:workflow-error; an auditor-supplied `seats: []` never makes the same-seat
-  // guard vacuous.
+  // LANDED phase into held:workflow-error; an engine row whose list is still empty falls to its own
+  // ref, so the same-seat guard is never vacuous (an auditor-supplied `seats` never reaches here —
+  // normalizeSeat strips it at intake, PIN-6).
   const collapsed = []
   for (const f of minorsFiled) {
     // Both sides read through seatsListOf (snipe: correctness): a merged-away row may already carry a
@@ -4964,7 +5078,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       mergeSeat(hit, f)   // the shared seats-list merge (snipe: simplicity) — never a hand copy here
       // merged[] (D8): the merged-away row's title and rationale survive on the representative —
       // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
-      // the container AND drops auditor-supplied non-object elements at the single write point.
+      // the container AND drops malformed non-object elements at the single write point.
       hit.merged = mergedRowsOf(hit)
       hit.merged.push({ seat: seatRefOf(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
     } else collapsed.push(f)
@@ -5034,8 +5148,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
       // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
       // file-clustering impossible. The seats cell renders through seatsListOf (module level), whose
-      // gate is Array.isArray + length, NOT truthiness (D9, Phase 5 Task 1): an auditor-supplied STRING
-      // seats key is truthy with a length, and String.prototype.join does not exist — a truthiness gate
+      // gate is Array.isArray + length, NOT truthiness (D9, Phase 5 Task 1): a STRING seats key
+      // is truthy with a length, and String.prototype.join does not exist — a truthiness gate
       // would throw here and kill the whole batch; seatsListOf sends a non-array or empty seats key
       // down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
@@ -5130,8 +5244,8 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     // merged (D8, Phase 5 Task 1): a consolidated row's merged-away titles+rationales ride the
     // handoff entry too (ADDITIVE key, present only on rows the collapse merged into) — the debt
     // map carries full fidelity, nothing merges away silently. Read through mergedRowsOf (element
-    // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — an
-    // auditor-supplied `merged: [null]` deref here would convert a LANDED phase into
+    // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — a
+    // malformed `merged: [null]` deref here would convert a LANDED phase into
     // held:workflow-error and destroy this very handoff.
     followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
       ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}) })),

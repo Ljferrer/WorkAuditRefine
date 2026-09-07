@@ -120,6 +120,7 @@ Five authoring patterns read as drifted but are correct-by-construction; do not 
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
 
 - **Cost-claim rule:** a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.
+- **FINDING-PATH FORM:** report every finding's `file` as a repo-relative path — never absolute, never `./`-prefixed; these values feed exact-string routing compares downstream.
 
 > **Disposition eligibility.** When setting a Minor/Nit disposition — the `disposition:'absorb'` default and its Barrier list (`follow-up` only with a `barrier` tag; source-derivable doc facts are mechanical) or the `disposition:'ask'` decision-shaped test — read [disposition-eligibility.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/disposition-eligibility.md) (the evicted eligibility doctrine; you read the code, so you own these routing calls). On a fully specified Minor/Nit, set the `absorb` default yourself per the Barrier list; the engine's diff-probe floor applies the same default when you omit it.
 
