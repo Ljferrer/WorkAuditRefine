@@ -6209,7 +6209,25 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.equal(seat.verdict, 'approve', 'a request_changes left without a blocker is neutralized')
   assert.equal(h.notes.length, 1, 'the empty-content finding is a note')
   assert.equal(h.notes[0].demoteReason, 'intake:empty-content')
+  assert.equal(h.notes[0].severity, 'Nit', 'the demoted note is re-stamped Nit — notes never carry a blocking severity')
+  assert.equal(h.notes[0].originalSeverity, 'Critical', 'originalSeverity records the severity the note lost (the pin-equality pairing)')
   assert.ok(h.logs.some(l => l.includes('non-object findings item')), 'the dropped non-object item is logged')
+  // a non-array findings CONTAINER is the same class as a non-object item: dropped, logged, counted
+  const container = { seat: 's', verdict: 'request_changes', findings: 'oops' }
+  h.normalizeSeat(container, 't1')
+  assert.deepEqual(container.findings, [], 'a non-array findings container falls through to the empty list')
+  assert.equal(container.verdict, 'approve', 'the container drop counts as a removal — the blocker-less request_changes is neutralized')
+  assert.ok(h.logs.some(l => l.includes('non-array findings container')), 'the dropped container is logged (never silent)')
+  // every AUDIT_VERDICT dispatch site has a normalizeSeat call (the definition line reads
+  // `const normalizeSeat = ` and never matches the call regex): a fifth ingestion site must normalize
+  const ingest = (src.match(/schema: AUDIT_VERDICT/g) || []).length
+  assert.equal(ingest, 4, 'four AUDIT_VERDICT dispatch sites today — auditRound plus the three gate-audit seats')
+  assert.equal((src.match(/normalizeSeat\(/g) || []).length, ingest, 'every AUDIT_VERDICT dispatch site has a normalizeSeat call — a new ingestion site must normalize')
+  for (const [start, end] of [
+    ['POST-MERGE GATE-AUDIT', 'const rawFindings = gateAuditVerdict.findings'],
+    ['INTEGRATED-TIP GATE-AUDIT', 'const findings = authVerdict.findings'],
+    ['END-STATE-ONLY GATE-AUDIT', 'const findings = esVerdict.findings'],
+  ]) assert.ok(sliceSrc(start, end).includes('normalizeSeat('), start + ': the verdict-consuming block normalizes its seat before reading findings')
   // `task` is NOT stripped (#2132 fix round, survey-derived): the terminal / polish seats attribute a
   // re-mint to its originating task through a finding-level `task` (the carried-row corroboration
   // fixture), and the collapse-fidelity terminal-arm fixture pins `task: null` overriding the
