@@ -15833,7 +15833,7 @@ test('parkAsk collision: corroborator carries file/title/fork and reaches the ha
   assert.equal((src.match(/a\.key\b/g) || []).length, 0, 'no `a.key` reader survives on asks[] records (findAsk / askKeyOf.get are the readers)')
 })
 
-test('parkAsk unpark (#1878 side Map): the --afk citation unpark splices the record AND its Map entry, so a later re-raise of the resolved question parks fresh instead of matching a ghost key', () => {
+test('parkAsk unpark (#1878 side Map): the --afk citation unpark splices the record out of asks[], so a later re-raise of the resolved question parks fresh', () => {
   const h = registrySlice()
   const ask = { severity: 'Minor', task: 't1', title: 'mirror or point', file: 'docs/x.md', disposition: 'ask', seat: 'audit:t1:correctness',
     ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] } }
@@ -15886,6 +15886,15 @@ test('parkAsk collision: the survivor\'s own raiser never lands on its own corro
   h.parkAsk({ ...ask, seat: 'audit:t1:security' })
   assert.deepEqual(h.asks[0].corroborators.map(c => c.seat), ['audit:t1:security'], 'negative control: a second seat still corroborates')
   assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('merged as corroboration')).length, 3, 'every re-raise is still journalled')
+  // Title-less arm: askShaped spares a question-only Minor ask from normalizeSeat's demotion, so
+  // parkAsk sees a record whose finding carries no title key. The own-raiser tuple must read the
+  // title with the same `?? null` coalesce the corroborator entry uses (undefined !== null).
+  const titleless = { severity: 'Minor', task: 't1', disposition: 'ask', seat: 'audit:t1:correctness',
+    ask: { question: 'keep the 30d default or flip it?', fork: ['keep', 'flip'] } }
+  h.parkAsk(titleless)
+  h.parkAsk({ ...titleless })
+  assert.equal(h.asks.length, 2, 'the title-less ask parks one surviving record of its own')
+  assert.deepEqual(h.asks[1].corroborators, [], 'a title-less ask re-parked from its own seat records no corroborator')
 })
 
 test('corroborateSurvivor: queued-arm seats merge', () => {

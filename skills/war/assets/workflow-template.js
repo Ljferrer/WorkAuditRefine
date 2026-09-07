@@ -1362,7 +1362,7 @@ const parkAsk = f => {
     dup.corroborators = Array.isArray(dup.corroborators) ? dup.corroborators : []
     const e = { seat: f.seat ?? null, sha: f.sha ?? null, file: typeof f.file === 'string' ? aceRelPath(f.file) : null, title: f.title ?? null,
       fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [] }
-    const own = { seat: dup.seat, file: (dup.finding && typeof dup.finding.file === 'string') ? aceRelPath(dup.finding.file) : null, title: dup.finding && dup.finding.title }
+    const own = { seat: dup.seat, file: (dup.finding && typeof dup.finding.file === 'string') ? aceRelPath(dup.finding.file) : null, title: (dup.finding && dup.finding.title) ?? null }
     const same = c => c.seat === e.seat && c.file === e.file && c.title === e.title
     if (!same(own) && !dup.corroborators.some(same)) dup.corroborators.push(e)
     log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
