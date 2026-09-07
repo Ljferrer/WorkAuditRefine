@@ -606,7 +606,7 @@ None proposed (spec §6/§7). Existing ADRs amended in place: 0018 (amendment ro
   mirror row; the D6 census made relocation-blind-proof + the file-followups paired
   pins; the `specCitations()` seam fix (the CHANGELOG corpus widening is retired — ADR 0046
   excludes it); the war-review OLD-absent/presence pair. Folded issues with no End-state
-  needle (#1772, #1804 in Task 4; #1801 in Task 5; #1842 in Task 10) are proven by the
+  needle (#1772, #1804 in Task 4; #1842 in Task 10) are proven by the
   owning task's done-report before/after quotes, the same path Task 7's non-literal rows
   take. Phase 3 bumps the four release slots
   directively.
@@ -1013,13 +1013,16 @@ commit, never loosened.
   on `held:land-failed` the follow-up filing dispatch still runs, or the handoff
   carries an explicit unfiled-followups block) falsifies the row's stricter claim; the
   `resume-and-recovery.md` sentence is the TRUE side and stays byte-untouched here
-  (verified: issue #1801 (2026-08-26)). RETIRED at the 2026-09-06
-  engine-and-audit-verdict-integrity Task 1.2 re-adjudication — the handoff emit gate
-  is landed + held:escalation only; on held:land-failed the stamped issues ride the
-  top-level return's minorsFiled. (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
+  (verified: issue #1801 (2026-08-26)). (#1801 disjunct — RETIRED at the 2026-09-06
+  engine-and-audit-verdict-integrity Task 1.2 re-adjudication: the handoff emit gate
+  is `landed` + `held:escalation` only, so on `held:land-failed` the stamped issues
+  ride the top-level return's `minorsFiled`; the CONTEXT.md row correction itself
+  stands, no edit here — the row landed at the 2026-09-06 plan's Task 1.2; the issue
+  closes on that record). (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
   floor-retry-reserve wording in CONTEXT.md's **Ace bisection** row; verified at the
-  plan-4 base `a8a9391`, no edit here). The #1801 edit is byte-additive-neutral or
-  negative — it must not undo this task's eviction arithmetic (re-run wc -c after it).
+  plan-4 base `a8a9391`, no edit here). Moot under the #1801 retirement above: the
+  #1801 edit is byte-additive-neutral or negative — it must not undo this task's
+  eviction arithmetic (re-run wc -c after it).
 - Done when: node --test skills/war/assets/prompt-surface-budgets.test.mjs
 - requiresTest: false
 - requiresPackaging: false
@@ -1482,7 +1485,8 @@ pin ships with a both-ways proof (fixture or scratch-deletion trace in the done 
   append-only (23–26 new, none renumbered); the addressed-issues enumeration grew
   45 → 72. #1812 was a cross-task fold (four prose homes, four owning tasks); plan 2
   (in-run-finding-resolution, 0.21.0) landed all four homes, so its rows were retired
-  at the 2026-09-03 re-amendment and End state 24 became a no-regress floor.
+  at the 2026-09-03 re-amendment and End state 24 became a no-regress floor. #1801 was
+  retired the same way at the 2026-09-06 re-adjudication.
   **Deliberate exclusions from the fold** (recorded so red-team does not re-litigate):
   #1816 and #1803 — verified ALREADY FIXED at the plan-1 landed tip (the phase-7
   absorb commit corrected the census comment; the CONTEXT Budget-Raise appositive was
