@@ -1422,7 +1422,7 @@ const DOC_TIER_PINS = [
   ['README.md', /read-only auditor seats \((\w+)\/`(\w+)` by default/, 'balanced', 'snipe'],
   ['README.md', /^By default WAR runs (\w+) workers at session effort and/m, 'balanced', 'worker'],
   ['README.md', /^By default WAR runs \w+ workers at session effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
-  ['README.md', /built-in `DEFAULTS`: (\w+) workers on `default` effort/, 'balanced', 'worker'],
+  ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
   ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
 ]
 const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetConfig(preset).agents)
@@ -1454,7 +1454,8 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 
 // /war-room preset bullets: one `- **<preset>** — ...` line per PRESETS key, carrying every tier as a
 // `<label> <model>/`<effort>`` token. The parser binds the whole bullet: every label present exactly
-// once, no unknown label, every value equal to presetConfig(). A new preset without a bullet, a bullet
+// once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
+// census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
 const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
@@ -1462,7 +1463,7 @@ test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens
   for (const preset of Object.keys(PRESETS)) {
     const line = text.split('\n').find(l => new RegExp(`^\\s*- \\*\\*${preset}\\*\\* — `).test(l))
     assert.ok(line, `/war-room has no preset bullet for ${preset}`)
-    const tokenRe = new RegExp(`\\b(${Object.keys(BULLET_LABELS).join('|')}) (${MODELS.join('|')})/\`(\\w+)\``, 'g')
+    const tokenRe = new RegExp(`\\b([a-z][a-z-]*) (${MODELS.join('|')})/\`(\\w+)\``, 'g')
     const seen = new Map()
     for (const [, label, model, effort] of line.matchAll(tokenRe)) {
       assert.ok(!seen.has(label), `${preset} bullet names ${label} twice`)
@@ -1496,30 +1497,34 @@ const DEMIRRORED = [
   ['CONTEXT.md', /\*\*Docs tier\*\*:\n[\s\S]*?\n_Avoid_/],
   ['CONTEXT.md', /\*\*Fix bump\*\*:\n[\s\S]*?\n_Avoid_/],
   ['skills/war/SKILL.md', /^- Models\/effort come from the resolved run config[^\n]*$/m],
-  ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^)]*\)/],
-  ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^)]*\)/],
+  ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^\n]*$/m],
+  ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*redteam\?: \{ model, effort \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*snipe\?: \{ model, effort \} \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.docs \{ model, effort \}[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.fix\s+\{ model, effort \}[^\n]*$/m],
-  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.docs` \([^)]*\)/m],
-  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^)]*\)/m],
+  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.docs` \([^\n]*$/m],
+  ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^)]*\)/],
   ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^)]*\)/],
 ]
-test('DEMIRRORED: de-mirrored constructs carry a pointer, never a model literal', () => {
+test('DEMIRRORED: de-mirrored constructs carry a pointer, never a model or effort literal', () => {
   const modelWord = new RegExp(`\\b(${MODELS.join('|')})\\b`)
+  // An effort value is a tier value too: the retired README preset sentence carried "lifts ... to `max`
+  // effort". Effort words are banned in their backticked form (the shape every restatement used).
+  const effortWord = new RegExp(`\`(${EFFORTS.join('|')})\``)
   for (const [rel, re] of DEMIRRORED) {
     const m = readDoc(rel).match(re)
     assert.ok(m, `${rel}: de-mirrored construct ${re} not found — re-anchor the ban, do not drop it`)
     assert.doesNotMatch(m[0], modelWord, `${rel}: construct ${re} restates a model literal — add a DOC_TIER_PINS row or restore the pointer`)
+    assert.doesNotMatch(m[0], effortWord, `${rel}: construct ${re} restates an effort literal — add a DOC_TIER_PINS row or restore the pointer`)
   }
 })
 
 // Drift-guard: each agents/war-<role>.md frontmatter `model:` must equal the
 // corresponding DEFAULTS.agents.<role>.model, so an agent file's spawned model can
-// never silently disagree with the config authority (the doc-rot this fixes: worker
-// frontmatter said `sonnet` while DEFAULTS.agents.worker.model is `opus`).
+// never silently disagree with the config authority (the doc-rot this fixed: a worker
+// frontmatter model that disagreed with DEFAULTS for a whole release window).
 test('drift-guard: agents/war-<role>.md frontmatter model matches DEFAULTS.agents.<role>.model', () => {
   for (const role of ['worker', 'auditor', 'refiner', 'servitor']) {
     const text = readDoc(`agents/war-${role}.md`)
