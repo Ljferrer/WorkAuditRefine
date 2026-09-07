@@ -119,7 +119,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (sonnet review seats, opus workers, four seats and four fix rounds; ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
+test('economy preset (sonnet review seats, opus workers, a 4-round fix budget; roster policy, ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'default')
@@ -138,10 +138,10 @@ test('economy preset (sonnet review seats, opus workers, four seats and four fix
     servitor: { model: 'sonnet', effort: 'high' },
     redteam:  { model: 'sonnet', effort: 'default' },
   }, 'economy agents literal (fix and snipe absent = inherited)')
-  // Capped run shape (ADR 0050): 'all' over the four-lens roster = exactly four seats per task.
+  // ADR 0050: the four-lens roster is the widening fallback under inherited 'auto', not a seat count.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
-  assert.equal(c.audit.rosterPolicy, 'all')
+  assert.equal(c.audit.rosterPolicy, 'auto')        // inherited — the Lead composes seats per task
   assert.deepEqual(PRESETS.economy.run, { roundLimit: 4, redteamRoundLimit: 2 }, 'economy run literal')
   assert.equal(c.run.roundLimit, 4)
   assert.equal(c.run.redteamRoundLimit, 2)
@@ -2223,9 +2223,10 @@ test('fillDefaults: audit.rosterPolicy defaults to auto (Lead seeds 1-N seats pe
     'fillDefaults({}) must produce audit.rosterPolicy === "auto" (Lead seeds per-task rosters by blast radius)')
 })
 
-test('preset economy pins rosterPolicy:all over its four-lens roster (ADR 0050 — exactly four seats per task)', () => {
+test('preset economy inherits rosterPolicy:auto (ADR 0050 — the Lead composes seats per task; no shipped preset pins solo or all)', () => {
   const c = presetConfig('economy')
-  assert.equal(c.audit.rosterPolicy, 'all', 'economy preset must pin rosterPolicy:"all"')
+  assert.equal(c.audit.rosterPolicy, 'auto', 'economy preset must inherit rosterPolicy:"auto"')
+  assert.ok(!(PRESETS.economy.audit && Object.prototype.hasOwnProperty.call(PRESETS.economy.audit, 'rosterPolicy')), 'economy must not pin rosterPolicy')
   assert.equal(c.audit.roster.length, 4)
 })
 

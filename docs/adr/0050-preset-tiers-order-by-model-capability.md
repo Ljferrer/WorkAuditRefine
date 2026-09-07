@@ -26,11 +26,12 @@ forced high effort as costing more than it returns, so the session keeps that de
 models carry a pinned effort as compensation (for example sonnet auditors on `xhigh`), which is
 why the effort axis is deliberately *not* monotone across presets and is not an invariant.
 
-**`economy` means cheaper models and a capped run shape, not a weaker rule set.** Every review
-seat is sonnet, the first-pass workers are opus, and the fix tier inherits fable. Its run shape is
-pinned: `rosterPolicy: all` over its four-lens roster, so every task convenes exactly four seats
-(`auto` has no seat cap), `roundLimit: 4`, and `redteamRoundLimit: 2`. The ace ladder, the absorb
-budget, memory and hooks inherit `DEFAULTS`.
+**`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** Every review
+seat is sonnet, the first-pass workers are opus, and the fix tier inherits fable. `roundLimit: 4`
+and `redteamRoundLimit: 2` are pinned. `rosterPolicy` inherits `auto` on purpose: a config cannot
+predict what a task will entail, so the Lead composes each task's seats from the lens catalog, and
+the preset's four-lens roster serves only as the `autoEscalate` widening pool and the terminal-pass
+seat source. The ace ladder, the absorb budget, memory and hooks inherit `DEFAULTS`.
 
 **What an auditor checks.** The model-rank monotone test, the whole-literal `PRESETS` pins, and
 the `/war-room` bullet parser are the machine record of these values. A preset name describes the
@@ -42,9 +43,9 @@ model tier it buys, never an effort ordering.
   on the strongest review seat, the exact cost the operator measured as not worth paying.
 - **Rename the presets (rejected).** The names already describe the model tier each preset buys
   under `MODEL_RANK`, and a rename breaks every committed `.claude/war/config.json` that names one.
-- **Add an `audit.maxSeats` cap under `rosterPolicy: auto` (deferred).** No such knob exists.
-  `all` over a four-lens roster yields exactly four seats today with no engine change; a cap knob
-  is its own change if a future preset needs "up to N" rather than "exactly N".
+- **Pin `rosterPolicy: all` on `economy` for a fixed four seats (rejected).** Four seats on every
+  task, leaf tasks included, costs more than Lead-composed seats and removes the per-task judgment
+  `auto` exists for. A seat cap under `auto` (`audit.maxSeats`) does not exist and is not needed.
 - **Keep the ordering rule as a code comment (rejected).** A comment stating "never weaker on any
   axis" was the prior form, was false on the effort axis, and was deleted; a test cannot rot the
   same way.

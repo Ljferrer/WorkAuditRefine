@@ -135,10 +135,11 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Cheaper models and a capped run shape (ADR 0050): pins the base and docs worker tiers and the
-    // auditor, refiner, servitor and red-team seats; rosterPolicy 'all' over the four-lens roster
-    // (exactly four seats per task — 'auto' has no seat cap) and a 4-round fix budget. The fix tier,
-    // snipe, and every knob not pinned in this preset inherit DEFAULTS.
+    // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers and the
+    // auditor, refiner, servitor and red-team seats, and roundLimit 4. rosterPolicy inherits 'auto'
+    // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
+    // autoEscalate widening fallback and the terminal-pass seat source, never a per-task seat count.
+    // The fix tier, snipe, and every knob not pinned in this preset inherit DEFAULTS.
     agents: {
       worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'xhigh' },
@@ -153,7 +154,6 @@ export const PRESETS = {
         { lens: 'plan-faithfulness', depth: 'deep' },
         { lens: 'security', depth: 'deep' },
       ],
-      rosterPolicy: 'all',
     },
     run: { roundLimit: 4, redteamRoundLimit: 2 },
     // (memory.commitLearnings is no longer pinned — DEFAULTS is now false, so economy inherits off.)
