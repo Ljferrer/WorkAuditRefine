@@ -61,11 +61,11 @@ For each phase in the manifest, take its `transcriptDir` and glob for the workfl
 basename is the harness run id, so it must equal the phase's `workflowRunId`; a mismatch means a
 half-stamped relaunch (one field overwritten, not both — `skills/war/references/run-manifest.md`
 § Relaunch) — mine the dir the `workflowRunId` names when it exists, else render that phase `n/a`,
-and report the mismatch as the **half-stamped relaunch** friction row (§ 4); never mix two attempts' transcripts into one phase. A
-phase carrying `attempts[]` is a relaunched phase: its `dispatches` are summed across attempts, and
-each archived attempt's `transcriptDir` may be mined separately, labelled by attempt; its `envelope`
-totals cover the current attempt only, so label a relaunched phase's token and tool-call totals
-attempt-scoped, never as the phase total.
+and report the mismatch as the **half-stamped relaunch** friction row (§ 4); never mix two
+attempts' transcripts into one phase. A phase carrying `attempts[]` is a relaunched phase: its
+`dispatches` are summed across attempts, and each archived attempt's `transcriptDir` may be mined
+separately, labelled by attempt; its `envelope` totals cover the current attempt only, so label a
+relaunched phase's token and tool-call totals attempt-scoped, never as the phase total.
 The `journal.jsonl` and `agent-*.jsonl` files are **harness-internal, line-delimited
 JSON** — read them **defensively**:
 
