@@ -1628,10 +1628,12 @@ const liveTaskRecords = new Set()
 // The ONE seats-list reader (snipe: three seats): a non-empty seats array, else the row's own ref.
 // Every seats LIST it reads is ENGINE-WRITTEN (mergeSeat / the consolidation below): normalizeSeat
 // strips an auditor-supplied `seats` at intake (PIN-6), so a seat can never forge a cross-seat
-// corroboration LIST. Residual, out of PIN-6's slice: the finding-level `seat` key is still
-// auditor-supplied — minorsOf spreads the finding LAST, so it overrides the engine's seat stamp and
-// seatRefOf renders it (one seat returning two rows under two forged `seat` values still reads as
-// two refs). The Array.isArray + length gate stays as the read-site guard for an engine row whose
+// corroboration LIST. Residual, out of PIN-6's slice: the finding-level `seat` and `lens` keys are
+// still auditor-supplied — minorsOf spreads the finding LAST, so both override the engine's stamps:
+// `seat` is what seatRefOf renders (one seat returning two rows under two forged `seat` values still
+// reads as two refs), and `lens` additionally steers the PIN-10 originating-seat selection (the roster
+// is keyed by lens, so a forged `lens` picks which entries re-run after an ace commit).
+// The Array.isArray + length gate stays as the read-site guard for an engine row whose
 // list is malformed or still empty, so a raiser is never erased on either side of a merge.
 const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : [seatRefOf(f)]
 // Intake normalization (verdict-integrity D2, PIN-6 — #1869, #1870, #1788, #1811): the ONE
@@ -1682,17 +1684,18 @@ const normalizeFinding = f => {
 const askShaped = f => (f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask'
 const normalizeSeat = (seat, taskId) => {
   if (!seat || typeof seat !== 'object') return seat
+  const who = 'seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ')'
   const kept = []
   let removed = 0
   let items = []
   if (Array.isArray(seat.findings)) items = seat.findings
-  else if (seat.findings !== undefined && seat.findings !== null) { removed++; log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned a non-array findings container — dropped (logged, never silent).') }
+  else if (seat.findings !== undefined && seat.findings !== null) { removed++; log('intake normalization: ' + who + ' returned a non-array findings container — dropped (logged, never silent).') }
   for (const raw of items) {
-    if (!raw || typeof raw !== 'object') { removed++; log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned a non-object findings item — dropped (logged, never silent).'); continue }
+    if (!raw || typeof raw !== 'object') { removed++; log('intake normalization: ' + who + ' returned a non-object findings item — dropped (logged, never silent).'); continue }
     const f = normalizeFinding(raw)
     if (blankText(f.title) && contentTextOf(f).every(blankText) && !askShaped(f) && f.scopeBreach !== true && blankText(f.plan_ref)) {
       removed++
-      log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title, no rationale, no suggested_fix, no ask question, no plan_ref) from seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') demoted to a note — it carries nothing a router or fixer could act on (#1869).')
+      log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title and no routable content) from ' + who + ' demoted to a note — it carries nothing a router or fixer could act on (#1869).')
       notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, severity: 'Nit', demoteReason: 'intake:empty-content' })
       continue
     }
@@ -1700,7 +1703,7 @@ const normalizeSeat = (seat, taskId) => {
   }
   seat.findings = kept
   if (removed && seat.verdict === 'request_changes' && !kept.some(f => f.severity === 'Critical' || f.severity === 'Major')) {
-    log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned request_changes whose every blocking finding was removed at intake (empty-content demoted, non-object item or non-array container dropped) — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
+    log('intake normalization: ' + who + ' returned request_changes whose every blocking finding was removed at intake (empty-content demoted, non-object item or non-array container dropped) — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
     seat.verdict = 'approve'
   }
   return seat
