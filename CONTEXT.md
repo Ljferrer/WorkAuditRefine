@@ -974,8 +974,10 @@ The end-state a phase owes the next: a tip whose quality debt is **zero or enume
 — every finding absorbed (commit-cited), filed (issue + why-not-absorbable), noted (report), or parked
 as an ask (question + fork — ruled at the Checkpoint strike-list gate, never filed unruled) — plus a
 machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, notes, endState,
-intentPresent, backstops }`) emitted on `landed`, `held:escalation` and `held:land-failed` for the
-next phase's decompose — a held land forfeits the land, not the filing fidelity.
+intentPresent, backstops }`) emitted on `landed` and `held:escalation` only (the engine's emit gate)
+for the next phase's decompose. The follow-up filing pass is a distinct, wider gate: it runs on
+`landed`, `held:escalation` and also `held:land-failed` (#1597) — a held land forfeits the land, not
+the filing fidelity; there the stamped issues ride the top-level return's `minorsFiled`.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
 
@@ -1551,6 +1553,15 @@ playbook (single-task vs full-DAG forms, orphan adoption, `args.recovery` and
 _Avoid_: `resumeFromRunId` for an escalation; letter-suffixed phase ids ("4b"); rewriting the kept
 commits on a retried branch; hand-filtering the DAG to the unmerged tasks (pass the full DAG; git at the
 barrier is the filter).
+
+**Relaunch attempt**:
+One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
+retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` (the
+transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
+the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
+`skills/war/references/run-manifest.md` § Relaunch).
+_Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
+on resume (it is telemetry, never resume input).
 
 ### GitHub side-effects
 

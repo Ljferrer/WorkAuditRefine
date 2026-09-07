@@ -207,7 +207,7 @@ decision-shaped items the spec deferred are settled: D11/#1560/#1562 operator-ra
 | D8 | Collapse fidelity | Collapse key widened with seat discrimination (same seat never collapses with itself across distinct findings); `seatRef` carries seat+task (both when present) while PRESERVING the live `'unattributed'` terminal arm the Evidence-artifacts clause names verbatim; merged-away rows' title/rationale preserved through the filing prompt, issue body, handoff `followUps`, and log | (verified: issues #1571, #1574, #1575 (2026-08-25)) |
 | D9 | Filing-row robustness | `Array.isArray(m.seats)` guard in the row renderer; try-scope comment corrected; `:rebut` suffix carve-out in the Evidence-artifacts clause with a drift-row fixture; per-task landed sha retained at `landMerged` regardless of `requiresTest` | (verified: issues #1592, #1589, #1659, #1660 (2026-08-25)) |
 | D10 | ADR 0013 | Amendment to `docs/adr/0013-commanders-intent-and-disposition-routing.md` ratifying N:1 clustered filing + dedup-as-corroboration-comment; `schemas.md` `minorsFiled` collapse qualified conditional on handoff-emitting decisions | (verified: issues #1577, #1597 (2026-08-25)); filename corrected against `docs/adr/` at HEAD (2026-08-25) |
-| D11 | Land/phase-close robustness | Segmented land-dispatch marker is IN-BAND (a field on the land-phase result, never a new status enum member), with a bounded re-dispatch following the FLOOR_STATUSES retry-loop idiom — the engine's real merge-task re-dispatch shape; the land dispatch itself has no retry loop today, so this is new wiring following that existing idiom, `land-decision.mjs` untouched. The filing dispatch runs (or hands off) on `held:land-failed`; the provision-barrier, `provisionStep`, polish-worktree, and sweep dispatches route through `dispatchAgent` classification; drain-cause stamp on every demoted finding | (verified: issues #1666, #1672 (2026-08-25)); DECISION (in-band marker, no enum widening, contingency pre-authorized) operator-ratified (2026-08-25, interactive volley); ANCHOR re-based AI-declared after red-team round 1 falsified the ratification's named "merge-task INCOMPLETE re-dispatch shape" (zero `incomplete` hits in the engine; `held:phase-incomplete` is Lead-side-only) — see the Notes adjudication row |
+| D11 | Land/phase-close robustness | Segmented land-dispatch marker is IN-BAND (a field on the land-phase result, never a new status enum member), with a bounded re-dispatch following the FLOOR_STATUSES retry-loop idiom — the engine's real merge-task re-dispatch shape; the land dispatch itself has no retry loop today, so this is new wiring following that existing idiom, `land-decision.mjs` untouched. The filing dispatch runs (or hands off) on `held:land-failed`; the provision-barrier, `provisionStep`, polish-worktree, and sweep dispatches route through `dispatchAgent` classification — `provisionStep`, polish-worktree and sweep deaths classify env-died soft, the barrier death stays `held:workflow-error` (adjudicated #1794); drain-cause stamp on every demoted finding | (verified: issues #1666, #1672 (2026-08-25)); DECISION (in-band marker, no enum widening, contingency pre-authorized) operator-ratified (2026-08-25, interactive volley); ANCHOR re-based AI-declared after red-team round 1 falsified the ratification's named "merge-task INCOMPLETE re-dispatch shape" (zero `incomplete` hits in the engine; `held:phase-incomplete` is Lead-side-only) — see the Notes adjudication row |
 | D12 | aceBisect | Preflight scan mandates exact-value trailer equality and the prompt mandates a blank-line-separated final trailer block (value format unchanged — resume idempotency with prior commits preserved; operator-ratified (2026-08-25, interactive volley)); culprit comparison normalizes path form (strip leading `./`, repo-relative); `fixRounds` starvation resolved as a floor-retry reserve of 2 slots (subset commits only while `fixRounds < roundLimit − 2`; operator-ratified (2026-08-25, interactive volley)) | (verified: issues #1560, #1561, #1562 (2026-08-25)) |
 | D13 | Peripheral floors | provision-worktrees hygiene gaps fixed or explicitly documented in the script header; typeof string guards in campaign-ledger `record`; residue classified before composing the auditor-guard deny message; SKILL.md leading-star correction; `--close-epic` degrades loud without `--reason` on older `gh`; `extract_msg` truncates at the first `$`-interpolation and the floor accepts a distinguishing-prefix stderr assertion | (verified: issues #1476, #1456, #1435, #1421, #1688 (2026-08-25)) |
 
@@ -306,9 +306,11 @@ at the 2026-08-25 refresh (ask-disposition landed).
   8. An auditor-supplied string `seats` on a non-collapsing row renders without throwing — fixture
      titled `string-seats-fixture` ·
      check: `grep -F 'string-seats-fixture' skills/war/assets/workflow-template.test.mjs`
-  9. When a phase-close polish dispatch dies, every demoted finding carries a drain-cause stamp, and
-     the provision-barrier, `provisionStep`, polish-worktree, and sweep dispatches classify env-died
-     soft via `dispatchAgent` — fixtures titled `drain-cause` ·
+  9. When a phase-close polish dispatch dies, every demoted finding carries a drain-cause stamp; the
+     `provisionStep`, polish-worktree, and sweep dispatches classify env-died soft via `dispatchAgent`,
+     while a provision-barrier dispatch death stays `held:workflow-error` (routed through
+     `dispatchAgent` for the structural tag alone — adjudicated #1794: no git topology means nothing
+     in the phase can run, so lands-minus-task semantics do not apply) — fixtures titled `drain-cause` ·
      check: `grep -F 'drain-cause' skills/war/assets/workflow-template.test.mjs`
   10. When zero tasks ran in a phase, the land-barrier endstate never attests green — fixture titled
      `vacuous-endstate` ·
@@ -760,7 +762,10 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   Lead executes) — never silently unrun. (c) route ALL bare `agent(...)` dispatch sites through
   `dispatchAgent` so their deaths classify env-died soft per the existing #1411 class:
   `provisionStep`'s dispatch, the polish-worktree provision dispatch, and the sweep dispatch (the
-  latter two are separate bare call sites outside `provisionStep` — red-team round 1); (d)
+  latter two are separate bare call sites outside `provisionStep` — red-team round 1); the
+  provision-barrier dispatch routes through `dispatchAgent` for the structural tag alone and its
+  death stays `held:workflow-error` (adjudicated #1794 at this task's fix round — no topology,
+  nothing in the phase can run); (d)
   when a phase-close polish dispatch dies, stamp every demoted finding with a drain cause (which
   dispatch died, why demoted) instead of the flat untriaged dump. (e) Fold (#1712 fix 3): under
   `args.recovery.sanctioned`, the provision-barrier prompt instructs the refiner to enumerate holders
@@ -777,8 +782,9 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 
 ### Task 2: Classification + drain-cause fixtures
 - Files: `skills/war/assets/workflow-template.test.mjs`
-- Plan slice: fixtures — provision-barrier, `provisionStep`, polish-worktree, and sweep dispatch
-  deaths each classify env-died soft (titled `drain-cause`, End state 9); polish-dispatch death stamps
+- Plan slice: fixtures — `provisionStep`, polish-worktree, and sweep dispatch deaths each classify
+  env-died soft, and a provision-barrier dispatch death rethrows `held:workflow-error` (adjudicated
+  #1794) (titled `drain-cause`, End state 9); polish-dispatch death stamps
   drain cause on each demoted finding (same token); `held:land-failed` still produces the filing
   dispatch (or the explicit handoff block) (titled `filing-on-held`, End state 20); the in-band
   segmented-land marker round-trips its bounded re-dispatch (FLOOR_STATUSES idiom) with NO enum
