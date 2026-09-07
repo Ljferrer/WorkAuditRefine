@@ -1,10 +1,10 @@
-# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split
+# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split, land-barrier endstate-check steps
 
 Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
 the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
 budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and
-the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115 —
-ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
+the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115, and
+the § Land-barrier endstate-check steps from its Task 5.1, #2156 — ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
@@ -101,3 +101,11 @@ ONE **`diff-probe:<taskId>`** run per task (`dispatchKind: diff-probe`), after t
 Trigger: before the merge-task rebase of the task branch (the card's `## merge-task` opening paragraph, evicted #2115).
 
 merge-task is **inherently split across two worktrees** — the task branch stays checked out in `<taskWorktree>`, and `git rebase` must operate on the checked-out branch, so the rebase cannot run in `_refinery`. (`git rebase --onto` does **not** dodge this; a no-checkout `update-ref` replay desyncs the task worktree and blocks the next fix-rebase — do **not** use it.)
+
+## Land-barrier endstate-check steps
+
+Trigger: an `endstate-check` dispatch, per enumerated condition row (the card's `## Land-barrier endstate-check dispatch` numbered steps, evicted #2156).
+
+1. The prompt threads the row's check literal in a **fenced block** whose fence length exceeds every backtick run inside the literal — content backticks are **never** the fence. Write the bytes between the fences **byte-verbatim** to `<_refinery>/.war/endstate-<phaseId>-<n>.cmd` — copy bytes, never re-quote/re-escape (a single-quoted `${...}` run survives exactly) — then verify the written bytes equal the fenced literal: on mismatch record a `cmd_bytes_mismatch` line in the artifact and do **not** execute any corrected variant (the row fails loudly via its artifact). Execute it **from the file** (file-threaded — never interpolated into another script; the done-when floor's hygiene), under a timeout. A row the dispatch intake-linted **unsupported** is record-only: its artifact records the `intake_lint` verdict, never a half-run.
+2. Tee the FULL stdout+stderr of the **entire** command line — a compound/pipeline/multi-command check runs end-to-end, every command's output captured — to the sibling artifact `<_refinery>/.war/endstate-<phaseId>-<n>.log`, stamped: the **first** line is `tip_sha: <git -C <_refinery> rev-parse HEAD>`, then the captured output, then a final `exit_code: <code>` line. The `tip_sha` stamp is **load-bearing** — the gate-audit seats compare it against the confirmed tip and attest a stale (mismatched) artifact `unverified`, so a prior-run artifact can never read as `met`.
+3. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and move on; **a failing check never fails this dispatch**.

@@ -74,7 +74,7 @@ Four claim shapes (closed set): `content-at-pin`, `execution`, `history`, `autho
 3. Worker done-report claims about content.
 
 **`execution`** — "did it run / did it pass."
-1. Gate-evidence artifact (`_refinery/.war/gate-<taskId>.log`) — the **sole** basis for a HARD provably-unrun finding (existing rule, now rung 1).
+1. Gate-evidence artifact (`_refinery/.war/gate-<taskId>.log`) — the **sole** basis for a HARD provably-unrun finding (existing rule, now rung 1). A gate log is complete evidence only when its FIRST line is `tip_sha:` of the gated sha and its LAST line is `exit_code:` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. A path marked `(gate_log_path unthreaded — conventional path used)` is the conventional path, not a recorded one: read it the same way.
 2. Refiner-reported inline gate result — SOFT (possibly curated).
 3. Worker done-report / in-task probe evidence — SOFT, **never a hold** (`deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold`).
 4. Absent evidence ⇒ SOFT `cannot-confirm`, never a hold.
