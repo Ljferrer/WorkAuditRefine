@@ -1628,11 +1628,14 @@ const liveTaskRecords = new Set()
 // The ONE seats-list reader (snipe: three seats): a non-empty seats array, else the row's own ref.
 // Every seats LIST it reads is ENGINE-WRITTEN (mergeSeat / the consolidation below): normalizeSeat
 // strips an auditor-supplied `seats` at intake (PIN-6), so a seat can never forge a cross-seat
-// corroboration LIST. Residual, out of PIN-6's slice: the finding-level `seat` and `lens` keys are
-// still auditor-supplied — minorsOf spreads the finding LAST, so both override the engine's stamps:
-// `seat` is what seatRefOf renders (one seat returning two rows under two forged `seat` values still
-// reads as two refs), and `lens` additionally steers the PIN-10 originating-seat selection (the roster
-// is keyed by lens, so a forged `lens` picks which entries re-run after an ace commit).
+// corroboration LIST. Residual, out of PIN-6's slice: the finding-level `seat`, `task` and `lens`
+// keys are still auditor-supplied — minorsOf spreads the finding LAST, so all three override the
+// engine's stamps: seatRefOf renders `seat` AND `task`, so a forged `task` also moves the ref (one
+// seat returning two rows under two forged `seat` values still reads as two refs); `task` is kept
+// on purpose — the normalizeFinding comment below records why (the terminal / polish seats attribute
+// a re-mint to its originating task through it); and `lens` additionally steers the PIN-10
+// originating-seat selection (the roster is keyed by lens, so a forged `lens` picks which entries
+// re-run after an ace commit).
 // The Array.isArray + length gate stays as the read-site guard for an engine row whose
 // list is malformed or still empty, so a raiser is never erased on either side of a merge.
 const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : [seatRefOf(f)]
