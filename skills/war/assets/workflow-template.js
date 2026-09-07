@@ -3481,6 +3481,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const probeRow = (mode, seatsSrc) => ({ task: r.task.id, kind: 'merge', mode,
         reauditedTip: r.aceSha || (r.seats || []).map(s => s.audit_sha).find(isSha) || null,
         rebasedTip: pinProbe && pinProbe.rebased_tip || null,
+        dispatchBase: (pinProbe && pinProbe.dispatch_base) || null,
         prePatchId: pinProbe && pinProbe.pre_rebase_patch_id || null,
         postPatchId: pinProbe && pinProbe.post_rebase_patch_id || null,
         seats: (seatsSrc || r.seats || []).map(s => mode === 'mismatch'
@@ -4887,13 +4888,14 @@ if (landDecision === 'landed') {
   // §4.3). Continuation labels and log lines are concatenation-built (census-safe — #931).
   const segmentedLand = async (prompt, opts) => {
     const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
-    let result = await dispatch(prompt + segmentedLandClause, opts)
+    const body = prompt + segmentedLandClause
+    let result = await dispatch(body, opts)
     let segments = 0
     while (isSegment(result) && segments < roundLimit) {
       segments++
       log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
       result = await dispatch(
-        pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + prompt + segmentedLandClause,
+        pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
         { ...opts, label: opts.label + ':segment-' + (segments + 1) })
     }
     if (isSegment(result)) {
