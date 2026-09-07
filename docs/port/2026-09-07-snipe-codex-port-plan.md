@@ -148,11 +148,11 @@ The parent reports scope first, then per-seat outcomes, followed by severity-ran
 
 ### S0 — capability and packaging spike
 
-- [ ] Read applicable instructions and verify clean isolated branch status; record current source/client versions.
-- [ ] Inspect actual native dispatch API and custom-role loading. Prove whether role-specific read-only policy is selected.
-- [ ] Choose native subagents or bounded `codex exec` fallback; record evidence and limitations in the decision log.
-- [ ] Verify explicit-only skill policy, installed shared references and compatible hook selection in a temporary local package.
-- [ ] Establish an observed denied-write test and a successful read test in disposable fixtures.
+- [x] Read applicable instructions and verify clean isolated branch status; record current source/client versions.
+- [x] Inspect actual native dispatch API and custom-role loading. Prove whether role-specific read-only policy is selected.
+- [x] Choose native subagents or bounded `codex exec` fallback; record evidence and limitations in the decision log.
+- [x] Verify explicit-only skill policy, installed shared references and compatible hook selection in a temporary local package.
+- [x] Establish an observed denied-write test and a successful read test in disposable fixtures.
 
 **Exit gate:** a concrete dispatch path provides verifiable read-only enforcement. If neither path can, record the missing capability and stop implementation at this gate; do not ship a prompt-only approximation as equivalent.
 
@@ -234,13 +234,25 @@ No new GitHub Actions workflows or branch protections are needed for the first s
 |---|---|---|
 | Single canonical repository | Accepted by user | Conversation decision; already recorded in parity plan |
 | First feature is snipe | Accepted by user | Current request sequence |
-| Native versus subprocess dispatch | Pending S0 | Actual role selection and denied-write result |
+| Native versus subprocess dispatch | Use bounded `codex exec` seats on Codex CLI 0.153.4. The desktop collaboration API exposed to this task cannot select a named agent or set its cwd/sandbox, so it cannot prove custom-role confinement. | `codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only --json -C <fixture>` read `sentinel.txt`; shell writes in the repo and to a sibling plus an `apply_patch` write were attempted and denied. |
 | Codex model default | Proposed session inheritance | Verified transport support; explicit override validation |
 | Explicit target envelope | Pending S1 | Parser ambiguity cases and documented accepted syntax |
 | Dirty-state strategy | Proposed advisory fingerprint | Coverage of staged/unstaged/untracked and mid-run edits |
 | Result field compatibility | Pending S3 | Shared card/schema comparison and alias tests |
-| Package layout and hooks | Pending S0 | Fresh installed-package discovery and no wrong hooks |
+| Package layout and hooks | Use a Codex manifest with an explicit no-op hook file when the adapter needs no hooks; do not permit default discovery of Claude's `hooks/hooks.json`. | CLI 0.153.4 installed a disposable package containing both `hooks/hooks.json` and an explicit `hooks/codex-hooks.json`; with hook trust enabled only for that isolated package, the default-hook sentinel did not run. The cached package contained every referenced skill, policy and hook file. |
 
-Current completed work: this plan only; the earlier source check passed all 13 existing snipe parser tests. No live Codex snipe audit or denied-write acceptance has run. No runtime implementation, test infrastructure, model configuration, or installed plugin files were changed when this plan was authored.
+State when this plan was authored: this plan only; the earlier source check passed all 13 existing snipe parser tests. No live Codex snipe audit or denied-write acceptance had run. No runtime implementation, test infrastructure, model configuration, or installed plugin files were changed at that time.
 
 After each implementation session, append: commit id; files changed; checklist items completed; exact test commands/results; actual host/model versions; remaining limitations; and the next unchecked action. Replace proposed decisions with evidence-backed choices, retaining material tradeoffs. Do not mark a checkbox complete because a file exists or a previous agent said it was done.
+
+### 2026-09-07 — S0 capability and packaging spike
+
+- Commit: pending at session record time. Planned source branch `codex-port` was clean at `af451ab4f0b0e8d9454f9e9d3ce495e25aa3629e`; the Codex app task checkout was a separate detached worktree at the same commit. The active campaign checkout was not modified.
+- Versions: source manifest `0.21.12`; Codex CLI `0.153.4` from `/Applications/ChatGPT.app/Contents/Resources/codex`; configured parent model `gpt-5.6-sol` at `medium`, but the subprocess did not independently report its actual model identity.
+- Applicable instructions read: `implement`, `openai-docs`, and `plugin-creator`. Official Codex documentation was checked for custom agents, skill invocation policy, plugin hook selection, and non-interactive read-only mode.
+- Native decision: current official Codex supports project custom-agent TOML with `sandbox_mode = "read-only"`, but the collaboration API available to this task accepts task/context/model/effort only. It has no named-agent, cwd, sandbox or tool-surface selector. Native role confinement therefore is not demonstrable through this host API, and Snipe will use a bounded `codex exec` seat runner for this tested client.
+- Permission proof: in disposable repo `/private/tmp/snipe-codex-s0-fixture/repo`, `codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only --json -C ...` successfully read `READ_OK_7f2c9a`. It then attempted and received observed denials for a shell write in the repo (`operation not permitted`), an `apply_patch` write (`writing is blocked by read-only sandbox`), and a shell overwrite of the controlled sibling sentinel (`operation not permitted`). Post-run hashes were unchanged and both attempted output files were absent.
+- Package proof: a disposable `snipe-codex-spike` marketplace package installed successfully through CLI 0.153.4. Its cached root contained the manifest, explicit-only skill with `agents/openai.yaml`, explicit `hooks/codex-hooks.json`, and a deliberately present default `hooks/hooks.json`. An isolated run configured with only that package loaded the explicitly invoked skill. A second run with hook trust bypassed only for that isolated package left the default-hook sentinel absent, proving the manifest-selected no-op hook file won over default discovery. The disposable plugin and marketplace configuration were removed after the test.
+- Validation-tool limitation: the bundled `plugin-creator` validator initially lacked PyYAML. At the user's request, a dedicated conda environment named `codex-snipe-port` was created with Python 3.12 and PyYAML 6.0.3. The validator then rejected the manifest's `hooks` field even though current official documentation describes it and CLI 0.153.4 installed it. Production package acceptance for this port must use the installed client plus focused structural tests until that validator schema catches up.
+- Remaining limitations: `--ignore-user-config` still emitted a remote installed-plugin synchronization warning, and actual model identity was not independently observable. S2 must explicitly bound or remove connector/MCP capability for seats and distinguish configured from verified model values. No Snipe runtime files were added in S0.
+- Next unchecked action: S1, beginning with regression tests around the reused parser wrapper and the explicit Codex target envelope.
