@@ -1013,7 +1013,10 @@ commit, never loosened.
   on `held:land-failed` the follow-up filing dispatch still runs, or the handoff
   carries an explicit unfiled-followups block) falsifies the row's stricter claim; the
   `resume-and-recovery.md` sentence is the TRUE side and stays byte-untouched here
-  (verified: issue #1801 (2026-08-26)). (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
+  (verified: issue #1801 (2026-08-26)). RETIRED at the 2026-09-06
+  engine-and-audit-verdict-integrity Task 1.2 re-adjudication — the handoff emit gate
+  is landed + held:escalation only; on held:land-failed the stamped issues ride the
+  top-level return's minorsFiled. (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
   floor-retry-reserve wording in CONTEXT.md's **Ace bisection** row; verified at the
   plan-4 base `a8a9391`, no edit here). The #1801 edit is byte-additive-neutral or
   negative — it must not undo this task's eviction arithmetic (re-run wc -c after it).
