@@ -6305,7 +6305,7 @@ test('intake normalization: FINDING-PATH FORM is ONE shared const consumed by au
     'auditPrompt()': expand(sliceSrc('function auditPrompt', 'async function auditRound')),
     'POST-MERGE GATE-AUDIT': expand(sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')),
     'INTEGRATED-TIP GATE-AUDIT': expand(sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')),
-    'END-STATE CHECK': expand(sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')),
+    'END-STATE-ONLY GATE-AUDIT': expand(sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')),
   }
   const directiveRe = /\b([A-Z][A-Z-]*(?: [A-Z][A-Z-]*)* (?:RULE|CONTRACT|FORM)):/g
   const found = new Set(Object.values(builds).flatMap(t => [...t.matchAll(directiveRe)].map(m => m[1])))
