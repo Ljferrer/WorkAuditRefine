@@ -61,8 +61,9 @@ empty diff with zero task commits, an unmatched patch, or an empty pre-rebase pa
 **closed** to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
 empty-equals-empty must never transfer a pin (#1895). The consumer refuses an `already_upstream`
 whose fields contradict it — `rebased_tip` equal to `dispatch_base`, a non-empty post-rebase
-patch-id, or an empty `already_upstream_commits` — and routes by patch-ids instead (D4, PIN-8,
-#1973).
+patch-id, or an empty `already_upstream_commits` — and routes by patch-ids instead (the
+2026-09-06 engine-and-audit-verdict-integrity plan's D4 and PIN-8, #1973; the arm's record is
+[ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) section 2).
 
 The canonical arms and wire shape live in the `PIN_TRANSFER` schema and the merge-slot
 pin-transfer region of `workflow-template.js`; the ledger is `pinTransfers` there. The merge-floor
@@ -122,3 +123,6 @@ run today (PIN-3).
   skipping it.
 - [ADR 0041](0041-audit-evidence-precedence.md) — the per-claim-shape evidence ladder; the
   gate-green precondition here is the evidence a transferred approval rests on.
+- [ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) — section 2
+  records the `already_upstream` refusal arm this ADR's pin-transfer section restates; its D4 and
+  PIN-8 belong to the 2026-09-06 plan, not to this ADR's ratifying plan.
