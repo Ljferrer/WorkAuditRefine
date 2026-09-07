@@ -12243,9 +12243,9 @@ test('segmented-land (End state 19): NO enum widening — land_segment is an ort
 // re-lands; continuation requires the contracted pair status:'error' && land_segment:'incomplete'.
 
 test('segmented-land: re-land sites — the environment-proceed and baseline-proceed re-lands carry the clause and re-dispatch on status:error + land_segment:incomplete', async () => {
-  for (const [flavor, first] of [
-    ['environment-proceed', envLandResult],
-    ['baseline-proceed', () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' })],
+  for (const [flavor, first, header] of [
+    ['environment-proceed', envLandResult, 'ENVIRONMENT-PROCEED re-land'],
+    ['baseline-proceed', () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }), 'BASELINE-PROCEED re-land'],
   ]) {
     const re = new RegExp('^land:phase-3:' + flavor + '(:segment-\\d+)?$')
     let n = 0
@@ -12268,7 +12268,7 @@ test('segmented-land: re-land sites — the environment-proceed and baseline-pro
     assert.equal(relands[1].opts.label, 'land:phase-3:' + flavor + ':segment-2', flavor + ': the continuation is labelled with its site and segment ordinal')
     assert.ok(relands[0].prompt.includes('SEGMENTED LAND (tool-timeout survival)'), flavor + ': the re-land prompt carries the segmented-land clause')
     assert.ok(relands[1].prompt.startsWith('SEGMENTED-LAND CONTINUATION'), flavor + ': the continuation leads with the continuation header')
-    assert.ok(relands[1].prompt.includes(flavor.toUpperCase().replace('-PROCEED', '-PROCEED re-land')), flavor + ': the FULL re-land prompt rides the continuation')
+    assert.ok(relands[1].prompt.includes(header), flavor + ': the FULL re-land prompt rides the continuation')
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented land') && l.includes('gate mid-run on the re-land')), flavor + ': the segment_note is logged')
     assert.equal(out.landDecision, 'landed', flavor + ': the completed continuation lands the phase')
     assert.equal(out.handoff.tipSha, 'cafe5678cafe', flavor + ': the handoff reads the continuation result')
