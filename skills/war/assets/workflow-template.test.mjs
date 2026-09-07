@@ -13900,18 +13900,21 @@ test('absorb-budget (D14, snipe: correctness): with run.ace OFF two seats raisin
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "ace-off twice"') && l.includes('already queued for the phase-close sweep')), 'the drop is logged')
 })
 
-test('absorb-budget (D5, snipe: correctness): two seats raising one finding that DISAGREE on phaseClose still yield ONE row — the dedup looks across both sinks before either push', async () => {
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts), label = opts.label || ''
-    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) {
-      const f = label.endsWith(':correctness')
-        ? { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb', phaseClose: true }
-        : { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb' }
-      return { seat: label, lens: label.split(':').pop(), verdict: 'approve', confidence: 'high', findings: [f] }
-    }
-    return sweepBase([])(prompt, opts)
+// Two seats raise one finding and DISAGREE on phaseClose; `pcLens` names the seat whose copy carries
+// phaseClose:true, so the same impl drives both arrival orders (correctness convenes first).
+const splitImpl = pcLens => (prompt, opts) => {
+  const seat = seatOf(opts), label = opts.label || ''
+  if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) {
+    const f = { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb' }
+    if (label.endsWith(':' + pcLens)) f.phaseClose = true
+    return { seat: label, lens: label.split(':').pop(), verdict: 'approve', confidence: 'high', findings: [f] }
   }
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), impl, PROBE)
+  return sweepBase([])(prompt, opts)
+}
+const SPLIT_ARGS = () => SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] })
+
+test('absorb-budget (D5, snipe: correctness): two seats raising one finding that DISAGREE on phaseClose still yield ONE row — the dedup looks across both sinks before either push', async () => {
+  const { out, calls, logs } = await runPhase(SPLIT_ARGS(), splitImpl('correctness'), PROBE)   // the phaseClose:true copy arrives first
   const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'split across sinks')
   assert.equal(aced.length, 1, 'exactly one record for the finding across the ace batch and the sweep')
   const seats = aced[0].finding.seats || []
@@ -13919,27 +13922,19 @@ test('absorb-budget (D5, snipe: correctness): two seats raising one finding that
   const inAce = calls.filter(isAce).some(c => c.prompt.includes('split across sinks'))
   const inSweep = polishPromptOf(calls).includes('split across sinks')
   assert.ok(inAce !== inSweep, 'the finding rides exactly one vehicle (ace batch XOR sweep), never both')
-  assert.ok(inSweep, 'phaseClose wins: the queued copy arrived first, the row rides the sweep')
+  assert.ok(inSweep, 'the queued copy arrived first, so the row rides the sweep')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "split across sinks"') && l.includes('duplicate of a row already')), 'the drop is logged')
-  // reversed arrival: the NON-phaseClose copy lands in the ace batch first, then the phaseClose:true copy arrives —
-  // the survivor is PROMOTED to the queue, never left on the per-task ace (snipe: two seats)
-  const implRev = (prompt, opts) => {
-    const seat = seatOf(opts), label = opts.label || ''
-    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) {
-      const f = label.endsWith(':correctness')
-        ? { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb' }
-        : { severity: 'Nit', title: 'split across sinks', file: 'skills/war/assets/x.js', rationale: 'r', disposition: 'absorb', phaseClose: true }
-      return { seat: label, lens: label.split(':').pop(), verdict: 'approve', confidence: 'high', findings: [f] }
-    }
-    return sweepBase([])(prompt, opts)
-  }
-  const rev = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), implRev, PROBE)
-  assert.ok(!rev.calls.filter(isAce).some(c => c.prompt.includes('split across sinks')), 'reversed order: never in the ace batch')
-  assert.ok(polishPromptOf(rev.calls).includes('split across sinks'), 'reversed order: the promoted survivor rides the sweep')
-  const revAced = (rev.out.aced || []).filter(a => a && a.finding && a.finding.title === 'split across sinks')
-  assert.equal(revAced.length, 1, 'reversed order: one record')
-  assert.ok((revAced[0].finding.seats || []).some(s => /correctness/.test(s)) && (revAced[0].finding.seats || []).some(s => /simplicity/.test(s)), 'reversed order: both raisers on the promoted row')
-  assert.ok(rev.logs.some(l => typeof l === 'string' && l.includes('split across sinks') && l.includes('PROMOTED to the phase-close queue')), 'the promotion is logged, naming the discarded-then-honored phaseClose')
+})
+
+test('absorb-budget (D5, snipe: two seats): phaseClose wins the cross-sink tie-break — when the NON-phaseClose copy arrives first, the later phaseClose:true copy PROMOTES the ace-batch survivor to the sweep queue, logged', async () => {
+  const { out, calls, logs } = await runPhase(SPLIT_ARGS(), splitImpl('simplicity'), PROBE)   // the phaseClose:true copy arrives second
+  assert.ok(!calls.filter(isAce).some(c => c.prompt.includes('split across sinks')), 'never in the ace batch')
+  assert.ok(polishPromptOf(calls).includes('split across sinks'), 'the promoted survivor rides the sweep')
+  const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'split across sinks')
+  assert.equal(aced.length, 1, 'one record')
+  const seats = aced[0].finding.seats || []
+  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'both raisers on the promoted row')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('split across sinks') && l.includes('PROMOTED to the phase-close queue')), 'the promotion is logged, naming the honored phaseClose')
 })
 
 // A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
