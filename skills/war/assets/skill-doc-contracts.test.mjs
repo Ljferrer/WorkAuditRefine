@@ -648,8 +648,9 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
 // on `held:land-failed`. CONTEXT.md's **Clean handoff** row used to fold them into one three-member
 // emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
-// for the emit gate. Both sets are EXTRACTED from the engine (never restated as literals here), so
-// a gate change reds this pin at the doc, not silently.
+// for the emit gate. Both sets are EXTRACTED from the engine, and the emit pair is ADDITIONALLY
+// pinned against the ratified literal `['held:escalation', 'landed']` as a canary, so a gate widening
+// reds this pin by name at the literal (deliberately, never silently) before the doc assert retunes.
 //
 // The OLD-absent key targets the SENTENCE, never the `held:land-failed` token: the token legitimately
 // stays in the row as the filing gate's third member. CONTEXT.md is hard-wrapped, so the row is
