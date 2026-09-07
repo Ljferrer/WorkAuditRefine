@@ -9,6 +9,12 @@ import { validateProvision } from '../../_shared/provision.mjs'
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable']
 export const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
+// MODEL_RANK: MODELS ordered ascending by capability and cost (ADR 0050). Presets order by this
+// rank on every tier: thorough >= balanced >= economy (war-config.test.mjs asserts it). Effort is
+// NOT ranked across presets — 'default' means "inherit the launching session's effort knob", and
+// fable seats stay on 'default' by operator ruling (forced high effort on fable was measured as
+// not worth its cost); weaker models carry a pinned effort as compensation.
+export const MODEL_RANK = ['haiku', 'sonnet', 'opus', 'fable']
 export const ROSTER_POLICIES = ['auto', 'all', 'solo']
 // Lenses reserved for built-in passes — never roster-selectable, never a valid widen nomination (D4).
 // (execution-evidence = post-merge gate-audit pass; pin-validity = gitlink-bump pre-flight.)
@@ -129,8 +135,10 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Pins the base and docs worker tiers and the auditor, refiner, servitor and red-team seats.
-    // The fix tier, snipe, and every knob not pinned in this preset inherit DEFAULTS.
+    // Cheaper models and a capped run shape (ADR 0050): pins the base and docs worker tiers and the
+    // auditor, refiner, servitor and red-team seats; rosterPolicy 'all' over the four-lens roster
+    // (exactly four seats per task — 'auto' has no seat cap) and a 4-round fix budget. The fix tier,
+    // snipe, and every knob not pinned in this preset inherit DEFAULTS.
     agents: {
       worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'xhigh' },
@@ -138,7 +146,6 @@ export const PRESETS = {
       servitor: { model: 'sonnet', effort: 'high' },
       redteam:  { model: 'sonnet', effort: 'default' },
     },
-    // roster pinned to the historical quartet (DEFAULTS carries a 5-seat pool).
     audit: {
       roster: [
         { lens: 'correctness', depth: 'deep' },
@@ -146,8 +153,9 @@ export const PRESETS = {
         { lens: 'plan-faithfulness', depth: 'deep' },
         { lens: 'security', depth: 'deep' },
       ],
+      rosterPolicy: 'all',
     },
-    run: { redteamRoundLimit: 2 },
+    run: { roundLimit: 4, redteamRoundLimit: 2 },
     // (memory.commitLearnings is no longer pinned — DEFAULTS is now false, so economy inherits off.)
   },
 }

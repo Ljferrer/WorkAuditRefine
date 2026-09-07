@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
+  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
@@ -119,7 +119,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (sonnet review seats, opus workers; roster policy, roundLimit, ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
+test('economy preset (sonnet review seats, opus workers, four seats and four fix rounds; ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'default')
@@ -138,11 +138,12 @@ test('economy preset (sonnet review seats, opus workers; roster policy, roundLim
     servitor: { model: 'sonnet', effort: 'high' },
     redteam:  { model: 'sonnet', effort: 'default' },
   }, 'economy agents literal (fix and snipe absent = inherited)')
-  // pinned — DEFAULTS carries a 5-seat pool; economy keeps the historical quartet.
+  // Capped run shape (ADR 0050): 'all' over the four-lens roster = exactly four seats per task.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
-  assert.equal(c.audit.rosterPolicy, 'auto')        // inherited — economy no longer pins solo
-  assert.equal(c.run.roundLimit, 6)                 // inherited — economy no longer pins 2
+  assert.equal(c.audit.rosterPolicy, 'all')
+  assert.deepEqual(PRESETS.economy.run, { roundLimit: 4, redteamRoundLimit: 2 }, 'economy run literal')
+  assert.equal(c.run.roundLimit, 4)
   assert.equal(c.run.redteamRoundLimit, 2)
   assert.equal(c.run.ace, true)                     // inherited — the preset no longer pins it (D14, PIN-16)
   assert.equal(c.run.absorbRounds, 6)               // inherited — absorb-budget: no preset pins it
@@ -1362,7 +1363,7 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
   assert.equal(DEFAULTS.run.roundLimit, 6)
   assert.equal(DEFAULTS.run.redteamRoundLimit, 3,
     'sibling knob redteamRoundLimit is out of the flip scope and must remain 3')
-  assert.equal(PRESETS.economy.run.roundLimit, undefined, 'economy inherits roundLimit (no preset pins it)')
+  assert.equal(PRESETS.economy.run.roundLimit, 4, 'economy pins its own fix budget (ADR 0050)')
 
   const surfaces = [
     // [file, NEW-present pattern, OLD-absent pattern]
@@ -1425,6 +1426,20 @@ const DOC_TIER_PINS = [
   ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
 ]
 const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetConfig(preset).agents)
+
+// ADR 0050: presets order by MODEL_RANK on every tier, thorough >= balanced >= economy. Effort is
+// deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
+// compared. Delete-the-feature: seat economy's auditor on opus or thorough's on sonnet → red.
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'servitor', 'redteam', 'snipe']
+test('MODEL_RANK is a permutation of MODELS, and preset model rank is monotone thorough >= balanced >= economy on every tier (ADR 0050)', () => {
+  assert.deepEqual([...MODEL_RANK].sort(), [...MODELS].sort(), 'MODEL_RANK must rank every MODELS member exactly once')
+  const rank = m => MODEL_RANK.indexOf(m)
+  for (const path of TIER_PATHS) {
+    const [e, b, t] = ['economy', 'balanced', 'thorough'].map(p => tierAt(p, path).model)
+    assert.ok(rank(t) >= rank(b), `thorough ${path} (${t}) must rank >= balanced (${b})`)
+    assert.ok(rank(b) >= rank(e), `balanced ${path} (${b}) must rank >= economy (${e})`)
+  }
+})
 
 test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig() (extraction + equality)', () => {
   assert.ok(DOC_TIER_PINS.length > 0, 'the pin table must not be empty')
@@ -2203,10 +2218,10 @@ test('fillDefaults: audit.rosterPolicy defaults to auto (Lead seeds 1-N seats pe
     'fillDefaults({}) must produce audit.rosterPolicy === "auto" (Lead seeds per-task rosters by blast radius)')
 })
 
-test('preset economy inherits rosterPolicy:auto (its solo pin was retired with the 0.21.11 preset flip)', () => {
+test('preset economy pins rosterPolicy:all over its four-lens roster (ADR 0050 — exactly four seats per task)', () => {
   const c = presetConfig('economy')
-  assert.equal(c.audit.rosterPolicy, 'auto',
-    'economy preset must inherit rosterPolicy:"auto" (no shipped preset pins solo)')
+  assert.equal(c.audit.rosterPolicy, 'all', 'economy preset must pin rosterPolicy:"all"')
+  assert.equal(c.audit.roster.length, 4)
 })
 
 test('preset thorough inherits rosterPolicy:auto', () => {
