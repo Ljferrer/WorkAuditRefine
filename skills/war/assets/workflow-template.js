@@ -1657,7 +1657,12 @@ const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : 
 // plan_ref-carrying blocking finding would no longer drive 'unmet' and the condition would fall to
 // the attestation channel ('unverified' absent a met row, never a silent green) — which is why
 // plan_ref is SPARED below as a routing key (not content: contentTextOf's field list is unchanged;
-// plan_ref rides the fold's hash as a locator). The demotion also SPARES an ask-shaped finding
+// plan_ref rides the fold's hash as a locator). That reader is gateFindings — built from the
+// auditLog's gateEvidence entries, the gate-audit family only — yet the spare is global: a ROSTER
+// seat's plan_ref-only blocking finding has no endState reader to pay for, is spared all the same
+// (the pre-task behavior, unchanged here), and can still ride a fix-less PIN-29 escalation; narrowing
+// the spare to the gate-audit sites is a behavior change beyond this slice. The demotion also SPARES
+// an ask-shaped finding
 // (a non-blank `ask.question` is spared through contentTextOf; a bare `disposition: 'ask'` row on
 // the Minor/Nit severities the ask channel serves is spared through askShaped — a blocking
 // severity carrying only disposition:'ask' has no ask channel to reach, never parks, and would

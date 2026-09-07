@@ -5935,6 +5935,26 @@ test('intake normalization: auditor-supplied seats never corroborate — a forge
   const r4 = await runPhase(args, impl4)
   assert.equal(r4.out.minorsFiled.length, 1, 'the pair collapses')
   assert.deepEqual(r4.out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'], 'a representative whose empty seats array was stripped keeps its own raiser (survivor side of mergeSeat)')
+  // LIST arm of the same-seat guard, driven by an ENGINE-accumulated list: P's row (line 100) is the
+  // representative; Q's first row (105) collapses into it, so mergeSeat writes seats [refP, refQ];
+  // Q's second row (108, in window) must then be refused by `seatsListOf(c).includes(r)` — under a
+  // `seatRefOf(c) === r` substitution the representative reads refP alone, the row collapses, and
+  // the length assert goes red (the delete-the-feature proof the forged impl2 leg used to carry).
+  const implAccum = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const findings = (opts.label || '').endsWith(':correctness')
+        ? [{ severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 }]
+        : [{ severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105 },
+           { severity: 'Minor', title: 'third note', rationale: 'same seat again', file: 'src/a.js', line: 108 }]
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings, confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }, { n: 2, issue: 43 }], clusters: [{ ordinals: [1], issue: 42 }, { ordinals: [2], issue: 43 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const ra = await runPhase(args, implAccum)
+  assert.equal(ra.out.minorsFiled.length, 2, 'the accumulated list refuses the same seat\'s second in-window row — the LIST arm of the same-seat guard is live')
+  assert.deepEqual(ra.out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'], 'the representative carries the engine-accumulated [refP, refQ] list')
 })
 
 test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
@@ -6157,6 +6177,8 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.ok(keyBody.includes('contentHash('), 'remintKey folds the content hash on the empty-key arm')
   const nfBody = windowOf(src, 'const normalizeFinding = f =>', '\nconst askShaped')
   assert.ok(nfBody.includes('const { seats, merged, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged (never task — see the control below) and normalizes file through aceRelPath')
+  assert.deepEqual(registrySlice().normalizeFinding({ severity: 'Nit', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }] }), { severity: 'Nit', file: 'skills/a.js' },
+    'normalizeFinding behavior: seats/merged dropped, file aceRelPath-normalized (the source-text pins above are shape only)')
   // ONE content definition (#2132): the fold's hash and the demotion predicate both read
   // contentTextOf — neither names a raw content field of its own.
   const nsBody = windowOf(src, 'const normalizeSeat = ', '\nconst mergeSeat')
