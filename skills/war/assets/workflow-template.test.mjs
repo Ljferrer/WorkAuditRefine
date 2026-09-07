@@ -8695,8 +8695,9 @@ test('Task 1.1 (e) — no surviving single- or two-producer phrasing on the two 
         `${name}: a red-team-report sentence must also name the third producer (the Checkpoint ask rulings, #1550) — surviving two-producer phrasing: "${s.trim()}"`)
     }
   }
-  // Producer-count comment lock-step (PIN-8's OLD-absent law: the retired literal was verified
-  // present at this task's base a60221a; the widened literal is presence-pinned beside it).
+  // Producer-count comment lock-step (PIN-8's OLD-absent law: both retired count literals were
+  // verified present at their authoring bases; the de-mirrored producer sentence is the
+  // presence-pinned half).
   assert.ok(!src.includes('TWO producers feed this arg, never one'),
     'the retired two-producer count literal ("TWO producers feed this arg, never one") must be absent from workflow-template.js (OLD-absent)')
   assert.ok(!src.includes('THREE producers feed this arg, never one or two'),
@@ -12754,7 +12755,7 @@ test('ask-content-key (End state 6, aced ∩ minorsFiled = ∅, REVERSE directio
 // Shared slice harness: dispositionOf → allApprove covers parkAsk/demote/the four registries/
 // remintKey/remintBlock/corroborateSurvivor/routeToSweep/routeReauditMinors. minorsOf is defined
 // ABOVE the slice, so a shape-faithful stub is injected (seat-stamped copies, Minor/Nit only).
-const registrySlice = () => {
+const registrySlice = (runOverride = {}) => {
   const sliceStart = src.indexOf('const dispositionOf')
   const sliceEnd = src.indexOf('const allApprove')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→allApprove registry slice is locatable')
@@ -12766,7 +12767,7 @@ const registrySlice = () => {
     + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, mergeSeat, seatsListOf, normalizeFinding, normalizeSeat, queuedKeys, liveTaskRecords, diffFilesByTask, dispositionOf, intakeFloor, demote }')
   const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [], carriedPhaseClose: [] }
   const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
-  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, state.carriedPhaseClose, minorsOf, { ace: true, ...runOverride }, RELEASE_SLOT_FILES, BARRIER_TOKENS, DEMOTE_REASONS)
   return { ...state, ...api }
 }
 
@@ -15841,6 +15842,32 @@ test('parkAsk unpark (#1878 side Map): the --afk citation unpark splices the rec
   h.recordAced({ ...ask, disposition: 'absorb' }, 'abc1234', { citation: { row: 'ADJ-1', rationale: 'covered' } })
   assert.ok(h.asks[0].citationPrefill && h.asks[0].citationPrefill.row === 'ADJ-1', 'the citation match resolves the parked record through the side Map (interactive arm: prefill, still parked)')
   assert.ok(!('key' in h.asks[0]), 'the parked record still carries no key after the citation match')
+  // --afk arm: the citation unpark splices the record AND its Map entry, so a fresh park of the
+  // same question lands a new record instead of matching a ghost key (a surviving entry would
+  // route the re-raise to the dup arm and h.asks would stay empty).
+  const afk = registrySlice({ afk: true })
+  afk.parkAsk(ask)
+  assert.equal(afk.asks.length, 1, '--afk arm: parked once')
+  afk.recordAced({ ...ask, disposition: 'absorb' }, 'abc1234', { citation: { row: 'ADJ-1', rationale: 'covered' } })
+  assert.equal(afk.asks.length, 0, '--afk arm: the citation unpark splices the record')
+  afk.parkAsk(ask)
+  assert.equal(afk.asks.length, 1, '--afk arm: a later re-raise of the resolved question parks fresh (its Map entry left with the record)')
+  assert.ok(!afk.asks[0].corroborators, '--afk arm: the fresh record is a new park, not a corroboration of a ghost')
+})
+
+test('parkAsk collision: one seat re-raising across rounds lands one corroborator, and a seeded ./ file normalizes at the push', () => {
+  const h = registrySlice()
+  const ask = { severity: 'Minor', task: 't1', title: 'mirror or point', file: 'docs/x.md', disposition: 'ask', seat: 'audit:t1:correctness',
+    ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] } }
+  h.parkAsk(ask)
+  const re = { ...ask, seat: 'audit:t1:security', file: './docs/y.md', title: 'mirror or point (y)' }
+  h.parkAsk(re)
+  h.parkAsk(re)  // a second audit round re-mints the same seat's ask (minorsOf copies per round)
+  assert.equal(h.asks.length, 1, 'one surviving record')
+  assert.deepEqual(h.asks[0].corroborators.map(c => [c.seat, c.file]), [['audit:t1:security', 'docs/y.md']],
+    'the same seat+file+title re-raise dedups to one entry, and the ./-prefixed file records repo-relative')
+  assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('merged as corroboration') && l.includes('on docs/y.md')).length, 2,
+    'every re-raise is still journalled per round')
 })
 
 test('corroborateSurvivor: queued-arm seats merge', () => {

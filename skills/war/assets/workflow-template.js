@@ -629,8 +629,8 @@ const intentClause = intent
 // threads the accumulated set here as args.adjudications (array|null of { adjudicated, supersedes }
 // objects or preformatted strings) — a Lead-read arg, like intent. FOLLOWS the intentClause threading
 // pattern: empty/absent ⇒ adjudicationClause is '' ⇒ every prompt below is byte-identical to a
-// no-adjudication run (back-compat, spec constraint 4). The clause carries TWO rules — version
-// precedence (task instruction > red-team adjudication > plan body literal) and adjudication-match
+// no-adjudication run (back-compat, spec constraint 4). The clause carries the version-precedence rule
+// (task instruction > red-team adjudication > plan body literal) and the adjudication-match rule
 // (a matching finding is a confirmation note, never an escalation) — and is emitted at the roster-seat
 // auditPrompt AND at the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only).
 // Both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (the both-surfaces drift test
@@ -983,20 +983,20 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // fail-open (#1893). The anchor IS the guard here; a launch with neither planSlug nor plan.file
   // is already refused for a tasks-bearing DAG by the entry belt (#1430).
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
+  const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
-    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+    if (hasOwnSlug(row) && ruledAskAnchor) {
       if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
       return { text, exempt: true }
     }
     // A coordinate-less record (no planSlug) is flagged so the surface loop's pre-check (#1882) can
     // name the missing coordinate instead of the own-token cause when the surface fails the floor.
-    return { text, exempt: false, coordinateLess: !(typeof row.planSlug === 'string' && row.planSlug),
-      recordName: (typeof row.findingTitle === 'string' && row.findingTitle) ? row.findingTitle : '(untitled)' }
+    return { text, exempt: false, ...(hasOwnSlug(row) ? {} : { coordinateLessName: (typeof row.findingTitle === 'string' && row.findingTitle) ? row.findingTitle : '(untitled)' }) }
   }
   // seededPhaseClose rows (D3b, PIN-5) JOIN the floor under the ruledAsks discipline: per-row
   // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
@@ -1006,7 +1006,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['title', 'rationale', 'suggested_fix']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
-    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+    if (hasOwnSlug(row) && ruledAskAnchor) {
       if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
       return { text, exempt: true }
     }
@@ -1038,13 +1038,13 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
     // cause — before the generic own-token message could misname it. A coordinate-less record whose
     // surface still carries an own token clears the floor and is dropped LOUDLY at the intake below.
-    const coordinateLess = rows.find(r => r.coordinateLess)
+    const coordinateLess = rows.find(r => r.coordinateLessName)
     if (foreignIds.length) {
       provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
-    } else if (ownTokenMiss && coordinateLess) {
-      provenanceProblems.push('workflow-template: args.' + argName + ' record "' + coordinateLess.recordName + '" is missing required planSlug coordinate (#1879 RULING 2) — a coordinate-less ruled-ask record carrying none of the run\'s own plan-slug tokens [' + ownTokens.join(', ') + '] cannot prove its provenance; refused at entry (#1882)')
     } else if (ownTokenMiss) {
-      provenanceProblems.push('workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
+      provenanceProblems.push(coordinateLess
+        ? 'workflow-template: args.' + argName + ' record "' + coordinateLess.coordinateLessName + '" is missing required planSlug coordinate (#1879 RULING 2) — a coordinate-less ruled-ask record carrying none of the run\'s own plan-slug tokens [' + ownTokens.join(', ') + '] cannot prove its provenance; refused at entry (#1882)'
+        : 'workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
     }
   }
   if (provenanceProblems.length) throw new Error(provenanceProblems.join('; '))
@@ -1344,17 +1344,22 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // deletes the entry with the record.
 const askKeyOf = new Map()
 const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
-// The corroborator entry (#1876) carries the re-raiser's evidence — seat, sha, file (repo-relative:
-// normalizeFinding ran at intake), title and fork — so a second site or a diverging option set
-// survives the merge and reaches the Checkpoint through the handoff projection (#1872).
+// The corroborator entry (#1876) carries the re-raiser's evidence — seat, sha, file (normalized
+// through aceRelPath at the push: seat rows arrive normalized, but judgeHeldRow parks engine-seeded
+// pendingAbsorbs rows that never passed normalizeFinding), title and fork — so a second site or a
+// diverging option set survives the merge and reaches the Checkpoint through the handoff projection
+// (#1872). One seat re-raising one persisting ask across audit rounds (minorsOf re-mints every
+// Minor/Nit per round) lands ONE corroborator entry, never one per round: a same seat+file+title
+// entry is skipped, while the collision log still journals every re-raise.
 const parkAsk = f => {
   const key = askContentKey(f)
   const dup = findAsk(key)
   if (dup) {
     dup.corroborators = Array.isArray(dup.corroborators) ? dup.corroborators : []
-    dup.corroborators.push({ seat: f.seat ?? null, sha: f.sha ?? null, file: f.file ?? null, title: f.title ?? null,
-      fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [] })
-    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (f.file ? ' on ' + f.file : '') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
+    const e = { seat: f.seat ?? null, sha: f.sha ?? null, file: typeof f.file === 'string' ? aceRelPath(f.file) : null, title: f.title ?? null,
+      fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [] }
+    if (!dup.corroborators.some(c => c.seat === e.seat && c.file === e.file && c.title === e.title)) dup.corroborators.push(e)
+    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + (e.file ? ' on ' + e.file : '') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
     return
   }
   const record = { task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
