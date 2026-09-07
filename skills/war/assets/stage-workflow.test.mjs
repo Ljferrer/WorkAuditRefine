@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
-import { extractArgsFields } from './assert-args-complete.mjs'
+import { extractInterpolations, ptSpanRanges } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const STAGER = join(HERE, 'stage-workflow.mjs')
@@ -458,22 +458,24 @@ test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the in
   assert.match(stderr, /could not locate the/)
 })
 
-// (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
-// (fail loud), never silently exit 0. RED against the pre-normalization guard
-// (`fileURLToPath(import.meta.url) === process.argv[1]`): the loader realpaths the main module, but
-// argv[1] keeps the symlink path, so bare-equality is false and main() never runs. The realpathSync
-// idiom canonicalizes both sides so the guard fires. (Relative invocation is non-discriminating on
-// Node >= 24 — argv[1] arrives pre-resolved — so the symlink is the trigger that goes RED.)
 // (p) Comment strip (#2099). The Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes and the
 // shipped template alone crossed it at 0.21.11, so the stager blanks every full-line `//` comment in
-// code state. The fixture carries one of each construct the scanner must NOT touch — a `//` line inside
-// a single-quoted string, a template literal, a nested `${…}` template, a regex literal (with a `[…]`
-// class holding a `/`), a division chain, and a block comment — beside the code comments it must blank.
+// code state. The fixture carries one construct per scanner arm, each followed by a code comment the
+// strip must blank, so deleting that arm (or its tie-break) changes the expected bytes:
+//   - a `//` inside a single-quoted string, and a backtick inside one (string arm);
+//   - a `//` line inside a template literal and inside a nested `${…}` template (template arm);
+//   - a regex with a `[…]` class holding a `/`, one holding a backtick, and a keyword-led regex
+//     holding a backtick (regex arm and its keyword set);
+//   - a division chain, and a division followed on the same line by a multi-line template (the
+//     regex-vs-division tie-break);
+//   - a block comment holding a `//` line (block-comment arm).
 // Expected output is written out whole, so a scanner that desyncs on any construct reds on bytes.
 const STRIP_FIXTURE = `// header comment
 export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
   // indented code comment
 const s = 'a // not a comment\\n' // trailing comment stays
+const s2 = 'tick \` inside a string'
+// after the backtick-holding string: still code
 const t = \`line one
 // a line inside a template literal
 \${cond ? \`nested
@@ -482,8 +484,15 @@ const t = \`line one
 \`
 const r = /[a-z/]+\\/\\/'"x/g
 // after the regex: still code
+const r2 = /[\`]/g
+// after the backtick-holding regex: still code
+const f = () => { return /\`/.test(x) }
+// after the keyword-led regex: still code
 const d = a / b / c
 // after the division: still code
+const q = a / b + \`tail
+// a line inside a template that follows a division
+\`
 /* block
 // a line inside a block comment
 */
@@ -493,6 +502,8 @@ const STRIP_EXPECTED = `
 export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
 
 const s = 'a // not a comment\\n' // trailing comment stays
+const s2 = 'tick \` inside a string'
+
 const t = \`line one
 // a line inside a template literal
 \${cond ? \`nested
@@ -501,8 +512,15 @@ const t = \`line one
 \`
 const r = /[a-z/]+\\/\\/'"x/g
 
+const r2 = /[\`]/g
+
+const f = () => { return /\`/.test(x) }
+
 const d = a / b / c
 
+const q = a / b + \`tail
+// a line inside a template that follows a division
+\`
 /* block
 // a line inside a block comment
 */
@@ -512,49 +530,102 @@ test('(p) stripFullLineComments blanks only full-line code comments, keeps every
   const out = stripFullLineComments(STRIP_FIXTURE)
   assert.equal(out, STRIP_EXPECTED)
   assert.equal(out.split('\n').length, STRIP_FIXTURE.split('\n').length, 'line count is preserved — blanked, never deleted')
+  assert.equal(stripFullLineComments(out), out, 'the strip is idempotent — a stripped copy re-stripped is byte-unchanged')
   assert.throws(() => stripFullLineComments('const x = `open template'), /lost track/, 'an unterminated template literal refuses loudly rather than staging a desynced copy')
 })
 
-// (p) On the shipped template the strip is provable line-by-line: every changed line was a `//`-led
-// line and is now empty, the result still parses (`node --check`), the fallback-free interpolation
-// census the args preflight reads is unchanged, and the staged size sits under the cap with headroom
-// for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 128 KiB so a template growth
-// that eats the margin reds here before a campaign launch dies at dispatch.
+// (p) On the shipped template the strip is proven by three oracles that do not share the scanner
+// under test. (1) Line shape: every changed line was a `//`-led line and is now empty. (2) Prompt
+// bytes: `ptSpanRanges` (assert-args-complete.mjs — seeded on the pt` tag, its own state machine)
+// locates every prompt span in the stripped copy with its `${…}` expression bodies, and no blanked
+// line may fall inside a span's prose (a blank inside an expression body is a code comment inside
+// the interpolation — legal); this is what catches a prompt line that begins with `//` and was
+// wrongly blanked, which oracle (1) alone would accept. (3) `node --check` parses the result, and the fallback-free interpolation census the
+// args preflight reads is unchanged, occurrence counts included. The staged size must also sit under
+// the cap with headroom for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 128
+// KiB so a template growth that eats the margin reds here before a campaign launch dies at dispatch.
 const ARGS_HEADROOM_BYTES = 131072
-test('(p) shipped template: the strip blanks only `//`-led lines, keeps parseability and the interpolation census, and leaves headroom under the cap', () => {
-  const original = readFileSync(TEMPLATE, 'utf8')
-  const stripped = stripFullLineComments(original)
+// Oracles (1) and (2), shared by the shipped-template arm and the synthetic negative below. Returns
+// { blanked, spans, insideExpr } so each caller can add its own non-vacuity bounds.
+function assertStripKeptPromptBytes (original, stripped) {
   const a = original.split('\n')
   const b = stripped.split('\n')
   assert.equal(b.length, a.length, 'line count preserved')
-  let blanked = 0
+  const blanked = [] // 1-based line numbers
   for (let k = 0; k < a.length; k++) {
     if (a[k] === b[k]) continue
-    blanked++
     assert.ok(a[k].trim().startsWith('//') && b[k] === '', `line ${k + 1}: a non-comment line changed: ${JSON.stringify(a[k].slice(0, 80))} → ${JSON.stringify(b[k].slice(0, 80))}`)
+    blanked.push(k + 1)
   }
-  assert.ok(blanked > 1000, `non-vacuity: the shipped template carries >1000 full-line comments, blanked ${blanked}`)
+  assert.ok(!/\/\/[^\n]*\bpt`/.test(stripped), 'no comment-seeded pt` byte-run survives the strip, so ptSpanRanges reads real prompt spans only')
+  const lineStarts = [0]
+  for (let i = 0; i < stripped.length; i++) if (stripped[i] === '\n') lineStarts.push(i + 1)
+  const lineOf = (offset) => { let lo = 0, hi = lineStarts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid] <= offset) lo = mid; else hi = mid - 1 } return lo + 1 }
+  const spans = ptSpanRanges(stripped).map(({ start, end, exprs }) => ({
+    lo: lineOf(start), hi: lineOf(end - 1), exprs: exprs.map(([x, y]) => [lineOf(x), lineOf(y - 1)]),
+  }))
+  const inExpr = (sp, k) => sp.exprs.some(([x, y]) => k >= x && k <= y)
+  let insideExpr = 0
+  for (const k of blanked) {
+    const hit = spans.find((sp) => k > sp.lo && k <= sp.hi)
+    if (!hit) continue
+    assert.ok(inExpr(hit, k), `line ${k} was blanked inside the prose of the pt prompt span on lines ${hit.lo}-${hit.hi} — the strip touched dispatched prompt bytes`)
+    insideExpr++
+  }
+  return { blanked, spans, insideExpr }
+}
+
+// The oracle's own negative: a multi-line pt span whose prose line begins with `//` (a bash comment
+// inside a dispatched prompt), and a copy in which that line was blanked — exactly the failure the
+// per-line shape check accepts. The oracle must refuse it, and must accept the same span when the
+// blanked line sits inside a `${…}` expression instead. Red: drop the prose check and both pass.
+test('(p) the prompt-byte oracle refuses a blanked `//` line inside prompt prose and accepts one inside an interpolation expression', () => {
+  const prose = 'const x = 1\nconst p = pt`run this:\n// not a comment, a prompt line\ndone ${a}`\n'
+  assert.throws(() => assertStripKeptPromptBytes(prose, prose.replace('// not a comment, a prompt line', '')), /inside the prose of the pt prompt span/)
+  const expr = 'const p = pt`items: ${list.map(t =>\n  // a code comment inside the interpolation\n  t.id).join(\', \')}`\n'
+  const { insideExpr } = assertStripKeptPromptBytes(expr, expr.replace('  // a code comment inside the interpolation', ''))
+  assert.equal(insideExpr, 1)
+  assert.equal(stripFullLineComments(prose), prose, 'and the real strip leaves the prose line alone')
+})
+
+test('(p) shipped template: only `//`-led lines blank, no prompt byte moves, the copy parses, the census holds, headroom stays', () => {
+  const original = readFileSync(TEMPLATE, 'utf8')
+  const stripped = stripFullLineComments(original)
+  const { blanked, spans, insideExpr } = assertStripKeptPromptBytes(original, stripped)
+  assert.ok(blanked.length > 1000, `non-vacuity: the shipped template carries >1000 full-line comments, blanked ${blanked.length}`)
+  assert.ok(spans.length > 300, `non-vacuity: the shipped template carries >300 pt spans, found ${spans.length}`)
+  assert.ok(insideExpr > 0, 'non-vacuity: the shipped template carries code comments inside prompt interpolations, so the expression carve-out is exercised')
+
   const dir = scratch('stage-strip-check-')
   const strippedPath = join(dir, 'stripped.js')
   writeFileSync(strippedPath, stripped)
   const check = spawnSync(process.execPath, ['--check', strippedPath], { encoding: 'utf8' })
   assert.equal(check.status, 0, `the stripped template must still parse: ${check.stderr}`)
-  assert.deepEqual(extractArgsFields(stripped), extractArgsFields(original), 'the fallback-free interpolation census is unchanged by the strip')
+  assert.deepEqual([...extractInterpolations(stripped)], [...extractInterpolations(original)], 'the fallback-free interpolation census, with occurrence counts, is unchanged by the strip')
   const bytes = Buffer.byteLength(stripped, 'utf8')
   assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, `stripped template is ${bytes} bytes; it must leave at least ${ARGS_HEADROOM_BYTES} bytes under the ${SCRIPT_BYTE_CAP}-byte cap for embedded args`)
 })
 
-// (q) Size floor (#2099): a staged copy that would exceed the cap exits non-zero with both contributing
-// sizes named and writes nothing; comment bytes do not count (they are stripped), non-comment bytes do.
-// The third arm is the live shape that died on 0.21.11: the shipped template plus an over-size-class
-// args payload must stage under the cap.
-test('(q) a staged copy over the scriptPath cap exits non-zero, names the sizes, writes nothing; comment bulk does not count', () => {
+// (q) Size floor (#2099). Matchers anchor on narrow fragments built from the imported constant
+// (spec §8 — never the full message bytes, never a hand-copied number). Arms: an over-cap fresh
+// stage exits non-zero, names both contributing sizes, writes nothing; comment bytes do not count;
+// an over-cap --args payload is named as such; the boundary is `at or under dispatches, over
+// refuses` (exactly SCRIPT_BYTE_CAP bytes stages, one more refuses); the live 0.21.11 shape — the
+// shipped template plus an over-size-class args payload — stages under the cap; and a pre-existing
+// over-cap staged file is refused (naming --force) rather than reused, byte-untouched.
+const CAP_FRAGMENT = new RegExp(`over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap`)
+const padFixture = (dir, name, padBytes) => {
+  const p = join(dir, name)
+  writeFileSync(p, MINIMAL_TEMPLATE + `export const pad = '${'x'.repeat(padBytes)}'\n`)
+  return p
+}
+test('(q) over-cap fresh stage: exits non-zero, names the sizes, writes nothing; comment bulk does not count; an args payload is named', () => {
   const dir = scratch('stage-cap-')
-  const padded = join(dir, 'padded.js')
-  writeFileSync(padded, MINIMAL_TEMPLATE + `export const pad = '${'x'.repeat(SCRIPT_BYTE_CAP)}'\n`)
-  const over = runStager([padded, dir, 'cap-slug', '1'], { expectFail: true })
+  const over = runStager([padFixture(dir, 'padded.js', SCRIPT_BYTE_CAP), dir, 'cap-slug', '1'], { expectFail: true })
   assert.notEqual(over.status, 0, 'an over-cap staged copy must not exit 0')
-  assert.match(over.stderr, /over the Workflow tool's 524288-byte scriptPath cap \(comment-stripped template \d+ bytes \+ embedded args 0 bytes\)/)
+  assert.match(over.stderr, CAP_FRAGMENT)
+  assert.match(over.stderr, /comment-stripped template \d+ bytes/)
+  assert.match(over.stderr, /embedded args 0 bytes/)
   assert.ok(!existsSync(join(dir, deriveName('cap-slug', '1') + '.js')), 'nothing is written on refusal')
 
   const commented = join(dir, 'commented.js')
@@ -562,15 +633,32 @@ test('(q) a staged copy over the scriptPath cap exits non-zero, names the sizes,
   const ok = runStager([commented, dir, 'comment-slug', '1'])
   assert.ok(Buffer.byteLength(readFileSync(ok.stdout.trim(), 'utf8'), 'utf8') < 1024, 'the comment bulk was stripped, not counted')
 
-  const live = scratch('stage-cap-live-')
-  const { stdout } = runStager([TEMPLATE, live, 'live-slug', '1', '--args', writeArgs(live, { phase: { id: 1 }, pad: 'x'.repeat(107008) })])
-  assert.ok(Buffer.byteLength(readFileSync(stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, 'the shipped template plus a ~104.5 KB args payload stages under the cap')
+  const withTail = join(dir, 'with-tail.js')
+  writeFileSync(withTail, MINIMAL_TEMPLATE + `const A = typeof args === 'object' ? args ${ARGS_FALLBACK_ANCHOR}\n`)
+  const argsOver = runStager([withTail, dir, 'args-cap-slug', '1', '--args', writeArgs(dir, { pad: 'x'.repeat(SCRIPT_BYTE_CAP) })], { expectFail: true })
+  assert.notEqual(argsOver.status, 0)
+  assert.match(argsOver.stderr, CAP_FRAGMENT)
+  assert.match(argsOver.stderr, /embedded args [1-9]\d* bytes/, 'the args payload is named with its own non-zero size')
+  assert.ok(!existsSync(join(dir, deriveName('args-cap-slug', '1') + '.js')), 'nothing is written on refusal')
 })
 
-// (q) Write-if-absent meets the cap: a pre-existing staged file over the cap (a 0.21.11-era stage, or
-// a hand-inflated copy) is undispatchable, so reusing it silently would only move the failure to the
-// Workflow tool's own error. The stager refuses, names `--force`, and leaves the file byte-untouched
-// (an operator decides whether to lose its injected stages — the stager never clobbers on its own).
+test('(q) cap boundary: exactly SCRIPT_BYTE_CAP bytes stages, one byte more refuses', () => {
+  const dir = scratch('stage-cap-edge-')
+  const probe = runStager([padFixture(dir, 'probe.js', 1000), dir, 'edge-slug', '1'])
+  const overhead = Buffer.byteLength(readFileSync(probe.stdout.trim(), 'utf8'), 'utf8') - 1000
+  const atCap = runStager([padFixture(dir, 'at-cap.js', SCRIPT_BYTE_CAP - overhead), dir, 'edge-slug', '1', '--force'])
+  assert.equal(Buffer.byteLength(readFileSync(atCap.stdout.trim(), 'utf8'), 'utf8'), SCRIPT_BYTE_CAP, 'a staged copy of exactly the cap is written')
+  const overCap = runStager([padFixture(dir, 'over-cap.js', SCRIPT_BYTE_CAP - overhead + 1), dir, 'edge-slug', '1', '--force'], { expectFail: true })
+  assert.notEqual(overCap.status, 0, 'one byte over the cap refuses')
+  assert.match(overCap.stderr, CAP_FRAGMENT)
+})
+
+test('(q) the live 0.21.11 shape: the shipped template plus a ~104.5 KB --args payload stages under the cap', () => {
+  const live = scratch('stage-cap-live-')
+  const { stdout } = runStager([TEMPLATE, live, 'live-slug', '1', '--args', writeArgs(live, { phase: { id: 1 }, pad: 'x'.repeat(107008) })])
+  assert.ok(Buffer.byteLength(readFileSync(stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP)
+})
+
 test('(q) write-if-absent refuses a pre-existing staged file over the cap, naming --force, file untouched', () => {
   const dir = scratch('stage-cap-reuse-')
   const tpl = join(dir, 'tpl.js')
@@ -580,12 +668,20 @@ test('(q) write-if-absent refuses a pre-existing staged file over the cap, namin
   writeFileSync(stagedPath, stale)
   const r = runStager([tpl, dir, 'slug', '1'], { expectFail: true })
   assert.notEqual(r.status, 0)
-  assert.match(r.stderr, /existing staged file .* is \d+ bytes, over the Workflow tool's 524288-byte scriptPath cap .* --force/)
+  assert.match(r.stderr, /existing staged file/)
+  assert.match(r.stderr, CAP_FRAGMENT)
+  assert.match(r.stderr, /--force/)
   assert.equal(readFileSync(stagedPath, 'utf8'), stale, 'the refused file is left byte-untouched')
   const forced = runStager([tpl, dir, 'slug', '1', '--force'])
   assert.ok(Buffer.byteLength(readFileSync(forced.stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, '--force restages a fresh, under-cap copy')
 })
 
+// (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
+// (fail loud), never silently exit 0. RED against the pre-normalization guard
+// (`fileURLToPath(import.meta.url) === process.argv[1]`): the loader realpaths the main module, but
+// argv[1] keeps the symlink path, so bare-equality is false and main() never runs. The realpathSync
+// idiom canonicalizes both sides so the guard fires. (Relative invocation is non-discriminating on
+// Node >= 24 — argv[1] arrives pre-resolved — so the symlink is the trigger that goes RED.)
 test('(guard) symlinked invocation still runs main() — usage on stderr, non-zero exit', () => {
   const link = join(scratch('stage-symlink-'), 'link.mjs')
   symlinkSync(STAGER, link)

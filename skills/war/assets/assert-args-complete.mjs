@@ -25,7 +25,9 @@
 //
 // Extraction mechanics (A2 — mechanism latitude granted by the plan's Commander's Intent):
 //   - Only pt-tagged template literals are scanned (the dispatched-prompt surface). Comments, error
-//     messages, and derivation helpers are not prompt bytes and are excluded by construction.
+//     messages, and derivation helpers are not prompt bytes; they are excluded today only
+//     incidentally — the scanner seeds on any pt` byte-run and models no comment or string context —
+//     and the default-deny census in workflow-template.test.mjs is what keeps the extracted set clean.
 //   - An interpolation qualifies when its expression is a PURE member chain (`a.b.c` — no `??`,
 //     `||`, ternary, call, or optional chaining): any of those is a fallback/guard, so the site is
 //     not fallback-free.
@@ -71,14 +73,21 @@ export const EXEMPT_FIELDS = new Map([
 // Collect the raw text of every pt-tagged template literal. A mode STACK tracks `${…}` expression
 // nesting, plain-brace nesting inside expressions, and nested backtick templates (an inner pt`…`
 // inside a ternary), so a span never terminates early — the outer span's text INCLUDES every
-// nested span, and one flat re-scan over the collected text sees both.
-export function ptSpans (source) {
+// nested span, and one flat re-scan over the collected text sees both. ptSpanRanges is the one
+// scanner; it returns each span with its [start, end) source offsets (start at the pt` tag, end
+// just past the closing backtick) and the [start, end) offsets of its top-level `${…}` bodies
+// (`exprs`), so a caller can tell prompt prose from code inside a span by line as well as read it —
+// stage-workflow.test.mjs's strip oracle does. ptSpans is the text-only view of the same result.
+export function ptSpanRanges (source) {
   const spans = []
   const re = /\bpt`/g
   let m
   while ((m = re.exec(source))) {
+    const start = m.index
     let i = m.index + m[0].length
     const stack = ['tpl'] // 'tpl' = template text, 'expr' = ${…} body, 'brace' = plain {…} inside an expr
+    const exprs = []
+    let exprStart = -1
     let out = ''
     while (i < source.length && stack.length) {
       const c = source[i]
@@ -89,18 +98,22 @@ export function ptSpans (source) {
       if (c === '\\' && top === 'tpl') { i += 2; continue }
       if (top === 'tpl') {
         if (c === '`') { stack.pop(); if (!stack.length) break; out += c; i++; continue }
-        if (c === '$' && source[i + 1] === '{') { stack.push('expr'); out += '${'; i += 2; continue }
+        if (c === '$' && source[i + 1] === '{') { if (stack.length === 1) exprStart = i; stack.push('expr'); out += '${'; i += 2; continue }
       } else { // 'expr' or 'brace'
         if (c === '`') { stack.push('tpl'); out += c; i++; continue }
         if (c === '{') { stack.push('brace'); out += c; i++; continue }
-        if (c === '}') { stack.pop(); out += c; i++; continue }
+        if (c === '}') { stack.pop(); if (stack.length === 1) exprs.push([exprStart, i + 1]); out += c; i++; continue }
       }
       out += c; i++
     }
-    spans.push(out)
+    spans.push({ start, end: Math.min(i + 1, source.length), text: out, exprs })
     re.lastIndex = i
   }
   return spans
+}
+
+export function ptSpans (source) {
+  return ptSpanRanges(source).map((s) => s.text)
 }
 
 // Pure member chains interpolated fallback-free inside pt spans, with occurrence counts.

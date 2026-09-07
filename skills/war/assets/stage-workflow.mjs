@@ -16,16 +16,18 @@
 //   stages, and a journal replay must see identical bytes even across a mid-run plugin upgrade — so
 //   it is left byte-untouched, its path printed, exit 0 (with --args, one stderr warning that the
 //   flag was ignored). A deliberate restage passes --force (the only path that overwrites an
-//   existing staged file, from a fresh substitution of the current shipped template) — that is also
-//   how changed args are re-embedded.
+//   existing staged file, from a fresh comment-stripped substitution of the current shipped
+//   template) — that is also how changed args are re-embedded. An existing file over the scriptPath
+//   cap is the one reuse refused: it cannot dispatch, so the stager exits non-zero naming --force.
 //   Fail-loud: a missing OR duplicated anchor exits NON-ZERO with a named error (never a silent
 //   fork).
 //   Comment strip (#2099): the staged copy drops the shipped template's full-line `//` comments in
 //   code state (never a line inside a string, template literal, regex or block comment), each
-//   replaced by an empty line so line numbers still match the shipped template. The Workflow tool
-//   refuses a scriptPath over SCRIPT_BYTE_CAP bytes, and the shipped template alone crossed it at
-//   0.21.11 (525,209 bytes) — so a staged copy that would still exceed the cap after the strip exits
-//   NON-ZERO with a named error and writes nothing.
+//   replaced by an empty line so the line count is preserved — a line number in a staged copy is the
+//   shipped template's line, plus the two prelude lines under --args. The Workflow tool refuses a
+//   scriptPath over SCRIPT_BYTE_CAP bytes, and the shipped template alone crossed it at 0.21.11
+//   (measured 525,209 bytes on 2026-09-06) — so a staged copy that would still exceed the cap after
+//   the strip exits NON-ZERO with a named error and writes nothing.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -60,17 +62,26 @@ export const SCRIPT_BYTE_CAP = 524288
 // Blank out every full-line `//` comment that sits in CODE state — a line whose first non-blank bytes
 // are `//` and that is not inside a string, a template literal (any `${…}` nesting), a regex literal
 // or a block comment. Each stripped line becomes an empty line, so the staged copy keeps the shipped
-// template's line count and a Workflow stack trace still points at the right template line. Nothing
-// else moves: trailing comments, block comments and every non-comment byte pass through verbatim.
-// The scanner is the comment/string-skipping loop of extractTopLevelTemplateLiterals in
-// prompt-surface-budgets.test.mjs, plus a regex-literal arm (a `/` opening an expression — after
-// `(`, `,`, `=`, `:`, `[`, `!`, `&`, `|`, `?`, `{`, `}`, `;` or an operator — reads to its closing `/`,
-// honouring `\` escapes and `[…]` classes; a `/` after an operand is division and passes through).
+// template's line count (an --args stage then adds its two prelude lines after `meta`). Nothing else
+// moves: trailing comments, block comments and every non-comment byte pass through verbatim, and the
+// strip is idempotent. The scanner is adapted from the comment/string-skipping loop of
+// extractTopLevelTemplateLiterals in prompt-surface-budgets.test.mjs, with three deliberate
+// divergences: (1) the line-comment arm records a drop range instead of consuming the line; (2) the
+// string arm also stops at a newline, so a stray quote can never swallow the rest of the file; (3) a
+// regex-literal arm — a `/` that opens an expression (after `(`, `,`, `=`, `:`, `[`, `!`, `&`, `|`,
+// `?`, `{`, `}`, `;`, an operator, or one of the REGEX_AFTER_WORD keywords such as `return`) reads to
+// its closing `/`, honouring `\` escapes and `[…]` classes; a `/` after an operand is division and
+// passes through. Two known misreads, both fail-safe (a misread body is scanned as code and resyncs at
+// the newline; a backtick met in that state trips the nesting throw below, never a wrong blank): a
+// regex after a postfix `++`/`--`, and a division right after a keyword. stage-workflow.test.mjs arm
+// (p) is the arbiter — one fixture line per arm, and a prompt-byte oracle over the shipped template.
+const REGEX_AFTER_WORD = new Set(['return', 'case', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'yield', 'await', 'do', 'else', 'throw'])
 export function stripFullLineComments(src) {
   const n = src.length
   const stack = [{ type: 'code' }] // 'code' | 'template'; a code frame with interp:true is a ${…} body
   const drop = [] // [start, end) byte ranges of the comment text to blank
   let lastSig = '' // last significant (non-blank, non-comment) code char — the regex/division tie-break
+  let lastWord = '' // the identifier or keyword those chars spell, '' after any non-word char
   let i = 0
   while (i < n) {
     const ctx = stack[stack.length - 1]
@@ -98,9 +109,10 @@ export function stripFullLineComments(src) {
         }
         i = j + 1
         lastSig = c
+        lastWord = ''
         continue
       }
-      if (c === '/' && (lastSig === '' || '(,=:[!&|?{};+-*%<>~^'.includes(lastSig))) {
+      if (c === '/' && (lastSig === '' || '(,=:[!&|?{};+-*%<>~^'.includes(lastSig) || REGEX_AFTER_WORD.has(lastWord))) {
         let j = i + 1
         let inClass = false
         while (j < n && src[j] !== '\n') {
@@ -113,6 +125,7 @@ export function stripFullLineComments(src) {
         i = j + 1
         while (i < n && /[a-z]/.test(src[i])) i++ // flags
         lastSig = '/'
+        lastWord = ''
         continue
       }
       if (c === '`') {
@@ -131,16 +144,20 @@ export function stripFullLineComments(src) {
           ctx.depth--
         }
       }
-      if (!/\s/.test(c)) lastSig = c
+      if (!/\s/.test(c)) {
+        lastSig = c
+        lastWord = /[\w$]/.test(c) ? lastWord + c : ''
+      }
       i++
       continue
     }
     // template context
     if (c === '\\') { i += 2; continue }
-    if (c === '`') { stack.pop(); i++; continue }
+    if (c === '`') { stack.pop(); lastSig = '`'; lastWord = ''; i++; continue }
     if (c === '$' && c2 === '{') {
       stack.push({ type: 'code', interp: true, depth: 0 })
       lastSig = '{'
+      lastWord = ''
       i += 2
       continue
     }
@@ -171,8 +188,10 @@ export function deriveDescription(planSlug, phaseId, campaignOrdinal) {
 }
 
 // Replace the single occurrence of `anchor` with `replacement`. Exactly-once or throw (fail-loud):
-// zero ⇒ the template lost the anchor; ≥2 ⇒ an ambiguous fork (e.g. a careless coupling comment
-// restated the anchor bytes). split/join (not String.prototype.replace) so a `$` in `replacement`
+// zero ⇒ the template lost the anchor; ≥2 ⇒ an ambiguous fork (e.g. a careless trailing or block
+// coupling comment restated the anchor bytes — a full-line `//` comment is stripped in step (0)
+// before this count runs, so the raw-source arbiter for that case is test (f) in
+// stage-workflow.test.mjs). split/join (not String.prototype.replace) so a `$` in `replacement`
 // stays inert.
 function replaceExactlyOnce(text, anchor, replacement, label) {
   const parts = text.split(anchor)
@@ -254,10 +273,18 @@ function main(argv) {
   if (fs.existsSync(stagedPath) && !force) {
     // An existing file over the cap (a pre-#2099 stage, or a hand-inflated copy) can never dispatch,
     // so reusing it would only move the failure to the Workflow tool's own error. Refuse, naming the
-    // remedy; the file stays byte-untouched — losing its injected stages is the operator's call.
-    const existingBytes = fs.statSync(stagedPath).size
+    // remedy; the file stays byte-untouched — losing its injected stages, and byte identity with any
+    // journal recorded against it, is the operator's call. A stat failure between existsSync and
+    // here is a named error too (fail-closed), never a raw stack trace or a silent reuse.
+    let existingBytes
+    try {
+      existingBytes = fs.statSync(stagedPath).size
+    } catch (err) {
+      process.stderr.write(`stage-workflow: cannot stat existing staged file ${stagedPath}: ${(err && err.message) || err}\n`)
+      process.exit(1)
+    }
     if (existingBytes > SCRIPT_BYTE_CAP) {
-      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment-stripped substitution; any injected stage in the old file is lost and must be re-applied)\n`)
+      process.stderr.write(`stage-workflow: existing staged file ${stagedPath} is ${existingBytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap — it cannot dispatch; restage it with --force (a fresh, comment-stripped substitution: any injected stage in the old file is lost and must be re-applied, and a resumeFromRunId journal recorded against the old bytes no longer matches)\n`)
       process.exit(1)
     }
     if (argsFile !== null) {
@@ -295,10 +322,12 @@ function main(argv) {
 
   const template = fs.readFileSync(templatePath, 'utf8')
   let staged
+  let strippedBytes = 0
   try {
     // Step (0): strip the full-line code comments FIRST, so the prelude's own comment line (step 3)
     // and every substituted literal survive untouched.
     staged = stripFullLineComments(template)
+    strippedBytes = Buffer.byteLength(staged, 'utf8')
     staged = replaceExactlyOnce(staged, NAME_ANCHOR, `name: '${deriveName(planSlug, phaseId, campaignOrdinal)}'`, 'name')
     staged = replaceExactlyOnce(staged, DESCRIPTION_ANCHOR, deriveDescription(planSlug, phaseId, campaignOrdinal), 'description')
     // Steps (2)+(3), --args only: rewrite the fallback tail, THEN inject the payload. Without the
@@ -313,11 +342,14 @@ function main(argv) {
   }
 
   // Size floor (#2099): the Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes, before
-  // entry validation — so refuse HERE, with the two contributing sizes named, and write nothing.
+  // entry validation — so refuse HERE, with the two contributing sizes named as what they are (the
+  // stripped template measured before substitution; the args payload alone — the remainder is the
+  // substitution and prelude overhead), and write nothing. `bytes` is the UTF-8 length, which is what
+  // writeFileSync writes, statSync reports on reuse, and the tool measures off disk.
   const bytes = Buffer.byteLength(staged, 'utf8')
   if (bytes > SCRIPT_BYTE_CAP) {
     const argsBytes = embedded === null ? 0 : Buffer.byteLength(JSON.stringify(embedded), 'utf8')
-    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (comment-stripped template ${bytes - argsBytes} bytes + embedded args ${argsBytes} bytes) — nothing written; slim the template or the --args payload\n`)
+    process.stderr.write(`stage-workflow: staged script would be ${bytes} bytes, over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap (comment-stripped template ${strippedBytes} bytes; embedded args ${argsBytes} bytes; the rest is substitution and prelude overhead) — nothing written; slim the --args payload, or the template's code\n`)
     process.exit(1)
   }
 

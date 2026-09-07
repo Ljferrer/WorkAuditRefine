@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { ptSpans, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS } from './assert-args-complete.mjs'
+import { ptSpans, ptSpanRanges, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, 'assert-args-complete.mjs')
@@ -30,6 +30,17 @@ test('ptSpans: collects only pt-tagged template literals, never plain ones or co
   assert.ok(chains.has('x.y') && chains.has('q.r'), 'pt-span chains extracted')
   assert.ok(!chains.has('z.w'), 'plain-template chain is NOT extracted')
   assert.ok(!chains.has('c.d'), 'comment-prose chain is NOT extracted')
+})
+
+test('ptSpanRanges: offsets start at the pt` tag and end just past the closing backtick; ptSpans is its text view', () => {
+  const src = 'const a = pt`hi ${x}`; const b = 1; const c = pt`bye`'
+  const ranges = ptSpanRanges(src)
+  assert.deepEqual(ranges, [{ start: 10, end: 21, text: 'hi ${x}', exprs: [[16, 20]] }, { start: 46, end: 53, text: 'bye', exprs: [] }])
+  assert.equal(src.slice(ranges[0].start, ranges[0].end), 'pt`hi ${x}`', 'the range covers the tag through the closing backtick')
+  assert.equal(src.slice(16, 20), '${x}', 'an expr range covers `${` through its closing brace')
+  const nested = 'pt`a ${cond ? pt`b ${y}` : \'\'} c`'
+  assert.deepEqual(ptSpanRanges(nested)[0].exprs, [[5, 30]], 'a nested template inside the expression stays inside that one top-level expr range')
+  assert.deepEqual(ptSpans(src), ranges.map((r) => r.text))
 })
 
 test('ptSpans: a nested pt literal inside a ternary expression stays inside the outer span', () => {
