@@ -13526,7 +13526,7 @@ test('pin-transfer: already_upstream contradiction legs — rebased_tip at the d
     const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('already_upstream REFUSED') && l.includes(why)), why + ': the refusal log names the leg')
     assert.ok(!(out.pinTransfers || []).some(p => p && p.mode === 'already_upstream'), why + ': no already_upstream row')
-    assert.ok(calls.some(isMergeTask) || calls.some(c => isAuditor(c) && c.prompt.includes('beef0001')), why + ': the task takes the merge or the re-audit path, never a recorded skip')
+    assert.ok(calls.some(isMergeTask), why + ': the task takes the merge path, never a recorded skip')
   }
   // Unequal patch-ids under a contradiction → 'mismatch': the full panel re-audits the rebased tip.
   const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {

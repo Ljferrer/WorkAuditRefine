@@ -253,10 +253,12 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // land_segment (Phase 6 Task 1 (a), A6 REVISED): the in-band segmented-land marker — the literal
   // 'incomplete' riding status:'error' when the land dispatch is FORCED to return before the land
   // completes (the gate outran the tool timeout). land-phase only, OPTIONAL. Orthogonal to status
-  // exactly like floor_route — NO status enum value, HARD_ESCALATION_REASONS member, or
-  // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005). The
-  // Workflow re-dispatches the land while the marker persists (FLOOR_STATUSES retry-loop idiom,
-  // bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
+  // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
+  // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005; unlike
+  // floor_route, this marker mints no HARD_ESCALATION_REASONS member). The
+  // Workflow re-dispatches the land while the marker rides its contracted status:'error' pair (a landed
+  // result carrying a stray marker stands) at the initial land and both *-proceed re-lands (FLOOR_STATUSES
+  // retry-loop idiom, bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
   // segment_note: free-text progress note — rendered into the continuation log line only, never routed on.
   land_segment: { enum: ['incomplete'] },
   segment_note: { type: 'string' },
@@ -2016,9 +2018,10 @@ const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && 
 // the real tripped floor without touching the wire schema. floor_route absent ⇒ identity (set-minus:
 // every budget-floor-less result flows through byte-identical). Workflow-internal only — the routed
 // status is never returned to a refiner and never re-enters a MERGE_RESULT. Applied at every PER-TASK
-// merge-task dispatch site (primary, floor-retry, environment-proceed, baseline-proceed); the class-exempt
-// phase-close polish merge is deliberately unwrapped — a budget-uncited there fail-open DISCARDS the sweep
-// (#1744). 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005), so a normalized result
+// merge-task dispatch site (primary, floor-retry, environment-proceed, baseline-proceed); the two class-exempt
+// sweep-family merges — the phase-close polish merge (`merge:p<id>-polish`) and the terminal-pass merge
+// (`merge:p<id>-terminal`) — are deliberately unwrapped: a budget-uncited there fail-open DISCARDS that
+// sweep (#1744). 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005), so a normalized result
 // escalates as hard as the raw 'no-test' did, under its real name.
 const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
   ? { ...mr, status: 'budget-uncited' } : mr
@@ -5020,7 +5023,7 @@ if (landDecision === 'landed') {
     // result: a DEAD land agent (returned null — the observed transient-API 529 repro: the run
     // completed, landResult:null, handoff present) OR a non-null result whose status matched no routed
     // arm above. Route the EXISTING held:land-failed — no new enum member, land-decision.mjs untouched,
-    // the emitted-superset comment above `let landResult = null` stays at 6. The Lead re-runs the land
+    // the emitted-superset comment above `let landResult = null` gains no member. The Lead re-runs the land
     // per SKILL.md §4.3 root cause (c) dead land agent.
     // PARTITION NOTE: a land dispatch that THROWS routes held:workflow-error via the top-level catch
     // (HARD, no re-land) — that catch owns the thrown case; THIS arm owns only the returned-but-unrouted
