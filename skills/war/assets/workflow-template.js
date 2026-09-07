@@ -2814,8 +2814,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // row in the ace batch OR one row in the phase-close queue; the second raiser's seat merges
         // onto the survivor. phaseClose wins the tie-break, never arrival order (snipe: two seats):
         // a later copy carrying phaseClose:true promotes an ace-batch survivor to the queue, because
-        // the queue is the strictly safer sink (the sweep at the integrated tip can do everything the
-        // per-task ace can) and phaseClose is the seat's statement that the fix needs it. Every push
+        // phaseClose is the seat's statement that the fix needs the integrated tip (or a shared file),
+        // so the queue is the honest sink for it — the per-task ace tip is the wrong place. Every push
         // below (ace batch, ace-off sweep route, phase-close queue) passes here.
         const key = remintKey(f)
         const dupQ = phaseCloseQueue.find(q => remintKey(q) === key)
