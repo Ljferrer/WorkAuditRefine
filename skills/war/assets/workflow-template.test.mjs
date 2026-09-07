@@ -9951,9 +9951,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                 /exit 2[\s\S]{0,240}never the budget-uncited route/i] },
     // Fix-round doctrine pointer (#2097, engine-and-audit-verdict-integrity Task 1.4, PIN-1): the worker
     // card's trigger sentence and the FIX_NEEDED build's own pointer line both name the reference by its
-    // plugin-root-anchored path (ADR 0047) and the dispatch trigger. Anchor precondition: both tokens
-    // count 0 in agents/war-worker.md and in workflow-template.js at the task base, so a per-surface
-    // revert REDs this row. The rule bodies are pinned separately by the fixture `fix-round doctrine:
+    // plugin-root-anchored path (ADR 0047) and the dispatch trigger. Anchor precondition: the pointer
+    // path and the dispatch trigger each count 0 in agents/war-worker.md and in workflow-template.js
+    // at the task base, so a per-surface revert REDs this row. The rule bodies are pinned separately by the fixture `fix-round doctrine:
     // every fix-applying build mirrors the reference` — never by this row (the card carries no rule body).
     { name: 'fix-round doctrine pointer (#2097): worker card trigger sentence ↔ FIX_NEEDED build pointer line',
       surfaces: [['war-worker.md', workerMd], ['FIX_NEEDED fix prompt', fixP]],
@@ -15317,8 +15317,8 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
 // FIX-ROUND DOCTRINE (#2097, engine-and-audit-verdict-integrity Task 1.4, D24/PIN-27) — the
 // `## The rules` section of skills/war/references/fix-round-doctrine.md is the canonical body; the
 // enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE
-// shared constant carrying it byte-equal. Two other fix-applying prompts are deliberately excluded under
-// the plan scope: the batch ace ADVISORY POLISH (--ace) build and the phase-close sweep polish build
+// shared constant carrying it byte-equal. The batch ace ADVISORY POLISH (--ace) build and the
+// phase-close sweep polish build are deliberately excluded under the plan scope
 // (agents/war-worker.md's trigger pointer still reaches those workers). The first-pass worker prompt
 // and the auditor prompts carry nothing.
 // Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
@@ -15370,8 +15370,8 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     assert.ok(live && live.prompt, `${b.site}: dispatched (presence guard)`)
     assert.ok(live.prompt.includes(rules), `${b.site}: carries the reference's rule section byte-equal`)
     assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
-    assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(rule 9\)/, `${b.site}: asks for the cause line before the fix`)
-    assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb/, `${b.site}: names the note-absorb rule`)
+    assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(the cause-then-class-then-fix rule\)/, `${b.site}: asks for the cause line before the fix`)
+    assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round \(the note-absorb rule\)/, `${b.site}: names the note-absorb rule`)
     assert.ok(!live.prompt.includes(reworded), `${b.site}: a reworded rule never appears (no-false-positive; byte-sensitivity is pinned by the includes(rules) assert above)`)
     // Delete-and-trace: drop this build's interpolation ⇒ this prompt loses the section; each sibling keeps it.
     const mutated = dropDoctrineAt(b.head)
