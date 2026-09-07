@@ -64,3 +64,5 @@ flag (engine-only vs. Lead-assembled) before trusting "exempt because self-autho
 **Related:** [[own-token-provenance-floor-vacuous-or-false-refusal-both-directions]] (archived;
 the same #1413 floor's two earlier mis-calibration classes: vacuous JSON.stringify key-name
 matches, and false refusal on generic/citation rows; this is a third, distinct class).
+
+> archived 2026-09-04: resolved — moved to archive

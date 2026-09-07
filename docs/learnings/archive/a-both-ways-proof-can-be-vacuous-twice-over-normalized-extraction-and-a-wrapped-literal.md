@@ -39,3 +39,5 @@ sitting while fixing a drift-guard row (`skill-doc-contracts.test.mjs` D43):
 
 Standing rule: a both-ways proof owes two checks of its own — that the scratch edit actually
 changed bytes, and that the assert's input is non-empty.
+
+> archived 2026-09-04: resolved — moved to archive

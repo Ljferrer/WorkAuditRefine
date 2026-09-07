@@ -48,3 +48,5 @@ metadata:
 ## Related
 
 [[own-token-provenance-floor-vacuous-or-false-refusal-both-directions]]: a sibling class where a provenance-floor guard errs in both directions on schema-shaped input. Both trace to trusting agent-authored payload shape for an integrity property.
+
+> archived 2026-09-04: resolved — moved to archive

@@ -73,7 +73,7 @@ When `target repo` is a submodule **and** it is **not** declared WAR-owned, WAR 
 
 ## Base re-run + re-attach (gate classification)
 
-Trigger: a gate-failure classification requires the base re-run (merge-task or land-phase). "That base" below is the per-site classification base the card's § Gate-failure classification names.
+Trigger: a gate-failure classification requires the base re-run (merge-task or land-phase). "That base" below is the per-site classification base that `skills/war/references/gate-failure-classification.md` (the evicted classification section) names.
 
 - **Base re-run + re-attach:** detach `_refinery` at that base (`git -C <_refinery> checkout --detach <base>`), re-run ONLY the failing gate there, then **RE-ATTACH `_refinery` to the integration branch before you return** (`git -C <_refinery> checkout <integrationBranch>`). Every merge/land dispatch also **begins** with that same idempotent re-attach (the re-attached-by-default `_refinery`), so a dispatch that died mid-classification cannot strand the queue detached.
 

@@ -34,36 +34,40 @@ const FILES_ANCHOR = /^\s*(-\s+)?\*{0,2}Files?:\*{0,2}\s*/i
 // on a real /war-machine plan `- Files:` is immediately followed by `- Plan slice:`
 // with no blank line between, and without this break the backtick-heavy Plan-slice
 // prose bleeds into the block — its construct-name backticks defeat the
-// backtick-absence fallback in extractFiles, so a bare `- Files:` path is lost and
-// init throws `unparseable footprint` (a /red-team CRITICAL). The checkbox
+// backtick-absence fallback in extractFiles, so a bare `- Files:` path is dropped
+// from that block's contribution to the union (silently absorbed whenever any
+// sibling block parses); init throws `unparseable footprint` (a /red-team
+// CRITICAL) only when every block yields []. The checkbox
 // alternative is retained for the space-less `-[x]` form the plain-bullet pattern
 // would miss.
 const NEW_CONSTRUCT = /^\s*(#{1,6}\s|\*\*|-\s*\[[ xX]\]|-\s)/
 
-// Consume the anchor line's remainder + continuation lines until a blank line or
-// a new construct (heading, bold, checkbox, or any new list item — the list-item
-// break keeps the block scoped to the Files line's own content).
-function collectBlock(lines) {
-  let start = -1
-  let remainder = ''
+// Consume each anchor line's remainder + continuation lines until a blank line,
+// a new construct (heading, bold, checkbox, or any new list item — the
+// list-item break keeps the block scoped to the Files line's own content), or
+// the next Files: anchor itself (the dash-less bare `Files:` form matches no
+// NEW_CONSTRUCT alternative, so without this break two adjacent bare blocks
+// would merge into one whitespace-bearing segment that isPathShaped rejects).
+// Returns EVERY Files: block in the plan, in document order (D11): a multi-task
+// plan carries one block per task and the footprint is their union.
+function collectBlocks(lines) {
+  const blocks = []
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(FILES_ANCHOR)
-    if (m) {
-      start = i
-      remainder = lines[i].slice(m[0].length)
-      break
+    if (!m) continue
+    const parts = [lines[i].slice(m[0].length)]
+    let j = i + 1
+    for (; j < lines.length; j++) {
+      const line = lines[j]
+      if (line.trim() === '') break
+      if (NEW_CONSTRUCT.test(line)) break
+      if (FILES_ANCHOR.test(line)) break
+      parts.push(line)
     }
+    blocks.push(parts.join(' '))
+    i = j - 1
   }
-  if (start === -1) return null
-
-  const parts = [remainder]
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i]
-    if (line.trim() === '') break
-    if (NEW_CONSTRUCT.test(line)) break
-    parts.push(line)
-  }
-  return parts.join(' ')
+  return blocks
 }
 
 // Strip parenthetical/em-dash annotation clauses, but keep a parenthetical
@@ -84,7 +88,8 @@ function isPathShaped(token) {
   return token.includes('/') || /\.[A-Za-z0-9]+$/.test(token)
 }
 
-// Extract the file footprint from a plan's `Files:` block. `lines` is either
+// Extract the file footprint from a plan's `Files:` blocks — the union of
+// every block, deduped, in order of first appearance (D11). `lines` is either
 // the full plan text split into lines, or an already-sliced block (tests pass
 // small fixtures directly).
 //
@@ -95,22 +100,41 @@ function isPathShaped(token) {
 // shape a /war-machine plan often emits), split on commas and accept whole
 // segments passing isPathShaped(). The trigger is backtick ABSENCE, not
 // zero-files: a block whose sole backticked token is non-path-shaped stays
-// backtick-only, yields [], and surfaces via assertOrderable's fail-loud throw —
-// never diluted by a bare fallback (mixed lines defer to backticks).
+// backtick-only and yields [] for that block — never diluted by a bare fallback
+// (mixed lines defer to backticks). Only an empty UNION surfaces via
+// assertOrderable's fail-loud throw; one empty block among full ones does not.
 //
-// Fallback ceilings (both fail-loud-backstopped, never a silent wrong ingest):
+// Fallback ceilings (each bullet states its own bound; only the parenthetical keep-rule
+// asymmetry reaches the fail-loud throw, the other two are bounded and never throw):
 //  - isPathShaped over-acceptance: it accepts any dot-suffixed token (a stray
 //    prose `e.g.` would pass), so a sloppy bare line can over-widen the footprint.
 //    Bounded — worst case is an over-conservative contention order, never a throw.
 //  - Parenthetical keep-rule asymmetry: stripAnnotations preserves a parenthetical
 //    ONLY when its sole content is a BACKTICKED path token; a bare parenthesized
 //    path is stripped BEFORE the fallback sees it. A block reduced to empty that
-//    way yields [] and surfaces via the fail-loud throw.
+//    way yields [] and, if every block is empty, surfaces via the fail-loud throw.
+//  - Code-fence blindness: the union is anchor-shaped only. collectBlocks has no
+//    fence toggle (unlike resolveRoadmapPlans), so a `Files:` line inside a ```
+//    fence or in illustrative prose contributes to the footprint. Bounded — worst
+//    case is an over-wide footprint and an over-conservative contention order,
+//    never a throw.
 export function extractFiles(lines) {
   const arr = Array.isArray(lines) ? lines : String(lines).split(/\r?\n/)
-  const block = collectBlock(arr)
-  if (block == null) return []
+  const files = []
+  for (const block of collectBlocks(arr)) {
+    for (const f of extractBlockFiles(block)) {
+      if (!files.includes(f)) files.push(f)
+    }
+  }
+  return files
+}
 
+// One block's footprint. The backtick-absence fallback is decided HERE, per
+// block, before the union (D11): a backticked block and a bare comma-separated
+// block in the same plan each extract by their own shape. A concatenate-then-
+// scan implementation would let the backticked block's backticks suppress the
+// bare block's fallback and drop its paths.
+function extractBlockFiles(block) {
   const cleaned = stripAnnotations(block)
   const files = []
   for (const raw of cleaned.split(',')) {
@@ -130,7 +154,7 @@ export function extractFiles(lines) {
   return files
 }
 
-function extractFilesFromPlanFile(planPath) {
+export function extractFilesFromPlanFile(planPath) {
   const text = fs.readFileSync(planPath, 'utf8')
   return extractFiles(text.split(/\r?\n/))
 }

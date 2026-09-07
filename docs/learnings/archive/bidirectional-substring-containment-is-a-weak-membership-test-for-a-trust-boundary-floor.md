@@ -64,3 +64,5 @@ counts as a match. Otherwise a short trusted value becomes an accidental wildcar
 ## Related
 
 None found in the local store at write time.
+
+> archived 2026-09-04: resolved — moved to archive

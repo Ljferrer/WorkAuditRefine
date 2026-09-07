@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -86,6 +87,21 @@ const eligibilityRef = readFileSync(
   'utf8',
 )
 const floorScriptSrc = readFileSync(join(HERE, FLOOR_SCRIPT), 'utf8')
+// (refiner-evict) The ADR 0042 eviction of the refiner card's `## Gate-failure classification`
+// section (plan 2026-09-03-in-band-absorb-default, D12 · Task 2.1) — the new references home and
+// the two references files whose in-card `#gate-failure-classification` anchors were re-keyed.
+const gateFailureMd = readFileSync(
+  join(HERE, '..', 'references', 'gate-failure-classification.md'),
+  'utf8',
+)
+const budgetRaiseFloorMd = readFileSync(
+  join(HERE, '..', 'references', 'budget-raise-floor.md'),
+  'utf8',
+)
+const refinerRecoveryMd = readFileSync(
+  join(HERE, '..', 'references', 'refiner-recovery.md'),
+  'utf8',
+)
 // (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
 // war-strategy authoring surfaces are the canonical homes the new/converged CONTEXT.md glossary
 // entries restate — SKILL.md §3's rule 8 + §2's oracle-duality bullet, the interview doctrine's
@@ -134,6 +150,8 @@ const adr0012 = readFileSync(
 )
 const designRefMd = readFileSync(join(HERE, '..', 'references', 'design.md'), 'utf8')
 const fileFollowupsMd = readFileSync(join(HERE, '..', 'references', 'file-followups.md'), 'utf8')
+const auditorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-auditor.md'), 'utf8')
+const gastownMd = readFileSync(join(HERE, '..', 'references', 'gastown-design-params.md'), 'utf8')
 const warReviewSkillMd = readFileSync(
   join(HERE, '..', '..', 'war-review', 'SKILL.md'),
   'utf8',
@@ -2762,7 +2780,10 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
 // present at the plan's implementation base `a60221a` and retired by this task — the absence
 // asserts guard against a revert, never a never-present value; PIN-8).
 test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLAUDE.md Known-traps bullet carry the four-member shapes, closed phrasings retired (#1550)', () => {
-  // CONTEXT.md **Disposition** — four-member header, never-defaults pair, demote() ask refusal.
+  // CONTEXT.md **Disposition** — four-member header, the in-diff absorb default with its ask-only
+  // never-a-default tail (re-keyed by plan 2026-09-03-in-band-absorb-default Task 3.2 from the
+  // retired `absorb` and `ask` are never defaults pair; the old-default-absent row guards the pair
+  // absent), demote() ask refusal.
   const disposition = contextMd.match(/^\*\*Disposition\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
   assert.ok(
     disposition,
@@ -2777,7 +2798,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   )
   for (const [re, what] of [
     [/\(`absorb` \| `follow-up` \| `note` \| `ask`\)/, 'the four-member header'],
-    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/fully specified Minor\/Nit defaults to `absorb`/, 'the in-diff absorb default'],
+    [/`follow-up` needs a tag from the \*\*Barrier list\*\*/, 'the barrier-list cross-reference'],
+    [/`ask` is never a default/, 'the ask-only never-a-default tail'],
     [/`demote\(\)`\s+refuses\s+an\s+ask/i, "the demote() ask refusal"],
     [/re-route\s+onto\s+`asks\[\]`/i, "the refusal's re-route-onto-`asks[]` arm"],
   ]) {
@@ -2827,7 +2850,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   )
   for (const [re, what] of [
     [/`absorb`\/`follow-up`\/`note`\/`ask`/, 'the four-member set'],
-    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/fully specified Minor\/Nit defaults to `absorb`/, 'the in-diff absorb default'],
+    [/`follow-up` needs a `barrier` tag/, 'the barrier-tag clause'],
+    [/`ask` is never a default/, 'the ask-only never-a-default tail'],
     [/unruled `ask` is never filed/i, 'the never-filed-unruled law'],
     [/Checkpoint strike-list gate/i, 'the strike-list ruling site'],
   ]) {
@@ -2848,9 +2873,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
   assert.ok(
     !/`absorb` is never a default/.test(norm(contextMd)),
     'the retired singular `absorb` is never a default literal must be gone from CONTEXT.md — ' +
-      'the widened pair reads `absorb` and `ask` are never defaults, which shares no substring ' +
-      'with the retired form (OLD-absent, norm()-surface: the base literal wrapped across ' +
-      'lines; PIN-8)',
+      'the current wording reads a fully specified Minor/Nit defaults to `absorb`; `ask` is ' +
+      'never a default, which shares no substring with the retired form (OLD-absent, ' +
+      'norm()-surface: the base literal wrapped across lines; PIN-8)',
   )
   assert.ok(
     !/followUps, notes/.test(norm(contextMd)),
@@ -3064,7 +3089,9 @@ test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ru
     [/Evidence artifacts/i, "parity's Evidence-artifacts section"],
     [/third producer/i, 'the ruling-minted-as-third-producer clause'],
     [/never re-adds one/i, 'the Lead-never-re-adds-one clause'],
-    [/demotes to follow-up with the question preserved/i, 'the `--afk` no-match demotion arm'],
+    // Re-keyed at in-band-absorb-default Task 6.1 (D13): the no-match arm now names its
+    // `DEMOTE_REASONS` prefix; the afk-ask-prefix-pin row below pins the full sentence per bullet.
+    [/files as a `follow-up` with `demote:ask-unruled-afk` on the body prefix line, question preserved/, 'the `--afk` no-match demotion arm (re-keyed to its DEMOTE_REASONS prefix, D13)'],
     [/provenance-marked/i, "the suppression row's provenance marking"],
   ]) {
     assert.match(cp, re, `the SKILL.md Checkpoint must carry ${what} (#1550, Task 2.1's duty pinned here per rule 7)`)
@@ -3119,7 +3146,11 @@ test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ru
   assert.ok(!/two producers above/i.test(s), 'the retired `two producers above` literal must be gone from SKILL.md (OLD-absent, base-verified; PIN-8)')
   // The per-phase disposition sentence (the Audits bullet) — widened form, old default literal retired.
   assert.match(s, /decision-shaped Minor\/Nit only the operator can rule/i, 'the Audits bullet must carry the ask arm')
-  assert.match(s, /`absorb` and `ask` are never defaulted/, 'the Audits bullet must carry the widened never-defaulted pair')
+  // Re-keyed by plan 2026-09-03-in-band-absorb-default Task 3.2: the widened pair `absorb` and
+  // `ask` are never defaulted retired with the in-diff absorb default (old-default-absent guards it).
+  assert.match(s, /a fully specified one defaults to `absorb`, `phaseClose:true` outside the task diff/, 'the Audits bullet must carry the in-diff absorb default')
+  assert.match(s, /needs a `barrier` tag/, 'the Audits bullet must carry the follow-up barrier-tag clause')
+  assert.match(s, /`ask` is never a default/, 'the Audits bullet must carry the ask-only never-a-default tail')
   assert.ok(!/`absorb` is never defaulted/.test(s), 'the retired single-member `absorb` is never defaulted literal must be gone from SKILL.md (OLD-absent, base-verified; PIN-8)')
 })
 
@@ -3155,22 +3186,25 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
   )
 })
 
-// (D43) THE RE-ENTRY / FLOOR-RETRY-RESERVE BOUNDARY IN ITS THREE LIVING-DOC HOMES (#1812; plan
-// 2026-08-27-in-run-finding-resolution, D10 · Task 3). The 2026-08-27 ADR 0013 amendment retired
-// the ace ladder's budget-exhaustion stop condition in favour of budget-bounded re-entry bounded
-// by the floor-retry reserve. #1812's drift was silent precisely because NO row carried the token,
-// so the flip ships the guard: this row binds the NEW boundary prose on every LIVING doc home —
-// SKILL.md's `--ace` bullet, CONTEXT.md's **Ace bisection** glossary row, and design.md §18's
-// disposition-routing bullet — plus the retired literals' absence on those same surfaces.
+// (D43) THE RE-ENTRY / ABSORB-BUDGET BOUNDARY IN ITS THREE LIVING-DOC HOMES (#1812; plan
+// 2026-08-27-in-run-finding-resolution, D10 · Task 3; re-keyed by plan
+// 2026-09-03-in-band-absorb-default, D5 · Task 2.2). The 2026-08-27 ADR 0013 amendment retired the
+// ace ladder's budget-exhaustion stop condition in favour of budget-bounded re-entry bounded by the
+// floor-retry reserve; the 2026-09-03 amendment retired THAT reserve (`fixRounds < roundLimit − 2`)
+// in favour of the per-task absorb budget (`absorbRounds < run.absorbRounds`, PIN-7). #1812's drift
+// was silent precisely because NO row carried the token, so each flip ships the guard: this row
+// binds the CURRENT boundary prose on every LIVING doc home — SKILL.md's `--ace` bullet,
+// CONTEXT.md's **Ace bisection** glossary row, and design.md §18's disposition-routing bullet —
+// plus the retired literals' absence on those same surfaces.
 //
 // THE ADR 0013 HOME IS DELIBERATELY EXEMPT, and the exemption is APPEND-ONLY-LAW-DERIVED, never
 // oversight: the 2026-08-20 amendment's ratified clause ("the remainder demotes on budget
-// exhaustion") is historical law that survives byte-untouched by design, superseded in *currency*
-// by a dated note rather than edited (#1850's living-ADR direction is ratified but deferred until
-// after this plan lands). A blanket absence assert over the ADR would demand the very edit the
+// exhaustion") and the 2026-08-27 amendment's currency clause (the floor-retry reserve) are
+// historical law that survives byte-untouched by design, each superseded in *currency* by a dated
+// note rather than edited. A blanket absence assert over the ADR would demand the very edit the
 // append-only law forbids. So the exemption is not a hole: the final block below asserts BOTH
-// sides of it — the historical clause still present AND the dated supersession note present — so
-// deleting the history, or dropping the note that makes it readable as history, reds here.
+// sides of it — the historical clauses still present AND the dated supersession notes present —
+// so deleting the history, or dropping the note that makes it readable as history, reds here.
 //
 // Extraction is BY CONSTRUCT on all three surfaces (the D35 idiom — never line numbers, which rot
 // across the serial merge queue): the `--ace` bullet → next top-level `- **` bullet; the bolded
@@ -3179,7 +3213,7 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // a truncated extraction reds instead of trivially passing). Keys are token-anchored `/…/i` forms,
 // not sentence bytes: sanctioned rewording latitude on any home must not false-red; a one-sided
 // edit (one home re-authored, another left on the retired boundary) reds.
-test('D43 — the re-entry / floor-retry-reserve boundary is present in all three living-doc homes and the retired budget-exhaustion literals are gone (#1812)', () => {
+test('D43 — the re-entry / absorb-budget boundary is present in all three living-doc homes and the retired budget-exhaustion and reserve literals are gone (#1812; reserve-retired)', () => {
   const HOMES = [
     [
       'skills/war/SKILL.md `--ace` bullet',
@@ -3210,36 +3244,51 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
         'satisfy the keys below vacuously)',
     )
     for (const [key, what] of [
-      [/floor-retry reserve/i, 'the floor-retry-reserve stop condition'],
+      [/absorb budget/i, 'the absorb-budget stop condition'],
       [/re-entry/i, 'the budget-bounded re-entry token'],
-      [/roundLimit\s*[−-]\s*2/, 'the reserve arithmetic (`fixRounds < roundLimit − 2`)'],
+      [/absorbRounds\s*<\s*run\.absorbRounds/, 'the budget arithmetic (`absorbRounds < run.absorbRounds`)'],
       // The three token keys above are all satisfied by a re-entry sentence ALONE, so a home can
-      // carry them while stating the ladder's OPPOSITE semantics (design.md §18 shipped exactly
-      // that at this task's cut base: the bare universal "only finally-failing subsets demote",
-      // with the reserve's sweep rung mis-attributed to the bisection remainder). The engine's
-      // arm (`aceBisect`: `if (r.task.fixRounds >= roundLimit - 2) … demote(f, 'follow-up', …)`
-      // over `[sub, ...queue.splice(0)]`) is the second demote arm, and it routes to `follow-up`
-      // directly — never `phaseClose: true`. This key binds that arm's presence: the reserve stop
-      // must be stated as demoting the still-queued/remaining subsets, in either clause order.
+      // carry them while stating the ladder's OPPOSITE semantics for the bisection remainder. The
+      // engine's arm (`aceBisect`: `if (r.task.absorbRounds >= absorbRounds) … routeToSweep(f, …)`
+      // over the still-queued subsets) routes those subsets to the phase-close sweep as absorbs —
+      // never `follow-up`, never a demotion (D5: only a subset that failed its own re-audit
+      // demotes). This key binds that arm's route: the budget stop must be stated as sending the
+      // still-queued/remaining subsets to the sweep, in either clause order.
       [
-        /(subsets still queued|remaining subsets)[\s\S]{0,160}?demote|demote[\s\S]{0,160}?(subsets still queued|remaining subsets)/i,
-        "the bisection reserve-stop demote arm (reaching the reserve mid-bisection demotes the " +
-          'still-queued subsets too — not only the finally-failing ones)',
+        /(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,160}?sweep|sweep[\s\S]{0,160}?(subsets still queued|still-queued subsets|remaining subsets)/i,
+        'the bisection budget-stop sweep route (a spent absorb budget mid-bisection sends the ' +
+          'still-queued subsets to the sweep as absorbs — never demotes them)',
       ],
     ]) {
       assert.match(
         text,
         key,
-        `${name} must carry ${what} (#1812, ADR 0013 amendment 2026-08-27). Correct this row to a ` +
+        `${name} must carry ${what} (#1812, ADR 0013 amendment 2026-09-03). Correct this row to a ` +
           'sanctioned rewording, never drop the clause on one home to make it pass',
       )
     }
+    // The retired reserve-stop demote route, construct-scoped: a home that still says the
+    // still-queued subsets DEMOTE states the pre-2026-09-03 arm. The key is forward-only
+    // (phrase, then `demote` within 60 chars). At this task's cut base it reds on two homes:
+    // CONTEXT.md's "the remaining subsets demote to `follow-up`" and design.md's "the remaining
+    // subsets demote straight to `follow-up`". SKILL.md's base placed `demote` AHEAD of the
+    // phrase ("subsets demote (plus the subsets still queued when the floor-retry reserve stops
+    // the ladder"), which this key does not match, so on SKILL.md it guards prospectively only
+    // and the three positive keys above bind that home. Do not widen the key to the
+    // `demote ... subsets still queued` direction: the re-authored SKILL.md bullet ("subsets
+    // demote (subsets still queued at a spent budget ride to the sweep") would false-red.
+    assert.ok(
+      !/(subsets still queued|still-queued subsets|remaining subsets)[\s\S]{0,60}?demote/i.test(text),
+      `${name} still states the retired reserve-stop demote arm (the still-queued subsets demote) — ` +
+        'they ride to the sweep as absorbs now (D5, PIN-7)',
+    )
   }
-  // OLD-absent, whole-surface (End state 9's own form). Both literals were verified present at
-  // this task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion demotes the remainder`
-  // once, design.md `budget-exhausted remainder` once — so these guard a revert of the flip, never
-  // a never-present value (PIN-8). Deliberately NOT applied to docs/adr/0013 — see the
-  // append-only-law exemption in the header comment and its two-sided proof below.
+  // OLD-absent, whole-surface (End state 9's own form). The exhaustion literals were verified
+  // present at the 2026-08-27 task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion
+  // demotes the remainder` once, design.md `budget-exhausted remainder` once — so these guard a
+  // revert of that flip, never a never-present value (PIN-8). Deliberately NOT applied to
+  // docs/adr/0013 — see the append-only-law exemption in the header comment and its two-sided
+  // proof below.
   for (const [name, text, literal] of [
     ['skills/war/SKILL.md', skillMd, 'exhaustion demotes the remainder'],
     ['CONTEXT.md', contextMd, 'exhaustion demotes the remainder'],
@@ -3248,24 +3297,29 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
     assert.ok(
       !norm(text).includes(literal),
       `the retired budget-exhaustion literal "${literal}" must be gone from ${name} ` +
-        '(OLD-absent, base-verified; #1812, PIN-8) — the living docs carry the reserve boundary now',
+        '(OLD-absent, base-verified; #1812, PIN-8) — the living docs carry the absorb budget now',
     )
   }
   // The ADR home's exemption, proven from BOTH sides so the carve-out cannot hollow the row.
-  const adr = norm(adr0013)
-  // Construct-scoped (the D35 idiom): the 2026-08-27 supersession note QUOTES the historical
-  // literal verbatim, so a whole-surface match is satisfied by the quotation alone — deleting the
-  // 2026-08-20 clause (the exact append-only-law violation this assert exists to catch) leaves a
-  // whole-file assert green (proven: the scratch deletion passed before this scoping). Extract the
-  // amendment section and assert inside THAT span.
+  // Construct-scoped (the D35 idiom): each supersession note QUOTES the historical literal
+  // verbatim, so a whole-surface match is satisfied by the quotation alone — deleting the
+  // superseded clause (the exact append-only-law violation this assert exists to catch) leaves a
+  // whole-file assert green (proven: the scratch deletion passed before this scoping). Extract
+  // each amendment section and assert inside THAT span.
   // Extract from the RAW text (norm() joins every line and strips '#', so headings do not survive
   // it), then normalize the extracted span for the literal match.
-  const adr0820 = norm((adr0013.match(/## Amendment \(2026-08-20\)[\s\S]*?(?=\n## |$)/) || [''])[0])
-  assert.ok(
-    adr0820.length > 200,
-    'ADR 0013: the `## Amendment (2026-08-20)` section did not extract (non-vacuity guard) — a ' +
-      'heading rename or removal reds here before the scoped assert below can pass vacuously',
-  )
+  const section = (date) =>
+    norm((adr0013.match(new RegExp(`## Amendment \\(${date}\\)[\\s\\S]*?(?=\\n## |$)`)) || [''])[0])
+  const adr0820 = section('2026-08-20')
+  const adr0827 = section('2026-08-27')
+  const adr0903 = section('2026-09-03')
+  for (const [date, span] of [['2026-08-20', adr0820], ['2026-08-27', adr0827], ['2026-09-03', adr0903]]) {
+    assert.ok(
+      span.length > 200,
+      `ADR 0013: the \`## Amendment (${date})\` section did not extract (non-vacuity guard) — a ` +
+        'heading rename or removal reds here before the scoped asserts below can pass vacuously',
+    )
+  }
   assert.match(
     adr0820,
     /the remainder demotes on budget exhaustion/,
@@ -3274,12 +3328,152 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
       'restore the historical clause rather than editing it out',
   )
   assert.match(
-    adr,
-    /floor-retry reserve/,
-    "ADR 0013 must carry the dated supersession note naming the floor-retry reserve — it is what " +
-      'makes the surviving 2026-08-20 clause readable as history rather than current doctrine ' +
+    adr0827,
+    /floor-retry reserve \(`fixRounds < roundLimit − 2`\)/,
+    "ADR 0013's 2026-08-27 currency clause (the floor-retry reserve) is ratified append-only law " +
+      'and must survive byte-untouched — the 2026-09-03 note supersedes its currency, never its bytes',
+  )
+  assert.match(
+    adr0903,
+    /absorbRounds\s*<\s*run\.absorbRounds/,
+    'ADR 0013 must carry the dated 2026-09-03 supersession note naming the absorb budget — it is ' +
+      'what makes the surviving 2026-08-27 clause readable as history rather than current doctrine ' +
       '(the exemption above is only sound while this note stands)',
   )
+  assert.match(
+    adr0903,
+    /2026-08-27 clause[\s\S]{0,120}?historical/i,
+    "ADR 0013's 2026-09-03 amendment must name the 2026-08-27 currency clause as historical",
+  )
+})
+
+// (reserve-retired) THE `roundLimit − 2` RESERVE ARITHMETIC IS ABSENT FROM EVERY LIVING SURFACE
+// (plan 2026-09-03-in-band-absorb-default, End state 5 · Task 2.2; PIN-7). OLD-absent, whole-surface,
+// base-verified: at this task's cut base the reserve shape was present in SKILL.md's `--ace` bullet,
+// CONTEXT.md's **Ace bisection** and **Re-entry** rows, and design.md §18 (Task 2.2 re-authored
+// them), and Task 2.1 had already retired it from `disposition-eligibility.md` widening 1, the
+// `schemas.md` re-entry row, and the engine's seven comments plus its four emitted reserve-stop
+// strings (two log() calls plus the demote() and routeToSweep() reason literals they guarded)
+// (rule 7: this task's gate reads those three surfaces after the dep rebase). Two shapes
+// are guarded: the arithmetic itself (`roundLimit − 2`, either minus glyph, any spacing, case-
+// folded — the End-state check's own regex) and the retired token `floor-retry reserve` (the
+// merge-floor retry LOOP keeps its `floor-retry` label — only the reserve compound is retired).
+// ADR 0013 is exempt (append-only law — D43 proves both sides of that exemption).
+test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-retry-reserve token are absent from the six living surfaces (End state 5, PIN-7)', () => {
+  for (const [name, text] of [
+    ['skills/war/SKILL.md', skillMd],
+    ['CONTEXT.md', contextMd],
+    ['skills/war/references/design.md', designRefMd],
+    ['skills/war/references/disposition-eligibility.md', eligibilityRef],
+    ['skills/war/references/schemas.md', schemasMd],
+    ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
+  ]) {
+    const t = norm(text)
+    assert.ok(
+      !/roundLimit\s*(?:−|-|–)\s*2/i.test(t),
+      `${name} still carries the retired \`roundLimit − 2\` reserve arithmetic (OLD-absent, ` +
+        'base-verified; End state 5, PIN-7) — the absorb budget `absorbRounds < run.absorbRounds` ' +
+        'is the ace ladder\'s sole bound now',
+    )
+    assert.ok(
+      !/floor-retry reserve/i.test(t),
+      `${name} still names the retired \`floor-retry reserve\` (OLD-absent, base-verified; End ` +
+        'state 5) — re-author to the absorb budget',
+    )
+  }
+  // The positive half: the six surfaces carry the NEW arithmetic, so an emptied surface cannot
+  // satisfy the absence asserts vacuously.
+  for (const [name, text] of [
+    ['skills/war/SKILL.md', skillMd],
+    ['CONTEXT.md', contextMd],
+    ['skills/war/references/design.md', designRefMd],
+    ['skills/war/references/disposition-eligibility.md', eligibilityRef],
+    ['skills/war/references/schemas.md', schemasMd],
+    ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
+  ]) {
+    assert.match(
+      norm(text),
+      /absorbRounds\s*<\s*run\.absorbRounds/,
+      `${name} must state the absorb-budget gate \`absorbRounds < run.absorbRounds\` (D5) — the ` +
+        'retired-shape asserts above are only meaningful while the successor is present',
+    )
+  }
+})
+
+// (refiner-evict) THE `## Gate-failure classification` EVICTION (plan 2026-09-03-in-band-absorb-
+// default, D12 · Task 2.1 moved it, Task 2.2 pins it; ADR 0042). Three rows: (a) the evicted body
+// is present VERBATIM in skills/war/references/gate-failure-classification.md — extract by
+// construct (the `## Gate-failure classification` heading → end of file, the section's only
+// terminator there) and assert BYTE equality against the pinned SHA-256 of the pre-eviction card
+// bytes (3,126 B, `git show e673850^:agents/war-refiner.md`, the section up to `## Gate contract`);
+// a reword, a dropped bullet, or a re-flow reds here — an ADR 0042 eviction is a byte-identical
+// move, and a sanctioned later edit re-pins the digest in the same commit with its rationale.
+// (b) the card's trigger pointer is pinned — trigger + link, never a bare link (a pointer without
+// a trigger is a defect, ADR 0042) — and the card no longer carries the body. (c) no
+// `#gate-failure-classification` in-page anchor token survives in the card or the two references
+// files that linked into it (case-insensitive): an in-page anchor cannot resolve into the moved
+// section, so a surviving token is a dangling link.
+const GATE_FAILURE_SECTION_SHA256 = '927b5e3345a883124bc7270a0f53349469b6c73267d0ed0ab58595c8418679ad'
+test('refiner-evict (a) — the evicted `## Gate-failure classification` body is present verbatim in gate-failure-classification.md (extract and byte equality; ADR 0042, D12)', () => {
+  const heading = '\n## Gate-failure classification\n'
+  const at = gateFailureMd.indexOf(heading)
+  assert.ok(at >= 0, 'gate-failure-classification.md lost its `## Gate-failure classification` heading')
+  assert.equal(
+    gateFailureMd.indexOf(heading, at + 1),
+    -1,
+    'expected exactly one `## Gate-failure classification` heading in gate-failure-classification.md',
+  )
+  const body = gateFailureMd.slice(at + 1)
+  assert.ok(!/\n## /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last `##` section (heading → end of file)')
+  // Non-vacuity: the extraction spans the section's tail bullet.
+  assert.match(body, /\*\*Debt reuse:\*\*/, 'the extracted section must span its `**Debt reuse:**` tail bullet')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 3126, 'the evicted section is 3,126 B (the pre-eviction card bytes)')
+  assert.equal(
+    createHash('sha256').update(body, 'utf8').digest('hex'),
+    GATE_FAILURE_SECTION_SHA256,
+    'the evicted `## Gate-failure classification` section must be byte-identical to the ' +
+      'pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins ' +
+      'GATE_FAILURE_SECTION_SHA256 in this commit with its rationale',
+  )
+})
+test('refiner-evict (b) — the refiner card keeps the fixed trigger pointer to gate-failure-classification.md and no longer carries the body', () => {
+  assert.match(
+    refinerCard,
+    /when the gate is red, read \[gate-failure-classification\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/gate-failure-classification\.md\)/,
+    'the card must carry the fixed trigger pointer "when the gate is red, read ' +
+      '[gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/' +
+      'gate-failure-classification.md)" (trigger + link; ADR 0042, D12)',
+  )
+  assert.match(
+    refinerCard,
+    /^## Gate-failure classification$/m,
+    'the card keeps the `## Gate-failure classification` heading over the pointer',
+  )
+  for (const literal of ['Per-site classification base', 'Precondition-marker short-circuit', 'Debt reuse:']) {
+    assert.ok(
+      !refinerCard.includes(literal),
+      `the card still carries the evicted body literal "${literal}" — the section lives in ` +
+        'gate-failure-classification.md only (a duplicated body drifts)',
+    )
+  }
+})
+test('refiner-evict (c) — no `#gate-failure-classification` anchor token survives in the card, budget-raise-floor.md, or refiner-recovery.md', () => {
+  for (const [name, text] of [
+    ['agents/war-refiner.md', refinerCard],
+    ['skills/war/references/budget-raise-floor.md', budgetRaiseFloorMd],
+    ['skills/war/references/refiner-recovery.md', refinerRecoveryMd],
+  ]) {
+    assert.ok(
+      !/#gate-failure-classification/i.test(text),
+      `${name} still carries the retired in-page anchor token \`#gate-failure-classification\` — ` +
+        'the section moved to skills/war/references/gate-failure-classification.md; re-key the link',
+    )
+    assert.match(
+      text,
+      /gate-failure-classification\.md/,
+      `${name} must name the references home gate-failure-classification.md (the re-keyed link)`,
+    )
+  }
 })
 
 // (D44) THE INTENT-CEILING LATITUDE MIRROR (#1513) — CONTEXT.md's **Intent ceiling / plan floor**
@@ -3353,4 +3547,543 @@ test("D44 — CONTEXT.md **Intent ceiling / plan floor** mirrors ADR 0013's 2026
       )
     }
   }
+})
+
+// economy-ace-flip (2026-09-03 in-band-absorb-default Task 1.3, D14, PIN-16): the economy preset
+// no longer pins `run.ace: false` — every preset inherits `DEFAULTS.run.ace` (true), and `run.ace`
+// gates the per-task ace ladder only. Eight statements across five surfaces stated the old preset
+// fact; all five are guarded below (Task 1.1 authored the war-room/SKILL.md and war-config.test.mjs
+// rewrites). OLD-absent is LINE-SCOPED and case-folded: a single physical line holding `economy`,
+// an `ace` token, and `off`/`false` is a hit — line scope reaches both README statements and both
+// halves of war-room's one-line economy bullet, and never crosses a test boundary in
+// war-config.test.mjs. README's defaults paragraph is kept as separate physical lines so
+// `commitLearnings: false` never shares a line with the economy sentence; rejoining it false-reds
+// the OLD-absent row.
+const readmeMd = readFileSync(join(HERE, '..', '..', '..', 'README.md'), 'utf8')
+const warRoomMd = readFileSync(join(HERE, '..', '..', 'war-room', 'SKILL.md'), 'utf8')
+const warConfigTestSrc = readFileSync(join(HERE, 'war-config.test.mjs'), 'utf8')
+const ECONOMY_ACE_FLIP_SURFACES = [
+  ['README.md', readmeMd],
+  ['skills/war/SKILL.md', skillMd],
+  ['skills/war/references/schemas.md', schemasMd],
+  ['skills/war-room/SKILL.md', warRoomMd],
+  ['skills/war/assets/war-config.test.mjs', warConfigTestSrc],
+]
+// One physical line → OLD hit iff all three tokens co-occur on it (case-folded, token-bounded so
+// `offer`/`falsehood` prose never false-reds and `preface`/`ace_diff_files` never counts as `ace`;
+// a hyphenated `false-` compound does count, because the hyphen is a word boundary — and so does
+// the `off` side: `trade-off` and `one-off` match `\boff\b` the same way, so a line pairing
+// `economy`, `ace`, and `barrier:trade-off` is a hit).
+const economyAceOffLines = (text) =>
+  text
+    .split('\n')
+    .map((l, i) => [i + 1, l.toLowerCase()])
+    .filter(([, l]) => /economy/.test(l) && /\bace\b/.test(l) && /\b(?:off|false)\b/.test(l))
+    .map(([n]) => n)
+
+test('economy-ace-flip — the line-scoped detector fires on the retired README/SKILL/schemas shapes (self-check)', () => {
+  // Negative reference: five retired physical-line shapes (items 1, 2 and 4 are abridged from the
+  // pre-flip README/SKILL lines, item 3 is the pre-flip schemas line with its indent dropped, item
+  // 5 is item 1 in uppercase so the case-fold is exercised). Narrowing any clause drops a shape
+  // from the expected [1, 2, 3, 4, 5] and reds this test. The second assert guards the `\bace\b`
+  // token boundary; a dropped off/false clause only widens the detector.
+  const retired = [
+    '| `--ace` | no | on via config `run.ace` (economy preset: off) | Fix nits on the spot |',
+    '  - **`--ace` (default on via `run.ace`; the economy preset pins it off).** With `run.ace`,',
+    '  // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);',
+    'a solo roster, a 2-round budget, and ace off. `/war-room` only ever asks (economy)',
+    '| --ACE | no | on via config run.ace (ECONOMY preset: OFF) |',
+  ].join('\n')
+  assert.deepEqual(economyAceOffLines(retired), [1, 2, 3, 4, 5])
+  // And a lawful post-flip line — all three words present but `ace` only as a sub-token — is clean.
+  assert.deepEqual(
+    economyAceOffLines('economy: ace_diff_files stays off; the preface is false'),
+    [],
+  )
+})
+
+test('economy-ace-flip — OLD-absent: no surface carries a line pairing economy, an ace token, and off/false', () => {
+  for (const [surface, text] of ECONOMY_ACE_FLIP_SURFACES) {
+    const hits = economyAceOffLines(text)
+    assert.deepEqual(
+      hits,
+      [],
+      `${surface} line(s) ${hits.join(', ')} still state the retired "economy pins ace off" fact ` +
+        '(D14, PIN-16) — every preset inherits run.ace on; rewrite the line, never drop this row ' +
+        '(a README defaults-paragraph reflow also trips this: keep `commitLearnings: false` off ' +
+        'the economy line — split the paragraph back)',
+    )
+  }
+})
+
+test('economy-ace-flip — NEW-present: every surface carries the inherited-on fact', () => {
+  for (const [surface, text, key, what] of [
+    ['README.md', readmeMd, /`--ace` \| no \| on via config `run\.ace` \(default `true`; every preset inherits it on\)/, 'the `--ace` row'],
+    ['README.md', readmeMd, /`run\.ace` stays inherited on \(no preset pins the ace ladder/, 'the today\'s-defaults economy sentence'],
+    ['skills/war/SKILL.md', skillMd, /\*\*`--ace` \(default on via `run\.ace`; every preset inherits it on\)\.\*\*/, 'the `--ace` bullet'],
+    ['skills/war/references/schemas.md', schemasMd, /\/\/ ace = gates the per-task ace ladder only \(.*default true; every preset inherits it on\)/, 'the `ace` config comment'],
+    ['skills/war-room/SKILL.md', warRoomMd, /\*\*economy\*\*[^\n]*`run\.ace` inherited on/, 'the economy preset bullet'],
+    ['skills/war-room/SKILL.md', warRoomMd, /`run\.ace` \(bool[^\n]*default `true`\)/, 'the run.ace whitelist row'],
+    ['skills/war/assets/war-config.test.mjs', warConfigTestSrc, /preset-ace-on/, 'the preset-ace-on census fixture'],
+    ['skills/war/assets/war-config.test.mjs', warConfigTestSrc, /assert\.equal\(c\.run\.ace, true\)/, 'the economy-inherits assertion'],
+  ]) {
+    assert.match(
+      text,
+      key,
+      `${surface} must carry ${what} stating run.ace is inherited on by every preset (D14, ` +
+        'PIN-16). Correct this row to a sanctioned rewording, never delete it',
+    )
+  }
+})
+
+// (old-default-absent) THE RETIRED "ABSORB IS NEVER A DEFAULT" CONJUNCTIONS ARE ABSENT FROM THE EIGHT
+// LIVING SURFACES (plan 2026-09-03-in-band-absorb-default, End state 8 · Task 3.2; D1/D2). The
+// in-diff `absorb` default retired three conjunction shapes, base-verified at this task's cut base:
+// `absorb` and `ask` are never default* (CLAUDE.md, CONTEXT.md, SKILL.md, design.md, the card,
+// `schemas.md`, and the three `workflow-template.js` sites Task 3.1 rewrote — the `*` covers
+// `defaults` and `defaulted`; rule 7: this row reads those last three surfaces after the dep
+// rebase), `absorb` and `ask` never defaulted (gastown-design-params.md), and the zero-token-gap
+// `absorb` is never a default (the ADR 0013 Decision 4 literal, guard-exempt here, and the earlier
+// CONTEXT.md retirement D37a still pins — never present on the other seven surfaces at base, so
+// its assert guards a first appearance, not a revert). Detection runs on a NORMALIZED
+// surface — `//`/`>`/`#` line leaders stripped by `norm` BEFORE the join (so a phrase wrapped
+// across a comment boundary flattens contiguous), then backticks and single and double quotes
+// stripped, whitespace collapsed, case-folded — so a single-quoted engine comment (`'absorb' and
+// 'ask' are NEVER defaulted`), a `//`-wrapped one, a wrapped Markdown line, or a benign re-case
+// cannot evade it (the recorded [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]] lesson).
+// The lawful rewrite keeps an
+// `ask`-only tail ("defaults to absorb; ask is never a default"), which shares no shape with the
+// three retired forms — the self-check below proves both halves of the detector. ADR 0013 is
+// exempt (append-only law): Decision 4's ratified clause survives byte-untouched, and the
+// 2026-09-04 amendment section carries the supersession — pinned present in row (b).
+const oldDefaultFlat = (s) => norm(s).replace(/[`'"]/g, '').replace(/\s+/g, ' ').toLowerCase()
+const OLD_DEFAULT_SHAPES = [
+  [/absorb and ask are never default/, '`absorb` and `ask` are never default*'],
+  [/absorb and ask never defaulted/, '`absorb` and `ask` never defaulted'],
+  [/absorb is never a default/, '`absorb` is never a default (zero-token gap)'],
+]
+const OLD_DEFAULT_SURFACES = [
+  ['CLAUDE.md', claudeMd],
+  ['CONTEXT.md', contextMd],
+  ['agents/war-auditor.md', auditorCard],
+  ['skills/war/SKILL.md', skillMd],
+  ['skills/war/assets/workflow-template.js', workflowTemplateSrc],
+  ['skills/war/references/design.md', designRefMd],
+  ['skills/war/references/gastown-design-params.md', gastownMd],
+  ['skills/war/references/schemas.md', schemasMd],
+]
+const oldDefaultHits = (text) => OLD_DEFAULT_SHAPES.filter(([re]) => re.test(oldDefaultFlat(text))).map(([, what]) => what)
+
+test('old-default-absent (self-check) — the lawful rewrite passes and each single-quoted comment site reds on its own', () => {
+  // Positive fixture: the sanctioned `ask`-only tail is not an OLD hit.
+  assert.deepEqual(
+    oldDefaultHits('A fully specified Minor/Nit defaults to `absorb`; `ask` is never a default.'),
+    [],
+    'the lawful rewrite "defaults to absorb; ask is never a default" must pass the detector',
+  )
+  // Negative fixtures: the two retired single-quoted workflow-template.js comment sites, each
+  // asserted ALONE so each proves its own shape. Site 1 is the AUDIT_VERDICT schema comment with
+  // the phrase deliberately wrapped across a `//` boundary (the real pre-3.1 line carried
+  // `are never defaulted` on one physical line) — only the `norm` leader strip makes it fire.
+  // Site 2 is the dispositionOf header as it read before Task 3.1, unwrapped and upper-cased —
+  // quote-stripping and case-folding make it fire.
+  const wrappedAuditVerdictSite = [
+    "    // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → severity default",
+    "    // (Minor → follow-up, Nit → note; 'absorb' and 'ask' are never",
+    "    // defaulted). phaseClose:true routes an absorb to the phase-close queue.",
+    "    disposition: { enum: ['absorb', 'follow-up', 'note', 'ask'] },",
+  ].join('\n')
+  assert.deepEqual(
+    oldDefaultHits(wrappedAuditVerdictSite),
+    ['`absorb` and `ask` are never default*'],
+    'a `//`-wrapped single-quoted AUDIT_VERDICT comment site must red on the detector (leader strip)',
+  )
+  const unwrappedDispositionOfSite = [
+    "// Disposition classification (ADR 0013; ask member #1550): Defaults when omitted:",
+    "// Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only",
+  ].join('\n')
+  assert.deepEqual(
+    oldDefaultHits(unwrappedDispositionOfSite),
+    ['`absorb` and `ask` are never default*'],
+    'the single-line upper-cased dispositionOf comment site must red on the detector (quote strip + case-fold)',
+  )
+  // Each shape fires on its own base-verified literal (no shape is dead).
+  assert.deepEqual(oldDefaultHits('`absorb` and `ask` never defaulted (ADR 0013)'), ['`absorb` and `ask` never defaulted'])
+  assert.deepEqual(oldDefaultHits('Nit → note; `absorb` is never a default.'), ['`absorb` is never a default (zero-token gap)'])
+})
+
+// (barrier-list) CONTEXT.md's **Barrier list** glossary entry hand-spells all four BARRIER_TOKENS.
+// The registry rows in workflow-template.test.mjs bind the inline mirror, the auditor card, the
+// eligibility doc, and the schemas.md row — this row binds the fifth hand copy to the canonical
+// array literal in land-decision.mjs (ADR 0025 same-commit mirror duty; the recorded
+// [[default-flip-must-audit-all-doc-surfaces]] class), extracted by construct (bolded term to
+// the next bolded term or `###` heading), never by line number.
+const landDecisionSrc = readFileSync(join(HERE, 'land-decision.mjs'), 'utf8')
+test('barrier-list — the CONTEXT.md **Barrier list** entry names every canonical BARRIER_TOKENS member', () => {
+  const lit = landDecisionSrc.match(/export const BARRIER_TOKENS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const BARRIER_TOKENS = [...]` literal in land-decision.mjs')
+  const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
+  assert.equal(canonical.length, 4, 'BARRIER_TOKENS must carry exactly four members (PIN-1)')
+  const entry = contextMd.match(/^\*\*Barrier list\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Barrier list**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Barrier list** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set(e.match(/barrier:[a-z-]+/g) || [])].sort()
+  assert.deepEqual(
+    named,
+    [...canonical].sort(),
+    'the CONTEXT.md **Barrier list** entry must name exactly the canonical BARRIER_TOKENS members — ' +
+      'update this glossary copy in the same commit as land-decision.mjs (ADR 0025)',
+  )
+  assert.match(
+    e,
+    /`barrier:rationale-comment` \(the fix removes or edits a `ponytail:`\/deliberate-mirror rationale line\)/,
+    'the CONTEXT.md barrier:rationale-comment gloss must keep the canonical `removes or edits` pair',
+  )
+})
+
+test('old-default-absent (a) — the three retired conjunction shapes are absent from the eight living surfaces after normalization (End state 8)', () => {
+  for (const [name, text] of OLD_DEFAULT_SURFACES) {
+    const hits = oldDefaultHits(text)
+    assert.deepEqual(
+      hits,
+      [],
+      `${name} still carries the retired ${hits.join(' / ')} wording (OLD-absent, base-verified; ` +
+        'End state 8, D1/D2) — a fully specified Minor/Nit defaults to `absorb` now; only `ask` is ' +
+        'never a default',
+    )
+  }
+})
+
+test('old-default-absent (b) — every living surface carries the in-diff absorb default and ADR 0013 carries the 2026-09-04 amendment section', () => {
+  // The positive half: an emptied surface cannot satisfy the absence asserts vacuously.
+  for (const [name, text] of OLD_DEFAULT_SURFACES) {
+    assert.match(
+      oldDefaultFlat(text),
+      /defaults to absorb/,
+      `${name} must state that a fully specified Minor/Nit defaults to absorb (D1/D2; End state 8) — ` +
+        'the retired-shape asserts are only meaningful while the successor is present',
+    )
+  }
+  // The ADR home is exempt from the absence guard (append-only law) and instead pins the
+  // amendment section by construct: the dated heading through the NEXT H2 (or EOF).
+  const block = adr0013.match(/^## Amendment \(2026-09-04\)(?:(?!\n## )[\s\S])*/m)
+  assert.ok(block, 'ADR 0013 must carry the `## Amendment (2026-09-04)` in-diff absorb default section (Task 3.2)')
+  const a = norm(block[0])
+  for (const [re, what] of [
+    [/defaults to `absorb`/, 'the in-diff absorb default'],
+    [/`BARRIER_TOKENS`/, 'the barrier list name'],
+    [/`barrier:release-slot`, `barrier:underspecified`, `barrier:rationale-comment`/, 'the three follow-up barriers'],
+    [/`barrier:trade-off`/, 'the ask-route barrier'],
+    [/scope argument is never a barrier/i, 'the scope-argument exclusion'],
+    [/byte-untouched/, "Decision 4's byte-untouched clause"],
+  ]) {
+    assert.match(a, re, `the ADR 0013 2026-09-04 amendment must carry ${what}`)
+  }
+  assert.match(
+    adr0013,
+    /Nit → note; `absorb` is never a default\. Critical\/Major blocking is untouched\./,
+    "Decision 4's ratified clause must survive byte-untouched in ADR 0013 (append-only law)",
+  )
+})
+
+// (demote-prefix-term) CONTEXT.md's **Demote reason prefix** glossary entry hand-spells all twelve
+// DEMOTE_REASONS members (plan 2026-09-03-in-band-absorb-default, Task 4.2; D13, PIN-15). The
+// registry rows in workflow-template.test.mjs bind the inline mirror; this row binds the glossary
+// copy to the canonical array literal in land-decision.mjs (ADR 0025 same-commit mirror duty),
+// extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
+test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names every canonical DEMOTE_REASONS member', () => {
+  const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
+  const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
+  assert.equal(canonical.length, 12, 'DEMOTE_REASONS must carry its twelve ratified members (D13)')
+  const entry = contextMd.match(/^\*\*Demote reason prefix\*\* \(`DEMOTE_REASONS`\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Demote reason prefix**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Demote reason prefix** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set(e.match(/demote:[a-z-]+/g) || [])].sort()
+  assert.deepEqual(
+    named,
+    [...canonical].sort(),
+    'the CONTEXT.md **Demote reason prefix** entry must name exactly the canonical DEMOTE_REASONS members — ' +
+      'update this glossary copy in the same commit as land-decision.mjs (ADR 0025)',
+  )
+  for (const [re, what] of [
+    [/`demote\(\)` validates every `follow-up` reason at runtime/, 'the runtime validation clause'],
+    [/a miss prepends `demote:unclassified` with a loud log, never a throw/, 'the unclassified fallback'],
+    [/an ace-off run route the row to the phase-close sweep instead of demoting/, 'the failed-attempt / ace-off sweep route (D14)'],
+  ]) {
+    assert.match(e, re, `the CONTEXT.md **Demote reason prefix** entry must carry ${what} (D13/D14)`)
+  }
+})
+
+// (ace-off-route) THE RETIRED "with `--ace` off every absorb demotes this way" RESIDUAL-RULE WORDING
+// IS ABSENT FROM skills/war/SKILL.md (plan 2026-09-03-in-band-absorb-default, End state 12 · Task
+// 4.2; D14, PIN-16). Base-verified at this task's cut base: the `--ace` bullet's Residual rule read
+// "with `--ace` off every absorb demotes this way". With ace off a defaulted absorb now routes
+// `phaseClose:true` to the sweep, and the sweep and the terminal pass run regardless. Detection runs
+// on the NORMALIZED whole surface (line leaders stripped, backticks and quotes stripped, whitespace
+// collapsed, case-folded — the same flattening `old-default-absent` uses) so a re-wrapped or re-cased
+// copy cannot evade it. The positive half pins the D14 successor on the `--ace` bullet by construct.
+const ACE_OFF_RETIRED = /with --ace off every absorb demotes this way/
+const aceOffHits = (text) => ACE_OFF_RETIRED.test(oldDefaultFlat(text))
+
+test('ace-off-route (self-check) — the detector fires on the retired Residual-rule literal and passes the D14 rewrite', () => {
+  assert.equal(
+    aceOffHits('(→ `follow-up`, logged — per subset under bisection; with `--ace` off every absorb demotes this way, and'),
+    true,
+    'the base-verified retired literal must red on the detector',
+  )
+  assert.equal(
+    aceOffHits(['  - **`--ace`** ... with `--ace` off every', '    absorb DEMOTES this way'].join('\n')),
+    true,
+    'a wrapped, re-cased copy of the retired literal must red on the detector (leader strip + case-fold)',
+  )
+  assert.equal(
+    aceOffHits('With `run.ace` off a defaulted absorb routes `phaseClose:true` to the sweep; the sweep and the terminal pass run regardless.'),
+    false,
+    'the D14 rewrite must pass the detector',
+  )
+})
+
+test('ace-off-route — OLD-absent: skills/war/SKILL.md no longer says every absorb demotes with --ace off; NEW-present: the --ace bullet carries the D14 sweep route (End state 12)', () => {
+  assert.equal(
+    aceOffHits(skillMd),
+    false,
+    'skills/war/SKILL.md still carries the retired "with `--ace` off every absorb demotes this way" Residual-rule ' +
+      'wording (OLD-absent, base-verified; End state 12, D14, PIN-16) — with ace off a defaulted absorb routes ' +
+      'phaseClose:true to the sweep; rewrite the bullet, never drop this row',
+  )
+  const bullet = skillMd.match(/^ {2}- \*\*`--ace`[\s\S]*?(?=\n- \*\*)/m)
+  assert.ok(bullet, 'could not locate the skills/war/SKILL.md `--ace` bullet (`  - **`--ace`` → next top-level `- **` bullet) — the extraction construct rotted')
+  const b = norm(bullet[0])
+  for (const [re, what] of [
+    [/\*\*Residual rule:\*\*/, 'its `Residual rule:` tail'],
+    [/With `run\.ace` off a defaulted absorb routes `phaseClose:true` to the sweep; the sweep and the terminal pass run regardless\./, 'the D14 ace-off sweep route'],
+    [/→ `follow-up` with a `DEMOTE_REASONS` prefix, logged/, 'the DEMOTE_REASONS prefix on the demotion rung (PIN-15)'],
+  ]) {
+    assert.match(b, re, `the skills/war/SKILL.md \`--ace\` bullet must carry ${what} (D14/D13). Correct this row to a sanctioned rewording, never delete it`)
+  }
+})
+
+// (adr-0013-phase-4) ADR 0013 carries the Phase 4 amendment section — ace-off routing to the sweep
+// and the demote-reason prefix — pinned by construct (the dated heading through the NEXT H2 or EOF).
+// Two amendments share the 2026-09-04 date, so the extraction keys on the full heading, never the
+// bare date. The ADR home is exempt from the `ace-off-route` absence guard (append-only law): the
+// superseded 2026-08-20 narration survives byte-untouched, and this section records the supersession.
+test('adr-0013-phase-4 — ADR 0013 carries the ace-off routing and demote-prefix amendment section and its Status currency clause (Task 4.2)', () => {
+  const block = adr0013.match(/^## Amendment \(2026-09-04\) — ace-off routing to the sweep and the demote-reason prefix(?:(?!\n## )[\s\S])*/m)
+  assert.ok(block, 'ADR 0013 must carry the `## Amendment (2026-09-04) — ace-off routing to the sweep and the demote-reason prefix` section (Task 4.2)')
+  const a = norm(block[0])
+  for (const [re, what] of [
+    [/`run\.ace` gates the per-task ace ladder only/, 'the run.ace scope clause (PIN-16)'],
+    [/routes `phaseClose:true` to the phase-close sweep/, 'the ace-off sweep route (D14)'],
+    [/the phase-close sweep and the terminal pass run regardless/, 'the sweep-and-terminal-pass-regardless clause'],
+    [/"absorb requires --ace" demote arms in `workflow-template\.js` are retired/, 'the retired demote arms'],
+    [/`DEMOTE_REASONS` prefix/, 'the demote-reason prefix (PIN-15)'],
+    [/`demote:unclassified` \(itself a member\)/, 'the unclassified fallback'],
+    [/byte-untouched/, 'the byte-untouched clause (append-only law)'],
+  ]) {
+    assert.match(a, re, `the ADR 0013 Phase 4 amendment must carry ${what}`)
+  }
+  const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
+  const canonical = JSON.parse(lit[1].replace(/'/g, '"'))
+  assert.deepEqual(
+    [...new Set(a.match(/demote:[a-z-]+/g) || [])].sort(),
+    [...canonical].sort(),
+    'the ADR 0013 Phase 4 amendment must enumerate exactly the canonical DEMOTE_REASONS members',
+  )
+  assert.match(
+    norm(adr0013.slice(0, adr0013.indexOf('## Amendment'))),
+    /amended 2026-09-04 \(Phase 4\) — with `run\.ace` off a defaulted `absorb` routes `phaseClose:true`/,
+    "ADR 0013's Status currency line must name the Phase 4 amendment (the status line and the amendment land together)",
+  )
+  // The earlier 2026-09-04 in-diff-default amendment still resolves as the FIRST bare-date match.
+  const first = adr0013.match(/^## Amendment \(2026-09-04\)[^\n]*/m)
+  assert.match(first[0], /the in-diff `absorb` default and the barrier list/, 'the in-diff-default amendment must stay the first 2026-09-04 section (its bare-date pins read the first match)')
+})
+
+// (terminal-pass-term) CONTEXT.md carries the Phase 5 glossary terms **Terminal pass** and
+// **Carried queue** (plan 2026-09-03-in-band-absorb-default, Task 5.2; D3a/D3b), and the
+// **sweep-raised finding** entry no longer claims "never aced, never re-queued" — on the merged arm
+// a sweep-raised absorb joins the terminal pass (the retired merged-sweep demote arm's successor).
+// Extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
+// ADR 0012 carries the one-line dated cross-reference naming the terminal pass as that successor
+// (its existing cross-reference line style; the ratified body stays byte-untouched).
+test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried queue**, retires the sweep-raised never-re-queued sentence, and ADR 0012 names the successor (Task 5.2)', () => {
+  const pick = (label, re) => {
+    const m = contextMd.match(re)
+    assert.ok(m, `could not locate the \`**${label}**\` glossary entry in CONTEXT.md — the extraction construct rotted`)
+    const e = norm(m[0])
+    assert.match(e, /_Avoid_/, `the extracted **${label}** entry must span its \`_Avoid_\` line — extraction truncated`)
+    return e
+  }
+  const tp = pick('Terminal pass', /^\*\*Terminal pass\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  for (const [re, what] of [
+    [/one-hop ace commit plus one re-audit seat after the polish merge/, 'the one-hop definition (D3a)'],
+    [/successor of the merged-sweep demote arm/, 'the successor clause (PIN-4)'],
+    [/`aceEligible`/, 'the eligibility filter'],
+    [/`Ace-Charge`/, 'the charge trailer'],
+    [/forward-reverted/, 'the regression forward-revert'],
+    [/`demote:terminal-pass`/, 'the final-phase demote prefix'],
+    [/`run\.ace` off/, 'the ace-off convening clause (PIN-16)'],
+    [/a second pass/, 'the one-pass-per-phase Avoid'],
+  ]) assert.match(tp, re, `the CONTEXT.md **Terminal pass** entry must carry ${what}`)
+  const cq = pick('Carried queue', /^\*\*Carried queue\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  for (const [re, what] of [
+    [/`carriedPhaseClose`/, 'the phase-return key (D3b)'],
+    [/always present, `\[\]` when nothing was carried, so absence is never ambiguous/, 'the always-present empty-when-nothing-carried clause (a landed phase can carry)'],
+    [/`args\.seededPhaseClose`/, 'the relaunch args key (PIN-5)'],
+    [/held phase'?s whole queue/, 'the held-phase carry'],
+    [/discarded sweep'?s absorbs/, 'the discard-arm carry'],
+    [/non-final terminal pass'?s rows/, 'the terminal-pass carry'],
+  ]) assert.match(cq, re, `the CONTEXT.md **Carried queue** entry must carry ${what}`)
+  // The two corrected carry-or-demote sentences (ace re-entry r3): the **Re-entry** budget-spent
+  // route and the **Phase-close coherence sweep** discard clause each carry `carriedPhaseClose`
+  // with its non-final qualifier. The lookahead is `**:`-anchored because the **Re-entry** body
+  // opens a line with a bolded cross-reference (`**Absorb budget** (...)`) before its `_Avoid_`.
+  const rr = pick('Re-entry', /^\*\*Re-entry\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(rr, /sweep-discard ⇒ carried on `carriedPhaseClose` \(non-final phase\) or `follow-up` \(final\)/, 'the CONTEXT.md **Re-entry** entry must carry the budget-spent carry-or-demote route (`carriedPhaseClose`, non-final phase)')
+  const pc = pick('Phase-close coherence sweep', /^\*\*Phase-close coherence sweep\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(pc, /queue carries on `carriedPhaseClose` \(non-final phase\) or demotes to follow-up \(final\)/, 'the CONTEXT.md **Phase-close coherence sweep** entry must carry the discard-arm carry-or-demote clause (`carriedPhaseClose`, non-final phase)')
+  // The two sentences corrected at ace re-entry r3 (same revert-green rationale as the pair above):
+  // the **Absorb budget** terminal-pass charge clause and the **Drain cause** carry route.
+  const ab = pick('Absorb budget', /^\*\*Absorb budget\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(ab, /and the terminal pass, on the polish pseudo-task, telemetry only/, 'the CONTEXT.md **Absorb budget** entry must charge the terminal pass on the polish pseudo-task, telemetry only')
+  const dc = pick('Drain cause', /^\*\*Drain cause\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.match(dc, /carried on `carriedPhaseClose` on a non-final one/, 'the CONTEXT.md **Drain cause** entry must carry the discard-route non-final carry clause (`carriedPhaseClose`)')
+  // The retired sentence: OLD-absent on the sweep-raised entry, NEW-present in its place.
+  const sr = contextMd.match(/^\*\*sweep-raised finding\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(sr, 'could not locate the `**sweep-raised finding**` glossary entry in CONTEXT.md — the extraction construct rotted')
+  const s = norm(sr[0])
+  assert.doesNotMatch(s, /never aced, never re-queued/i, 'the CONTEXT.md **sweep-raised finding** entry must retire "never aced, never re-queued" — a merged-arm absorb joins the terminal pass now (Task 5.2, PIN-4)')
+  assert.match(s, /on the merged arm an absorb joins the terminal pass/, 'the CONTEXT.md **sweep-raised finding** entry must carry the merged-arm terminal-pass route')
+  assert.match(s, /on the discard arm it rides the carried queue \(non-final phase\) or demotes `demote:sweep-discarded`/, 'the CONTEXT.md **sweep-raised finding** entry must carry the discard-arm carry-or-demote route')
+  // ADR 0012: the dated successor line, in its cross-reference line style (append-only law).
+  const xref = adr0012.match(/^\*Cross-reference \(2026-09-04\):[^\n]*$/m)
+  assert.ok(xref, 'ADR 0012 must carry the one-line 2026-09-04 cross-reference naming the terminal pass (Task 5.2)')
+  for (const [re, what] of [
+    [/merged-sweep demote arm[^\n]*is retired/, 'the retired-arm clause'],
+    [/its successor is the terminal pass/, 'the successor clause'],
+    [/once per phase/, 'the one-pass bound'],
+    [/`carriedPhaseClose`/, 'the carry key'],
+    [/2026-09-03-in-band-absorb-default\.md/, "the plan's file (the decision record it points at)"],
+  ]) assert.match(xref[0], re, `the ADR 0012 2026-09-04 cross-reference must carry ${what}`)
+  assert.ok(adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m), 'the pre-existing 2026-08-25 cross-reference must still be present (append-only law)')
+})
+
+// (sweep-exclusion-pin / lead-carry-pin / afk-ask-prefix-pin) THE LEAD LAUNCH AND RELAUNCH PROSE
+// (plan 2026-09-03-in-band-absorb-default, End state 16 · Task 6.1; D3a/D3b/D6/D13, PIN-5/PIN-8).
+// The engine reads `args.sweepExclude`, `args.seededPhaseClose`, and `args.finalPhase`; these rows
+// pin the Lead-side duties that thread them. Extraction is construct-scoped (the launch paragraph,
+// the Recovery-relaunch bullet, the Checkpoint ask-gate bullet), never whole-file, and every
+// extraction spans its own tail marker (D26's non-vacuity floor). The new cold home
+// `references/sweep-exclusion.md` is read directly (ADR 0042: the card carries the trigger
+// pointer only, the body lives in references/).
+const sweepExclusionMd = readFileSync(join(HERE, '..', 'references', 'sweep-exclusion.md'), 'utf8')
+const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
+
+test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and sweep-exclusion.md carries the Lead duty (End state 16, D6, PIN-8)', () => {
+  // The pointer sits in the per-phase launch paragraph (the one that threads the Workflow `args`),
+  // in the fixed `when <trigger>, read references/<file>` shape (link form, as the card's siblings).
+  const launch = skillMd.match(/^Run \*\*one Workflow per phase\*\*[^\n]*$/m)
+  assert.ok(launch, 'could not locate the per-phase `Run **one Workflow per phase**` launch paragraph in SKILL.md — construct rotted')
+  assert.match(launch[0], /as the Workflow `args`\./, 'the launch paragraph must span its `as the Workflow `args`.` marker — extraction truncated (non-vacuity floor)')
+  assert.match(
+    launch[0],
+    /when launching under a campaign, read \[references\/sweep-exclusion\.md\]\(references\/sweep-exclusion\.md\)/i,
+    'SKILL.md must carry the trigger pointer "when launching under a campaign, read [references/sweep-exclusion.md](references/sweep-exclusion.md)" in the launch paragraph (ADR 0042 shape; Task 6.1)',
+  )
+  // The card carries the pointer only — the duty body lives in references/ (no duplicated body).
+  for (const literal of ['extractFilesFromPlanFile', 'campaign contention set empty for', 'no campaign contention set threaded']) {
+    assert.ok(!skillMd.includes(literal), `SKILL.md carries the evicted-shape body literal "${literal}" — the duty lives in sweep-exclusion.md only (a duplicated body drifts)`)
+  }
+  const sx = norm(sweepExclusionMd)
+  for (const [re, what] of [
+    [/the exported `extractFilesFromPlanFile`/, 'the exported `extractFilesFromPlanFile` (campaign-ledger.mjs) as the footprint source'],
+    [/import the function in a Node one-liner, do not add a verb/, 'the import-in-a-Node-one-liner instruction'],
+    [/verb set is closed and stays so/, "the closed-verb-set clause (no new ledger CLI verb)"],
+    [/import \{ extractFilesFromPlanFile \}|const \{ extractFilesFromPlanFile \} = await import\(/, 'the one-liner itself'],
+    [/not this plan[^.]*not `landed`|\*\*not this plan\*\*[^.]*\*\*not `landed`\*\*/i, 'the entry filter (not this plan, not `landed`)'],
+    [/\[\{ slug, files\[\] \}\]/, 'the `[{ slug, files[] }]` entry shape'],
+    [/Stored ledger `files` are the contention record, not this input/, 'the stored-`files`-are-not-this-input clause'],
+    [/`campaign contention set empty for <n> entries`/, 'the empty-union log line'],
+    [/`no campaign contention set threaded`/, 'the absent-ledger log line'],
+    [/`sweepExcludeCount`/, 'the `sweepExcludeCount` manifest row'],
+    [/`finalPhase`: the boolean threaded as `args\.finalPhase`[^;]*`null` when absent/, 'the `finalPhase` manifest row (null when absent)'],
+  ]) assert.match(sx, re, `sweep-exclusion.md must carry ${what} (D6, PIN-8; Task 6.1)`)
+  // schemas.md § Run manifest carries both rows inside the per-phase manifest block.
+  const manifest = schemasMd.match(/^## Run manifest[\s\S]*?(?=\n## )/m)
+  assert.ok(manifest, 'could not locate the `## Run manifest` section in schemas.md — construct rotted')
+  const block = manifest[0].match(/```jsonc[\s\S]*?```/)
+  assert.ok(block, 'the `## Run manifest` section lost its jsonc block')
+  assert.match(block[0], /^\s*sweepExcludeCount: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `sweepExcludeCount: … | null` row (PIN-8)')
+  assert.match(block[0], /^\s*finalPhase: [^\n]*\| null,/m, 'the manifest jsonc block must carry the per-phase `finalPhase: … | null` row (D3a)')
+  assert.match(norm(manifest[0]), /`sweepExcludeCount` \/ `finalPhase`[^.]*stamped at phase launch/, 'the `## Run manifest` section must carry the `sweepExcludeCount` / `finalPhase` stamp bullet')
+  // schemas.md's own MUST-carry enumeration names the pair too (#2078 — deleting the two fields from
+  // that bullet alone used to stay green while the comment below claimed either surface reds).
+  const mustCarrySchemas = manifest[0].match(/^- \*\*MUST-carry\*\*[^\n]*$/m)
+  assert.ok(mustCarrySchemas, 'could not locate the `- **MUST-carry**` bullet in schemas.md § Run manifest — construct rotted')
+  assert.match(mustCarrySchemas[0], /`envelope` aggregates/, 'the schemas.md MUST-carry bullet must span its `envelope` aggregates tail — extraction truncated (non-vacuity floor)')
+  for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
+    assert.ok(mustCarrySchemas[0].includes(field), `the schemas.md MUST-carry bullet must list ${field} in the per-phase set (PIN-8; Task 6.1)`)
+  }
+  // run-manifest.md is the cold home of the per-stamp procedure (the mirror of the schemas.md rows):
+  // its `At phase launch` bullet and its MUST-carry sentence must both name the pair, so a one-sided
+  // revert of either surface reds here (phase-6 sweep finding: the cold home had no drift guard).
+  const launchStamp = runManifestMd.match(/^- \*\*At phase launch\*\*[^\n]*$/m)
+  assert.ok(launchStamp, 'could not locate the `- **At phase launch**` bullet in run-manifest.md — construct rotted')
+  assert.match(launchStamp[0], /sweep-exclusion\.md/, 'the run-manifest.md `At phase launch` bullet must span its sweep-exclusion.md pointer tail — extraction truncated (non-vacuity floor)')
+  for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
+    assert.ok(launchStamp[0].includes(field), `the run-manifest.md \`At phase launch\` bullet must name ${field} as a launch-time stamp (PIN-8; Task 6.1)`)
+  }
+  const mustCarry = runManifestMd.match(/^Field names follow spec §4\.A[^\n]*$/m)
+  assert.ok(mustCarry, 'could not locate the `Field names follow spec §4.A` MUST-carry sentence in run-manifest.md — construct rotted')
+  assert.match(mustCarry[0], /\*\*top level\*\*/, 'the run-manifest.md MUST-carry sentence must span its `**top level**` tail — extraction truncated (non-vacuity floor)')
+  for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
+    assert.ok(mustCarry[0].includes(field), `the run-manifest.md MUST-carry sentence must list ${field} in the per-phase set (PIN-8; Task 6.1)`)
+  }
+})
+
+test('lead-carry-pin — resume-and-recovery.md carries the relaunch carry steps: carriedPhaseClose → args.seededPhaseClose, finalPhase at every launch, the absorbCharges override, the transcript re-derivation residual (End state 16, D3a/D3b, PIN-5)', () => {
+  // Per bullet, inside the `### Recovery relaunch` shared-mechanics list: the new bullet must span
+  // its own tail marker (the re-derivation log line), so a truncated extraction reds here.
+  const relaunch = resumeMd.match(/^### Recovery relaunch[\s\S]*?(?=\n### )/m)
+  assert.ok(relaunch, 'could not locate the `### Recovery relaunch` section in resume-and-recovery.md — construct rotted')
+  const bullet = relaunch[0].match(/^- \*\*Phase-close carry[\s\S]*?(?=\n- \*\*|\n\n)/m)
+  assert.ok(bullet, 'could not locate the `- **Phase-close carry` bullet in the Recovery-relaunch shared mechanics — construct rotted')
+  const b = norm(bullet[0])
+  assert.match(b, /relaunch log names the re-derivation/, 'the Phase-close carry bullet must span its re-derivation tail — extraction truncated (non-vacuity floor)')
+  for (const [re, what] of [
+    [/`carriedPhaseClose`[^.]*landed or held/, "the every-phase-return clause (landed or held — a landed non-final phase can carry, D3a)"],
+    [/Thread it \*\*verbatim\*\* into the next launch's `args\.seededPhaseClose`/, 'the verbatim `carriedPhaseClose` → `args.seededPhaseClose` threading step'],
+    [/thread `args\.finalPhase` from the plan's phase count at \*\*every\*\* launch/, 'the `args.finalPhase`-at-every-launch sentence beside the seeding step'],
+    [/Override `absorbCharges` through `args\.absorbCharges` \*\*only\*\* at a sanctioned relaunch/, 'the `absorbCharges`-override-only-at-a-sanctioned-relaunch note'],
+    [/threw before returning has no phase return/, "the accepted residual's premise (a Workflow that threw has no phase return)"],
+    [/re-derives the queue from the seats' audit verdicts in the run transcripts/, 'the transcript re-derivation residual'],
+  ]) assert.match(b, re, `the resume-and-recovery.md Phase-close carry bullet must carry ${what} (Task 6.1)`)
+})
+
+test('afk-ask-prefix-pin — the SKILL.md Checkpoint `--afk` no-match arm files the unmatched ask as a follow-up with demote:ask-unruled-afk on the body prefix line, question preserved (End state 16, D13)', () => {
+  const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
+  assert.ok(checkpoint, 'could not locate the `## Checkpoint` section in SKILL.md — construct rotted')
+  // Per bullet (the ask ruling gate), spanning its `--afk` suppression-row tail — the D41 idiom.
+  const bullet = checkpoint[0].match(/^- \*\*Ask ruling gate[\s\S]*?(?=\n- \*\*|\n## |$)/m)
+  assert.ok(bullet, 'could not locate the ask ruling gate bullet in the `## Checkpoint` section — construct rotted')
+  const b = norm(bullet[0])
+  assert.match(b, /never mints one/, 'the ask ruling gate bullet must span its `--afk` suppression-row tail — extraction truncated (non-vacuity floor)')
+  const posture = b.indexOf('`--afk` posture:')
+  assert.ok(posture >= 0, 'the ask ruling gate bullet lost its `--afk` posture clause')
+  const afk = b.slice(posture)
+  assert.match(
+    afk,
+    /the unmatched ask files as a `follow-up` with `demote:ask-unruled-afk` on the body prefix line, question preserved/,
+    'the Checkpoint `--afk` posture must carry the one no-match sentence: the unmatched ask files as a `follow-up` with `demote:ask-unruled-afk` on the body prefix line, question preserved (D13; Task 6.1)',
+  )
+  // The prefix is a DEMOTE_REASONS member (land-decision.mjs is canonical) — a misspelt prefix here
+  // would file an issue the census cannot classify.
+  const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
+  assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
+  assert.ok(JSON.parse(lit[1].replace(/'/g, '"')).includes('demote:ask-unruled-afk'), '`demote:ask-unruled-afk` must be a `DEMOTE_REASONS` member (land-decision.mjs)')
 })

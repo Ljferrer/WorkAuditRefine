@@ -68,3 +68,5 @@ last check.
 **Locate-cue:** `skills/war/assets/workflow-template.js`, the barrier dispatch comment
 `the barrier is not one`; `skills/war/assets/workflow-template.test.mjs`, the
 `drain-cause (End state 9, adjudicated #1794)` fixture; the plan's End state 9 and D11 row.
+
+> archived 2026-09-04: resolved — moved to archive

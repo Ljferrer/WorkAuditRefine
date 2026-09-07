@@ -61,3 +61,5 @@ delete-the-feature-mentally rule this is an instance of);
 uncommitted hand grep, versus a committed-then-reverted test here);
 [[gate-audit-family-seat-disposition-ask-silently-dropped]] (a second gap recorded from the same
 phase's audit log).
+
+> archived 2026-09-04: resolved — moved to archive

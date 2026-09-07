@@ -18,7 +18,16 @@ budget-exhaustion narration), three disposition widenings, the absorb-by-citatio
 in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
 trigger — filing parity itself untouched); see the amendment below; amended 2026-08-31 — the
 merge-slot pin-transfer mismatch re-audit is a fourth re-audit source that never re-enters; see
-the amendment below)
+the amendment below; amended 2026-09-03 — the per-task absorb budget (`absorbRounds <
+run.absorbRounds`) supersedes the floor-retry reserve as the ace ladder's stop condition; see the
+amendment below; amended 2026-09-04 — a fully specified in-diff Minor/Nit defaults to `absorb`
+and `follow-up` needs a `BARRIER_TOKENS` tag, superseding Decision 4's "`absorb` is never a
+default" for that case; see the amendment below; amended 2026-09-04 (Phase 4) — with `run.ace` off a
+defaulted `absorb` routes `phaseClose:true` to the phase-close sweep, and every engine `follow-up`
+demotion carries a `DEMOTE_REASONS` prefix; see the amendment below; amended 2026-09-04
+(Phase 4, note reroute) — an in-diff `note` that names a fix reroutes to `absorb`, and
+gate-audit-family rows route like any seat's, so Decision 4's "never an issue" for `note` is bounded;
+see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -440,3 +449,141 @@ amendment records it as law.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
+
+## Amendment (2026-09-03) — the absorb budget supersedes the floor-retry reserve
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 2 —
+D5, PIN-7) gives the ace ladder its own round budget. The 2026-08-27 amendment above bound
+re-entry and bisection subsets by the `roundLimit − 2` **floor-retry reserve**: two `fixRounds`
+slots held back for the merge-floor retry loop. That arithmetic is **superseded**:
+
+- **The absorb budget is the SOLE bound.** The knob `run.absorbRounds` (integer ≥ 1, default 6,
+  validated exactly like `run.roundLimit`; `war-config.mjs`) bounds a per-task counter
+  `r.task.absorbRounds`. All three ace gates — the `aceBisect` subset stop, the `aceReentry` stop,
+  and the batch ace's gate — read `absorbRounds < run.absorbRounds`. No `fixRounds` arithmetic
+  remains on the ace side.
+- **Charge sites.** The counter is charged once per ace-side COMMIT — the batch ace, a re-entry
+  batch, a bisection subset commit, and (Phase 5) the terminal pass. Reverts, re-audit panels, and
+  fix rounds never charge it. `fixRounds` counts blocking fix rounds and floor retries only; no
+  ace-side commit charges it any more.
+- **The trailer and the relaunch seed.** Every ace-side commit carries `Ace-Charge: <task>:<n>`
+  (n = the counter after the charge; reverts carry none). The phase-start git-topology barrier
+  returns `absorbCharges: { <task>: n }`, the HIGHEST trailer index on the task branch, and the
+  engine seeds `r.task.absorbRounds` from it — 0 with a loud log on error or absence.
+- **Exhaustion routes to the sweep, never to `follow-up`.** At all three gates a spent budget
+  routes the finding `phaseClose: true` to the phase-close sweep with a log naming the counter;
+  the still-queued (never re-audited) bisection subsets ride there too, staying absorbs. Only a
+  subset that failed its own re-audit demotes. The batch ace's exhaustion arm splits: spent budget
+  with no open blockers ⇒ the sweep; open Critical/Major blockers ⇒ the aceable rows hold on the
+  task for the next approve, and a task that ends escalated, audit-blocked, or never merged demotes
+  its held rows.
+- **Supersession of the 2026-08-27 currency clause (append-only law).** The 2026-08-27 amendment's
+  clause "As of 2026-08-27: the ladder's stop condition is the floor-retry reserve
+  (`fixRounds < roundLimit − 2`) with budget-bounded re-entry" is ratified text and stays
+  byte-untouched; this note supersedes its *currency*: **as of 2026-09-03 the stop condition is the
+  absorb budget (`absorbRounds < run.absorbRounds`), and the 2026-08-27 clause describes the
+  pre-absorb-budget boundary and is historical.** The living-doc homes of that boundary
+  (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Ace bisection**, **Re-entry**, and
+  **Absorb budget** rows, `design.md` §18, `disposition-eligibility.md` widening 1, and
+  `schemas.md`'s `aced` rows) carry the new arithmetic and are guard-bound; this ADR home stays
+  exempt from the OLD-absent guard because both historical clauses survive by design. The
+  2026-08-31 amendment's reserve sentences ("names the floor-retry reserve their sole bound" and
+  "The reserve therefore bounds the three wave-side sources only") are historical on the same
+  terms: ratified, byte-untouched, and describing the pre-absorb-budget boundary.
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-09-04) — the in-diff `absorb` default and the barrier list
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 3 —
+D1, D2, PIN-1, PIN-2) flips the seat-side default for one case. Decision 4's ratified clause
+"Defaults when omitted: Minor → follow-up, Nit → note; `absorb` is never a default" stays
+byte-untouched; this note supersedes its *currency* for the fully specified case only:
+
+- **The in-diff default is `absorb`.** A `Minor`/`Nit` with a non-empty `suggested_fix` whose
+  file is in the task diff defaults to `absorb`; one whose file is outside the task diff defaults
+  to `absorb` + `phaseClose:true` (the phase-close sweep, under the exclusion set). The seat reads
+  the diff and sets that disposition itself (the standing card and the dispatched DISPOSITION RULE
+  carry the sentence, byte-mirrored). `dispositionOf`'s omitted-disposition engine default stays
+  the severity default (Minor → `follow-up`, Nit → `note`) through Phase 3; Phase 4's git-derived
+  diff probe makes the engine apply the same default deterministically. `ask` is never a default.
+- **The barrier list.** On such a finding `follow-up` is legal only with a barrier cited in the
+  structured `barrier` field of the finding (AUDIT_VERDICT, optional enum), never as prose. The
+  list is exactly `BARRIER_TOKENS`, canonical in `skills/war/assets/land-decision.mjs` and
+  hand-mirrored in `workflow-template.js` with a mirror-registry row: `barrier:release-slot`,
+  `barrier:underspecified`, `barrier:rationale-comment` (three follow-up barriers) and
+  `barrier:trade-off` (an `ask` route — the trade-off is the fork). A scope argument is never a
+  barrier; the why-not-absorbable prose stays free text beside the tag. Body:
+  `skills/war/references/disposition-eligibility.md` § Barrier list.
+- **Living-doc homes.** `CLAUDE.md`'s Known-traps bullet, CONTEXT.md's **Disposition** and
+  **Barrier list** rows, `skills/war/SKILL.md`'s Audits bullet, `design.md` §18,
+  `gastown-design-params.md`, `schemas.md`'s AuditVerdict row, `agents/war-auditor.md`, and the
+  dispatched rule carry the new default; the three retired `absorb`-is-never-a-default wordings
+  are guard-bound absent there (`old-default-absent`). This ADR home stays exempt from
+  that guard because Decision 4's clause survives by design (append-only law).
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-09-04) — ace-off routing to the sweep and the demote-reason prefix
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 —
+D13, D14, PIN-15, PIN-16) changes two things on the terminal-disposition ladder. Decision 4's ratified
+text and every amendment above stay byte-untouched; this note supersedes their *currency* on two
+points:
+
+- **Ace-off routing goes to the sweep.** `run.ace` gates the per-task ace ladder only (batch ace,
+  re-entry, bisection); the phase-close sweep and the terminal pass run regardless. With `run.ace`
+  off, a defaulted `absorb` (in-diff or out-of-diff, seat-set or floor-rerouted) routes
+  `phaseClose:true` to the phase-close sweep under the exclusion set and never demotes on the
+  ace-off path. The two "absorb requires --ace" demote arms in `workflow-template.js` are retired;
+  the `--ace` bullet's retired "with `--ace` off every absorb demotes this way" Residual-rule
+  wording describes the pre-Phase-4 ladder and is historical. Every preset resolves
+  `run.ace === true`; a user config may still set it false.
+- **Every engine `follow-up` demotion carries a `DEMOTE_REASONS` prefix.** The closed prefix enum
+  is canonical in `skills/war/assets/land-decision.mjs` and hand-mirrored in
+  `workflow-template.js` with a mirror-registry row and an `F07` registration. Twelve members:
+  `demote:absorb-regressed`, `demote:absorb-blocked`, `demote:fileless`, `demote:task-unapproved`,
+  `demote:sweep-skipped`, `demote:sweep-discarded`, `demote:terminal-pass`, `demote:exclusion-set`,
+  `demote:release-slot`, `demote:floor-skipped`, `demote:ask-unruled-afk`, `demote:unclassified`.
+  `demote()` validates every `follow-up` reason against the enum at runtime; on a miss it prepends
+  `demote:unclassified` (itself a member) and logs the site loudly, never a throw. Three
+  failed-attempt sites (an untouched file, a dead ace worker, a red gate at the ace tip) stop
+  filing and route the row to the sweep as an absorb; a fix that broke something still files with
+  `demote:absorb-regressed`. Each engine-filed issue body carries the prefix on its first
+  `Demote-Reason:` line; the Checkpoint's `--afk` no-match ask lane files Lead-side with
+  `demote:ask-unruled-afk`.
+- **Living-doc homes.** CONTEXT.md's **Demote reason prefix** row, `skills/war/SKILL.md`'s `--ace`
+  bullet (the rewritten Residual rule), `schemas.md`'s `barrier` provenance row, and
+  `file-followups.md` carry the new facts; the retired Residual-rule wording is guard-bound absent
+  on `skills/war/SKILL.md` (`ace-off-route`). This ADR home stays exempt from that guard because
+  the superseded clauses survive by design (append-only law).
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-09-04) — a note that names a fix reroutes to absorb; gate-audit-family rows route like any seat's
+
+The in-band-absorb-default plan (`docs/plans/2026-09-03-in-band-absorb-default.md`, Phase 4 —
+D4, D15, PIN-17) bounds Decision 4's `note` clause on two points. Decision 4's ratified text and
+every amendment above stay byte-untouched; this note supersedes their *currency* (#2056):
+
+- **A note that names a fix reroutes to absorb.** The intake floor (`intakeFloor` in
+  `skills/war/assets/workflow-template.js`) turns an in-diff `note` carrying a `suggested_fix` into
+  `absorb`, and the gate-audit floor pass does the same over `phase_diff_files`. A rerouted note then
+  walks the absorb ladder like any absorb, so its terminal rungs can file: `demote:absorb-regressed`
+  at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase.
+  Decision 4's "`note` (report + servitor feed, never an issue)" therefore reads: never an issue
+  *as a note* — a note the floor rerouted is an absorb from that point on, and every such reroute is
+  logged.
+- **Gate-audit-family rows route like any seat's.** The per-task `execution-evidence`,
+  integrated-tip, and end-state seats' Minor/Nit findings route by disposition exactly as a wave
+  seat's do: a fully specified one goes `absorb` + `phaseClose:true` into the phase-close queue,
+  stamped with its seat label; `follow-up` needs a `barrier` tag; `ask` parks. The retired
+  `auditLog`-only sink no longer exists.
+- **Living-doc homes.** CONTEXT.md's **Disposition** and **Terminal pass** rows, `schemas.md`'s
+  disposition bullet, and `references/disposition-eligibility.md` carry the new facts.
+
+Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
+body text above — beyond the Status currency line — byte-unchanged.

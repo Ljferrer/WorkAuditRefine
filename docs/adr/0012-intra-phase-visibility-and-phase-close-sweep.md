@@ -90,3 +90,5 @@ frozen base or the resume guarantees. Full mechanics:
 *Cross-reference (2026-08-20): ace regression-recovery semantics amended — see [ADR-0013's ace bisection amendment](0013-commanders-intent-and-disposition-routing.md).*
 
 *Cross-reference (2026-08-25): the routing taxonomy gains a fourth Minor/Nit-only member, `ask` — parked in the artifact and ruled at the Checkpoint strike-list gate, never consumed by the sweep — see [ADR-0013's ask-disposition amendment](0013-commanders-intent-and-disposition-routing.md).*
+
+*Cross-reference (2026-09-04): the merged-sweep demote arm (a sweep-raised `absorb` demoted to `follow-up` at the merged arm) is retired; its successor is the terminal pass — one ace-shaped commit plus one re-audit seat after the polish merge, once per phase — and a held phase's absorbs, a non-final discarded sweep's, and a non-final terminal pass's rows ride `carriedPhaseClose` into the relaunch — see the in-band-absorb-default plan's D3a/D3b (`docs/plans/2026-09-03-in-band-absorb-default.md`).*

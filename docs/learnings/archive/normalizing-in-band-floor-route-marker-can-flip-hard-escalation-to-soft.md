@@ -69,3 +69,5 @@ the `routedMr` helper, the `environment-proceed`/`baseline-proceed` re-merge dis
 the two `// ponytail: routedMr is deliberately NOT applied` comments; `HARD_ESCALATION_REASONS` in
 `skills/war/assets/land-decision.mjs` is the canonical membership test (hand-mirrored into
 `workflow-template.js` per ADR 0005; change both copies together).
+
+> archived 2026-09-04: resolved — moved to archive

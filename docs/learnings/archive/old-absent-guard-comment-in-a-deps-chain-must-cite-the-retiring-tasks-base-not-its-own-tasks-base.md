@@ -60,3 +60,5 @@ sibling comment-accuracy class (a comment misnames WHICH surface a pin covers; t
 the WHEN/WHERE-verified variant for `deps`-edge provenance chains).
 [[plan-line-number-refs-stale-use-construct-locator]] — the same "trust the artifact, not the
 narrative" discipline for provenance claims in a serial-merge pipeline.
+
+> archived 2026-09-04: resolved — moved to archive
