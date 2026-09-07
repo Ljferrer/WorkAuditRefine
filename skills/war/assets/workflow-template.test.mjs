@@ -10068,12 +10068,16 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(esSeatP && esCheckP && esOnlyP, 'claims-bearing per-task + endstate-check + end-state-only prompts dispatched (presence guard, Task 3.2 rows)')
   // The integrated-tip seat convenes only on a dep-crossing phase with an integrated-tip gate run —
   // the p4Base evidence fixture drives it LIVE (the finding-path form row's fourth dispatched surface).
-  const itSeatP = ((await runPhase(SWEEP_ARGS({ tasks: [
+  const itRunCalls = (await runPhase(SWEEP_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
     { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
   ] }), p4Base({ evidence: { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } } }))).calls
-    .find(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip') || {}).prompt
+  const itSeatP = (itRunCalls.find(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip') || {}).prompt
   assert.ok(itSeatP, 'the integrated-tip gate-audit seat prompt dispatched (presence guard, finding-path form row)')
+  // Task 5.1 (gate-log stamp): the same intra-dep run's evidence dispatch tees the integrated-tip
+  // gate log — the stamp row reads its intraDep branch (the third stamped write site).
+  const intraDepEvidenceP = (itRunCalls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || '')) || {}).prompt
+  assert.ok(intraDepEvidenceP && /INTRA-PHASE-DEP phase/.test(intraDepEvidenceP), 'the intra-dep evidence dispatch prompt dispatched (presence guard, gate-log stamp row)')
   // The inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
@@ -10368,10 +10372,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /rerun from scratch/] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
-    // tip_sha: first and exit_code: last on the gate log. `Stamp the artifact` counted 0 on both
+    // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
+    // stamps the integrated-tip gate-phase-<id>.log the same way (the read rule on the integrated-tip
+    // seat would otherwise rule that artifact SOFT forever). `Stamp the artifact` counted 0 on both
     // surfaces at the task base, so a per-surface revert reds this row.
-    { name: 'gate-log stamp (D8, PIN-12, #2094): refiner card step 9 ↔ gateCaptureClause carriers + the land clause',
-      surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP], ['land dispatch prompt', landP]],
+    { name: 'gate-log stamp (D8, PIN-12, #2094): refiner card step 9 ↔ gateCaptureClause carriers + the land clause + the intra-dep evidence dispatch',
+      surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP], ['land dispatch prompt', landP], ['intra-dep evidence dispatch prompt', intraDepEvidenceP]],
       anchors: [/Stamp the artifact: its FIRST line is `tip_sha: <the sha the gate ran at>`/, /LAST line is `exit_code: <the gate's exit code>`/, /partial or stale log decidable/] },
     // Gate-log reading rule + unthreaded fallback (D8, PIN-12, #2094): the auditor card's execution
     // rung 1 (reading rule only — the auditor never writes a log) and both gate-audit seat prompts
@@ -16366,7 +16372,7 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
   }
 })
 
-test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: first and exit_code: last on every .war/gate-<taskId>.log, byte-equal; the land clause carries the same stamp', async () => {
+test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: first and exit_code: last on every .war/gate-<taskId>.log, byte-equal; the land clause and the intra-dep evidence clause carry the same stamp', async () => {
   const stamp = evalPt('GATE_LOG_STAMP')
   assert.match(stamp, /FIRST line is `tip_sha: <the sha the gate ran at>`/, 'the first line is the tip_sha: stamp')
   assert.match(stamp, /LAST line is `exit_code: <the gate's exit code>`/, 'the last line is the exit_code: stamp')
@@ -16378,6 +16384,14 @@ test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: f
   assert.ok(mergeP && landP, 'merge-task and land prompts dispatched (presence guard)')
   assert.ok(mergeP.includes(stamp), 'the dispatched merge-task prompt carries the stamp (via gateCaptureClause)')
   assert.ok(landP.includes(stamp), 'the dispatched land prompt carries the stamp (via segmentedLandClause)')
+  // The integrated-tip gate log is the third write site: its intraDep evidence clause carries the stamp
+  // byte-equal, and the refiner card's evidence paragraph points at the step-9 stamp in the land bullet's
+  // short form — otherwise GATE_LOG_READ_RULE on the integrated-tip seat rules the artifact SOFT forever.
+  assert.match(src, /tee its full stdout\+stderr to \$\{refineryPath\}\/\.war\/gate-phase-\$\{ph\.id\}\.log \(\$\{GATE_LOG_STAMP\}\), and return integratedTipGate/, 'the evidence dispatch intraDep branch carries GATE_LOG_STAMP after the tee instruction')
+  const ev = (await runPhase(PROVISION_ARGS(), evidenceImpl)).calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
+  assert.ok(ev && /INTRA-PHASE-DEP phase/.test(ev.prompt), 'intra-dep evidence dispatch made (presence guard)')
+  assert.ok(ev.prompt.includes('/_refinery/.war/gate-phase-3.log (' + stamp + '), and return integratedTipGate'), 'the dispatched intra-dep evidence prompt carries the stamp byte-equal on the gate-phase-<id>.log tee')
+  assert.ok(refinerMd.includes('tee it to `<_refinery>/.war/gate-phase-<id>.log` (stamped per merge-task step 9)'), 'agents/war-refiner.md evidence paragraph stamps the integrated-tip gate log per merge-task step 9')
   // The stamp rides one commit with the partial-log rule: the rule's two-sided read names both stamp lines.
   const rule = evalPt('PARTIAL_LOG_RULE')
   assert.ok(rule.includes('`tip_sha:`') && rule.includes('`exit_code:`'), 'the partial-log rule reads exactly the two stamp lines')
