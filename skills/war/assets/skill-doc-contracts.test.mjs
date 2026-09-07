@@ -643,6 +643,117 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
   }
 })
 
+// (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801) The handoff
+// EMIT gate and the follow-up FILING gate are two DISTINCT status sets in workflow-template.js: the
+// handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
+// on `held:land-failed`. CONTEXT.md's **Clean handoff** row used to fold them into one three-member
+// emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
+// for the emit gate. Both sets are EXTRACTED from the engine (never restated as literals here), so
+// a gate change reds this pin at the doc, not silently.
+//
+// The OLD-absent key targets the SENTENCE, never the `held:land-failed` token: the token legitimately
+// stays in the row as the filing gate's third member. CONTEXT.md is hard-wrapped, so the row is
+// whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
+const gateStatuses = (src, label, re) => {
+  const m = src.match(re)
+  assert.ok(m, `could not locate the ${label} gate in workflow-template.js — construct rotted (non-vacuous guard)`)
+  const set = [...m[1].matchAll(/landDecision === '([^']+)'/g)].map((x) => x[1])
+  assert.ok(set.length > 0, `the ${label} gate names no landDecision member — extraction rotted`)
+  return set
+}
+test('D21 (extended) — CONTEXT.md **Clean handoff** names the engine emit pair and the filing gate\'s third member as two distinct sets (#1597, #1801)', () => {
+  const emitSet = gateStatuses(
+    workflowTemplateSrc, 'handoff emit',
+    /let handoff = null\nif \(((?:landDecision === '[^']+'(?: \|\| )?)+)\) \{/,
+  )
+  const filingSet = gateStatuses(
+    workflowTemplateSrc, 'file-followups',
+    /if \(\(((?:landDecision === '[^']+'(?: \|\| )?)+)\) && minorsFiled\.length > 0\) \{/,
+  )
+  // The engine's own shape: the filing gate is the emit pair plus exactly one more member.
+  assert.deepEqual([...emitSet].sort(), ['held:escalation', 'landed'], 'the handoff emit gate is the pair landed + held:escalation')
+  const third = filingSet.filter((s) => !emitSet.includes(s))
+  assert.deepEqual(third, ['held:land-failed'], 'the filing gate is the emit pair plus held:land-failed alone')
+  const handoff = contextMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(handoff, 'could not locate the `**Clean handoff**` glossary entry in CONTEXT.md — construct rotted')
+  const h = norm(handoff[0])
+  assert.match(h, /_Avoid_/, 'the extracted **Clean handoff** entry must span its `_Avoid_` line — extraction truncated')
+  // Emit clause: `emitted on <pair> only` — names exactly the emit set, never the filing member.
+  const emit = h.match(/emitted on ([^.]*?) only/)
+  assert.ok(emit, 'the **Clean handoff** entry must carry an `emitted on … only` clause naming the emit gate')
+  const named = [...emit[1].matchAll(/`([^`]+)`/g)].map((x) => x[1])
+  assert.deepEqual([...named].sort(), [...emitSet].sort(), `the emit clause must name exactly the engine's emit pair (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
+  // Filing clause: names the third member as the filing gate's, distinct from the emit set.
+  assert.match(
+    h,
+    new RegExp(`filing pass[^.]*\`${third[0]}\``),
+    `the **Clean handoff** entry must name \`${third[0]}\` as the filing pass's extra member (#1597)`,
+  )
+  // OLD sentence absent (the three-member emit claim), whitespace-folded, case-insensitive.
+  assert.doesNotMatch(
+    h,
+    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
+    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is still in the **Clean handoff** row — the handoff never emits on held:land-failed (#1801)',
+  )
+})
+
+// (2026-09-06 Task 1.2, #1801) resume-and-recovery.md's `Segmented land (in-band marker) and
+// filing-on-held` bullet carried an emit-on-held disjunct — "or the `handoff` carries an explicit
+// unfiled-followups block the Lead executes" — that no engine path produces (the handoff never
+// emits on held:land-failed; the stamped issues ride the top-level return's `minorsFiled`). The D21
+// pin's region ENDS at this bullet's header (same-indent terminator), so it cannot see it: this is
+// its own extraction over the 2-space `- **Segmented land` header through the next same-indent
+// sibling (or the list's end).
+test('Segmented-land bullet — filing-on-held names the filing dispatch alone; the unfiled-followups handoff disjunct is gone (#1801)', () => {
+  const lines = resumeMd.split('\n')
+  const headerIdx = lines.findIndex((l) => /^ {2}- \*\*Segmented land \(in-band marker\) and filing-on-held\./.test(l))
+  assert.ok(headerIdx >= 0, 'could not locate the 2-space `- **Segmented land (in-band marker) and filing-on-held.` bullet header in references/resume-and-recovery.md — anchor rotted (non-vacuous guard)')
+  let endIdx = lines.length
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (/^ {2}- \*\*/.test(lines[i]) || /^\S/.test(lines[i])) { endIdx = i; break }
+  }
+  const region = norm(lines.slice(headerIdx, endIdx).join('\n'))
+  assert.match(region, /Filing-on-held:/, 'the extracted Segmented-land region must reach item (2) `Filing-on-held:` — extraction truncated')
+  assert.match(region, /filing dispatch still runs/, 'item (2) must keep the one true shape: the follow-up filing dispatch still runs on held:land-failed')
+  assert.match(region, /`minorsFiled`/, 'item (2) must say where the stamped issue numbers ride on held:land-failed (the top-level return\'s `minorsFiled`)')
+  assert.doesNotMatch(region, /unfiled-followups block/i, 'the OLD `unfiled-followups block` disjunct is still in the Segmented-land bullet — no engine path emits a handoff on held:land-failed (#1801)')
+  assert.doesNotMatch(region, /or the `handoff` carries/i, 'the OLD emit-on-held disjunct (`or the `handoff` carries …`) is still in the Segmented-land bullet (#1801)')
+})
+
+// (2026-09-06 Task 1.2 — D22, PIN-26) Doc-truth pins on the remaining surfaces: the manifest
+// relaunch arm lives in run-manifest.md alone (schemas.md points, never restates), the handoff
+// `followUps` literal is the de-mirrored four-key summary, the ask-ruling gate's overrule clause is
+// ratify-or-record-dissent (#1886), the card carries the relaunch trigger pointer (ADR 0042), and
+// /war-review carries the basename-vs-workflowRunId warning.
+test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, relaunch pointer, war-review warning (#1916, #1793, #1886)', () => {
+  // run-manifest.md: the relaunch section carries the pair rule, attempts[], and the summed counts.
+  const relaunch = runManifestMd.match(/^## Relaunch[\s\S]*$/m)
+  assert.ok(relaunch, 'could not locate the `## Relaunch` section in run-manifest.md — construct rotted')
+  const r = norm(relaunch[0])
+  assert.match(r, /Checkpoint on-return reminder/, 'the Relaunch section must span its Checkpoint on-return reminder — extraction truncated (non-vacuity floor)')
+  for (const [re, what] of [
+    [/overwrite `workflowRunId` \+ `transcriptDir` together/, 'the overwrite-together rule'],
+    [/attempts: \[/, 'the `attempts[]` jsonc shape'],
+    [/summed across attempts/, 'the summed dispatch counts rule'],
+    [/re-check that the phase record's `workflowRunId` \+ `transcriptDir`/, 'the on-return re-stamp reminder'],
+  ]) assert.match(r, re, `run-manifest.md § Relaunch must carry ${what} (D22)`)
+  // schemas.md: a pointer to run-manifest.md, never a restated shape (de-mirror).
+  const manifest = schemasMd.match(/^## Run manifest[\s\S]*?(?=\n## )/m)
+  assert.ok(manifest, 'could not locate `## Run manifest` in schemas.md — construct rotted')
+  assert.match(manifest[0], /`attempts\[\]`[\s\S]*run-manifest\.md/, 'schemas.md § Run manifest must point `attempts[]` at run-manifest.md (de-mirror)')
+  assert.doesNotMatch(manifest[0], /attempts: \[/, 'schemas.md restates the `attempts[]` shape — the shape lives only in run-manifest.md (de-mirror)')
+  // schemas.md: the handoff followUps literal, house de-mirror form.
+  assert.match(schemasMd, /followUps: \[ \{ issue, reason, merged\?, drainCause\? \} \],\s*\/\/ Authoritative shape: the followUps projection in workflow-template\.js — this row is a de-mirrored summary/, 'schemas.md must carry the `followUps: [ { issue, reason, merged?, drainCause? } ]` literal in the house de-mirror form (#1793)')
+  // SKILL.md: the overrule clause is ratify-or-record-dissent; the OLD `confirms or overrules` is gone.
+  assert.ok(!/confirms or overrules/i.test(skillMd), 'the OLD `confirms or overrules` clause is still in skills/war/SKILL.md (#1886)')
+  assert.match(skillMd, /ratifies the prefill or records a dissent as the ruling/, 'the ask ruling gate must carry the ratify-or-record-dissent clause (#1886)')
+  // SKILL.md: the ADR 0042 trigger pointer, fixed shape.
+  assert.match(skillMd, /when a phase is relaunched, read \[references\/run-manifest\.md\]\(references\/run-manifest\.md\)/, 'SKILL.md § Run manifest must carry the trigger pointer "when a phase is relaunched, read [references/run-manifest.md](references/run-manifest.md)" (ADR 0042)')
+  // /war-review: the basename-vs-workflowRunId warning.
+  const w = norm(warReviewSkillMd)
+  assert.match(w, /basename is the harness run id, so it must equal the phase's `workflowRunId`/, '/war-review must warn that the transcript dir basename must equal the phase `workflowRunId` (D22)')
+})
+
 // (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
 // CHECK — the fail-closed `git fetch origin` boundary refresh, the unpushed-RANGE probe, the
 // refusal, the neutralized-pair exemption, the undo that removes a condemned tip commit from

@@ -57,7 +57,14 @@ you could read); you never invent the missing fields.
 ## 2. Mine the transcripts
 
 For each phase in the manifest, take its `transcriptDir` and glob for the workflow's
-`journal.jsonl` and per-agent `agent-*.jsonl` files. These are **harness-internal, line-delimited
+`journal.jsonl` and per-agent `agent-*.jsonl` files. **Basename check first:** the transcript dir's
+basename is the harness run id, so it must equal the phase's `workflowRunId`; a mismatch means a
+half-stamped relaunch (one field overwritten, not both — `skills/war/references/run-manifest.md`
+§ Relaunch) — mine the dir the `workflowRunId` names when it exists, else render that phase `n/a`,
+and report the mismatch as a friction row; never mix two attempts' transcripts into one phase. A
+phase carrying `attempts[]` is a relaunched phase: its `dispatches` are summed across attempts, and
+each archived attempt's `transcriptDir` may be mined separately, labelled by attempt.
+These are **harness-internal, line-delimited
 JSON** — read them **defensively**:
 
 - Parse line by line; skip any line that does not parse rather than aborting the phase.
