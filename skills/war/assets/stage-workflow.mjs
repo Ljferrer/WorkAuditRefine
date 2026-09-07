@@ -69,15 +69,19 @@ export const SCRIPT_BYTE_CAP = 524288
 // regex-literal arm — a `/` that opens an expression (after `(`, `,`, `=`, `:`, `[`, `!`, `&`, `|`,
 // `?`, `{`, `}`, `;`, an operator, or one of the REGEX_AFTER_WORD keywords such as `return`) reads to
 // its closing `/`, honouring `\` escapes and `[…]` classes; a `/` after an operand — an identifier,
-// a number, a closing `)`/`]`, or a postfix `++`/`--` (the operator set is checked against the char
-// BEFORE lastSig for those two) — is division and passes through. Every string, regex and comment arm
-// is line-local: it stops at the newline and never consumes it. One misread is known: a `/` after a
-// closing `}` is read as a regex (an object literal divided is not real code). A misread of that shape
-// skips the rest of its line, so a template opener on that same line is missed and a `//`-led line
-// inside that template can be blanked; the nesting throw below catches the desync only when the
-// residual backtick count is odd. stage-workflow.test.mjs arm (p) is the arbiter — one fixture line
-// per arm, each proven red under that arm's deletion, and a prompt-byte oracle over the shipped
-// template's pt spans.
+// a number, a closing `)`/`]`, a property named like a keyword (`o.in / 2`), or a postfix `++`/`--`
+// (the operator set is checked against the char BEFORE lastSig for those two) — is division and
+// passes through. A keyword is read from the source bytes: a word starts fresh after any non-word
+// char, whitespace included, so `return /re/` on a fresh line is a regex. The string, regex and
+// line-comment arms stop at an unescaped newline and never consume it; the string arm follows a
+// `\`-escaped newline (a JS line continuation), the regex arm never crosses one (a regex cannot hold a
+// line terminator), and the block-comment arm spans lines by design. One misread is known: a `/`
+// after a closing `}` is read as a regex (an object literal divided is not real code). A misread of
+// that shape skips the rest of its line, so a template opener on that same line is missed and a
+// `//`-led line inside that template can be blanked; the nesting throw below catches the desync only
+// when the residual backtick count is odd. stage-workflow.test.mjs arm (p) is the arbiter — one or
+// more fixture lines per arm, each arm proven red under deletion, and a prompt-byte oracle over the
+// shipped template's pt spans.
 const REGEX_AFTER_WORD = new Set(['return', 'case', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'yield', 'await', 'do', 'else', 'throw'])
 const REGEX_AFTER_SIG = '(,=:[!&|?{};+-*%<>~^'
 export function stripFullLineComments(src) {
@@ -86,7 +90,8 @@ export function stripFullLineComments(src) {
   const drop = [] // [start, end) byte ranges of the comment text to blank
   let lastSig = '' // last significant (non-blank, non-comment) code char — the regex/division tie-break
   let prevSig = '' // the significant char before lastSig — tells a postfix `x++` from a binary `a +`
-  let lastWord = '' // the identifier or keyword those chars spell, '' after any non-word char
+  let lastWord = '' // the word the last significant chars spell; starts fresh after any non-word char, whitespace included
+  let wordProp = false // that word followed a `.` — a property, never a keyword
   let i = 0
   while (i < n) {
     const ctx = stack[stack.length - 1]
@@ -119,12 +124,12 @@ export function stripFullLineComments(src) {
         continue
       }
       const postfix = (lastSig === '+' || lastSig === '-') && prevSig === lastSig
-      if (c === '/' && (lastSig === '' || (REGEX_AFTER_SIG.includes(lastSig) && !postfix) || REGEX_AFTER_WORD.has(lastWord))) {
+      if (c === '/' && (lastSig === '' || (REGEX_AFTER_SIG.includes(lastSig) && !postfix) || (REGEX_AFTER_WORD.has(lastWord) && !wordProp))) {
         let j = i + 1
         let inClass = false
         while (j < n && src[j] !== '\n') {
           const d = src[j]
-          if (d === '\\') { j += 2; continue }
+          if (d === '\\') { j += src[j + 1] === '\n' ? 1 : 2; continue } // never step over a newline
           if (inClass) { if (d === ']') inClass = false } else if (d === '[') inClass = true
           else if (d === '/') break
           j++
@@ -155,7 +160,11 @@ export function stripFullLineComments(src) {
       if (!/\s/.test(c)) {
         prevSig = lastSig
         lastSig = c
-        lastWord = /[\w$]/.test(c) ? lastWord + c : ''
+        if (/[\w$]/.test(c)) {
+          const fresh = !(i > 0 && /[\w$]/.test(src[i - 1]))
+          if (fresh) wordProp = src[i - 1] === '.'
+          lastWord = fresh ? c : lastWord + c
+        } else lastWord = ''
       }
       i++
       continue
@@ -227,16 +236,20 @@ const META_STATEMENT = /^export const meta\s*=\s*\{[\s\S]*?^\}$/m
 // already run, so an args payload that quotes any anchor's bytes cannot fork the stage. JSON.stringify
 // output is valid JS source as-is (ES2019's JSON-superset grammar admits raw U+2028/U+2029 in string
 // literals) — no re-escaping pass, and it never contains a literal newline, which keeps the prelude
-// exactly two lines for the restore-roundtrip test.
+// exactly two lines for the restore-roundtrip test. The match ends AT the newline that closes the
+// `}` line, so the prelude goes in after that newline (#2099 round 3): the staged copy gains exactly
+// the two prelude lines, no blank line, and a line number past `meta` is the template's plus two.
 function insertArgsPrelude(text, embedded) {
   const m = text.match(META_STATEMENT)
   if (!m) {
     throw new Error('stage-workflow: could not locate the `export const meta = { … }` statement to insert the embedded-args prelude after')
   }
   const at = m.index + m[0].length
-  const prelude = '\n// Embedded phase args (stage-workflow.mjs --args) — the absent-args fallback; dispatched args always win.\n'
+  const after = text[at] === '\n' ? at + 1 : at
+  const lead = text[at] === '\n' ? '' : '\n'
+  const prelude = '// Embedded phase args (stage-workflow.mjs --args) — the absent-args fallback; dispatched args always win.\n'
     + `const EMBEDDED_ARGS = ${JSON.stringify(embedded)}\n`
-  return text.slice(0, at) + prelude + text.slice(at)
+  return text.slice(0, after) + lead + prelude + text.slice(after)
 }
 
 const USAGE = 'usage: node stage-workflow.mjs <templatePath> <stagedDir> <planSlug> <phaseId> [campaignOrdinal] [--force] [--args <file>]'

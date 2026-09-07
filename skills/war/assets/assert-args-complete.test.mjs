@@ -44,6 +44,10 @@ test('ptSpanRanges: offsets start at the pt` tag and end just past the closing b
   assert.deepEqual(ptSpanRanges(nested, { nested: true }).map((r) => [r.start, r.end, r.text, r.exprs]),
     [[0, 33, 'a ${cond ? pt`b ${y}` : \'\'} c', [[5, 30]]], [14, 24, 'b ${y}', [[19, 23]]]],
     'nested: true also emits the inner span after its outer, offsets in the caller\'s source')
+  const combined = 'pt`a ${ {k: 1}[0] ? pt`b` : pt`c ${z}`} d`'
+  assert.deepEqual(ptSpanRanges(combined, { nested: true }).map((r) => [r.start, r.end, r.text, r.exprs]),
+    [[0, 42, 'a ${ {k: 1}[0] ? pt`b` : pt`c ${z}`} d', [[5, 39]]], [20, 25, 'b', []], [28, 38, 'c ${z}', [[33, 37]]]],
+    'a plain-brace object before two inner pt spans in one expression: both inners emitted with shifted offsets and their own exprs')
   const braces = 'pt`x ${JSON.stringify({ a: 1 })} y`'
   assert.deepEqual(ptSpanRanges(braces)[0].exprs, [[5, 32]], 'a plain-brace object inside the expression does not split or end the expr range')
   assert.equal(braces.slice(5, 32), '${JSON.stringify({ a: 1 })}')

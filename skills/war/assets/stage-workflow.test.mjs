@@ -41,7 +41,7 @@ export const other = 1
 // The exact two-line prelude the stager injects, and the strip used by the restore roundtrips. Built
 // from the same JSON.stringify the stager runs, so the roundtrip proves byte-equality of the payload
 // rather than re-deriving it.
-const PRELUDE_STRIP = /\n\/\/ Embedded phase args \(stage-workflow\.mjs --args\)[^\n]*\nconst EMBEDDED_ARGS = [^\n]*\n/
+const PRELUDE_STRIP = /\/\/ Embedded phase args \(stage-workflow\.mjs --args\)[^\n]*\nconst EMBEDDED_ARGS = [^\n]*\n/
 const preludeLine = (payload) => `const EMBEDDED_ARGS = ${JSON.stringify(payload)}`
 const writeArgs = (dir, payload) => {
   const p = join(dir, 'args.json')
@@ -288,6 +288,8 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
   assert.notEqual(metaAt, -1, 'staged text keeps its `export const meta` statement')
   assert.notEqual(preludeAt, -1, 'staged text carries the EMBEDDED_ARGS prelude')
   assert.ok(preludeAt > metaAt, 'the prelude must follow the `export const meta` statement, never precede it')
+  assert.equal(staged.split('\n').length, original.split('\n').length + 2, 'an --args stage adds exactly the two prelude lines — no blank line left behind (#2099 round 3)')
+  assert.match(staged, /^\}\n\/\/ Embedded phase args/m, 'the prelude comment sits on the line right after the `}` that closes meta')
   for (const line of staged.slice(0, metaAt).split('\n')) {
     assert.ok(
       line.trim() === '' || line.trim().startsWith('//'),
@@ -460,18 +462,25 @@ test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the in
 
 // (p) Comment strip (#2099). The Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes and the
 // shipped template alone crossed it at 0.21.11, so the stager blanks every full-line `//` comment in
-// code state. The fixture carries one construct per scanner arm, each followed by a line whose
-// expected treatment flips if that arm is deleted, so the whole-file byte compare reds per arm:
+// code state. The fixture carries one or more constructs per scanner arm, each followed by a line
+// whose expected treatment flips if that arm is deleted, so the whole-file byte compare reds per arm:
 //   - string arm: a `//` inside a single-quoted string, a backtick inside one, and an unterminated
 //     string (the line-local newline stop);
-//   - template arm: a `//` line inside a template literal and inside a nested `${…}` template;
+//   - template arm: a `//` line inside a template literal, inside a nested `${…}` template, and after
+//     an escaped backtick (the template escape arm);
 //   - interpolation brace depth: a closed plain brace inside a `${…}` body, then a code comment;
 //   - regex arm: a `[…]` class holding a `/`, a class holding a `/` and a backtick, an escaped `/`
-//     before an escaped backtick, and a keyword-led regex holding a backtick (REGEX_AFTER_WORD);
+//     before an escaped backtick, a keyword-led regex holding a backtick after `{`, and one on a fresh
+//     line after a digit (REGEX_AFTER_WORD, and the fresh-word rule);
 //   - regex-vs-division tie-break: a division chain, a division followed on the same line by a
-//     multi-line template, and a postfix `x++` divided before a multi-line template;
+//     multi-line template, a postfix `x++` divided before a multi-line template, a regex after a single
+//     binary `+` (the postfix conjunct), and a property named like a keyword divided before a
+//     multi-line template (the `wordProp` rule);
 //   - block-comment arm: a block comment holding a `//` line.
-// Each arm was deleted in turn and the compare went red (the proof list rides the commit body).
+// Each arm was deleted in turn and the compare went red (the proof list rides the commit body). Two
+// branches have no discriminating mutant by construction and are not fixture arms: the regex flags
+// loop (flag letters scanned as code spell no keyword and read as division either way) and the
+// `lastSig === ''` disjunct (true only at byte 0 of the source).
 const STRIP_FIXTURE = `// header comment
 export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
   // indented code comment
@@ -508,6 +517,17 @@ const pp = x++ / y + \`t
 const o = \`x \${ { a: 1 }
 // a code comment after a closed brace inside the interpolation
 } y\`
+const n6 = 6
+return /\`/.test(s)
+// after a keyword-led regex on a fresh line: still code
+const g = o.in / 2 + \`t
+// a line inside a template after a property named like a keyword
+\`
+const bp = a + /[\`]/.test(x)
+// after the binary-plus regex: still code
+const tb = \`esc \\\` still template
+// a line inside a template after an escaped backtick
+\`
 /* block
 // a line inside a block comment
 */
@@ -549,6 +569,17 @@ const pp = x++ / y + \`t
 const o = \`x \${ { a: 1 }
 
 } y\`
+const n6 = 6
+return /\`/.test(s)
+
+const g = o.in / 2 + \`t
+// a line inside a template after a property named like a keyword
+\`
+const bp = a + /[\`]/.test(x)
+
+const tb = \`esc \\\` still template
+// a line inside a template after an escaped backtick
+\`
 /* block
 // a line inside a block comment
 */
