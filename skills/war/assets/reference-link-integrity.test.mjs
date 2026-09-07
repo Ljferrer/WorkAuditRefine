@@ -636,6 +636,7 @@ const EVICTED_2115 = [
 ];
 
 test('reference link integrity — the #2115 refiner-card evictions landed byte-identical at their references/ homes (ADR 0042, PIN-5)', () => {
+  assert.equal(EVICTED_2115.length, 4, 'the #2115 eviction census lists all four moved blocks — an emptied list would pass vacuously');
   for (const [name, extract, bytes, digest] of EVICTED_2115) {
     const body = extract();
     assert.equal(Buffer.byteLength(body, 'utf8'), bytes, `${name}: the moved block is ${bytes} B (pre-eviction card bytes)`);
@@ -652,7 +653,7 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
     'When dispatched a diff-probe run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Diff probe).',
     'When the rebase looks movable into `_refinery`, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ merge-task two-worktree split).',
     '(§ Submodule phase — 2A / § Submodule phase — 2B).',
-    'When you need the full contract prose, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).',
+    'Before you run the gate, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).',
   ]) {
     assert.ok(refinerCardText.includes(pointer), `war-refiner.md must carry the trigger pointer: ${pointer}`);
   }
@@ -660,5 +661,5 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
     assert.ok(!refinerCardText.includes(literal), `war-refiner.md still carries the evicted body literal "${literal}" — the block lives in references/ only (a duplicated body drifts)`);
   }
   // The pinned Gate-contract sentence stays on the card (war-config.test.mjs's all-runners pin).
-  assert.ok(refinerCardText.includes('covering all runners). When you need the full contract prose'), 'the card keeps the resolved-gate all-runners sentence directly before its budget-raise-floor pointer');
+  assert.ok(refinerCardText.includes('covering all runners). Before you run the gate'), 'the card keeps the resolved-gate all-runners sentence directly before its budget-raise-floor pointer');
 });

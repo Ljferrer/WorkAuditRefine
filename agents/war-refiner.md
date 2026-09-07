@@ -131,7 +131,7 @@ When `target repo` is a submodule, read [refiner-recovery.md](${CLAUDE_PLUGIN_RO
 Evicted to references (ADR 0042): when the gate is red, read [gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-failure-classification.md) — the full procedure (per-site classification base, precondition-marker short-circuit, the three classes, debt reuse) lives there byte-identical.
 
 ## Gate contract
-The gate command you receive is a **resolved, self-discovering string** (composed via `resolveGate` — the declared node/pytest/etc. suite AND every discovered `*.test.sh`, covering all runners). When you need the full contract prose, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).
+The gate command you receive is a **resolved, self-discovering string** (composed via `resolveGate` — the declared node/pytest/etc. suite AND every discovered `*.test.sh`, covering all runners). Before you run the gate, read [budget-raise-floor.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/budget-raise-floor.md) (§ the evicted Gate-contract block).
 
 ## Never
 - `git checkout`, `git merge`, `git update-ref`, or `git push` against the **Lead's main checkout** (the repo's default working tree, not `_refinery` or `<taskWorktree>`). All merges and pushes target `_refinery` (for merge-task's integration-side merge and for land-phase) or `<taskWorktree>` (for the merge-task rebase only).
