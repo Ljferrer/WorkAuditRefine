@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, deriveName, deriveDescription } from './stage-workflow.mjs'
+import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
+import { extractArgsFields } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const STAGER = join(HERE, 'stage-workflow.mjs')
@@ -82,9 +83,12 @@ test('(b) minimal fixture: staged text carries derived literals, differs only in
   assert.equal(restored, MINIMAL_TEMPLATE)
 })
 
+// The shipped-template arms compare against the COMMENT-STRIPPED template (#2099): the stager blanks
+// full-line code comments before it substitutes, so "differs only in the two literals" holds against
+// stripFullLineComments(original), and the strip itself is proven separately in (p).
 test('(b) shipped template: staged text carries derived literals, differs only in the two literals', () => {
   const dir = scratch('stage-ship-')
-  const original = readFileSync(TEMPLATE, 'utf8')
+  const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const slug = '2026-07-16-land-failure-recovery'
   const { stdout } = runStager([TEMPLATE, dir, slug, '1'])
   const staged = readFileSync(stdout.trim(), 'utf8')
@@ -272,7 +276,7 @@ test('(h) attached-form --args=<file> exits non-zero with the usage error (#1134
 // dispatched. A "prelude is present" check would have passed that broken prepend; this one does not.
 test('(i) valid --args: prelude follows the meta statement, fallback rewritten, restores to the shipped template', () => {
   const dir = scratch('stage-args-ok-')
-  const original = readFileSync(TEMPLATE, 'utf8')
+  const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const payload = { phase: { id: 7 }, tasks: [], note: 'hello' }
   const slug = 'args-embedding'
   const { stdout } = runStager([TEMPLATE, dir, slug, '2', '--args', writeArgs(dir, payload)])
@@ -312,7 +316,7 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
 // payload is injected only AFTER every exactly-once count has run, so it cannot fork the stage.
 test('(j) a payload quoting all three anchors with JS-meta content stages cleanly, prelude byte-equal', () => {
   const dir = scratch('stage-args-evil-')
-  const original = readFileSync(TEMPLATE, 'utf8')
+  const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const payload = {
     anchors: [NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR],
     jsMeta: 'back`tick ${interp} "double" \'single\' \\backslash\nnewline\u2028LS\u2029PS',
@@ -334,9 +338,10 @@ test('(j) a payload quoting all three anchors with JS-meta content stages cleanl
 })
 
 // (k) No-flag negative (End state 1) — keyed on the SUBSTITUTION EVIDENCE, never the bare token: the
-// template's referential coupling comment mentions EMBEDDED_ARGS by name and the stager copies template
-// bytes verbatim apart from the substitutions, so that mention rides into every staged copy by
-// construction and a zero-bare-token assertion would be RED on arrival. Steps (2)–(3) provably never ran.
+// template's referential coupling comment mentions EMBEDDED_ARGS by name, and although the #2099
+// comment strip now blanks that full-line comment out of the staged copy, a trailing or block comment
+// naming the token would still ride through — so the bare token stays the wrong key. Steps (2)–(3)
+// provably never ran.
 test('(k) without --args the staged output carries no substitution evidence and keeps the original fallback', () => {
   const dir = scratch('stage-noflag-')
   const { stdout } = runStager([TEMPLATE, dir, 'no-flag-slug', '1'])
@@ -459,6 +464,128 @@ test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the in
 // argv[1] keeps the symlink path, so bare-equality is false and main() never runs. The realpathSync
 // idiom canonicalizes both sides so the guard fires. (Relative invocation is non-discriminating on
 // Node >= 24 — argv[1] arrives pre-resolved — so the symlink is the trigger that goes RED.)
+// (p) Comment strip (#2099). The Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes and the
+// shipped template alone crossed it at 0.21.11, so the stager blanks every full-line `//` comment in
+// code state. The fixture carries one of each construct the scanner must NOT touch — a `//` line inside
+// a single-quoted string, a template literal, a nested `${…}` template, a regex literal (with a `[…]`
+// class holding a `/`), a division chain, and a block comment — beside the code comments it must blank.
+// Expected output is written out whole, so a scanner that desyncs on any construct reds on bytes.
+const STRIP_FIXTURE = `// header comment
+export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
+  // indented code comment
+const s = 'a // not a comment\\n' // trailing comment stays
+const t = \`line one
+// a line inside a template literal
+\${cond ? \`nested
+// a line inside a nested template
+\` : ''}
+\`
+const r = /[a-z/]+\\/\\/'"x/g
+// after the regex: still code
+const d = a / b / c
+// after the division: still code
+/* block
+// a line inside a block comment
+*/
+// last
+`
+const STRIP_EXPECTED = `
+export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
+
+const s = 'a // not a comment\\n' // trailing comment stays
+const t = \`line one
+// a line inside a template literal
+\${cond ? \`nested
+// a line inside a nested template
+\` : ''}
+\`
+const r = /[a-z/]+\\/\\/'"x/g
+
+const d = a / b / c
+
+/* block
+// a line inside a block comment
+*/
+
+`
+test('(p) stripFullLineComments blanks only full-line code comments, keeps every string/template/regex/block line and the line count', () => {
+  const out = stripFullLineComments(STRIP_FIXTURE)
+  assert.equal(out, STRIP_EXPECTED)
+  assert.equal(out.split('\n').length, STRIP_FIXTURE.split('\n').length, 'line count is preserved — blanked, never deleted')
+  assert.throws(() => stripFullLineComments('const x = `open template'), /lost track/, 'an unterminated template literal refuses loudly rather than staging a desynced copy')
+})
+
+// (p) On the shipped template the strip is provable line-by-line: every changed line was a `//`-led
+// line and is now empty, the result still parses (`node --check`), the fallback-free interpolation
+// census the args preflight reads is unchanged, and the staged size sits under the cap with headroom
+// for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 128 KiB so a template growth
+// that eats the margin reds here before a campaign launch dies at dispatch.
+const ARGS_HEADROOM_BYTES = 131072
+test('(p) shipped template: the strip blanks only `//`-led lines, keeps parseability and the interpolation census, and leaves headroom under the cap', () => {
+  const original = readFileSync(TEMPLATE, 'utf8')
+  const stripped = stripFullLineComments(original)
+  const a = original.split('\n')
+  const b = stripped.split('\n')
+  assert.equal(b.length, a.length, 'line count preserved')
+  let blanked = 0
+  for (let k = 0; k < a.length; k++) {
+    if (a[k] === b[k]) continue
+    blanked++
+    assert.ok(a[k].trim().startsWith('//') && b[k] === '', `line ${k + 1}: a non-comment line changed: ${JSON.stringify(a[k].slice(0, 80))} → ${JSON.stringify(b[k].slice(0, 80))}`)
+  }
+  assert.ok(blanked > 1000, `non-vacuity: the shipped template carries >1000 full-line comments, blanked ${blanked}`)
+  const dir = scratch('stage-strip-check-')
+  const strippedPath = join(dir, 'stripped.js')
+  writeFileSync(strippedPath, stripped)
+  const check = spawnSync(process.execPath, ['--check', strippedPath], { encoding: 'utf8' })
+  assert.equal(check.status, 0, `the stripped template must still parse: ${check.stderr}`)
+  assert.deepEqual(extractArgsFields(stripped), extractArgsFields(original), 'the fallback-free interpolation census is unchanged by the strip')
+  const bytes = Buffer.byteLength(stripped, 'utf8')
+  assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, `stripped template is ${bytes} bytes; it must leave at least ${ARGS_HEADROOM_BYTES} bytes under the ${SCRIPT_BYTE_CAP}-byte cap for embedded args`)
+})
+
+// (q) Size floor (#2099): a staged copy that would exceed the cap exits non-zero with both contributing
+// sizes named and writes nothing; comment bytes do not count (they are stripped), non-comment bytes do.
+// The third arm is the live shape that died on 0.21.11: the shipped template plus an over-size-class
+// args payload must stage under the cap.
+test('(q) a staged copy over the scriptPath cap exits non-zero, names the sizes, writes nothing; comment bulk does not count', () => {
+  const dir = scratch('stage-cap-')
+  const padded = join(dir, 'padded.js')
+  writeFileSync(padded, MINIMAL_TEMPLATE + `export const pad = '${'x'.repeat(SCRIPT_BYTE_CAP)}'\n`)
+  const over = runStager([padded, dir, 'cap-slug', '1'], { expectFail: true })
+  assert.notEqual(over.status, 0, 'an over-cap staged copy must not exit 0')
+  assert.match(over.stderr, /over the Workflow tool's 524288-byte scriptPath cap \(comment-stripped template \d+ bytes \+ embedded args 0 bytes\)/)
+  assert.ok(!existsSync(join(dir, deriveName('cap-slug', '1') + '.js')), 'nothing is written on refusal')
+
+  const commented = join(dir, 'commented.js')
+  writeFileSync(commented, MINIMAL_TEMPLATE + `// ${'x'.repeat(SCRIPT_BYTE_CAP)}\n`)
+  const ok = runStager([commented, dir, 'comment-slug', '1'])
+  assert.ok(Buffer.byteLength(readFileSync(ok.stdout.trim(), 'utf8'), 'utf8') < 1024, 'the comment bulk was stripped, not counted')
+
+  const live = scratch('stage-cap-live-')
+  const { stdout } = runStager([TEMPLATE, live, 'live-slug', '1', '--args', writeArgs(live, { phase: { id: 1 }, pad: 'x'.repeat(107008) })])
+  assert.ok(Buffer.byteLength(readFileSync(stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, 'the shipped template plus a ~104.5 KB args payload stages under the cap')
+})
+
+// (q) Write-if-absent meets the cap: a pre-existing staged file over the cap (a 0.21.11-era stage, or
+// a hand-inflated copy) is undispatchable, so reusing it silently would only move the failure to the
+// Workflow tool's own error. The stager refuses, names `--force`, and leaves the file byte-untouched
+// (an operator decides whether to lose its injected stages — the stager never clobbers on its own).
+test('(q) write-if-absent refuses a pre-existing staged file over the cap, naming --force, file untouched', () => {
+  const dir = scratch('stage-cap-reuse-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, MINIMAL_TEMPLATE)
+  const stagedPath = join(dir, deriveName('slug', '1') + '.js')
+  const stale = `// stale over-cap stage\n${'x'.repeat(SCRIPT_BYTE_CAP)}\n`
+  writeFileSync(stagedPath, stale)
+  const r = runStager([tpl, dir, 'slug', '1'], { expectFail: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /existing staged file .* is \d+ bytes, over the Workflow tool's 524288-byte scriptPath cap .* --force/)
+  assert.equal(readFileSync(stagedPath, 'utf8'), stale, 'the refused file is left byte-untouched')
+  const forced = runStager([tpl, dir, 'slug', '1', '--force'])
+  assert.ok(Buffer.byteLength(readFileSync(forced.stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, '--force restages a fresh, under-cap copy')
+})
+
 test('(guard) symlinked invocation still runs main() — usage on stderr, non-zero exit', () => {
   const link = join(scratch('stage-symlink-'), 'link.mjs')
   symlinkSync(STAGER, link)

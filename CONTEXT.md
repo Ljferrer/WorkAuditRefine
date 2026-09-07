@@ -1299,6 +1299,12 @@ rewritten so the staged copy falls back to a prelude carrying the validated phas
 lets an assembled payload too large to ride the Workflow tool call travel with the script instead
 (dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
 than forking silently onto the wrong text.
+**Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
+comment in code state (line count preserved; strings, template literals, regexes and trailing comments
+pass through verbatim), because the Workflow tool refuses a `scriptPath` over 524,288 bytes and the
+shipped template alone crossed it at 0.21.11; a staged copy still over the cap after the strip exits
+non-zero naming both sizes and writes nothing, and a pre-existing staged file over the cap is refused
+with an error naming `--force` rather than reused.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
 (approved stage injections and journal-replay identity survive a resume or a same-day recovery
 relaunch); a deliberate `--force` overwrites it with a fresh substitution from the shipped template.

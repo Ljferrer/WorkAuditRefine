@@ -60,6 +60,18 @@ sanctioned surface for both display identity and approved stage injection.**
    literals, not two, and the anchor-guard test imports all three — still never a hardcoded second
    copy. The exactly-once, fail-loud discipline and the mirror-registry arbiter are unchanged.
 
+   **Amendment (2026-09-06, #2099):** the staged copy is no longer the shipped template's bytes
+   apart from the substitutions — append-only, the sentences above stay byte-intact. The Workflow
+   tool refuses a `scriptPath` over 524,288 bytes, and the shipped template alone crossed that cap
+   at 0.21.11 (525,209 bytes, ~250 KB of it full-line comments), so the stager first blanks every
+   full-line `//` comment in code state (each becomes an empty line — line count preserved, so a
+   harness stack trace still points at the right template line; strings, template literals, regex
+   literals, block and trailing comments pass through verbatim), then substitutes, then refuses with
+   a named error and writes nothing if the assembled copy would still exceed the cap. The shipped
+   template is untouched: its comments and every drift guard over them stay; the strip lives only in
+   the staged copy. Decision 3's write-if-absent gains the same floor: a pre-existing staged file over
+   the cap is refused with an error naming `--force`, never reused into the tool's own refusal.
+
 3. **Write-if-absent, with an explicit `--force` restage.** If the derived staged path already exists,
    the stager leaves it **byte-untouched**, prints its absolute path, and exits 0 — the existing file
    *is* the run's script. This is deliberate, not an oversight: an operator may have hand-edited the
