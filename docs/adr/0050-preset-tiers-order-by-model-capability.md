@@ -1,0 +1,62 @@
+# Preset tiers order by model capability; effort `default` defers to the session
+
+**Status:** accepted (operator ruling of 2026-09-06 on PR #2081, release 0.21.11, after a
+`/snipe` correctness seat filed the preset ordering as a Major; supersedes the retired
+`war-config.mjs` comment "thorough must never be weaker than balanced on any axis")
+
+A snipe seat read the 0.21.11 presets and concluded that `thorough` ships the weakest audit seat
+and `economy` the priciest workers. Its evidence was an inferred ranking: fable is cheap because
+the fix tier uses it, and `default` is the lowest effort because it heads the `EFFORTS` enum. The
+repo stated no ranking of its own, so the seat supplied one. The shipped values follow a different
+rule that lived only in the operator's head. This ADR writes that rule down and pins it.
+
+## Decision
+
+**Model capability is the first axis of every seat.** `MODEL_RANK` in `war-config.mjs` orders
+the models ascending in capability and cost: haiku, sonnet, opus, fable. For every tier a preset
+resolves (worker base, docs, fix, auditor, refiner, servitor, red-team, snipe), the model rank is
+monotone across presets: `thorough` ≥ `balanced` ≥ `economy`. `war-config.test.mjs` asserts that
+rule over the eight tiers of the three shipped presets, so an auditor reads the invariant from
+the suite instead of inferring one.
+
+**Effort `default` is not the lowest effort.** It means the seat inherits the effort knob of the
+chat session that launched the run. A pinned effort (`low` … `max`) overrides that knob for the
+one seat. Fable seats are pinned at `default` on purpose: the operator measured fable under a
+forced high effort as costing more than it returns, so the session keeps that decision. Weaker
+models carry a pinned effort as compensation (for example sonnet auditors on `xhigh`), which is
+why the effort axis is deliberately *not* monotone across presets and is not an invariant.
+
+**`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** It pins its
+own worker (base and docs), auditor, refiner, servitor and red-team tiers, each at or below
+`balanced`'s `MODEL_RANK`, and the fix tier and snipe inherit `DEFAULTS`; the values are the
+`/war-room` economy bullet. `roundLimit: 4` and `redteamRoundLimit: 2` are pinned. `rosterPolicy`
+inherits `auto` on purpose: a config cannot predict what a task will entail, so the Lead composes
+each task's seats from the lens catalog, and the preset's four-lens roster serves as the
+`autoEscalate` widening pool, the phase-close polish panel, and the terminal-pass seat source,
+never a per-task seat count. The ace ladder, the absorb budget, memory and hooks inherit `DEFAULTS`.
+
+**What an auditor checks.** The model-rank monotone test, the whole-literal `PRESETS` pins, and
+the `/war-room` bullet parser are the machine record of these values. A preset name describes the
+model tier it buys, never an effort ordering.
+
+## Considered options
+
+- **Restore opus/`max` auditors on `thorough` (rejected).** That reinstates a forced top effort on
+  the thorough auditor seat, the axis the operator ruled against; the fable measurement is the
+  evidence for the ruling, not a cost figure for an opus seat.
+- **Rename the presets (rejected).** The names already describe the model tier each preset buys
+  under `MODEL_RANK`, and a rename breaks every committed `.claude/war/config.json` that names one.
+- **Pin `rosterPolicy: all` on `economy` for a fixed four seats (rejected).** Four seats on every
+  task, leaf tasks included, costs more than Lead-composed seats and removes the per-task judgment
+  `auto` exists for. A seat cap under `auto` (`audit.maxSeats`) does not exist and is not needed.
+- **Keep the ordering rule as a code comment (rejected).** A comment stating "never weaker on any
+  axis" was the prior form, was false on the effort axis, and was deleted; a test cannot rot the
+  same way.
+
+## Relationship to prior ADRs
+
+- [ADR 0025](0025-drift-guard-discipline.md) — the model-rank test and the `/war-room` bullet
+  parser are drift guards in that discipline: facts bound to their canonical source, never a
+  hand-copied literal.
+- [ADR 0045](0045-red-team-loop-budget-and-route-upstream.md) — `redteamRoundLimit` stays 3 by
+  default and 2 on `economy`; this ADR changes no red-team budget.

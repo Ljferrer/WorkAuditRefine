@@ -16,7 +16,7 @@ Grammar (both args trailing, order-tolerant): `/snipe [<target>] [<seats 1-5>] [
 node ${CLAUDE_PLUGIN_ROOT}/skills/snipe/assets/snipe-args.mjs '<raw args>' [--config .claude/war/config.json]
 ```
 
-It returns `{ target, seats, named, autoCount, tier, errors }`. If `errors` is non-empty, print them and stop — never spawn on a refused parse. `tier` is each seat's spawn model/effort, resolved from the WAR config ladder (`agents.snipe` → `agents.auditor` → defaults; the shipped default is opus/`high`) — spawn with exactly that tier, never your own choice.
+It returns `{ target, seats, named, autoCount, tier, errors }`. If `errors` is non-empty, print them and stop — never spawn on a refused parse. `tier` is each seat's spawn model/effort, resolved from the WAR config ladder (`agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS) — spawn with exactly that tier, never your own choice.
 
 ## 2. Resolve the target and pin the SHA
 

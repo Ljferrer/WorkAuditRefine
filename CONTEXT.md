@@ -537,7 +537,7 @@ _Avoid_: reviewer instance; redundant/duplicate seats as a form of rigor.
 A **one-shot roster outside a run** (`/snipe`, #1920): 1–5 read-only auditor seats convened on demand
 against a diff — no plan, no phase, no refinery, no filing — verdicts reported in chat, informational
 only (Critical/Major labeled *would block in a phase*, gating nothing). Seats spawn at the config
-tier ladder `agents.snipe` → `agents.auditor` → defaults (shipped default opus/`high`), always `deep`.
+tier ladder `agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS, always `deep`.
 _Avoid_: treating a snipe verdict as a phase gate; snipe seats that write or file anything.
 
 **Lens**:
@@ -673,15 +673,15 @@ contradiction.
 
 **Docs tier**:
 The worker spawn tier for a task whose `Files:` list is entirely `*.md` — mechanically classified
-at dispatch (never a plan field), configured at `agents.worker.docs`, default opus. Mixed
+at dispatch (never a plan field), configured at `agents.worker.docs` (defaulted in `war-config.mjs`). Mixed
 docs+code tasks stay on the base worker tier; auditors review docs-tier work at full strength.
 _Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the predicate reads the
 plan's file list, not the diff).
 
 **Fix bump**:
 The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and `--ace` worker
-spawns — either direction: a stronger fixer than the first pass, or (the balanced default) an opus
-first pass with a faster fable/`low` fixer. Absent = fix work inherits the base worker config
+spawns — either direction, a stronger fixer than the first pass or a cheaper one (per-preset
+values: the `/war-room` preset bullets). Absent = fix work inherits the base worker config
 (today's behavior).
 _Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
 knob covers both).
