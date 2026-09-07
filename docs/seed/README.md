@@ -32,7 +32,7 @@ Overflow on **either** axis; nothing is ever auto-deleted.
 - **Archive tier:** ≤ 500 members **and** ≤ 100,000,000 B (100 MB). Archive overflow refuses the
   add **loudly** — the operator prunes by hand.
 
-Current corpus: **41 members / 126,124 B uncompressed** (largest member 7,387 B) — well inside both
+Current corpus: **41 members / 126,150 B uncompressed** (largest member 7,387 B) — well inside both
 seed-tier axes.
 
 ## Contributing a lesson

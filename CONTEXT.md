@@ -1301,7 +1301,8 @@ lets an assembled payload too large to ride the Workflow tool call travel with t
 than forking silently onto the wrong text.
 **Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
 comment in code state (line count preserved — an `--args` stage then adds two prelude lines after
-`meta`; strings, template literals, regexes and trailing comments pass through verbatim), because the
+`meta`; strings, template literals, regexes and trailing comments pass through verbatim, one scanner
+residual recorded in the reference below), because the
 Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone
 crossed it at 0.21.11; a staged copy still over the cap after the strip exits non-zero naming both
 sizes and writes nothing, and a pre-existing staged file over the cap is refused with an error naming

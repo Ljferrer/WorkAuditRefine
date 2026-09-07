@@ -74,7 +74,7 @@ as written, the fix text was eight site edits. Applied as a class, it became:
   second scanner (`ptSpanRanges`, seeded on the `pt` tag, with expression ranges) became the
   prompt-byte oracle, and the oracle got its own synthetic negative because the real template had
   no line that could exercise it.
-- One fixture line per scanner arm, each proven red by deleting that arm. The reviewer named two
+- One or more fixture lines per scanner arm, each arm proven red by deleting it. The reviewer named two
   undiscriminated arms. The first pass proved those plus four more and claimed completeness. The
   next round found four further arms (class tracking, escape, string newline stop, brace depth)
   that survived deletion, because the arms had been enumerated from the reviewer's list and not
@@ -85,7 +85,7 @@ as written, the fix text was eight site edits. Applied as a class, it became:
 - A stale sentence the reviewer named ("plain substitution") had three siblings the reviewer did
   not name: the write-if-absent prose in the glossary, the ADR and the skill card. All four moved.
 - A budget with 20 bytes of headroom was filed as a follow-up by the reviewer. An ADR 0042
-  eviction funded 962 bytes in the same change.
+  eviction in the same change lifted the headroom past 900 bytes.
 
 Evidence file for the round count this discipline saves: issue #2097 (fourteen rounds against
 seven, then one).
@@ -93,6 +93,6 @@ seven, then one).
 ## Locate-cue (verify still present before acting)
 
 `skills/war/assets/stage-workflow.test.mjs`: the `assertStripKeptPromptBytes` helper and its
-synthetic negative (rule 3), the `STRIP_FIXTURE` block comment listing one line per arm (rule 4),
+synthetic negative (rule 3), the `STRIP_FIXTURE` block comment listing the lines per arm (rule 4),
 the `DOC_CAP_PINS` arm (rule 5). The commit bodies on PR #2100 carry the proven-red list and the
 consequence lines (rules 4 and 8).

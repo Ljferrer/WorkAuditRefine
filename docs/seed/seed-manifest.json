@@ -98,8 +98,8 @@
     },
     {
       "slug": "fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit",
-      "bytes": 5617,
-      "sha256": "a63906bca0f564f91bb9afa9ae1dbd6c76d29270df5d5c1e58f69846f26819b3",
+      "bytes": 5643,
+      "sha256": "3f2100a0cc499f3d7a345fbf260e22db23c1e738055f466ef36d8ac115a8c34f",
       "description": "Treat an audit finding's fix text as a floor: sweep every sibling site of the same rule, give each new guard an independent oracle and a proven-red mutation, bind restated values with a pin, and extract on the second copy — or the next review round finds the mirror case.",
       "type": "project",
       "provenance": "user-confirmed"

@@ -67,8 +67,9 @@ sanctioned surface for both display identity and approved stage injection.**
    comments), so the stager first blanks every full-line `//` comment in code state (each becomes an
    empty line — line count preserved, so a harness line number maps to the template's, plus the two
    prelude lines an `--args` stage adds after `meta`; strings, template literals, regex literals,
-   block and trailing comments pass through verbatim), then substitutes, then refuses with a named
-   error and writes nothing if the assembled copy would still exceed the cap. The shipped template
+   block and trailing comments pass through verbatim, with one scanner residual recorded in
+   `skills/war/references/staged-script.md`), then substitutes, then refuses with a named error and
+   writes nothing if the assembled copy would still exceed the cap. The shipped template
    is untouched: its comments and every drift guard over them stay; the strip lives only in the
    staged copy. Decisions 3 and 6 carry their own dated notes on the consequences. Lead-facing
    doctrine: `skills/war/references/staged-script.md`; arbiter: `stage-workflow.test.mjs` arms
