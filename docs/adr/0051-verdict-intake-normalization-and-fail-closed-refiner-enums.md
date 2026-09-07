@@ -2,8 +2,8 @@
 
 **Status:** accepted (ratified by
 [the plan](../plans/2026-09-06-engine-and-audit-verdict-integrity.md), decisions D2/D4/D5/D6,
-pins PIN-2/PIN-6/PIN-8/PIN-9/PIN-10; originating incidents: issues #1788, #1811, #1869, #1870, #1973,
-#1797 and #1805)
+pins PIN-2/PIN-6/PIN-8/PIN-9/PIN-10; originating incidents: issues #1736, #1788, #1811, #1869, #1870,
+#1973, #1797 and #1805)
 
 A WAR run let a dispatched agent's own words decide a task's fate. Three shapes of that trust
 composed. An auditor payload could carry `seats` and `merged` fields, and the follow-up collapse
@@ -30,23 +30,21 @@ applied here to every verdict and every refiner status). Three forms follow.
 **Intake normalization** is the step that runs on every finding of every `AUDIT_VERDICT` before any
 router, collapse or filing reads it: roster seats, the rebuttal round, every re-audit (ace,
 pin-transfer, floor-fix, sweep, terminal), the three gate-audit-family seats (post-merge,
-integrated-tip, end-state-only).
-`normalizeFinding` in
-`workflow-template.js` strips the auditor-supplied `seats` and `merged` fields, so `seatsListOf`
-only ever reads a list the engine wrote and a forged `seats` list never renders as corroboration
-(the corroboration LIST is engine-written; the finding-level `seat`, `task` and `lens` keys stay
-auditor-supplied, a residual out of PIN-6's slice recorded on `seatsListOf`); it
-normalizes `file` through `aceRelPath`, so one path spelled two ways never splits a record. Its
-caller `normalizeSeat` demotes a finding with no title and no routable content (`contentTextOf`:
-`rationale`, `suggested_fix`, `ask.question`) to a logged note, because a finding with nothing
-routable is not a verdict (#1869). The spare covers a `scopeBreach` or `plan_ref`-carrying row, a
-non-blank `ask.question` at any severity (it is content through `contentTextOf`), and a bare
-`disposition:'ask'` only on the Minor/Nit severities the ask channel serves: a Critical or Major
-carrying only `disposition:'ask'` never reaches `parkAsk`, so it demotes. `remintKey` folds a
-content hash in when file and title are both absent, so two content-distinct empty-key findings
-both file (#1870).
-The card and the gate-audit-family prompts carry the FINDING-PATH FORM sentence as belt and braces;
-they are not the guard (PIN-6).
+integrated-tip, end-state-only). `normalizeFinding` in `workflow-template.js` strips the
+auditor-supplied `seats` and `merged` fields, so `seatsListOf` only ever reads a list the engine
+wrote and a forged `seats` list never renders as corroboration (the corroboration LIST is
+engine-written; the finding-level `seat`, `task` and `lens` keys stay auditor-supplied, a residual
+out of PIN-6's slice recorded on `seatsListOf`); it normalizes `file` through `aceRelPath`, so a
+leading `./` run never splits a record; the absolute form is refused by the prompt mandate, not by
+the engine. Its caller `normalizeSeat` demotes a finding with no title and no routable content
+(`contentTextOf`: `rationale`, `suggested_fix`, `ask.question`) to a logged note, because a finding
+with nothing routable is not a verdict (#1869). The spare covers a `scopeBreach` or
+`plan_ref`-carrying row, a non-blank `ask.question` at any severity (it is content through
+`contentTextOf`), and a bare `disposition:'ask'` only on the Minor/Nit severities the ask channel
+serves: a Critical or Major carrying only `disposition:'ask'` never reaches `parkAsk`, so it
+demotes. `remintKey` folds a content hash in when file and title are both absent, so two
+content-distinct empty-key findings both file (#1870). The card and the gate-audit-family prompts
+carry the FINDING-PATH FORM sentence as belt and braces; they are not the guard (PIN-6).
 
 ### 2. The `already_upstream` refusal arm — a refiner status must agree with its own fields
 
