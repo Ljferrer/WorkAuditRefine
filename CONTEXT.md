@@ -1556,7 +1556,8 @@ barrier is the filter).
 
 **Relaunch attempt**:
 One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
-retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` (the
+retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
+launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
 transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
 the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
 `skills/war/references/run-manifest.md` § Relaunch).
