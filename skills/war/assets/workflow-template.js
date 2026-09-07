@@ -1663,18 +1663,17 @@ const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : 
 // (the pre-task behavior, unchanged here), and can still ride a fix-less PIN-29 escalation; narrowing
 // the spare to the gate-audit sites is a behavior change beyond this slice. The demotion also SPARES
 // an ask-shaped finding (a non-blank `ask.question` is spared through contentTextOf; a bare
-// `disposition: 'ask'` row on
-// the Minor/Nit severities the ask channel serves is spared through askShaped — a blocking
-// severity carrying only disposition:'ask' has no ask channel to reach, never parks, and would
-// otherwise ride the verdict fix-less into a PIN-29 escalation — demote()'s ASK REFUSAL invariant:
-// an ask is ruled at the Checkpoint, never machine-demoted into notes; it falls through to parkAsk
-// / the routers) and a `scopeBreach: true` finding (aceReaudit's fail-closed pin-transfer refusal
-// reads the finding-level disjunct, PIN-18 — the breach flag IS its content). A demoted note is
-// re-stamped `severity: 'Nit'` beside `originalSeverity` (the pairing the pin-equality strip uses),
-// so notes never carry a blocking severity. Non-object findings items and a non-array findings
-// container are dropped with a log and count as removals for the verdict neutralization the same
-// as a demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in place
-// and returns it, and every site assigns the return.
+// `disposition: 'ask'` row on the Minor/Nit severities the ask channel serves is spared through
+// askShaped — a blocking severity carrying only disposition:'ask' has no ask channel to reach, never
+// parks, and would otherwise ride the verdict fix-less into a PIN-29 escalation — demote()'s ASK
+// REFUSAL invariant: an ask is ruled at the Checkpoint, never machine-demoted into notes; it falls
+// through to parkAsk / the routers) and a `scopeBreach: true` finding (aceReaudit's fail-closed
+// pin-transfer refusal reads the finding-level disjunct, PIN-18 — the breach flag IS its content). A
+// demoted note is re-stamped `severity: 'Nit'` beside `originalSeverity` (the pairing the pin-equality
+// strip uses), so notes never carry a blocking severity. Non-object findings items and a non-array
+// findings container are dropped with a log and count as removals for the verdict neutralization the
+// same as a demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in
+// place and returns it, and every site assigns the return.
 const normalizeFinding = f => {
   const { seats, merged, ...rest } = f
   if (typeof rest.file === 'string') rest.file = aceRelPath(rest.file)
