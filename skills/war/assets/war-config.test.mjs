@@ -1729,14 +1729,16 @@ test('CLI symlinked invocation still runs main() — usage on stdout, non-zero e
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
   // workflow-template.js cannot import ES modules so it duplicates the constant inline.
   // This test pins that inline literal to the canonical export in land-decision.mjs.
-  // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
+  // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence.
   // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — the inline literal and the
   // canonical export are IDENTICAL (exact equality, no scheduler-local divergence).
-  // M2: 'no-test' added to both mirrors (8 members). Container-packaging: 'unpackaged' added to both mirrors (9 members).
-  // Precision-chain Task 2.3: 'done-unmet' added to both mirrors (10 members total).
+  // M2: 'no-test' added to both mirrors. Container-packaging: 'unpackaged' added to both mirrors.
+  // Precision-chain Task 2.3: 'done-unmet' added to both mirrors.
+  // Engine-and-audit-verdict-integrity D6 (ADR 0005): 'budget-uncited' added to both mirrors — the
+  // routedMr-normalized Budget-Raise floor route escalates under its own name at every per-task merge-task dispatch site.
   //
   // The template has:
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.
@@ -1749,6 +1751,7 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'), 'dep-failed must be in HARD_ESCALATION_REASONS (F02 foundation)')
   assert.ok(HARD_ESCALATION_REASONS.includes('no-test'), 'no-test must be in canonical HARD_ESCALATION_REASONS (M2)')
   assert.ok(HARD_ESCALATION_REASONS.includes('unpackaged'), 'unpackaged must be in canonical HARD_ESCALATION_REASONS (container-packaging floor)')
+  assert.ok(HARD_ESCALATION_REASONS.includes('budget-uncited'), 'budget-uncited must be in canonical HARD_ESCALATION_REASONS (Budget-Raise floor, D6)')
 })
 
 // ---------------------------------------------------------------------------

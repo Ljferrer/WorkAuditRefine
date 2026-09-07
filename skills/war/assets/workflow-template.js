@@ -243,18 +243,22 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // floor_route (Budget-Raise floor, engine-reliability Phase 2 Task 2): the in-band budget-uncited
   // route marker — the literal 'budget-uncited' riding status:'no-test' when assert-budget-raise-cited.sh
   // exits 1 (an uncited prompt-surface ceiling raise). merge-task only, OPTIONAL. Orthogonal to status
-  // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
-  // KNOWN_LAND_DECISIONS member is added or changed (the red-team adjudication rules MERGE_RESULT status
-  // widening outside the pre-authorization; the segmented-land precedent: an in-band field, never a
-  // status member). Absent ⇒ every consumer is byte-identical to a budget-floor-less run (set-minus).
+  // exactly like gate_failure_class — NO status enum value or KNOWN_LAND_DECISIONS member is added or
+  // changed (the red-team adjudication rules MERGE_RESULT status widening outside the pre-authorization;
+  // the segmented-land precedent: an in-band field, never a status member). The routedMr-normalized
+  // internal status 'budget-uncited' IS a HARD_ESCALATION_REASONS member (D6, ADR 0005) so an escalation
+  // names the tripped floor, never 'no-test'. Absent ⇒ every consumer is byte-identical to a
+  // budget-floor-less run (set-minus).
   floor_route: { enum: ['budget-uncited'] },
   // land_segment (Phase 6 Task 1 (a), A6 REVISED): the in-band segmented-land marker — the literal
   // 'incomplete' riding status:'error' when the land dispatch is FORCED to return before the land
   // completes (the gate outran the tool timeout). land-phase only, OPTIONAL. Orthogonal to status
-  // exactly like floor_route — NO status enum value, HARD_ESCALATION_REASONS member, or
-  // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005). The
-  // Workflow re-dispatches the land while the marker persists (FLOOR_STATUSES retry-loop idiom,
-  // bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
+  // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
+  // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005; unlike
+  // floor_route, this marker mints no HARD_ESCALATION_REASONS member). The
+  // Workflow re-dispatches the land while the marker rides its contracted status:'error' pair (a landed
+  // result carrying a stray marker stands) at the initial land and both *-proceed re-lands (FLOOR_STATUSES
+  // retry-loop idiom, bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
   // segment_note: free-text progress note — rendered into the continuation log line only, never routed on.
   land_segment: { enum: ['incomplete'] },
   segment_note: { type: 'string' },
@@ -281,10 +285,13 @@ const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
 // re-audit, today's behaviour, PIN-1), 'already_upstream' (empty post-rebase diff whose pre-rebase task
 // commits every cherry-match upstream, PIN-16), 'empty-unmatched' (empty diff with zero task commits,
 // unmatched patches, or an empty pre-rebase patch-id — fails CLOSED to a hard escalation, #1895),
-// 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged).
+// 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged). dispatch_base (D4,
+// PIN-8, #1973): the merge-base the probe measured PRE from — returned so the consumer can refuse an
+// already_upstream whose rebased_tip is that base (the contradiction signature); OPTIONAL, its absence
+// disables only that one leg of the refusal.
 const PIN_TRANSFER = { type: 'object', required: ['status'], properties: {
   status: { enum: ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error'] },
-  rebased_tip: { type: 'string' }, pre_rebase_patch_id: { type: 'string' }, post_rebase_patch_id: { type: 'string' },
+  rebased_tip: { type: 'string' }, dispatch_base: { type: 'string' }, pre_rebase_patch_id: { type: 'string' }, post_rebase_patch_id: { type: 'string' },
   already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } } }
 
 // DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task refiner `diff-probe` dispatch's
@@ -2010,7 +2017,12 @@ const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && 
 // NORMALIZED internal status 'budget-uncited' so the floor sub-loop's verdict/log/prompt surfaces name
 // the real tripped floor without touching the wire schema. floor_route absent ⇒ identity (set-minus:
 // every budget-floor-less result flows through byte-identical). Workflow-internal only — the routed
-// status is never returned to a refiner and never re-enters a MERGE_RESULT.
+// status is never returned to a refiner and never re-enters a MERGE_RESULT. Applied at every PER-TASK
+// merge-task dispatch site (primary, floor-retry, environment-proceed, baseline-proceed); the two class-exempt
+// sweep-family merges — the phase-close polish merge (`merge:p<id>-polish`) and the terminal-pass merge
+// (`merge:p<id>-terminal`) — are deliberately unwrapped: a budget-uncited there fail-open DISCARDS that
+// sweep (#1744). 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005), so a normalized result
+// escalates as hard as the raw 'no-test' did, under its real name.
 const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
   ? { ...mr, status: 'budget-uncited' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
@@ -3449,16 +3461,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const pinProbe = await dispatch(
         pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n`
         + aceRevertClause
-        + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents).\n`
+        + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
         + pt`  (3) TIP=rev-parse ${ph.integrationBranch} (the integration tip the rebase landed on); POST=diff $TIP..${r.task.branch} piped to git patch-id --stable, first field (empty on an empty diff).\n`
-        + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge.\n`
+        + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
-        + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
+        + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
         + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the ordinary merge dispatch then runs unchanged.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           label: 'pin-transfer:' + r.task.id, schema: PIN_TRANSFER, ...spawn('refiner') })   // concatenation-built (census-safe)
-      const probeStatus = (pinProbe && typeof pinProbe.status === 'string') ? pinProbe.status : 'error'
+      let probeStatus = (pinProbe && typeof pinProbe.status === 'string') ? pinProbe.status : 'error'
       // PIN-10 destination convention, mirroring aceSeatRows: a row's `sha` is the sha the approval is
       // now accounted AT — the probe's rebased integration tip, in EVERY mode. It is never the seat's
       // pre-rebase audit_sha; that origin rides `approvedAt` on a transferred row, exactly as
@@ -3469,6 +3481,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const probeRow = (mode, seatsSrc) => ({ task: r.task.id, kind: 'merge', mode,
         reauditedTip: r.aceSha || (r.seats || []).map(s => s.audit_sha).find(isSha) || null,
         rebasedTip: pinProbe && pinProbe.rebased_tip || null,
+        dispatchBase: (pinProbe && pinProbe.dispatch_base) || null,
         prePatchId: pinProbe && pinProbe.pre_rebase_patch_id || null,
         postPatchId: pinProbe && pinProbe.post_rebase_patch_id || null,
         seats: (seatsSrc || r.seats || []).map(s => mode === 'mismatch'
@@ -3488,11 +3501,30 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         continue
       }
       if (probeStatus === 'already_upstream') {
+        // Fail-closed already_upstream (D4, PIN-8, #1973): the enum alone never skips a merge. The
+        // arm's own fields must agree with it — a rebased_tip equal to the dispatch base (the rebase
+        // moved nothing), a non-empty post-rebase patch-id (there IS content left to merge), or an
+        // empty already_upstream_commits (nothing cherry-matched) each contradict the status. On a
+        // contradiction the probe is re-routed by its patch-ids: equal non-empty pre/post →
+        // 'transferred' (the #1973 shape — the refiner reported the true result in the fields), anything
+        // else → 'mismatch' (the full panel re-audits the rebased tip). The un-contradicted arm is the
+        // PIN-16 read, byte for byte.
         const commits = Array.isArray(pinProbe.already_upstream_commits) ? pinProbe.already_upstream_commits : []
-        pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
-        log('pin-transfer ' + r.task.id + ': already_upstream — every task commit cherry-matched upstream (' + (commits.join(', ') || 'commits unrecorded') + '); recorded merged at the integration tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' with no panel and no content merge (PIN-16).')
-        landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProbe.rebased_tip })
-        continue
+        const pre = typeof pinProbe.pre_rebase_patch_id === 'string' ? pinProbe.pre_rebase_patch_id : ''
+        const post = typeof pinProbe.post_rebase_patch_id === 'string' ? pinProbe.post_rebase_patch_id : ''
+        const tipIsBase = typeof pinProbe.rebased_tip === 'string' && pinProbe.rebased_tip !== '' && pinProbe.rebased_tip === pinProbe.dispatch_base
+        const contradiction = tipIsBase ? 'rebased_tip equals the dispatch base'
+          : post ? 'the post-rebase patch-id is non-empty (' + post + ')'
+          : commits.length === 0 ? 'already_upstream_commits is empty' : null
+        if (contradiction) {
+          probeStatus = (pre && post && pre === post) ? 'transferred' : 'mismatch'
+          log('pin-transfer ' + r.task.id + ': already_upstream REFUSED — ' + contradiction + ', so the status contradicts its own fields (D4, PIN-8, #1973); routing by patch-ids to \'' + probeStatus + '\' instead of recording the task merged.')
+        } else {
+          pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
+          log('pin-transfer ' + r.task.id + ': already_upstream — every task commit cherry-matched upstream (' + commits.join(', ') + '); recorded merged at the integration tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' with no panel and no content merge (PIN-16).')
+          landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProbe.rebased_tip })
+          continue
+        }
       }
       if (probeStatus === 'mismatch') {
         // PIN-1 degrade-to-today: the rebase changed this task's own diff, so the pin cannot transfer.
@@ -3685,8 +3717,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
           // Budget exhausted — hard escalation with reason = whichever floor is still tripping (all
-          // HARD: no-test/unpackaged/done-unmet are HARD_ESCALATION_REASONS members; the routed
-          // budget-uncited status maps to the existing hard reason 'escalate' below, never a new member).
+          // HARD: no-test/unpackaged/done-unmet/budget-uncited are HARD_ESCALATION_REASONS members).
           // The LAST result's near-miss diagnostic rides both entries as `detail` when present (a
           // string-valued detail is legal — this key is already shape-heterogeneous per route: the
           // merge-failure route below pushes the whole MergeResult object). Absent ⇒ no `detail` key at
@@ -3695,14 +3726,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // done-when-floor-wiring D6): present ⇒ a done_when_log_path key, absent ⇒ none.
           const exhaustedDiag = floorDiagOf(floorMr)
           const exhaustedDoneWhenLog = doneWhenLogOf(floorMr)
-          // budget-uncited exhaustion: 'budget-uncited' is a Workflow-internal routed status, NOT a
-          // HARD_ESCALATION_REASONS member (no enum widening) — it escalates via the existing hard
-          // reason 'escalate' (the submodule-blocked DP3 precedent) with the route named in detail,
-          // so an uncited ceiling raise can never soft-land a phase minus the task.
+          // budget-uncited exhaustion: the routedMr-normalized status escalates under its own name —
+          // 'budget-uncited' is a HARD_ESCALATION_REASONS member (D6, ADR 0005) — with the route
+          // spelled out in detail, so an uncited ceiling raise can never soft-land a phase minus the task.
           const isBudgetExhaustion = floorMr.status === 'budget-uncited'
           const exhaustedBudgetDetail = !exhaustedDiag && isBudgetExhaustion
             ? { detail: 'budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after ' + r.task.fixRounds + ' fix round(s)' } : {}
-          escalated.push({ task: r.task.id, reason: isBudgetExhaustion ? 'escalate' : floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           continue
         }
@@ -3752,7 +3782,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // 'environment' classification) is HARD via the existing reason 'escalate': an approved task
           // must never be silently dropped from a landed phase by a transient. Bounded at ONE — no
           // chaining (a 2nd result classified 'baseline' routes as 'introduced'), no enum change.
-          const ep = await dispatch(
+          const ep = routedMr(await dispatch(
             pt`ENVIRONMENT-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
@@ -3761,10 +3791,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + gateCaptureClause(refineryPath, r.task.id)
             + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
-            // ponytail: routedMr is deliberately NOT applied to ep — the un-normalized 'no-test' IS a
-            // HARD_ESCALATION_REASONS member here, while the normalized 'budget-uncited' is not;
-            // normalizing would flip this hold from HARD to SOFT (the submodule-blocked explicit-arm
-            // precedent above).
+            // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
+            // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
+            // raise under its real name and the hold stays HARD.
             + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
@@ -3774,7 +3803,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
           if (ep && ep.status === 'merged') landMerged(r.task, ep)
           else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
           else if (ep && ep.status === 'gate_failed') escalated.push({ task: r.task.id, reason: ep.status, detail: ep })   // introduced OR baseline→introduced (bounded)
@@ -3787,7 +3816,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // baseline-proceed re-merge naming the classified ids. Route its result normally; a 2nd
           // gate_failed routes by class with 'baseline' treated as 'introduced' (bounded — no 2nd re-dispatch).
           recordBaselineDebt(mr.gate_failing_ids, mr.gate_base_sha)
-          const bp = await dispatch(
+          const bp = routedMr(await dispatch(
             pt`BASELINE-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the phase integration base, NOT introduced by this task: ${(mr.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
@@ -3795,10 +3824,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
-            // ponytail: routedMr is deliberately NOT applied to bp — the un-normalized 'no-test' IS a
-            // HARD_ESCALATION_REASONS member here, while the normalized 'budget-uncited' is not;
-            // normalizing would flip this hold from HARD to SOFT (the submodule-blocked explicit-arm
-            // precedent above).
+            // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
+            // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
+            // raise under its real name and the hold stays HARD.
             + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
@@ -3808,7 +3836,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
           if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
           else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })
           else if (bp && bp.status === 'gate_failed') escalated.push({ task: r.task.id, reason: 'gate_failed', detail: bp })   // introduced OR baseline→introduced (bounded)
@@ -4370,11 +4398,11 @@ for (const t of tasks) drainHeldAbsorbs(t, auditVerdictOf(t.id))
 
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs — the Workflow sandbox can't import. Keep in sync. The Workflow
-// emits a SUPERSET of decideLand's 3 outputs (6 emitted: those 3 + held:submodule-pr, held:land-failed,
-// and the catch block's held:workflow-error); all 6 ⊆ the KNOWN_LAND_DECISIONS export.
+// emits a SUPERSET of decideLand's outputs (those plus held:submodule-pr, held:land-failed, and the catch
+// block's held:workflow-error); every emitted value is in the KNOWN_LAND_DECISIONS export.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
 // SOFT_ENV_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 // The soft environment family (#1411): env-blocked (provision failure — worker never spawned) and
 // env-died (post-spawn API/quota/transport death). NEVER members of HARD_ESCALATION_REASONS
@@ -4824,8 +4852,9 @@ if (landDecision === 'landed') {
     : ''
   // Segmented-land marker instruction (Phase 6 Task 1 (a), A6 REVISED): an IN-BAND field riding the
   // existing 'error' status (the floor_route precedent) — never a new MERGE_RESULT status member or
-  // KNOWN_LAND_DECISIONS member (land-decision.mjs untouched, ADR 0005). The bounded re-dispatch loop
-  // below follows the FLOOR_STATUSES retry-loop idiom (the merge-task floor sub-loop's shape).
+  // KNOWN_LAND_DECISIONS member (land-decision.mjs untouched, ADR 0005). segmentedLand below appends
+  // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
+  // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
     pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe.`
   const landPrompt =
@@ -4846,29 +4875,36 @@ if (landDecision === 'landed') {
     + pt`     - On escalate exit code from land-advance (any non-rejection push error): return { mode: 'land-phase', status: 'error' }.\n`
     + pt`Never use --force push. Never merge or push from the Lead's main checkout.`
     + submodLandNote
-    + segmentedLandClause
-  landResult = await dispatch(landPrompt,
+  // ---- SEGMENTED LAND — one helper on every land dispatch site (D5, PIN-9, #1797/#1805) ----
+  // segmentedLand(prompt, opts) appends segmentedLandClause to the prompt, dispatches it, and
+  // re-dispatches while the result carries the marker WITH its contracted status pair —
+  // status:'error' AND land_segment:'incomplete' — bounded by roundLimit (the FLOOR_STATUSES
+  // retry-loop idiom). The pair is the read: a status:'landed' result carrying a stray marker is a
+  // landed land (never re-dispatched), and a marker-absent status:'error' is one dispatch that routes
+  // by its status below (held:land-failed). Applied to the initial land, the environment-proceed
+  // re-land and the baseline-proceed re-land — every site whose gate can outrun the tool timeout.
+  // Exhaustion falls through to the caller's routing chain, where the final still-incomplete result
+  // routes by its RIDDEN status ('error' → held:land-failed — the Lead re-runs the land per SKILL.md
+  // §4.3). Continuation labels and log lines are concatenation-built (census-safe — #931).
+  const segmentedLand = async (prompt, opts) => {
+    const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
+    const body = prompt + segmentedLandClause
+    let result = await dispatch(body, opts)
+    let segments = 0
+    while (isSegment(result) && segments < roundLimit) {
+      segments++
+      log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
+      result = await dispatch(
+        pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
+        { ...opts, label: opts.label + ':segment-' + (segments + 1) })
+    }
+    if (isSegment(result)) {
+      log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')
+    }
+    return result
+  }
+  landResult = await segmentedLand(landPrompt,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
-  // ---- SEGMENTED-LAND BOUNDED RE-DISPATCH (Phase 6 Task 1 (a), A6 REVISED) ----
-  // The land dispatch survives a gate outrunning the tool timeout via the in-band
-  // land_segment:'incomplete' marker on the land-phase result. Re-dispatch while the marker persists,
-  // bounded by roundLimit (the FLOOR_STATUSES retry-loop idiom — the land dispatch had no retry loop
-  // before this; new wiring following that existing shape). Exhaustion falls through to the routing
-  // chain below, where the final still-incomplete result routes by its RIDDEN status ('error' →
-  // held:land-failed — the Lead re-runs the land per SKILL.md §4.3). Log lines are
-  // concatenation-built (census-safe).
-  let landSegments = 0
-  while (landResult && landResult.land_segment === 'incomplete' && landSegments < roundLimit) {
-    landSegments++
-    log('Phase ' + ph.id + ': segmented land — the land dispatch returned the in-band land_segment:\'incomplete\' marker (' + (typeof landResult.segment_note === 'string' && landResult.segment_note ? landResult.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (landSegments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-    landResult = await dispatch(
-      pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + landPrompt,
-      // label is concatenation-built (census-safe — #931): the registry lives in Task 2's file.
-      { agentType: NS + 'war-refiner', phase: 'Land', label: 'land:phase-' + ph.id + ':segment-' + (landSegments + 1), schema: MERGE_RESULT, ...spawn('refiner') })
-  }
-  if (landResult && landResult.land_segment === 'incomplete') {
-    log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')
-  }
   // 2B submodule PR-and-hold: the refiner opened a PR on the submodule remote and returned
   // status:'submodule-pr'. Return held:submodule-pr DIRECTLY — like held:workflow-error, this
   // bypasses decideLand/HARD_ESCALATION_REASONS. The PR ref is captured for the Lead's gh-resume.
@@ -4878,7 +4914,7 @@ if (landDecision === 'landed') {
     landDecision = 'held:submodule-pr'
   } else
   // If the land agent returns land_stale (CAS-exhaustion), treat it as a hard escalation.
-  // #236: 'no-test'/'unpackaged'/'done-unmet' are structurally UNREACHABLE here — no land-phase
+  // #236: 'no-test'/'unpackaged'/'done-unmet'/'budget-uncited' are structurally UNREACHABLE here — no land-phase
   // prompt emits them (land statuses are only landed/land_stale/gate_failed/error/submodule-pr, and
   // submodule-pr is short-circuited by its own direct-return guard above this check). The array is
   // REUSED from the merge-task escalation path where those floor statuses ARE load-bearing, so it is
@@ -4895,7 +4931,7 @@ if (landDecision === 'landed') {
     // 'environment' classification) falls back to today's reason 'env-blocked' + held:land-failed, with
     // the retry provably spent — the Lead re-runs the land. Bounded at ONE: no chaining into
     // baseline-proceed. No enum change; every landDecision literal below is already emitted.
-    const reLand = await dispatch(
+    const reLand = await segmentedLand(
       pt`ENVIRONMENT-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
@@ -4941,7 +4977,7 @@ if (landDecision === 'landed') {
     // dispatch ONE baseline-proceed re-land naming the classified ids. Route its result normally (a 2nd
     // gate_failed routes by class with 'baseline' treated as 'introduced' — bounded, no 2nd re-dispatch).
     recordBaselineDebt(landResult.gate_failing_ids, landResult.gate_base_sha)
-    const reLand = await dispatch(
+    const reLand = await segmentedLand(
       pt`BASELINE-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
@@ -4989,7 +5025,7 @@ if (landDecision === 'landed') {
     // result: a DEAD land agent (returned null — the observed transient-API 529 repro: the run
     // completed, landResult:null, handoff present) OR a non-null result whose status matched no routed
     // arm above. Route the EXISTING held:land-failed — no new enum member, land-decision.mjs untouched,
-    // the emitted-superset comment above `let landResult = null` stays at 6. The Lead re-runs the land
+    // the emitted-superset comment above `let landResult = null` gains no member. The Lead re-runs the land
     // per SKILL.md §4.3 root cause (c) dead land agent.
     // PARTITION NOTE: a land dispatch that THROWS routes held:workflow-error via the top-level catch
     // (HARD, no re-land) — that catch owns the thrown case; THIS arm owns only the returned-but-unrouted

@@ -1273,7 +1273,7 @@ test('Task 4 — MERGE_RESULT schema already permits gate_output (no schema chan
   assert.match(src, /gate_output/,
     'MERGE_RESULT schema includes gate_output as an optional field')
   // It must NOT be in the required array
-  const mergeResultSection = src.match(/const\s+MERGE_RESULT\s*=[\s\S]*?(?=\n\nconst )/)
+  const mergeResultSection = src.match(/const\s+MERGE_RESULT\s*=[\s\S]*?(?=\n\n)/)
   if (mergeResultSection) {
     const section = mergeResultSection[0]
     // gate_output must NOT be in required array
@@ -3405,13 +3405,13 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
   assert.deepEqual(statuses.sort(),
     ['conflict', 'error', 'gate_failed', 'land_stale', 'landed', 'merged', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'].sort(),
     'MERGE_RESULT.status enum is the expected set — no ace member leaked in (unpackaged is the packaging-floor outcome; done-unmet is the done-when-floor outcome, precision-chain Task 2.3)')
-  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical 10 (no ace member).
+  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical set (no ace member).
   const hMatch = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(hMatch, 'HARD_ESCALATION_REASONS found')
   const hard = JSON.parse(hMatch[1].replace(/'/g, '"'))
   assert.deepEqual(hard.sort(),
-    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'unrunnable-deps'].sort(),
-    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged/done-unmet are merge-task floor hard reasons)')
+    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited', 'unrunnable-deps'].sort(),
+    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged/done-unmet/budget-uncited are merge-task floor hard reasons)')
 })
 
 // ---------------------------------------------------------------------------
@@ -9141,6 +9141,8 @@ const windowOf = (text, startTok, endTok) => {
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
   assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
   const MIRROR_REGISTRY = [
+    // HARD_ESCALATION_REASONS: deepEqual against the canonical export — the arbiter of every member,
+    // 'budget-uncited' (D6, ADR 0005) included; no member literal is restated here.
     { name: 'HARD_ESCALATION_REASONS', mode: 'deepEqual',
       canonical: HARD_ESCALATION_REASONS,
       extractInline: () => parseInlineArray(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/) },
@@ -10019,9 +10021,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(fixP, 'the FIX_NEEDED fix prompt dispatched (presence guard)')
   // Task 2.3 (done-when floor): the merge-task dispatch carries doneWhenFloorClause only for a
   // doneWhen-bearing task — capture that prompt from its own fixture run.
-  const mergeP = ((await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
-    .find(isMergeTask) || {}).prompt
-  assert.ok(workerP && auditP && servitorP && mergeP, 'worker, regular auditor, servitor, and doneWhen-bearing merge-task prompts all dispatched (presence guard)')
+  const mergeRunCalls = (await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
+  const mergeP = (mergeRunCalls.find(isMergeTask) || {}).prompt
+  // Task 4.1 (D4, PIN-8): the pin-transfer probe dispatches at the same merge slot, before merge-task —
+  // capture its prompt from the same run for the dispatch_base registry row below.
+  const pinTransferP = (mergeRunCalls.find(c => c.opts.dispatchKind === 'pin-transfer') || {}).prompt
+  assert.ok(workerP && auditP && servitorP && mergeP && pinTransferP, 'worker, regular auditor, servitor, doneWhen-bearing merge-task, and pin-transfer prompts all dispatched (presence guard)')
   // Task 2.2 (#1431, latitude clause): workerIntentClause renders ONLY on a threaded intent — the
   // registry's default workerP above comes from an intent-LESS fixture where the clause is '' — so
   // the latitude row's worker dispatched surface is captured from a latitude-bearing-intent fixture
@@ -10321,8 +10326,18 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['per-task gate-audit seat prompt', esSeatP],
                  ['integrated-tip gate-audit seat prompt', itSeatP], ['end-state-only gate-audit seat prompt', esOnlyP]],
       anchors: [/FINDING-PATH FORM/, /repo-relative path/, /never `\.\/`-prefixed/, /exact-string routing compares/] },
+    // dispatch_base on the pin-transfer probe (D4, PIN-8, #1973; engine-and-audit-verdict-integrity
+    // Task 4.1, PIN-1): the dispatched pin-transfer prompt tells the refiner to return BASE as
+    // dispatch_base on every result carrying rebased_tip, and the consumer refuses an already_upstream
+    // whose rebased_tip equals it. The standing home is refiner-recovery.md § Pin-transfer arms (the
+    // card points there for arms 4-7; the card itself sits inside End state 1's headroom floor, so it
+    // carries no new sentence). `dispatch_base` counted 0 in refiner-recovery.md at the task base, so a
+    // per-surface revert reds this row.
+    { name: 'pin-transfer dispatch_base (D4, PIN-8, #1973): refiner-recovery.md § Pin-transfer arms ↔ the dispatched pin-transfer prompt',
+      surfaces: [['refiner-recovery.md', refinerRecoveryMd], ['pin-transfer dispatch prompt', pinTransferP]],
+      anchors: [/dispatch_base`? on every result that carries `?rebased_tip/i, /rebased_tip`? equal to `?dispatch_base/i, /empty `?already_upstream_commits/i] },
   ]
-  assert.ok(REGISTRY.length >= 25, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 26, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -12218,9 +12233,130 @@ test('segmented-land (End state 19): NO enum widening — land_segment is an ort
   const enumMatch = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
   assert.ok(enumMatch, 'MERGE_RESULT status enum found')
   assert.ok(!enumMatch[1].includes('incomplete') && !enumMatch[1].includes('segment'), "the MERGE_RESULT status enum carries NO 'incomplete'/segment member — the marker rides status:'error'")
-  const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\nconst )/)
+  const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)
   assert.ok(mr && /land_segment:\s*\{\s*enum:\s*\['incomplete'\]\s*\}/.test(mr[0]), "land_segment is declared as the orthogonal in-band field (enum ['incomplete'])")
   assert.ok(!/required[^\]]*land_segment/.test(mr[0]), 'land_segment is OPTIONAL — never required')
+})
+
+// --- segmented land on every land site (D5, PIN-9, #1797/#1805) --------------------------------
+// One helper (segmentedLand) owns the clause and the bounded loop on the initial land AND both
+// re-lands; continuation requires the contracted pair status:'error' && land_segment:'incomplete'.
+
+test('segmented-land: re-land sites — the environment-proceed and baseline-proceed re-lands carry the clause and re-dispatch on status:error + land_segment:incomplete', async () => {
+  for (const [flavor, first, header] of [
+    ['environment-proceed', envLandResult, 'ENVIRONMENT-PROCEED re-land'],
+    ['baseline-proceed', () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }), 'BASELINE-PROCEED re-land'],
+  ]) {
+    const re = new RegExp('^land:phase-3:' + flavor + '(:segment-\\d+)?$')
+    let n = 0
+    const impl = (prompt, opts) => {
+      if (re.test(opts.label || '')) {
+        n++
+        return n === 1
+          ? { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: 'gate mid-run on the re-land' }
+          : { mode: 'land-phase', status: 'landed', working_sha: 'cafe5678cafe' }
+      }
+      return clsImpl({ landResult: first })(prompt, opts)
+    }
+    const { out, calls, logs } = await runPhase(CLS_ARGS(), impl)
+    const initial = calls.filter(c => /^land:phase-3$/.test(c.opts.label || ''))
+    assert.equal(initial.length, 1, flavor + ': the initial land dispatches once')
+    assert.ok(initial[0].prompt.includes('SEGMENTED LAND (tool-timeout survival)'), flavor + ': the initial land carries the clause')
+    const relands = calls.filter(c => re.test(c.opts.label || ''))
+    assert.equal(relands.length, 2, flavor + ': the re-land dispatches once, then exactly one continuation')
+    assert.equal(relands[0].opts.label, 'land:phase-3:' + flavor, flavor + ': the first re-land carries the bare site label')
+    assert.equal(relands[1].opts.label, 'land:phase-3:' + flavor + ':segment-2', flavor + ': the continuation is labelled with its site and segment ordinal')
+    assert.ok(relands[0].prompt.includes('SEGMENTED LAND (tool-timeout survival)'), flavor + ': the re-land prompt carries the segmented-land clause')
+    assert.ok(relands[1].prompt.startsWith('SEGMENTED-LAND CONTINUATION'), flavor + ': the continuation leads with the continuation header')
+    assert.ok(relands[1].prompt.includes(header), flavor + ': the FULL re-land prompt rides the continuation')
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented land') && l.includes('gate mid-run on the re-land')), flavor + ': the segment_note is logged')
+    assert.equal(out.landDecision, 'landed', flavor + ': the completed continuation lands the phase')
+    assert.equal(out.handoff.tipSha, 'cafe5678cafe', flavor + ': the handoff reads the continuation result')
+  }
+})
+
+test('segmented-land: landed+marker stands — a status:landed result carrying a stray land_segment marker is a landed land, never re-dispatched', async () => {
+  const impl = (prompt, opts) =>
+    /^land:phase-3(:|$)/.test(opts.label || '')
+      ? { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def', land_segment: 'incomplete', segment_note: 'copied the template after finishing' }
+      : defaultImpl(prompt, opts)
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS(), impl)
+  const lands = calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
+  assert.equal(lands.length, 1, 'exactly one land dispatch — the marker without its status pair never continues')
+  assert.equal(out.landDecision, 'landed', 'the landed status wins (PIN-9: the pair is the read, never the marker alone)')
+  assert.equal(out.handoff.tipSha, 'abc1234def', 'the handoff reads the landed result')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('segmented land')), 'no continuation is logged')
+})
+
+test('segmented-land: marker-absent negative control — a bare status:error land dispatches exactly once and holds held:land-failed', async () => {
+  // #1805: a loop keyed on status:'error' alone would re-dispatch this up to roundLimit times; the
+  // pair-keyed loop dispatches once. lands.length === 1 is the discriminating assert.
+  const impl = (prompt, opts) =>
+    /^land:phase-3(:|$)/.test(opts.label || '')
+      ? { mode: 'land-phase', status: 'error' }
+      : defaultImpl(prompt, opts)
+  const { out, calls } = await runPhase(PROVISION_ARGS({ run: { roundLimit: 3 } }), impl)
+  const lands = calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
+  assert.equal(lands.length, 1, 'a marker-absent error land dispatches exactly once')
+  assert.equal(out.landDecision, 'held:land-failed', 'a bare error routes to held:land-failed')
+  assert.ok((out.escalated || []).some(e => e && e.task === 'phase-3-land' && e.reason === 'error'), 'the escalation record carries the error status')
+})
+
+// --- budget-uncited at the re-merge sites (D6, PIN-10, #1736) ------------------------------------
+test('re-merge: budget-uncited escalates as budget-uncited — the environment-proceed and baseline-proceed re-merges route through routedMr and hold HARD under the real name', async () => {
+  const uncited = { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }
+  const cases = [
+    ['environment-proceed', clsImpl({ mergeResult: envMergeResult, mergeProceed: () => uncited })],
+    ['baseline-proceed', (prompt, opts) => /^merge:t1:baseline-proceed$/.test(opts.label || '')
+      ? uncited
+      : clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'base77' }) })(prompt, opts)],
+  ]
+  for (const [flavor, impl] of cases) {
+    const { out, calls } = await runPhase(CLS_ARGS(), impl)
+    assert.equal(calls.filter(c => (c.opts.label || '') === 'merge:t1:' + flavor).length, 1, flavor + ': the re-merge dispatches once')
+    const esc = (out.escalated || []).find(e => e && e.task === 't1')
+    assert.ok(esc, flavor + ': t1 escalates')
+    assert.equal(esc.reason, 'budget-uncited', flavor + ": the escalation names the tripped floor, never the wire status 'no-test' (#1736)")
+    assert.equal(esc.detail && esc.detail.floor_route, 'budget-uncited', flavor + ': the detail keeps the wire marker')
+    assert.ok(HARD_ESCALATION_REASONS.includes(esc.reason), flavor + ': the reason is a hard escalation reason (D6, ADR 0005)')
+    assert.equal(out.landDecision, 'held:escalation', flavor + ': the phase holds — an uncited ceiling raise never soft-lands minus the task')
+    assert.ok(!out.landed.includes('t1'), flavor + ': t1 is not recorded merged')
+  }
+})
+
+// Floor-retry exhaustion arm (D6): the primary merge AND every floor-retry re-merge return the wire
+// route status:'no-test' + floor_route:'budget-uncited' until the shared fix budget is spent. The
+// exhaustion push names the routedMr-normalized status ('budget-uncited', never the old generic
+// 'escalate'), carries the exhaustedBudgetDetail string naming the route, and the auditLog verdict
+// is 'budget-uncited:exhausted'.
+test('floor-retry exhaustion: budget-uncited escalates as budget-uncited — the primary merge and every floor-retry re-merge return the route until the budget is spent', async () => {
+  const uncited = { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }
+  let merges = 0
+  const { out, calls } = await runPhase(NO_TEST_ARGS({ run: { roundLimit: 1 } }), (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') { merges++; return uncited }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  })
+  assert.ok(merges >= 2, 'the primary merge and at least one floor-retry re-merge both dispatched')
+  assert.ok(calls.some(c => /^merge:t1:floor-retry:r\d+$/.test(c.opts.label || '')), 'the floor-retry sub-loop ran (the exhaustion arm is the floor sub-loop, not a *-proceed site)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalates on budget exhaustion')
+  assert.equal(esc.reason, 'budget-uncited', "the exhaustion arm escalates under the normalized floor name, never 'escalate' or the wire status 'no-test'")
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'escalate'), "no 'escalate'-reason row rides beside it")
+  assert.equal(esc.fixRounds, 1, 'the budget (roundLimit 1) is spent before the exhaustion arm fires')
+  assert.equal(typeof esc.detail, 'string', 'the exhaustedBudgetDetail string rides the escalation')
+  assert.match(esc.detail, /^budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after 1 fix round\(s\)$/, 'the detail names the budget-uncited route')
+  const log = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'budget-uncited:exhausted')
+  assert.ok(log, "auditLog records verdict 'budget-uncited:exhausted'")
+  assert.equal(log.detail, esc.detail, 'the auditLog entry carries the same detail')
+  assert.ok(HARD_ESCALATION_REASONS.includes(esc.reason), 'the reason is a hard escalation reason (D6, ADR 0005)')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
+  assert.ok(!out.landed.includes('t1'), 't1 is not recorded merged')
 })
 
 // --- recovery-holder (End state 27, #1712 fix 3, Phase 6 Task 1 (e)) ------------------------
@@ -13364,6 +13500,48 @@ test('#1913 End state 5 (PIN-16 positive) — an empty post-rebase diff whose ta
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('already_upstream')), 'the arm is logged with its matched commits')
 })
 
+test('pin-transfer: #1973 verbatim replay merges the task', async () => {
+  // The probe result the refiner returned in run 2026-08-25-authoring-doctrine-and-lint-coherence-2026-09-02-r3,
+  // phase 3, task 3.2 (Workflow journal wf_e718ea80-9cc) — byte for byte: the enum says already_upstream,
+  // every field says transferred (equal non-empty patch-ids, no already_upstream_commits).
+  const probe = { status: 'already_upstream', detail: 'Correcting status field below — see actual result: status is "transferred", not already_upstream. (Tool schema forced a fixed enum; true result reported in fields.)', rebased_tip: '22df484c763d60108d7e4c7e13c588e32af0e68b', pre_rebase_patch_id: '47d96f507a825df78b5b25224d30c1d97b9691cd', post_rebase_patch_id: '47d96f507a825df78b5b25224d30c1d97b9691cd' }
+  const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('already_upstream REFUSED') && l.includes("'transferred'")), 'the refusal is logged and names the re-route')
+  assert.ok(calls.some(isMergeTask), 'the ordinary merge-task dispatch runs — the task is NOT skipped')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+  assert.equal(row.mode, 'transferred', 'the row records the transfer, never already_upstream')
+  assert.ok(!('alreadyUpstreamCommits' in row), 'no already_upstream row is recorded')
+  assert.ok(out.landed.includes('t1'), 'the task merges through the normal path')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'no escalation')
+  assert.ok(!calls.some(c => isAuditor(c) && c.prompt.includes('22df484c')), 'equal non-empty patch-ids transfer the pin — no panel re-convenes')
+})
+
+test('pin-transfer: already_upstream contradiction legs — rebased_tip at the dispatch base, a non-empty post patch-id, or empty commits each refuse; unequal patch-ids route to the mismatch re-audit', async () => {
+  const refusals = [
+    ['rebased_tip equals the dispatch base', { status: 'already_upstream', rebased_tip: 'base0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
+    ['the post-rebase patch-id is non-empty', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] }],
+    ['already_upstream_commits is empty', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: [] }],
+  ]
+  for (const [why, probe] of refusals) {
+    const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('already_upstream REFUSED') && l.includes(why)), why + ': the refusal log names the leg')
+    assert.ok(!(out.pinTransfers || []).some(p => p && p.mode === 'already_upstream'), why + ': no already_upstream row')
+    assert.ok(calls.some(isMergeTask), why + ': the task takes the merge path, never a recorded skip')
+  }
+  // Unequal patch-ids under a contradiction → 'mismatch': the full panel re-audits the rebased tip.
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] } })
+  assert.equal(calls.filter(c => isAuditor(c) && c.prompt.includes('beef0001')).length, 2, 'the FULL two-seat panel re-audits the rebased tip')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
+  assert.equal(row.mode, 'mismatch', 'the row records the mismatch re-audit')
+  assert.ok(out.landed.includes('t1'), 't1 lands after the re-audit approves')
+  // Un-contradicted arm: unchanged (PIN-16) — dispatch_base present and distinct from rebased_tip.
+  const ok = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } })
+  assert.ok(!ok.calls.some(isMergeTask), 'a genuine already_upstream still skips the content merge')
+  assert.ok(ok.out.landed.includes('t1'), 'and records the task merged')
+})
+
 test('#1913 End state 5 (PIN-16 negative, #1895) — an empty diff with zero task commits or an empty pre-rebase patch-id ESCALATES, never merged', async () => {
   const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
     'pin-transfer': { status: 'empty-unmatched', detail: 'rev-list --count returned 0 — the task branch has no commits of its own' },
@@ -13838,7 +14016,7 @@ const evalSchema = (schema, v) => {
 }
 // Census scope = the schemas the evaluator evaluates. GROWTH RULE: evaluate a schema before
 // listing it here — a listed-but-unevaluated schema is exactly the regex-only gap #1956 closed.
-const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT']
+const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT', 'MERGE_RESULT']
 const grabSchema = (name) => {
   const i = src.indexOf('const ' + name + ' = {')
   assert.ok(i >= 0, name + ' schema found in the template source')
@@ -13915,6 +14093,22 @@ test('#1956 — GATE_CHECK validator semantics: green requires head_sha, red sta
   assert.equal(evalSchema(wrongName, { gate_green: true }), false, 'wrong property name in if: green-without-sha stays rejected (vacuous-if trap, documented)')
   const wrongConst = { ...GATE, if: { properties: { gate_green: { const: false } } } }
   assert.equal(evalSchema(wrongConst, { gate_green: true }), true, 'wrong const in if FLIPS the case to accepted — the disarm this fixture exists to catch')
+})
+
+test('MERGE_RESULT: floor_route pinned, optional, evaluated', () => {
+  // #1739: the floor_route slot is the refiner's output contract for the Budget-Raise route — an
+  // undeclared property is the silent-strip path that would no-op routedMr. Pinned as a literal on
+  // the MERGE_RESULT block alone (the (?=\n\n) bound, #1806), asserted optional, and EVALUATED.
+  const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)
+  assert.ok(mr, 'MERGE_RESULT literal found')
+  assert.match(mr[0], /floor_route:\s*\{\s*enum:\s*\['budget-uncited'\]\s*\}/, "MERGE_RESULT declares floor_route: { enum: ['budget-uncited'] }")
+  assert.ok(!/required:\s*\[[^\]]*floor_route/.test(mr[0]), 'floor_route is OPTIONAL — never added to MERGE_RESULT.required')
+  assert.ok(EVALUATED_SCHEMAS.includes('MERGE_RESULT'), 'MERGE_RESULT is in the evaluated-schema census')
+  const MR = grabSchema('MERGE_RESULT')
+  assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }), true, 'the wire shape of the budget-uncited route is schema-legal')
+  assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'no-test' }), true, 'a route-less no-test is schema-legal (floor_route optional)')
+  assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'no-test', floor_route: 'other' }), false, 'floor_route rejects any value outside its enum')
+  assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'budget-uncited' }), false, 'the routed name is never a wire status — the status enum is unwidened (PIN-2)')
 })
 
 test('#1956 — AUDIT_VERDICT items-level conditional: an ask-disposition finding requires its ask field', () => {
