@@ -15319,8 +15319,8 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
 // fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE shared
 // constant carrying it byte-equal. The first-pass worker prompt and the auditor prompts carry nothing.
 // Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
-// section while its siblings keep it) and a reference-edit control (a reworded rule ⇒ no prompt
-// carries the reworded section — the equality is byte-sensitive, never a token skim).
+// section while its siblings keep it) and a no-false-positive control (a reworded rule never
+// appears in any prompt; the byte-sensitive pin is the includes(rules) equality itself).
 // ---------------------------------------------------------------------------
 const fixRoundDoctrineMd = readFileSync(join(here, '../references/fix-round-doctrine.md'), 'utf8')
 const fixRoundRulesSection = () => {
@@ -15354,7 +15354,7 @@ const dropDoctrineAt = (head) => {
 
 test('fix-round doctrine: every fix-applying build mirrors the reference', async () => {
   const rules = fixRoundRulesSection()
-  assert.ok(/sibling sweep/i.test(rules) && /^10\. /m.test(rules), 'the section carries the rule list (non-vacuity: first and last rule present)')
+  assert.ok(/sibling sweep/i.test(rules) && /^10\. /m.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
   const pointer = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
   // carry none (the constant is interpolated at exactly the enumerated sites).
@@ -15369,7 +15369,7 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
     assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(rule 9\)/, `${b.site}: asks for the cause line before the fix`)
     assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb/, `${b.site}: names the note-absorb rule`)
-    assert.ok(!live.prompt.includes(reworded), `${b.site}: the reference-edit control — a reworded rule is not what the prompt carries`)
+    assert.ok(!live.prompt.includes(reworded), `${b.site}: a reworded rule never appears (no-false-positive; byte-sensitivity is pinned by the includes(rules) assert above)`)
     // Delete-and-trace: drop this build's interpolation ⇒ this prompt loses the section; each sibling keeps it.
     const mutated = dropDoctrineAt(b.head)
     const dropped = b.find((await b.run(mutated)).calls)
