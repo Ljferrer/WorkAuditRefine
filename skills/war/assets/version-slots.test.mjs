@@ -198,6 +198,28 @@ test('CHANGELOG.md leads with the canonical version entry (newest-first append)'
   )
 })
 
+// The CHANGELOG header declares the newest entry "the live head blurb, authored here beside its
+// README ## Status twin". Twin means byte-equal: the README block between `## Status` and the
+// "Earlier release notes" pointer equals the CHANGELOG body between the lead heading and the next
+// `## ` heading. Hand-mirrored release prose drifted three times in one PR (#2097's rot class) —
+// this pin makes the drift a red test instead of an audit finding.
+test('README ## Status block and the CHANGELOG lead entry body are byte twins', () => {
+  const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8')
+  const changelog = readFileSync(join(repoRoot, 'CHANGELOG.md'), 'utf8')
+  const statusIdx = readme.indexOf('\n## Status\n')
+  assert.ok(statusIdx !== -1, 'README.md has no `## Status` heading')
+  const statusBody = readme.slice(statusIdx + '\n## Status\n'.length)
+  const pointerIdx = statusBody.indexOf('\nEarlier release notes live in')
+  assert.ok(pointerIdx !== -1, 'README.md ## Status lost its "Earlier release notes" pointer line — the twin extraction is fail-closed')
+  const readmeBlock = statusBody.slice(0, pointerIdx).trim()
+  const lead = changelog.match(/^## \S+ — \d{4}-\d{2}-\d{2}\n/m)
+  assert.ok(lead, 'CHANGELOG.md has no lead entry heading')
+  const after = changelog.slice(lead.index + lead[0].length)
+  const nextIdx = after.search(/^## /m)
+  const changelogBlock = (nextIdx === -1 ? after : after.slice(0, nextIdx)).trim()
+  assert.equal(readmeBlock, changelogBlock, 'README ## Status block and the CHANGELOG lead entry body differ — edit both, byte-identical')
+})
+
 // The lead-entry test above sees only the FIRST heading — a release entry duplicated
 // or inserted out of order below the lead passes it. Newest-first is a property of the
 // whole ladder: every `## x.y.z — date` heading must be strictly below its predecessor
