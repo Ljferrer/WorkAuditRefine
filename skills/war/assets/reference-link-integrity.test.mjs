@@ -343,6 +343,9 @@ const QUALIFIED_HEADERS = [
   // unlisted at creation; both headers were qualified "at eviction time" in this touch (#2047).
   'gate-audit-checklist.md',
   'gate-failure-classification.md',
+  // #2099 emergency patch (0.21.12): the skills/war/SKILL.md staging-step eviction destination
+  // (resume/restage/stage-failure doctrine plus the new comment-strip section), joined on creation.
+  'staged-script.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

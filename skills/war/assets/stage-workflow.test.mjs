@@ -676,6 +676,25 @@ test('(q) write-if-absent refuses a pre-existing staged file over the cap, namin
   assert.ok(Buffer.byteLength(readFileSync(forced.stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, '--force restages a fresh, under-cap copy')
 })
 
+// (r) Cap doc pins (#2099). Every doctrine surface that restates the scriptPath cap writes it in one
+// grammar — `<n>-byte `scriptPath` cap` — and this arm extracts each restatement and compares it to
+// the imported SCRIPT_BYTE_CAP (the DOC_TIER_PINS discipline from war-config.test.mjs: extraction
+// plus equality, never a hand-copied number). A bare rendering of the number outside that grammar is
+// banned on the same surfaces, so a restatement cannot slip out from under the pin. README.md and
+// CHANGELOG.md are release-slot prose and stay out.
+const DOC_CAP_PINS = ['CONTEXT.md', 'skills/war/references/staged-script.md', 'docs/adr/0037-run-scoped-staged-phase-scripts.md']
+test('(r) DOC_CAP_PINS: every prose restatement of the scriptPath cap equals SCRIPT_BYTE_CAP, and no bare rendering escapes the grammar', () => {
+  const rendered = SCRIPT_BYTE_CAP.toLocaleString('en-US')
+  for (const rel of DOC_CAP_PINS) {
+    const text = readFileSync(join(HERE, '..', '..', '..', rel), 'utf8')
+    const restatements = [...text.matchAll(/([\d,]+)-byte `scriptPath` cap/g)].map((m) => m[1])
+    assert.ok(restatements.length > 0, `${rel}: no scriptPath-cap restatement found — the pin is fail-closed`)
+    for (const n of restatements) assert.equal(n, rendered, `${rel}: a scriptPath-cap restatement says ${n}, SCRIPT_BYTE_CAP renders ${rendered}`)
+    const bare = (text.match(new RegExp(`\\b(${rendered}|${SCRIPT_BYTE_CAP})\\b`, 'g')) || []).length
+    assert.equal(bare, restatements.length + (text.match(new RegExp(`${SCRIPT_BYTE_CAP}-byte scriptPath cap`, 'g')) || []).length, `${rel}: the cap is rendered outside the pinned grammar — bind it or point at SCRIPT_BYTE_CAP`)
+  }
+})
+
 // (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
 // (fail loud), never silently exit 0. RED against the pre-normalization guard
 // (`fileURLToPath(import.meta.url) === process.argv[1]`): the loader realpaths the main module, but
