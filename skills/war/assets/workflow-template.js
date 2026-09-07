@@ -2818,9 +2818,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // per-task ace can) and phaseClose is the seat's statement that the fix needs it. Every push
         // below (ace batch, ace-off sweep route, phase-close queue) passes here.
         const key = remintKey(f)
-        const dup = phaseCloseQueue.find(q => remintKey(q) === key) || aceable.find(a => remintKey(a) === key)
+        const dupQ = phaseCloseQueue.find(q => remintKey(q) === key)
+        const dup = dupQ || aceable.find(a => remintKey(a) === key)
         if (dup) {
-          const queued = phaseCloseQueue.includes(dup)
+          const queued = !!dupQ
           mergeSeat(dup, f)
           if (!queued && f.phaseClose) {
             aceable.splice(aceable.indexOf(dup), 1)
