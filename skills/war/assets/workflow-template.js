@@ -1330,10 +1330,12 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // dropped. Exactly-once membership by CONTENT identity (#1810 — the old object-identity check
 // false-missed minorsOf's per-round fresh copies, parking a persisting ask once per round): every
 // route into asks[] — every dispositionOf-site ask arm (the gate-audit floor pass among them,
-// in-band-absorb-default D15: the three gate-audit-family seats' rows route through that ONE
-// producer, so its ask arm is a census member like any seat's), AND the demote() ask refusal —
+// in-band-absorb-default D15: the gate-audit-family seats (per-task (post-merge), integrated-tip
+// and end-state-only) route through that ONE producer, so its ask arm is a census member like any
+// seat's), AND the demote() ask refusal —
 // funnels through here, so one finding can never park twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
-// drop): the colliding raiser lands on the surviving record's `corroborators` list. Record floor:
+// drop): a raiser NEW to the record lands on its `corroborators` list; the survivor's own raiser
+// and a duplicate entry are journalled only (the entry paragraph below states the skip test). Record floor:
 // question + fork (the decision needed + the two branches, from the finding's schema-mandatory
 // `ask` field; absence-tolerant fallbacks — fail-open, never a throw) plus task/seat/sha
 // provenance; `finding` keeps the full row (the handoff block projects a lossy subset without it).
@@ -1351,7 +1353,8 @@ const findAsk = key => asks.find(a => askKeyOf.get(a) === key)
 // projection (#1872). One seat re-raising one persisting ask across audit rounds (minorsOf re-mints
 // every Minor/Nit per round) lands ONE corroborator entry, never one per round: a same
 // seat+file+title entry is skipped and keeps its first entry, fork included (the dedup predicate
-// reads seat, file and title, never fork), while the collision log still journals every re-raise.
+// reads seat, file and title — never fork and never sha; the first entry's sha stands), while the
+// collision log still journals every re-raise.
 // The survivor's own raiser is part of that skip test: the seat that parked the record re-raising
 // it (minorsOf re-mints per round; demote()'s ask-refusal re-route reaches the same arm) never
 // lands on its own corroborators list, so the handoff row counts distinct seats.
