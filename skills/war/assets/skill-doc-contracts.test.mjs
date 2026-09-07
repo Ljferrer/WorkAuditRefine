@@ -40,6 +40,7 @@ const specProseDrift = readFileSync(
 // sheet (skills/war/references/), so the two roots differ — both resolved from HERE, never cwd.
 const contextMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
 const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
+const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 // (D23) This file's FIRST `docs/adr/` read — same construct-anchored style, third root.
 const adr0037 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0037-run-scoped-staged-phase-scripts.md'),
@@ -4094,7 +4095,6 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
 // `references/sweep-exclusion.md` is read directly (ADR 0042: the card carries the trigger
 // pointer only, the body lives in references/).
 const sweepExclusionMd = readFileSync(join(HERE, '..', 'references', 'sweep-exclusion.md'), 'utf8')
-const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 
 test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and sweep-exclusion.md carries the Lead duty (End state 16, D6, PIN-8)', () => {
   // The pointer sits in the per-phase launch paragraph (the one that threads the Workflow `args`),
