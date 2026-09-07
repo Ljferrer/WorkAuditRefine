@@ -10021,9 +10021,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(fixP, 'the FIX_NEEDED fix prompt dispatched (presence guard)')
   // Task 2.3 (done-when floor): the merge-task dispatch carries doneWhenFloorClause only for a
   // doneWhen-bearing task — capture that prompt from its own fixture run.
-  const mergeP = ((await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
-    .find(isMergeTask) || {}).prompt
-  assert.ok(workerP && auditP && servitorP && mergeP, 'worker, regular auditor, servitor, and doneWhen-bearing merge-task prompts all dispatched (presence guard)')
+  const mergeRunCalls = (await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
+  const mergeP = (mergeRunCalls.find(isMergeTask) || {}).prompt
+  // Task 4.1 (D4, PIN-8): the pin-transfer probe dispatches at the same merge slot, before merge-task —
+  // capture its prompt from the same run for the dispatch_base registry row below.
+  const pinTransferP = (mergeRunCalls.find(c => c.opts.dispatchKind === 'pin-transfer') || {}).prompt
+  assert.ok(workerP && auditP && servitorP && mergeP && pinTransferP, 'worker, regular auditor, servitor, doneWhen-bearing merge-task, and pin-transfer prompts all dispatched (presence guard)')
   // Task 2.2 (#1431, latitude clause): workerIntentClause renders ONLY on a threaded intent — the
   // registry's default workerP above comes from an intent-LESS fixture where the clause is '' — so
   // the latitude row's worker dispatched surface is captured from a latitude-bearing-intent fixture
@@ -10323,8 +10326,18 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['per-task gate-audit seat prompt', esSeatP],
                  ['integrated-tip gate-audit seat prompt', itSeatP], ['end-state-only gate-audit seat prompt', esOnlyP]],
       anchors: [/FINDING-PATH FORM/, /repo-relative path/, /never `\.\/`-prefixed/, /exact-string routing compares/] },
+    // dispatch_base on the pin-transfer probe (D4, PIN-8, #1973; engine-and-audit-verdict-integrity
+    // Task 4.1, PIN-1): the dispatched pin-transfer prompt tells the refiner to return BASE as
+    // dispatch_base on every result carrying rebased_tip, and the consumer refuses an already_upstream
+    // whose rebased_tip equals it. The standing home is refiner-recovery.md § Pin-transfer arms (the
+    // card points there for arms 4-7; the card itself sits inside End state 1's headroom floor, so it
+    // carries no new sentence). `dispatch_base` counted 0 in refiner-recovery.md at the task base, so a
+    // per-surface revert reds this row.
+    { name: 'pin-transfer dispatch_base (D4, PIN-8, #1973): refiner-recovery.md § Pin-transfer arms ↔ the dispatched pin-transfer prompt',
+      surfaces: [['refiner-recovery.md', refinerRecoveryMd], ['pin-transfer dispatch prompt', pinTransferP]],
+      anchors: [/dispatch_base`? on every result that carries `?rebased_tip/i, /rebased_tip`? equal to `?dispatch_base/i, /empty `?already_upstream_commits/i] },
   ]
-  assert.ok(REGISTRY.length >= 25, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 26, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
