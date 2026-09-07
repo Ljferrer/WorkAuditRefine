@@ -43,7 +43,7 @@ Synthesize one chat report, informational — nothing is gated:
 - Findings ranked by severity. Label every Critical/Major finding **"would block in a phase"** — mirroring run semantics without gating anything.
 - Surface every `ask`-disposition finding to the operator for a ruling; an unruled ask is never filed (standing doctrine).
 - If the tree was dirty: lead the report with the advisory caveat.
-- Close with the operator's options (absorb by hand, file follow-ups on request, drop) — and take **no** action on them unprompted.
+- Close with the operator's options (absorb by hand — per `${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md`, the plugin-root form because the file lives under the `war` skill; file follow-ups on request; drop) — and take **no** action on them unprompted. Loop bound: after two consecutive all-approve rounds with only Nits, stop unless a new commit lands.
 
 ## Non-goals
 

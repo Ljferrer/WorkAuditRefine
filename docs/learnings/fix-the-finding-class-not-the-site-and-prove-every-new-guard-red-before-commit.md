@@ -36,6 +36,8 @@ metadata:
 A reviewer's `fix:` text names one site. The defect is a rule that was applied at that site and
 missed elsewhere. Fix the rule everywhere it applies, or the next review round finds the mirror
 case. Before each commit of a review-driven fix, run this checklist:
+The canonical home of these rules is `skills/war/references/fix-round-doctrine.md` (operator ruling
+2026-09-07, #2097), mirrored into the fix-applying dispatched prompts; this file is the instance record.
 
 1. **Sibling sweep.** Grep for every other site that carries the same construct: the same
    registry, the same push, the same judgment, the same restated value, the same claim in a doc
