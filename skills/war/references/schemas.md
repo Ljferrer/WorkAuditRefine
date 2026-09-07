@@ -53,7 +53,9 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   audit_sha: "<sha reviewed — verdict is pinned to it>",
   verdict: "approve" | "request_changes" | "escalate",
   findings: [ { severity: "Critical"|"Major"|"Minor"|"Nit",
-                title, file, line?, rationale, suggested_fix?, plan_ref?,
+                title,
+                file,               // repo-relative path, or null when the finding names no file. NORMALIZED AT INTAKE (D2, PIN-6): the engine's `normalizeFinding` (workflow-template.js — produced by Task 2.1 of 2026-09-06-engine-and-audit-verdict-integrity; defined-but-not-yet-emitted at Task 2.2's base) is the floor and the canonical source — it rewrites `file` before any routing site reads it, and this row de-mirrors to it rather than restating its logic. The FINDING-PATH FORM sentence on the auditor card and the gate-audit-family prompts is the advisory layer, never the floor
+                line?, rationale, suggested_fix?, plan_ref?,
                 disposition?,       // "absorb"|"follow-up"|"note"|"ask" — auditor-owned routing, orthogonal to severity (ADR 0013, amended 2026-08-25 — #1550). A fully specified Minor/Nit defaults to absorb (in the task diff) or absorb + phaseClose:true (outside it) — the seat sets it (in-band-absorb-default D1/D2); omitted → Minor becomes follow-up, Nit becomes note; ask is never a default
                 barrier?,           // one of BARRIER_TOKENS (canonical: land-decision.mjs; inline mirror in workflow-template.js) — "barrier:release-slot"|"barrier:underspecified"|"barrier:rationale-comment"|"barrier:trade-off": the structured reason a fully specified finding routes follow-up instead of the absorb default; prose is never a barrier, a scope argument is never a barrier, and barrier:trade-off is an ask route (D1, PIN-1/PIN-2)
                 ask?,               // { question, fork } — MANDATORY on a disposition:'ask' finding (schema if/then): question names the decision needed, fork the two branches the operator rules between at the Checkpoint strike-list gate; parked on the run's asks[], never filed unruled
