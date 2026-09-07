@@ -60,6 +60,21 @@ sanctioned surface for both display identity and approved stage injection.**
    literals, not two, and the anchor-guard test imports all three — still never a hardcoded second
    copy. The exactly-once, fail-loud discipline and the mirror-registry arbiter are unchanged.
 
+   **Amendment (2026-09-06, #2099):** the staged copy is no longer the shipped template's bytes
+   apart from the substitutions — append-only, the sentences above stay byte-intact. The Workflow
+   tool refuses a script over its 524,288-byte `scriptPath` cap, and the shipped template alone
+   crossed that cap at 0.21.11 (measured 525,209 bytes on 2026-09-06, ~250 KB of it full-line
+   comments), so the stager first blanks every full-line `//` comment in code state (each becomes an
+   empty line — line count preserved, so a harness line number maps to the template's, plus the two
+   prelude lines an `--args` stage adds after `meta`; strings, template literals, regex literals,
+   block and trailing comments pass through verbatim, with one scanner residual recorded in
+   `skills/war/references/staged-script.md`), then substitutes, then refuses with a named error and
+   writes nothing if the assembled copy would still exceed the cap. The shipped template
+   is untouched: its comments and every drift guard over them stay; the strip lives only in the
+   staged copy. Decisions 3 and 6 carry their own dated notes on the consequences. Lead-facing
+   doctrine: `skills/war/references/staged-script.md`; arbiter: `stage-workflow.test.mjs` arms
+   (p), (q) and (r).
+
 3. **Write-if-absent, with an explicit `--force` restage.** If the derived staged path already exists,
    the stager leaves it **byte-untouched**, prints its absolute path, and exits 0 — the existing file
    *is* the run's script. This is deliberate, not an oversight: an operator may have hand-edited the
@@ -73,6 +88,12 @@ sanctioned surface for both display identity and approved stage injection.**
    script is the one already there. A deliberate propagation of a *shipped-template* edit mid-campaign
    passes **`--force`**, the only path that overwrites — a fresh substitution from the current shipped
    template.
+
+   **Amendment (2026-09-06, #2099):** two qualifiers, append-only. Reuse is byte-untouched **unless
+   the existing file is over the Workflow tool's 524,288-byte `scriptPath` cap** — such a file cannot
+   dispatch, so the stager refuses with an error naming `--force` and never reuses it; and every
+   `--force` restage is a fresh **comment-stripped** substitution (decision 2's amendment of the same
+   date).
 
 4. **The staged-copy home is the main-checkout, run-scoped directory, retained like the run
    manifest.** Staged copies live at `$MAIN/.claude/war/runs/<runId>/`, a directory sibling of the run
@@ -93,6 +114,11 @@ sanctioned surface for both display identity and approved stage injection.**
    resumeFromRunId })` must dispatch the identical script across Lead restarts; write-if-absent
    (decision 3) is what makes this safe — a resume that restages first reuses the existing file rather
    than regenerating it.
+
+   **Amendment (2026-09-06, #2099):** an over-cap staged file cannot dispatch, so the `--force`
+   restage that remedies it forfeits byte identity with any journal recorded against the old file,
+   as well as any injected stage; the stager's refusal names both, and a fresh launch, not a
+   `resumeFromRunId` resume, follows such a restage.
 
 7. **The staging CLI stays filesystem-only — no git probe.** `stage-workflow.mjs` takes the template
    path, the staged directory, `planSlug`, `phaseId`, and an optional campaign ordinal as plain

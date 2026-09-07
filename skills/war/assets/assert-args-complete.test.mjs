@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { ptSpans, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS } from './assert-args-complete.mjs'
+import { ptSpans, ptSpanRanges, extractInterpolations, extractArgsFields, unguardedTopLevelKeys, checkArgs, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, 'assert-args-complete.mjs')
@@ -30,6 +30,28 @@ test('ptSpans: collects only pt-tagged template literals, never plain ones or co
   assert.ok(chains.has('x.y') && chains.has('q.r'), 'pt-span chains extracted')
   assert.ok(!chains.has('z.w'), 'plain-template chain is NOT extracted')
   assert.ok(!chains.has('c.d'), 'comment-prose chain is NOT extracted')
+})
+
+test('ptSpanRanges: offsets start at the pt` tag and end just past the closing backtick; ptSpans is its text view', () => {
+  const src = 'const a = pt`hi ${x}`; const b = 1; const c = pt`bye`'
+  const ranges = ptSpanRanges(src)
+  assert.deepEqual(ranges, [{ start: 10, end: 21, text: 'hi ${x}', exprs: [[16, 20]] }, { start: 46, end: 53, text: 'bye', exprs: [] }])
+  assert.equal(src.slice(ranges[0].start, ranges[0].end), 'pt`hi ${x}`', 'the range covers the tag through the closing backtick')
+  assert.equal(src.slice(16, 20), '${x}', 'an expr range covers `${` through its closing brace')
+  const nested = 'pt`a ${cond ? pt`b ${y}` : \'\'} c`'
+  assert.deepEqual(ptSpanRanges(nested)[0].exprs, [[5, 30]], 'a nested template inside the expression stays inside that one top-level expr range')
+  assert.equal(ptSpanRanges(nested).length, 1, 'by default the inner pt span is not a separate entry')
+  assert.deepEqual(ptSpanRanges(nested, { nested: true }).map((r) => [r.start, r.end, r.text, r.exprs]),
+    [[0, 33, 'a ${cond ? pt`b ${y}` : \'\'} c', [[5, 30]]], [14, 24, 'b ${y}', [[19, 23]]]],
+    'nested: true also emits the inner span after its outer, offsets in the caller\'s source')
+  const combined = 'pt`a ${ {k: 1}[0] ? pt`b` : pt`c ${z}`} d`'
+  assert.deepEqual(ptSpanRanges(combined, { nested: true }).map((r) => [r.start, r.end, r.text, r.exprs]),
+    [[0, 42, 'a ${ {k: 1}[0] ? pt`b` : pt`c ${z}`} d', [[5, 39]]], [20, 25, 'b', []], [28, 38, 'c ${z}', [[33, 37]]]],
+    'a plain-brace object before two inner pt spans in one expression: both inners emitted with shifted offsets and their own exprs')
+  const braces = 'pt`x ${JSON.stringify({ a: 1 })} y`'
+  assert.deepEqual(ptSpanRanges(braces)[0].exprs, [[5, 32]], 'a plain-brace object inside the expression does not split or end the expr range')
+  assert.equal(braces.slice(5, 32), '${JSON.stringify({ a: 1 })}')
+  assert.deepEqual(ptSpans(src), ranges.map((r) => r.text))
 })
 
 test('ptSpans: a nested pt literal inside a ternary expression stays inside the outer span', () => {

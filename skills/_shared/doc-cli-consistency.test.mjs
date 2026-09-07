@@ -148,6 +148,11 @@ const EVICTION_DESTINATIONS = [
 // entry below is still swept by the directory-scanned posterity corpus. An exclusion is a
 // conscious placement with a stated per-entry reason, not suppression.
 const VERB_SCAN_EXCLUSIONS = [
+  // staged-script.md holds the skills/war/SKILL.md staging-step doctrine evicted at the #2099
+  // patch (resume/restage/stage failure) plus the comment-strip section; its only command prose
+  // phrases stage-workflow.mjs and assert-args-complete.mjs flags (--force, --args, --template) —
+  // neither is a scanned module, and no scanned-module verb appears.
+  'skills/war/references/staged-script.md',
   // schemas.md names war-config.mjs directly beside its EXPORT `resolveGate`; war-config.mjs
   // is flag-based with an empty-by-design verb set (see MODULES), so verb-scanning this
   // contract reference is a guaranteed false red (probe-verified).

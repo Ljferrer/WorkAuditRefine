@@ -1299,9 +1299,19 @@ rewritten so the staged copy falls back to a prelude carrying the validated phas
 lets an assembled payload too large to ride the Workflow tool call travel with the script instead
 (dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
 than forking silently onto the wrong text.
+**Comment strip + size floor (#2099)**: before the substitutions the stager blanks every full-line `//`
+comment in code state (line count preserved — an `--args` stage then adds two prelude lines after
+`meta`; strings, template literals, regexes and trailing comments pass through verbatim, one scanner
+residual recorded in the reference below), because the
+Workflow tool refuses a script over its 524,288-byte `scriptPath` cap and the shipped template alone
+crossed it at 0.21.11; a staged copy still over the cap after the strip exits non-zero naming both
+sizes and writes nothing, and a pre-existing staged file over the cap is refused with an error naming
+`--force` rather than reused. Full doctrine: `skills/war/references/staged-script.md`.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
 (approved stage injections and journal-replay identity survive a resume or a same-day recovery
-relaunch); a deliberate `--force` overwrites it with a fresh substitution from the shipped template.
+relaunch) — unless the existing file is over the `scriptPath` cap, which the stager refuses (the
+#2099 entry above); a deliberate `--force` overwrites it with a fresh, comment-stripped substitution
+from the shipped template.
 Retention is **manifest-equivalent** — kept, never reaped, doubling as dispatch provenance for
 `/war-review`. The **sole sanctioned home** for approved stage injection (superseding an edit to the
 shipped template directly); `Workflow({ scriptPath, resumeFromRunId })` resume dispatches the **same**

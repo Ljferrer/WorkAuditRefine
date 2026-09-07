@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, deriveName, deriveDescription } from './stage-workflow.mjs'
+import { NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR, SCRIPT_BYTE_CAP, deriveName, deriveDescription, stripFullLineComments } from './stage-workflow.mjs'
+import { extractInterpolations, ptSpanRanges } from './assert-args-complete.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const STAGER = join(HERE, 'stage-workflow.mjs')
@@ -40,7 +41,7 @@ export const other = 1
 // The exact two-line prelude the stager injects, and the strip used by the restore roundtrips. Built
 // from the same JSON.stringify the stager runs, so the roundtrip proves byte-equality of the payload
 // rather than re-deriving it.
-const PRELUDE_STRIP = /\n\/\/ Embedded phase args \(stage-workflow\.mjs --args\)[^\n]*\nconst EMBEDDED_ARGS = [^\n]*\n/
+const PRELUDE_STRIP = /\/\/ Embedded phase args \(stage-workflow\.mjs --args\)[^\n]*\nconst EMBEDDED_ARGS = [^\n]*\n/
 const preludeLine = (payload) => `const EMBEDDED_ARGS = ${JSON.stringify(payload)}`
 const writeArgs = (dir, payload) => {
   const p = join(dir, 'args.json')
@@ -82,9 +83,12 @@ test('(b) minimal fixture: staged text carries derived literals, differs only in
   assert.equal(restored, MINIMAL_TEMPLATE)
 })
 
+// The shipped-template arms compare against the COMMENT-STRIPPED template (#2099): the stager blanks
+// full-line code comments before it substitutes, so "differs only in the two literals" holds against
+// stripFullLineComments(original), and the strip itself is proven separately in (p).
 test('(b) shipped template: staged text carries derived literals, differs only in the two literals', () => {
   const dir = scratch('stage-ship-')
-  const original = readFileSync(TEMPLATE, 'utf8')
+  const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const slug = '2026-07-16-land-failure-recovery'
   const { stdout } = runStager([TEMPLATE, dir, slug, '1'])
   const staged = readFileSync(stdout.trim(), 'utf8')
@@ -272,7 +276,7 @@ test('(h) attached-form --args=<file> exits non-zero with the usage error (#1134
 // dispatched. A "prelude is present" check would have passed that broken prepend; this one does not.
 test('(i) valid --args: prelude follows the meta statement, fallback rewritten, restores to the shipped template', () => {
   const dir = scratch('stage-args-ok-')
-  const original = readFileSync(TEMPLATE, 'utf8')
+  const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const payload = { phase: { id: 7 }, tasks: [], note: 'hello' }
   const slug = 'args-embedding'
   const { stdout } = runStager([TEMPLATE, dir, slug, '2', '--args', writeArgs(dir, payload)])
@@ -284,6 +288,9 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
   assert.notEqual(metaAt, -1, 'staged text keeps its `export const meta` statement')
   assert.notEqual(preludeAt, -1, 'staged text carries the EMBEDDED_ARGS prelude')
   assert.ok(preludeAt > metaAt, 'the prelude must follow the `export const meta` statement, never precede it')
+  assert.equal(staged.split('\n').length, original.split('\n').length + 2, 'an --args stage adds exactly the two prelude lines — no blank line left behind (#2099 round 3)')
+  assert.match(staged, /^\}\n\/\/ Embedded phase args/m, 'the prelude comment sits on the line right after the `}` that closes meta')
+  assert.equal(staged.indexOf('// Embedded phase args'), staged.indexOf('\n}\n') + 3, 'and that `}` is the FIRST column-0 `}` of the file — meta\'s own, not a later one')
   for (const line of staged.slice(0, metaAt).split('\n')) {
     assert.ok(
       line.trim() === '' || line.trim().startsWith('//'),
@@ -307,12 +314,31 @@ test('(i) valid --args: prelude follows the meta statement, fallback rewritten, 
   assert.equal(restored, original)
 })
 
+// (i) The two other line-ending shapes insertArgsPrelude must handle (#2099 round 4): a CRLF template,
+// where a multiline `$` matches before `\r` and the prelude must still go in after the whole `\r\n`
+// (no blank third line); and a template whose meta `}` is the file's last byte, where the prelude is
+// appended after a newline of its own instead of glued onto the `}`. Both carry the fallback tail
+// inside meta so the --args path reaches the insert.
+const TAIL_IN_META = `export const meta = {\n  ${NAME_ANCHOR},\n  description: '${DESCRIPTION_ANCHOR}',\n  a${ARGS_FALLBACK_ANCHOR},\n}`
+test('(i) --args prelude under CRLF endings adds exactly two lines; a `}` as the last byte gets the prelude on its own line', () => {
+  const dir = scratch('stage-args-endings-')
+  const crlf = join(dir, 'crlf.js')
+  writeFileSync(crlf, (TAIL_IN_META + '\nexport const other = 1\n').replace(/\n/g, '\r\n'))
+  const stagedCrlf = readFileSync(runStager([crlf, dir, 'crlf-slug', '1', '--args', writeArgs(dir, { k: 1 })]).stdout.trim(), 'utf8')
+  assert.ok(stagedCrlf.includes('}\r\n// Embedded phase args'), 'the prelude follows the whole CRLF line ending')
+  assert.equal(stagedCrlf.split('\n').length, (TAIL_IN_META + '\nexport const other = 1\n').split('\n').length + 2, 'exactly two lines added under CRLF — no blank third line')
+  const lastByte = join(dir, 'last-byte.js')
+  writeFileSync(lastByte, TAIL_IN_META)
+  const stagedLast = readFileSync(runStager([lastByte, dir, 'last-slug', '1', '--args', writeArgs(dir, { k: 1 })]).stdout.trim(), 'utf8')
+  assert.ok(stagedLast.includes('}\n// Embedded phase args'), 'a `}` that is the last byte gets the prelude on its own line, never glued on')
+})
+
 // (j) Injection-ordering invariant (End state 4) — a payload that string-quotes all three anchors AND
 // carries JS-meta content (backticks, `${`, quotes, newlines, U+2028/U+2029) still stages cleanly: the
 // payload is injected only AFTER every exactly-once count has run, so it cannot fork the stage.
 test('(j) a payload quoting all three anchors with JS-meta content stages cleanly, prelude byte-equal', () => {
   const dir = scratch('stage-args-evil-')
-  const original = readFileSync(TEMPLATE, 'utf8')
+  const original = stripFullLineComments(readFileSync(TEMPLATE, 'utf8'))
   const payload = {
     anchors: [NAME_ANCHOR, DESCRIPTION_ANCHOR, ARGS_FALLBACK_ANCHOR],
     jsMeta: 'back`tick ${interp} "double" \'single\' \\backslash\nnewline\u2028LS\u2029PS',
@@ -334,9 +360,10 @@ test('(j) a payload quoting all three anchors with JS-meta content stages cleanl
 })
 
 // (k) No-flag negative (End state 1) — keyed on the SUBSTITUTION EVIDENCE, never the bare token: the
-// template's referential coupling comment mentions EMBEDDED_ARGS by name and the stager copies template
-// bytes verbatim apart from the substitutions, so that mention rides into every staged copy by
-// construction and a zero-bare-token assertion would be RED on arrival. Steps (2)–(3) provably never ran.
+// template's referential coupling comment mentions EMBEDDED_ARGS by name, and although the #2099
+// comment strip now blanks that full-line comment out of the staged copy, a trailing or block comment
+// naming the token would still ride through — so the bare token stays the wrong key. Steps (2)–(3)
+// provably never ran.
 test('(k) without --args the staged output carries no substitution evidence and keeps the original fallback', () => {
   const dir = scratch('stage-noflag-')
   const { stdout } = runStager([TEMPLATE, dir, 'no-flag-slug', '1'])
@@ -451,6 +478,319 @@ test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the in
   const { status, stderr } = runStager([tpl, dir, 'slug', '1', '--args', writeArgs(dir, { k: 1 })], { expectFail: true })
   assert.notEqual(status, 0, 'an unlocatable meta statement must fail loud, never stage an undeclared-EMBEDDED_ARGS script')
   assert.match(stderr, /could not locate the/)
+})
+
+// (p) Comment strip (#2099). The Workflow tool refuses a scriptPath over SCRIPT_BYTE_CAP bytes and the
+// shipped template alone crossed it at 0.21.11, so the stager blanks every full-line `//` comment in
+// code state. The fixture carries one or more constructs per scanner arm, each followed by a line
+// whose expected treatment flips if that arm is deleted, so the whole-file byte compare reds per arm:
+//   - string arm: a `//` inside a single-quoted string, a backtick inside one, and an unterminated
+//     string (the line-local newline stop);
+//   - template arm: a `//` line inside a template literal, inside a nested `${…}` template, and after
+//     an escaped backtick (the template escape arm);
+//   - interpolation brace depth: a closed plain brace inside a `${…}` body, then a code comment;
+//   - regex arm: a `[…]` class holding a `/`, a class holding a `/` and a backtick, an escaped `/`
+//     before an escaped backtick, a regex whose `\` sits at the line end (the escape step's newline
+//     bound), a keyword-led regex holding a backtick after `{`, and one on a fresh line after a digit
+//     (REGEX_AFTER_WORD, and the fresh-word rule);
+//   - regex-vs-division tie-break: a division chain, a division followed on the same line by a
+//     multi-line template, a postfix `x++` divided before a multi-line template, a regex after a single
+//     binary `+` (the postfix conjunct), a property named like a keyword divided before a multi-line
+//     template, and the same with whitespace around the dot (the `wordProp` rule, whitespace-blind);
+//   - block-comment arm: a block comment holding a `//` line.
+// Each arm was deleted in turn and the compare went red (the proof list rides the commit body). The
+// branches with no discriminating mutant by construction, and so not fixture arms: the regex flags
+// loop (flag letters scanned as code spell no keyword and read as division either way), the
+// `lastSig === ''` disjunct (true only at byte 0 of the source), and `src[i - 1]` at i === 0 in the
+// fresh-word test (undefined is not a word char, so byte 0 starts a word either way).
+const STRIP_FIXTURE = `// header comment
+export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
+  // indented code comment
+const s = 'a // not a comment\\n' // trailing comment stays
+const s2 = 'tick \` inside a string'
+// after the backtick-holding string: still code
+const t = \`line one
+// a line inside a template literal
+\${cond ? \`nested
+// a line inside a nested template
+\` : ''}
+\`
+const r = /[a-z/]+\\/\\/'"x/g
+// after the regex: still code
+const r2 = /[\`]/g
+// after the backtick-holding regex: still code
+const f = () => { return /\`/.test(x) }
+// after the keyword-led regex: still code
+const d = a / b / c
+// after the division: still code
+const q = a / b + \`tail
+// a line inside a template that follows a division
+\`
+const s3 = 'unterminated
+// after an unterminated string: still code
+const ok = 'x'
+const rx = /[/\`]/
+// after the class-held slash and backtick: still code
+const rr = /a\\/\\\`b/
+// after the escaped slash and backtick: still code
+const pp = x++ / y + \`t
+// a line inside a template after a postfix increment
+\`
+const o = \`x \${ { a: 1 }
+// a code comment after a closed brace inside the interpolation
+} y\`
+const n6 = 6
+return /\`/.test(s)
+// after a keyword-led regex on a fresh line: still code
+const g = o.in / 2 + \`t
+// a line inside a template after a property named like a keyword
+\`
+const bp = a + /[\`]/.test(x)
+// after the binary-plus regex: still code
+const tb = \`esc \\\` still template
+// a line inside a template after an escaped backtick
+\`
+const le = /a\\
+// after a regex whose escape sits at the line end: still code
+const g2 = o . of / 2 + \`t
+// a line inside a template after a property split from its dot by whitespace
+\`
+/* block
+// a line inside a block comment
+*/
+// last
+`
+const STRIP_EXPECTED = `
+export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
+
+const s = 'a // not a comment\\n' // trailing comment stays
+const s2 = 'tick \` inside a string'
+
+const t = \`line one
+// a line inside a template literal
+\${cond ? \`nested
+// a line inside a nested template
+\` : ''}
+\`
+const r = /[a-z/]+\\/\\/'"x/g
+
+const r2 = /[\`]/g
+
+const f = () => { return /\`/.test(x) }
+
+const d = a / b / c
+
+const q = a / b + \`tail
+// a line inside a template that follows a division
+\`
+const s3 = 'unterminated
+
+const ok = 'x'
+const rx = /[/\`]/
+
+const rr = /a\\/\\\`b/
+
+const pp = x++ / y + \`t
+// a line inside a template after a postfix increment
+\`
+const o = \`x \${ { a: 1 }
+
+} y\`
+const n6 = 6
+return /\`/.test(s)
+
+const g = o.in / 2 + \`t
+// a line inside a template after a property named like a keyword
+\`
+const bp = a + /[\`]/.test(x)
+
+const tb = \`esc \\\` still template
+// a line inside a template after an escaped backtick
+\`
+const le = /a\\
+
+const g2 = o . of / 2 + \`t
+// a line inside a template after a property split from its dot by whitespace
+\`
+/* block
+// a line inside a block comment
+*/
+
+`
+test('(p) stripFullLineComments blanks only full-line code comments, keeps every string/template/regex/block line and the line count', () => {
+  const out = stripFullLineComments(STRIP_FIXTURE)
+  assert.equal(out, STRIP_EXPECTED)
+  assert.equal(out.split('\n').length, STRIP_FIXTURE.split('\n').length, 'line count is preserved — blanked, never deleted')
+  assert.equal(stripFullLineComments(out), out, 'the strip is idempotent — a stripped copy re-stripped is byte-unchanged')
+  assert.throws(() => stripFullLineComments('const x = `open template'), /lost track/, 'an unterminated template literal refuses loudly rather than staging a desynced copy')
+})
+
+// (p) On the shipped template the strip is proven by three oracles that do not share the scanner
+// under test. (1) Line shape: every changed line was a `//`-led line and is now empty. (2) Prompt
+// bytes: `ptSpanRanges` (assert-args-complete.mjs — seeded on the pt` tag, its own state machine)
+// locates every prompt span in the stripped copy, nested spans included, with each span's `${…}`
+// expression bodies; for a blanked line the INNERMOST enclosing span is judged, and the line may not
+// fall in that span's prose (a blank inside an expression body is a code comment inside the
+// interpolation — legal). This is what catches a prompt line that begins with `//` and was wrongly
+// blanked, which oracle (1) alone would accept. Scope: the oracle proves pt-tagged prompt spans; a
+// plain (untagged) template literal is outside it and rests on oracle (1) plus the fixture arms. (3) `node --check` parses the result, and the fallback-free interpolation census the
+// args preflight reads is unchanged, occurrence counts included. The staged size must also sit under
+// the cap with headroom for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 128
+// KiB so a template growth that eats the margin reds here before a campaign launch dies at dispatch.
+const ARGS_HEADROOM_BYTES = 131072
+// Oracles (1) and (2), shared by the shipped-template arm and the synthetic negative below. Returns
+// { blanked, spans, insideExpr } so each caller can add its own non-vacuity bounds.
+function assertStripKeptPromptBytes (original, stripped) {
+  const a = original.split('\n')
+  const b = stripped.split('\n')
+  assert.equal(b.length, a.length, 'line count preserved')
+  const blanked = [] // 1-based line numbers
+  for (let k = 0; k < a.length; k++) {
+    if (a[k] === b[k]) continue
+    assert.ok(a[k].trim().startsWith('//') && b[k] === '', `line ${k + 1}: a non-comment line changed: ${JSON.stringify(a[k].slice(0, 80))} → ${JSON.stringify(b[k].slice(0, 80))}`)
+    blanked.push(k + 1)
+  }
+  assert.ok(!/\/\/[^\n]*\bpt`/.test(stripped), 'no comment-seeded pt` byte-run survives the strip, so ptSpanRanges reads real prompt spans only')
+  const lineStarts = [0]
+  for (let i = 0; i < stripped.length; i++) if (stripped[i] === '\n') lineStarts.push(i + 1)
+  const lineOf = (offset) => { let lo = 0, hi = lineStarts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid] <= offset) lo = mid; else hi = mid - 1 } return lo + 1 }
+  const spans = ptSpanRanges(stripped, { nested: true }).map(({ start, end, exprs }) => ({
+    start, end, lo: lineOf(start), hi: lineOf(end - 1), exprs: exprs.map(([x, y]) => [lineOf(x), lineOf(y - 1)]),
+  }))
+  const inExpr = (sp, k) => sp.exprs.some(([x, y]) => k >= x && k <= y)
+  let insideExpr = 0
+  for (const k of blanked) {
+    const hit = spans.filter((sp) => k > sp.lo && k <= sp.hi).sort((a, b) => (a.end - a.start) - (b.end - b.start))[0] // innermost
+    if (!hit) continue
+    assert.ok(inExpr(hit, k), `line ${k} was blanked inside the prose of the pt prompt span on lines ${hit.lo}-${hit.hi} — the strip touched dispatched prompt bytes`)
+    insideExpr++
+  }
+  return { blanked, spans, insideExpr }
+}
+
+// The oracle's own negative: a multi-line pt span whose prose line begins with `//` (a bash comment
+// inside a dispatched prompt), and a copy in which that line was blanked — exactly the failure the
+// per-line shape check accepts. The oracle must refuse it, and must accept the same span when the
+// blanked line sits inside a `${…}` expression instead. Red: drop the prose check and both pass.
+test('(p) the prompt-byte oracle refuses a blanked `//` line inside prompt prose and accepts one inside an interpolation expression', () => {
+  const prose = 'const x = 1\nconst p = pt`run this:\n// not a comment, a prompt line\ndone ${a}`\n'
+  assert.throws(() => assertStripKeptPromptBytes(prose, prose.replace('// not a comment, a prompt line', '')), /inside the prose of the pt prompt span/)
+  const expr = 'const p = pt`items: ${list.map(t =>\n  // a code comment inside the interpolation\n  t.id).join(\', \')}`\n'
+  const { insideExpr } = assertStripKeptPromptBytes(expr, expr.replace('  // a code comment inside the interpolation', ''))
+  assert.equal(insideExpr, 1)
+  const inner = 'const p = pt`a ${c ? pt`b\n// inner prose, inside the outer span\'s expression\n` : \'\'} d`\n'
+  assert.throws(() => assertStripKeptPromptBytes(inner, inner.replace('// inner prose, inside the outer span\'s expression', '')), /inside the prose of the pt prompt span/, 'a nested span\'s prose is judged by the innermost span, not excused as the outer span\'s expression')
+  assert.equal(stripFullLineComments(prose), prose, 'and the real strip leaves the prose line alone')
+  assert.equal(stripFullLineComments(inner), inner, 'and the real strip leaves the nested prose line alone')
+})
+
+test('(p) shipped template: only `//`-led lines blank, no prompt byte moves, the copy parses, the census holds, headroom stays', () => {
+  const original = readFileSync(TEMPLATE, 'utf8')
+  const stripped = stripFullLineComments(original)
+  const { blanked, spans, insideExpr } = assertStripKeptPromptBytes(original, stripped)
+  assert.ok(blanked.length > 1000, `non-vacuity: the shipped template carries >1000 full-line comments, blanked ${blanked.length}`)
+  assert.ok(spans.length > 300, `non-vacuity: the shipped template carries >300 pt spans, found ${spans.length}`)
+  assert.ok(insideExpr > 0, 'non-vacuity: the shipped template carries code comments inside prompt interpolations, so the expression carve-out is exercised')
+
+  const dir = scratch('stage-strip-check-')
+  const strippedPath = join(dir, 'stripped.js')
+  writeFileSync(strippedPath, stripped)
+  const check = spawnSync(process.execPath, ['--check', strippedPath], { encoding: 'utf8' })
+  assert.equal(check.status, 0, `the stripped template must still parse: ${check.stderr}`)
+  assert.deepEqual([...extractInterpolations(stripped)], [...extractInterpolations(original)], 'the fallback-free interpolation census, with occurrence counts, is unchanged by the strip')
+  const bytes = Buffer.byteLength(stripped, 'utf8')
+  assert.ok(bytes + ARGS_HEADROOM_BYTES <= SCRIPT_BYTE_CAP, `stripped template is ${bytes} bytes; it must leave at least ${ARGS_HEADROOM_BYTES} bytes under the ${SCRIPT_BYTE_CAP}-byte cap for embedded args`)
+})
+
+// (q) Size floor (#2099). Matchers anchor on narrow fragments built from the imported constant
+// (spec §8 — never the full message bytes, never a hand-copied number). Arms: an over-cap fresh
+// stage exits non-zero, names both contributing sizes, writes nothing; comment bytes do not count;
+// an over-cap --args payload is named as such; the boundary is `at or under dispatches, over
+// refuses` (exactly SCRIPT_BYTE_CAP bytes stages, one more refuses); the live 0.21.11 shape — the
+// shipped template plus an over-size-class args payload — stages under the cap; and a pre-existing
+// over-cap staged file is refused (naming --force) rather than reused, byte-untouched.
+const CAP_FRAGMENT = new RegExp(`over the Workflow tool's ${SCRIPT_BYTE_CAP}-byte scriptPath cap`)
+const padFixture = (dir, name, padBytes) => {
+  const p = join(dir, name)
+  writeFileSync(p, MINIMAL_TEMPLATE + `export const pad = '${'x'.repeat(padBytes)}'\n`)
+  return p
+}
+test('(q) over-cap fresh stage: exits non-zero, names the sizes, writes nothing; comment bulk does not count; an args payload is named', () => {
+  const dir = scratch('stage-cap-')
+  const over = runStager([padFixture(dir, 'padded.js', SCRIPT_BYTE_CAP), dir, 'cap-slug', '1'], { expectFail: true })
+  assert.notEqual(over.status, 0, 'an over-cap staged copy must not exit 0')
+  assert.match(over.stderr, CAP_FRAGMENT)
+  assert.match(over.stderr, /comment-stripped template \d+ bytes/)
+  assert.match(over.stderr, /embedded args 0 bytes/)
+  assert.ok(!existsSync(join(dir, deriveName('cap-slug', '1') + '.js')), 'nothing is written on refusal')
+
+  const commented = join(dir, 'commented.js')
+  writeFileSync(commented, MINIMAL_TEMPLATE + `// ${'x'.repeat(SCRIPT_BYTE_CAP)}\n`)
+  const ok = runStager([commented, dir, 'comment-slug', '1'])
+  assert.ok(Buffer.byteLength(readFileSync(ok.stdout.trim(), 'utf8'), 'utf8') < 1024, 'the comment bulk was stripped, not counted')
+
+  const withTail = join(dir, 'with-tail.js')
+  writeFileSync(withTail, MINIMAL_TEMPLATE + `const A = typeof args === 'object' ? args ${ARGS_FALLBACK_ANCHOR}\n`)
+  const argsOver = runStager([withTail, dir, 'args-cap-slug', '1', '--args', writeArgs(dir, { pad: 'x'.repeat(SCRIPT_BYTE_CAP) })], { expectFail: true })
+  assert.notEqual(argsOver.status, 0)
+  assert.match(argsOver.stderr, CAP_FRAGMENT)
+  assert.match(argsOver.stderr, /embedded args [1-9]\d* bytes/, 'the args payload is named with its own non-zero size')
+  assert.ok(!existsSync(join(dir, deriveName('args-cap-slug', '1') + '.js')), 'nothing is written on refusal')
+})
+
+test('(q) cap boundary: exactly SCRIPT_BYTE_CAP bytes stages, one byte more refuses', () => {
+  const dir = scratch('stage-cap-edge-')
+  const probe = runStager([padFixture(dir, 'probe.js', 1000), dir, 'edge-slug', '1'])
+  const overhead = Buffer.byteLength(readFileSync(probe.stdout.trim(), 'utf8'), 'utf8') - 1000
+  const atCap = runStager([padFixture(dir, 'at-cap.js', SCRIPT_BYTE_CAP - overhead), dir, 'edge-slug', '1', '--force'])
+  assert.equal(Buffer.byteLength(readFileSync(atCap.stdout.trim(), 'utf8'), 'utf8'), SCRIPT_BYTE_CAP, 'a staged copy of exactly the cap is written')
+  const overCap = runStager([padFixture(dir, 'over-cap.js', SCRIPT_BYTE_CAP - overhead + 1), dir, 'edge-slug', '1', '--force'], { expectFail: true })
+  assert.notEqual(overCap.status, 0, 'one byte over the cap refuses')
+  assert.match(overCap.stderr, CAP_FRAGMENT)
+})
+
+test('(q) the live 0.21.11 shape: the shipped template plus a ~104.5 KB --args payload stages under the cap', () => {
+  const live = scratch('stage-cap-live-')
+  const { stdout } = runStager([TEMPLATE, live, 'live-slug', '1', '--args', writeArgs(live, { phase: { id: 1 }, pad: 'x'.repeat(107008) })])
+  assert.ok(Buffer.byteLength(readFileSync(stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP)
+})
+
+test('(q) write-if-absent refuses a pre-existing staged file over the cap, naming --force, file untouched', () => {
+  const dir = scratch('stage-cap-reuse-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, MINIMAL_TEMPLATE)
+  const stagedPath = join(dir, deriveName('slug', '1') + '.js')
+  const stale = `// stale over-cap stage\n${'x'.repeat(SCRIPT_BYTE_CAP)}\n`
+  writeFileSync(stagedPath, stale)
+  const r = runStager([tpl, dir, 'slug', '1'], { expectFail: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /existing staged file/)
+  assert.match(r.stderr, CAP_FRAGMENT)
+  assert.match(r.stderr, /--force/)
+  assert.equal(readFileSync(stagedPath, 'utf8'), stale, 'the refused file is left byte-untouched')
+  const forced = runStager([tpl, dir, 'slug', '1', '--force'])
+  assert.ok(Buffer.byteLength(readFileSync(forced.stdout.trim(), 'utf8'), 'utf8') <= SCRIPT_BYTE_CAP, '--force restages a fresh, under-cap copy')
+})
+
+// (r) Cap doc pins (#2099). Every doctrine surface that restates the scriptPath cap writes it in one
+// grammar — `<n>-byte `scriptPath` cap` — and this arm extracts each restatement and compares it to
+// the imported SCRIPT_BYTE_CAP (the DOC_TIER_PINS discipline from war-config.test.mjs: extraction
+// plus equality, never a hand-copied number). A bare rendering of the number outside that grammar is
+// banned on the same surfaces, so a restatement cannot slip out from under the pin; the one other
+// permitted rendering is the stager's quoted stderr message (`<n>-byte scriptPath cap`, no backticks,
+// no thousands separator), which the ban's arithmetic counts separately. README.md, CHANGELOG.md and
+// docs/learnings/ are release-slot or narrative prose and stay out.
+const DOC_CAP_PINS = ['CONTEXT.md', 'skills/war/references/staged-script.md', 'docs/adr/0037-run-scoped-staged-phase-scripts.md']
+test('(r) DOC_CAP_PINS: every prose restatement of the scriptPath cap equals SCRIPT_BYTE_CAP, and no bare rendering escapes the grammar', () => {
+  const rendered = SCRIPT_BYTE_CAP.toLocaleString('en-US')
+  for (const rel of DOC_CAP_PINS) {
+    const text = readFileSync(join(HERE, '..', '..', '..', rel), 'utf8')
+    const restatements = [...text.matchAll(/([\d,]+)-byte `scriptPath` cap/g)].map((m) => m[1])
+    assert.ok(restatements.length > 0, `${rel}: no scriptPath-cap restatement found — the pin is fail-closed`)
+    for (const n of restatements) assert.equal(n, rendered, `${rel}: a scriptPath-cap restatement says ${n}, SCRIPT_BYTE_CAP renders ${rendered}`)
+    const bare = (text.match(new RegExp(`\\b(${rendered}|${SCRIPT_BYTE_CAP})\\b`, 'g')) || []).length
+    assert.equal(bare, restatements.length + (text.match(new RegExp(`${SCRIPT_BYTE_CAP}-byte scriptPath cap`, 'g')) || []).length, `${rel}: the cap is rendered outside the pinned grammar — bind it or point at SCRIPT_BYTE_CAP`)
+  }
 })
 
 // (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
