@@ -354,8 +354,8 @@ at the 2026-08-25 refresh (ask-disposition landed).
      widening: the `KNOWN_LAND_DECISIONS` doc-parity rows and the MERGE_RESULT status pin stay green —
      fixtures titled `segmented-land` ·
      check: `grep -F 'segmented-land' skills/war/assets/workflow-template.test.mjs`
-  20. A `held:land-failed` phase still produces the follow-up filing dispatch (or the explicit
-     unfiled-followups handoff block) — fixture titled `filing-on-held` ·
+  20. A `held:land-failed` phase still produces the follow-up filing dispatch, its stamped issues on the
+     top-level return's `minorsFiled` (#1801) — fixture titled `filing-on-held` ·
      check: `grep -F 'filing-on-held' skills/war/assets/workflow-template.test.mjs`
   21. A `:rebut`-suffixed seat label extracts the true lens in the Evidence-artifacts clause —
      drift-row fixture titled `rebut-lens` ·
@@ -758,8 +758,8 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   change together in this task's single commit — those files are in Files for that contingency alone.
   A new MERGE_RESULT status member is OUTSIDE the pre-authorization (its verbatim pin lives in Task
   2's file): that path halts the phase for a re-plan. (b) on `held:land-failed`, the
-  follow-up filing dispatch still runs (or the handoff carries an explicit unfiled-followups block the
-  Lead executes) — never silently unrun. (c) route ALL bare `agent(...)` dispatch sites through
+  follow-up filing dispatch still runs and its stamped issues ride the top-level return's
+  `minorsFiled` (no handoff emits there — #1801) — never silently unrun. (c) route ALL bare `agent(...)` dispatch sites through
   `dispatchAgent` so their deaths classify env-died soft per the existing #1411 class:
   `provisionStep`'s dispatch, the polish-worktree provision dispatch, and the sweep dispatch (the
   latter two are separate bare call sites outside `provisionStep` — red-team round 1); the
@@ -786,7 +786,7 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   env-died soft, and a provision-barrier dispatch death rethrows `held:workflow-error` (adjudicated
   #1794) (titled `drain-cause`, End state 9); polish-dispatch death stamps
   drain cause on each demoted finding (same token); `held:land-failed` still produces the filing
-  dispatch (or the explicit handoff block) (titled `filing-on-held`, End state 20); the in-band
+  dispatch with its stamped issues on the top-level return's `minorsFiled` (#1801) (titled `filing-on-held`, End state 20); the in-band
   segmented-land marker round-trips its bounded re-dispatch (FLOOR_STATUSES idiom) with NO enum
   widening — the `KNOWN_LAND_DECISIONS` doc-parity rows and the verbatim MERGE_RESULT status pin in
   this file stay green (titled `segmented-land`, End state 19); fold (#1712 fix 3) fixtures: a

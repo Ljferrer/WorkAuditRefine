@@ -1,9 +1,11 @@
 # Run manifest — per-stamp field reference (evicted from `skills/war/SKILL.md`)
 
 The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for the Run-manifest
-section's **per-stamp field detail**. The block below was byte-identical to its pre-eviction
+section's **per-stamp field detail** and **file identity**. The `## When — at phase boundaries` and
+`## Where — runId and untracked-ness` blocks below were each byte-identical to their pre-eviction
 `skills/war/SKILL.md` text **at eviction time** (only repo-root-relative links were re-anchored for
-this file's depth). The section's **hot** half stays on the card: the `## Run manifest (telemetry)`
+this file's depth); `## Relaunch` is new doctrine authored here (ADR 0042's default placement),
+never an eviction, and has no card twin. The section's **hot** half stays on the card: the `## Run manifest (telemetry)`
 anchor, the main-checkout `MAIN=$(dirname …)` idiom two other surfaces cite by name, and the
 fail-open / never-resume-input invariant. Positional words below ("above", "the Run-manifest
 section") refer to that card section.
@@ -19,9 +21,13 @@ Field names follow spec §4.A (nesting may be refined; the **MUST-carry** set is
 
 **Fail-open.** Every manifest write is **best-effort** — a failed write logs **one** line and the run proceeds unaffected. Bookkeeping **never** blocks a run, and the manifest is **never** resume input (the resume ordering git > issue labels > `ledger.json`, [ADR 0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md), is untouched).
 
+## Where — runId and untracked-ness (the card's `**Where.**` paragraph tail)
+
+`runId` = `<plan-slug>-<YYYY-MM-DD>`; a same-run resume rewrites the file in place (**latest-wins per runId**). Untracked-ness **rides the existing `.claude/` exclude** the provisioning `ensure-exclude` step writes into the main checkout's git dir — **no `.gitignore` change**.
+
 ## Relaunch — a died attempt is archived, never overwritten silently (D22, #1916)
 
-A **relaunch attempt** is one Workflow run of a phase that a prior run of the same phase did not finish: a `resumeFromRunId` retry of a `held:phase-incomplete` phase, or a Recovery relaunch of a `held:workflow-error` / escalated phase ([resume-and-recovery.md](resume-and-recovery.md) § Recovery relaunch). Each attempt has its **own** `workflowRunId` and `transcriptDir` — the harness mints a fresh run id per launch, and the transcript dir's basename **is** that run id. The manifest keeps the phase record **current** and the history **complete**:
+A **relaunch attempt** is one Workflow run of a phase that a prior run of the same phase did not finish: a `resumeFromRunId` retry of a `held:phase-incomplete` phase, or a Recovery relaunch of a `held:workflow-error` / escalated phase ([resume-and-recovery.md](resume-and-recovery.md) § Recovery relaunch). Each attempt has its **own** `workflowRunId` and `transcriptDir` **when the launch envelope surfaces a fresh run id** (the transcript dir's basename **is** that run id); a relaunch whose launch envelope repeats the prior `workflowRunId` archives nothing — the pair is unchanged — and only attempts with distinct run ids are summed. The manifest keeps the phase record **current** and the history **complete**:
 
 - **On every relaunch, overwrite `workflowRunId` + `transcriptDir` together** — never one without the other. Read both from the new launch envelope (the `At phase launch` bullet above); a phase whose `transcriptDir` basename differs from its `workflowRunId` is a half-stamped relaunch, and `/war-review` mines the wrong transcripts for it.
 - **Archive the died attempt under `attempts[]`** before overwriting — the authoritative shape (this file is the only home; `schemas.md` § Run manifest points here and does not restate it):
