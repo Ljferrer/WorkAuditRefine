@@ -1214,7 +1214,7 @@ const dispositionOf = (f, diff) => {
   if (f.disposition === 'ask') return 'ask'
   if (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') return f.disposition
   if (f.autoFixable === true) return 'absorb'
-  if (diff instanceof Set && typeof f.suggested_fix === 'string' && f.suggested_fix.trim()) {
+  if (diff instanceof Set && !blankText(f.suggested_fix)) {
     if (!(typeof f.file === 'string' && f.file && diff.has(aceRelPath(f.file)))) f.phaseClose = true
     return 'absorb'
   }
@@ -1252,7 +1252,7 @@ const intakeFloor = (f, d, diff) => {
     return d
   }
   const inDiff = typeof f.file === 'string' && f.file.length > 0 && diff.has(aceRelPath(f.file))
-  const fix = typeof f.suggested_fix === 'string' && f.suggested_fix.trim().length > 0
+  const fix = !blankText(f.suggested_fix)
   const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
   if (f.disposition === 'follow-up') {
     if (!barrier) {
@@ -1662,17 +1662,19 @@ const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : 
 // seat's plan_ref-only blocking finding has no endState reader to pay for, is spared all the same
 // (the pre-task behavior, unchanged here), and can still ride a fix-less PIN-29 escalation; narrowing
 // the spare to the gate-audit sites is a behavior change beyond this slice. The demotion also SPARES
-// an ask-shaped finding
-// (a non-blank `ask.question` is spared through contentTextOf; a bare `disposition: 'ask'` row on
+// an ask-shaped finding (a non-blank `ask.question` is spared through contentTextOf; a bare
+// `disposition: 'ask'` row on
 // the Minor/Nit severities the ask channel serves is spared through askShaped — a blocking
 // severity carrying only disposition:'ask' has no ask channel to reach, never parks, and would
 // otherwise ride the verdict fix-less into a PIN-29 escalation — demote()'s ASK REFUSAL invariant:
 // an ask is ruled at the Checkpoint, never machine-demoted into notes; it falls through to parkAsk
 // / the routers) and a `scopeBreach: true` finding (aceReaudit's fail-closed pin-transfer refusal
-// reads the finding-level disjunct, PIN-18 — the breach flag IS its content). Non-object findings
-// items are dropped with a log and count as removals for the verdict neutralization the same as a
-// demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in place and
-// returns it, and every site assigns the return.
+// reads the finding-level disjunct, PIN-18 — the breach flag IS its content). A demoted note is
+// re-stamped `severity: 'Nit'` beside `originalSeverity` (the pairing the pin-equality strip uses),
+// so notes never carry a blocking severity. Non-object findings items and a non-array findings
+// container are dropped with a log and count as removals for the verdict neutralization the same
+// as a demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in place
+// and returns it, and every site assigns the return.
 const normalizeFinding = f => {
   const { seats, merged, ...rest } = f
   if (typeof rest.file === 'string') rest.file = aceRelPath(rest.file)
@@ -1683,20 +1685,23 @@ const normalizeSeat = (seat, taskId) => {
   if (!seat || typeof seat !== 'object') return seat
   const kept = []
   let removed = 0
-  for (const raw of (Array.isArray(seat.findings) ? seat.findings : [])) {
+  let items = []
+  if (Array.isArray(seat.findings)) items = seat.findings
+  else if (seat.findings !== undefined && seat.findings !== null) { removed++; log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned a non-array findings container — dropped (logged, never silent).') }
+  for (const raw of items) {
     if (!raw || typeof raw !== 'object') { removed++; log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned a non-object findings item — dropped (logged, never silent).'); continue }
     const f = normalizeFinding(raw)
     if (blankText(f.title) && contentTextOf(f).every(blankText) && !askShaped(f) && f.scopeBreach !== true && blankText(f.plan_ref)) {
       removed++
       log('intake normalization: [' + (f.severity ?? '(severity unrecorded)') + '] empty-content finding (no title, no rationale, no suggested_fix, no ask question, no plan_ref) from seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') demoted to a note — it carries nothing a router or fixer could act on (#1869).')
-      notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, demoteReason: 'intake:empty-content' })
+      notes.push({ ...f, task: taskId, seat: seat.seat, title: '(untitled: empty-content finding demoted at intake)', originalSeverity: f.severity, severity: 'Nit', demoteReason: 'intake:empty-content' })
       continue
     }
     kept.push(f)
   }
   seat.findings = kept
   if (removed && seat.verdict === 'request_changes' && !kept.some(f => f.severity === 'Critical' || f.severity === 'Major')) {
-    log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned request_changes whose every blocking finding was removed at intake (empty-content demoted or non-object dropped) — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
+    log('intake normalization: seat ' + (seat.seat ?? '(seat unrecorded)') + ' (task ' + (taskId ?? '?') + ') returned request_changes whose every blocking finding was removed at intake (empty-content demoted, non-object item or non-array container dropped) — verdict neutralized to approve (a verdict never stands on findings it no longer has).')
     seat.verdict = 'approve'
   }
   return seat
@@ -4257,7 +4262,7 @@ const routeGateAuditRows = () => {
   const noteArmSkipped = phaseDiffFiles === null
   if (noteArmSkipped) log('gate-audit floor pass: phase_diff_files absent — the note arm skips (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
   for (const f of gateAuditRows.splice(0)) {
-    const fix = typeof f.suggested_fix === 'string' && f.suggested_fix.trim().length > 0
+    const fix = !blankText(f.suggested_fix)
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
     // An EMPTY Set, never phase_diff_files (#2058): an omitted-disposition fully specified row reads
     // absorb + phaseClose:true whether the phase diff is present or absent (PIN-17), and the null arm
