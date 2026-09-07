@@ -2088,11 +2088,9 @@ const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the 
 // PARTIAL_LOG_RULE (D7 fallback, operator patch 2026-09-06): nothing proves a run_in_background task
 // outlives the refiner agent that started it, and the log path is keyed by task id alone, so the
 // re-dispatch read is two-sided (tip_sha: first AND exit_code: last) and anything else reruns the
-// gate from scratch. The read is scoped to a segment continuation after the refiner's own incomplete
-// return: a *-proceed re-merge or re-land gates the same tip as the failed dispatch before it, so it
-// never adopts that dispatch's complete red log and always reruns the gate (5.1 re-entry). The REFINER executes the read — the engine never opens the log — so the rule is
+// gate from scratch. The REFINER executes the read — the engine never opens the log — so the rule is
 // prompt content: byte-equal on the refiner card and on every merge-task and land build (PIN-1).
-const PARTIAL_LOG_RULE = pt`On a re-dispatch of this step after your own incomplete return (a segment continuation — an environment-proceed or baseline-proceed re-merge or re-land always reruns the gate from scratch), before anything else, read \`.war/gate-<taskId>.log\`: it is THIS dispatch's gate result ONLY when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`; otherwise — the file is absent, its first line is not \`tip_sha:\` of the sha being gated, or its last line is not \`exit_code:\` — the gate is rerun from scratch: a partial log is never read as a partial result, and a complete log from an earlier tip never passes.`
+const PARTIAL_LOG_RULE = pt`On a re-dispatch, before anything else, read \`.war/gate-<taskId>.log\`: it is THIS dispatch's gate result ONLY when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`; otherwise — the file is absent, its first line is not \`tip_sha:\` of the sha being gated, or its last line is not \`exit_code:\` — the gate is rerun from scratch: a partial log is never read as a partial result, and a complete log from an earlier tip never passes.`
 // GATE_LOG_UNTHREADED / GATE_LOG_READ_RULE (D8, PIN-12, #2094): the seat-side fallback marker and the
 // reading rule. The evidence dispatch and both gate-audit seat prompts render the conventional
 // _refinery/.war/gate-<taskId>.log path with the marker when gate_log_path is unthreaded; the read
@@ -4292,9 +4290,8 @@ if (mergedTasksForGateAudit.length > 0) {
       // task.id (entry-validated, bare); m.acceptanceCriteria carries its own || '(see plan file)' default.
       .map(m => pt`- ${m.taskId}: ${m.acceptanceCriteria || '(see plan file)'}`).join('\n') || '(see plan file)'
     // #818: the captured integrated-tip gate log is the AUTHORITATIVE HARD-path artifact for THIS seat
-    // (mirroring the per-task GATE LOG ARTIFACT clause); an UNREADABLE artifact ⇒ SOFT cannot-confirm (fail-open —
-    // an in-flight refiner returning integratedTipGate without gate_log_path renders the conventional path below,
-    // and the seat decides at read time under GATE_LOG_READ_RULE — SOFT, never an error).
+    // (mirroring the per-task GATE LOG ARTIFACT clause); an absent path ⇒ SOFT cannot-confirm (fail-open —
+    // an in-flight refiner returning integratedTipGate without gate_log_path lands SOFT, never an error).
     // D8 fallback (#2094): the integrated-tip twin of artifactLine — conventional path + `unthreaded` marker.
     const authArtifactLine = integratedTip.gate_log_path || pt`${refineryPath}/.war/gate-phase-${ph.id}.log ${GATE_LOG_UNTHREADED}`
     // Mapped-tests union (D7, Task 3.2): the dep-crossing tasks' floor-matched paths, grepped against
@@ -4923,7 +4920,7 @@ if (landDecision === 'landed') {
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
-    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return the land_segment: 'incomplete' shape stated once under BACKGROUNDED GATE below. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. Tee the step-2 gate's FULL stdout+stderr to ${refineryLandPath}/.war/gate-land-phase-${ph.id}.log — ${GATE_LOG_STAMP} That file is this land's \`.war/gate-<taskId>.log\` below. `
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. Tee the step-2 gate's FULL stdout+stderr to ${refineryLandPath}/.war/gate-land-phase-${ph.id}.log — ${GATE_LOG_STAMP} That file is this land's \`.war/gate-<taskId>.log\` below. `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
   const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
