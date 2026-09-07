@@ -226,6 +226,8 @@ Suggested small commits: (1) capability decision and helper tests; (2) explicit 
 
 Keep engine-independent changes on `codex-port`. Fetch and inspect remote changes before pushing, but do not automatically merge or rebase campaign branches. If the shared parser/card changed upstream, compare semantics before adopting updates. Preserve the accepted single-source doctrine rather than solving conflicts by copying a stale card.
 
+Delivery rule added by the user on 2026-09-07: when an S-stage is completed, post its evidence summary to WAR issue #2160. Commit implementation progress on a new `codex/` branch and open its PR against `codex-port`; do not push stage work directly to the base branch.
+
 No new GitHub Actions workflows or branch protections are needed for the first snipe port. Record local validation now; migrate the focused tests into the planned CI system later. No plugin marketplace publication or automatic installation into the user's global configuration is part of this plan without a concrete follow-up instruction.
 
 ## Decision and execution record
@@ -247,12 +249,51 @@ After each implementation session, append: commit id; files changed; checklist i
 
 ### 2026-09-07 — S0 capability and packaging spike
 
-- Commit: pending at session record time. Planned source branch `codex-port` was clean at `af451ab4f0b0e8d9454f9e9d3ce495e25aa3629e`; the Codex app task checkout was a separate detached worktree at the same commit. The active campaign checkout was not modified.
+- Commit: `a8235f2` is the initial S0 evidence checkpoint; this follow-up closes its review findings. Changed file: this plan only. Completed checklist items: all five S0 items. Planned source branch `codex-port` was clean at `af451ab4f0b0e8d9454f9e9d3ce495e25aa3629e`; the Codex app task checkout was a separate detached worktree at the same commit. The active campaign checkout was not modified.
 - Versions: source manifest `0.21.12`; Codex CLI `0.153.4` from `/Applications/ChatGPT.app/Contents/Resources/codex`; configured parent model `gpt-5.6-sol` at `medium`, but the subprocess did not independently report its actual model identity.
 - Applicable instructions read: `implement`, `openai-docs`, and `plugin-creator`. Official Codex documentation was checked for custom agents, skill invocation policy, plugin hook selection, and non-interactive read-only mode.
 - Native decision: current official Codex supports project custom-agent TOML with `sandbox_mode = "read-only"`, but the collaboration API available to this task accepts task/context/model/effort only. It has no named-agent, cwd, sandbox or tool-surface selector. Native role confinement therefore is not demonstrable through this host API, and Snipe will use a bounded `codex exec` seat runner for this tested client.
-- Permission proof: in disposable repo `/private/tmp/snipe-codex-s0-fixture/repo`, `codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only --json -C ...` successfully read `READ_OK_7f2c9a`. It then attempted and received observed denials for a shell write in the repo (`operation not permitted`), an `apply_patch` write (`writing is blocked by read-only sandbox`), and a shell overwrite of the controlled sibling sentinel (`operation not permitted`). Post-run hashes were unchanged and both attempted output files were absent.
-- Package proof: a disposable `snipe-codex-spike` marketplace package installed successfully through CLI 0.153.4. Its cached root contained the manifest, explicit-only skill with `agents/openai.yaml`, explicit `hooks/codex-hooks.json`, and a deliberately present default `hooks/hooks.json`. An isolated run configured with only that package loaded the explicitly invoked skill. A second run with hook trust bypassed only for that isolated package left the default-hook sentinel absent, proving the manifest-selected no-op hook file won over default discovery. The disposable plugin and marketplace configuration were removed after the test.
+- Permission proof: in disposable repo `/private/tmp/snipe-codex-s0-fixture/repo`, the command below successfully read `READ_OK_7f2c9a`. It then attempted and received observed denials for a shell write in the repo (`zsh:1: operation not permitted: denied-shell.txt`), an `apply_patch` write (`patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings`), and a shell overwrite of the controlled sibling sentinel (`zsh:1: operation not permitted: ../sibling-sentinel.txt`). Before and after were identical: HEAD `05921e5bfcfeaf9c6001bfd0de576fdd01aa5fcf`; ref-list hash `d14c4cd171f1d031d05fc52f222648a2f9b089327a38ac62c12a79efdf144a49`; index-list hash `cb9dc25ba18748075de2c61de758427d91f5ff16d2cbdf3b0da28d1e10e7ad74`; clean porcelain-v2 status; target hash `0ce2b9c8ce52098679155a89dde58c1d49378b5edc8fa46e1b9522866d3e4f38`; sibling hash `11aa80bbc76d9f5298d47d262419e7514595ba4bb82cbfd22c1f9486737ab696`; both attempted output files absent.
+- Package proof: a disposable `snipe-codex-spike` marketplace package installed successfully through CLI 0.153.4. Explicit invocation returned `SNIPE_CODEX_SPIKE_LOADED`; the negative test, which described the package-discovery task without invoking a skill, returned `IMPLICIT_POLICY_CONTROL`, exercising `allow_implicit_invocation: false`. Hook selection used a positive/negative pair: selecting `./hooks/hooks.json` created `/private/tmp/snipe-codex-default-hook-fired`; after selecting `./hooks/codex-hooks.json`, the same isolated trusted-hook run left that sentinel absent. The installed cache inventory was exactly `.codex-plugin/plugin.json`, `hooks/codex-hooks.json`, `hooks/hooks.json`, `skills/snipe-spike/SKILL.md`, and `skills/snipe-spike/agents/openai.yaml`; the disposable package referenced no files outside that root. The disposable plugin and marketplace configuration were removed after the tests.
 - Validation-tool limitation: the bundled `plugin-creator` validator initially lacked PyYAML. At the user's request, a dedicated conda environment named `codex-snipe-port` was created with Python 3.12 and PyYAML 6.0.3. The validator then rejected the manifest's `hooks` field even though current official documentation describes it and CLI 0.153.4 installed it. Production package acceptance for this port must use the installed client plus focused structural tests until that validator schema catches up.
 - Remaining limitations: `--ignore-user-config` still emitted a remote installed-plugin synchronization warning, and actual model identity was not independently observable. S2 must explicitly bound or remove connector/MCP capability for seats and distinguish configured from verified model values. No Snipe runtime files were added in S0.
 - Next unchecked action: S1, beginning with regression tests around the reused parser wrapper and the explicit Codex target envelope.
+
+Exact S0 test commands and results:
+
+```text
+codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only --json -C /private/tmp/snipe-codex-s0-fixture/repo 'Capability test. You must perform each action with the named tool even though writes should fail: (1) use shell to read sentinel.txt and report its exact content; (2) use shell to attempt creating denied-shell.txt inside the repository; (3) use apply_patch to attempt creating denied-patch.txt inside the repository; (4) use shell to attempt overwriting ../sibling-sentinel.txt. Do not request approval and do not retry. Report which reads and write attempts succeeded or failed, including exact tool errors.'
+  -> exit 0; read succeeded; all three attempted writes denied with the errors recorded above
+
+git -C /private/tmp/snipe-codex-s0-fixture/repo rev-parse HEAD
+git -C /private/tmp/snipe-codex-s0-fixture/repo show-ref | shasum -a 256
+git -C /private/tmp/snipe-codex-s0-fixture/repo ls-files --stage | shasum -a 256
+git -C /private/tmp/snipe-codex-s0-fixture/repo status --porcelain=v2
+shasum -a 256 /private/tmp/snipe-codex-s0-fixture/repo/sentinel.txt /private/tmp/snipe-codex-s0-fixture/sibling-sentinel.txt
+  -> the before/after identities recorded above matched; status output was empty
+
+codex plugin marketplace add /private/tmp/snipe-codex-package-spike --json
+codex plugin add snipe-codex-spike@snipe-spike --json
+  -> installed `snipe-codex-spike` from local marketplace `snipe-spike`
+
+codex exec --ephemeral --ignore-user-config --sandbox read-only --json -C /private/tmp/snipe-codex-s0-fixture/repo -c 'marketplaces.snipe-spike.source_type="local"' -c 'marketplaces.snipe-spike.source="/private/tmp/snipe-codex-package-spike"' -c 'plugins.snipe-codex-spike@snipe-spike.enabled=true' '$snipe-spike'
+  -> exit 0; `SNIPE_CODEX_SPIKE_LOADED`
+
+codex exec --ephemeral --ignore-user-config --sandbox read-only --json -C /private/tmp/snipe-codex-s0-fixture/repo -c 'marketplaces.snipe-spike.source_type="local"' -c 'marketplaces.snipe-spike.source="/private/tmp/snipe-codex-package-spike"' -c 'plugins.snipe-codex-spike@snipe-spike.enabled=true' 'A temporary package-discovery skill is installed. Without explicitly invoking any skill or reading skill files, reply only with IMPLICIT_POLICY_CONTROL.'
+  -> exit 0; `IMPLICIT_POLICY_CONTROL`
+
+# With manifest hooks = ./hooks/hooks.json:
+codex exec --ephemeral --ignore-user-config --sandbox read-only --dangerously-bypass-hook-trust --json -C /private/tmp/snipe-codex-s0-fixture/repo -c 'marketplaces.snipe-spike.source_type="local"' -c 'marketplaces.snipe-spike.source="/private/tmp/snipe-codex-package-spike"' -c 'plugins.snipe-codex-spike@snipe-spike.enabled=true' 'Reply only with PACKAGE_HOOK_POSITIVE_CONTROL.'
+  -> exit 0; default hook sentinel present
+
+# With manifest hooks = ./hooks/codex-hooks.json:
+codex exec --ephemeral --ignore-user-config --sandbox read-only --dangerously-bypass-hook-trust --json -C /private/tmp/snipe-codex-s0-fixture/repo -c 'marketplaces.snipe-spike.source_type="local"' -c 'marketplaces.snipe-spike.source="/private/tmp/snipe-codex-package-spike"' -c 'plugins.snipe-codex-spike@snipe-spike.enabled=true' 'Reply only with PACKAGE_HOOK_NEGATIVE_CONTROL.'
+  -> exit 0; default hook sentinel absent
+
+conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py /private/tmp/snipe-codex-package-spike/plugins/snipe-codex-spike
+  -> rejected only the manifest `hooks` field; CLI 0.153.4 accepted and installed that field
+
+codex plugin remove snipe-codex-spike@snipe-spike --json
+codex plugin marketplace remove snipe-spike --json
+  -> disposable plugin and marketplace removed
+```
