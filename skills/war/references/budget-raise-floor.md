@@ -43,6 +43,10 @@ Card step 3 (the final-failed-CAS-attempt reland discrimination) stays on the ca
 
 The gate command you receive is a **resolved, self-discovering string** — composed by the engine's **gate composition point** (the Workflow normalizes `plan.gate` through `resolveGate` at entry, idempotently, so a missed Lead pre-resolution can no longer hand you a shell-blind gate); the Lead's Setup `war-config.mjs --resolve-gate` pre-resolution is the belt. It runs the declared node/pytest/etc. suite **and** discovers + runs every `*.test.sh` in the repo via a `find`-based loop. Run it **verbatim** (do not abbreviate or re-compose it) for every merge-task, land-phase, and release check. Any non-zero exit ⇒ `gate_failed` (then classify per [gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-failure-classification.md)) — this covers all runners, including bash suites added by intra-phase merges. **Narrow baseline carve-out:** you may PROCEED past a red gate ONLY on a **baseline-proceed** re-merge/re-land the Workflow explicitly dispatches, ONLY over the **same** classified pre-existing `baseline` failures it names, and ONLY with the debt recorded (a `source:'auto'` backstop) — a NEW failure outside that named set is a real regression, so return `gate_failed`; an `introduced` red never merges. Never skip the gate; never delete or weaken tests to make it pass.
 
+The card's own condensed contract sentences, evicted byte-identical (engine-and-audit-verdict-integrity Task 1.1, #2115):
+
+> Run it **verbatim** for every merge-task, land-phase, and release check; any non-zero exit ⇒ `gate_failed`, then classify per [gate-failure-classification.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/gate-failure-classification.md). The narrow **baseline carve-out** is stated under ## Never — an `introduced` red never merges; never skip the gate, never delete or weaken tests to make it pass.
+
 ## Evicted: § merge-task step 6 — the evicted floor-order block
 
 Evicted verbatim from `agents/war-refiner.md` merge-task step 6 (ADR 0042; the card keeps a trigger pointer):
