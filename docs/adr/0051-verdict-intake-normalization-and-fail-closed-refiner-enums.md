@@ -8,7 +8,7 @@ pins PIN-2/PIN-6/PIN-8/PIN-9/PIN-10; originating incidents: issues #1736, #1788,
 A WAR run let a dispatched agent's own words decide a task's fate. Three shapes of that trust
 composed. An auditor payload could carry `seats` and `merged` fields, and the follow-up collapse
 read them as if the engine had written them, so one seat could forge corroboration by a second
-(issue #1788 and the D8 collapse). A refiner could report `already_upstream` for a task whose own
+(issue #1788 and the follow-up collapse). A refiner could report `already_upstream` for a task whose own
 result fields said otherwise — `rebased_tip` equal to the dispatch base and a non-empty post-rebase
 patch-id — and the consumer recorded the task `merged` with nothing on the integration branch
 (issue #1973). A land dispatch could return with the `land_segment: 'incomplete'` marker on one of
@@ -79,7 +79,8 @@ sites route through `routedMr`, so the reason names the real cause instead of ri
 
 - **The engine never trusts a field about its own state.** A seat-supplied `seats`/`merged`
   (PIN-6), a refiner `already_upstream` whose fields contradict it (PIN-8), and a segmented-land
-  marker without its status pair (PIN-9) are refused at intake, each with a log line.
+  marker without its status pair (PIN-9) are refused when the engine reads the result — the
+  `seats`/`merged` strip and the `already_upstream` refusal each log.
 - **Refusal degrades to today.** A stripped field leaves the finding routable, a refused
   `already_upstream` falls to the mismatch re-audit, and an exhausted segment budget routes by its
   ridden status — the worst case is what the engine already did.
