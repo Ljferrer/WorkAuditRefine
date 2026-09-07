@@ -15317,9 +15317,9 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
 // FIX-ROUND DOCTRINE (#2097, engine-and-audit-verdict-integrity Task 1.4, D24/PIN-27) — the
 // `## The rules` section of skills/war/references/fix-round-doctrine.md is the canonical body; the
 // enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE
-// shared constant carrying it byte-equal. The batch ace ADVISORY POLISH (--ace) build and the
-// phase-close sweep polish build are deliberately excluded under the plan scope
-// (agents/war-worker.md's trigger pointer still reaches those workers). The first-pass worker prompt
+// shared constant carrying it byte-equal. The batch ace ADVISORY POLISH (--ace) build, the
+// phase-close sweep polish build and the TERMINAL PASS build are deliberately excluded under the
+// plan scope (agents/war-worker.md's trigger pointer still reaches those workers). The first-pass worker prompt
 // and the auditor prompts carry nothing.
 // Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
 // section while its siblings keep it) and a no-false-positive control (a reworded rule never
@@ -15362,7 +15362,18 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
   // carry none (the constant is interpolated at exactly the enumerated sites).
   const sites = (src.match(/\n[ ]*\+ FIX_ROUND_DOCTRINE_CLAUSE(?=\n)/g) || []).length
-  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the batch ace ADVISORY POLISH build and the phase-close sweep polish build are deliberately outside this set under the plan scope)')
+  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the batch ace ADVISORY POLISH build, the phase-close sweep polish build and the TERMINAL PASS build are deliberately outside this set under the plan scope)')
+  // Extraction-and-equality (rule 5 of the block): the FIX_ROUND_RULES literal itself equals the
+  // reference section, so an engine-side superset (an eleventh rule) is red — containment alone
+  // would pass it.
+  const rulesHead = 'const FIX_ROUND_RULES = pt`'
+  const rulesAt = src.indexOf(rulesHead)
+  assert.ok(rulesAt >= 0, 'FIX_ROUND_RULES template literal present in the template')
+  const rulesBody = src.slice(rulesAt + rulesHead.length)
+  const rulesEnd = rulesBody.indexOf('`\n')
+  assert.ok(rulesEnd >= 0, 'FIX_ROUND_RULES template literal closes')
+  const extracted = rulesBody.slice(0, rulesEnd).replace(/\\`/g, '`')
+  assert.equal(extracted.trim(), rules, 'FIX_ROUND_RULES equals the reference section (extraction-and-equality; a superset or a subset is red)')
   const reworded = rules.replace('Sibling sweep before commit', 'Sibling sweep after commit')
   assert.notEqual(reworded, rules, 'the reference-edit control rewords a rule')
   for (const b of FIX_APPLYING_BUILDS) {
