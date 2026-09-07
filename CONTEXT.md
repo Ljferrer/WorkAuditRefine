@@ -537,7 +537,7 @@ _Avoid_: reviewer instance; redundant/duplicate seats as a form of rigor.
 A **one-shot roster outside a run** (`/snipe`, #1920): 1–5 read-only auditor seats convened on demand
 against a diff — no plan, no phase, no refinery, no filing — verdicts reported in chat, informational
 only (Critical/Major labeled *would block in a phase*, gating nothing). Seats spawn at the config
-tier ladder `agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS), always `deep`.
+tier ladder `agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS, always `deep`.
 _Avoid_: treating a snipe verdict as a phase gate; snipe seats that write or file anything.
 
 **Lens**:

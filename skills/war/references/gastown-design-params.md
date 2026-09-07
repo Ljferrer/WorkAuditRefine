@@ -7,10 +7,10 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 |---|---|---|
 | Mayor | Lead | the main Claude Code session (your chat) |
 | Polecat | `war-worker` | `Agent` in a git worktree (model per `war-config.mjs` DEFAULTS) |
-| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent`: Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
-| Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` + Workflow control flow |
+| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (model per `war-config.mjs` DEFAULTS): Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
+| Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` (model per `war-config.mjs` DEFAULTS) + Workflow control flow |
 | Witness | (dissolved) | Workflow control flow + lifecycle hooks |
-| bd remember | war-servitor | write-scoped `Agent`; records per-phase learnings |
+| bd remember | war-servitor | write-scoped `Agent` (model per `war-config.mjs` DEFAULTS); records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
 - **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the 5-seat roster at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**

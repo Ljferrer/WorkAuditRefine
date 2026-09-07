@@ -337,10 +337,10 @@ Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (una
 | WAR | Gas Town | Built on |
 |---|---|---|
 | Lead (your chat) | Mayor | the main Claude Code session |
-| Worker | Polecat | `war-worker` — `Agent` in a git worktree |
-| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent`; file tools plus a fail-closed guard restricting Bash to read-only git |
+| Worker | Polecat | `war-worker` — `Agent` in a git worktree (model per `war-config.mjs` DEFAULTS) |
+| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (model per `war-config.mjs` DEFAULTS); file tools plus a fail-closed guard restricting Bash to read-only git |
 | Refinery (merge queue) | Refinery | `war-refiner` — `Agent` + the serial Workflow merge loop |
-| Servitor | `bd remember` | `war-servitor` — write-scoped `Agent`; records per-phase learnings to memory |
+| Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (model per `war-config.mjs` DEFAULTS); records per-phase learnings to memory |
 | -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
 
 See [`skills/war/references/design.md`](skills/war/references/design.md) for the full architecture.
