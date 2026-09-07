@@ -275,7 +275,7 @@ export function validate(input) {
   // run.maxParallel is optional with NO DEFAULTS.run entry: absence IS the default (unthrottled
   // fan-out, byte-identical to pre-knob behavior). An explicit null is unset too (the overrides.*
   // null-as-unset convention, #2088). When set it must be an integer >= 1.
-  if (c.run.maxParallel != null && (!Number.isInteger(c.run.maxParallel) || c.run.maxParallel < 1)) errors.push(`run.maxParallel must be an integer >= 1 when present (got ${JSON.stringify(c.run.maxParallel)})`)
+  if (c.run.maxParallel != null && (!Number.isInteger(c.run.maxParallel) || c.run.maxParallel < 1)) errors.push(`run.maxParallel must be an integer >= 1 when set (got ${JSON.stringify(c.run.maxParallel)})`)
   if (!Number.isInteger(c.run.redteamRoundLimit) || c.run.redteamRoundLimit < 1) errors.push(`run.redteamRoundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.redteamRoundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
   if (typeof c.run.ace !== 'boolean') errors.push('run.ace must be a boolean')
