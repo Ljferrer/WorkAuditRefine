@@ -41,6 +41,7 @@ ${JSON.stringify({
   findings: [],
   tests_verified: { exist: true, inspected: [] },
 }, null, 2)}
+Set tests_verified.exist to false when no tests exist; the example true value is not a requirement. Report only tests actually inspected and never invent test evidence to satisfy the schema.
 Verdict is approve, request_changes, or escalate; confidence is high, medium, or low. Each finding requires severity (Critical, Major, Minor, or Nit), title, and rationale; file, locator, line, suggested_fix, and plan_ref are optional. Minor/Nit additionally require disposition (absorb, follow-up, note, or ask). An ask requires {"question":"...","alternatives":"..."}. Optional widen is a distinct nonempty lens array and is report-only. Escalate requires escalate_reason. Omit optional fields that do not apply. An approve verdict cannot carry Critical/Major findings. Echo the exact seat, lens, and scope identity shown above.`
 }
 

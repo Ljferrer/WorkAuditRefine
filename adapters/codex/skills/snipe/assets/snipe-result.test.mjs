@@ -31,6 +31,11 @@ test('a valid committed verdict is pinned to the expected seat, lens, and revisi
   assert.deepEqual(validateSnipeVerdict(valid(), expected), valid())
 })
 
+test('absent tests remain absent rather than requiring schema repair to invent evidence', () => {
+  const result = valid({ tests_verified: { exist: false, inspected: [] } })
+  assert.deepEqual(validateSnipeVerdict(result, expected), result)
+})
+
 test('only documented WAR field aliases normalize into the versioned Snipe contract', () => {
   const result = validateSnipeVerdict({
     schema_version: 1,
@@ -106,7 +111,7 @@ test('wrong identity, malformed findings, and inconsistent approval are rejected
     [valid({ findings: [{ severity: 'Major', title: 'Unsafe', rationale: 'The write is allowed.' }] }), 'INCONSISTENT_VERDICT'],
     [valid({ findings: [{ severity: 'Minor', title: 'No route', rationale: 'Routing is absent.' }] }), 'INVALID_FINDING'],
     [valid({ verdict: 'escalate' }), 'INVALID_RESULT'],
-    [valid({ tests_verified: { exist: false, inspected: [] } }), 'INVALID_RESULT'],
+    [valid({ tests_verified: { exist: 'false', inspected: [] } }), 'INVALID_RESULT'],
     [valid({ widen: ['pin-validity'] }), 'INVALID_RESULT'],
     [{ ...valid(), invented: true }, 'UNKNOWN_FIELD'],
   ]
