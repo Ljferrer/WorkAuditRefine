@@ -519,6 +519,21 @@ can't own); a manual `git push` / `--force-with-lease` land that bypasses the gu
 **Dead-agent land failure**:
 when a land dispatch returns null or an unrecognized status, read skills/war/references/glossary-cold.md
 
+**Segmented land / segmented gate**:
+The tool-timeout survival shape for the two refiner dispatches whose gate can outrun a turn. A land
+dispatch forced to return mid-run reports the in-band `land_segment` marker on its error status, and
+a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never a
+new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each — `segmentedLand`
+on all three land sites (initial, environment-proceed, baseline-proceed) and `segmentedMerge` on every
+merge-task site — appends the clause, dispatches, and re-dispatches while the marker rides its
+contracted status pair, bounded by `run.roundLimit`; exhaustion routes by the ridden status. The pair
+is the read (PIN-9): a landed or merged result carrying a stray marker stands, and a marker-absent
+error is one dispatch that routes by its status (`held:land-failed` for a land). Both prompt layers
+instruct backgrounding the gate (`run_in_background`) and applying the **Gate-log stamp** read on
+re-dispatch.
+_Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read
+without its status pair; a new status enum member for the marker.
+
 ### Audit
 
 **Audit roster**:
@@ -617,19 +632,39 @@ The handoff End-state status for a claimed condition no seat attests — attesta
 channel (every gate-audit-family seat returns one `endStateAttestations` row per claimed condition:
 the condition verbatim, status `met` | `unmet` | `unverified`, evidence), so silence maps to
 `unverified`, never `met`. A missing, unreadable, or stale artifact (its stamped tip SHA mismatching
-the confirmed tip) also attests `unverified`. Whole-pass absence stays all-`deferred`; findings stay
-defect-only (attestation rides the rows, never a finding).
+the confirmed tip) also attests `unverified`, and so do the two record-only artifact states the
+land-barrier endstate-check dispatch stamps: `intake_lint:` (the check literal failed the intake lint,
+so the row was never executed) and `cmd_bytes_mismatch:` (the written `.cmd` failed the byte-for-byte
+verify, so the row was not executed as declared). Such an artifact is present, readable and
+tip-matched, yet its condition was never evaluated, so it is never `unmet` (#1781). Whole-pass absence
+stays all-`deferred`; findings stay defect-only (attestation rides the rows, never a finding).
 _Avoid_: reading silence as `met` (the failure mode the status exists to close); conflating it with
-`deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure).
+`deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure); attesting an
+`intake_lint:` or `cmd_bytes_mismatch:` artifact `unmet` because its exit line is not `0`.
 
 **Gate-evidence artifact**:
 The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.log`; the `execution-evidence`
-seat's source of per-mapped-test PASS evidence, replacing curated `gate_output` prose. Phase-ephemeral
+seat's source of per-mapped-test PASS evidence (inline `gate_output` is context only). Phase-ephemeral
 (last-write-wins across a task's up-to-four gate runs; destroyed by `_refinery` heal and phase teardown) —
 audit input, never a resume/adjudication record.
 _Avoid_: minting a HARD provably-unrun finding from a possibly-curated inline `gate_output` paste (the
 HARD determination is made only against the captured file); treating a missing artifact as a hold (missing
 ⇒ SOFT cannot-confirm).
+
+**Gate-log stamp**:
+The two lines every captured gate log carries — `tip_sha:` first and `exit_code:` last — written by
+the refiner after the gate exits, under `gateCaptureClause` on every merge-task site and the
+segmented-land clause on every land site (`GATE_LOG_STAMP` in `workflow-template.js`; the refiner
+card's merge-task step is its registry-bound standing twin). The stamp is what makes a partial or
+stale log decidable: on a segmented re-dispatch the refiner reads a log as *this* dispatch's result
+only when its first line is `tip_sha:` of the gated sha AND its last line is `exit_code:`, and
+otherwise reruns the gate from scratch after stopping any backgrounded job (`PARTIAL_LOG_RULE`); a
+seat applies the same two-sided read (`GATE_LOG_READ_RULE` — partial, unstamped or tip-mismatched ⇒
+SOFT cannot-confirm). When `gate_log_path` is unthreaded, the evidence dispatch and both seat prompts
+render the conventional `_refinery/.war/gate-<taskId>.log` path with the
+`(gate_log_path unthreaded — conventional path used)` marker, distinct from genuine absence.
+_Avoid_: reading a partial log as a partial result; a complete log from an earlier tip; a bare
+relative log path; treating the unthreaded marker as a missing artifact.
 
 **Pin-equality gate**:
 The Node-side check that a seat's returned `audit_sha` equals the SHA it was dispatched to judge; a
@@ -638,6 +673,20 @@ well-formed mismatch tags that seat's findings `pin-mismatch` and excludes them 
 _Avoid_: conflating the `pin-mismatch` findings tag with the `agent-unverified` *memory-provenance* tier
 ([ADR 0007](docs/adr/0007-memory-provenance.md)) — unrelated concepts; confusing it with `pin_status`
 (which classifies the `gateHeadSha`↔`observedHead` relationship — this checks seat-vs-dispatched-pin).
+
+**Intake normalization**:
+The engine-side pass every seat verdict crosses before any routing reads it — `normalizeFinding` in
+`workflow-template.js`, applied through `normalizeSeat` at every verdict-ingestion site (roster
+seats, the rebuttal-successor re-audit, ace re-audits, the three gate-audit-family seats, the
+endstate seat). It strips the attribution keys only the engine may stamp (a seat's own
+`seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
+`aceRelPath`, demotes an empty-content finding to a logged note, and folds a content hash into
+`remintKey` when file and title are both absent — so what `f.file` and `f.seats` mean downstream is
+what the engine set, never what a seat supplied. The auditor card's FINDING-PATH FORM sentence is
+advisory belt and braces; the invariant lives in the engine
+([ADR 0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
+_Avoid_: trusting a seat-supplied corroboration field; a per-site strip (one helper, every site);
+treating the prompt sentence as the guard.
 
 **Claim shape**:
 Which of the **four closed evidence categories** a claim under audit falls into — `content-at-pin`,
@@ -861,9 +910,8 @@ a spent budget routes the rows to the phase-close sweep as absorbs, logged and n
 `r.task.pendingAbsorbs` for the next approve, regardless of budget).
 Every ace-side commit carries the trailer `Ace-Charge: <task>:<n>` (n = the counter after the charge),
 and a relaunch seeds the counter from the highest trailer index on the task branch (the phase-start
-barrier's `absorbCharges`), 0 with a loud log on error or absence. Supersedes the retired reserve
-arithmetic on `fixRounds` (ADR 0013 amendment 2026-09-03); `fixRounds` counts blocking fix rounds and
-floor retries only.
+barrier's `absorbCharges`), 0 with a loud log on error or absence. `fixRounds` counts blocking fix
+rounds and floor retries only.
 _Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a charge; a second meter.
 
 **Exclusion set**:

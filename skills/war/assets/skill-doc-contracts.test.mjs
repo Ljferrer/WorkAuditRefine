@@ -3938,6 +3938,43 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
   }
 })
 
+// (unverified-triggers) CONTEXT.md's **`unverified`** (End-state status) entry restates two engine
+// literals it cannot de-mirror: the record-only artifact states the land-barrier endstate-check
+// dispatch stamps (`intake_lint:`, `cmd_bytes_mismatch:`), which the END-STATE CHECK seat block names
+// as `unverified` triggers (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2; D16,
+// PIN-20, #1781). The canonical set is extracted from the engine's endstate build region — the
+// ENDSTATE-CHECK DISPATCH build through the END-STATE CHECK seat block — as every backticked
+// `<snake_case>:` artifact line, minus the per-artifact frame every row carries (`tip_sha:` first,
+// `exit_code:` last — the gate-log stamp registry rows bind those). The glossary row is extracted by
+// construct (bolded term to the next bolded term or `###` heading), never by line (the
+// demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
+// workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
+test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
+  const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')
+  const end = workflowTemplateSrc.indexOf('if (mergedTasksForGateAudit.length > 0)')
+  assert.ok(start > 0 && end > start, 'could not locate the endstate build region (ENDSTATE-CHECK DISPATCH … END-STATE CHECK) in workflow-template.js — the extraction anchors rotted')
+  const region = workflowTemplateSrc.slice(start, end)
+  const FRAME = ['tip_sha', 'exit_code']
+  const stamps = [...new Set([...region.matchAll(/`([a-z][a-z_]*_[a-z_]+):/g)].map((m) => m[1]))]
+  for (const f of FRAME) {
+    assert.ok(stamps.includes(f), `the endstate build must stamp \`${f}:\` on every artifact — the frame anchor rotted`)
+  }
+  const canonical = stamps.filter((t) => !FRAME.includes(t)).sort()
+  assert.equal(canonical.length, 2, 'the endstate build must stamp exactly its two record-only artifact states (D16: intake_lint, cmd_bytes_mismatch)')
+  const entry = contextMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **`unverified`** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set([...e.matchAll(/`([a-z][a-z_]*_[a-z_]+):`/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(
+    named,
+    canonical,
+    'the CONTEXT.md **`unverified`** entry must name exactly the engine\'s record-only artifact states as `unverified` triggers — ' +
+      'update this glossary copy in the same commit as the endstate build (D16, PIN-20)',
+  )
+  assert.match(e, /never `unmet` \(#1781\)/, 'the **`unverified`** entry must state that a record-only artifact is never attested `unmet` (#1781)')
+})
+
 // (ace-off-route) THE RETIRED "with `--ace` off every absorb demotes this way" RESIDUAL-RULE WORDING
 // IS ABSENT FROM skills/war/SKILL.md (plan 2026-09-03-in-band-absorb-default, End state 12 · Task
 // 4.2; D14, PIN-16). Base-verified at this task's cut base: the `--ace` bullet's Residual rule read
