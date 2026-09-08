@@ -22,8 +22,19 @@ function fixture() {
   git(root, 'config', 'user.email', 'snipe-test@example.invalid')
   git(root, 'config', 'user.name', 'Snipe Test')
   git(root, 'remote', 'add', 'origin', 'https://github.com/example/project.git')
-  writeFileSync(join(root, 'seat.js'), 'export function seatCount(value) {\n  return Number(value)\n}\n')
-  git(root, 'add', 'seat.js')
+  writeFileSync(join(root, 'seat.js'), `export function seatCount(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 1
+}
+`)
+  writeFileSync(join(root, 'seat.test.js'), `import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { seatCount } from './seat.js'
+
+test('invalid input falls back to one seat', () => assert.equal(seatCount('invalid'), 1))
+`)
+  writeFileSync(join(root, 'package.json'), '{"type":"module"}\n')
+  git(root, 'add', 'seat.js', 'seat.test.js', 'package.json')
   git(root, 'commit', '-m', 'base')
   const base = git(root, 'rev-parse', 'HEAD')
   git(root, 'update-ref', 'refs/remotes/origin/main', base)
@@ -117,6 +128,10 @@ test('actual host runs one and two independent read-only Snipe seats without tar
   assert.deepEqual(two.seats.map(seat => seat.status), ['completed', 'completed'])
   assert.deepEqual(two.seats.map(seat => seat.lens), ['correctness', 'security'])
   assert.ok(two.seats.every(seat => typeof seat.response === 'string' && seat.response.length > 0))
+  assert.equal(two.seats[0].verdict.verdict, 'request_changes')
+  assert.ok(two.seats[0].verdict.findings.some(finding => (
+    /invalid|non-finite|NaN/i.test(`${finding.title} ${finding.rationale}`)
+  )))
   assert.deepEqual(snapshot(cwd), before)
 
   const wrapper = capabilityProbeWrapper()

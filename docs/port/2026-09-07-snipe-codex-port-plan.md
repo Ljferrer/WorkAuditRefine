@@ -188,12 +188,12 @@ The parent reports scope first, then per-seat outcomes, followed by severity-ran
 
 ### S4 — acceptance and regression
 
-- [ ] Run all focused cases below against the helper/transport boundary.
-- [ ] Run a real installed-host audit of a seeded bug through two independent lenses.
-- [ ] Run the actual-host denied-write check; refusal to attempt is not enough.
-- [ ] Run the 13 existing parser cases and applicable shared/config/package regressions if those files changed.
-- [ ] Validate installed package paths from a fresh cache/root with the development checkout unavailable.
-- [ ] Check `git diff --check`, commit only intended files, record results, push to PR #2152 and update its scope accurately.
+- [x] Run all focused cases below against the helper/transport boundary.
+- [x] Run a real installed-host audit of a seeded bug through two independent lenses.
+- [x] Run the actual-host denied-write check; refusal to attempt is not enough.
+- [x] Run the 13 existing parser cases and applicable shared/config/package regressions if those files changed.
+- [x] Validate installed package paths from a fresh cache/root with the development checkout unavailable.
+- [x] Check `git diff --check`, commit only intended files, record results, push the stacked S4 PR and update issue #2160 accurately.
 
 **Exit gate:** declare usable only for targets and host versions actually tested. Any deferred target support or enforcement limitation remains explicit.
 
@@ -241,7 +241,7 @@ No new GitHub Actions workflows or branch protections are needed for the first s
 | Explicit target envelope | `rawArgs` contains only legacy seats/lenses. `target` is a structured object: omitted/`default`, `ref`, explicit two-dot `range`, `merge-base`, or full GitHub `pr` URL with a trusted base ref/SHA. `paths` is a separate literal string array. Locally unavailable PR objects are refused without fetching. | Focused tests cover legacy ambiguity, two-dot versus merge-base semantics, non-default PR bases, matching/lookalike origins, missing objects, spaces, quotes, shell metacharacters and Git pathspec magic. |
 | Dirty-state strategy | Default dirty scope is advisory and hashes pinned HEAD plus complete staged/unstaged binary diffs and relevant untracked file contents. Recompute after review; a changed hash is unstable. Explicit committed targets ignore unrelated working-tree changes. Gitlink changes disclose exact pointers and local availability; uncommitted nested-submodule content is explicitly uncaptured and can never produce a stable result. | Focused tests cover staged, unstaged and untracked material, stable recomputation, a mid-run edit, committed scope in a dirty checkout, and committed/staged/unstaged/uncommitted-nested submodule states. |
 | Result field compatibility | Versioned Snipe result v1 uses numeric `seat`, exact `lens`, a committed or dirty `scope` identity, verdict/confidence, normalized findings, `tests_verified`, and optional `widen`/`escalate_reason`. Supported WAR aliases are `seat-N`, top-level `audit_sha`, `evidence`→`rationale`, `fix`→`suggested_fix`, `tests_inspected`→`tests_verified`, and `ask.fork`→`ask.alternatives`; ambiguous or unknown fields are rejected. | Result tests cover canonical/alias-positive cases, wrong identity, malformed/incomplete JSON, malformed findings, reserved widening, false anti-cheat attestation and inconsistent approval. |
-| Package layout and hooks | Use a Codex manifest with an explicit no-op hook file when the adapter needs no hooks; do not permit default discovery of Claude's `hooks/hooks.json`. | CLI 0.153.4 installed a disposable package containing both `hooks/hooks.json` and an explicit `hooks/codex-hooks.json`; with hook trust enabled only for that isolated package, the default-hook sentinel did not run. The cached package contained every referenced skill, policy and hook file. |
+| Package layout and hooks | Build a Snipe-only Codex package with the standard `skills` component, the exact shared runtime dependency closure, and no hook component or hook files. This supersedes the S0 no-op-hook proposal: the current official validator rejects a `hooks` manifest field, while a package that contains no hooks cannot discover Claude's default `hooks/hooks.json`. | Structural tests enforce an exact ten-file inventory, reject missing/wrong components, import the standalone runtime, and assert no manifest hook field or hook path. The official plugin validator and CLI 0.153.4 both accepted the package; the installed cache had the same exact inventory. |
 
 State when this plan was authored: this plan only; the earlier source check passed all 13 existing snipe parser tests. No live Codex snipe audit or denied-write acceptance had run. No runtime implementation, test infrastructure, model configuration, or installed plugin files were changed at that time.
 
@@ -318,6 +318,48 @@ Exact S1 test commands and results:
 ```text
 node --test adapters/codex/skills/snipe/assets/snipe-request.test.mjs skills/snipe/assets/snipe-args.test.mjs
   -> 25 passed, 0 failed (12 Codex request/scope cases plus all 13 existing parser cases)
+
+git diff --check
+  -> clean
+```
+
+### 2026-09-07 — S4 acceptance and regression
+
+- Implementation commit: `f106634` on delivery branch `codex/snipe-port-s4` (helper-worktree equivalent `f025dfd`). Completed checklist items: all six S4 items. Added the standalone Codex package builder and its positive/negative tests, strengthened the actual-host fixture with a seeded invalid-input regression, and added a disposable S-A09 revision-guard mutant.
+- Focused matrix: 53 deterministic tests passed. S-A01–S-A08 and S-A10–S-A15 remain covered by the request, runner and structure suites; S-A09 now includes a mutant that removes the revision comparison and proves the bad SHA would be accepted without the guard; S-A16 verifies the exact package inventory, wrong skill path, missing shared module, standalone import, absence of repository-root strings, and fail-before-write behavior for a missing source component. All 13 unchanged shared parser cases passed in the same command.
+- Installed-host evidence: Codex CLI `0.153.4` on macOS, configured as `gpt-5.6-sol`/`medium`, completed the non-skipped acceptance in 168.9 seconds. The correctness lens returned `request_changes` and identified the seeded invalid/non-finite input regression; correctness and security were separate completed seats. The capability probe made a real repository write attempt, produced `codex_sandboxing::violation`/`operation_not_permitted`, observed no connector or approval surface, created no file, and left HEAD, refs, index, status and fixture bytes unchanged. The model/effort pair is the exact configured child profile; the host did not independently disclose model identity.
+- Package evidence: `package-snipe.mjs` builds only `.codex-plugin/plugin.json`, the Codex Snipe skill, and the three-file shared dependency closure needed by the runtime. It rewrites only the two known development-tree import specifiers into package-local paths, then rejects any missing or extra component. The dedicated `codex-snipe-port` conda environment (`Python 3.12.13`, PyYAML `6.0.3`) passed the official plugin validator; both the source and built skill passed `quick_validate.py`.
+- Fresh-cache evidence: CLI 0.153.4 installed `work-audit-refine-snipe@snipe-s4-acceptance` at a new cache path. After the local marketplace source became unavailable, a direct import from that cache succeeded. From an unrelated fresh Git repository, with the older WAR plugin disabled, Codex read the exact cached S4 `skills/snipe/SKILL.md` and returned `SNIPE_PACKAGE_LOADED`. The cached inventory exactly matched the ten expected files and contained no hooks. The disposable plugin, marketplace registration and empty cache directory were removed afterward.
+- Hook decision variance: S0 proved CLI support for explicit hook selection, but the current plugin-creator validator rejects `hooks`. S4 therefore does not ship a dummy/no-op hook and does not include any hook path at all. This is both validator-compatible and prevents the Codex package from containing or default-discovering Claude's `hooks/hooks.json`.
+- Review: parallel Standards and Spec reviews finished clean after two corrections: package builds now preflight every source so failures leave no partial artifact, and S-A09 has an independent disposable mutation proof. The Spec review accepted the no-hook variance given the validator/client evidence and required this execution record to preserve it.
+- Delivery: PR #2166 (`codex/snipe-port-s4` → `codex/snipe-port-s3`) is the fourth link in the requested Snipe stack. S4 completion evidence is posted on WAR issue #2160 at `issuecomment-5577617027`.
+- Tested support: this port is usable for clean default-branch, explicit ref, exact two-dot range, explicit merge-base, locally prepared GitHub PR, literal path-filter, and dirty advisory scopes on the tested Codex CLI `0.153.4` host with Node `v24.17.0`. Unsupported profiles and unavailable PR objects fail closed. Publication, automatic installation, CI migration, non-GitHub PR hosts, and automatic PR-object fetching remain out of scope. If the legacy WAR plugin is simultaneously enabled in Codex, its older skill with the same `snipe` name can win resolution; the acceptance disabled that plugin, so co-installation requires removing/disabling the legacy registration or a later unified package migration.
+- Next unchecked action: none. S0–S4 are complete; landing the existing PR stack remains an operator review/merge action.
+
+Exact S4 test commands and results:
+
+```text
+node --test skills/snipe/assets/snipe-args.test.mjs adapters/codex/package-snipe.test.mjs adapters/codex/skills/snipe/snipe-structure.test.mjs adapters/codex/skills/snipe/assets/snipe-request.test.mjs adapters/codex/skills/snipe/assets/snipe-runner.test.mjs adapters/codex/skills/snipe/assets/snipe-result.test.mjs
+  -> 53 passed, 0 failed (including all 13 shared parser cases)
+
+SNIPE_CODEX_BIN=/Applications/ChatGPT.app/Contents/Resources/codex SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium node --test adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs
+  -> 1 passed, 0 failed in 168.9 seconds; the case was not skipped
+
+node adapters/codex/package-snipe.mjs /private/tmp/snipe-s4-final.XqZwbn/plugin
+conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py /private/tmp/snipe-s4-final.XqZwbn/plugin
+conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/skill-creator/scripts/quick_validate.py adapters/codex/skills/snipe
+conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/skill-creator/scripts/quick_validate.py /private/tmp/snipe-s4-final.XqZwbn/plugin/skills/snipe
+  -> exact ten-file package built; plugin validation passed; source and packaged skill validation passed
+
+codex plugin marketplace add /private/tmp/snipe-s4-package.Z0W86O/marketplace --json
+codex plugin add work-audit-refine-snipe@snipe-s4-acceptance --json
+node --input-type=module --eval 'await import("file:///Users/ljf/.codex/plugins/cache/snipe-s4-acceptance/work-audit-refine-snipe/0.21.12/skills/snipe/assets/snipe-runner.mjs")'
+codex exec --ephemeral --sandbox read-only --json -C /private/tmp/snipe-s4-host-fixture -c 'approval_policy="never"' -c 'plugins.work-audit-refine@work-audit-refine.enabled=false' -c 'plugins.work-audit-refine-snipe@snipe-s4-acceptance.enabled=true' '<package-loading probe>'
+  -> new cache install succeeded; source marketplace unavailable before import/invocation; cached runtime imported; cached S4 SKILL.md read; `SNIPE_PACKAGE_LOADED`
+
+codex plugin remove work-audit-refine-snipe@snipe-s4-acceptance --json
+codex plugin marketplace remove snipe-s4-acceptance --json
+  -> disposable installation, registration and empty cache directory removed
 
 git diff --check
   -> clean
