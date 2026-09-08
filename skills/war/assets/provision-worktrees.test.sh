@@ -2800,8 +2800,9 @@ expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clea
 #
 # ensure-publication-worktree <path> <working-branch> structurally mirrors
 # ensure-refinery-worktree's (a)-(f) with the WORKING branch in place of the
-# integration branch, less three landed divergences (the script header carries
-# the full set): behavior (b), where the publication verb also refuses a DIRTY
+# integration branch, less two landed divergences (the reuse hygiene arm and the
+# dirty-reuse refusal; the script header carries the full set, plus one closed
+# under #2087): behavior (b), where the publication verb also refuses a DIRTY
 # reuse (#1083, case P.8) while the refinery verb still reuses unconditionally
 # on-branch; reuse arms (b) and (c), where the refinery verb runs the
 # reuse_hygiene submodule arm and emits its WORKTREE_HYGIENE markers (#1476
