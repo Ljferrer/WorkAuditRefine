@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { DEFAULTS } from './war-config.mjs'
 
 // Doc-contract drift guards (plan: drift-guards-for-mirrored-and-asserted-facts, Task 1.4).
 // Root is resolved from import.meta.url — NEVER process.cwd() (subagent cwd is the main repo;
@@ -4353,4 +4354,19 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   assert.match(norm(decisions), /rebuttal first, then fix round when a `suggested_fix` survives/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
   assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
   assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
+})
+
+// (D17 sibling, Task 11.2 a6 re-entry) design.md §4 step 3 is the sole prose home of the default
+// roster's enumerated lens list since the ADR 0042 eviction off skills/war/SKILL.md. war-config.mjs's
+// header rule: every prose surface restating a DEFAULTS value carries a pin row. This row binds the
+// parenthesized list to `DEFAULTS.audit.roster` so a default-roster flip reds the doc
+// (default-flip-must-audit-all-doc-surfaces).
+test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbatim (five lenses at deep)', () => {
+  const m = designRefMd.match(/The default roster is five seats \(([^)]+)\) at `deep`/)
+  assert.ok(m, 'could not locate `The default roster is five seats (...) at `deep`` in design.md §4 step 3 — construct rotted')
+  const doc = m[1].split(' / ').map((l) => l.trim())
+  const cfg = DEFAULTS.audit.roster
+  assert.deepEqual(doc, cfg.map((r) => r.lens), 'design.md §4 step 3\'s lens list must equal DEFAULTS.audit.roster in order (war-config.mjs)')
+  assert.equal(cfg.length, 5, 'design.md says `five seats` — DEFAULTS.audit.roster must carry five entries')
+  assert.ok(cfg.every((r) => r.depth === 'deep'), 'design.md says `at `deep`` — every DEFAULTS.audit.roster entry must be depth `deep`')
 })
