@@ -114,3 +114,27 @@ authority boundaries and passes the skill validator. Fifteen cleanup mutations
 now fail behavioral assertions, including generic-message and stale-root changes.
 The focused cleanup/disposal/mutation tests pass; no production behavior changed
 in this checkpoint. Full baseline diagnosis remains open for the request fixture.
+
+## T4 initial preparation
+
+- Added an inert workflow under `scripts/ci`, never `.github/workflows`; its
+  unprivileged Linux/macOS matrix runs the existing complete collector and
+  uploads diagnostics even on failure. `WAR CI` always checks the explicit
+  mandatory job and both platform reports. No ruleset or campaign changes.
+- The final gate checks revision, clean stable snapshots, environment, reviewed
+  census, suite outcomes/counts, named skips and regular diagnostic files.
+  Entirely opt-in host suites remain allowed skips, not runtime certification.
+  A regression exposed the initial draft incorrectly requiring a passing case
+  in an entirely skipped live suite; the corrected policy has a positive mirror.
+  An unknown skip with absent reason cannot compare equal to an absent policy.
+- Eight focused tests pass, including malformed/missing/failed evidence, the real
+  CLI exit status, independent Claude entry inventory and parsed YAML wiring.
+  Five disposable production guard removals fail behavioral assertions; seven
+  altered workflow variants are rejected. Actionlint 1.7.12 passes the template.
+  The package policy reuses the existing standalone Codex package test rather
+  than adding another builder. Hosted execution and T5–T8 remain unproven.
+- Environment correction: `conda run` inherited a host PATH placing system Python
+  before the dedicated environment. A PyYAML install inadvertently targeted user
+  Python 3.9; that newly installed package was uninstalled and its absence checked.
+  The dedicated environment already contained PyYAML. Tests now explicitly put
+  its bin directory first; no base-environment package was changed.

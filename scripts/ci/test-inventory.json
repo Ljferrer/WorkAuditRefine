@@ -18,6 +18,7 @@
   "hooks/validate-servitor-provenance.test.sh",
   "hooks/validate-worktree-scope.test.sh",
   "hooks/warn-bash-write-scope.test.sh",
+  "scripts/ci/check-war-ci.test.mjs",
   "scripts/ci/collect.test.mjs",
   "skills/_shared/doc-cli-consistency.test.mjs",
   "skills/_shared/gh-preflight.test.sh",
