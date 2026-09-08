@@ -1,6 +1,7 @@
 [
   "adapters/codex/package-planning.test.mjs",
   "adapters/codex/package-snipe.test.mjs",
+  "adapters/codex/planning-contract.test.mjs",
   "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
   "adapters/codex/skills/snipe/assets/snipe-files.test.mjs",
   "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",

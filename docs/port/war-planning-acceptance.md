@@ -91,7 +91,21 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   Only background ADR citations relocate to canonical source URLs (reviewed census);
   no operative Markdown rewrite occurs at build time. Help remains P5 and concrete
   verifier integration P4; this checkpoint does not claim installed acceptance.
-- P3–P6: not complete.
+- P3 in progress: an independent specimen exercises real footprint, intent,
+  assumptions, backstop and pin extraction. Removing the ledger, done-when or pin
+  citation is detected by the canonical advisory checks. The initial specimen used
+  plain labels and a pin in the Decision cell; current parser coverage is narrower
+  than those readable forms. The specimen and Codex authoring guidance now use
+  the maintained examples' bold labels and Source-cell/arrow pin definitions.
+  No engine/parser behavior was changed or broader format compatibility claimed.
+  Six combined package/contract tests pass. Behavioral confirmation, source-data
+  handling and memory side-effect cases still need independent evaluation.
+- P4–P6: not complete. Operator approved up to eight Sol/medium disposable-repo
+  behavioral scenarios, each bounded to ten minutes and at most one diagnostic
+  rerun. This is separate from Snipe audit accounting and does not authorize
+  normal-plugin installation.
+- Audit 1: P2 scope `3535a45..3f775f2`, three Sol/medium seats launched; results
+  pending. P3 changes are outside that pinned scope and require their own checkpoint.
 - Audit budget: at most two cycles per code-bearing phase, twelve total; the
   operator's conditional final extra cycle is not pre-spent. Each panel uses three
   Sol/medium seats. Log exact scope, verdicts, failure class, repair, red/green proof,
