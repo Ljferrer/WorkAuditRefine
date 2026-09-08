@@ -14,6 +14,7 @@ function gitEnvironment() {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_NO_LAZY_FETCH: '1', GIT_NO_REPLACE_OBJECTS: '1', GIT_TERMINAL_PROMPT: '0',
+    GIT_ALLOW_PROTOCOL: '',
     GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oPermitLocalCommand=no',
   }
 }
@@ -49,9 +50,9 @@ export function localCommitAvailable(repository, object) {
   } catch { return false }
 }
 
-async function git(cwd, args, { input, signal } = {}) {
+async function git(cwd, args, { input, signal, allowFetch = false } = {}) {
   const pending = exec('git', [...gitOptions, ...args], {
-    cwd, env: gitEnvironment(), encoding: 'buffer', timeout: 30000,
+    cwd, env: { ...gitEnvironment(), ...(allowFetch ? { GIT_ALLOW_PROTOCOL: 'https:ssh:http' } : {}) }, encoding: 'buffer', timeout: 30000,
     maxBuffer: 64 * 1024 * 1024, signal, detached: process.platform !== 'win32',
   })
   const stop = () => {
@@ -189,7 +190,7 @@ export async function prepareSnipeSubmodules(scope, { remotes = {}, signal } = {
               const recorded = await moduleRemote(repository, revisions[index], relativePath, signal)
               if (remoteIdentity(recorded, parentRemote).identity !== approved.identity) throw new Error('approved remote does not match pinned .gitmodules provenance')
             }
-            await git(destination, ['-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', 'protocol.http.allow=always', '-c', 'http.followRedirects=false', 'fetch', '--depth=1', '--no-tags', '--no-recurse-submodules', '--no-write-fetch-head', approved.url, sha], { signal })
+            await git(destination, ['-c', 'http.followRedirects=false', 'fetch', '--depth=1', '--no-tags', '--no-recurse-submodules', '--no-write-fetch-head', approved.url, sha], { signal, allowFetch: true })
             // Require the exact commit and its tree/blob closure, not just a successful fetch.
             await copyCommit(destination, destination, sha, signal)
           }

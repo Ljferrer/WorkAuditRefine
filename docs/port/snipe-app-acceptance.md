@@ -55,6 +55,10 @@ Repeatable checks:
 
 The standalone package now includes the preparation module and conditional submodule reference (twelve files). Installation remains a post-review release step; these checks do not update the live plugin.
 
+Actual-host evidence on bundled CLI `0.153.4`, Git `2.50.1`, `gpt-5.6-sol` / `medium`: the prepared-submodule test passed with a `request_changes` finding attributed to `vendor/engine/seat.js`, unchanged parent and nested checkout snapshots, and disposed review objects. An earlier attempt prepared coverage successfully but returned an invalid auditor schema after its one repair; it correctly reported an incomplete panel. The repeat used the same runtime implementation, with failure diagnostics added to the test. This is not a claim that intermittent host result-generation failures are resolved.
+
+Independent review found no blocking standards/spec violations. The local-reuse scope is conservative: it checks initialized submodule repositories and the parent object store, not detached/deinitialized `.git/modules` stores. Such a checkout may still need an approved remote fetch even if another local store contains the objects.
+
 ### Coordinator launch and dirty scope
 
 1. In a disposable Git repository, commit a `normalizedScore(value, maximum)` helper that rejects non-finite operands with `Number.isFinite`. Configure `origin/HEAD` to that baseline. Remove only the validation in the working tree; leave ratio clamping. Include no tests so absent-test reporting is exercised.
