@@ -132,6 +132,63 @@ test('coordinator prepares pinned submodules before seats and disposes their rev
   assert.equal(existsSync(failed.request.scope.submodules[0].reviewRepository), false)
 })
 
+test('unknown worker failure retains prepared objects until the operator can inspect them', async t => {
+  const cwd=fixture(), pin=git(cwd,'rev-parse','HEAD')
+  git(cwd,'update-index','--add','--cacheinfo','160000',pin,'vendor/utils');git(cwd,'commit','-m','gitlink')
+  const codexPath=fakeCodex('process.exit(0)')
+  t.after(()=>{rmSync(cwd,{recursive:true,force:true});rmSync(join(codexPath,'..'),{recursive:true,force:true})})
+  const signal=new AbortController().signal
+  signal.addEventListener=()=>{throw new Error('injected worker setup failure')}
+  let retainedRoot
+  try {
+    await assert.rejects(runSnipePanel({cwd,target:{type:'ref',ref:pin},inheritedProfile,supportedProfiles},{codexPath,signal,timeoutMs:100}),error=>{
+      retainedRoot=error.retainedRoot;assert.equal(typeof retainedRoot,'string')
+      assert.ok(git(join(retainedRoot,'0'),'show',`${pin}:review.txt`).includes('change'))
+      assert.match(error.message,/injected worker setup failure.*operator cleanup required/)
+      return true
+    })
+  } finally {if(retainedRoot)rmSync(retainedRoot,{recursive:true,force:true})}
+})
+
+test('uncertain auditor cleanup retains prepared gitlinks and reports operator cleanup', async t => {
+  const cwd=fixture(), root=mkdtempSync(join(tmpdir(),'snipe-retain-seat-')), marker=join(root,'pid')
+  const pin=git(cwd,'rev-parse','HEAD')
+  git(cwd,'update-index','--add','--cacheinfo','160000',pin,'vendor/utils');git(cwd,'commit','-m','gitlink')
+  t.after(()=>{rmSync(cwd,{recursive:true,force:true});rmSync(root,{recursive:true,force:true})})
+  for(const fault of ['denied','missing-close']) {
+    const codexPath=fakeCodex(validVerdictSource('',`
+      if(seat===1){
+        const {spawn}=await import('node:child_process');const {writeFileSync}=await import('node:fs');
+        writeFileSync(${JSON.stringify(marker)},String(process.pid));
+        spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'}).unref();
+      }
+    `))
+    const original=process.kill;let panel
+    process.kill=(pid,signal)=>{
+      if(existsSync(marker) && pid===-Number(readFileSync(marker,'utf8'))){
+        if(fault==='denied')throw Object.assign(new Error('injected seat denial'),{code:'EPERM'})
+        return true
+      }
+      return original(pid,signal)
+    }
+    try {
+      panel=await runSnipePanel({cwd,target:{type:'ref',ref:pin},rawArgs:'correctness,security',inheritedProfile,supportedProfiles},{codexPath})
+      assert.equal(panel.complete,false);assert.equal(panel.seats[1].validation.status,'valid')
+      const repository=panel.request.scope.submodules[0].reviewRepository
+      assert.equal(existsSync(repository),true,'uncertain readers must retain their object store')
+      assert.equal(join(panel.retainedRoot,'0'),repository)
+      assert.ok(git(repository,'show',`${pin}:review.txt`).includes('change'))
+      assert.ok(panel.report.includes(panel.retainedRoot));assert.match(panel.report,/operator cleanup required/)
+      assert.doesNotMatch(panel.report,/stores are discarded/)
+    } finally {
+      process.kill=original
+      if(existsSync(marker))try{original(-Number(readFileSync(marker,'utf8')),'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+      if(panel?.retainedRoot)rmSync(panel.retainedRoot,{recursive:true,force:true})
+      rmSync(marker,{force:true});rmSync(join(codexPath,'..'),{recursive:true,force:true})
+    }
+  }
+})
+
 function catalogCodex() {
   return fakeCodex(`
     if (process.argv[2] === 'app-server') {
@@ -205,7 +262,7 @@ test('catalog errors, malformed output, early exit and timeout fail visibly', as
   }
 })
 
-test('cleanup failures are bounded, preserve causes and peers, and never become successful audits', {timeout:45000}, t => {
+test('cleanup failures are bounded, preserve causes and peers, and never become successful audits', {timeout:90000}, t => {
   const cwd=fixture()
   t.after(()=>rmSync(cwd,{recursive:true,force:true}))
   for(const surface of ['catalog','seat']) for(const fault of ['denied','missing-close']) for(const mode of ['success','timeout','output','cancel','exit']) {
@@ -231,13 +288,13 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
       };
       const controller=new AbortController();
       const cancel=setInterval(()=>{if(${JSON.stringify(mode)}==='cancel' && existsSync(marker))controller.abort()},10);
-      const options={codexPath:${JSON.stringify(codexPath)},timeoutMs:700,signal:controller.signal,capacity:2,maxOutputBytes:4096};
+      const options={codexPath:${JSON.stringify(codexPath)},timeoutMs:3000,signal:controller.signal,capacity:2,maxOutputBytes:4096};
       try{
         let state;
         if(${JSON.stringify(surface)}==='catalog'){
           try{await listSupportedProfiles(options);assert.fail('catalog cleanup cannot succeed')}catch(error){
             assert.equal(error.code,'PROFILE_DISCOVERY_FAILED');state=error;
-            assert.ok(error.message.includes(${JSON.stringify({success:'cleanup failed',timeout:'timed out',output:'output exceeded limit',cancel:'cancelled',exit:'exited before returning a catalog'}[mode])}),'original discovery reason retained');
+            assert.ok(error.message.includes(${JSON.stringify({success:'cleanup failed',timeout:'timed out',output:'output exceeded limit',cancel:'cancelled',exit:'exited before returning a catalog'}[mode])}),'original discovery reason retained: '+error.message);
           }
         }else{
           const panel=await runSnipePanel({cwd:${JSON.stringify(cwd)},rawArgs:'correctness,security',inheritedProfile:${JSON.stringify(inheritedProfile)},supportedProfiles:${JSON.stringify(supportedProfiles)}},options);
@@ -256,7 +313,7 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
       }finally{clearInterval(cancel);process.kill=original}
     `
     try {
-      const result=spawnSync(process.execPath,['--input-type=module','--eval',script],{encoding:'utf8',timeout:3500,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+      const result=spawnSync(process.execPath,['--input-type=module','--eval',script],{encoding:'utf8',timeout:6000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
       assert.equal(result.status,0,`${surface}/${fault}/${mode}: ${result.stdout}${result.stderr}`)
     } finally {
       if(existsSync(marker))try{process.kill(-Number(readFileSync(marker,'utf8')),'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
@@ -303,6 +360,8 @@ test('cleanup guard removals fail behavioral assertions in disposable copies', {
       ['Git original exit','snipe-submodules.mjs','const exitCode = pending.child.exitCode, signal = pending.child.signalCode','const exitCode = null, signal = null','late metadata cleanup'],
       ['non-group natural exit','snipe-process.mjs','child.exitCode === null && child.signalCode === null && ','','non-group natural exits'],
       ['discovery original cause','snipe-runner.mjs',"${failure ?? 'Codex model/list cleanup failed'}",'lost original cause','cleanup failures are bounded'],
+      ['uncertain reader retention','snipe-runner.mjs','retainPreparation = seats.some(seat => seat.cleanupError)','retainPreparation = false','uncertain auditor cleanup'],
+      ['unknown reader retention','snipe-runner.mjs','let retainPreparation = true','let retainPreparation = false','unknown worker failure'],
     ]
     for(const [name,file,from,to,pattern] of cases){
       for(const module of ['snipe-process.mjs','snipe-runner.mjs','snipe-submodules.mjs'])copyFileSync(join(repo,'adapters/codex/skills/snipe/assets',module),join(assets,module))
@@ -336,16 +395,16 @@ test('catalog completion and failures terminate inherited descendant processes',
     `)
     let pid
     const controller = new AbortController()
-    const cancelTimer = mode === 'cancel' ? setTimeout(() => controller.abort(), 400) : null
+    const cancelTimer = mode === 'cancel' ? setInterval(() => { if (existsSync(pidPath)) controller.abort() }, 10) : null
     try {
-      const pending = listSupportedProfiles({ codexPath, timeoutMs: 800, signal: controller.signal })
+      const pending = listSupportedProfiles({ codexPath, timeoutMs: 3000, signal: controller.signal })
       if (mode === 'success') await pending
       else await assert.rejects(pending, { code: 'PROFILE_DISCOVERY_FAILED' })
       pid = Number(readFileSync(pidPath, 'utf8'))
       await new Promise(resolve => setTimeout(resolve, 50))
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, mode)
     } finally {
-      clearTimeout(cancelTimer)
+      clearInterval(cancelTimer)
       pid ??= existsSync(pidPath) ? Number(readFileSync(pidPath, 'utf8')) : null
       if (pid) { try { process.kill(pid, 'SIGKILL') } catch {} }
     }

@@ -309,6 +309,8 @@ export async function runSnipePanel(input, options = {}) {
   const signal = options.signal
   const preparation = await prepareSnipeSubmodules(request.scope, { remotes: input.submoduleRemotes, signal })
   request = Object.freeze({ ...request, scope: preparation.scope })
+  // Only release object stores once every launched reader has settled safely.
+  let retainPreparation = true
   try {
     const seats = Array(assignments.length)
     let nextSeat = 0
@@ -327,6 +329,7 @@ export async function runSnipePanel(input, options = {}) {
       }
     }
     await Promise.all(Array.from({ length: Math.min(capacity, assignments.length) }, () => worker()))
+    retainPreparation = seats.some(seat => seat.cleanupError)
     const stability = verifySnipeScope(request.scope)
     const unavailablePaths = Object.freeze([...new Set((request.scope.submodules ?? [])
       .filter(change => !change.contentsAvailable).map(change => change.path))])
@@ -336,10 +339,17 @@ export async function runSnipePanel(input, options = {}) {
       seats: Object.freeze(seats),
       stability: Object.freeze(stability),
       coverage,
+      retainedRoot: retainPreparation ? preparation.root ?? null : null,
       complete: coverage.complete && stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
     }
     return Object.freeze({ coordinatorGuidance: COORDINATOR_GUIDANCE, ...panel, report: renderSnipeReport(panel) })
-  } finally { preparation.dispose() }
+  } catch (error) {
+    if (retainPreparation && preparation.root) {
+      error.retainedRoot = preparation.root
+      error.message += `; operator cleanup required, review objects retained at ${preparation.root}`
+    }
+    throw error
+  } finally { if (!retainPreparation) preparation.dispose() }
 }
 
 function cliOptions(argv) {

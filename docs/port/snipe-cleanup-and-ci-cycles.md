@@ -9,7 +9,7 @@ changes are authorized by this implementation experiment.
 
 The operator selected `gpt-5.6-sol / medium`; each checkpoint uses three installed
 Snipe seats. Seven panels total is a hard bound, including incomplete panels.
-One panel has completed. Final outcomes belong in the PRs and #2097 report.
+Two panels have completed. Final outcomes belong in the PRs and #2097 report.
 
 ## Initial cleanup repair
 
@@ -65,3 +65,38 @@ All four were accepted, including both Minor findings in the open cleanup class.
 - Fixture correction: the semantic panel test initially provided a nonexistent
   auditor executable and stopped at resolution. It now supplies an executable
   sentinel and asserts it never launches. This was not a production regression.
+
+## Panel 2: reader lifetime crosses preparation ownership
+
+Scope `146e20e..7a4f080`; same lenses/profile, complete and stable:
+RC / A / A. One Major accepted. The prior sweep covered preparation cleanup and
+seat cleanup separately but missed their conjunction: uncertain auditor readers
+still need the successfully prepared object stores.
+
+The combined gitlink/seat regression failed with a missing object repository
+before repair. Denied signals and missing close now retain readable pinned blobs,
+valid peers and a reported `retainedRoot`; normal success and confirmed failed
+exits still dispose. Unknown worker failure conservatively retains stores. The
+shared preparation return now exposes its owned root, and the report/acceptance
+prose no longer unconditionally claim disposal. A mutation removing uncertain
+reader retention must fail the combined behavioral assertion. This is a concrete
+shortcoming of the earlier fixer sweep despite its injected discipline, not a
+pre-existing finding merely rediscovered under another title.
+
+Verification: 48 runner/submodule/result cases passed, followed by the added
+unknown-worker regression and all thirteen cleanup mutations passing. A mutation
+of the conservative initial retention state also fails its assertion. The
+descendant cancellation fixture now observes its PID marker before aborting;
+its bounded three-second timeout remains enforced and its focused test passes.
+The cleanup matrix also uses a three-second fixture budget (previously 700 ms)
+and prints the unexpected original cause on failure. Production timeouts did not
+change. An earlier overlapping run failed the success fixture's cause assertion;
+that diagnostic lacked the actual cause, so startup contention is a hypothesis,
+not a proven OS diagnosis.
+
+An intermediate clean baseline at T4 checkpoint `ad18b81` retained two failures:
+Git scope capture ETIMEDOUT and a missing descendant PID marker. It recorded
+unchanged source, 65 suites, 3309 passes, two failures and four named skips. It ran
+alongside another process-heavy suite. Final acceptance requires a fresh baseline
+without competing local suites; this failed report is not replaced by the later
+targeted passes. No scope-capture deadline was weakened.

@@ -230,7 +230,7 @@ export async function prepareSnipeSubmodules(scope, { remotes = {}, signal } = {
         changes.push(Object.freeze({ ...change, contentsAvailable: false, limitation: error.message.slice(0, 1000) }))
       }
     }
-    return { scope: Object.freeze({ ...scope, submodules: Object.freeze(changes) }), dispose }
+    return { scope: Object.freeze({ ...scope, submodules: Object.freeze(changes) }), root: temporary, dispose }
   } catch (error) {
     if (error.cleanupError) {
       error.retainedRoot = temporary

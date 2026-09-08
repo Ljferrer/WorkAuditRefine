@@ -172,7 +172,7 @@ function scopeLines(panel) {
   }
   if (scope.paths?.length) lines.push(`- Paths: ${scope.paths.map(path => `\`${inline(path)}\``).join(', ')}`)
   if (panel.coverage) lines.push(`- Review coverage: ${panel.coverage.complete ? 'complete' : 'incomplete — changed submodule contents unavailable'}`)
-  if (scope.submodules?.length) lines.push(`- Submodule preparation: ${scope.submodules.filter(change => change.reviewRepository && change.contentsAvailable).length}/${scope.submodules.length} changed gitlinks prepared; temporary object stores are discarded after review`)
+  if (scope.submodules?.length) lines.push(`- Submodule preparation: ${scope.submodules.filter(change => change.reviewRepository && change.contentsAvailable).length}/${scope.submodules.length} changed gitlinks prepared; ${panel.retainedRoot ? `operator cleanup required, temporary object stores retained at ${inline(panel.retainedRoot)}` : 'temporary object stores are discarded after review'}`)
   lines.push(`- Configured seat profile: \`${profile.model}\` / \`${profile.effort}\` (actual model identity not independently verified)`)
   return lines
 }
