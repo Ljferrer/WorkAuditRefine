@@ -163,3 +163,31 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
   simulations with production bindings deferred, not real artifact verification.
 - Raw panel: `/private/tmp/war-parity-cycle5.wtes5E/audit-result.json`.
   Five of twelve panels used. T3 fixture work is separate/uncommitted.
+
+### Cycle 6 — T2 repaired evidence acceptance (running)
+
+- Pin `6ad0c91`; same three lenses/profile. Launched after the cycle-5 repair.
+  The pinned scope excludes the T3 work developed concurrently.
+- Raw result location: `/private/tmp/war-parity-cycle6.lhIt8I/audit-result.json`.
+  Six of twelve panels used; do not treat an outstanding panel as approval.
+
+## T3 initial evidence
+
+- Seven fixture tests pass, including six assertion-killed mutations. A real
+  process is SIGKILLed at after-push/before-record; a new process repairs persisted
+  ledger state from local bare Git. Remote reflog and push-log checks prove no
+  duplicate landing across two restarts. This driver is not the production engine.
+- Loopback fake service persists before withholding a response; a new client
+  recovers by correlation GET, with one POST total and no server-side dedup.
+  Malformed ledger, unknown remote state, and network transport refusal have
+  explicit negative evidence. Malformed ledger initially passed without a read;
+  the regression failed before adding persisted-state validation.
+- Hangs/output limits and inherited-pipe descendants are real processes with
+  owned group cleanup. The descendant signals readiness only after a heartbeat
+  write, avoiding a sleep-based readiness assumption. Temporary state is checked
+  before cleanup; tests make no real GitHub or production remote requests.
+- Mutation witnesses: repeated landing, unknown-tip refusal, ledger read,
+  successful-parent cleanup, output bound, and correlation lookup. Every removed
+  guard causes the selected assertion test to fail, not an initialization error.
+- Consequence: one new reviewed baseline suite; no adapter/engine/hook/workflow
+  changes. Production binding and actual host compatibility remain deferred.

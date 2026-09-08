@@ -61,5 +61,6 @@
   "skills/war/assets/war-config.test.mjs",
   "skills/war/assets/workflow-template.test.mjs",
   "skills/war/references/schemas-manifest.test.sh",
+  "tests/parity/git-fixture.test.mjs",
   "tests/parity/oracle.test.mjs"
 ]

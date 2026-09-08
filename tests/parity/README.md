@@ -52,3 +52,36 @@ Gate artifacts bind a fixture-owned command, exact tested revision and exit.
 Every artifact is compared, including its digest. Digests in this contract are
 for semantic evidence, not arbitrary runtime-specific log bytes; adapters must
 retain raw diagnostics separately rather than drop meaningful differences.
+
+## T3: physical failure fixtures
+
+`git-fixture.mjs` provisions unique temporary Git repositories and a local bare
+remote with reflog recording, fixture-local identity/config/hooks/templates and
+file-only Git transport. `startFixtureProcess` owns detached process groups,
+captures bounded output, kills them on timeout and direct-parent exit, and exposes
+an exact named checkpoint. Test cleanup waits for owned processes before removing
+the temporary root. This requires permission to start/kill local process groups
+and bind a loopback service; a denied test is a failure, not an allowed skip.
+
+`fixture-process.mjs` is deliberately a tiny **fixture driver**, not a substitute
+WAR recovery implementation. The parent observes a real push, verifies the remote
+tip and absent ledger, sends SIGKILL, then launches a fresh process. That process
+reads the fixture pins, persisted ledger and bare Git state. The test independently
+checks the repaired ledger, retained remote SHA, reflog update count and push log
+across repeated restarts. Unknown Git state and malformed ledger fail closed.
+T3 establishes this physical observation seam; binding the production adapter and
+recovery decisions after the engine campaign remains T5–T7 work. These tests do
+not promote P13 to actual runtime/production recovery certification.
+
+`issue-service.mjs` listens only on an ephemeral loopback port, records requests
+and persists rows before deliberately withholding one response. A bounded client
+times out; a new client resolves the correlation with GET and makes no second
+POST. The service does not deduplicate creates, so duplicate client behavior is
+observable. It never contacts GitHub or the active issue tracker. HTTPS/SSH Git
+probes are explicitly rejected before network transport. This is test isolation,
+not an OS security sandbox for arbitrary untrusted fixture code.
+
+Failure controls additionally cover hangs, output overflow, inherited-pipe
+descendants, stale ledger, unknown foreign commits, and six assertion-killed
+mutations. Evidence is inspected before temporary cleanup; collector stdout and
+stderr logs retain test results, but fixture directories are not release artifacts.
