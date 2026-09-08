@@ -201,6 +201,118 @@ test('explicit committed scope ignores unrelated dirty checkout changes', () => 
   })
 })
 
+test('committed gitlink changes are disclosed as Snipe scope instead of phase-refused', () => {
+  const { root } = fixture()
+  const nested = mkdtempSync(join(tmpdir(), 'codex-snipe-submodule-'))
+  git(nested, 'init', '-b', 'main')
+  git(nested, 'config', 'user.email', 'snipe-test@example.invalid')
+  git(nested, 'config', 'user.name', 'Snipe Test')
+  writeFileSync(join(nested, 'nested.txt'), 'nested\n')
+  git(nested, 'add', 'nested.txt')
+  git(nested, 'commit', '-m', 'nested base')
+  const nestedHead = git(nested, 'rev-parse', 'HEAD')
+  git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', nested, 'vendor/engine')
+  git(root, 'commit', '-am', 'add submodule')
+
+  const request = prepare(root)
+  assert.deepEqual(request.scope.submodules, [{
+    path: 'vendor/engine',
+    baseObject: null,
+    headObject: nestedHead,
+    contentsAvailable: true,
+    limitation: null,
+  }])
+})
+
+test('dirty staged gitlink changes disclose their exact pointer and availability', () => {
+  const { root } = fixture()
+  const nested = mkdtempSync(join(tmpdir(), 'codex-snipe-dirty-submodule-'))
+  git(nested, 'init', '-b', 'main')
+  git(nested, 'config', 'user.email', 'snipe-test@example.invalid')
+  git(nested, 'config', 'user.name', 'Snipe Test')
+  writeFileSync(join(nested, 'nested.txt'), 'base\n')
+  git(nested, 'add', 'nested.txt')
+  git(nested, 'commit', '-m', 'nested base')
+  git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', nested, 'vendor/engine')
+  git(root, 'commit', '-am', 'add submodule')
+  const oldObject = git(root, 'rev-parse', 'HEAD:vendor/engine')
+
+  writeFileSync(join(root, 'vendor/engine', 'nested.txt'), 'base\nadvance\n')
+  git(join(root, 'vendor/engine'), 'commit', '-am', 'nested advance')
+  const newObject = git(join(root, 'vendor/engine'), 'rev-parse', 'HEAD')
+  git(root, 'add', 'vendor/engine')
+
+  const request = prepare(root)
+  assert.equal(request.scope.kind, 'dirty')
+  assert.deepEqual(request.scope.submodules, [{
+    path: 'vendor/engine',
+    baseObject: oldObject,
+    headObject: newObject,
+    contentsAvailable: true,
+    limitation: null,
+    source: 'staged',
+  }])
+})
+
+test('dirty unstaged gitlink changes disclose the checked-out pointer', () => {
+  const { root } = fixture()
+  const nested = mkdtempSync(join(tmpdir(), 'codex-snipe-unstaged-submodule-'))
+  git(nested, 'init', '-b', 'main')
+  git(nested, 'config', 'user.email', 'snipe-test@example.invalid')
+  git(nested, 'config', 'user.name', 'Snipe Test')
+  writeFileSync(join(nested, 'nested.txt'), 'base\n')
+  git(nested, 'add', 'nested.txt')
+  git(nested, 'commit', '-m', 'nested base')
+  git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', nested, 'vendor/engine')
+  git(root, 'commit', '-am', 'add submodule')
+  const oldObject = git(root, 'rev-parse', 'HEAD:vendor/engine')
+
+  writeFileSync(join(root, 'vendor/engine', 'nested.txt'), 'base\nadvance\n')
+  git(join(root, 'vendor/engine'), 'commit', '-am', 'nested advance')
+  const newObject = git(join(root, 'vendor/engine'), 'rev-parse', 'HEAD')
+
+  const request = prepare(root)
+  assert.equal(request.scope.kind, 'dirty')
+  assert.deepEqual(request.scope.submodules, [{
+    path: 'vendor/engine',
+    baseObject: oldObject,
+    headObject: newObject,
+    contentsAvailable: true,
+    limitation: null,
+    source: 'unstaged',
+  }])
+})
+
+test('uncommitted nested submodule content is disclosed as uncaptured and unstable', () => {
+  const { root } = fixture()
+  const nested = mkdtempSync(join(tmpdir(), 'codex-snipe-uncommitted-submodule-'))
+  git(nested, 'init', '-b', 'main')
+  git(nested, 'config', 'user.email', 'snipe-test@example.invalid')
+  git(nested, 'config', 'user.name', 'Snipe Test')
+  writeFileSync(join(nested, 'nested.txt'), 'base\n')
+  git(nested, 'add', 'nested.txt')
+  git(nested, 'commit', '-m', 'nested base')
+  git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', nested, 'vendor/engine')
+  git(root, 'commit', '-am', 'add submodule')
+  const pinnedObject = git(root, 'rev-parse', 'HEAD:vendor/engine')
+
+  writeFileSync(join(root, 'vendor/engine', 'nested.txt'), 'uncommitted one\n')
+  const request = prepare(root)
+  assert.deepEqual(request.scope.submodules, [{
+    path: 'vendor/engine',
+    baseObject: pinnedObject,
+    headObject: pinnedObject,
+    contentsAvailable: false,
+    limitation: 'nested submodule has uncommitted content; exact scope stability cannot be proven',
+    nestedDirty: true,
+    source: 'unstaged',
+  }])
+  assert.equal(verifySnipeScope(request.scope).stable, false)
+
+  writeFileSync(join(root, 'vendor/engine', 'nested.txt'), 'uncommitted two\n')
+  assert.equal(verifySnipeScope(request.scope).stable, false)
+})
+
 test('dirty default includes staged, unstaged, and untracked content and detects later changes', () => {
   const { root, head } = fixture()
   writeFileSync(join(root, 'staged.txt'), 'staged\n')

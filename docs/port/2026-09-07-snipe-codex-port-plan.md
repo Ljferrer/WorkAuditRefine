@@ -168,11 +168,11 @@ The parent reports scope first, then per-seat outcomes, followed by severity-ran
 
 ### S2 — auditor instructions and coordination
 
-- [ ] Add the thin Codex skill entry point and `openai.yaml` invocation policy.
-- [ ] Compose shared doctrine with a narrowly scoped Codex auditor role; document phase-only exclusions.
-- [ ] Implement fresh independent seats with capacity-aware scheduling and complete seat accounting.
-- [ ] If using subprocesses, handle bounded output, deadlines, interrupts, child cleanup and nonzero exit status.
-- [ ] Ensure no mutating connector, unrestricted escalation or automatic widening is inherited.
+- [x] Add the thin Codex skill entry point and `openai.yaml` invocation policy.
+- [x] Compose shared doctrine with a narrowly scoped Codex auditor role; document phase-only exclusions.
+- [x] Implement fresh independent seats with capacity-aware scheduling and complete seat accounting.
+- [x] If using subprocesses, handle bounded output, deadlines, interrupts, child cleanup and nonzero exit status.
+- [x] Ensure no mutating connector, unrestricted escalation or automatic widening is inherited.
 
 **Exit gate:** one-seat and multi-seat executions use the selected role/profile, retain scope, and perform no target writes.
 
@@ -226,7 +226,7 @@ Suggested small commits: (1) capability decision and helper tests; (2) explicit 
 
 Keep engine-independent changes on `codex-port`. Fetch and inspect remote changes before pushing, but do not automatically merge or rebase campaign branches. If the shared parser/card changed upstream, compare semantics before adopting updates. Preserve the accepted single-source doctrine rather than solving conflicts by copying a stale card.
 
-Delivery rule added by the user on 2026-09-07: when an S-stage is completed, post its evidence summary to WAR issue #2160. Commit implementation progress on a new `codex/` branch and open its PR against `codex-port`; do not push stage work directly to the base branch.
+Delivery rule added by the user on 2026-09-07: when an S-stage is completed, post its evidence summary to WAR issue #2160. Commit implementation progress on a new `codex/` branch; do not push stage work directly to the base branch. S0 and S1 opened directly against `codex-port`. Beginning with S2, stack each Snipe PR on the preceding Snipe stage branch: S2 targets `codex/snipe-port-s1`, S3 targets `codex/snipe-port-s2`, and so on until the stack is landed onto `codex-port`.
 
 No new GitHub Actions workflows or branch protections are needed for the first snipe port. Record local validation now; migrate the focused tests into the planned CI system later. No plugin marketplace publication or automatic installation into the user's global configuration is part of this plan without a concrete follow-up instruction.
 
@@ -239,7 +239,7 @@ No new GitHub Actions workflows or branch protections are needed for the first s
 | Native versus subprocess dispatch | Use bounded `codex exec` seats on Codex CLI 0.153.4. The desktop collaboration API exposed to this task cannot select a named agent or set its cwd/sandbox, so it cannot prove custom-role confinement. | `codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only --json -C <fixture>` read `sentinel.txt`; shell writes in the repo and to a sibling plus an `apply_patch` write were attempted and denied. |
 | Codex model default | Inherit the invoking session's model/effort when that exact pair is supported by the selected host; validate explicit overrides against the same host map and refuse unsupported pairs. | `snipe-request.test.mjs` covers inherited and explicit supported profiles plus unsupported model/effort refusals. |
 | Explicit target envelope | `rawArgs` contains only legacy seats/lenses. `target` is a structured object: omitted/`default`, `ref`, explicit two-dot `range`, `merge-base`, or full GitHub `pr` URL with a trusted base ref/SHA. `paths` is a separate literal string array. Locally unavailable PR objects are refused without fetching. | Focused tests cover legacy ambiguity, two-dot versus merge-base semantics, non-default PR bases, matching/lookalike origins, missing objects, spaces, quotes, shell metacharacters and Git pathspec magic. |
-| Dirty-state strategy | Default dirty scope is advisory and hashes pinned HEAD plus complete staged/unstaged binary diffs and relevant untracked file contents. Recompute after review; a changed hash is unstable. Explicit committed targets ignore unrelated working-tree changes. | Focused tests cover staged, unstaged and untracked material, stable recomputation, a mid-run edit, and committed scope in a dirty checkout. |
+| Dirty-state strategy | Default dirty scope is advisory and hashes pinned HEAD plus complete staged/unstaged binary diffs and relevant untracked file contents. Recompute after review; a changed hash is unstable. Explicit committed targets ignore unrelated working-tree changes. Gitlink changes disclose exact pointers and local availability; uncommitted nested-submodule content is explicitly uncaptured and can never produce a stable result. | Focused tests cover staged, unstaged and untracked material, stable recomputation, a mid-run edit, committed scope in a dirty checkout, and committed/staged/unstaged/uncommitted-nested submodule states. |
 | Result field compatibility | Pending S3 | Shared card/schema comparison and alias tests |
 | Package layout and hooks | Use a Codex manifest with an explicit no-op hook file when the adapter needs no hooks; do not permit default discovery of Claude's `hooks/hooks.json`. | CLI 0.153.4 installed a disposable package containing both `hooks/hooks.json` and an explicit `hooks/codex-hooks.json`; with hook trust enabled only for that isolated package, the default-hook sentinel did not run. The cached package contained every referenced skill, policy and hook file. |
 
@@ -318,6 +318,35 @@ Exact S1 test commands and results:
 ```text
 node --test adapters/codex/skills/snipe/assets/snipe-request.test.mjs skills/snipe/assets/snipe-args.test.mjs
   -> 25 passed, 0 failed (12 Codex request/scope cases plus all 13 existing parser cases)
+
+git diff --check
+  -> clean
+```
+
+### 2026-09-07 — S2 auditor instructions and coordination
+
+- Implementation commit: `ab0f14f`. Completed checklist items: all five S2 items. Added the explicit-only Codex skill entry point, `agents/openai.yaml`, the Codex auditor role card, the bounded seat runner, actual-host acceptance coverage, and colocated request/runner/structure regressions. Updated `CONTEXT.md` to distinguish Claude's configuration ladder from Codex's exact invoking-session model/effort pair.
+- Dispatch behavior: every seat is a fresh ephemeral `codex exec` process over the same frozen scope. The coordinator bounds concurrency, total captured output and elapsed time; retains successful peers when another seat fails; reports nonzero, timeout, output-limit and cancellation states; and terminates process groups with `SIGTERM` followed by bounded `SIGKILL` cleanup. Automatic widening, plugins, apps, browser/computer use, hooks, MCP servers and approvals are disabled in the child invocation.
+- Role behavior: the Codex auditor composes the shared lens, severity, disposition and test-integrity vocabulary while explicitly excluding WAR phase authority, execution, mutation, issue/PR actions and follow-up dispatch. S3 remains responsible for strict result-schema validation and informational report rendering.
+- Scope refinements: committed, staged and unstaged gitlink changes disclose exact base/head objects and whether those commit contents exist locally. Uncommitted nested-submodule content is labeled uncaptured, sets `contentsAvailable: false`, and forces the stability result false rather than permitting a clean completion.
+- Actual-host evidence: Codex CLI `0.153.4` with `gpt-5.6-sol`/`medium` completed one-seat and two-seat runs, preserved lens/scope accounting, and left HEAD, refs, index, status and fixture bytes unchanged. A wrapper captured the production child argv and verified every capability disable, strict/ignored config, empty MCP map, read-only sandbox and `approval_policy="never"`. The probe reported `CONNECTOR_CAPABILITY_ABSENT`, `WRITE_DENIED` and `ESCALATION_UNAVAILABLE`; emitted no connector/MCP/approval event; produced host `codex_sandboxing::violation` and `operation_not_permitted` evidence; and created no probe file.
+- Packaging evidence: the official Codex skill validator accepts the S2 skill directory. `allow_implicit_invocation: false` follows the documented `openai.yaml` policy. No package manifest or global installation was added in this stage.
+- Review: the required Standards and Spec reviewers finished with no actionable findings. Their earlier passes drove fixes for disposition semantics, exact dirty submodule scope, target-module documentation, host-level capability assertions, profile-resolution wording, and an insufficient response-text independence assertion.
+- Delivery: S2 begins the user-requested stacked sequence. Its branch is `codex/snipe-port-s2` and its PR base is `codex/snipe-port-s1`; S3 will branch from and target S2.
+- Remaining limitations: seat output is retained but not yet validated as the final Snipe result schema. S3 must normalize supported aliases, reject wrong scope/lens/seat and malformed or internally inconsistent results, perform at most one schema-only repair, and render partial/incomplete panels without turning missing evidence into clean output.
+- Next unchecked action: S3, beginning with the explicit result schema and alias normalization.
+
+Exact S2 test commands and results:
+
+```text
+node --test skills/snipe/assets/snipe-args.test.mjs adapters/codex/skills/snipe/assets/snipe-request.test.mjs adapters/codex/skills/snipe/assets/snipe-runner.test.mjs adapters/codex/skills/snipe/snipe-structure.test.mjs
+  -> 40 passed, 0 failed (13 unchanged shared-parser cases; 27 Codex request, coordination and structure cases)
+
+SNIPE_CODEX_BIN=/Applications/ChatGPT.app/Contents/Resources/codex SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium node --test adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs
+  -> 1 passed, 0 failed in 293.85 seconds
+
+conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/skill-creator/scripts/quick_validate.py adapters/codex/skills/snipe
+  -> Skill is valid!
 
 git diff --check
   -> clean

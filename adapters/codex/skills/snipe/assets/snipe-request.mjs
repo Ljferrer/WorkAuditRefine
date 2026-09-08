@@ -4,6 +4,7 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
+import { resolve, sep } from 'node:path'
 
 import { parseSnipeArgs } from '../../../../../skills/snipe/assets/snipe-args.mjs'
 import { RESERVED_LENSES } from '../../../../../skills/war/assets/war-config.mjs'
@@ -103,6 +104,74 @@ function hasDiff(cwd, baseSha, headSha, paths) {
   return result.status === 1
 }
 
+function commitObjectAvailable(cwd, object) {
+  if (!object) return true
+  const result = spawnSync('git', ['cat-file', '-e', `${object}^{commit}`], { cwd, encoding: 'utf8' })
+  return result.status === 0
+}
+
+function gitlinkChangesFromArgs(cwd, args, source = null) {
+  const fields = git(cwd, args).stdout.split('\0').filter(Boolean)
+  const changes = []
+  for (let index = 0; index < fields.length;) {
+    const header = fields[index]
+    const match = header.match(/^:(\d{6}) (\d{6}) ([0-9a-f]{40}) ([0-9a-f]{40}) ([A-Z])\d*$/)
+    if (!match) fail('GIT_FAILED', 'unexpected git diff --raw output while resolving submodule scope')
+    const firstPath = fields[index + 1]
+    const renamed = match[5] === 'R' || match[5] === 'C'
+    const path = renamed ? fields[index + 2] : firstPath
+    index += renamed ? 3 : 2
+    if (match[1] !== '160000' && match[2] !== '160000') continue
+    const nested = resolve(cwd, path)
+    const nestedIsInside = nested.startsWith(`${resolve(cwd)}${sep}`)
+    const baseObject = /^0+$/.test(match[3]) ? null : match[3]
+    let headObject = /^0+$/.test(match[4]) ? null : match[4]
+    if (source === 'unstaged' && match[2] === '160000' && !headObject && nestedIsInside) {
+      const nestedHead = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
+        cwd: nested,
+        encoding: 'utf8',
+      })
+      if (nestedHead.status === 0) headObject = nestedHead.stdout.trim()
+    }
+    const nestedStatus = source === 'unstaged' && nestedIsInside
+      ? spawnSync('git', ['status', '--porcelain=v2', '-z'], { cwd: nested, encoding: 'utf8' })
+      : null
+    const nestedDirty = nestedStatus?.status === 0 && nestedStatus.stdout.length > 0
+    const required = [baseObject, headObject].filter(Boolean)
+    const commitsAvailable = required.every(object => (
+      commitObjectAvailable(cwd, object) || (nestedIsInside && commitObjectAvailable(nested, object))
+    ))
+    const contentsAvailable = commitsAvailable && !nestedDirty
+    const change = {
+      path,
+      baseObject,
+      headObject,
+      contentsAvailable,
+      limitation: nestedDirty
+        ? 'nested submodule has uncommitted content; exact scope stability cannot be proven'
+        : (contentsAvailable ? null : 'one or more pinned submodule commits are unavailable locally'),
+    }
+    if (nestedDirty) change.nestedDirty = true
+    if (source) change.source = source
+    changes.push(Object.freeze(change))
+  }
+  return Object.freeze(changes)
+}
+
+function committedGitlinkChanges(cwd, baseSha, headSha, paths) {
+  const args = ['diff', '--raw', '--no-abbrev', '-z', baseSha, headSha]
+  if (paths.length) args.push('--', ...pathspecs(paths))
+  return gitlinkChangesFromArgs(cwd, args)
+}
+
+function dirtyGitlinkChanges(cwd, paths) {
+  const suffix = paths.length ? ['--', ...pathspecs(paths)] : []
+  return Object.freeze([
+    ...gitlinkChangesFromArgs(cwd, ['diff', '--cached', '--raw', '--no-abbrev', '-z', 'HEAD', ...suffix], 'staged'),
+    ...gitlinkChangesFromArgs(cwd, ['diff', '--raw', '--no-abbrev', '-z', ...suffix], 'unstaged'),
+  ])
+}
+
 function finishCommittedScope({ cwd, root, description, comparison, baseSha, headSha, paths }) {
   if (!hasDiff(cwd, baseSha, headSha, paths)) {
     fail('EMPTY_DIFF', `resolved target '${description}' has no changes in the requested paths`)
@@ -116,6 +185,7 @@ function finishCommittedScope({ cwd, root, description, comparison, baseSha, hea
     baseSha,
     headSha,
     paths: Object.freeze([...paths]),
+    submodules: committedGitlinkChanges(cwd, baseSha, headSha, paths),
   })
 }
 
@@ -202,6 +272,7 @@ function dirtyScope(root, paths) {
     headSha: resolveCommit(root, 'HEAD'),
     paths: Object.freeze([...paths]),
     included: Object.freeze(included),
+    submodules: dirtyGitlinkChanges(root, paths),
     fingerprint: dirtyFingerprint(root, paths),
   })
 }
@@ -287,5 +358,6 @@ export function verifySnipeScope(scope) {
   }
   if (scope.kind !== 'dirty') fail('INVALID_TARGET', `unknown scope kind '${scope.kind}'`)
   const after = dirtyFingerprint(scope.repository, scope.paths)
-  return { stable: after === scope.fingerprint, before: scope.fingerprint, after }
+  const uncapturedNestedContent = scope.submodules?.some(change => change.nestedDirty) ?? false
+  return { stable: !uncapturedNestedContent && after === scope.fingerprint, before: scope.fingerprint, after }
 }
