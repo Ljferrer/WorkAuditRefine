@@ -169,6 +169,33 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   normal plugin installation was untouched. One scenario used; its diagnostic
   rerun allowance remains unused. Sandbox CLI investigation also found that this
   host requires a named permissions table; no configuration was changed to supply one.
+- Evaluation 1 diagnostic rerun: real refutation passed again. A direct
+  `codex sandbox` probe using the documented `:read-only` parent profile failed with
+  OS `Operation not permitted`; an outside-sandbox control wrote the same path
+  successfully. This independently verifies the host policy. The model's claimed
+  write attempt still has no command event and is **not** established; later help
+  evaluation did emit command events, so absence must not be blamed on the host.
+  WP15's stronger model-attempt observation remains a gap. Scenario 1's one rerun
+  is spent; no extra retry is authorized. The command-local permissions override
+  changed no config files. Source: [official permissions](https://learn.chatgpt.com/docs/permissions).
+- Evaluation 2: help-only Sol/medium run loaded the built skill, printed only the
+  two planning invocations, explicitly treated Snipe as absent/optional, and listed
+  engine commands as unavailable. Recorded command events show only the packaged
+  skill read; the repo still contains only the pre-existing unrelated untracked file.
+  Evidence: `/private/tmp/war-planning-eval-2-help.log`.
+- Evaluation 3: new-plan interview started with Sol/medium in a disposable repo;
+  initial turn loaded all canonical guidance, reconned the target, and asked one
+  recommendation-first falsifier with `Q1 · cap 14`; unrelated bytes were unchanged.
+  A simulated-operator continuation supplies concrete input/error behavior and a
+  twice-read pin, within the original ten-minute deadline. The first continuation
+  command was rejected before launch because it omitted an explicit sandbox; the
+  corrected command explicitly retains workspace-write on the disposable repository.
+  No denial was bypassed with broader permissions. Further evidence is pending at
+  `/private/tmp/war-planning-eval-3-interview.log` and its resume logs.
+- P4 negative controls: removing the third-dispatch guard, second-refutation fork,
+  unavailable stamp or read-only launch flag fails the corresponding independent
+  oracle; six transport/contract tests pass. These guard mutations do not substitute
+  for the separately recorded actual-host observation limits.
 - P5 source checkpoint: help lists only the two built planning skills and optional
   separately packaged Snipe. Its invocation names are checked against independently
   built package manifests/inventories; body and UI drift mutations are rejected.

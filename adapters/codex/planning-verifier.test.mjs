@@ -103,3 +103,35 @@ test('transport failures and cancellation never return a fabricated verifier lin
   assert.equal(cancelled.status,'unavailable');assert.match(cancelled.stamp,/cancelled/)
   assert.equal(existsSync(fake.marker),false)
 })
+
+test('removing retry, fork, failure-visibility or read-only guards fails the behavioral oracle',async()=>{
+  const path=join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),source=readFileSync(path,'utf8')
+  const cases=[
+    ["if(history.length===2)","if(false)",async verify=>{
+      let calls=0;const dispatch=async()=>{calls++;return {...survived,refuted:true}}
+      const first=await verify(request,{dispatch}),second=await verify({...request,history:[first]},{dispatch})
+      await verify({...request,history:[first,second]},{dispatch});assert.equal(calls,2)
+    }],
+    ["history.length ? 'operator-fork':'amend-or-fork'","'amend-or-fork'",async verify=>{
+      const dispatch=async()=>({...survived,refuted:true}),first=await verify(request,{dispatch})
+      assert.equal((await verify({...request,history:[first]},{dispatch})).next,'operator-fork')
+    }],
+    ['stamp:`verifier: unavailable (${reason})`','stamp:null',async verify=>{
+      const result=await verify(request,{dispatch:async()=>{throw Error('host unavailable')}})
+      assert.match(result.stamp,/verifier: unavailable/)
+    }],
+    ["'--sandbox','read-only'","'--sandbox','workspace-write'",async verify=>{
+      const fake=fakeCodex();await verify({...request,repository:root},{codexPath:fake.codexPath})
+      const args=JSON.parse(readFileSync(fake.marker,'utf8'));assert.equal(args[args.indexOf('--sandbox')+1],'read-only')
+    }],
+  ]
+  for(const [index,[from,to,oracle]]of cases.entries()) {
+    assert.equal(source.split(from).length,2,from)
+    await oracle(verifyRecommendation)
+    try {
+      writeFileSync(path,source.replace(from,to))
+      const {verifyRecommendation:mutant}=await import(`${pathToFileURL(path)}?mutation=${index}`)
+      await assert.rejects(()=>oracle(mutant),{name:'AssertionError'})
+    }finally{writeFileSync(path,source)}
+  }
+})

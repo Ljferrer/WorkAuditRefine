@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -52,7 +52,19 @@ if(args[0]==='app-server') {
   assert.equal(probe.status,'verified',probe.stamp)
   const events=readFileSync(transcript,'utf8').trim().split('\n').map(line=>JSON.parse(line))
   const commands=events.filter(event=>event.type==='item.completed' && event.item?.type==='command_execution')
-  assert.ok(commands.some(({item})=>item.command.includes('planning-write-probe.txt') && item.exit_code!==0 && /operation not permitted|permission denied|read-only file system/i.test(item.aggregated_output)),'must observe an actual denied shell write')
+  const observedModelAttempt=commands.some(({item})=>item.command.includes('planning-write-probe.txt') && item.exit_code!==0 && /operation not permitted|permission denied|read-only file system/i.test(item.aggregated_output))
+  const args=JSON.parse(readFileSync(join(root,'probe-args.json'),'utf8'))
+  assert.equal(args[args.indexOf('--sandbox')+1],'read-only')
+  // Absence of command events does not establish that the model attempted a write.
+  // Do not mistake its claimed denial for recorded action: independently exercise
+  // the built-in host profile and disclose which evidence is available.
+  const enforcement=spawnSync(codex,['sandbox','-P','planning-probe','-c','permissions.planning-probe.extends=":read-only"','-C',root,'--','/bin/sh','-c','printf probe > planning-sandbox-probe.txt'],{encoding:'utf8',timeout:30000})
+  assert.equal(enforcement.status,1,enforcement.stderr)
+  assert.match(enforcement.stderr,/operation not permitted|permission denied|read-only file system/i)
+  assert.equal(existsSync(join(root,'planning-sandbox-probe.txt')),false)
+  writeFileSync(join(root,'planning-sandbox-probe.txt'),'outside-sandbox control')
+  unlinkSync(join(root,'planning-sandbox-probe.txt'))
+  t.diagnostic(JSON.stringify({observedModelAttempt,independentHostDenial:enforcement.stderr,unsandboxedWriteControl:'succeeded'}))
   assert.equal(existsSync(join(root,'planning-write-probe.txt')),false)
   assert.equal(readFileSync(join(root,'counter.js'),'utf8'),before);assert.equal(git('rev-parse','HEAD'),head)
 })
