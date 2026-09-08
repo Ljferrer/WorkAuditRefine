@@ -190,7 +190,7 @@ A release report contains the scenario coverage matrix and evidence level, not j
 | T2 | Define scenario catalog, normalized observations and independent oracle in `tests/parity/` | Valid records pass; same-bug-on-both-sides, missing evidence and nondeterministic-order cases behave correctly | Can prepare now without engine edits |
 | T3 | Add disposable git/fake-service fixtures and process failure controls | Fixture proves after-push-before-record recovery observation; no access to real remote | Can prepare now; bind production recovery after campaign |
 | T4 | Draft `war-ci.yml`, package inventory policy and final-gate checks | Workflow lint passes; failed/skipped/cancelled matrix simulations reject; planned check naming stable | Branch-only preparation; no live ruleset changes |
-| T5 | Reconcile completed campaign changes and wire the harness to maintained engine contracts | All new/changed dispatches explicitly mapped; existing regression suites pass; no neutral success fallbacks | After campaign lands |
+| T5 | Reconcile completed campaign changes, separate Claude host integration into `adapters/claude/`, and wire the harness to maintained engine contracts | All new/changed dispatches explicitly mapped; host-owned integration separated from shared engine/doctrine; existing regression and package compatibility suites pass; no neutral success fallbacks | After campaign lands |
 | T6 | Integrate Claude and Codex adapter contract tests | Both adapters satisfy mandatory cases independently and differentially; critical mutants fail | With adapter implementation |
 | T7 | Prove real client packaging, authentication, sandboxing and live smoke | Both supported clients execute intended path; bounded runs produce objective evidence | After credentials/model/budget choices |
 | T8 | Enable required PR check and release certification | Intentional failed PR blocked; wrong-SHA/digest/old report rejected; correct exact candidate accepted | After campaign and stable CI rollout |
@@ -198,6 +198,33 @@ A release report contains the scenario coverage matrix and evidence level, not j
 T1–T4 can be reviewed independently of engine internals. Author fixtures and expected behavior first; no need to wait 72 hours to design those. Avoid introducing engine hooks just to make tests easy during the campaign. When it finishes, merge/rebase the development branch deliberately and review semantic differences against this catalog; do not update expected outputs automatically to match whatever the new engine does.
 
 Each implementation change should record its targeted red/green proof and exact coverage. Broad file coverage percentages and source-text matching are supplementary, not acceptance criteria. Keep tests small enough that a failure names the runtime, case, expected invariant, actual transition, and evidence path.
+
+### T5 explicit subtask: Claude adapter ownership and migration
+
+Tracked under #2159. After the engine campaign lands:
+
+1. Inventory shared engine/code/doctrine versus Claude-owned discovery, invocation,
+   transport, permission, hook and lifecycle integration. Classify by responsibility,
+   not by the current directory name; shared code must not move into an adapter
+   merely to make the two host folders symmetrical.
+2. Move genuinely Claude-specific integration into `adapters/claude/` in reviewed
+   slices. Keep one canonical shared source for both hosts. Preserve public Claude
+   entrypoints through packaging or narrow compatibility entrypoints where needed;
+   do not maintain independent copies of doctrine or engine behavior.
+3. Update imports, relative references, hook resolution, manifests, package builders,
+   test discovery and documentation together. Inventory every caller before moving
+   files; avoid a broad relocation during the active campaign.
+4. Prove source-independent package resolution and unchanged Claude behavior with
+   regression/package tests and negative controls for missing assets, wrong hooks
+   and broken imports. Retain Codex regression coverage. Label simulations honestly;
+   supported-client execution remains T7 evidence, not a claim from path tests.
+5. Record the final ownership map and any justified retained compatibility paths.
+   T5 is not complete with an untracked migration placeholder; reconcile this
+   subtask alongside the maintained engine-contract and dispatch mappings.
+
+The earlier planning-skill port may extract the minimal host-specific instructions
+needed to share planning doctrine safely. That narrow separation does not authorize
+or substitute for this post-campaign engine/integration migration.
 
 ## Compute budget and GitHub account requirements
 

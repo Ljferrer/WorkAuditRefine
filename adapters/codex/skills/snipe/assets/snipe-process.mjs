@@ -1,3 +1,13 @@
+import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+// Node canonicalizes module URLs but preserves argv's filesystem alias. Keep the
+// entrypoint rule shared by the two builders and both packaged coordinators.
+export function isMain(url) {
+  if(!process.argv[1])return false
+  try{return realpathSync(process.argv[1])===fileURLToPath(url)}catch{return false}
+}
+
 // Every owned subprocess starts a process group on POSIX. The direct child's
 // exit also triggers cleanup: its descendants may still hold inherited pipes.
 export const processGroup = process.platform !== 'win32'

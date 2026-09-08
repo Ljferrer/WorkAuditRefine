@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -213,6 +213,18 @@ function catalogCodex() {
   `)
 }
 
+test('packaged Snipe runner executes profile discovery through an explicit alias',t=>{
+  const root=mkdtempSync(join(tmpdir(),'snipe-runner-alias-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const output=join(root,'package'),alias=join(root,'runner.mjs'),codexPath=catalogCodex()
+  t.after(()=>rmSync(join(codexPath,'..'),{recursive:true,force:true}))
+  buildSnipePlugin({repoRoot:fileURLToPath(new URL('../../../../../',import.meta.url)),output})
+  symlinkSync(join(output,'skills/snipe/assets/snipe-runner.mjs'),alias)
+  const result=spawnSync(process.execPath,[alias,'--list-profiles','--codex-path',codexPath],{encoding:'utf8',timeout:10000})
+  assert.equal(result.status,0,result.stderr)
+  assert.ok(result.stdout.trim(),'runner must not silently skip main')
+  assert.deepEqual(JSON.parse(result.stdout),{'gpt-test':['high'],'gpt-other':['low']})
+})
+
 test('host catalog discovery initializes and consumes every model page without starting a turn', async () => {
   assert.deepEqual({ ...await listSupportedProfiles({ codexPath: catalogCodex() }) }, { 'gpt-test': ['high'], 'gpt-other': ['low'] })
 })
@@ -362,20 +374,20 @@ test('cleanup guard removals fail behavioral assertions in disposable copies', {
       ['drain bound','snipe-process.mjs',"      cleanupError = { code: 'CLEANUP_CLOSE_TIMEOUT', message: 'Process close not observed within cleanup drain deadline' }\n      finish()",'','cleanup failures are bounded'],
       ['parent exit','snipe-process.mjs',"  child.once('exit', stop)",'','cleanup failures are bounded'],
       ['identity','snipe-process.mjs','processGroupId: child.pid ?? null,','processGroupId: null,','cleanup failures are bounded'],
-      ['discovery refusal','snipe-runner.mjs','if (failure || cleanup.cleanupError)','if (failure)','cleanup failures are bounded'],
+      ['discovery refusal','codex-models.mjs','if (failure || cleanup.cleanupError)','if (failure)','cleanup failures are bounded'],
       ['seat refusal','snipe-runner.mjs','!cleanup.cleanupError && child.exitCode','child.exitCode','cleanup failures are bounded'],
       ['preparation retention','snipe-submodules.mjs','      error.retainedRoot = temporary','      dispose(); error.retainedRoot = temporary','cleanup denial stops'],
       ['late metadata refusal','snipe-submodules.mjs','if (error.cleanupError) throw error /* Local objects','/* Local objects','late metadata cleanup'],
       ['Git original exit','snipe-submodules.mjs','const exitCode = pending.child.exitCode, signal = pending.child.signalCode','const exitCode = null, signal = null','late metadata cleanup'],
       ['non-group natural exit','snipe-process.mjs','child.exitCode === null && child.signalCode === null && ','','non-group natural exits'],
-      ['discovery original cause','snipe-runner.mjs',"${failure ?? 'Codex model/list cleanup failed'}",'lost original cause','cleanup failures are bounded'],
+      ['discovery original cause','codex-models.mjs',"${failure ?? 'Codex model/list cleanup failed'}",'lost original cause','cleanup failures are bounded'],
       ['uncertain reader retention','snipe-runner.mjs','retainPreparation = seats.some(seat => seat.cleanupError)','retainPreparation = false','uncertain auditor cleanup'],
       ['unknown reader retention','snipe-runner.mjs','let retainPreparation = true','let retainPreparation = false','unknown worker failure'],
       ['cleanup message preservation','snipe-process.mjs','message: error.message','message: "generic"','cleanup failures are bounded'],
       ['normal report projection','snipe-runner.mjs','retainedRoot: retainPreparation ? preparation.root ?? null : null','retainedRoot: preparation.root ?? null','coordinator prepares pinned submodules'],
     ]
     for(const [name,file,from,to,pattern] of cases){
-      for(const module of ['snipe-process.mjs','snipe-runner.mjs','snipe-submodules.mjs'])copyFileSync(join(repo,'adapters/codex/skills/snipe/assets',module),join(assets,module))
+      for(const module of ['snipe-process.mjs','snipe-runner.mjs','codex-models.mjs','snipe-submodules.mjs'])copyFileSync(join(repo,'adapters/codex/skills/snipe/assets',module),join(assets,module))
       const path=join(assets,file), source=readFileSync(path,'utf8')
       assert.equal(source.split(from).length,2,name)
       writeFileSync(path,source.replace(from,to))

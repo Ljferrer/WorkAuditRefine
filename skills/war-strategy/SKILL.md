@@ -20,24 +20,12 @@ present.
 
 ## 1. Recommended front door (Grill Me)
 
-The Grill Me family is a recommended front door, never a requirement: the interview doctrine lives in-repo
-at `references/plan-interview.md`, so the bare invoke runs it directly (§4). To see whether the family is
-installed, run:
-
-```sh
-find -L ~/.claude/skills ~/.claude/plugins .claude/skills -maxdepth 6 -type d \
-  \( -name grill-with-docs -o -name domain-modeling \) 2>/dev/null
-```
-
-`-L` because installed skills are routinely symlinks; `-maxdepth 6` because plugin-cache skills live at
-`plugins/cache/<mkt>/<plugin>/<ver>/skills/<name>` (depth 6); `2>/dev/null` because missing roots (most repos
-have no `.claude/skills`) error noisily. Judge emptiness on **stdout only — never the exit code**.
-
-Non-empty stdout → offer the Grill Me route: the operator may prefer its interviewing voice, and the HANDOFF
-DIRECTIVE (§4) binds it to the same merged deliverable. Empty stdout → no gap and no warning: run the
-interview yourself per §4. (Installing the family stays a pro-tip — the README's
-[Grill Me install](https://github.com/mattpocock/skills/tree/main#quickstart-30-second-setup) link covers
-`grill-with-docs`, `grilling`, and `domain-modeling`.)
+The Grill Me family is a recommended front door, never a requirement. Before
+starting, read [references/host.md](references/host.md) for the host's optional-skill
+discovery, evidence locations, lint invocation and available handoffs. If the
+family is unavailable, run the interview directly; no dependency installation is
+required. If the operator chooses an available front door, pass the HANDOFF
+DIRECTIVE (§4) unchanged.
 
 ## 2. The three templates
 
@@ -333,7 +321,7 @@ None.
 - **Grep as floor** — "grep X, handle every match" requires a manual same-scope title/comment survey;
   list stragglers as survey-derived corrections.
 
-The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`) mechanically flags the cheap literals —
+The advisory `plan-literal-lint.mjs` (resolved through the host reference) mechanically flags the cheap literals —
 line ranges, `*.test.sh` gate lists, suite counts, release-task version literals — at conversion; it is
 report-only (exit 0 by default, `--strict` opt-in), never a `/war` gate. `/war-strategy` runs it on every
 plan it authors (§4).
@@ -488,13 +476,11 @@ upgrades on request, never retroactively).
    decision digest distilled from the source spec (citing it), Part 2 the decomposed phases — running the
    intent echo-back **inline** (draft `## Commander's Intent` from the operator's answers, echo it back,
    explicit confirm) instead of shipping the directive.
-5. **Lint the authored plan:** run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>` on every
+5. **Lint the authored plan:** use the host reference to run the shared `assets/plan-literal-lint.mjs` on the plan on every
    plan you author and surface its hits in the conversion report (advisory — report-only, never blocks). Each
    hit names a stack-fragile literal to rewrite per the "Reference the live artifact" conventions (§2).
 
 ## 5. Closing offer
 
-Optionally point at `/survey-corps` — the pipeline's memories + issues → specs step: it first mines
-qualifying hot memory lessons into issues, then sweeps open issues, clusters them, and synthesizes
-war-shaped specs into `docs/specs/`, optionally seeded by `ponytail-audit` or `ecc:repo-scan` as
-*optional* seeds, never a hard dependency.
+Use the host reference's available closing offers. These are optional pointers,
+never automatic invocation or authority to execute, install or publish anything.

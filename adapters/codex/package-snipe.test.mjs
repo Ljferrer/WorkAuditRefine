@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -7,6 +7,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { buildSnipePlugin, verifySnipePlugin } from './package-snipe.mjs'
+test('Snipe builder executes through a filesystem alias',t=>{
+  const root=mkdtempSync(join(tmpdir(),'snipe-builder-alias-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const alias=join(root,'builder.mjs'),output=join(root,'package')
+  symlinkSync(fileURLToPath(new URL('./package-snipe.mjs',import.meta.url)),alias)
+  const result=spawnSync(process.execPath,[alias,output],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  assert.ok(result.stdout.trim(),'builder must not silently skip main')
+  assert.ok(verifySnipePlugin(output).includes('skills/snipe/SKILL.md'))
+})
 
 const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
@@ -22,6 +31,7 @@ test('S-A16 builds a standalone Snipe-only plugin with its shared dependency clo
     '.codex-plugin/plugin.json',
     'skills/snipe/SKILL.md',
     'skills/snipe/agents/openai.yaml',
+    'skills/snipe/assets/codex-models.mjs',
     'skills/snipe/assets/shared/skills/_shared/provision.mjs',
     'skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs',
     'skills/snipe/assets/shared/skills/war/assets/war-config.mjs',

@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 const FILES = [
   ['adapters/codex/skills/snipe/SKILL.md', 'skills/snipe/SKILL.md'],
@@ -8,6 +9,7 @@ const FILES = [
   ['adapters/codex/skills/snipe/assets/snipe-request.mjs', 'skills/snipe/assets/snipe-request.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-result.mjs', 'skills/snipe/assets/snipe-result.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-runner.mjs', 'skills/snipe/assets/snipe-runner.mjs'],
+  ['adapters/codex/skills/snipe/assets/codex-models.mjs', 'skills/snipe/assets/codex-models.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-submodules.mjs', 'skills/snipe/assets/snipe-submodules.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-process.mjs', 'skills/snipe/assets/snipe-process.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-files.mjs', 'skills/snipe/assets/snipe-files.mjs'],
@@ -106,7 +108,7 @@ export function buildSnipePlugin({ repoRoot, output }) {
   return verifySnipePlugin(packageRoot)
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (isMain(import.meta.url)) {
   const output = process.argv[2]
   if (!output) throw new Error('usage: node adapters/codex/package-snipe.mjs <output-directory>')
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
