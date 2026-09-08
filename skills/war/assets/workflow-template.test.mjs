@@ -12161,6 +12161,17 @@ test('provenance floor: canonical adjudication rows pass un-doped', async () => 
   assert.equal(proseSupStr.out.landDecision, 'held:workflow-error', 'the adjRow render of a prose ruling with a prose supersedes is not a value row either')
   const mixed = await runPhase(PROVISION_ARGS({ adjudications: [...rows, 'ruled: keep the legacy arm this run'] }), defaultImpl)
   assert.equal(mixed.out.landDecision, 'held:workflow-error', 'value rows never vouch for a token-less prose sibling')
+  // Drift guard: isValueRow's string arm restates adjRow's render suffix as a regex, and the string
+  // fixture above restates it a third time. Extract the suffix from the adjRow body and assert the
+  // isValueRow body and the fixture row carry the same bytes, so a reworded render reds here.
+  const adjRowBody = src.match(/^const adjRow = [^]*?(?=\nconst adjudicationClause)/m)?.[0]
+  assert.ok(adjRowBody, 'const adjRow = body found in workflow-template.js')
+  const suffix = adjRowBody.match(/pt` \((supersedes[^`$]*?: )\$\{/)?.[1]
+  assert.ok(suffix, 'adjRow renders a ` (supersedes ...: ` suffix before the supersedes interpolation')
+  const isValueRowBody = src.match(/^  const isValueRow = [^]*?\n(?=  \/\/ )/m)?.[0]
+  assert.ok(isValueRowBody, 'const isValueRow = body found in workflow-template.js')
+  assert.ok(isValueRowBody.includes(' \\(' + suffix), 'isValueRow string arm carries the adjRow suffix verbatim (regex-escaped paren)')
+  assert.ok(rows[2].includes(' (' + suffix), 'the string fixture row carries the adjRow suffix verbatim')
 })
 
 test('provenance floor: a Lead-stamped planFile row naming THIS plan is exempt', async () => {

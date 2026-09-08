@@ -996,7 +996,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
   // for the scan. The own-token search reads the unstripped text.
   const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
-  const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
+  // The strip's plan-id segment is PLAN_ID_RE's own source, so the two never drift apart.
+  const stripSupersedes = text => String(text).replace(new RegExp('supersedes[\\s:]*(?:plan literal:\\s*)?' + PLAN_ID_RE.source, 'gi'), 'supersedes <predecessor citation>')
   // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
   // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
   // supersedes; a Lead-stamped planFile may ride beside them) or the string adjRow renders —
@@ -1098,17 +1099,18 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
       provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
-    // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
-    // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
-    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed), and the
-    // foreign-plan-id scan reads every row's (citation-stripped) text, exempt rows included (#1749).
-    const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
+    // hasOwnTokenScannableRow: a non-exempt, non-value row with text exists (the own-token refusal
+    // surface — a surface whose rows are all exempt or all value rows never has to carry a token).
+    // evidenceText: EVERY row's text — own-token satisfaction may come from an exempt row (#1666
+    // stands, never narrowed), and the foreign-plan-id scan reads every row's (citation-stripped)
+    // text, exempt rows included (#1749).
+    const hasOwnTokenScannableRow = rows.some(r => !r.exempt && !r.value && r.text)
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
     if (!evidenceText) continue
     const planIds = idText.match(PLAN_ID_RE) || []
     const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
-    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(evidenceText))
+    const ownTokenMiss = hasOwnTokenScannableRow && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(evidenceText))
     // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
     // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
