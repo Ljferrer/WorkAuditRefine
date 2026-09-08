@@ -158,11 +158,11 @@ The parent reports scope first, then per-seat outcomes, followed by severity-ran
 
 ### S1 — parsing and target resolution
 
-- [ ] Reuse the shared parser without `snipeTier()`; preserve existing Claude parser tests.
-- [ ] Implement only the needed Codex profile resolver; unsupported settings fail visibly.
-- [ ] Define accepted explicit-target syntax and resolve PR-number/path-space ambiguities.
-- [ ] Pin committed scope and handle dirty/advisory scope with before/after stability evidence.
-- [ ] Test missing refs, no diff, invalid seat counts, duplicates, reserved/custom lenses and command-injection-shaped targets.
+- [x] Reuse the shared parser without `snipeTier()`; preserve existing Claude parser tests.
+- [x] Implement only the needed Codex profile resolver; unsupported settings fail visibly.
+- [x] Define accepted explicit-target syntax and resolve PR-number/path-space ambiguities.
+- [x] Pin committed scope and handle dirty/advisory scope with before/after stability evidence.
+- [x] Test missing refs, no diff, invalid seat counts, duplicates, reserved/custom lenses and command-injection-shaped targets.
 
 **Exit gate:** no reviewer dispatch happens for invalid inputs; every accepted seat receives identical canonical scope.
 
@@ -237,9 +237,9 @@ No new GitHub Actions workflows or branch protections are needed for the first s
 | Single canonical repository | Accepted by user | Conversation decision; already recorded in parity plan |
 | First feature is snipe | Accepted by user | Current request sequence |
 | Native versus subprocess dispatch | Use bounded `codex exec` seats on Codex CLI 0.153.4. The desktop collaboration API exposed to this task cannot select a named agent or set its cwd/sandbox, so it cannot prove custom-role confinement. | `codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only --json -C <fixture>` read `sentinel.txt`; shell writes in the repo and to a sibling plus an `apply_patch` write were attempted and denied. |
-| Codex model default | Proposed session inheritance | Verified transport support; explicit override validation |
-| Explicit target envelope | Pending S1 | Parser ambiguity cases and documented accepted syntax |
-| Dirty-state strategy | Proposed advisory fingerprint | Coverage of staged/unstaged/untracked and mid-run edits |
+| Codex model default | Inherit the invoking session's model/effort when that exact pair is supported by the selected host; validate explicit overrides against the same host map and refuse unsupported pairs. | `snipe-request.test.mjs` covers inherited and explicit supported profiles plus unsupported model/effort refusals. |
+| Explicit target envelope | `rawArgs` contains only legacy seats/lenses. `target` is a structured object: omitted/`default`, `ref`, explicit two-dot `range`, `merge-base`, or full GitHub `pr` URL with a trusted base ref/SHA. `paths` is a separate literal string array. Locally unavailable PR objects are refused without fetching. | Focused tests cover legacy ambiguity, two-dot versus merge-base semantics, non-default PR bases, matching/lookalike origins, missing objects, spaces, quotes, shell metacharacters and Git pathspec magic. |
+| Dirty-state strategy | Default dirty scope is advisory and hashes pinned HEAD plus complete staged/unstaged binary diffs and relevant untracked file contents. Recompute after review; a changed hash is unstable. Explicit committed targets ignore unrelated working-tree changes. | Focused tests cover staged, unstaged and untracked material, stable recomputation, a mid-run edit, and committed scope in a dirty checkout. |
 | Result field compatibility | Pending S3 | Shared card/schema comparison and alias tests |
 | Package layout and hooks | Use a Codex manifest with an explicit no-op hook file when the adapter needs no hooks; do not permit default discovery of Claude's `hooks/hooks.json`. | CLI 0.153.4 installed a disposable package containing both `hooks/hooks.json` and an explicit `hooks/codex-hooks.json`; with hook trust enabled only for that isolated package, the default-hook sentinel did not run. The cached package contained every referenced skill, policy and hook file. |
 
@@ -300,4 +300,25 @@ conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/plugin-cre
 codex plugin remove snipe-codex-spike@snipe-spike --json
 codex plugin marketplace remove snipe-spike --json
   -> disposable plugin and marketplace removed
+```
+
+### 2026-09-07 — S1 parsing and target resolution
+
+- Commit: `7fc974e`. Changed files: `adapters/codex/skills/snipe/assets/snipe-request.mjs` and its colocated test. Completed checklist items: all five S1 items. The helper imports `parseSnipeArgs()` but never calls `snipeTier()`; the 13 existing Claude parser tests remain unchanged and passing.
+- Accepted request syntax: `rawArgs` is reserved for the legacy seat/lens tail. Any legacy target text is refused with `AMBIGUOUS_TARGET`; callers instead pass one structured `target` object and a separate `paths` array. Supported target shapes are `{type:'default'}`, `{type:'ref',ref}`, `{type:'range',expression:'base..head'}`, `{type:'merge-base',base,head?}`, and `{type:'pr',url,base}`. A PR URL must use exact host `github.com`, match the local origin owner/repository, name its trusted actual base ref/SHA, and have `refs/pull/<number>/head` already available locally. The helper performs no fetch.
+- Scope behavior: clean defaults resolve `refs/remotes/origin/HEAD`, merge-base and HEAD to immutable commit IDs. Explicit two-dot ranges remain labeled `two-dot`; ref, default, PR and explicit merge-base requests remain labeled `merge-base`. Literal pathspec wrappers preserve path boundaries and Git pathspec magic. Dirty defaults capture staged and unstaged binary diffs plus relevant untracked file contents in a SHA-256 fingerprint and return an advisory scope; `verifySnipeScope()` supplies before/after stability evidence. Explicit committed targets remain pinned even when unrelated checkout content changes.
+- Validation behavior: parser errors, bare and listed reserved lenses, duplicate lenses, ambiguous raw targets, malformed targets/paths, unsupported host profiles, missing refs, empty diffs, unavailable PR objects and repository mismatches throw typed errors before any dispatch surface exists. `prepareSnipeRequest()` creates one frozen canonical scope for the later S2 coordinator to share across seats.
+- Review: the required two-axis review finished with no remaining findings. It caught and drove fixes for a redundant parameter, a missing bare-reserved-lens wrapper check, non-literal Git pathspec handling, an incorrect default-branch assumption for PR bases, and a lookalike-GitHub-host origin parser.
+- Versions/environment: Node `v24.17.0`; dedicated conda environment `codex-snipe-port` remains available for Python-based port tooling. S1 itself is dependency-free Node code and did not need Python packages.
+- Remaining limitations: S1 resolves requests only; S2 must implement bounded read-only seat execution and pass this single canonical scope unchanged to every seat. PR preparation/fetching remains deliberately out of scope: absent local PR objects are a visible `PR_OBJECTS_UNAVAILABLE` failure. The dirty fingerprint currently has a 32 MiB bound for Git diff subprocess output; an over-bound capture fails rather than claiming complete scope.
+- Next unchecked action: S2, beginning with the thin explicit-only Codex skill entry point and the bounded `codex exec` coordinator.
+
+Exact S1 test commands and results:
+
+```text
+node --test adapters/codex/skills/snipe/assets/snipe-request.test.mjs skills/snipe/assets/snipe-args.test.mjs
+  -> 25 passed, 0 failed (12 Codex request/scope cases plus all 13 existing parser cases)
+
+git diff --check
+  -> clean
 ```
