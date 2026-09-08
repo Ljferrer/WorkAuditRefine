@@ -50,7 +50,7 @@ check below still applies to a relaunch of a relaunch.
 `preMerged`; a zero-commit branch takes the fresh-run path. Pair it with a phase-level assertion that every
 task the handoff reports `landed` contributed at least one commit to the integration range.
 
-**How to apply on an engine that predates the fix:**
+**How to apply on an engine that predates the fix — and to a relaunch of a relaunch after it:**
 - Before trusting any relaunch's `preMerged` set, or any `recovered:pre-merged` audit-log verdict, run
   `git rev-list --count <base>..<branch>` for each skipped task and diff the window for its `Files:`.
 - Delete stale zero-commit task branches before relaunching; that removes the vacuous input entirely.
