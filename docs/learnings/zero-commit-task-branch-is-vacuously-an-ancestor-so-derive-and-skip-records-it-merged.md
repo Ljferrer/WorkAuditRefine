@@ -24,7 +24,7 @@ metadata:
     - rev-list --count guard
     - sanctioned recovery relaunch
   originSessionId: fddd64d3-2c2c-400e-b891-9b7b75dcd158
-  modified: 2026-08-30T14:48:17.863Z
+  modified: 2026-09-07T00:00:00.000Z
 ---
 
 **Rule:** `git merge-base --is-ancestor <task-branch> "$TIP"` is vacuously true for a branch sitting at the
