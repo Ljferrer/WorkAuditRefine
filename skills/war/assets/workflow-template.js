@@ -1528,7 +1528,7 @@ const demote = (f, to, why, opts) => {
     if (prior) {
       log('Disposition demotion CORROBORATES: [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') → ' + to + ' — ' + why + '; the content key already lives on ' + prior + ' (D12, #1862) — the raiser joins its seats list, never a second minorsFiled row (logged, never silent).')
       const hit = corroborateSurvivor(f)
-      if (hit) hit.demoteReason = hit.demoteReason || why   // a seat-filed survivor carries no reason; the forward-revert fact must reach the filing prompt
+      if (hit) hit.demoteReason = hit.demoteReason || why   // lands on the durable minorsFiled record only — never on the filing prompt's filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
       return
     }
     filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record

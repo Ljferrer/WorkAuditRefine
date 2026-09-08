@@ -3820,8 +3820,12 @@ test('absorb-budget (End state 4, budget-spent bisect ladder): the untested subs
 
 test('aceRelPath: fileless regress (#1815, #1813) — a FILELESS blocking finding reaches blind-halving instead of throwing: aceRelPath(undefined) === undefined, the culprit consumers admit strings only, and the ladder runs both halves', async () => {
   // `file` is schema-optional on a finding, so a fileless Major at the ace re-audit is routine
-  // auditor output. Without aceRelPath's typeof guard `undefined.replace` throws inside aceBisect —
-  // an untagged throw keeps the HARD escalate class and holds a land the ladder must never hold.
+  // auditor output. aceRelPath's typeof guard predates this diff, and the two consumer filters
+  // below (culpritFiles, isCulprit) are belt and braces beside it — with all three in place no
+  // aceBisect site reaches `undefined.replace`, and an untagged throw would keep the HARD escalate
+  // class and hold a land the ladder must never hold. The ladder run at the bottom characterizes
+  // the fileless path (it already reached blind halving at the merge base); the three source-shape
+  // asserts below are the regression proof, and the row pins the end-to-end no-throw path.
   const relM = src.match(/^const aceRelPath = (p => .+)$/m)
   assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
   const aceRelPath = new Function('return ' + relM[1])()
