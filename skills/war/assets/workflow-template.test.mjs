@@ -4534,8 +4534,8 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   assert.equal(sites.length, 8,
     `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   // reentryQueue.push (D12, #1865): routeReauditMinors' stated absorb chain IS the re-entry queue —
-  // the census names it, so the site no longer passes on the demote( calls that happen to share
-  // its window.
+  // the census names it so the row is explicit, rather than relying on the sibling fileFollowUp(
+  // match that happens to sit earlier in the same window (slice.search returns the FIRST match).
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|reentryQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(|fileFollowUp\(/
   for (let k = 0; k < sites.length; k++) {
     // Wall (snipe: three seats, after #2060 dropped the byte cap): the EARLIER of the next site and the
@@ -9715,8 +9715,8 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
-  // Reach all keep-green prompt classes (the five fix-family prompts — the ace bisection subset rides
-  // the ace class — + the phase-close sweep); the sweep filter keys on the literal "keep the gate"
+  // Reach all keep-green prompt classes (the five fix-family prompts plus the three site-segmented
+  // ace classes (subset / reentry / polish) + the phase-close sweep); the sweep filter keys on the literal "keep the gate"
   // fragment, parenthetical-gate form included.
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
@@ -14749,7 +14749,7 @@ test('absorb-budget (End state 4, ace labels): ace and ace-gate dispatch labels 
   const { calls } = await runPhase(ACE_ARGS(), reentryImpl())
   assert.deepEqual(calls.filter(isAce).map(c => c.opts.label), ['ace:polish:t1:a1', 'ace:reentry:t1:a2'], 'the two ace dispatches are labelled by the slot they charge')
   assert.deepEqual(calls.filter(c => c.opts.dispatchKind === 'ace-gate').map(c => c.opts.label), ['ace-gate:t1:a1', 'ace-gate:t1:a2'], 'the ace-gate labels carry the charged counter')
-  assert.ok(!calls.some(c => /^ace(-gate)?:t1:r\d/.test(c.opts.label || '')), 'no ace-family label still carries the retired fixRounds index')
+  assert.ok(!calls.some(c => /^ace(-gate)?:(?:[a-z]+:)?t1:r\d/.test(c.opts.label || '')), 'no ace-family label still carries the retired fixRounds index')
 })
 
 test('absorb-budget (End state 4, distinct re-entry trailers): two successive re-entry batches over ONE file set emit distinct Ace-Subset values — the round segment is anchored on absorbRounds, which fixRounds no longer moves', async () => {

@@ -1509,6 +1509,8 @@ const parkAsk = f => {
 // (corroborateSurvivor) and returns — the revertedKeys stamp still lands first, so the oscillation
 // bound holds either way. queuedKeys is deliberately NOT consulted: a queued re-mint is refused at
 // its own drain against THIS demote's registrations, so the demote must stand as the durable record.
+// revertedKeys is not consulted either: this function stamps it just above the consult, so
+// remintBlock() here would refuse every forward-revert demote and file nothing.
 const demote = (f, to, why, opts) => {
   if (f.disposition === 'ask') {
     log('Disposition demotion REFUSED (ask): [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') — an ask is ruled at the Checkpoint, never demoted (' + why + '); re-routed onto asks[].')
@@ -1740,7 +1742,8 @@ const carryPhaseClose = (f, why) => {
 // no drain left) or with run.ace off (D14). BOTH the follow-up and absorb arms consult the content-key registries
 // (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
-// never re-enters (its demoted follow-up record in minorsFiled stands) and never files twice.
+// never re-enters (its filed follow-up record in minorsFiled stands, whether the engine demoted it
+// or the seat filed it) and never files twice.
 // Content-key re-mint suppression (shared by BOTH arms below AND re-checked at aceReentry's drain):
 // returns the reason string when the finding's remintKey is already aced, forward-reverted, filed as
 // a follow-up in an earlier round, or queued for the sweep / re-entry — the caller logs the
@@ -1750,7 +1753,7 @@ const carryPhaseClose = (f, why) => {
 const remintBlock = f => {
   const k = remintKey(f)
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
-  if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
+  if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its filed follow-up record stands, whether the engine demoted it or the seat filed it'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
   if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands'
   return null
