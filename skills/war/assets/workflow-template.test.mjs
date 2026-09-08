@@ -6271,9 +6271,9 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.ok(keyBody.includes('aceRelPath(f.file)'), 'remintKey normalizes file through aceRelPath (the ONE path normalizer)')
   assert.ok(keyBody.includes('contentHash('), 'remintKey folds the content hash on the empty-key arm')
   const nfBody = windowOf(src, 'const normalizeFinding = f =>', '\nconst askShaped')
-  assert.ok(nfBody.includes('const { seats, merged, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged (never task — see the control below) and normalizes file through aceRelPath')
-  assert.deepEqual(registrySlice().normalizeFinding({ severity: 'Nit', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }] }), { severity: 'Nit', file: 'skills/a.js' },
-    'normalizeFinding behavior: seats/merged dropped, file aceRelPath-normalized (the source-text pins above are shape only)')
+  assert.ok(nfBody.includes('const { seats, merged, drainCause, demoteReason, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged/drainCause/demoteReason (never task — see the control below) and normalizes file through aceRelPath')
+  assert.deepEqual(registrySlice().normalizeFinding({ severity: 'Nit', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }], drainCause: { dispatch: 'forged', why: 'forged' }, demoteReason: 'forged' }), { severity: 'Nit', file: 'skills/a.js' },
+    'normalizeFinding behavior: seats/merged/drainCause/demoteReason dropped (seat-supplied engine provenance never reaches the filing row), file aceRelPath-normalized (the source-text pins above are shape only)')
   // ONE content definition (#2132): the fold's hash and the demotion predicate both read
   // contentTextOf — neither names a raw content field of its own.
   const nsBody = windowOf(src, 'const normalizeSeat = ', '\nconst mergeSeat')
@@ -12041,6 +12041,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // `typeof m.demoteReason === 'string' && m.demoteReason ? pt\`…\` : ''` conditional, so it only
   // renders a non-empty string (the guard is the site's own ternary, never a fallback in the span).
   'm.demoteReason',
+  // dc.dispatch / dc.why (9.1 re-entry a6): the same filing row's `drain cause:` cell — `dc` is the
+  // hoisted `drainCauseOf(m)` local, and the span sits inside a `dc ? pt\`…\` : ''` conditional;
+  // drainCauseOf's shape guard returns null unless dispatch is a string, and String-coerces why.
+  'dc.dispatch', 'dc.why',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {

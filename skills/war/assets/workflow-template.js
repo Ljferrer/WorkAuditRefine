@@ -337,7 +337,8 @@ const DIFF_PROBE_RESULT = { type: 'object', properties: {
 // (in-band-absorb-default D15): the git-derived changed-file list of the whole phase —
 // `git diff --name-only <phaseBase>..<integrationTip>` — read by the gate-audit floor pass's note arm
 // (a gate-audit `note` with a suggested_fix in a touched file reroutes to absorb + phaseClose:true);
-// absent ⇒ that arm skips with a log while the follow-up arm still reroutes. ALL fields optional: a
+// absent ⇒ that arm reads an empty Set and matches nothing, logged, while the follow-up arm still
+// reroutes. ALL fields optional: a
 // failed/absent dispatch ⇒ no tokens ⇒ seats keep today's SOFT cannot-confirm path (fail-open, never a hold).
 const EVIDENCE_RESULT = { type: 'object', properties: {
   phase_diff_files: { type: 'array' },
@@ -1840,8 +1841,12 @@ const seatsListOf = f => (Array.isArray(f.seats) && f.seats.length) ? f.seats : 
 // findings container are dropped with a log and count as removals for the verdict neutralization the
 // same as a demotion. Callers CONSUME THE RETURN (one contract): normalizeSeat mutates the seat in
 // place and returns it, and every site assigns the return.
+// drainCause / demoteReason (D13 provenance, 9.1 re-entry a6): engine-stamped attribution keys — a
+// seat-supplied pair would ride fileFollowUp into the filing row's `engine demote reason:` /
+// `drain cause:` cells and handoff.followUps[].drainCause as forged engine provenance, so both are
+// stripped here beside seats/merged (normalizeSeat's empty-content note stamps its own after this call).
 const normalizeFinding = f => {
-  const { seats, merged, ...rest } = f
+  const { seats, merged, drainCause, demoteReason, ...rest } = f
   if (typeof rest.file === 'string') rest.file = aceRelPath(rest.file)
   return rest
 }
@@ -5543,7 +5548,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // would throw here and kill the whole batch; seatsListOf sends a non-array or empty seats key
       // down the seatRefOf fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${drainCauseOf(m) ? pt` · drain cause: ${drainCauseOf(m).dispatch} died — ${drainCauseOf(m).why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); const pin = (ev.sha === 'unrecorded' && typeof m.sha === 'string' && m.sha) ? m.sha : ev.sha; const dc = drainCauseOf(m); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''} · seats: ${seatsListOf(m).join(', ')}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}${typeof m.demoteReason === 'string' && m.demoteReason ? pt` · engine demote reason: ${m.demoteReason}` : ''}${dc ? pt` · drain cause: ${dc.dispatch} died — ${dc.why}` : ''} · filed-by: ${filedByOf(m)} · audit round ${ev.round} · pinned sha ${pin}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
@@ -5639,9 +5644,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     // held:workflow-error and destroy this very handoff.
     // drainCause (verdict-integrity D13, #1799): ADDITIVE key, present only on a row a phase-close
     // dispatch death drained (stampDrainCause) — { dispatch, why } through drainCauseOf's shape guard.
-    followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
+    followUps: minorsFiled.map(m => { const dc = drainCauseOf(m); return { issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
       ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}),
-      ...(drainCauseOf(m) ? { drainCause: drainCauseOf(m) } : {}) })),
+      ...(dc ? { drainCause: dc } : {}) } }),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, plus `corroborators` when a collision merged a
