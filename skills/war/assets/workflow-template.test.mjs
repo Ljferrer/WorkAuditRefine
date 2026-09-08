@@ -17355,6 +17355,17 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   assert.equal(out.landDecision, 'landed', 'the phase is not held')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'helper lacks the sibling sweep'), 'the conflict never files unruled as a follow-up (an ask is ruled at the Checkpoint)')
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('seat-conflict → ask (D19, PIN-23): task t1')), 'the detector logs the park')
+  // Critical arm: the detector pairs a Critical blocker the same way (it admits f.severity === 'Critical'),
+  // so a scope-split Critical parks the same one ask, never escalates, and the task merges.
+  const scopeCritical = { ...scopeMajor, severity: 'Critical' }
+  const crit = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeCritical, 2: scopeCritical }, [peerMinor]))
+  assert.equal(crit.calls.filter(isFixWorker).length, 0, 'Critical arm: no fix worker')
+  const critAsks = (crit.out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(critAsks.length, 1, 'Critical arm: exactly ONE ask parked')
+  assert.match(critAsks[0].question, /rates "helper lacks the sibling sweep" Critical while/, 'Critical arm: the question names the Critical severity')
+  assert.ok(!(crit.out.escalated || []).some(e => e && e.task === 't1'), 'Critical arm: no escalation')
+  assert.ok(crit.out.landed.includes('t1'), 'Critical arm: t1 merges under the fork')
+  assert.equal(crit.out.landDecision, 'landed', 'Critical arm: the phase is not held')
   // Negative control (delete-the-feature): the same locus split WITHOUT a scope/mandate/adjudication
   // rationale on either side is not a seat conflict — it takes the fix-less survivor route.
   const plainMajor = { ...scopeMajor, rationale: 'the loop misses the last sibling' }

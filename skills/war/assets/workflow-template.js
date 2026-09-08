@@ -1960,9 +1960,9 @@ const escalateReasonOf = seats => {
 // merge), synthesized as an ask and parked through parkAsk instead of escalating the phase. Returns
 // the pairs, or null when any blocker is unpaired (the fix / escalate arms judge that panel). The
 // locus predicate is implementer latitude (Mechanism latitude); the rationale test reads the
-// finding's rationale and title.
+// finding's rationale only (a title's bare `scope` word is code-review vocabulary, not a rationale).
 const SCOPE_RATIONALE = /\b(?:scope|mandate|adjudicat\w*)\b/i
-const scopeSided = f => SCOPE_RATIONALE.test(String(f.rationale ?? '')) || SCOPE_RATIONALE.test(String(f.title ?? ''))
+const scopeSided = f => SCOPE_RATIONALE.test(String(f.rationale ?? ''))
 const sameLocus = (a, b) => typeof a.file === 'string' && a.file.length > 0 && typeof b.file === 'string'
   && aceRelPath(a.file) === aceRelPath(b.file) && (a.line == null || b.line == null || a.line === b.line)
 const seatConflictsOf = seats => {
@@ -2469,7 +2469,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
     // same commit; the `split-panel boundary` registry row): rebuttal first, then a fix round when a `suggested_fix` survives,
     // escalation only for a fix-less survivor.
-    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase, so keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\` naming the missing plan decision) — otherwise state the fix or withdraw the finding:\n`
+    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass, unless the panel is a seat conflict (your blocker and an approving seat\'s Minor/Nit on the same locus, one side reasoning from scope, mandate or an adjudication match), which parks an operator ask and merges instead; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase, unless an approving seat rates the same locus Minor/Nit on a scope, mandate or adjudication rationale — the engine then parks an operator ask and the task merges, so keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\` naming the missing plan decision) — otherwise state the fix or withdraw the finding:\n`
       // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
       // (construction-guaranteed → bare); ${f.title ?? ''} absence-tolerant (title is a schema-optional finding field).
       + peers.map(s => pt`- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => pt`[${f.severity}] ${f.title ?? ''}`).join('; ') || 'no findings'}`).join('\n')
@@ -3613,13 +3613,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       while (round < roundLimit) {
         ;({ seats, expected } = await auditRound(task, null, workerTests, pin))      // independent — no cross-talk
         if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
-        if ((escalateReason = escalateReasonOf(seats))) { verdict = 'escalate'; break }
+        if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
         if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
           ;({ seats, expected } = await auditRound(task, seats, workerTests, pin))
           if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
-          if ((escalateReason = escalateReasonOf(seats))) { verdict = 'escalate'; break }
+          if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
           if (allApprove(seats, expected)) { verdict = 'approve'; break }
           if (isSplit(seats)) {
             // Post-rebuttal arms (verdict-integrity D17/D18/D19, PIN-29/22/23; #1989, #1664, #1914) —
