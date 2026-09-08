@@ -5546,6 +5546,56 @@ test('endstate-transport intake-lint: a whitespace-only check literal is INTAKE-
   assert.ok(clean.includes('fenced below:'), 'anti-vacuous: a clean literal rides a fenced execution row')
 })
 
+// Phase 10 Task 10.1 (D16, PIN-20, A6; #1781/#1782): the seat EXECUTES the .cmd file and attests, so
+// the engine cannot test seat behavior — both fixtures are prompt-content asserts on the three
+// surfaces (the runner's ENDSTATE-CHECK DISPATCH prompt, the seat-side END-STATE CHECK block, the
+// auditor card), registry-bound by the two Task 10.1 rows below. Absence census at the task base
+// (4cb505e): `cmd[i]` and `maximum` count 0 on the card and in the template; `intake_lint` counts 0
+// on the card and appears in the template only in the runner prompt's record-only row and a source
+// comment — never in the seat-side block. So a per-surface revert of either sentence reds its fixture.
+// The seat-side prompt comes from the same claims-bearing single-row phase esTransportPrompt runs.
+const esSeatPromptFor = async (check) => {
+  const { calls } = await runPhase(ES_ROW_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+      endState: [{ condition: 'condition T: the transport shape survives', tag: 'check:', check }] },
+  }), gateAuditImpl)
+  const seat = gateAuditCalls(calls)[0]
+  assert.ok(seat, 'gate-audit seat dispatch present (presence guard)')
+  return seat.prompt
+}
+
+test('endstate: compound check exit aggregation (D16/A6, #1782) — the dispatched END-STATE CHECK runner instruction records a per-command cmd[i] exit: line and the artifact\'s exit_code is the MAXIMUM of the statuses; the seat block and the auditor card carry the reading rule', async () => {
+  const twoCmd = "node --test skills/war/assets/wibble.acceptance.test.mjs; grep -c 'wobble' skills/war/assets/wibble.log"
+  const runner = await esTransportPrompt(twoCmd)
+  assert.match(runner, /COMPOUND CHECKS \(#1782\)/, 'the runner instruction names the compound-check clause')
+  assert.ok(runner.includes('records one `cmd[i] exit: <n>` line per top-level command'), 'the runner records one cmd[i] exit: line per top-level command')
+  assert.match(runner, /final `exit_code:` is the MAXIMUM of those statuses/, 'the artifact\'s final exit_code is the maximum of the per-command statuses')
+  assert.match(runner, /never the last command's status alone/, 'the retired reading — the last command\'s status — is named and forbidden')
+  assert.match(runner, /never by splitting, re-quoting or re-running the literal/, 'the statuses come from the one whole-file run — the byte-verbatim transport stands')
+  assert.match(runner, /execute the file AS A WHOLE, FROM THE FILE/i, 'the AS A WHOLE clause survives beside the aggregation rule (every command still runs)')
+  assert.ok(runner.includes(esFenced('```', twoCmd)), 'the ;-joined literal still rides the fenced block whole')
+  // The reading rule — the seat block and the card are the runner instruction\'s twins.
+  const seat = await esSeatPromptFor(twoCmd)
+  assert.ok(seat.includes('one `cmd[i] exit: <n>` line per top-level command'), 'the seat-side END-STATE CHECK block names the per-command lines')
+  assert.match(seat, /final `exit_code:` is the MAXIMUM of those statuses/, 'the seat-side block carries the maximum rule')
+  assert.match(seat, /read the per-command lines to name the red command/, 'the seat reads the per-command lines, never the maximum alone')
+  assert.ok(auditorMd.includes('one `cmd[i] exit: <n>` line per top-level command'), 'the auditor card carries the per-command lines')
+  assert.match(auditorMd, /final `exit_code:` is the maximum of those statuses/, 'the auditor card carries the maximum reading rule')
+})
+
+test('endstate: intake_lint and cmd_bytes_mismatch attest unverified (D16, #1781) — both record-only triggers are named as unverified triggers on the dispatched END-STATE CHECK block and on the auditor card, never only in a source comment', async () => {
+  const seat = await esSeatPromptFor(ES_CHECK_CMD)
+  for (const [name, text] of [['seat-side END-STATE CHECK block', seat], ['war-auditor.md', auditorMd]]) {
+    assert.ok(text.includes('`intake_lint:`-stamped'), `${name}: names the intake_lint: trigger`)
+    assert.ok(text.includes('`cmd_bytes_mismatch:`-stamped'), `${name}: names the cmd_bytes_mismatch: trigger`)
+    assert.match(text, /record-only/, `${name}: calls both states record-only`)
+    assert.match(text, /attests? ['`]unverified['`](?: too)?, never ['`]unmet['`]/, `${name}: maps both states to unverified, never unmet — a directive, not a comment`)
+  }
+  // Delete-the-feature: the runner prompt's record-only row still directs the intake_lint: artifact line
+  // the seat rule reads (the producer side, pre-existing at base — the consumer rule above is the new half).
+  assert.ok(seat.includes('ATTESTATION (D8'), 'the triggers ride the D8 attestation clause (the positive channel), not a finding rule')
+})
+
 // Recovery Blocker 1 (Pivotal constraint: prompt-surface split — standing card + dispatched prompt,
 // same task): the refiner card must LEARN the endstate-check dispatch flavor it is handed, the way
 // the structurally identical evidence dispatch got its own card section. The dispatch is fail-open,
@@ -10487,8 +10537,23 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'gate-log reading rule (D8, PIN-12, #2094): auditor card execution rung 1 ↔ per-task + integrated-tip gate-audit seat prompts',
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit seat prompt', esSeatP], ['integrated-tip gate-audit seat prompt', itSeatP]],
       anchors: [/gate_log_path unthreaded — conventional path used/, /complete evidence only when its FIRST line is `tip_sha:` of the gated sha and its LAST line is `exit_code:`/, /tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding/] },
+    // Phase 10 Task 10.1 (D16, PIN-20, #1781): the two record-only endstate artifact states are DIRECTED
+    // `unverified` triggers on the seat surfaces — the auditor card's execution rung 1 and the shared
+    // endStateBlock (per-task + end-state-only live carriers; the integrated-tip fixture claims no End
+    // states, so it carries no block). `intake_lint` counted 0 on the card and 0 in endStateBlock at the
+    // task base (the template's hits were the runner row + a source comment), so a per-surface revert reds this row.
+    { name: 'endstate record-only states (D16, PIN-20, #1781): intake_lint: / cmd_bytes_mismatch: attest unverified, never unmet — auditor card execution rung 1 ↔ endStateBlock carriers',
+      surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (claims-bearing)', esSeatP], ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
+      anchors: [/`intake_lint:`-stamped/, /`cmd_bytes_mismatch:`-stamped/, /record-only/, /attests? ['`]unverified['`](?: too)?, never ['`]unmet['`]/] },
+    // Phase 10 Task 10.1 (D16, PIN-20, A6, #1782): the runner records one `cmd[i] exit: <n>` line per
+    // top-level command and the artifact's exit_code is the MAXIMUM of the statuses; the reading rule is
+    // the card's and the seat block's twin. `cmd[i]` and `maximum` counted 0 on the card and in the
+    // template at the task base, so a per-surface revert reds this row.
+    { name: 'compound-check exit aggregation (D16, PIN-20, A6, #1782): per-command cmd[i] exit: lines + exit_code maximum — endstate-check runner prompt ↔ auditor card execution rung 1 + endStateBlock carriers',
+      surfaces: [['war-auditor.md', auditorMd], ['endstate-check dispatch prompt', esCheckP], ['per-task gate-audit prompt (claims-bearing)', esSeatP], ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
+      anchors: [/one `cmd\[i\] exit: <n>` line per top-level command/, /final `exit_code:` is the maximum of those statuses/i] },
   ]
-  assert.ok(REGISTRY.length >= 30, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule)')
+  assert.ok(REGISTRY.length >= 32, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
