@@ -22,8 +22,8 @@
 # disambiguation + accepted-residual header pin, SIGPIPE regression + env-error
 # arm pin, refinery hygiene arm) and holder-die rows RG.5-RG.6 (`checked out
 # at <path>` in the two worktree-add failure dies fix 1 covered: ensure-worktree
-# and ensure-refinery-worktree; ensure-publication-worktree's add-die names no
-# holder and is out of that scope).
+# and ensure-refinery-worktree). Row RG.7 (#2087, plan 2026-09-06 Task 6.2)
+# pins the same holder clause on ensure-publication-worktree's add-die.
 # Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
@@ -665,6 +665,28 @@ expect "holder-die(ensure-refinery-worktree): second refinery worktree on the he
 MSG_RG6="$(run_in_msg "$RRG6" ensure-refinery-worktree "$WTRG6B" integration/myplan/phase-8)"
 expect "holder-die(ensure-refinery-worktree): die names the holder path (checked out at <path>)" \
   "yes" "$(printf '%s' "$MSG_RG6" | grep -Fq "checked out at $WTRG6A_PHYS" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.7 / #2087, plan 2026-09-06 Task 6.2) holder-naming die,
+# ensure-publication-worktree: the working branch is held by worktree A; a
+# second publication worktree at B must die naming A's path. The base die
+# already carried the `ensure-publication-worktree: failed to add worktree`
+# prefix, so the decisive token is the `checked out at <path>` holder clause.
+# ---------------------------------------------------------------------------
+RRG7="$(new_repo)"
+git -C "$RRG7" branch dev/myplan-work HEAD
+WTRG7A="$(new_wt_path)"
+( cd "$RRG7" && bash "$SCRIPT" ensure-publication-worktree "$WTRG7A" dev/myplan-work ) >/dev/null 2>&1
+WTRG7A_PHYS="$(cd "$WTRG7A" && pwd -P)"
+WTRG7B="$(new_wt_path)"
+code="$(run_in "$RRG7" ensure-publication-worktree "$WTRG7B" dev/myplan-work)"
+expect "holder-die(ensure-publication-worktree): second publication worktree on the held branch fails loud" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+MSG_RG7="$(run_in_msg "$RRG7" ensure-publication-worktree "$WTRG7B" dev/myplan-work)"
+expect "holder-die(ensure-publication-worktree): die carries the add-failure prefix" \
+  "yes" "$(printf '%s' "$MSG_RG7" | grep -Fq "ensure-publication-worktree: failed to add worktree" && echo yes || echo no)"
+expect "holder-die(ensure-publication-worktree): die names the holder path (checked out at <path>)" \
+  "yes" "$(printf '%s' "$MSG_RG7" | grep -Fq "checked out at $WTRG7A_PHYS" && echo yes || echo no)"
 
 # ===========================================================================
 # Task 4: teardown-task / teardown-phase / prune  (all strictly RUN-SCOPED).
@@ -2783,9 +2805,9 @@ expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clea
 # reuse (#1083, case P.8) while the refinery verb still reuses unconditionally
 # on-branch; reuse arms (b) and (c), where the refinery verb runs the
 # reuse_hygiene submodule arm and emits its WORKTREE_HYGIENE markers (#1476
-# gap 4) and this verb runs neither; and the worktree-add failure die, which
-# names no branch holder here (unfilled #1712 fix-1 scope — rows RG.5-RG.6 cover
-# the two dies that do). remove-publication-worktree <path> is a NO-FORCE,
+# gap 4) and this verb runs neither. The worktree-add failure die names the
+# branch holder like the refinery twin (#2087, row RG.7 beside RG.5-RG.6).
+# remove-publication-worktree <path> is a NO-FORCE,
 # dirty-guarded removal that NEVER touches the branch ref (the working branch —
 # WAR's land target — must survive; a committed-but-unpushed docs commit lives
 # on it).

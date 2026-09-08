@@ -1579,12 +1579,10 @@ cmd_ensure_refinery_worktree() {
 #      counterpart deliberately keeps today's six behaviors — extending the
 #      refusal there interacts with the serial merge queue's legitimate in-flight
 #      state and is a recorded non-goal.
-#   3. The worktree-add failure die. The refinery twin names the branch holder
-#      (`checked out at <path>`, #1712 fix 1); this die does not. That is
-#      unfilled #1712 scope, not a decision — the adjudicated row scoped fix 1 to
-#      the two dies the test-file header names. The practical exposure is small:
-#      resolve-working-branch guarantees the working branch is checked out
-#      nowhere, and path (e) prunes a stale registration before the add.
+#   3. (Closed by #2087.) The worktree-add failure die names the branch holder
+#      (`checked out at <path>`) via branch_holder_path exactly as the refinery
+#      twin does — #1712 fix 1 had scoped the holder clause to the ensure-worktree
+#      and ensure-refinery-worktree dies only. The two dies now share one shape.
 #
 # The Lead checks out the working branch here to commit
 # `docs(learnings): phase N` before pushing via ensure-origin's CAS. It checks the
@@ -1666,8 +1664,13 @@ cmd_ensure_publication_worktree() {
 
   # (a) or (e): Create (or recreate after prune) the publication worktree, checking
   # out the working branch as-is at its local tip (no new branch created).
-  git worktree add "$wt_path" "$work_branch" >/dev/null 2>&1 \
-    || die "ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch'"
+  if ! git worktree add "$wt_path" "$work_branch" >/dev/null 2>&1; then
+    # #2087: name the holder (see ensure-refinery-worktree's twin die).
+    pw_holder="$(branch_holder_path "$work_branch" || true)"
+    pw_msg="ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch'"
+    [ -z "$pw_holder" ] || pw_msg="ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch' — the branch is checked out at $pw_holder; free or tear down that worktree first."
+    die "$pw_msg"
+  fi
 
   write_marker "$wt_path" "$work_branch"
   printf '%s\n' "$wt_path"
