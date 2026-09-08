@@ -526,7 +526,9 @@ a merge-task reports `gate_segment` the same way — in-band fields riding the e
 a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
 `segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
 `segmentedMerge` on the four per-task merge-task sites (initial, floor-retry, environment-proceed,
-baseline-proceed); the two sweep-family merges are not segmented (ADR 0051 §3) — each helper appends
+baseline-proceed); the two sweep-family merges are not segmented (ADR 0051 §3; the
+`segmented-land: re-land sites` and `segmented-gate: re-merge sites` fixtures in
+`workflow-template.test.mjs` are the arbiters of those two site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
 by `run.roundLimit`; exhaustion routes by the ridden status. The pair is the read (PIN-9): a landed
 or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
@@ -686,8 +688,8 @@ The engine-side pass every seat verdict crosses before any routing reads it — 
 pin-transfer, floor-fix, sweep, terminal — plus the three gate-audit-family seats: post-merge,
 integrated-tip, end-state-only). It strips the attribution keys only the engine may stamp (a seat's
 own `seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
-`aceRelPath`, demotes an empty-content finding to a logged note, and folds a content hash into
-`remintKey` when file and title are both absent — so what `f.file` and `f.seats` mean downstream is
+`aceRelPath`, and demotes an empty-content finding to a logged note; `remintKey` folds a content
+hash in when file and title are both absent — so what `f.file` and `f.seats` mean downstream is
 what the engine set, never what a seat supplied. The auditor card's and every dispatched auditor
 prompt's FINDING-PATH FORM sentence is advisory belt and braces; the invariant lives in the engine
 ([ADR 0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
