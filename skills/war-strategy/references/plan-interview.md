@@ -70,6 +70,11 @@ test for a fork: name the two different plans the answer forks between — if yo
 is not a question. Intent material (Purpose / Method / End states) is **never**
 default-and-tagged: it is asked, or it is absent (ADR 0013).
 
+Keep this provisional draft private. If advisory lint needs a file before the
+confirmations, use host temporary storage outside the target working tree and
+remove that scratch file when finished. Do not leave an extra draft beside the
+operator's source or publish the final plan before the closing gates are satisfied.
+
 **Stage 2 — the interview.** Run under the question contract:
 
 - a status line opens every question turn: `Locked: <n> · Open forks: <m> · Qk · cap <budget>`.

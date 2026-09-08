@@ -9,6 +9,14 @@ import { buildPlanningPlugin, verifyPlanningPlugin } from './package-planning.mj
 import { buildSnipePlugin } from './package-snipe.mjs'
 
 const repoRoot=fileURLToPath(new URL('../..',import.meta.url))
+test('planning builder CLI works through a filesystem alias',t=>{
+  const root=mkdtempSync(join(tmpdir(),'war-planning-cli-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const alias=join(root,'builder.mjs'),output=join(root,'package')
+  symlinkSync(join(repoRoot,'adapters/codex/package-planning.mjs'),alias)
+  const run=spawnSync(process.execPath,[alias,output],{encoding:'utf8'})
+  assert.equal(run.status,0,run.stderr)
+  assert.ok(verifyPlanningPlugin(output).includes('skills/war-help/SKILL.md'))
+})
 test('help capability names agree with independently built planning and Snipe inventories',t=>{
   const root=mkdtempSync(join(tmpdir(),'war-help-capabilities-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const planning=join(root,'planning'),snipe=join(root,'snipe')

@@ -196,6 +196,29 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   unavailable stamp or read-only launch flag fails the corresponding independent
   oracle; six transport/contract tests pass. These guard mutations do not substitute
   for the separately recorded actual-host observation limits.
+- Audit 4: P5 checkpoint `943e15b..7e75845`, scoped to help, packaging and its
+  evaluation/evidence files. All three Sol/medium seats approved with high confidence,
+  complete coverage and no findings. One P5 cycle consumed; no second is needed
+  solely to obtain another approval.
+- Evaluation 3 reached its original 570-second work deadline during the second
+  continuation (the remaining 30 seconds were reserved for setup/cleanup). It did
+  not complete both confirmations or a final plan. It did preserve the twice-read
+  pin in a linted provisional draft, but wrote that scratch draft into the target
+  worktree. Shared guidance now explicitly uses host temporary storage outside the
+  target for pre-confirmation lint input. The run's wall time includes coordinator
+  review and unrelated work between replies; do not attribute all of it to the
+  evaluator. Its one diagnostic rerun remains available.
+- Evaluation 4 first turn: conversion identified both same-file collision and
+  vacuous file-existence acceptance, then asked one gap-driven question. Original
+  draft and unrelated bytes remain pending final inspection; no completed conversion
+  is claimed. Evidence: `/private/tmp/war-planning-eval-4-conversion.log`.
+- P4 CLI lifecycle sweep found defects beyond the earlier imported-function tests:
+  macOS path aliases could suppress the entrypoint, and coordinator SIGTERM could
+  leave its detached child alive. The actual CLI regression first failed to launch,
+  then (after alias repair) failed to return a cancellation result. Both are fixed;
+  CLI cancellation now returns unavailable only after its verifier settles. The
+  planning builder also has an executable alias fixture. Fourteen combined package/
+  verifier tests pass; this is new work after the P5 panel's pinned scope.
 - P5 source checkpoint: help lists only the two built planning skills and optional
   separately packaged Snipe. Its invocation names are checked against independently
   built package manifests/inventories; body and UI drift mutations are rejected.

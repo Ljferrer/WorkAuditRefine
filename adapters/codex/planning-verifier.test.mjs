@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { spawn } from 'node:child_process'
 import { buildPlanningPlugin } from './package-planning.mjs'
 const root=mkdtempSync(join(tmpdir(),'war-verifier-contract-'))
 after(()=>rmSync(root,{recursive:true,force:true}))
@@ -59,6 +60,7 @@ if(process.argv[2]==='app-server') {
   });
 } else {
   writeFileSync(${JSON.stringify(marker)},JSON.stringify(process.argv.slice(2)));
+  writeFileSync(${JSON.stringify(marker+'.pid')},String(process.pid));
   const mode=${JSON.stringify(mode)};
   if(mode==='hang')setInterval(()=>{},1000);
   else if(mode==='denied'){process.stderr.write('permission denied by host');process.exitCode=1;}
@@ -133,5 +135,30 @@ test('removing retry, fork, failure-visibility or read-only guards fails the beh
       const {verifyRecommendation:mutant}=await import(`${pathToFileURL(path)}?mutation=${index}`)
       await assert.rejects(()=>oracle(mutant),{name:'AssertionError'})
     }finally{writeFileSync(path,source)}
+  }
+})
+
+test('CLI termination cancels its active verifier before returning',async()=>{
+  const fake=fakeCodex('hang'),requestPath=join(root,'cancel-request.json')
+  writeFileSync(requestPath,JSON.stringify({...request,repository:root}))
+  const child=spawn(process.execPath,[join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),'--request',requestPath,'--codex-path',fake.codexPath],{stdio:['ignore','pipe','pipe']})
+  const chunks=[];child.stdout.on('data',chunk=>chunks.push(chunk));child.stderr.on('data',()=>{})
+  const closed=new Promise(resolve=>child.once('close',resolve))
+  let pid
+  try {
+    const deadline=Date.now()+10000
+    while(!existsSync(fake.marker+'.pid') && Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,20))
+    assert.ok(existsSync(fake.marker+'.pid'),'verifier started before cancellation')
+    pid=Number(readFileSync(fake.marker+'.pid','utf8'));assert.ok(Number.isInteger(pid) && pid>0)
+    child.kill('SIGTERM')
+    let timer
+    try {await Promise.race([closed,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('CLI did not settle')),5000)})])}finally{clearTimeout(timer)}
+    assert.equal(JSON.parse(Buffer.concat(chunks).toString()).status,'unavailable')
+    assert.match(Buffer.concat(chunks).toString(),/cancelled/)
+    assert.throws(()=>process.kill(pid,0),{code:'ESRCH'},'owned verifier must terminate')
+  }finally{
+    child.kill('SIGKILL')
+    if(pid)try{process.kill(process.platform==='win32'?pid:-pid,'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+    await closed
   }
 })

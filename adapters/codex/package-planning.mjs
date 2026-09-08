@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
@@ -115,7 +115,7 @@ export function buildPlanningPlugin({repoRoot,output}) {
   return verifyPlanningPlugin(destination)
 }
 
-if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
+if(process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1])===fileURLToPath(import.meta.url)) {
   if(process.argv.length!==3)throw new Error('usage: node adapters/codex/package-planning.mjs OUTPUT')
   const repoRoot=fileURLToPath(new URL('../..',import.meta.url))
   console.log(JSON.stringify({files:buildPlanningPlugin({repoRoot,output:process.argv[2]})}))

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
@@ -77,8 +77,14 @@ async function dispatchCodex(prompt,input,{codexPath,timeoutMs=600000,signal}={}
   return JSON.parse(response)
 }
 
-if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
+if(process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1])===fileURLToPath(import.meta.url)) {
   const args=process.argv.slice(2)
   if(args[0]!=='--request' || ![2,4].includes(args.length) || (args.length===4 && args[2]!=='--codex-path'))throw Error('usage: strategy-verifier.mjs --request FILE [--codex-path ABSOLUTE]')
-  console.log(JSON.stringify(await verifyRecommendation(JSON.parse(readFileSync(args[1],'utf8')),{codexPath:args[3]})))
+  const controller=new AbortController(),cancel=()=>controller.abort()
+  process.once('SIGINT',cancel);process.once('SIGTERM',cancel)
+  try {
+    console.log(JSON.stringify(await verifyRecommendation(JSON.parse(readFileSync(args[1],'utf8')),{codexPath:args[3],signal:controller.signal})))
+  }finally {
+    process.removeListener('SIGINT',cancel);process.removeListener('SIGTERM',cancel)
+  }
 }

@@ -75,6 +75,8 @@ test('question budget preserves stop and consent duties without reviving a slash
     'Echo-backs and their confirmations do not consume question slots',
     'Other non-question turns do not advance Q either',
     'including falsifier and checkpoint questions',
+    'use host temporary storage outside the target working tree',
+    'Do not leave an extra draft beside the operator\'s source or publish the final plan before the closing gates are satisfied',
   ]
   const complete=text=>{for(const clause of obligations)assert.ok(text.includes(clause),clause)}
   complete(interview)
