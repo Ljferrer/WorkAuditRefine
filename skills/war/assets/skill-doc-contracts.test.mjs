@@ -3938,6 +3938,98 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
   }
 })
 
+// (unverified-triggers) CONTEXT.md's **`unverified`** (End-state status) entry restates two engine
+// literals it cannot de-mirror: the record-only artifact states the land-barrier endstate-check
+// dispatch stamps (`intake_lint:`, `cmd_bytes_mismatch:`), which the END-STATE CHECK seat block names
+// as `unverified` triggers (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2; D16,
+// PIN-20, #1781). The canonical set is extracted from the engine's endstate build region — the
+// ENDSTATE-CHECK DISPATCH build through the END-STATE CHECK seat block — as every backticked
+// `<snake_case>:` artifact line, minus the per-artifact frame every row carries (`tip_sha:` first,
+// `exit_code:` last — the gate-log stamp registry rows bind those). The region starts at the
+// dispatch header, so `provision_red: <step> (exit <code>)` — stamped by `endstateProvisionClause`,
+// built ABOVE the start anchor and interpolated into the same prompt — is outside the window by
+// construction: it is a preamble note, not a record-only state. The residual this row does not see
+// is a new record-only state added outside the window (or that clause hoisted below the anchor,
+// which reds the `canonical.length` assert for a reason other than a third state), and a
+// non-record-only backticked `<snake_case>:` token entering the window (a seat-block mention of
+// `provision_red:`, say), which reds the same assert with a message that misnames the cause. The glossary
+// row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
+// line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
+// workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
+test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
+  const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')
+  const end = workflowTemplateSrc.indexOf('if (mergedTasksForGateAudit.length > 0)')
+  assert.ok(start > 0 && end > start, 'could not locate the endstate build region (ENDSTATE-CHECK DISPATCH … END-STATE CHECK) in workflow-template.js — the extraction anchors rotted')
+  const region = workflowTemplateSrc.slice(start, end)
+  const FRAME = ['tip_sha', 'exit_code']
+  const stamps = [...new Set([...region.matchAll(/`([a-z][a-z_]*_[a-z_]+):/g)].map((m) => m[1]))]
+  for (const f of FRAME) {
+    assert.ok(stamps.includes(f), `the endstate build must stamp \`${f}:\` on every artifact — the frame anchor rotted`)
+  }
+  const canonical = stamps.filter((t) => !FRAME.includes(t)).sort()
+  assert.equal(canonical.length, 2, 'the endstate build must stamp exactly its two record-only artifact states (D16: intake_lint, cmd_bytes_mismatch)')
+  const entry = contextMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **`unverified`** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set([...e.matchAll(/`([a-z][a-z_]*_[a-z_]+):`/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(
+    named,
+    canonical,
+    'the CONTEXT.md **`unverified`** entry must name exactly the engine\'s record-only artifact states as `unverified` triggers — ' +
+      'update this glossary copy in the same commit as the endstate build (D16, PIN-20)',
+  )
+  assert.match(e, /never `unmet` \(#1781\)/, 'the **`unverified`** entry must state that a record-only artifact is never attested `unmet` (#1781)')
+})
+
+// (gate-log-stamp-glossary) CONTEXT.md's **Gate-log stamp** entry restates three engine literals it
+// cannot de-mirror (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2 re-entry; D7/D8,
+// PIN-11/PIN-12): the two stamp lines `GATE_LOG_STAMP` builds (`tip_sha:` first, `exit_code:` last)
+// and the `GATE_LOG_UNTHREADED` fallback marker the evidence dispatch renders on an unthreaded
+// `gate_log_path`. The gate-log-stamp registry rows in workflow-template.test.mjs bind the engine
+// build to the refiner card, and the `unverified-triggers` row above asserts the two stamp tokens
+// only on the engine side (its FRAME), so nothing else watches this glossary copy — a rename of
+// either stamp token or a rewording of the marker would leave it silently stale. Both literals are
+// extracted from workflow-template.js by construct (the `const <NAME> = pt\`…\`` declaration — the
+// stamp literal escapes its inner backticks, so the extraction stops at the first unescaped one),
+// and the entry is extracted by the bolded-term-to-next-bolded-term idiom the `unverified-triggers`
+// row uses, never by line. Two rows, one extractor: the stamp row asserts the entry names EXACTLY
+// the backticked `<snake_case>:` tokens the stamp literal carries, and the marker row asserts the
+// entry contains the marker text verbatim.
+const gateLogStampEntry = () => {
+  const entry = contextMd.match(/^\*\*Gate-log stamp\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **Gate-log stamp** glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Gate-log stamp** entry must span its `_Avoid_` line — extraction truncated')
+  return e
+}
+const ptConst = (name) => {
+  const m = workflowTemplateSrc.match(new RegExp('^const ' + name + ' = pt`((?:[^`\\\\]|\\\\.)*)`', 'm'))
+  assert.ok(m, `could not locate the \`const ${name} = pt\`…\`\` declaration in workflow-template.js — the extraction construct rotted`)
+  return m[1]
+}
+
+test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry names exactly the `<snake_case>:` stamp tokens GATE_LOG_STAMP builds', () => {
+  const stamp = ptConst('GATE_LOG_STAMP')
+  const canonical = [...new Set([...stamp.matchAll(/`([a-z][a-z_]*_[a-z_]+):/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(canonical, ['exit_code', 'tip_sha'], 'GATE_LOG_STAMP must build exactly the two stamp lines (tip_sha: first, exit_code: last) — the engine literal rotted')
+  const named = [...new Set([...gateLogStampEntry().matchAll(/`([a-z][a-z_]*_[a-z_]+):`/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(
+    named,
+    canonical,
+    'the CONTEXT.md **Gate-log stamp** entry must name exactly the stamp tokens GATE_LOG_STAMP builds — update this glossary copy in the same commit as the engine literal (D7, PIN-11)',
+  )
+})
+
+test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry carries the GATE_LOG_UNTHREADED marker verbatim', () => {
+  const marker = ptConst('GATE_LOG_UNTHREADED')
+  assert.match(marker, /^\(gate_log_path unthreaded/, 'GATE_LOG_UNTHREADED must be the parenthesized unthreaded-path marker — the engine literal rotted')
+  assert.ok(
+    gateLogStampEntry().includes('`' + marker + '`'),
+    `the CONTEXT.md **Gate-log stamp** entry must quote the engine's unthreaded marker \`${marker}\` verbatim — update this glossary copy in the same commit as GATE_LOG_UNTHREADED (D8, PIN-12)`,
+  )
+})
+
 // (ace-off-route) THE RETIRED "with `--ace` off every absorb demotes this way" RESIDUAL-RULE WORDING
 // IS ABSENT FROM skills/war/SKILL.md (plan 2026-09-03-in-band-absorb-default, End state 12 · Task
 // 4.2; D14, PIN-16). Base-verified at this task's cut base: the `--ace` bullet's Residual rule read
