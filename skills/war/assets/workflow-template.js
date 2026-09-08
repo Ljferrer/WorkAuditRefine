@@ -1054,6 +1054,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
+  // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
+  // the `supersedes` citation idiom is an adjudication-row shape, so these rows expose their full text
+  // to the widened foreign-id scan (the surface loop falls back to `text` when idText is absent).
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
@@ -1070,7 +1073,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // seededPhaseClose rows (D3b, PIN-5) JOIN the floor under the ruledAsks discipline: per-row
   // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
   // FIELD (stamped by the emitting engine's carryPhaseClose) is the provenance coordinate — a
-  // foreign slug refuses directly; the run's own slug exempts the row.
+  // foreign slug refuses directly; the run's own slug exempts the row. As at ruledAskRowText, the
+  // #1751 predecessor-citation strip is adjudications-only: no idText here, the full text is scanned.
   const seededPhaseCloseRowText = row => {
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['title', 'rationale', 'suggested_fix']
@@ -2458,11 +2462,12 @@ if (tasks.length) {
   // vacuous for a zero-commit branch sitting at the phase base (a task that dep-failed or never
   // dispatched in an earlier attempt), so the count is the paired conjunct: such a branch is classified
   // ZERO_COMMIT in the barrier transcript and takes the ordinary ensure-worktree path, never preMerged.
-  // The range renders its base INLINE per task, by branch name, never through a carried "$BASE": an
-  // agent shell does not carry a variable across calls, and an unset BASE reads as HEAD..<branch>,
-  // which exits 0 with a plausible non-zero count — the one arm that would fail silent and open (#2038,
-  // the absorbChargesClause precedent). The ZERO_COMMIT transcript line renders the same inline
-  // merge-base, so the clause carries one rule and no shell variable at all. The base is the
+  // The range renders its base INLINE per task, by branch name, never through a carried "$BASE". The
+  // reason is the failure-mode asymmetry: an unset BASE renders HEAD..<branch>, which exits 0 with a
+  // plausible count — silent and open (#2038, the absorbChargesClause precedent) — whereas the
+  // is-ancestor conjunct's "$TIP" fails loud when unset, and TIP is bound inside the same step-3
+  // command this clause extends (the holderFreeClause comment records that scope). The ZERO_COMMIT
+  // transcript line renders the same inline merge-base, so the clause carries one base rule. The base is the
   // integration branch's fork point off the working branch (the refiner card's phase integration
   // base) — the residual: a zero-commit branch cut at a LATER relaunch's adopted tip counts its
   // siblings' fast-forwarded commits and is not caught here.

@@ -11018,9 +11018,9 @@ test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry �
 
 // D9 / PIN-13 (#1895, #2006): derive-and-skip needs commits. The barrier prompt requires BOTH
 // `merge-base --is-ancestor` AND `rev-list --count "$(git merge-base <integration> <working>)"..<branch>`
-// > 0 before deriving preMerged (the base inline per task, never a carried "$BASE" — #2038), binds BASE
-// once for the ZERO_COMMIT transcript line, and classifies a zero-commit ancestor as a
-// never-started task that takes the ordinary ensure-worktree path. The engine has no shell, so the
+// > 0 before deriving preMerged (the base inline per task, never a carried "$BASE" — #2038), and
+// classifies a zero-commit ancestor as a never-started task that takes the ordinary ensure-worktree
+// path. The engine has no shell, so the
 // prompt is the guard: an honest barrier reports a zero-commit branch in NO array and the worker runs.
 test('derive-and-skip: zero-commit branch dispatches (#1895/#2006)', async () => {
   const args = PROVISION_ARGS({ recovery: { sanctioned: true } })
@@ -12115,7 +12115,10 @@ test('provenance floor: string supersedes row launches', async () => {
   assert.match(leak.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/, 'the refusal names the leaked id, never the stripped citation')
   // Mirror direction: a foreign id AFTER the word `supersedes` but outside the citation shape is not a
   // citation — the strip is anchored to the id directly after `supersedes`, never a lazy span to the
-  // next plan id. Both rows are value rows (own-token exempt), so the foreign-id scan is the only floor.
+  // next plan id. Neither row is a value row (isValueRow's string arm needs the value token right
+  // before the render suffix, and both rows open with prose), so both floors are live: the foreign-id
+  // branch is evaluated before the own-token branch and is what refuses, and the message assert pins
+  // `(docs/plans/foreign-thing.md)` — an over-broad strip would red that assert, not the status.
   for (const row of [
     '- D11/A6: the ruling supersedes what docs/plans/foreign-thing.md said (supersedes plan literal: 0.9)',
     'ruled: this supersedes the prior call; see docs/plans/foreign-thing.md (supersedes plan literal: 0.9)',
