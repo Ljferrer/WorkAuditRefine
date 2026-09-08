@@ -2,6 +2,35 @@
 
 This check supplements the direct `snipe-actual-host.test.mjs` runtime test. A direct host runner cannot establish that a Codex task requests the necessary launch permission.
 
+## Installed skill discovery (#2211)
+
+In a fresh task, use the installed plugin's qualified invocation:
+
+```text
+$work-audit-refine-snipe:snipe correctness,security
+Auditor profile: gpt-5.6-sol / medium
+```
+
+Alternatively, select **Snipe** from **WAR Snipe** in the host's skill picker so the host attaches the skill. The plugin remains explicit-only (`allow_implicit_invocation: false`). Bare `$snipe` text is not a reliable installed-plugin alias on the tested host; the earlier unqualified examples below describe source-selected tests, not a discovery guarantee. Do not work around failed lookup by searching cache directories or launching substitute auditors. Verify the installed plugin is enabled and select its qualified skill; if it still cannot resolve, report the failure and stop.
+
+The host's [App Server skill invocation contract](https://learn.chatgpt.com/docs/app-server#skills) recommends a structured `skill` input attachment and supports discovering its name/path with `skills/list`. Paths belong in host-resolved attachments, not manual user prompts. A skill omitted from the default model catalog can still be installed and explicitly invocable.
+
+Evidence on bundled Codex CLI `0.153.4`, with installed `work-audit-refine-snipe` version `0.21.12+codex.20260908045352`:
+
+- `skills/list` with `forceReload: true` returned enabled `work-audit-refine-snipe:snipe`, plugin ID `work-audit-refine-snipe@war-snipe-local`, and no discovery errors.
+- A fresh ephemeral read-only process given bare `$snipe` reported unavailable. Changing only the marker to `$work-audit-refine-snipe:snipe` loaded the skill and identified its owned runner without a path hint or filesystem search. No install or policy change occurred between those probes.
+- The regression below failed before the prompt correction with `available: false` and null runner/sandbox/approval fields. After correction, both packaged default prompts resolved the skill in separate fresh processes and returned `snipe-runner.mjs`, `read-only`, and `never`. The negative conceptual request performed no commands and produced no audit report.
+
+Run the opt-in discovery regression with the absolute host executable and an explicitly selected supported model/effort:
+
+```sh
+SNIPE_CODEX_BIN=/absolute/path/to/codex \
+SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium \
+node --test adapters/codex/snipe-discovery-host.test.mjs
+```
+
+This test requires the Snipe plugin already installed and enabled. It builds candidate metadata, submits those prompts through the actual bundled host against the installed skill, and launches no audit seats. It proves qualified text discovery, not a Desktop picker click or installation of the candidate package. After merge/reinstall, repeat the qualified invocation in a fresh Desktop task to accept the release. Both shipped default prompts now use that qualified name; the ten-file package inventory, explicit-only policy, runner, and Claude plugin are unchanged.
+
 ## Reproduce and verify
 
 1. In a disposable Git repository, commit a `normalizedScore(value, maximum)` helper that rejects non-finite operands with `Number.isFinite`. Configure `origin/HEAD` to that baseline. Remove only the validation in the working tree; leave ratio clamping. Include no tests so absent-test reporting is exercised.
