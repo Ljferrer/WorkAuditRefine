@@ -881,10 +881,7 @@ _Avoid_: per-ask mini-gates; any severity, count, or staleness exception to the 
 **Grind measurement**:
 The #1664 backstop's read of decision-shaped round-grinding from three terminal sources — manifest
 `phases[].dispatches.fixRounds`, the filing site's audit-round field, and `minorsFiled` rationales —
-coarseness named: round-level attribution does not exist. Since the two-sided boundary landed
-(ADR 0013, Decision log 2026-09-08) the escalate-at-round-0 grind is engine-refused — the boundary
-retired the grind it measured, see **Decision-forked finding** — read the residual as post-rebuttal
-`fixRounds` beside the `escalated[]` rows carrying a seat's `escalate_reason`.
+coarseness named: round-level attribution does not exist.
 _Avoid_: inventing per-round attribution the record does not carry.
 
 **Failure-routing asymmetry**:
