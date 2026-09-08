@@ -300,3 +300,43 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   outside-sandbox positive control remains independently proven by evaluation 1.
   Evaluation 10 is separately evaluating a scoped arm-4 waiver followed by a
   proposed same-file parallel decomposition, from the built package.
+- Evaluation 10 completed under the additional authorization. The independent
+  Sol/medium planner read the built skill and raw draft in
+  `/private/tmp/war-planning-waiver.tag5pp`, retained `WAIVE-1` for arm 4, and
+  dispatched arm 3 once through packaged `verifyRecommendation` (120-second
+  bound, same explicit Sol/medium profile). It proposed combining the same-file
+  tasks, received `status: verified`, `next: present`, and the empty-corpus stamp,
+  then asked the operator to accept the decomposition. Its consequence named
+  same-base edits risking a serial-rebase conflict, caught by WAR's refiner.
+  This is a verifier's assessment against maintained doctrine, not certification
+  of the future engine. The temporary request/wrapper were removed; Git status
+  and tracked diffs were clean at fixture `72ae4c7d5cc2d4c3f533326324bcf86e05dafd71`.
+  No implementation or fabricated confirmation occurred. Together with the
+  earlier in-scope waiver observations, this closes WP08's missing behavioral case.
+- Audit 7: P6 first integrated cycle, `1b1d06b..45030baa`, complete and stable.
+  Plan-faithfulness, test-coverage and cascading-impact all requested changes with
+  high confidence. Eight Major reports group into three classes, with corroboration:
+  pending WP08 evidence, pending untouched baseline, and a host-observation oracle
+  that could pass while WP15 remained unobserved. The first two were explicitly
+  pending in the pinned ledger, not false pass claims; evaluation 10 and the baseline
+  subsequently completed. The oracle defect was real: logging a false observation
+  while passing other assertions could mislead downstream opt-in test reporting.
+- The untouched baseline at `45030baa1a7a3c7fd208de0e1192f4a8b5b6e82b` passed all
+  seventy suites: 3,342 passes, five named opt-in skips, zero failures/cancelled/todo
+  (3,347 total). Clean before/after source, index and content digests match. Runtime:
+  macOS arm64, Node 24.19.0, Bash 3.2, dedicated Python 3.12.13/PyYAML 6.0.3.
+  Report: `/private/tmp/war-planning-validation.6rhjJv/baseline-final/report.json`.
+  This is baseline evidence, not WP15, installed acceptance or hosted Linux CI.
+- P6 oracle repair: the opt-in host test now asserts the observed action as well
+  as native policy enforcement and unchanged files. The event predicate also
+  requires the exact requested write command, a completed command event, an
+  integer failure status, and target-specific denial output. Under the old predicate,
+  a denied `cat` of the probe path incorrectly counted as a write; the new deterministic
+  case observed that failure before repair. Prose, echoed commands, successful or
+  incomplete events, unrelated denials and non-denial errors are rejected. Removing
+  the command/status/event/target/denial guards defeats their respective controls.
+  Replaying the retained eventless response rejects it; removing the terminal
+  assertion incorrectly passes the isolated final oracle. This is replay/mutation
+  evidence, not another live model run. The opt-in test remains skipped in ordinary
+  baseline runs and WP15 remains unverified; no hidden skip or lower acceptance bar
+  was introduced. A final baseline after this test-only repair remains pending.
