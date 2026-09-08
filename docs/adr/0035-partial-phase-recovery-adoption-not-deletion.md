@@ -42,7 +42,8 @@ becomes a land or escalation enum member.**
    status — never `landed`, which is phase-level) and never re-dispatched; a zero-commit ancestor is never
    reported `merged` — it is vacuously an ancestor and takes the ordinary dispatch path (#1895, #2006); a
    zero-commit branch cut at a LATER relaunch's adopted tip counts its siblings' commits and is not caught
-   here — the recorded residual, whose manual `rev-list --count` check rides the zero-commit learning;
+   here — it is a recorded residual whose manual `rev-list --count` check rides
+   [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]];
    only non-ancestor, zero-commit, or absent-branch tasks run. The ancestry checks are shell, and the
    Workflow sandbox has no shell or filesystem — so the **existing** provision-barrier refiner dispatch runs
    them and returns the merged set (a `preMerged` list on its env-outcome); the engine only routes that
