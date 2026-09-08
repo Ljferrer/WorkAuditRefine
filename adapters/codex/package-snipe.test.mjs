@@ -32,7 +32,9 @@ test('S-A16 builds a standalone Snipe-only plugin with its shared dependency clo
     'skills/snipe/assets/snipe-result.mjs',
     'skills/snipe/assets/snipe-runner.mjs',
     'skills/snipe/assets/snipe-submodules.mjs',
+    'skills/snipe/references/auditing-fixes.md',
     'skills/snipe/references/codex-auditor.md',
+    'skills/snipe/references/post-audit-fixes.md',
     'skills/snipe/references/submodules.md',
   ])
   const manifest = JSON.parse(readFileSync(join(output, '.codex-plugin/plugin.json'), 'utf8'))
@@ -48,6 +50,10 @@ test('S-A16 builds a standalone Snipe-only plugin with its shared dependency clo
   assert.equal('hooks' in manifest, false)
   assert.equal(inventory.some(path => path.startsWith('hooks/')), false)
   assert.doesNotThrow(() => verifySnipePlugin(output))
+  for (const name of ['auditing-fixes.md', 'post-audit-fixes.md']) {
+    assert.equal(readFileSync(join(output, 'skills/snipe/references', name), 'utf8'),
+      readFileSync(join(repoRoot, 'adapters/codex/skills/snipe/references', name), 'utf8'))
+  }
 
   const runner = await import(`${pathToFileURL(join(output, 'skills/snipe/assets/snipe-runner.mjs'))}?standalone`)
   assert.equal(typeof runner.runSnipePanel, 'function')

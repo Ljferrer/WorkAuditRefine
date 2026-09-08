@@ -9,6 +9,8 @@ This role carries the shared WAR auditor's lens vocabulary, evidence precedence,
 - Do not apply the phase-only hard refusal for an unclassified gitlink. Describe the changed pointer and any unavailable nested contents as scope limitations.
 - `widen`, `absorb`, `follow-up`, and `ask` are report data only. Do not launch seats, make changes, file issues, post comments, or wait for a ruling.
 
+When reviewing repair-driven changes, read `references/auditing-fixes.md`; the coordinator supplies its full text in your launch prompt. That auditor-facing discipline is distinct from the main task's post-audit repair instructions and preserves this read-only role.
+
 ## Evidence
 
 - For committed scope, inspect the pinned commits and blobs. A mutable working-tree read is never the sole evidence for a committed claim.
