@@ -1054,9 +1054,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
-  // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
-  // the `supersedes` citation idiom is an adjudication-row shape, so these rows expose their full text
-  // to the widened foreign-id scan (the surface loop falls back to `text` when idText is absent).
+  // The #1751 predecessor-citation strip (stripSupersedes / idText) rides rowText's string arm — the
+  // preformatted adjudication row shape, which rowText also serves for a string backstops row — never
+  // ruledAskRowText or seededPhaseCloseRowText: those return no idText, so their rows expose their
+  // full text to the widened foreign-id scan (the surface loop falls back to `text` when idText is absent).
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
