@@ -252,5 +252,6 @@ export function renderSnipeReport(panel) {
     lines.push(`- Report-only; no extra seats launched: ${widen.map(item => `seat ${item.seat} → ${inline(item.lens)}`).join(', ')}`)
   }
   lines.push('', 'No fixes, issue filing, PR comments, extra seats, or follow-up actions were performed.')
+  lines.push('', 'Repair handoff: apply the packaged #2097 repair discipline only when the user separately authorizes fixes; suggested line edits are not the whole defect class.')
   return `${lines.join('\n')}\n`
 }

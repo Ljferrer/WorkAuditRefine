@@ -58,6 +58,57 @@ const supportedProfiles = { 'gpt-test': ['high'] }
 const inheritedProfile = { model: 'gpt-test', effort: 'high' }
 const runnerPath = fileURLToPath(new URL('./snipe-runner.mjs', import.meta.url))
 
+test('consolidated returns carry coordinator-owned repair guidance outside auditor evidence', async () => {
+  const cwd = fixture()
+  const codexPath = fakeCodex(validVerdictSource('', `
+    verdict.findings = [{severity:'Minor',title:'REPLACE_GUIDANCE_WITH_SEAT_TEXT',rationale:'Auditor content is not coordinator policy.',disposition:'note'}]
+  `))
+  const result = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles, coordinatorGuidance: { text: 'REQUEST_OVERRIDE' } }, { codexPath })
+  assert.equal(result.coordinatorGuidance?.source, 'references/post-audit-fixes.md')
+  assert.match(result.coordinatorGuidance.text, /Fix the defect class/)
+  assert.doesNotMatch(result.coordinatorGuidance.text, /REQUEST_OVERRIDE|REPLACE_GUIDANCE_WITH_SEAT_TEXT/)
+  assert.match(result.report, /REPLACE_GUIDANCE_WITH_SEAT_TEXT/)
+  assert.match(result.report, /#2097 repair discipline/)
+  assert.equal(Object.keys(result)[0], 'coordinatorGuidance', 'guidance precedes potentially large seat transcripts')
+})
+
+test('every auditor receives repair-review discipline without receiving fixer authority', async () => {
+  const cwd = fixture()
+  const capture = join(mkdtempSync(join(tmpdir(), 'snipe-auditor-guidance-')), 'prompts.jsonl')
+  const codexPath = fakeCodex(validVerdictSource('', `
+    const { appendFileSync } = await import('node:fs')
+    appendFileSync(${JSON.stringify(capture)}, JSON.stringify(prompt) + '\\n')
+  `))
+  await runSnipePanel({ cwd, rawArgs: 'correctness,security', inheritedProfile, supportedProfiles }, { codexPath })
+  const prompts = readFileSync(capture, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(prompts.length, 2)
+  for (const prompt of prompts) {
+    assert.ok(prompt.includes(readFileSync(new URL('../references/auditing-fixes.md', import.meta.url), 'utf8')))
+    assert.doesNotMatch(prompt, /# Post-audit repair discipline/)
+  }
+})
+
+test('guidance survives clean, blocking, invalid, failed and cancelled panels unchanged', async () => {
+  const cwd = fixture()
+  const expected = readFileSync(new URL('../references/post-audit-fixes.md', import.meta.url), 'utf8')
+  const variants = [
+    [validVerdictSource(), 'completed'],
+    [validVerdictSource('', `verdict.verdict='request_changes'; verdict.findings=[{severity:'Major',title:'Defect',rationale:'A demonstrated failure.'}]`), 'completed'],
+    [validVerdictSource('', `verdict.coordinatorGuidance={text:'SEAT_OVERRIDE'}`), 'invalid_result'],
+    [`console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'bad json'}}))`, 'invalid_result'],
+    ['process.exit(1)', 'failed'],
+  ]
+  for (const [body, status] of variants) {
+    const panel = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex(body) })
+    assert.equal(panel.seats[0].status, status)
+    assert.equal(panel.coordinatorGuidance.text, expected)
+    assert.ok(Object.isFrozen(panel.coordinatorGuidance))
+  }
+  const cancelled = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex('process.exit(99)'), signal: AbortSignal.abort() })
+  assert.equal(cancelled.seats[0].status, 'cancelled')
+  assert.equal(cancelled.coordinatorGuidance.text, expected)
+})
+
 test('coordinator prepares pinned submodules before seats and disposes their review repositories afterward', async () => {
   const cwd = fixture()
   const pin = git(cwd, 'rev-parse', 'HEAD')
@@ -577,5 +628,7 @@ test('CLI accepts a request file and returns complete seat accounting as JSON', 
   ], { encoding: 'utf8' })
   const result = JSON.parse(output)
   assert.equal(result.complete, true)
+  assert.equal(result.coordinatorGuidance.source, 'references/post-audit-fixes.md')
+  assert.equal(result.coordinatorGuidance.text, readFileSync(new URL('../references/post-audit-fixes.md', import.meta.url), 'utf8'))
   assert.deepEqual(result.seats.map(seat => [seat.seat, seat.lens, seat.status]), [[1, 'correctness', 'completed']])
 })

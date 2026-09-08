@@ -13,6 +13,8 @@ const FILES = [
   ['adapters/codex/skills/snipe/assets/snipe-files.mjs', 'skills/snipe/assets/snipe-files.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-git-policy.mjs', 'skills/snipe/assets/snipe-git-policy.mjs'],
   ['adapters/codex/skills/snipe/references/codex-auditor.md', 'skills/snipe/references/codex-auditor.md'],
+  ['adapters/codex/skills/snipe/references/auditing-fixes.md', 'skills/snipe/references/auditing-fixes.md'],
+  ['adapters/codex/skills/snipe/references/post-audit-fixes.md', 'skills/snipe/references/post-audit-fixes.md'],
   ['adapters/codex/skills/snipe/references/submodules.md', 'skills/snipe/references/submodules.md'],
   ['skills/snipe/assets/snipe-args.mjs', 'skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs'],
   ['skills/war/assets/war-config.mjs', 'skills/snipe/assets/shared/skills/war/assets/war-config.mjs'],

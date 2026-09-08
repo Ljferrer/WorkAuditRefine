@@ -12,6 +12,11 @@ import { processTreeCleanup, processGroup } from './snipe-process.mjs'
 import { gitEvidenceEnvironment } from './snipe-git-policy.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
+const AUDITOR_FIX_REVIEW = readFileSync(new URL('../references/auditing-fixes.md', import.meta.url), 'utf8')
+const COORDINATOR_GUIDANCE = Object.freeze({
+  source: 'references/post-audit-fixes.md',
+  text: readFileSync(new URL('../references/post-audit-fixes.md', import.meta.url), 'utf8'),
+})
 
 export function resolveCodexPath(explicit, env = process.env) {
   const override = explicit ?? env.SNIPE_CODEX_BIN
@@ -160,6 +165,8 @@ Review only that scope through the assigned lens. For committed scope, ground fi
 
 Role instructions:
 ${AUDITOR_ROLE}
+
+${AUDITOR_FIX_REVIEW}
 
 ${resultContract(request, seat, lens)}
 
@@ -328,7 +335,7 @@ export async function runSnipePanel(input, options = {}) {
       coverage,
       complete: coverage.complete && stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
     }
-    return Object.freeze({ ...panel, report: renderSnipeReport(panel) })
+    return Object.freeze({ coordinatorGuidance: COORDINATOR_GUIDANCE, ...panel, report: renderSnipeReport(panel) })
   } finally { preparation.dispose() }
 }
 
