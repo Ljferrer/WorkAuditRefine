@@ -573,7 +573,9 @@ every amendment above stay byte-untouched; this note supersedes their *currency*
   `skills/war/assets/workflow-template.js`) turns an in-diff `note` carrying a `suggested_fix` into
   `absorb`, and the gate-audit floor pass does the same over `phase_diff_files`. A rerouted note then
   walks the absorb ladder like any absorb, so its terminal rungs can file: `demote:absorb-regressed`
-  at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase.
+  at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase,
+  or on ANY phase when the polish panel approved the branch and its merge never landed (the
+  approve trail, #2087).
   Decision 4's "`note` (report + servitor feed, never an issue)" therefore reads: never an issue
   *as a note* — a note the floor rerouted is an absorb from that point on, and every such reroute is
   logged.
