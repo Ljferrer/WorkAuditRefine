@@ -918,8 +918,9 @@ a spent budget routes the rows to the phase-close sweep as absorbs, logged and n
 `r.task.pendingAbsorbs` for the next approve, regardless of budget).
 Every ace-side commit carries the trailer `Ace-Charge: <task>:<n>` (n = the counter after the charge),
 and a relaunch seeds the counter from the highest trailer index on the task branch (the phase-start
-barrier's `absorbCharges`), 0 with a loud log on error or absence. `fixRounds` counts blocking fix
-rounds and floor retries only.
+barrier's `absorbCharges`), 0 with a loud log on error or absence. Supersedes the retired reserve
+arithmetic on `fixRounds` (ADR 0013 amendment 2026-09-03); `fixRounds` counts blocking fix rounds and
+floor retries only.
 _Avoid_: an ace-side commit that charges `fixRounds`; reading a revert as a charge; a second meter.
 
 **Exclusion set**:
