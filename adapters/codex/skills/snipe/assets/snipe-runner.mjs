@@ -339,11 +339,15 @@ export async function runSnipePanel(input, options = {}) {
   }
   await Promise.all(Array.from({ length: Math.min(capacity, assignments.length) }, () => worker()))
   const stability = verifySnipeScope(request.scope)
+  const unavailablePaths = Object.freeze([...new Set((request.scope.submodules ?? [])
+    .filter(change => !change.contentsAvailable).map(change => change.path))])
+  const coverage = Object.freeze({ complete: unavailablePaths.length === 0, unavailablePaths })
   const panel = {
     request,
     seats: Object.freeze(seats),
     stability: Object.freeze(stability),
-    complete: stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
+    coverage,
+    complete: coverage.complete && stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
   }
   return Object.freeze({ ...panel, report: renderSnipeReport(panel) })
 }

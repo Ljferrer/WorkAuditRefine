@@ -230,6 +230,25 @@ test('a nonzero seat is retained without losing a successful peer', async () => 
   assert.match(result.seats[1].stderr, /seat transport failed/)
 })
 
+test('stable parent scope and approving seats cannot hide missing changed gitlink contents', async () => {
+  const cwd = fixture()
+  git(cwd, 'update-index', '--add', '--cacheinfo', '160000', 'a'.repeat(40), 'vendor/utils')
+  git(cwd, 'commit', '-m', 'consume unavailable submodule')
+  const codexPath = fakeCodex(validVerdictSource())
+  const input = { cwd, rawArgs: 'correctness,security', inheritedProfile, supportedProfiles }
+  const result = await runSnipePanel(input, { codexPath })
+  assert.equal(result.stability.stable, true)
+  assert.ok(result.seats.every(seat => seat.status === 'completed' && seat.verdict.verdict === 'approve'))
+  assert.equal(result.complete, false)
+  assert.deepEqual(result.coverage.unavailablePaths, ['vendor/utils'])
+  assert.match(result.report, /INCOMPLETE/)
+  assert.match(result.report, /Review coverage: incomplete/)
+  assert.match(result.report, /vendor\/utils/)
+  const request = join(mkdtempSync(join(tmpdir(), 'snipe-coverage-')), 'request.json')
+  writeFileSync(request, JSON.stringify(input))
+  assert.throws(() => execFileSync(process.execPath, [runnerPath, '--request', request, '--codex-path', codexPath], { stdio: 'pipe' }), error => error.status === 1 && JSON.parse(error.stdout).complete === false)
+})
+
 test('a seat reporting absent tests completes without a repair that invents evidence', async () => {
   const cwd = fixture()
   const codexPath = fakeCodex(validVerdictSource('', 'verdict.tests_verified = { exist: false, inspected: [] }'))

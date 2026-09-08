@@ -167,6 +167,7 @@ function scopeLines(panel) {
     lines.push(`- Stability: ${panel.stability.stable ? 'unchanged' : 'changed during review or incompletely captured'}`)
   }
   if (scope.paths?.length) lines.push(`- Paths: ${scope.paths.map(path => `\`${inline(path)}\``).join(', ')}`)
+  if (panel.coverage) lines.push(`- Review coverage: ${panel.coverage.complete ? 'complete' : 'incomplete — changed submodule contents unavailable'}`)
   lines.push(`- Configured seat profile: \`${profile.model}\` / \`${profile.effort}\` (actual model identity not independently verified)`)
   return lines
 }
