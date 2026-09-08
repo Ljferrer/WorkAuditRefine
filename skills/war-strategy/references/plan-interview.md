@@ -72,8 +72,14 @@ default-and-tagged: it is asked, or it is absent (ADR 0013).
 
 **Stage 2 — the interview.** Run under the question contract:
 
-- a status line opens every turn: `Locked: <n> · Open forks: <m> · Qk/14` (question budget
-  default 14, visible in the status line, operator-raisable — D8);
+- a status line opens every question turn: `Locked: <n> · Open forks: <m> · Qk · cap <budget>`.
+  The budget defaults to 14 and is operator-raisable (D8): a maximum, not a target or a forecast
+  of how many questions will be asked. `k` counts actual interview questions, including
+  falsifier and checkpoint questions; open forks are the current unresolved decisions,
+  not a promised question total. Never put the cap after a slash as though it were a total.
+  Echo-backs and their confirmations do not consume question slots: label those turns
+  `Echo-back 1` or `Echo-back 2` instead of advancing Q. Other non-question turns do not
+  advance Q either. Stop asking when the completion bar is met, even far below the cap;
 - **one question per turn**, the highest-value open fork first;
 - every question ships `Recommended: <option> — <basis>` with the basis graded (verified /
   prior-lesson / assumption);
@@ -93,8 +99,16 @@ default-and-tagged: it is asked, or it is absent (ADR 0013).
   When a beat arms per the checklist, read
   [references/strategy-verifier.md](strategy-verifier.md).
 
+If the remaining necessary forks are likely to exceed the remaining question budget,
+do targeted recon before spending more questions: resolve evidence-answerable unknowns,
+rehearse the draft again and reapply the fork-necessity test. Research cannot answer for
+the operator's intent or silently ratify a choice. If genuinely operator-owned forks still
+exceed the cap, disclose them and ask whether to raise the budget or stop; do not silently
+exceed it, pad the interview to reach it, or loop on unavailable evidence.
+
 **Stage 3 — mid-budget checkpoint.** Once, near the budget's midpoint: surface the riskiest
-still-live assumption and ask it directly.
+still-live assumption and ask it directly. For a shorter interview, cover it before closing
+if one remains; do not manufacture questions merely to reach the nominal midpoint.
 
 **Stage 4 — coverage sweep + two echo-backs.** Sweep the decisive slots (table below) for
 unfilled rows, run the omittability probe over the drafted End-state enumeration (an
