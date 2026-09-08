@@ -9,7 +9,9 @@ required are separate T8 changes after the engine campaign and a proven rollout.
 
 - Claude: retain the manifest-selected skills and agents, their regular entry
   files, and the default `hooks/hooks.json`. The literal expected members in
-  `check-war-ci.test.mjs` require deliberate review when inventory changes; they
+  `check-war-ci.test.mjs` require deliberate review when inventory changes. The
+  manifest key set is also explicit: a new entry surface (or metadata key) must
+  be reviewed rather than silently ignored. These expectations
   must not be regenerated from the manifest being checked. Existing version-slot,
   reference-integrity and pipeline suites remain mandatory.
 - Codex: `adapters/codex/package-snipe.test.mjs` independently enumerates the

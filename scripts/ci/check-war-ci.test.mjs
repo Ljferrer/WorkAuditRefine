@@ -35,6 +35,9 @@ test('mandatory baseline job cannot be failed, skipped, cancelled, missing or ma
 test('final gate requires the complete platform reports and their diagnostic files', t => {
   const input=fixture(t)
   assert.equal(checkWarCI(input).evidenceLevel,'baseline')
+  const reportPath=join(input.root,'baseline-linux/report.json')
+  const report=JSON.parse(readFileSync(reportPath,'utf8'));report.suites[0].terminationConfirmed=true
+  writeFileSync(reportPath,JSON.stringify(report));assert.equal(checkWarCI(input).ok,true)
   rmSync(join(input.root,'baseline-darwin/report.json'))
   assert.throws(()=>checkWarCI(input),/report/)
 })
@@ -67,6 +70,7 @@ test('malformed, wrong-revision, dirty, reduced and failed platform evidence is 
     ['duplicate suite',r=>r.suites[1]=r.suites[0]],['exit',r=>r.suites[0].exitCode=1],
     ['signal',r=>r.suites[0].signal='SIGTERM'],['failure',r=>r.suites[0].failure='timeout'],
     ['cleanup',r=>r.suites[0].cleanupError={code:'EPERM'}],['termination',r=>r.suites[0].terminationConfirmed=false],
+    ...['false',null,0].map(value=>[`malformed termination ${value}`,r=>r.suites[0].terminationConfirmed=value]),
     ...['tests','pass','fail','skipped','cancelled','todo'].map(field=>[field,r=>r.suites[0].counts[field]=-1]),
     ['empty',r=>r.suites[0].counts.tests=r.suites[0].counts.pass=0],['count mismatch',r=>r.suites[0].counts.tests=2],
     ['failed cases',r=>{r.suites[0].counts.tests=2;r.suites[0].counts.fail=1}],
@@ -98,6 +102,7 @@ test('final gate CLI propagates rejection instead of hiding exit status', t => {
 })
 
 function checkClaudeInventory(manifest) {
+  assert.deepEqual(Object.keys(manifest).sort(),['name','description','version','author','license','homepage','repository','keywords','skills','agents'].sort(),'unreviewed manifest surface')
   assert.deepEqual(manifest.skills,['war','war-room','red-team','lessons-learned','war-help','war-strategy','war-campaign','survey-corps','war-machine','aftermath','war-review','snipe'].map(name=>`./skills/${name}`))
   assert.deepEqual(manifest.agents,['war-auditor','war-refiner','war-servitor','war-worker'].map(name=>`./agents/${name}.md`))
   assert.equal(Object.hasOwn(manifest,'hooks'),false,'retain default hooks discovery')
@@ -108,7 +113,8 @@ test('Claude package entry inventory is independently reviewed, not generated fr
   const manifest=JSON.parse(readFileSync(join(root,'.claude-plugin/plugin.json'),'utf8'))
   checkClaudeInventory(manifest)
   for(const path of [...manifest.skills.map(p=>`${p}/SKILL.md`),...manifest.agents,'hooks/hooks.json'])assert.ok(lstatSync(join(root,path)).isFile(),path)
-  for(const change of [m=>m.skills.pop(),m=>m.agents.push('./agents/unreviewed.md'),m=>m.hooks='./different.json']) {
+  for(const change of [m=>m.skills.pop(),m=>m.agents.push('./agents/unreviewed.md'),m=>m.hooks='./different.json',
+    ...['commands','mcpServers','lspServers','outputStyles','unknownFutureSurface'].map(key=>m=>m[key]='./unreviewed')]) {
     const altered=structuredClone(manifest);change(altered);assert.throws(()=>checkClaudeInventory(altered))
   }
 })
@@ -165,6 +171,7 @@ test('removing final-gate guards fails the corresponding behavioral assertions',
     ["    assert.equal(report.sourceSha,sourceSha,'report tested revision differs')",'','malformed, wrong-revision'],
     ["    assert.deepEqual(report.suites.map(s=>s.path),inventory,'missing, duplicate or reordered suite results')",'','malformed, wrong-revision'],
     ["      assert.equal(suite.exitCode,0,`${suite.path}: exit failed`)",'','malformed, wrong-revision'],
+    ['suite.terminationConfirmed===undefined || suite.terminationConfirmed===true','suite.terminationConfirmed!==false','malformed, wrong-revision'],
   ]) {
     assert.equal(source.split(from).length,2,from);writeFileSync(join(root,'check-war-ci.mjs'),source.replace(from,to))
     const result=spawnSync(process.execPath,['--test','--test-reporter=tap',`--test-name-pattern=${pattern}`,join(root,'check-war-ci.test.mjs')],{encoding:'utf8',timeout:15000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})

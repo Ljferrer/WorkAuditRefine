@@ -39,7 +39,7 @@ export function checkWarCI({sourceSha,needs,root}) {
       assert.equal(suite.signal,null,`${suite.path}: terminated`)
       assert.equal(suite.failure,null,`${suite.path}: execution failure`)
       assert.equal(suite.cleanupError,null,`${suite.path}: cleanup failure`)
-      assert.notEqual(suite.terminationConfirmed,false,`${suite.path}: unconfirmed cleanup`)
+      assert.ok(suite.terminationConfirmed===undefined || suite.terminationConfirmed===true,`${suite.path}: unconfirmed or malformed cleanup`)
       const c=suite.counts
       for(const key of ['tests','pass','fail','skipped','cancelled','todo'])assert.ok(Number.isSafeInteger(c?.[key]) && c[key]>=0,`${suite.path}: invalid counts`)
       assert.ok(c.tests>0 && c.fail===0 && c.cancelled===0 && c.todo===0 && c.tests===c.pass+c.skipped,`${suite.path}: failed or empty cases`)

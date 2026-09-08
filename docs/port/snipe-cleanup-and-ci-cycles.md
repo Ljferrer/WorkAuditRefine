@@ -9,7 +9,8 @@ changes are authorized by this implementation experiment.
 
 The operator selected `gpt-5.6-sol / medium`; each checkpoint uses three installed
 Snipe seats. Seven panels total is a hard bound, including incomplete panels.
-Two panels have completed. Final outcomes belong in the PRs and #2097 report.
+This log records checkpoints as they occurred. Final totals, outcomes and exact
+acceptance revisions belong in the PRs and #2097 report.
 
 ## Initial cleanup repair
 
@@ -138,3 +139,20 @@ in this checkpoint. Full baseline diagnosis remains open for the request fixture
   Python 3.9; that newly installed package was uninstalled and its absence checked.
   The dedicated environment already contained PyYAML. Tests now explicitly put
   its bin directory first; no base-environment package was changed.
+
+## T4 panels 3 and 5
+
+Panel 3 (`7a4f080..ad18b81`) had stable scope and complete coverage, with two
+validated approvals and a cascading-impact timeout. No validated finding was
+returned; it was incomplete, not clean. It counted against the seven-panel bound.
+Panel 5 (`0e7f3fb..3cbc1a0`) reviewed the restacked checkpoint with the same
+permissions/profile and a 15-minute bound. It completed, stable, A / A / RC.
+
+One Major and one Minor were accepted. The Claude entry inventory ignored added
+manifest surfaces; its oracle now explicitly reviews the manifest key set, with
+commands/MCP/LSP/output-style/unknown-key negative controls. The report gate
+accepted malformed termination flags; it now permits only omitted or true, with
+positive mirrors and string/null/numeric rejection. Both regressions were red
+before the guards. Six final-gate guard mutations fail behavioral assertions.
+Consequence: stricter validation of branch-only evidence and future manifest
+changes; no installed package, Claude engine, workflow activation or ruleset edit.
