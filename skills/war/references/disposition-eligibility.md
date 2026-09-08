@@ -1,8 +1,6 @@
 # Disposition eligibility — the auditor's absorb / ask routing calls
 
-Verbatim eviction from `agents/war-auditor.md` (ask-disposition Task 1.1, ADR 0042; the two
-eligibility blockquotes below were byte-identical to their pre-eviction card text **at eviction
-time** — the `> ` blockquote form kept intact). The card keeps the DISPOSITION RULE sentence (the
+Verbatim eviction from `agents/war-auditor.md` (ask-disposition Task 1.1, ADR 0042; the absorb-disposition and Source-derivable eligibility blockquotes below were byte-identical to their pre-eviction card text **at eviction time**; the Release-slot-eligibility blockquote beside them is NEW prose (D20, 2026-09-08), never an eviction — the `> ` blockquote form kept intact). The card keeps the DISPOSITION RULE sentence (the
 byte-mirror of the dispatched prompt) plus one fixed-shape trigger pointer to this file.
 Positional words inside the moved blocks refer to their original card position — they sat in the
 card's Verdict section, directly under the Cost-claim rule bullet. The Ask eligibility and Barrier

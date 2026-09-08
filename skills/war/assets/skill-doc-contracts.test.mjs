@@ -4413,9 +4413,9 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, CON
   const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
   assert.match(norm(decisions), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
   assert.match(norm(decisions), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
-  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(decisions), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(decisions)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
   assert.match(adr0013, /^- 2026-09-08 · Decision 5 edited in place/m, "ADR 0013's Decision log must carry the dated Task 12.2 line")
   // SKILL.md — the `--ace` bullet's file-based routing clause is retired (OLD-absent, present at ffb3ab6).
-  assert.ok(!/or a release-slot filename routes to the/.test(skillMd), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
+  assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
   assert.match(skillMd, /`phaseClose:true` routes to the \*\*phase-close queue\*\* instead/, "the `--ace` bullet keeps the `phaseClose:true` routing sentence without the filename arm")
 })
