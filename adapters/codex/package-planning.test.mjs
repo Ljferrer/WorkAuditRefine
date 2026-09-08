@@ -6,8 +6,27 @@ import { join, dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { buildPlanningPlugin, verifyPlanningPlugin } from './package-planning.mjs'
+import { buildSnipePlugin } from './package-snipe.mjs'
 
 const repoRoot=fileURLToPath(new URL('../..',import.meta.url))
+test('help capability names agree with independently built planning and Snipe inventories',t=>{
+  const root=mkdtempSync(join(tmpdir(),'war-help-capabilities-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const planning=join(root,'planning'),snipe=join(root,'snipe')
+  const planningFiles=buildPlanningPlugin({repoRoot,output:planning})
+  buildSnipePlugin({repoRoot,output:snipe})
+  const names=planningFiles.filter(path=>/^skills\/[^/]+\/SKILL.md$/.test(path)).map(path=>path.split('/')[1]).sort()
+  assert.deepEqual(names,['war-help','war-strategy'])
+  const packageName=JSON.parse(readFileSync(join(planning,'.codex-plugin/plugin.json'),'utf8')).name
+  const snipeName=JSON.parse(readFileSync(join(snipe,'.codex-plugin/plugin.json'),'utf8')).name
+  const card=readFileSync(join(planning,'skills/war-help/SKILL.md'),'utf8')
+  assert.deepEqual([...new Set(card.match(/\$[\w-]+:[\w-]+/g))].sort(),[...names.map(name=>`$${packageName}:${name}`),`$${snipeName}:snipe`].sort())
+  for(const path of ['skills/war-help/SKILL.md','skills/war-help/agents/openai.yaml']) {
+    const original=readFileSync(join(planning,path),'utf8')
+    writeFileSync(join(planning,path),original.replace(`$${packageName}:war-help`,'$stale:war-help'))
+    assert.throws(()=>verifyPlanningPlugin(planning),/invocation/)
+    writeFileSync(join(planning,path),original)
+  }
+})
 test('planning package runs the canonical advisory lint after moving away from its source', t => {
   const root=mkdtempSync(join(tmpdir(),'war-planning-package-'))
   t.after(()=>rmSync(root,{recursive:true,force:true}))
@@ -44,6 +63,8 @@ test('package resource links stay resolvable without pulling the development che
     'shared/skills/war-strategy/references/host.md',
     'shared/skills/war-strategy/references/plan-interview.md',
     'shared/skills/war-strategy/references/strategy-verifier.md',
+    'skills/war-help/SKILL.md',
+    'skills/war-help/agents/openai.yaml',
     'skills/war-strategy/SKILL.md',
     'skills/war-strategy/agents/openai.yaml',
   ])

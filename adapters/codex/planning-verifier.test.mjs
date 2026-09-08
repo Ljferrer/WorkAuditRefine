@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test, after } from 'node:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -43,4 +43,63 @@ test('partial corpus and failed or malformed dispatch remain visibly distinct',a
     assert.equal(failed.status,'unavailable');assert.match(failed.stamp,/verifier: unavailable \(.+\)/)
     assert.equal(failed.line,undefined);assert.equal(failed.next,'present-unverified')
   }
+})
+
+function fakeCodex(mode='success') {
+  const directory=mkdtempSync(join(root,'host-')),bin=join(directory,'codex'),marker=join(directory,'exec.json')
+  writeFileSync(bin,`#!${process.execPath}
+import {writeFileSync} from 'node:fs';
+if(process.argv[2]==='app-server') {
+  let buffer=''; process.stdin.on('data',chunk=>{buffer+=chunk; let n;
+    while((n=buffer.indexOf('\\n'))>=0) {const message=JSON.parse(buffer.slice(0,n));buffer=buffer.slice(n+1);
+      if(message.id===undefined)continue;
+      const result=message.method==='initialize'?{}:{data:[{model:'gpt-5.6-sol',supportedReasoningEfforts:[{reasoningEffort:'medium'}]}]};
+      process.stdout.write(JSON.stringify({id:message.id,result})+'\\n');
+    }
+  });
+} else {
+  writeFileSync(${JSON.stringify(marker)},JSON.stringify(process.argv.slice(2)));
+  const mode=${JSON.stringify(mode)};
+  if(mode==='hang')setInterval(()=>{},1000);
+  else if(mode==='denied'){process.stderr.write('permission denied by host');process.exitCode=1;}
+  else if(mode==='output')process.stdout.write('x'.repeat(5*1024*1024));
+  else if(mode==='malformed')process.stdout.write('invalid JSON\\n');
+  else if(mode==='empty'){}
+  else if(mode==='success')process.stdout.write(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(${JSON.stringify(survived)})}})+'\\n');
+}
+`,{mode:0o755})
+  return {codexPath:bin,marker}
+}
+
+test('built transport uses the selected executable for catalog and hardened verifier execution',async()=>{
+  const fake=fakeCodex()
+  const result=await verifyRecommendation({...request,repository:root},{codexPath:fake.codexPath})
+  assert.equal(result.status,'verified',result.stamp)
+  const args=JSON.parse(readFileSync(fake.marker,'utf8'))
+  for(const [option,value]of [['--sandbox','read-only'],['-C',root],['-m','gpt-5.6-sol']])assert.equal(args[args.indexOf(option)+1],value)
+  for(const flag of ['--ignore-user-config','--ignore-rules','--strict-config','--ephemeral'])assert.ok(args.includes(flag),flag)
+  for(const config of ['approval_policy="never"','mcp_servers={}','shell_environment_policy.inherit="none"','model_reasoning_effort="medium"'])assert.ok(args.includes(config),config)
+  for(const feature of ['multi_agent','apps','browser_use','computer_use','in_app_browser','plugins','hooks'])assert.ok(args.some((arg,i)=>arg==='--disable' && args[i+1]===feature),feature)
+  assert.match(args.at(-1),/The strategy-verifier charter/)
+  const refused=fakeCodex()
+  const unsupported=await verifyRecommendation({...request,repository:root,profile:{model:'unknown',effort:'medium'}},{codexPath:refused.codexPath})
+  assert.equal(unsupported.status,'unavailable');assert.match(unsupported.stamp,/unsupported/)
+  assert.equal(existsSync(refused.marker),false,'unsupported profile must not launch a seat')
+})
+
+test('transport failures and cancellation never return a fabricated verifier line',async()=>{
+  for(const mode of ['denied','empty','malformed','output','hang']) {
+    const fake=fakeCodex(mode)
+    const result=await verifyRecommendation({...request,repository:root},{codexPath:fake.codexPath,timeoutMs:mode==='hang'?2000:5000})
+    assert.equal(result.status,'unavailable',mode);assert.equal(result.line,undefined)
+    assert.match(result.stamp,/verifier: unavailable/)
+    if(mode==='denied')assert.match(result.stamp,/permission denied by host/)
+    if(mode==='hang')assert.match(result.stamp,/timed out/)
+    if(mode==='output')assert.match(result.stamp,/output limit/)
+  }
+  const controller=new AbortController();controller.abort()
+  const fake=fakeCodex()
+  const cancelled=await verifyRecommendation({...request,repository:root},{codexPath:fake.codexPath,signal:controller.signal})
+  assert.equal(cancelled.status,'unavailable');assert.match(cancelled.stamp,/cancelled/)
+  assert.equal(existsSync(fake.marker),false)
 })

@@ -148,3 +148,22 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   package byte-identity tests deliver the same canonical correction to Codex.
 - Installation remains gated on operator merge and installation approval as the
   plan specifies. Source completion and installed acceptance are distinct.
+- Audit 3: P3 checkpoint `89d8167..943e15b`, three Sol/medium seats running.
+  Includes the initial P4 transport for consequence review, not a P4 completion claim.
+- Verifier subprocess fixtures now exercise the built package's real spawn path,
+  catalog refusal before seat launch, hardened arguments, malformed/empty output,
+  timeout, output limit and pre-cancellation. A permission-denial fixture exposed
+  discarded stderr; bounded diagnostic text now survives into the unavailable stamp.
+- Behavioral evaluation 1 (Sol/medium, 24 seconds): the built verifier actually
+  refuted a same-wave/same-file decomposition, using the empty-corpus stamp and
+  the required consequence/catching-layer line. The separate write probe reported
+  a sandbox denial, but this host emitted no command-execution events in its JSONL,
+  so the independent enforcement assertion failed. Raw evidence is retained at
+  `/private/tmp/war-planning-host-eval-1.log`; no enforcement pass is claimed. The
+  normal plugin installation was untouched. One scenario used; its diagnostic
+  rerun allowance remains unused. Sandbox CLI investigation also found that this
+  host requires a named permissions table; no configuration was changed to supply one.
+- P5 source checkpoint: help lists only the two built planning skills and optional
+  separately packaged Snipe. Its invocation names are checked against independently
+  built package manifests/inventories; body and UI drift mutations are rejected.
+  Help-only behavioral evidence remains part of P6, not established by text checks.

@@ -51,7 +51,7 @@ async function dispatchCodex(prompt,input,{codexPath,timeoutMs=600000,signal}={}
     '-C',input.repository,'-m',input.profile.model,'-c',`model_reasoning_effort=${JSON.stringify(input.profile.effort)}`,
     '-c','approval_policy="never"','-c','mcp_servers={}','-c','shell_environment_policy.inherit="none"',prompt]
   const child=spawn(codexPath,args,{cwd:input.repository,stdio:['ignore','pipe','pipe'],detached:processGroup})
-  const cleanup=processTreeCleanup(child),chunks=[]
+  const cleanup=processTreeCleanup(child),chunks=[],errors=[]
   let bytes=0,failure
   const stop=reason=>{failure ??=reason;cleanup()}
   const timer=setTimeout(()=>stop('verifier timed out'),timeoutMs)
@@ -63,11 +63,12 @@ async function dispatchCodex(prompt,input,{codexPath,timeoutMs=600000,signal}={}
     bytes+=chunk.length
     if(bytes>4*1024*1024)return stop('verifier output limit exceeded')
     if(stream===child.stdout)chunks.push(chunk)
+    else errors.push(chunk)
   })
   const state=await cleanup.settled
   clearTimeout(timer);signal?.removeEventListener('abort',cancel)
   if(state.cleanupError)throw Error(`${failure ?? 'verifier cleanup failed'}; ${state.cleanupError.code}: ${state.cleanupError.message}; process group ${state.processGroupId}, termination unconfirmed (operator cleanup required)`)
-  if(failure || child.exitCode!==0)throw Error(failure ?? `Codex executable ${codexPath} exited ${child.exitCode}; supply --codex-path with the host executable`)
+  if(failure || child.exitCode!==0)throw Error(failure ?? `Codex executable ${codexPath} exited ${child.exitCode}: ${Buffer.concat(errors).toString('utf8').slice(0,2000) || 'no diagnostic'}`)
   let response
   for(const line of Buffer.concat(chunks).toString('utf8').split('\n').filter(Boolean)) {
     const event=JSON.parse(line)
