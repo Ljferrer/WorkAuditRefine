@@ -13015,6 +13015,24 @@ test('citation floor: directional with length floor (D11, PIN-15, #1858): a shor
   assert.ok(reaudit && reaudit.prompt.includes('cites row "' + CITED_ADJ[0] + '"'), 'the soundness clause carries the threaded row')
   assert.ok(m.logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")')), 'the afk resolution log carries the threaded row')
   assert.equal((m.out.asks || []).length, 0, 'the matched citation resolves the parked ask under --afk')
+  // 4. ambiguity (ace re-entry a5): two threaded rows share a >= 24-character trailer (the real
+  // corpus tail is `— AI-declared [plan <slug>, red-team <date>]` on every row of a run), so a
+  // citation drawn from that tail clears the length floor yet names no single row — the retired
+  // first-hit `.some(...)` scan bound it to row 1.
+  const tail = ' — AI-declared [plan 2026-09-06-engine-and-audit-verdict-integrity, red-team 2026-09-07]'
+  const shared = [CITED_ADJ[0] + tail, 'ADJ-8: a second ruling on another trade-off' + tail]
+  const fromTail = tail.trim()
+  assert.ok(fromTail.length >= 24 && shared.every(r => r.includes(fromTail)) && shared[0] !== shared[1], 'fixture control: the cited tail clears the floor and is contained by BOTH threaded rows — only a uniqueness check can refuse it')
+  const f4 = citationF(); f4.citation = { row: fromTail, rationale: 'shared tail' }
+  const impl4 = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), f4]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), f4])))
+  const a4 = await runPhase(CITE_ARGS({ adjudications: shared, run }), impl4)
+  assert.ok(a4.logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes(fromTail) && l.includes('is contained by 2 threaded standing adjudication rows') && l.includes('ambiguity is NO-match')),
+    'the ambiguous citation is refused naming the hit count (an ambiguous citation names no single row)')
+  assert.ok(!(a4.out.aced || []).some(x => x && x.citation), 'no aced record carries a citation for the ambiguous citation — no arbitrary row is stamped')
+  assert.equal((a4.out.asks || []).length, 1, 'the parked ask survives under --afk (the ambiguous citation never splices it)')
 })
 
 test('recordAced: unique-match before splice (D11, #1863): the exact ask.question derivation wins over a title coinciding with ANOTHER parked question — the coincident ask is never spliced under --afk', async () => {

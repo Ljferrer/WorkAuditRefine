@@ -149,14 +149,22 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // citation (in-run-finding-resolution D6, absorb-by-citation): OPTIONAL on a disposition:'absorb'
     // finding whose NAMED trade-off is covered by a threaded standing adjudication row — `row` is the
     // row's identifying text, `rationale` the one-line match rationale. The engine stamps both into
-    // the ace/re-entry commit message (the sweep polish and terminal commits too, via citationStamp) and the `aced`
-    // record, and the re-audit panel for a
-    // citation-resolved batch is explicitly charged with citation soundness. Ambiguity is NO-match:
-    // park the ask instead (match strictness, PIN-6). CONTRACT (both prompt layers mirror it): a
-    // citation-carrying absorb KEEPS the parked ask's `ask` field verbatim (question + fork) — the
-    // schema mandates `ask` only on disposition:'ask', so the echo is what lets recordAced's
-    // content-key match resolve the parked record under `--afk`, or attach the Checkpoint prefill
-    // interactively (a miss is logged in either mode, never a silent no-op).
+    // the ace/re-entry commit message (the sweep polish and terminal commits too, via
+    // citationStamp) and the `aced` record, and the re-audit panel for a citation-resolved batch is
+    // explicitly charged with citation soundness. ROW FLOOR (D11/PIN-15): `row` must be the
+    // threaded standing row's own text or a contiguous substring of it of at least
+    // CITATION_MIN_LENGTH characters — the engine validates `row` against the threaded
+    // adjudication set (exact match, or exactly one threaded row contains it — citationOf) and
+    // stamps the MATCHED THREADED row, never the seat's bytes; the seat's transcription survives as
+    // `cited` on the durable record. A paraphrase, a gloss-extended superset, a short fragment, or
+    // a substring shared by two or more threaded rows is refused and logged once per row per phase,
+    // and the finding rides as a plain absorb. The schema's `minLength: 1` below is the payload
+    // shape, not the floor. Ambiguity is NO-match: park the ask instead (match strictness, PIN-6).
+    // CONTRACT (both prompt layers mirror it): a citation-carrying absorb KEEPS the parked ask's
+    // `ask` field verbatim (question + fork) — the schema mandates `ask` only on disposition:'ask',
+    // so the echo is what lets recordAced's content-key match resolve the parked record under
+    // `--afk`, or attach the Checkpoint prefill interactively (a miss is logged in either mode,
+    // never a silent no-op).
     citation: { type: 'object', required: ['row'], properties: {
       row: { type: 'string', minLength: 1 }, rationale: { type: 'string' } } },
     // citationUnsound (D6 soundness duty): set true on a BLOCKING re-audit finding whose rationale
@@ -2691,9 +2699,18 @@ const citationOf = f => {
   // threadedRow (#1879 recovery seed S2): the MATCHED threaded standing row's own bytes — the
   // strike-list prefill renders THIS, never the seat's citation string (a paraphrase would turn
   // the operator's one-keystroke confirm into ratifying a description of a row, not the row).
-  let threadedRow = null
-  const member = adjudications.some(r => { const t = adjRow(r); if (typeof t === 'string' && t.length > 0 && (t === row || t.includes(row))) { threadedRow = t; return true } return false })
-  if (!member) return refuseCitation(f, row, 'matches no threaded standing adjudication row (exact or contained-by-row only; a superset of a row is not a member, PIN-15)')
+  // UNIQUENESS (ace re-entry a5): the scan collects EVERY containing row instead of taking the
+  // first hit — threaded rows share long common trailers (a plan/red-team provenance tail well over
+  // the floor), so a fragment drawn from one is contained by several rows and a first-hit scan would
+  // stamp an arbitrary row onto the aced record, the prompt rows and the --afk splice. Exact matches
+  // are preferred over containment; more than one hit is refused (ambiguity is NO-match, PIN-15),
+  // mirroring recordAced's exactly-one-key-hit rule before a splice.
+  const rows = adjudications.map(adjRow).filter(t => typeof t === 'string' && t.length > 0)
+  const exact = rows.filter(t => t === row)
+  const hits = exact.length > 0 ? exact : rows.filter(t => t.includes(row))
+  if (hits.length === 0) return refuseCitation(f, row, 'matches no threaded standing adjudication row (exact or contained-by-row only; a superset of a row is not a member, PIN-15)')
+  if (hits.length > 1) return refuseCitation(f, row, 'is contained by ' + hits.length + ' threaded standing adjudication rows — an ambiguous citation names no single row (ambiguity is NO-match, PIN-15)')
+  const threadedRow = hits[0]
   return { row: threadedRow, threadedRow, cited: row, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
 }
 // citationExtra: the one `extra` shape the recordAced call sites thread — recordAcedTouched, the
@@ -2706,6 +2723,11 @@ const citationExtra = f => { const c = citationOf(f); return c ? { citation: c }
 // row all append it, so the ace, polish and terminal commit messages carry the durable citation stamp
 // the schema comment promises (rule 6: one home for the clause). Empty when no citation stands.
 const citationStamp = f => { const c = citationOf(f); return c ? pt` [absorb-by-citation: row "${c.row}" — ${c.rationale}]` : '' }
+// queuedFindingRow: the numbered queued-finding prompt row the phase-close sweep build and the
+// terminal-pass build both render (rule 6: one home on the second hand copy — the two byte-identical
+// inline copies drifted once when citationStamp reached only the sweep copy, #3f55b04). Bytes are
+// unchanged from the inline form; callers pass it straight to `.map`.
+const queuedFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`
 
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
@@ -4752,7 +4774,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // finding field (bare); title/task ?? absence-tolerant; file/rationale/suggested_fix already guarded/defaulted.
       // citationStamp (D6, #1873): a citation-carrying absorb that aces through the sweep renders its
       // row-id + match rationale here too, so the polish commit message carries the citation stamp.
-      + phaseCloseQueue.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`).join('\n') + pt`\n`
+      + phaseCloseQueue.map(queuedFindingRow).join('\n') + pt`\n`
       + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit (the git-derived list decides which queued rows the sweep landed; files_changed is read only as a fallback source when ace_diff_files is absent or empty).\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
       + provisionClause,
@@ -4906,7 +4928,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (one re-audit seat judges the new sha; a regression is forward-reverted). NEVER touch version/release-slot literals. Commit and push ${polishBranch}.\n`
           // citationStamp (#1873-class): a citation absorb the sweep never touched rides this pass, so
           // the terminal commit message carries the same stamp its recordAced arm records below.
-          + terminalRows.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`).join('\n') + pt`\n`
+          + terminalRows.map(queuedFindingRow).join('\n') + pt`\n`
           // No ace_diff_files clause here: the terminal arm has no consumer for it (the merged arm
           // records every terminalRow aced on the one seat's re-approval; the sweep arm's sweepTouched
           // is the only landed-row check) — a prompt never asks for a field nothing reads.
