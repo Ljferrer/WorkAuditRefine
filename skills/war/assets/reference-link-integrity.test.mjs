@@ -347,6 +347,10 @@ const QUALIFIED_HEADERS = [
   // #2099 emergency patch (0.21.12): the skills/war/SKILL.md staging-step eviction destination
   // (resume/restage/stage-failure doctrine plus the new comment-strip section), joined on creation.
   'staged-script.md',
+  // engine-and-audit-verdict-integrity Phase 11 Task 11.2: the skills/war/SKILL.md §Audits
+  // default-roster sentence's eviction destination (byte-funding the D17 boundary sentence),
+  // joined on eviction per the UNION-extension precedent above.
+  'design.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

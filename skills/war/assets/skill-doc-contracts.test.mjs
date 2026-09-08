@@ -4299,3 +4299,52 @@ test('afk-ask-prefix-pin — the SKILL.md Checkpoint `--afk` no-match arm files 
   assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
   assert.ok(JSON.parse(lit[1].replace(/'/g, '"')).includes('demote:ask-unruled-afk'), '`demote:ask-unruled-afk` must be a `DEMOTE_REASONS` member (land-decision.mjs)')
 })
+
+// (D17/D18/D19 — Task 11.2, #1989/#1664/#1914) THE SPLIT BOUNDARY ON THE DOCTRINE SURFACES. The
+// OLD `one rebuttal round` wording is KEPT by the 2026-09-06 Q2 ruling, so the decisive assert is
+// the NEW sentence present on both surfaces (0 hits at ffb3ab6), matched RAW so it holds exactly
+// where the plan's `grep -c` form holds, plus the one OLD-absent leg on the sentence that DID
+// change — the SKILL.md tail `rebuttal round** → resolve or escalate` (1 hit at ffb3ab6; it
+// omitted the fix round; PIN-8). Each surface is extracted by construct, never by line.
+test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split boundary reads `rebuttal first, then fix round when a suggested_fix survives` on SKILL.md and design.md; the fix-less SKILL.md tail is retired (#1989, Task 11.2)', () => {
+  const NEW = 'rebuttal first, then fix round when a suggested_fix survives'
+  // skills/war/SKILL.md — the `- **Audits**` bullet.
+  const audits = skillMd.match(/^- \*\*Audits\*\*[^\n]*/m)
+  assert.ok(audits, 'could not locate the `- **Audits**` bullet in SKILL.md — construct rotted')
+  assert.ok(audits[0].includes('**one rebuttal round**'), 'the Audits bullet must keep `**one rebuttal round**` (the 2026-09-06 Q2 ruling keeps the rebuttal)')
+  assert.ok(audits[0].includes(NEW), `the Audits bullet must state \`${NEW}\` (0 hits at ffb3ab6; D17, PIN-29)`)
+  assert.match(audits[0], /fix-less survivor escalates/, 'the Audits bullet must state that a fix-less survivor still escalates (D18)')
+  assert.ok(
+    !skillMd.includes('rebuttal round** → resolve or escalate'),
+    'the OLD fix-less tail `rebuttal round** → resolve or escalate` must be gone from SKILL.md (OLD-absent, base-verified 1 hit at ffb3ab6; PIN-8)',
+  )
+  // skills/war/references/design.md — the `- **Auditors**` bullet and the row-12 table row.
+  const auditors = designRefMd.match(/^- \*\*Auditors\*\*[^\n]*/m)
+  assert.ok(auditors, 'could not locate the `- **Auditors**` bullet in design.md — construct rotted')
+  assert.ok(auditors[0].includes('**one rebuttal round**'), 'the design.md Auditors bullet must keep `**one rebuttal round**`')
+  assert.ok(auditors[0].includes(NEW), `the design.md Auditors bullet must state \`${NEW}\` (0 hits at ffb3ab6)`)
+  const row12 = designRefMd.match(/^\| 12 \| Audit independence \|[^\n]*/m)
+  assert.ok(row12, 'could not locate the `| 12 | Audit independence |` row in design.md — construct rotted')
+  assert.ok(row12[0].includes('one rebuttal round'), 'the design.md row 12 must keep `one rebuttal round`')
+  assert.ok(row12[0].includes(NEW), `the design.md row 12 must state \`${NEW}\` (0 hits at ffb3ab6)`)
+  // The §4 step 3 and schemas.md gate-rule stragglers (survey-derived): the still-split-escalate arm is retired.
+  assert.ok(!designRefMd.includes('still-split-escalate'), 'the retired `still-split-escalate` arm must be gone from design.md §4 step 3 (OLD-absent, base-verified 1 hit; PIN-8)')
+  assert.ok(!schemasMd.includes('still-split (escalate)'), 'the retired `still-split (escalate)` arm must be gone from schemas.md’s gate rule (OLD-absent, base-verified 1 hit; PIN-8)')
+  // CONTEXT.md — the two Phase 11 glossary entries (bolded term → next bolded term or `###`).
+  for (const [term, keys] of [
+    ['Decision-forked finding', [[/escalate_reason/, 'the escalate_reason carrier'], [new RegExp(NEW), 'the D17 sentence'], [/never escalates/, 'the mechanical-never-escalates arm'], [/two-sided boundary/, 'the two-sided boundary name']]],
+    ['Seat-conflict ask', [[/parkAsk/, 'the parkAsk route'], [/fix-now \/ follow-up-and-merge fork/, 'the ask fork'], [/strike-list gate/, 'the interactive ruling site'], [/#1914/, 'the source issue']]],
+  ]) {
+    const block = contextMd.match(new RegExp(`^\\*\\*${term}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'))
+    assert.ok(block, `could not locate the \`**${term}**\` glossary entry in CONTEXT.md — construct rotted (Task 11.2)`)
+    for (const [re, what] of keys) assert.match(norm(block[0]), re, `CONTEXT.md's **${term}** entry must carry ${what}`)
+  }
+  // The reconciled Lead arms: resume-and-recovery.md's plan-defect stop-here arm and war-review's grind row.
+  assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
+  assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
+  // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
+  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
+  assert.match(norm(decisions), /rebuttal first, then fix round when a `suggested_fix` survives/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
+  assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
+})

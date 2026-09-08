@@ -156,7 +156,7 @@ The task gate (and the task's `Done when:` command) run at an ace-family commit 
 - any open **Critical/Major** (any seat) → **blocks** → batched `FIX_NEEDED`
 - any **escalate** → **halts** to the Lead
 - **all `approve`**, no open Critical/Major, **same `audit_sha`** → merge-eligible (**convergent unanimity** — if HEAD moves, every seat re-confirms against the new SHA)
-- split (mixed approve / request_changes) → **one rebuttal round** (each seat re-judges seeing peers' findings) → unanimous-approve | agreed-block (FIX_NEEDED) | still-split (escalate)
+- split (mixed approve / request_changes) → **one rebuttal round** (each seat re-judges seeing peers' findings) → unanimous-approve | agreed-block (FIX_NEEDED) | a surviving blocker with a `suggested_fix` (FIX_NEEDED — rebuttal first, then fix round when a suggested_fix survives) | a fix-less survivor (escalate, `escalate_reason` read into `escalated[]`) | a seat conflict on one locus (an operator `ask`, never a hold)
 
 ## ledger.json — run state at `.claude/teams/<run-id>/`
 ```jsonc
