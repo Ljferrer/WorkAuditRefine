@@ -17366,6 +17366,18 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   assert.ok(!(crit.out.escalated || []).some(e => e && e.task === 't1'), 'Critical arm: no escalation')
   assert.ok(crit.out.landed.includes('t1'), 'Critical arm: t1 merges under the fork')
   assert.equal(crit.out.landDecision, 'landed', 'Critical arm: the phase is not held')
+  // Peer-own-ask arm (ace re-entry a4): a peer Minor that already carries disposition ask with its own
+  // question parks that question BEFORE the conflict ask replaces the field — both asks reach asks[].
+  const peerAsk = { ...peerMinor, disposition: 'ask', ask: { question: 'sweep as a helper or inline?', fork: ['helper', 'inline'] } }
+  const own = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeMajor, 2: scopeMajor }, [peerAsk]))
+  const ownAsks = (own.out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(ownAsks.length, 2, 'peer-own-ask arm: the peer\'s own ask AND the conflict ask both park (never a silent drop, #1790)')
+  const peerRec = ownAsks.find(a => a.question === 'sweep as a helper or inline?')
+  assert.ok(peerRec && peerRec.seat === 'audit:t1:correctness:rebut', 'peer-own-ask arm: the peer\'s own question parks under the peer seat')
+  assert.deepEqual(peerRec.fork, ['helper', 'inline'], 'peer-own-ask arm: the peer\'s own fork survives verbatim')
+  assert.ok(ownAsks.some(a => /^Seat conflict on a\.js:40:/.test(a.question)), 'peer-own-ask arm: the conflict ask still parks')
+  assert.ok(own.logs.some(l => typeof l === 'string' && l.includes('the peer row already carried its own ask; parked it before the conflict ask replaced the field')), 'peer-own-ask arm: the park is logged')
+  assert.ok(own.out.landed.includes('t1') && own.out.landDecision === 'landed', 'peer-own-ask arm: t1 merges and the phase is not held')
   // Negative control (delete-the-feature): the same locus split WITHOUT a scope/mandate/adjudication
   // rationale on either side is not a seat conflict — it takes the fix-less survivor route.
   const plainMajor = { ...scopeMajor, rationale: 'the loop misses the last sibling' }

@@ -2398,10 +2398,13 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // with the three gate-audit-family seats and mirrored on agents/war-auditor.md; see the const.
     + FINDING_PATH_FORM_CLAUSE
     // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2;
-    // two-sided since verdict-integrity D18, PIN-22, #1664) — mirrored on agents/war-auditor.md (the
-    // verdict list's escalate bullet + the Return shape line) and in the schemas.md AuditVerdict row
-    // (same commit); the D3 both-surfaces registry rows anchor the zero-hit tokens (required when /
-    // however severe; two-sided / decision-forked) on BOTH auditor surfaces. The intake side
+    // two-sided since verdict-integrity D18, PIN-22, #1664) — the one-sided clause (required when /
+    // however severe) is mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the
+    // Return shape line) and in the schemas.md AuditVerdict row (same commit); the two-sided extension
+    // (decision-forked / mechanical-with-budget) lives on the card's escalate bullet and in this
+    // prompt only, per the D18 slice — schemas.md never carries it. The D3 both-surfaces registry rows
+    // anchor the zero-hit tokens (required when / however severe; two-sided / decision-forked) on
+    // BOTH auditor surfaces. The intake side
     // is the AUDIT_VERDICT if/then conditional above (enforcement arm recorded at that literal): the
     // schema layer re-prompts a reason-less escalate; a persistently non-conforming seat falls into
     // the existing dropped-seat → audit-blocked lane — no NEW hold path (A8, #1410).
@@ -2469,7 +2472,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
     // same commit; the `split-panel boundary` registry row): rebuttal first, then a fix round when a `suggested_fix` survives,
     // escalation only for a fix-less survivor.
-    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass, unless the panel is a seat conflict (your blocker and an approving seat\'s Minor/Nit on the same locus, one side reasoning from scope, mandate or an adjudication match), which parks an operator ask and merges instead; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase, unless an approving seat rates the same locus Minor/Nit on a scope, mandate or adjudication rationale — the engine then parks an operator ask and the task merges, so keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\` naming the missing plan decision) — otherwise state the fix or withdraw the finding:\n`
+    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase once no surviving blocker carries a fix. A seat conflict (your blocker and an approving seat\'s Minor/Nit on the same locus, one side reasoning from scope, mandate or an adjudication match) pre-empts every one of those arms: the engine parks an operator ask and the task merges instead. So keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\`), otherwise state the fix or withdraw the finding:\n`
       // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
       // (construction-guaranteed → bare); ${f.title ?? ''} absence-tolerant (title is a schema-optional finding field).
       + peers.map(s => pt`- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => pt`[${f.severity}] ${f.title ?? ''}`).join('; ') || 'no findings'}`).join('\n')
@@ -3643,6 +3646,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
                 const ask = conflictAsk(p)
                 parkAsk({ task: task.id, seat: p.seat.seat ?? null, lens: p.seat.lens, sha: auditShaOrSentinel(p.seat.audit_sha), ...p.finding, disposition: 'ask', ask,
                   seatConflict: { blocking: { seat: p.seat.seat ?? null, lens: p.seat.lens, severity: p.finding.severity }, peer: { seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, severity: p.peer.severity } } })
+                if (p.peer.disposition === 'ask' && p.peer.ask && p.peer.ask.question) {   // the peer already carried its own ask: park it before the overwrite
+                  parkAsk({ task: task.id, seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, sha: auditShaOrSentinel(p.peerSeat.audit_sha), ...p.peer })
+                  log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — the peer row already carried its own ask; parked it before the conflict ask replaced the field (never a silent drop, #1790).')
+                }
                 p.peer.disposition = 'ask'; p.peer.ask = ask                 // the peer row corroborates the parked record (parkAsk's collision merge)
                 p.seat.findings = (p.seat.findings || []).filter(f => f !== p.finding)
                 log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Parked for the operator ruling instead of escalating; the blocking seat ' + (p.seat.seat ?? '?') + ' neutralizes to approve and the task merges under the fork (interactive: ruled at the Checkpoint; --afk: resolved by citation or demoted Lead-side with the question preserved).')
