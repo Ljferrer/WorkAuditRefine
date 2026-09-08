@@ -35,7 +35,7 @@ exist anywhere in the window. A gate-audit does not catch it when every needle i
 that really landed.
 
 **Resolved (2026-09-06, #1895):** Task 6.1 of the 2026-09-06-engine-and-audit-verdict-integrity plan
-(D9, PIN-13) adds the `git rev-list --count $BASE..<branch>` > 0 conjunct to the `deriveSkipClause` in
+(D9, PIN-13) adds the `git rev-list --count <base>..<branch>` > 0 conjunct to the `deriveSkipClause` in
 `skills/war/assets/workflow-template.js` (search `SANCTIONED RECOVERY RELAUNCH — derive-then-cut`) beside
 `merge-base --is-ancestor`; a zero-commit branch takes the ordinary ensure-worktree path with a loud
 classification log (fixture `derive-and-skip: zero-commit branch dispatches (#1895/#2006)`). Before that
