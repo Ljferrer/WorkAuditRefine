@@ -1521,13 +1521,14 @@ const demote = (f, to, why, opts) => {
     log('DEMOTE_REASONS MISS (unclassified engine demotion, D13): the follow-up reason "' + why + '" for [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') carries no DEMOTE_REASONS prefix — prepending demote:unclassified; classify this demote() site (a /war-review defect signal).')
     why = 'demote:unclassified — ' + why
   }
+  const k = remintKey(f)
+  if (opts && opts.reverted) revertedKeys.add(k)   // the oscillation bound stamps on EVERY forward-revert demote, note arm included, before the consult below
   if (to !== 'note') {
-    const k = remintKey(f)
-    if (opts && opts.reverted) revertedKeys.add(k)   // the oscillation bound stamps regardless of the consult below
     const prior = acedKeys.has(k) ? 'the aced record' : filedKeys.has(k) ? 'the filed follow-up record' : null
     if (prior) {
       log('Disposition demotion CORROBORATES: [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') → ' + to + ' — ' + why + '; the content key already lives on ' + prior + ' (D12, #1862) — the raiser joins its seats list, never a second minorsFiled row (logged, never silent).')
-      corroborateSurvivor(f)
+      const hit = corroborateSurvivor(f)
+      if (hit) hit.demoteReason = hit.demoteReason || why   // a seat-filed survivor carries no reason; the forward-revert fact must reach the filing prompt
       return
     }
     filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record
@@ -1569,8 +1570,9 @@ const acedKeys = new Set()
 // forward-revert funnel (the oscillation bound, A1): every finding demoted on a forward-revert arm
 // (aceReentry's regressed batch; aceBisect's culprit, whole-batch, and depth/split-floor demotions)
 // records its content key here (via demote's { reverted: true } opt) so routeReauditMinors can
-// refuse a content-identical re-mint — a forward-reverted finding never re-enters; its demoted
-// follow-up record in minorsFiled is the durable home (no second file, no aced∩minorsFiled overlap).
+// refuse a content-identical re-mint — a forward-reverted finding never re-enters; its filed
+// follow-up record in minorsFiled is the durable home, whether the engine demoted it or the seat
+// filed it (no second file, no aced∩minorsFiled overlap).
 const revertedKeys = new Set()
 // filed funnel (End state 6, the OTHER direction): every follow-up that lands in minorsFiled on a
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
@@ -1582,8 +1584,8 @@ const revertedKeys = new Set()
 // by the escalation arm's DIRECT push (the never-ran drain's judgeHeldRow consults this registry
 // AFTER the merge queue, so a relaunch seed matching a just-filed row must find it). ONE direct push
 // is NOT stamped: routeTerminalMinors' follow-up arm — no later re-audit runs after it, so no re-mint
-// window exists. Consultation sites: re-audit routing, the re-entry drain, and the held-row judgment
-// (judgeHeldRow). No count word here — a new caller joins by calling fileFollowUp (#2066).
+// window exists. Consultation sites: re-audit routing, the re-entry drain, the held-row judgment
+// (judgeHeldRow), and demote()'s pre-push registry consult (D12, #1862). No count word here — a new caller joins by calling fileFollowUp (#2066).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
@@ -1878,8 +1880,9 @@ const corroborateSurvivor = f => {
     || carriedPhaseClose.find(q => remintKey(q) === k)
     || terminalQueue.find(q => remintKey(q) === k)   // last: a resolved terminal row lives on aced/carried by then (#2069)
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
-  if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return }
+  if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return null }
   mergeSeat(hit, f)
+  return hit   // demote()'s corroborating arm stamps its demoteReason onto the survivor
 }
 const routeReauditMinors = (r, seats, opts) => {
   liveTaskRecords.add(r)
@@ -2824,9 +2827,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // row-id + match rationale (citationStamp — one citationOf call) so the ace commit message carries
   // the durable citation stamp.
   const aceFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`
-  // Absorb-budget helpers (D5): every ace-side dispatch label carries its SITE segment and the
-  // task's absorbRounds (`ace:<site>:<task>:a<n>` — site is `polish` for the batch ace, `subset`
-  // for a bisection subset, `reentry` for a re-entry batch; n = the slot this commit would charge).
+  // Absorb-budget helpers (D5): every ace-side WORKER dispatch label carries its SITE segment and
+  // the task's absorbRounds (`ace:<site>:<task>:a<n>` — site is `polish` for the batch ace, `subset`
+  // for a bisection subset, `reentry` for a re-entry batch; n = the slot this commit would charge;
+  // the ace-gate label keeps `ace-gate:<task>:a<n>`, no site segment).
   // The site segment (verdict-integrity D14, PIN-18, #2085) lets the keep-green reachability floor tell the three
   // dispatch sites apart by label alone. Every ace-side COMMIT carries the `Ace-Charge: <task>:<n>`
   // trailer, n = absorbRounds AFTER the charge — the git-derived relaunch seed the barrier reads
