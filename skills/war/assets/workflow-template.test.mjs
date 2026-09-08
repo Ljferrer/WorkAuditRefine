@@ -13106,7 +13106,7 @@ test('citation-unsound (End state 5, mode-split pair — #1879 addition 2): the 
     assert.equal(calls.filter(isAce).length, 2, `[${mode}] batch + the one re-entry attempt (bounded — no retry after the unsound verdict)`)
     const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
     assert.ok(demoteLog, `[${mode}] the unsound-citation demotion is logged`)
-    assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), `[${mode}] the demotion names the cited row`)
+    assert.ok(demoteLog.includes(CITED_ADJ[0]), `[${mode}] the demotion names the cited row`)
     assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), `[${mode}] the demotion NAMES the mismatch (the panel finding rationale)`)
     assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
       `[${mode}] the unsound citation finding demotes to follow-up (never a silent drop)`)
@@ -13136,7 +13136,7 @@ test('citation-unsound (End state 5, round-1-batch path): a citation absorb ridi
   assert.equal(calls.filter(isAce).length, 1, 'the round-1 batch ace only (single file group — ambiguous-and-atomic, no subsets)')
   const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
   assert.ok(demoteLog, 'the round-1-batch unsound-citation demotion is logged with the mismatch')
-  assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the batch-path demotion names the cited row')
+  assert.ok(demoteLog.includes(CITED_ADJ[0]), 'the batch-path demotion names the cited row')
   assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the batch-path demotion NAMES the mismatch (the panel finding rationale)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
     'the citation finding demotes to follow-up on the batch path (never a silent drop)')
