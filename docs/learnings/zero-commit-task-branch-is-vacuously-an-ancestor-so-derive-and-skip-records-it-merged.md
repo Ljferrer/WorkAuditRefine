@@ -41,7 +41,10 @@ that really landed.
 classification log (fixture `derive-and-skip: zero-commit branch dispatches (#1895/#2006)`). Before that
 landed, the clause gated on the ancestor check alone and the only partial guard sat on the merge-slot
 pin-transfer path: an empty post-rebase diff with zero task commits fails closed as `empty-unmatched`
-(#1931).
+(#1931). Residual (Task 6.1's own, beside `deriveSkipClause` and in its commit body): the conjunct's BASE is the
+integration branch's fork point off the working branch, so a zero-commit branch cut at a later relaunch's
+adopted tip counts its siblings' fast-forwarded commits and is not caught; the manual `rev-list --count`
+check below still applies to a relaunch of a relaunch.
 
 **Fix shape (the first half landed with Task 6.1; the phase-level assertion is still a suggestion):** derive-and-skip must also require `git rev-list --count <base>..<branch>` > 0 before deriving
 `preMerged`; a zero-commit branch takes the fresh-run path. Pair it with a phase-level assertion that every
