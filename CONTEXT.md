@@ -688,9 +688,9 @@ integrated-tip, end-state-only). It strips the attribution keys only the engine 
 own `seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
 `aceRelPath`, demotes an empty-content finding to a logged note, and folds a content hash into
 `remintKey` when file and title are both absent — so what `f.file` and `f.seats` mean downstream is
-what the engine set, never what a seat supplied. The auditor card's FINDING-PATH FORM sentence is
-advisory belt and braces; the invariant lives in the engine ([ADR
-0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
+what the engine set, never what a seat supplied. The auditor card's and every dispatched auditor
+prompt's FINDING-PATH FORM sentence is advisory belt and braces; the invariant lives in the engine
+([ADR 0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
 _Avoid_: trusting a seat-supplied corroboration field; a per-site strip (one helper, every site);
 treating the prompt sentence as the guard.
 

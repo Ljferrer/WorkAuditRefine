@@ -3950,7 +3950,9 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
 // built ABOVE the start anchor and interpolated into the same prompt — is outside the window by
 // construction: it is a preamble note, not a record-only state. The residual this row does not see
 // is a new record-only state added outside the window (or that clause hoisted below the anchor,
-// which reds the `canonical.length` assert for a reason other than a third state). The glossary
+// which reds the `canonical.length` assert for a reason other than a third state), and a
+// non-record-only backticked `<snake_case>:` token entering the window (a seat-block mention of
+// `provision_red:`, say), which reds the same assert with a message that misnames the cause. The glossary
 // row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
 // line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
 // workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
