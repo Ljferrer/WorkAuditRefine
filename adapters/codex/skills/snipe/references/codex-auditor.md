@@ -40,4 +40,4 @@ Use `Critical`, `Major`, `Minor`, or `Nit`. Critical/Major findings mean `reques
 
 These are classifications only: Snipe never performs the correction or follow-up. An `escalate` verdict names the nonempty missing operator decision.
 
-Return one AuditVerdict JSON object as the final response. Include seat, lens, scope identity, verdict, confidence, findings, tests inspected, and any escalation explanation. Do not wrap it in Markdown. S3 owns strict schema validation; until then, malformed or missing JSON makes the seat incomplete rather than clean.
+Return one versioned Snipe result JSON object as the final response, following the exact contract appended by the coordinator. Include seat, lens, scope identity, verdict, confidence, findings, tests inspected, and any escalation explanation. Do not wrap it in Markdown. Malformed, mismatched, or missing JSON receives at most one schema-only repair attempt and otherwise makes the seat incomplete rather than clean.

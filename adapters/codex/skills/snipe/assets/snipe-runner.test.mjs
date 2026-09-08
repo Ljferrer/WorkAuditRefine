@@ -37,20 +37,34 @@ function fakeCodex(body) {
   return path
 }
 
+function validVerdictSource(prefix = '', suffix = '') {
+  return `${prefix}
+    const prompt = process.argv.at(-1)
+    const seat = Number(prompt.match(/AUDIT SEAT (\\d+)/)?.[1] ?? prompt.match(/seat (\\d+)/i)?.[1])
+    const lens = prompt.match(/lens: ([^,\\n]+)/)?.[1] ?? prompt.match(/lens '([^']+)'/)?.[1]
+    const scopeText = prompt.split('Canonical scope (identical for every seat):\\n')[1]?.split('\\n\\nReview only')[0]
+      ?? prompt.split('Canonical scope:\\n')[1].split('\\n\\n')[0]
+    const scope = JSON.parse(scopeText)
+    const resultScope = scope.kind === 'committed'
+      ? { kind: 'committed', audit_sha: scope.headSha }
+      : { kind: 'dirty', fingerprint: scope.fingerprint, advisory: true }
+    const verdict = { schema_version: 1, seat, lens, scope: resultScope, verdict: 'approve', confidence: 'high', findings: [], tests_verified: { exist: true, inspected: [] } }
+    ${suffix}
+    console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: JSON.stringify(verdict) } }))`
+}
+
 const supportedProfiles = { 'gpt-test': ['high'] }
 const inheritedProfile = { model: 'gpt-test', effort: 'high' }
 const runnerPath = fileURLToPath(new URL('./snipe-runner.mjs', import.meta.url))
 
 test('one seat runs through a fresh read-only Codex process with the canonical scope', async () => {
   const cwd = fixture()
-  const codexPath = fakeCodex(`
+  const capturePath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-capture-')), 'capture.json')
+  const codexPath = fakeCodex(validVerdictSource('', `
     const argv = process.argv.slice(2)
-    const prompt = argv.at(-1)
-    console.log(JSON.stringify({
-      type: 'item.completed',
-      item: { type: 'agent_message', text: JSON.stringify({ argv: argv.slice(0, -1), prompt }) },
-    }))
-  `)
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(${JSON.stringify(capturePath)}, JSON.stringify({ argv: argv.slice(0, -1), prompt }))
+  `))
 
   const result = await runSnipePanel({
     cwd,
@@ -66,7 +80,7 @@ test('one seat runs through a fresh read-only Codex process with the canonical s
   assert.equal(result.seats[0].status, 'completed')
   assert.equal(result.seats[0].lens, 'correctness')
   assert.equal(result.seats[0].rationale, 'operator-pinned lens')
-  const response = JSON.parse(result.seats[0].response)
+  const response = JSON.parse(readFileSync(capturePath, 'utf8'))
   assert.deepEqual(response.argv.slice(0, 7), [
     'exec', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--sandbox', 'read-only', '--json',
   ])
@@ -79,6 +93,9 @@ test('one seat runs through a fresh read-only Codex process with the canonical s
   assert.match(response.prompt, new RegExp(result.request.scope.headSha))
   assert.match(response.prompt, /AUDIT SEAT 1 — lens: correctness/)
   assert.match(response.prompt, /Operator concern: Focus on cancellation semantics\./)
+  assert.match(response.prompt, /"schema_version": 1/)
+  assert.match(response.prompt, new RegExp(`"audit_sha": "${result.request.scope.headSha}"`))
+  assert.match(response.prompt, /Return exactly one JSON object with no Markdown or prose wrapper/)
   assert.match(response.prompt, /Do not widen the panel/)
   assert.match(response.prompt, /Do not use connectors or request escalation/)
 })
@@ -86,19 +103,11 @@ test('one seat runs through a fresh read-only Codex process with the canonical s
 test('five independent seats are capacity-bounded, distinct, and receive identical scope', async () => {
   const cwd = fixture()
   const logPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-concurrency-')), 'events.log')
-  const codexPath = fakeCodex(`
+  const codexPath = fakeCodex(validVerdictSource(`
     const { appendFileSync } = await import('node:fs')
-    const argv = process.argv.slice(2)
-    const prompt = argv.at(-1)
     appendFileSync(${JSON.stringify(logPath)}, 'start ' + process.pid + '\\n')
     await new Promise(resolve => setTimeout(resolve, 120))
-    appendFileSync(${JSON.stringify(logPath)}, 'end ' + process.pid + '\\n')
-    const scope = prompt.split('Canonical scope (identical for every seat):\\n')[1].split('\\n\\nReview only')[0]
-    console.log(JSON.stringify({
-      type: 'item.completed',
-      item: { type: 'agent_message', text: JSON.stringify({ pid: process.pid, scope }) },
-    }))
-  `)
+  `, `appendFileSync(${JSON.stringify(logPath)}, 'end ' + process.pid + ' ' + Buffer.from(JSON.stringify(scope)).toString('base64') + '\\n')`))
 
   const result = await runSnipePanel({
     cwd,
@@ -111,33 +120,27 @@ test('five independent seats are capacity-bounded, distinct, and receive identic
   assert.equal(result.seats.length, 5)
   assert.equal(new Set(result.seats.map(seat => seat.lens)).size, 5)
   assert.ok(result.seats.every(seat => typeof seat.rationale === 'string' && seat.rationale.length > 0))
-  const responses = result.seats.map(seat => JSON.parse(seat.response))
-  assert.equal(new Set(responses.map(response => response.pid)).size, 5, 'each seat has a fresh process')
-  assert.equal(new Set(responses.map(response => response.scope)).size, 1, 'scope is byte-identical')
-
   let active = 0
   let maximum = 0
-  for (const event of readFileSync(logPath, 'utf8').trim().split('\n')) {
+  const events = readFileSync(logPath, 'utf8').trim().split('\n')
+  for (const event of events) {
     active += event.startsWith('start ') ? 1 : -1
     maximum = Math.max(maximum, active)
   }
   assert.equal(active, 0)
   assert.equal(maximum, 2)
+  assert.equal(new Set(events.filter(event => event.startsWith('start ')).map(event => event.split(' ')[1])).size, 5, 'each seat has a fresh process')
+  assert.equal(new Set(events.filter(event => event.startsWith('end ')).map(event => event.split(' ')[2])).size, 1, 'scope is byte-identical')
 })
 
 test('a nonzero seat is retained without losing a successful peer', async () => {
   const cwd = fixture()
-  const codexPath = fakeCodex(`
-    const prompt = process.argv.at(-1)
-    if (prompt.includes('lens: security')) {
+  const codexPath = fakeCodex(validVerdictSource(`
+    if (process.argv.at(-1).includes('lens: security')) {
       console.error('seat transport failed')
       process.exit(7)
     }
-    console.log(JSON.stringify({
-      type: 'item.completed',
-      item: { type: 'agent_message', text: '{"verdict":"approve"}' },
-    }))
-  `)
+  `))
 
   const result = await runSnipePanel({
     cwd,
@@ -154,17 +157,99 @@ test('a nonzero seat is retained without losing a successful peer', async () => 
   assert.match(result.seats[1].stderr, /seat transport failed/)
 })
 
+test('one malformed result receives exactly one schema-only repair attempt', async () => {
+  const cwd = fixture()
+  const logPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-repair-')), 'attempts.log')
+  const codexPath = fakeCodex(validVerdictSource(`
+    const { appendFileSync, readFileSync } = await import('node:fs')
+    appendFileSync(${JSON.stringify(logPath)}, 'attempt\\n')
+    if (readFileSync(${JSON.stringify(logPath)}, 'utf8').trim().split('\\n').length === 1) {
+      console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '{"verdict":' } }))
+      process.exit(0)
+    }
+  `))
+
+  const result = await runSnipePanel({
+    cwd,
+    rawArgs: 'correctness',
+    inheritedProfile,
+    supportedProfiles,
+  }, { codexPath, capacity: 1, timeoutMs: 2_000 })
+
+  assert.equal(readFileSync(logPath, 'utf8').trim().split('\n').length, 2)
+  assert.equal(result.complete, true)
+  assert.equal(result.seats[0].status, 'completed')
+  assert.equal(result.seats[0].validation.status, 'valid')
+  assert.equal(result.seats[0].repair.attempted, true)
+  assert.equal(result.seats[0].repair.succeeded, true)
+  assert.equal(result.seats[0].verdict.scope.audit_sha, result.request.scope.headSha)
+})
+
+test('a persistently invalid seat is incomplete while a valid peer finding survives', async () => {
+  const cwd = fixture()
+  const logPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-invalid-')), 'attempts.log')
+  const codexPath = fakeCodex(validVerdictSource('', `
+    const { appendFileSync } = await import('node:fs')
+    appendFileSync(${JSON.stringify(logPath)}, lens + '\\n')
+    if (lens === 'security') {
+      console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '{"verdict":' } }))
+      process.exit(0)
+    }
+    verdict.verdict = 'request_changes'
+    verdict.findings = [{ severity: 'Major', title: 'Input bypasses validation', file: 'review.txt', rationale: 'The changed path accepts NaN.' }]
+  `))
+
+  const result = await runSnipePanel({
+    cwd,
+    rawArgs: 'correctness,security',
+    inheritedProfile,
+    supportedProfiles,
+  }, { codexPath, capacity: 2, timeoutMs: 2_000 })
+
+  assert.equal(result.complete, false)
+  assert.equal(result.seats[0].validation.status, 'valid')
+  assert.equal(result.seats[0].verdict.findings[0].title, 'Input bypasses validation')
+  assert.equal(result.seats[1].status, 'invalid_result')
+  assert.equal(result.seats[1].repair.attempted, true)
+  assert.equal(result.seats[1].repair.succeeded, false)
+  assert.deepEqual(readFileSync(logPath, 'utf8').trim().split('\n').sort(), ['correctness', 'security', 'security'])
+  assert.match(result.report, /INCOMPLETE — do not interpret this panel as clean/)
+  assert.match(result.report, /Input bypasses validation/)
+  assert.match(result.report, /Seat 2 · security: invalid_result/)
+})
+
+test('widen and disposition fields remain report-only without launching actions or seats', async () => {
+  const cwd = fixture()
+  const codexPath = fakeCodex(validVerdictSource('', `
+    verdict.widen = ['security', 'cascading-impact']
+    verdict.findings = [
+      { severity: 'Minor', title: 'Mechanical correction', rationale: 'The edit is fully specified.', disposition: 'absorb' },
+      { severity: 'Nit', title: 'Later migration', rationale: 'The release slot is separate.', disposition: 'follow-up', barrier: 'barrier:release-slot' },
+    ]
+  `))
+
+  const result = await runSnipePanel({
+    cwd,
+    rawArgs: 'correctness',
+    inheritedProfile,
+    supportedProfiles,
+  }, { codexPath, capacity: 1, timeoutMs: 2_000 })
+
+  assert.equal(result.seats.length, 1)
+  assert.equal(result.complete, true)
+  assert.deepEqual(result.seats[0].verdict.widen, ['security', 'cascading-impact'])
+  assert.match(result.report, /no extra seats launched/i)
+  assert.match(result.report, /Disposition: absorb \(classification only\)/)
+  assert.match(result.report, /Disposition: follow-up \(classification only\)/)
+})
+
 test('dirty scope changed during a seat is reported unstable and cannot complete cleanly', async () => {
   const cwd = fixture()
   writeFileSync(join(cwd, 'initial-untracked.txt'), 'before\n')
-  const codexPath = fakeCodex(`
+  const codexPath = fakeCodex(validVerdictSource(`
     const { writeFileSync } = await import('node:fs')
     writeFileSync('concurrent-change.txt', 'changed during review\\n')
-    console.log(JSON.stringify({
-      type: 'item.completed',
-      item: { type: 'agent_message', text: '{"verdict":"approve"}' },
-    }))
-  `)
+  `))
 
   const result = await runSnipePanel({
     cwd,
@@ -265,12 +350,7 @@ test('cancellation stops active children and accounts for queued seats without s
 
 test('CLI accepts a request file and returns complete seat accounting as JSON', () => {
   const cwd = fixture()
-  const codexPath = fakeCodex(`
-    console.log(JSON.stringify({
-      type: 'item.completed',
-      item: { type: 'agent_message', text: '{"verdict":"approve"}' },
-    }))
-  `)
+  const codexPath = fakeCodex(validVerdictSource())
   const requestPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-cli-')), 'request.json')
   writeFileSync(requestPath, JSON.stringify({ cwd, rawArgs: 'correctness', inheritedProfile, supportedProfiles }))
 

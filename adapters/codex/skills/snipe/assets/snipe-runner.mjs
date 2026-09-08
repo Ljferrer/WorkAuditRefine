@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 import { prepareSnipeRequest, verifySnipeScope } from './snipe-request.mjs'
+import { parseSnipeVerdict, renderSnipeReport } from './snipe-result.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
 
@@ -25,6 +26,24 @@ function assignLenses(panel) {
   return assignments
 }
 
+function resultContract(request, seat, lens) {
+  const scope = request.scope.kind === 'committed'
+    ? { kind: 'committed', audit_sha: request.scope.headSha }
+    : { kind: 'dirty', fingerprint: request.scope.fingerprint, advisory: true }
+  return `Return exactly one JSON object with no Markdown or prose wrapper:
+${JSON.stringify({
+  schema_version: 1,
+  seat,
+  lens,
+  scope,
+  verdict: 'approve',
+  confidence: 'high',
+  findings: [],
+  tests_verified: { exist: true, inspected: [] },
+}, null, 2)}
+Verdict is approve, request_changes, or escalate; confidence is high, medium, or low. Each finding requires severity (Critical, Major, Minor, or Nit), title, and rationale; file, locator, line, suggested_fix, and plan_ref are optional. Minor/Nit additionally require disposition (absorb, follow-up, note, or ask). An ask requires {"question":"...","alternatives":"..."}. Optional widen is a distinct nonempty lens array and is report-only. Escalate requires escalate_reason. Omit optional fields that do not apply. An approve verdict cannot carry Critical/Major findings. Echo the exact seat, lens, and scope identity shown above.`
+}
+
 function seatPrompt(request, seat, lens, rationale, concern) {
   return `AUDIT SEAT ${seat} — lens: ${lens}, depth: deep.
 Lens rationale: ${rationale}.
@@ -38,7 +57,9 @@ Review only that scope through the assigned lens. For committed scope, ground fi
 Role instructions:
 ${AUDITOR_ROLE}
 
-Return one AuditVerdict JSON as your final response. Review independently. Do not widen the panel, dispatch another agent, run tests, install anything, modify files or Git state, file issues, or post comments. Do not use connectors or request escalation. Read-only shell and Git inspection are allowed. A requested write or unavailable evidence must be reported as a limitation, never worked around.`
+${resultContract(request, seat, lens)}
+
+Review independently. Do not widen the panel, dispatch another agent, run tests, install anything, modify files or Git state, file issues, or post comments. Do not use connectors or request escalation. Read-only shell and Git inspection are allowed. A requested write or unavailable evidence must be reported as a limitation, never worked around.`
 }
 
 function codexArgs(request, prompt) {
@@ -82,11 +103,11 @@ function finalResponse(stdout) {
   return response
 }
 
-function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal }) {
+function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal, prompt }) {
   return new Promise(resolve => {
     const { lens, rationale } = assignment
     const useProcessGroup = process.platform !== 'win32'
-    const child = spawn(codexPath, codexArgs(request, seatPrompt(request, seat, lens, rationale, concern)), {
+    const child = spawn(codexPath, codexArgs(request, prompt ?? seatPrompt(request, seat, lens, rationale, concern)), {
       cwd: request.scope.repository,
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: useProcessGroup,
@@ -145,6 +166,60 @@ function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, max
   })
 }
 
+function repairPrompt(request, seat, lens, response, error) {
+  return `SCHEMA REPAIR for AUDIT SEAT ${seat} — lens: ${lens}, schema-only.
+Canonical scope:
+${JSON.stringify(request.scope, null, 2)}
+
+Your previous response failed validation: ${error.code}: ${error.message}
+Previous response:
+${response ?? '(missing)'}
+
+Return only one corrected Snipe result JSON object. Preserve the original review judgment and findings; correct only schema, aliases, seat/lens, and scope identity. Do not inspect files, run commands, use tools, widen the panel, request escalation, or perform any external action.`
+}
+
+async function runValidatedSeat(request, seat, assignment, concern, options) {
+  const expected = { seat, lens: assignment.lens, scope: request.scope }
+  const initial = await runSeat(request, seat, assignment, concern, options)
+  if (initial.status !== 'completed') {
+    return { ...initial, validation: { status: 'unavailable', error: `transport status: ${initial.status}` }, repair: { attempted: false, succeeded: false } }
+  }
+  try {
+    const verdict = parseSnipeVerdict(initial.response, expected)
+    return { ...initial, verdict, validation: { status: 'valid', error: null }, repair: { attempted: false, succeeded: false } }
+  } catch (error) {
+    const repaired = await runSeat(request, seat, assignment, concern, {
+      ...options,
+      prompt: repairPrompt(request, seat, assignment.lens, initial.response, error),
+    })
+    if (repaired.status === 'completed') {
+      try {
+        const verdict = parseSnipeVerdict(repaired.response, expected)
+        return {
+          ...repaired,
+          verdict,
+          validation: { status: 'valid', error: null },
+          repair: { attempted: true, succeeded: true, initialError: { code: error.code, message: error.message }, initialResponse: initial.response },
+        }
+      } catch (repairError) {
+        return {
+          ...repaired,
+          status: 'invalid_result',
+          verdict: null,
+          validation: { status: 'invalid', error: repairError.message, code: repairError.code },
+          repair: { attempted: true, succeeded: false, initialError: { code: error.code, message: error.message }, initialResponse: initial.response },
+        }
+      }
+    }
+    return {
+      ...repaired,
+      verdict: null,
+      validation: { status: 'unavailable', error: `repair transport status: ${repaired.status}` },
+      repair: { attempted: true, succeeded: false, initialError: { code: error.code, message: error.message }, initialResponse: initial.response },
+    }
+  }
+}
+
 export async function runSnipePanel(input, options = {}) {
   const request = prepareSnipeRequest(input)
   const assignments = assignLenses(request.panel)
@@ -172,17 +247,18 @@ export async function runSnipePanel(input, options = {}) {
         seats[index] = { seat, lens, rationale, status: 'cancelled', exitCode: null, signal: null, response: null, stdout: '', stderr: '', truncated: false }
         continue
       }
-      seats[index] = await runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal })
+      seats[index] = await runValidatedSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal })
     }
   }
   await Promise.all(Array.from({ length: Math.min(capacity, assignments.length) }, () => worker()))
   const stability = verifySnipeScope(request.scope)
-  return Object.freeze({
+  const panel = {
     request,
     seats: Object.freeze(seats),
     stability: Object.freeze(stability),
-    complete: stability.stable && seats.every(seat => seat.status === 'completed'),
-  })
+    complete: stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
+  }
+  return Object.freeze({ ...panel, report: renderSnipeReport(panel) })
 }
 
 function cliOptions(argv) {
