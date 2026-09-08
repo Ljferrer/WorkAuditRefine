@@ -602,10 +602,9 @@ seat can name no concrete in-file `suggested_fix`. It is the one finding class t
 seat returns `escalate` with an `escalate_reason` naming the missing decision, and the engine reads
 that reason into the `escalated[]` record. Its opposite is the **mechanical** blocking finding — a
 concrete in-file edit with round budget left — which is `request_changes` by construction and never
-escalates at round 0 or while its fix round is still available: on a split the one rebuttal round
-runs first, then a survivor with a `suggested_fix` dispatches a fix round plus a full-roster re-audit
-(rebuttal first, then fix round when a suggested_fix survives), a fix-less survivor escalates, and so
-does a blocking finding that survives a fix round unchanged (PIN-29) — the two-sided boundary
+escalates: on a split the one rebuttal round runs first, then a survivor with a `suggested_fix`
+dispatches a fix round plus a full-roster re-audit (rebuttal first, then fix round when a
+suggested_fix survives), and only a fix-less survivor escalates — the two-sided boundary
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md), Decision log 2026-09-08;
 #1989, #1664).
 _Avoid_: escalating a fixable bug because it is severe; a reason-less `escalate` (the schema layer
@@ -846,18 +845,14 @@ _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routi
 The fourth, Minor/Nit-only disposition member (#1550; ADR 0013 amendment 2026-08-25): a decision-shaped
 finding only the operator can rule, carrying a mandatory question + fork (the decision needed and its
 two branches). Minor/Nit-only holds by construction — `dispositionOf` sits behind the severity filter;
-Critical/Major findings route via `blockingOf` and never carry a disposition. The one ask born of
-blocking findings sets no disposition: the engine-synthesized **Seat-conflict ask** (see **asks[]
-channel**).
+Critical/Major findings route via `blockingOf` and never carry a disposition.
 _Avoid_: treating an ask as an escalation (it never blocks); machinery defaulting a finding to ask.
 
 **asks[] channel**:
 The parked-ask artifact path: the top-level return's `asks[]` beside `minorsFiled` (full finding rows,
 exactly-once by finding identity) plus the lossy ninth `handoff.asks` key (question + fork +
 task/seat/sha). `demote()` refuses an ask loudly — log() + re-route onto `asks[]`, never
-`minorsFiled`/`notes`, never a throw. A second producer never sets a disposition: the engine
-synthesizes a **Seat-conflict ask** from a split panel's own verdicts and parks it on this same
-channel through `parkAsk`.
+`minorsFiled`/`notes`, never a throw.
 _Avoid_: filing from this channel; hardening the refusal to a throw (`held:workflow-error` omits the
 handoff — the throw would destroy the parked records the refusal protects).
 
