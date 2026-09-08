@@ -1583,12 +1583,11 @@ const recordAced = (f, sha, extra) => {
     // disposition:'ask'). Whichever derivation applies must match EXACTLY ONE parked record: a
     // multi-hit (a title coinciding with another parked question) never splices the first hit,
     // and a miss is LOGGED — an executed-but-still-parked ask is never silent.
-    // ponytail: the multi-hit arm is unreachable by construction — parkAsk dedups on the content key
-    // through the askKeyOf WeakMap, so no two parked records share one key; kept as the defensive
-    // arm (and its log) against a future second asks[] producer.
-    const key = askContentKey(f)
-    const hits = []
-    asks.forEach((a, idx) => { if (askKeyOf.get(a) === key) hits.push(idx) })
+    const exact = (f.ask && f.ask.question) ? askContentKey({ task: f.task, ask: { question: f.ask.question } }) : null
+    const keys = new Set([askContentKey(f)])
+    if (typeof f.title === 'string' && f.title) keys.add(askContentKey({ task: f.task, title: f.title }))
+    const hitsOf = pred => asks.reduce((acc, a, idx) => (pred(askKeyOf.get(a)) ? acc.concat(idx) : acc), [])
+    const hits = exact ? hitsOf(k => k === exact) : hitsOf(k => keys.has(k))
     const i = hits.length === 1 ? hits[0] : -1
     if (hits.length > 1) {
       log('citation absorb matched ' + hits.length + ' parked asks (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') aced at ' + sha + ' — no unique parked record to resolve, so NO ask is unparked or prefilled (a title coincidence never splices another question, #1863); the operator rules the parked questions at the Checkpoint.')
@@ -2665,8 +2664,7 @@ if (tasks.length) {
 // stamp, no unpark) and the refusal is logged once per row per PHASE — the refusal registry lives
 // at file scope, above the wave loop, so a second wave never re-logs the same row (#1864).
 // The returned `row` is the MATCHED THREADED row's own bytes (`threadedRow` is the same value under
-// its explicit name; `cited` preserves the seat's transcription on the durable `aced` record — the
-// refusal log renders the seat string directly from refuseCitation's own `row` argument): the ace dispatch
+// its explicit name; `cited` keeps the seat's string for the refusal/miss logs): the ace dispatch
 // row, the soundness clause, the afk resolution log and the durable aced.citation.row all carry
 // text the engine validated, never the seat's transcription (#1858).
 const CITATION_MIN_LENGTH = 24
@@ -2689,10 +2687,6 @@ const citationOf = f => {
   if (!member) return refuseCitation(row, 'matches no threaded standing adjudication row (exact or contained-by-row only; a superset of a row is not a member, PIN-15)')
   return { row: threadedRow, threadedRow, cited: row, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
 }
-// citationExtra: the one `extra` shape recordAced's three call sites thread — citationOf runs ONCE
-// per finding here (FIX_ROUND_RULES rule 6: the helper replaces the hand copies). Null when no
-// citation stands, so a spread yields no keys.
-const citationExtra = f => { const c = citationOf(f); return c ? { citation: c } : null }
 
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
@@ -2898,7 +2892,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched ' + aceRelPath(f.file) + ' (partial batch fix); a finding is never recorded aced without evidence the commit reached its file')
         continue
       }
-      recordAced(f, sha, citationExtra(f))
+      recordAced(f, sha, citationOf(f) ? { citation: citationOf(f) } : null)
     }
   }
   // Seat-detected excess (PIN-18): the two file arrays come from the SAME agent, so the independent
@@ -4810,7 +4804,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           terminalQueue.push(f)
           continue
         }
-        recordAced(f, polishSha, citationExtra(f))   // #1873: the sweep path keeps the citation stamp
+        recordAced(f, polishSha, citationOf(f) ? { citation: citationOf(f) } : null)   // #1873: the sweep path keeps the citation stamp
       }
       log('phase-close sweep: ' + terminalQueue.length + ' queued finding(s) diverted to the terminal queue (unlanded by the sweep commit); the rest recorded aced at ' + polishSha + '.')
       // Merged-arm routing (#1377, D3a): sweep-raised Minor/Nits route by disposition — an absorb
@@ -4958,7 +4952,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
               { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') })
             if (tmr && tmr.status === 'merged') {
               log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
-              for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true, ...citationExtra(f) })   // #1873-class: the terminal path keeps the citation stamp too; the terminal pass has no touched-file gate (the ruled residual above), so under --afk this unparks a matched ask on the terminal seat's re-approval alone — the aced record and the resolution log are the trail
+              for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true, ...(citationOf(f) ? { citation: citationOf(f) } : {}) })   // #1873-class: the terminal path keeps the citation stamp too
             } else {
               log('terminal pass: phase ' + ph.id + ' — the terminal commit ' + terminalSha + ' did not merge (' + ((tmr && tmr.status) || 'no result') + '); left on ' + polishBranch + ' unmerged (reaping is a human act); the pass is spent — ' + (finalPhase ? 'rows demote' : 'rows carry') + '.')
               for (const f of terminalRows) {
