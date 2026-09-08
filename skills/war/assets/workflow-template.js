@@ -2099,24 +2099,41 @@ const PARTIAL_LOG_RULE = pt`On a re-dispatch, before anything else, read the sta
 // rule is byte-equal on the auditor card's execution rung 1 (reading rule only — the auditor never
 // writes a log). A rendered marker is distinct from genuine absence: the seat decides at read time.
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — conventional path used)`
+// GATE_LOG_BASELINE_NONE (#2156 a6): the baseline-proceed re-merge is the one per-task merge site that
+// deliberately carries no gateCaptureClause, so a baseline-merged task returns no gate_log_path — and the
+// file at the conventional path is the log the FAILED initial merge teed at the same tip. Rendering the
+// conventional path there would tell the seat a superseded run is the authoritative evidence, so a
+// non-empty baselineDebt renders this explicit no-artifact line instead (a missing artifact ⇒ SOFT).
+const GATE_LOG_BASELINE_NONE = pt`(no gate-log artifact recorded — this task merged through the baseline-proceed re-merge, which captures none; any file at the conventional path belongs to the superseded run)`
 const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. A path marked \`(gate_log_path unthreaded — conventional path used)\` is the conventional path, not a recorded one: read it the same way.`
 // backgroundGateRule(shape): the run_in_background instruction, parameterized by the in-band return
 // shape (merge-task: gate_segment; land: land_segment — A4, no status enum change), and closed by
 // PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule.
 const backgroundGateRule = shape =>
   pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. ${PARTIAL_LOG_RULE}`
-const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
-// segmentedMerge(prompt, opts): one helper on every task merge-task dispatch site (initial merge,
-// floor-retry re-merge, environment-proceed and baseline-proceed re-merges). Appends
-// segmentedGateClause, dispatches, and re-dispatches while the result carries the marker WITH its
+// segmentedGateClause(refineryPath, taskId): the merge-task carrier of backgroundGateRule. It names the
+// conventional stamped gate log itself (with the .war/ exclude append), so PARTIAL_LOG_RULE's "named
+// above" resolves on EVERY merge-task build — the baseline-proceed re-merge and the two sweep-family
+// merges carry no gateCaptureClause (their gate is never returned as authoritative evidence), so
+// without this sentence the rule would name nothing there (#2156 a6).
+const segmentedGateClause = (refineryPath, taskId) =>
+  pt`\nThe stamped gate log is ${refineryPath}/.war/gate-${taskId}.log (an absolute path; first ensure .war/ is git-excluded inside _refinery — append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`). `
+  + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
+// segmentedMerge(prompt, opts, refineryPath, taskId): one helper on EVERY mode=merge-task dispatch site
+// — the four per-task sites (initial merge, floor-retry re-merge, environment-proceed and
+// baseline-proceed re-merges) AND the two sweep-family sites (the phase-close polish merge
+// `merge:p<id>-polish` and the terminal-pass merge `merge:p<id>-terminal`), so the card's step-10
+// re-dispatch promise holds wherever the gate runs (#2156 a6; routedMr's sweep exemption is a
+// different question — a budget-uncited there still fail-open discards). Appends
+// segmentedGateClause(refineryPath, taskId), dispatches, and re-dispatches while the result carries the marker WITH its
 // contracted status pair — status:'error' AND gate_segment:'incomplete' — bounded by roundLimit
 // (segmentedLand's shape; PIN-9's pair read: a merged result carrying a stray marker is a merge, a
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
 // its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
-const segmentedMerge = async (prompt, opts) => {
+const segmentedMerge = async (prompt, opts, refineryPath, taskId) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  const body = prompt + segmentedGateClause
+  const body = prompt + segmentedGateClause(refineryPath, taskId)
   let result = await dispatch(body, opts)
   let segments = 0
   while (isSegment(result) && segments < roundLimit) {
@@ -3636,7 +3653,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }))
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') },
+        refineryPath, r.task.id))
 
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
       // ponytail: reuses existing 'escalate' reason (DP3 — no new HARD_ESCALATION_REASONS member, no land-decision.mjs cascade)
@@ -3772,7 +3790,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') },
+            refineryPath, r.task.id))
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
@@ -3863,7 +3882,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') },
+            refineryPath, r.task.id))
           if (ep && ep.status === 'merged') landMerged(r.task, ep)
           else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
           else if (ep && ep.status === 'gate_failed') escalated.push({ task: r.task.id, reason: ep.status, detail: ep })   // introduced OR baseline→introduced (bounded)
@@ -3896,7 +3916,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') },
+            refineryPath, r.task.id))
           if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
           else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })
           else if (bp && bp.status === 'gate_failed') escalated.push({ task: r.task.id, reason: 'gate_failed', detail: bp })   // introduced OR baseline→introduced (bounded)
@@ -4108,8 +4129,10 @@ if (mergedTasksForGateAudit.length > 0) {
     // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
     // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
     preMergeTip: m.preMergeTip || phaseBaseCmd,
-    // D8 fallback (#2094): an unthreaded gate_log_path renders the conventional path + `unthreaded` marker.
-    gateLogPath: m.gateLogPath || pt`${refineryPath}/.war/gate-${m.taskId}.log ${GATE_LOG_UNTHREADED}` }))
+    // D8 fallback (#2094): an unthreaded gate_log_path renders the conventional path + `unthreaded` marker —
+    // except on a baseline-proceed merge (non-empty baselineDebt), where the conventional file is the
+    // superseded failed run's log: GATE_LOG_BASELINE_NONE instead (#2156 a6).
+    gateLogPath: m.gateLogPath || ((Array.isArray(m.baselineDebt) && m.baselineDebt.length) ? GATE_LOG_BASELINE_NONE : pt`${refineryPath}/.war/gate-${m.taskId}.log ${GATE_LOG_UNTHREADED}`) }))
   const evidence = await dispatch(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
@@ -4162,8 +4185,10 @@ if (mergedTasksForGateAudit.length > 0) {
       : '(no pin-status token — the evidence dispatch produced none)'
     // D8 fallback (#2094): an unthreaded gate_log_path renders the CONVENTIONAL artifact path with the
     // `unthreaded` marker — distinct from genuine absence (a file that cannot be read), which the seat
-    // determines at read time under GATE_LOG_READ_RULE.
-    const artifactLine = gateLogPath || pt`${refineryPath}/.war/gate-${taskId}.log ${GATE_LOG_UNTHREADED}`
+    // determines at read time under GATE_LOG_READ_RULE. A baseline-proceed merge (non-empty taskDebt)
+    // returns no path by design and the conventional file is the superseded failed run's log, so it
+    // renders GATE_LOG_BASELINE_NONE — never the foreign log (#2156 a6).
+    const artifactLine = gateLogPath || ((Array.isArray(taskDebt) && taskDebt.length) ? GATE_LOG_BASELINE_NONE : pt`${refineryPath}/.war/gate-${taskId}.log ${GATE_LOG_UNTHREADED}`)
     // mappedTestsLine (D7, Task 3.2): the floor-matched test paths (MergeResult.mappedTests) make the
     // HARD provably-unrun trigger MECHANICAL — the seat greps each path against the CAPTURED gate log.
     // Enumeration-conditional (round-3 fix-forward adjudication): absence is HARD only where the log
@@ -4664,7 +4689,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // fail-open DISCARDS (the pre-polish tip lands unchanged — see the discard arm below), so no
       // gate-failure classification is dispatched here. The idempotent _refinery re-attach IS still
       // included (hygiene — heals a prior dispatch that died mid-classification detached).
-      pmr = await dispatch(
+      pmr = await segmentedMerge(
         pt`Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
@@ -4672,7 +4697,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS — it is unconditional and consults no task fields; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge — the Workflow fail-open DISCARDS the sweep; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') },
+        refineryLandPath, 'p' + ph.id + '-polish')
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
       polishStatus = 'merged'
@@ -4832,7 +4858,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           } else {
             // Re-approved → Refine like any ace commit: the refiner merges the polish branch (now
             // carrying the terminal commit) at the serial queue's tail; the land proceeds on it.
-            const tmr = await dispatch(
+            const tmr = await segmentedMerge(
               pt`Merge WAR polish branch ${polishBranch} (now carrying the terminal-pass commit ${terminalSha}) into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
               + reattachClause(refineryLandPath)
               + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch sits at the integrated tip plus one commit, so this is normally a no-op).\n`
@@ -4840,7 +4866,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
               + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The terminal commit is an ace-shaped absorb commit, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and the pass has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). On gate failure return gate_failed (no classification); the Workflow fail-open leaves the commit unmerged. On conflict return conflict; never force.`
               + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
               + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
-              { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') })
+              { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') },
+              refineryLandPath, 'p' + ph.id + '-terminal')
             if (tmr && tmr.status === 'merged') {
               log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
               for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true })
