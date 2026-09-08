@@ -524,9 +524,11 @@ The tool-timeout survival shape for the two refiner dispatches whose gate can ou
 dispatch forced to return mid-run reports the in-band `land_segment` marker on its error status, and
 a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never a
 new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each — `segmentedLand`
-on all three land sites (initial, environment-proceed, baseline-proceed) and `segmentedMerge` on every
-merge-task site — appends the clause, dispatches, and re-dispatches while the marker rides its
-contracted status pair, bounded by `run.roundLimit`; exhaustion routes by the ridden status. The pair
+on all three land sites (initial, environment-proceed, baseline-proceed) and `segmentedMerge` on the
+four per-task merge-task sites (initial, floor-retry, environment-proceed, baseline-proceed); the two
+sweep-family merges are not segmented (ADR 0051 §3) — each helper appends the clause, dispatches, and
+re-dispatches while the marker rides its contracted status pair, bounded by `run.roundLimit`;
+exhaustion routes by the ridden status. The pair
 is the read (PIN-9): a landed or merged result carrying a stray marker stands, and a marker-absent
 error is one dispatch that routes by its status (`held:land-failed` for a land). Both prompt layers
 instruct backgrounding the gate (`run_in_background`) and applying the **Gate-log stamp** read on
@@ -653,8 +655,10 @@ HARD determination is made only against the captured file); treating a missing a
 
 **Gate-log stamp**:
 The two lines every captured gate log carries — `tip_sha:` first and `exit_code:` last — written by
-the refiner after the gate exits, under `gateCaptureClause` on every merge-task site and the
-segmented-land clause on every land site (`GATE_LOG_STAMP` in `workflow-template.js`; the refiner
+the refiner after the gate exits, under `gateCaptureClause` on the merge-task sites whose evidence
+contract requires the captured gate (the `captureUses` drift guard in `workflow-template.test.mjs` is
+the arbiter of that site list) and the segmented-land clause on every land site (`GATE_LOG_STAMP` in
+`workflow-template.js`; the refiner
 card's merge-task step is its registry-bound standing twin). The stamp is what makes a partial or
 stale log decidable: on a segmented re-dispatch the refiner reads a log as *this* dispatch's result
 only when its first line is `tip_sha:` of the gated sha AND its last line is `exit_code:`, and
