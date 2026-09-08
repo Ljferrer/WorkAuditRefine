@@ -3294,10 +3294,10 @@ test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born 
       bApprove(),                           // subset [f2] approves clean
       bApprove(),                           // the re-entry batch's own re-audit approves clean
     ],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],
-    'ace:t1:a3': [bWorker('5ab00002')],
-    'ace:t1:a4': [bWorker('2ee20001')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
+    'ace:reentry:t1:a4': [bWorker('2ee20001')],
   }, aceBase([f1, f2]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3361,6 +3361,58 @@ test('ace-reentry (End state 1 + 6, batch-regressed arm): a batch finding re-rai
     'the reverted batch finding demotes to follow-up exactly ONCE')
   assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'first'),
     'the reverted finding never lands in aced — aced ∩ minorsFiled = ∅ (End state 6)')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
+test('ace-reentry: third origin (End state 1, #1859) — a fresh absorb born at a RE-ENTRY batch\'s own approving re-audit births a third ace dispatch and is aced, never filed', async () => {
+  // The third birth site: round 1 absorbs `first` (batch ace), the batch re-audit births `second`
+  // (re-entry a2), and the re-entry re-audit ITSELF births `third` — routeReauditMinors on
+  // aceReentry's approve arm queues it, the loop continues, and a third ace dispatches (re-entry
+  // a3). Delete-and-trace: without that routeReauditMinors call `third` is never routed — two
+  // ace dispatches, nothing aced for it — so this fixture is the arm's proof.
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'third', file: 'skills/third.js' })]),
+                               approveWith('audit:t1:correctness', [])],
+      'ace:polish:t1:a1': [bWorker('ace00001')],
+      'ace:reentry:t1:a2': [bWorker('2ee20001')],
+      'ace:reentry:t1:a3': [bWorker('2ee20002')] },
+    aceBase([nit({ title: 'first', file: 'skills/first.js' })]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.deepEqual(aces.map(c => c.opts.label), ['ace:polish:t1:a1', 'ace:reentry:t1:a2', 'ace:reentry:t1:a3'],
+    'batch + TWO re-entry batches — the re-entry re-audit\'s own fresh absorb re-opened the ladder once more (site-segmented labels)')
+  assert.ok(aces[2].prompt.includes('ACE RE-ENTRY BATCH') && aces[2].prompt.includes('skills/third.js') && !aces[2].prompt.includes('skills/second.js'),
+    'the third dispatch is the re-entry vehicle carrying ONLY the re-entry-born finding')
+  assert.match(aces[2].prompt, /`Ace-Subset: t1:reentry:a3:skills\/third\.js`/, 'the third trailer folds the a3 slot in')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'third' && a.sha === '2ee20002'), 'the re-entry-born absorb is ACED at the third sha')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'third'), 'the third aced finding is never filed')
+  assert.ok(out.landed.includes('t1'), 't1 lands on the third re-entered tip')
+})
+
+test('regressed arm: single filing (D12, #1862) — a batch finding re-raised as a FOLLOW-UP at the regressing batch re-audit files ONCE: routeReauditMinors files the seat row first, and aceBisect\'s demote of the batch member corroborates instead of pushing a second minorsFiled row', async () => {
+  // Order on the regressed batch arm: routeReauditMinors(r, reSeats) (the seat's follow-up re-mint
+  // files through fileFollowUp — filedKeys stamped) THEN await aceBisect (single-file batch ⇒
+  // aceHalve null ⇒ whole-batch demote with { reverted: true }). Before D12 demote() pushed
+  // unconditionally: two minorsFiled rows under one content key that the same-seat consolidation
+  // rule can never collapse. The barrier tag keeps the re-mint a follow-up through intakeFloor.
+  const first = () => nit({ title: 'first', file: 'skills/first.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [first()]),
+                               { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'batch broke it', file: 'zz-unrelated.js', rationale: 'regressed' },
+                                                                { ...first(), autoFixable: false, disposition: 'follow-up', barrier: 'barrier:underspecified' }] }],
+      'ace:polish:t1:a1': [bWorker('ace00001')] },
+    aceBase([first()]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'ONLY the batch ace dispatched (single-file batch — nothing to bisect)')
+  const rows = (out.minorsFiled || []).filter(m => m && m.title === 'first')
+  assert.equal(rows.length, 1, 'ONE minorsFiled row for the content key — the seat filing stands, the forward-revert demote never double-files')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('demotion CORROBORATES') && l.includes('first')),
+    'the demote consult logs the corroboration (never silent)')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'first'), 'aced ∩ minorsFiled = ∅ (End state 6)')
+  assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the failed batch tip still rides the merge revert clause (the oscillation registry still stamps)')
   assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
 })
 
@@ -3435,8 +3487,8 @@ test('bisection — culprit-first excision: a named culprit demotes, the remaind
   const fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js'), bApprove()],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
   }, aceBase([fa, fb]))
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3458,7 +3510,7 @@ test('bisection — all findings named culprits: nothing to salvage, the whole b
   const fa = nit({ title: 'a nit', file: 'skills/a.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa]), bRegress('skills/a.js')],
-    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
   }, aceBase([fa]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   assert.equal(calls.filter(isAce).length, 1, 'no subset dispatch — total culprit attribution leaves nothing to salvage')
@@ -3472,16 +3524,16 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   const impl = buildSeqImpl({
     // regression names a file NO aceable finding touches ⇒ ambiguous ⇒ blind halving
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],
-    'ace:t1:a3': [bWorker('5ab00002')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 3, 'batch + two blind halves, applied serially')
   const labels = aces.map(c => c.opts.label)
-  assert.deepEqual(labels, ['ace:t1:a1', 'ace:t1:a2', 'ace:t1:a3'],
-    'ace labels stay distinct and slot-encoded (the ace:<task>:a<n> scheme extends to subsets)')
+  assert.deepEqual(labels, ['ace:polish:t1:a1', 'ace:subset:t1:a2', 'ace:subset:t1:a3'],
+    'ace labels stay distinct and slot-encoded (the ace:<site>:<task>:a<n> scheme names the subset site)')
   for (const c of aces.slice(1)) {
     assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
     assert.match(c.prompt, /`Ace-Charge: t1:\d+`/, 'every subset dispatch mandates the Ace-Charge trailer too — the third ace-side commit site (#2031)')
@@ -3507,7 +3559,7 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
 test('bisection — depth cap 2 and only finally-failing subsets demote: a regressing MULTI-GROUP depth-2 subset demotes WHOLE (no third split — the cap, not singleton atomicity, stops it) and the NEXT dispatch reverts it', async () => {
   // FIVE distinct file groups: halves [f1,f2,f3] / [f4,f5]; depth-2 halves of the first are
   // [f1,f2] / [f3]. [f1,f2] is deliberately MULTI-group at depth 2 — without the depth cap,
-  // aceHalve would happily split it again (two more ace:t1:r* dispatches); with the cap it
+  // aceHalve would happily split it again (two more ace:subset:t1:a* dispatches); with the cap it
   // demotes whole. Four distinct-file findings can never exercise the cap: every depth-2
   // subset is a singleton aceHalve refuses to split anyway.
   const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
@@ -3524,11 +3576,11 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
       bApprove(),                    // [f3] approves
       bApprove(),                    // [f4,f5] approves
     ],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],   // [f1,f2,f3]
-    'ace:t1:a3': [bWorker('5ab00002')],   // [f1,f2]
-    'ace:t1:a4': [bWorker('5ab00003')],   // [f3]
-    'ace:t1:a5': [bWorker('5ab00004')],   // [f4,f5]
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],   // [f1,f2,f3]
+    'ace:subset:t1:a3': [bWorker('5ab00002')],   // [f1,f2]
+    'ace:subset:t1:a4': [bWorker('5ab00003')],   // [f3]
+    'ace:subset:t1:a5': [bWorker('5ab00004')],   // [f4,f5]
   }, aceBase([f1, f2, f3, f4, f5]))
   // absorbRounds 9: the subset stop reads absorbRounds against run.absorbRounds, and this ladder
   // charges 5 slots, so the budget is kept unconstrained here and the depth mechanics alone are under test.
@@ -3558,9 +3610,9 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],   // half 1 approves
-    'ace:t1:a3': [bWorker('5ab00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],   // half 1 approves
+    'ace:subset:t1:a3': [bWorker('5ab00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const merge = calls.find(isMergeTask)
@@ -3578,8 +3630,8 @@ test('absorb-budget (bisection budget): each subset COMMIT charges one absorbRou
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove()],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
   }, aceBase([fa, fb]))
   // absorbRounds 2 (D5): batch charges slot 1, subset 1 charges slot 2 — subset 2 finds the budget
   // spent and rides to the sweep queue (never a follow-up demotion). roundLimit stays at its
@@ -3609,7 +3661,7 @@ test('bisection — same-file findings never split across subsets (D3): two find
   const s2 = nit({ title: 'same two', file: 'skills/same.js' })
   const atomicImpl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([s1, s2]), bRegress('zz.js')],
-    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
   }, aceBase([s1, s2]))
   const atomic = await runPhase(ACE_ARGS(), atomicImpl)
   assert.equal(atomic.calls.filter(isAce).length, 1, 'no subset dispatch — a single file group cannot split (D3)')
@@ -3620,9 +3672,9 @@ test('bisection — same-file findings never split across subsets (D3): two find
   const o1 = nit({ title: 'other one', file: 'skills/other.js' })
   const groupedImpl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([s1, s2, o1]), bRegress('zz.js'), bApprove(), bApprove()],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],
-    'ace:t1:a3': [bWorker('5ab00002')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
   }, aceBase([s1, s2, o1]))
   const grouped = await runPhase(ACE_ARGS(), groupedImpl)
   const gAces = grouped.calls.filter(isAce)
@@ -3637,8 +3689,8 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js')],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }],
   }, aceBase([fa, fb]))
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
   assert.equal(calls.filter(isAce).length, 2, 'the ladder abandons after the blocked subset — no further subset dispatch')
@@ -3668,9 +3720,9 @@ test('bisection ace-trailer — a sibling strict-prefix trailer pair never match
   const f2 = nit({ title: 'bak nit', file: 'skills/aa.js.bak' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],
-    'ace:t1:a3': [bWorker('5ab00002')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
   }, aceBase([f1, f2]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const aces = calls.filter(isAce)
@@ -3702,8 +3754,8 @@ test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regress
     const fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
     return buildSeqImpl({
       'audit:t1:correctness': [bApprove([fa, fb]), bRegress(regressFile), bApprove()],
-      'ace:t1:a1': [bWorker('ace00001')],
-      'ace:t1:a2': [bWorker('5ab00001')],
+      'ace:polish:t1:a1': [bWorker('ace00001')],
+      'ace:subset:t1:a2': [bWorker('5ab00001')],
     }, aceBase([fa, fb]))
   }
   for (const [aceFile, regressFile, dir] of [
@@ -3747,9 +3799,9 @@ test('absorb-budget (End state 4, budget-spent bisect ladder): the untested subs
       bRegress('zz-unrelated.js'),   // [f1,f2] regresses ⇒ splits to [f1] [f2] ahead of [f3,f4]
       bRegress('zz-unrelated.js'),   // [f1] regresses at depth 2 — the third and final charged slot; f1 demotes (re-audit failed)
     ],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],   // [f1,f2]
-    'ace:t1:a3': [bWorker('5ab00002')],   // [f1]
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],   // [f1,f2]
+    'ace:subset:t1:a3': [bWorker('5ab00002')],   // [f1]
   }, sweepBase([]))
   const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: true, absorbRounds: 3 } }), impl)
   // Without the absorb-budget stop, [f2] would dispatch a 4th ace call.
@@ -3766,6 +3818,37 @@ test('absorb-budget (End state 4, budget-spent bisect ladder): the untested subs
   assert.ok(out.landed.includes('t1'), 't1 still lands')
 })
 
+test('aceRelPath: fileless regress (#1815, #1813) — a FILELESS blocking finding reaches blind-halving instead of throwing: aceRelPath(undefined) === undefined, the culprit consumers admit strings only, and the ladder runs both halves', async () => {
+  // `file` is schema-optional on a finding, so a fileless Major at the ace re-audit is routine
+  // auditor output. Without aceRelPath's typeof guard `undefined.replace` throws inside aceBisect —
+  // an untagged throw keeps the HARD escalate class and holds a land the ladder must never hold.
+  const relM = src.match(/^const aceRelPath = (p => .+)$/m)
+  assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
+  const aceRelPath = new Function('return ' + relM[1])()
+  assert.equal(aceRelPath(undefined), undefined, 'aceRelPath(undefined) === undefined (a non-string passes through untouched)')
+  assert.equal(aceRelPath(null), null, 'null passes through too')
+  // Consumer pins (#1813): both culprit consumers admit strings only — the comment on aceRelPath
+  // states the guarantee the code makes, and this is the code.
+  const bisect = src.slice(src.indexOf('const aceBisect = async'), src.indexOf('let pendingRevert = batchSha'))
+  assert.ok(bisect.includes(".filter(p => typeof p === 'string' && p).map(aceRelPath))"), 'culpritFiles admits string paths only before normalizing')
+  assert.ok(bisect.includes("const isCulprit = f => typeof f.file === 'string' && culpritFiles.has(aceRelPath(f.file))"), 'the culprits/rest split shares ONE string-guarded predicate')
+  assert.ok(bisect.includes('aceable.filter(isCulprit)') && bisect.includes('aceable.filter(f => !isCulprit(f))'), 'culprits and rest are the predicate and its complement')
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
+  const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress(), bApprove(), bApprove()],   // bRegress(): the Major carries NO file
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],
+  }, aceBase([fa, fb]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  assert.deepEqual(calls.filter(isAce).map(c => c.opts.label), ['ace:polish:t1:a1', 'ace:subset:t1:a2', 'ace:subset:t1:a3'],
+    'a fileless regression attributes nothing ⇒ ambiguous ⇒ blind halving (batch + two subsets), never a throw')
+  assert.ok(!(out.minorsFiled || []).some(m => m && (m.title === 'fa nit' || m.title === 'fb nit')), 'no culprit demotion — nothing was named')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'fa nit') && (out.aced || []).some(a => a && a.finding && a.finding.title === 'fb nit'), 'both halves ace')
+  assert.ok(out.landed.includes('t1') && !(out.escalated || []).some(e => e && e.task === 't1'), 't1 lands; the ladder never escalates')
+})
+
 test('bisection ace-trailer — fold (#1694): an ask raised by the ace-regression re-audit round parks on asks[], never drops', async () => {
   const fa = nit({ title: 'a nit', file: 'skills/a.js' })
   const askMinor = { severity: 'Minor', title: 'regress-round ask', file: 'skills/q.js',
@@ -3774,7 +3857,7 @@ test('bisection ace-trailer — fold (#1694): an ask raised by the ace-regressio
     confidence: 'high', findings: [{ severity: 'Major', title: 'regressed', file: 'skills/a.js', rationale: 'broke' }, askMinor] }
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([fa]), regressWithAsk],
-    'ace:t1:a1': [bWorker('ace00001')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
   }, aceBase([fa]))
   const { out } = await runPhase(ACE_ARGS(), impl)
   const parked = (out.asks || []).find(a => a && a.question === 'keep or revert?')
@@ -3800,9 +3883,9 @@ test('bisection ace-trailer — fold (#1694): an ask raised by a FAILING bisecti
     ] }
   const impl = buildSeqImpl({
     'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), subRegressWithAsk, bApprove()],
-    'ace:t1:a1': [bWorker('ace00001')],
-    'ace:t1:a2': [bWorker('5ab00001')],   // [f1] — regresses with the ask riding the re-audit
-    'ace:t1:a3': [bWorker('5ab00002')],   // [f2] — approves
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],   // [f1] — regresses with the ask riding the re-audit
+    'ace:subset:t1:a3': [bWorker('5ab00002')],   // [f2] — approves
   }, aceBase([f1, f2]))
   const { out } = await runPhase(ACE_ARGS(), impl)
   const parked = (out.asks || []).find(a => a && a.question === 'split further?')
@@ -4263,7 +4346,7 @@ test('demotion ladder: a fileless absorb takes the severity default (logged, nev
 test('demotion ladder: a blocked ace worker demotes the aceable findings to follow-up (logged); the task still lands', async () => {
   const ab = nit({ title: 'wanted absorb' })
   const impl = buildSeqImpl(
-    { 'ace:t1:a1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }] },
+    { 'ace:polish:t1:a1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }] },
     aceBase([ab]))
   const { out, logs } = await runPhase(ACE_ARGS(), impl)
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'wanted absorb'), 'failed absorb → follow-up')
@@ -4450,7 +4533,10 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   // consult / fileFollowUp / notes as its chain; the callers route only the returned 'absorb'.
   assert.equal(sites.length, 8,
     `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
-  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(|fileFollowUp\(/
+  // reentryQueue.push (D12, #1865): routeReauditMinors' stated absorb chain IS the re-entry queue —
+  // the census names it, so the site no longer passes on the demote( calls that happen to share
+  // its window.
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push|reentryQueue\.push|routeToSweep\(|routeAbsorbTail\(|terminalQueue\.push|carryPhaseClose\(|fileFollowUp\(/
   for (let k = 0; k < sites.length; k++) {
     // Wall (snipe: three seats, after #2060 dropped the byte cap): the EARLIER of the next site and the
     // enclosing top-level construct's close — the first `}` at column 0 after the site (a col-0 function
@@ -4465,7 +4551,7 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
     const parkIdx = slice.indexOf('parkAsk(')
     assert.ok(parkIdx !== -1, `dispositionOf site @${i}: the ask arm parks via parkAsk (exactly-once funnel)`)
     const chain = slice.search(ABSORB_CHAIN)
-    assert.ok(chain !== -1, `dispositionOf site @${i}: the absorb chain is locatable (demote/aceable/phaseCloseQueue)`)
+    assert.ok(chain !== -1, `dispositionOf site @${i}: the absorb chain is locatable (demote/aceable/phaseCloseQueue/reentryQueue/routeToSweep/…)`)
     assert.ok(askIdx < chain && parkIdx < chain, `dispositionOf site @${i}: the ask arm PRECEDES the absorb chain (D7 order)`)
   }
   // The pinMismatch strip row: a NON-dispositionOf disposition sink — the destructure that drops
@@ -8979,7 +9065,7 @@ test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker 
 })
 
 // Drive a Major → fix-round → approve+absorb-nit → --ace → clean re-audit flow so BOTH the fix-round
-// worker (fix:t1:r1) and the --ace worker (ace:t1:a1 — the absorb meter, not fixRounds) dispatch in one phase. Returns captured opts.
+// worker (fix:t1:r1) and the --ace worker (ace:polish:t1:a1 — the absorb meter, not fixRounds) dispatch in one phase. Returns captured opts.
 const runFixAndAce = async (agentsCfg) => {
   const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
     findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
@@ -8993,7 +9079,7 @@ const runFixAndAce = async (agentsCfg) => {
   })
   const { calls } = await runPhase(args, impl)
   const optsOf = (label) => (calls.find(c => c.opts.label === label) || {}).opts || {}
-  return { work: optsOf('work:t1'), fix: optsOf('fix:t1:r1'), ace: optsOf('ace:t1:a1') }
+  return { work: optsOf('work:t1'), fix: optsOf('fix:t1:r1'), ace: optsOf('ace:polish:t1:a1') }
 }
 
 test('Task 1.2 — fix tier set: the fix-round AND the --ace worker both dispatch on agents.worker.fix (and the base first-pass differs)', async () => {
@@ -9408,7 +9494,7 @@ const fixNeededImpl = () => {
   }
 }
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
-// Reaches ONE ace bisection subset dispatch (ace:t1:a2): batch ace → culprit regression (names ka) →
+// Reaches ONE ace bisection subset dispatch (ace:subset:t1:a2): batch ace → culprit regression (names ka) →
 // the remainder [kb] re-applies as ONE subset. Fresh closure per run (buildSeqImpl queues pop).
 const bisectSubsetImpl = () => buildSeqImpl({
   'audit:t1:correctness': [bApprove([nit({ title: 'ka', file: 'skills/ka.js' }), nit({ title: 'kb', file: 'skills/kb.js' })]),
@@ -9451,12 +9537,12 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), floorRetryImpl()) },
   { site: 'PACKAGE_IT Gate: line (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), pkgFloorRetryImpl()) },
-  { site: 'ace Gate: line (ace:<task>:a<n>)', find: (c) => c.find(isAce),
+  { site: 'ace Gate: line (ace:polish:<task>:a<n>)', find: (c) => c.find(x => /^ace:polish:/.test(x.opts.label || '')),
     run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), aceBase()) },
   // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventeenth gate-bearing
   // site — it interpolates the same plan.gate Gate: line as its fix-family siblings — so it is ADDED
   // here, never skipped (this array's own doctrine). bisectSubsetImpl (below) reaches it.
-  { site: 'ace bisection subset Gate: line (ace:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '')),
+  { site: 'ace bisection subset Gate: line (ace:subset:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:subset:t1:a2$/.test(x.opts.label || '')),
     run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (precision-chain Task 2.3) is the fifth fix-family prompt and equally gate-bearing —
   // it interpolates the same plan.gate Gate: line as its floor-fix siblings — so it is ADDED here,
@@ -9546,11 +9632,11 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), floorRetryImpl()) },
   { site: 'PACKAGE_IT floor-fix prompt (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
     run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), pkgFloorRetryImpl()) },
-  { site: 'ace advisory-polish prompt (ace:<task>:a<n>)', find: (c) => c.find(isAce),
+  { site: 'ace advisory-polish prompt (ace:polish:<task>:a<n>)', find: (c) => c.find(x => /^ace:polish:/.test(x.opts.label || '')),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), aceBase()) },
   // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventh worker-family
   // site — doneWhenClause rides it beside its Gate: line like its siblings — ADDED, never skipped.
-  { site: 'ace bisection subset prompt (ace:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '')),
+  { site: 'ace bisection subset prompt (ace:subset:<task>:a<n>, n>=2)', find: (c) => c.find(x => /^ace:subset:t1:a2$/.test(x.opts.label || '')),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (Task 2.3) is the fifth fix-family prompt — doneWhenClause rides it like its
   // siblings, so its row is ADDED, never skipped. (Production only reaches it for a doneWhen-bearing
@@ -9560,8 +9646,8 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runDoneUnmetLoop({ taskOver }) },
   // The ace RE-ENTRY batch dispatch (in-run-finding-resolution Task 1.1) is the eighth
   // worker-family site — doneWhenClause rides it beside its Gate: line — ADDED, never skipped.
-  { site: 'ace re-entry batch prompt (ace:<task>:a<n>, fresh re-audit absorb)',
-    find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')),
+  { site: 'ace re-entry batch prompt (ace:reentry:<task>:a<n>, fresh re-audit absorb)',
+    find: (c) => c.find(x => /^ace:reentry:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), reentryImpl()) },
 ]
 
@@ -9644,7 +9730,7 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runPhase(SWEEP_ARGS(), terminalImpl()),   // terminal-pass (D3a): the one-hop pass after the merged sweep
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:/, /^polish:/, /^terminal:/]) {
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:subset:/, /^ace:reentry:/, /^ace:polish:/, /^polish:/, /^terminal:/]) {
     assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
       `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
   }
@@ -9680,9 +9766,12 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   // which is exactly the span that is dispatched — never a line number. `reachedBy` names the label
   // class the sweep above already captured, so "fixture-reachable" is mechanical, not prose.
   const KEEP_GREEN_SITES = [
-    { site: 'ace bisection subset (ACE BISECTION SUBSET)', from: 'pt`ACE BISECTION SUBSET for WAR task', reachedBy: /^ace:/ },
-    { site: 'ace re-entry batch (ACE RE-ENTRY BATCH)', from: 'pt`ACE RE-ENTRY BATCH for WAR task', reachedBy: /^ace:/ },
-    { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:/ },
+    // Site-segmented ace labels (D14, PIN-18, #2085): each ace row's reachedBy matches exactly ONE
+    // dispatch site — `ace:subset:` / `ace:reentry:` / `ace:polish:` — so a site that silently stopped
+    // dispatching can no longer borrow a sibling's capture.
+    { site: 'ace bisection subset (ACE BISECTION SUBSET)', from: 'pt`ACE BISECTION SUBSET for WAR task', reachedBy: /^ace:subset:/ },
+    { site: 'ace re-entry batch (ACE RE-ENTRY BATCH)', from: 'pt`ACE RE-ENTRY BATCH for WAR task', reachedBy: /^ace:reentry:/ },
+    { site: 'ace advisory polish (ADVISORY POLISH (--ace))', from: 'pt`ADVISORY POLISH (--ace) for WAR task', reachedBy: /^ace:polish:/ },
     { site: 'FIX_NEEDED fix prompt', from: 'pt`FIX_NEEDED for WAR task', reachedBy: /^fix:/ },
     { site: 'floor-fix prompt ladder (const fixPrompt)', from: 'const fixPrompt = isNoTest', reachedBy: /^(add-test|make-pass|package-it):/ },
     { site: 'phase-close coherence sweep (PHASE-CLOSE COHERENCE SWEEP)', from: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', reachedBy: /^polish:/ },
@@ -11901,11 +11990,16 @@ const BARE_INTERPOLATION_CENSUS = [
   'r.fence', 'r.n',
   // r.reentryBase (in-run-finding-resolution Task 1.1): ternary-gated at its single site (the
   // re-entry PREFLIGHT range falls back to HEAD~30..HEAD when absent) — construction-guaranteed.
-  // reentryRange is that ternary's pt-built product (always a string). sha/worktree are the
-  // aceRevertStep helper's params: sha is the truthiness gate itself (the clause renders only when
-  // set) and worktree is r.task.worktree (entry-validated) at both call sites — the old inline
-  // 'pendingRevert' row relocated into the helper.
-  'r.reentryBase', 'reentryRange', 'sha', 'worktree',
+  // reentryRange is that ternary's pt-built product (always a string). revertSha/revertWorktree are
+  // the aceRevertStep helper's params (#1860 — named so the bare generic `sha`/`worktree` never sit
+  // in this default-deny list): revertSha is the truthiness gate itself (the clause renders only
+  // when set) and revertWorktree is r.task.worktree (entry-validated) at both call sites — the old
+  // inline 'pendingRevert' row relocated into the helper.
+  'r.reentryBase', 'reentryRange', 'revertSha', 'revertWorktree',
+  // aceTipSha (#1860, same sweep): aceGateGreen's and aceScopeClause's param — the batch/subset/
+  // re-entry commit's head_sha, guarded truthy-string by every caller before the ace re-audit seam
+  // runs — construction-guaranteed a string.
+  'aceTipSha',
   // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
   // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds
   // (barrier-seeded, then integer-guarded at the wave thunk) — construction-guaranteed a string.
@@ -13359,7 +13453,9 @@ test('ask-content-key (registry re-key, D8 both directions on the FINDING tuple)
     'fixture control: the FINDING tuple distinguishes the same pair by file')
   // Engine pins: every FINDING registry stamp reads remintKey; parkAsk keeps askContentKey.
   assert.ok(src.includes('filedKeys.add(remintKey(f))'), 'filedKeys keys on remintKey')
-  assert.ok(src.includes('revertedKeys.add(remintKey(f))'), 'revertedKeys keys on remintKey')
+  const demoteBody = src.slice(src.indexOf('const demote = '), src.indexOf('const aceEligible'))
+  assert.ok(demoteBody.includes('const k = remintKey(f)') && demoteBody.includes('revertedKeys.add(k)') && demoteBody.includes('filedKeys.add(k)'),
+    'revertedKeys keys on remintKey (demote derives k = remintKey(f) once; both registry stamps read it)')
   assert.ok(src.includes('acedKeys.add(remintKey(f))'), 'acedKeys keys on remintKey')
   assert.ok(!src.includes('filedKeys.add(askContentKey'), 'no FINDING registry still keys on the ask tuple')
   const parkBody = src.slice(src.indexOf('const parkAsk'), src.indexOf('const parkAsk') + 400)
@@ -14084,7 +14180,7 @@ test('#1913 PIN-13 — the merge-slot fixRounds seed never LOWERS the wave-side 
 // feature from the source and the extraction fails or the case flips.
 
 test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed head_sha names THIS tip: different, absent, and malformed echoes all fail closed', () => {
-  const block = src.match(/const aceGateGreen = async \(r, sha\) => \{[\s\S]*?\n  \}/)
+  const block = src.match(/const aceGateGreen = async \(r, aceTipSha\) => \{[\s\S]*?\n  \}/)
   assert.ok(block, 'src must contain the aceGateGreen definition')
   const cond = block[0].match(/if \(([\s\S]*?)\) return true/)
   assert.ok(cond, 'aceGateGreen must gate its `return true` on a condition')
@@ -14098,7 +14194,7 @@ test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed
   // eslint-disable-next-line no-new-func
   const pinMismatch = new Function('isSha', `return (${pmSrc[1]})`)(isSha)
   // eslint-disable-next-line no-new-func
-  const licenses = new Function('g', 'sha', 'isSha', 'pinMismatch', `return (${cond[1]})`)
+  const licenses = new Function('g', 'aceTipSha', 'isSha', 'pinMismatch', `return (${cond[1]})`)
   const TIP = 'abc1234def5678abc1234def5678abc1234def56'
   const run = g => !!licenses(g, TIP, isSha, pinMismatch)
   assert.equal(run({ gate_green: true, head_sha: TIP }), true, 'green gate echoing THIS tip licenses the transfer')
@@ -14275,7 +14371,7 @@ test('#1940 — PIN-13 seed: a behavioural resume simulation, not a source-shape
   assert.equal(bare, 0, 'with neither source the seed is 0, never NaN')
   assert.equal(bare < 6, true,
     'and 0 opens the ace gate — `undefined < 6` is false, the exact defect that made the hoisted ace never dispatch')
-  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<task>:a<n>` never renders aNaN')
+  assert.equal(Number.isInteger(bare), true, 'the seeded value stays an integer, so `ace:<site>:<task>:a<n>` never renders aNaN')
 })
 
 test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase refiner dispatchKind is named (default-deny census)', () => {
@@ -14340,7 +14436,7 @@ test('#1951 anchor — the ace-gate prompt still carries the tip phrase the harn
   // NEW_SEAT_DEFAULTS['ace-gate'] parses /at the ace tip ([0-9a-f]{7,40})/ out of the prompt. A
   // prompt reword would turn ~30 ace fixtures gate-RED with a message that never names the
   // cause; this anchor fails at one named site instead.
-  assert.match(src, /at the ace tip \$\{sha\}/, "aceGateGreen's prompt names the tip in the phrase the harness default parses")
+  assert.match(src, /at the ace tip \$\{aceTipSha\}/, "aceGateGreen's prompt names the tip in the phrase the harness default parses")
 })
 
 test('#1951 — a green ace-gate reply with NO usable head_sha is RED end-to-end: no re-audit, no transfer, the ace forward-reverts and the approved pre-ace tip merges', async () => {
@@ -14585,7 +14681,7 @@ test('absorb-budget (End state 4, resume seed): three Ace-Charge trailers on the
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb-budget: task t1 resumes at absorbRounds 3 (barrier absorbCharges')), 'the seed is logged from the barrier read')
   const ace = calls.find(isAce)
   assert.ok(ace, 'the batch ace dispatched (3 < 6)')
-  assert.equal(ace.opts.label, 'ace:t1:a4', 'the ace label carries absorbRounds (the slot this commit charges)')
+  assert.equal(ace.opts.label, 'ace:polish:t1:a4', 'the ace label carries absorbRounds (the slot this commit charges)')
   assert.match(ace.prompt, /`Ace-Charge: t1:4`/, 'the Ace-Charge trailer index is absorbRounds AFTER the charge')
   const gate = calls.find(c => c.opts.dispatchKind === 'ace-gate')
   assert.ok(gate && gate.opts.label === 'ace-gate:t1:a4', 'the ace-gate label carries the charged absorbRounds')
@@ -14596,7 +14692,7 @@ test('absorb-budget (End state 4, charge then revert): one charge and its revert
   const { calls, logs } = await runPhase(ACE_ARGS(), impl)
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 resumes at absorbRounds 1')), 'the worktree-name dialect key (p3-t1) seeds the bare-id task')
   const ace = calls.find(isAce)
-  assert.equal(ace && ace.opts.label, 'ace:t1:a2', 'the next ace charges slot 2')
+  assert.equal(ace && ace.opts.label, 'ace:polish:t1:a2', 'the next ace charges slot 2')
   const barrier = calls.find(isProvision)
   assert.match(barrier.prompt, /a reverted ace commit's trailer still counts/, 'the barrier prompt states that a revert never un-charges')
   assert.match(barrier.prompt, /HIGHEST integer n/, 'the barrier reads the highest index, never a count')
@@ -14615,7 +14711,7 @@ test('absorb-budget (End state 4, barrier error or absence ⇒ 0): no absorbChar
     assert.ok(seedLog.includes(cause), `${name}: the 0-seed line carries the real cause (${cause}), never a contradicting one`)
     if (name === 'malformed entry') assert.ok(!seedLog.includes('map lacks the task'), `${name}: the 0-seed line never claims the map lacks the task`)
     const ace = calls.find(isAce)
-    assert.equal(ace && ace.opts.label, 'ace:t1:a1', `${name}: the ladder starts at slot 1`)
+    assert.equal(ace && ace.opts.label, 'ace:polish:t1:a1', `${name}: the ladder starts at slot 1`)
     assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), `${name}: the worker still dispatched — never a hold`)
   }
 })
@@ -14624,7 +14720,7 @@ test('absorb-budget (End state 4, Lead override): args.absorbCharges wins over t
   const impl = withBarrier({ ok: true, absorbCharges: { t1: 5 } }, aceBase([nit()]))
   const { calls, logs } = await runPhase(ACE_ARGS({ absorbCharges: { t1: 2 } }), impl)
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 resumes at absorbRounds 2 (args.absorbCharges')), 'the override source is named')
-  assert.equal((calls.find(isAce) || {}).opts.label, 'ace:t1:a3', 'the override seed drives the next slot')
+  assert.equal((calls.find(isAce) || {}).opts.label, 'ace:polish:t1:a3', 'the override seed drives the next slot')
 })
 
 test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt pins `Ace-Charge: <id>:<int>` as its own final-paragraph trailer; the forward-revert clause carries no charge trailer', async () => {
@@ -14649,9 +14745,9 @@ test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt
   assert.ok(!/Ace-Charge/.test(revertClause), 'a revert carries no charge trailer')
 })
 
-test('absorb-budget (End state 4, ace labels): ace and ace-gate dispatch labels carry absorbRounds — `ace:<task>:a<n>` / `ace-gate:<task>:a<n>`, n advancing with each charge', async () => {
+test('absorb-budget (End state 4, ace labels): ace and ace-gate dispatch labels carry absorbRounds — `ace:<site>:<task>:a<n>` / `ace-gate:<task>:a<n>`, n advancing with each charge', async () => {
   const { calls } = await runPhase(ACE_ARGS(), reentryImpl())
-  assert.deepEqual(calls.filter(isAce).map(c => c.opts.label), ['ace:t1:a1', 'ace:t1:a2'], 'the two ace dispatches are labelled by the slot they charge')
+  assert.deepEqual(calls.filter(isAce).map(c => c.opts.label), ['ace:polish:t1:a1', 'ace:reentry:t1:a2'], 'the two ace dispatches are labelled by the slot they charge')
   assert.deepEqual(calls.filter(c => c.opts.dispatchKind === 'ace-gate').map(c => c.opts.label), ['ace-gate:t1:a1', 'ace-gate:t1:a2'], 'the ace-gate labels carry the charged counter')
   assert.ok(!calls.some(c => /^ace(-gate)?:t1:r\d/.test(c.opts.label || '')), 'no ace-family label still carries the retired fixRounds index')
 })
@@ -16299,10 +16395,10 @@ const FIX_APPLYING_BUILDS = [
     find: (c) => c.find(x => /^fix:t1:/.test(x.opts.label || '')) },
   { site: 'ACE BISECTION SUBSET prompt', head: 'pt`ACE BISECTION SUBSET for WAR task',
     run: (source) => runPhase(ACE_ARGS(), bisectSubsetImpl(), {}, source),
-    find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE BISECTION SUBSET')) },
+    find: (c) => c.find(x => /^ace:subset:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE BISECTION SUBSET')) },
   { site: 'ACE RE-ENTRY BATCH prompt', head: 'pt`ACE RE-ENTRY BATCH for WAR task',
     run: (source) => runPhase(ACE_ARGS(), reentryImpl(), {}, source),
-    find: (c) => c.find(x => /^ace:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')) },
+    find: (c) => c.find(x => /^ace:reentry:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')) },
 ]
 // Drop the interpolation line at ONE build only: the first `+ FIX_ROUND_DOCTRINE_CLAUSE` after that
 // build's head string. The census below proves the mutation targets exactly one site.
