@@ -84,7 +84,8 @@ mapped test is *provably unrun* (the HARD unrun determination is made only again
 **gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.log`,
 never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold; an
 artifact is HARD-path evidence only when stamped `tip_sha:` first for the gated sha and
-`exit_code:` last, so a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm too). The
+`exit_code:` last, so a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm too; ADR 0041
+ranks this rule as `execution` rung 1). The
 SOFT-by-default rule still governs Minor/Nit findings, and a `STALE-MISMATCH`/`ERROR`/cannot-confirm
 case keeps `verdict` at `approve`/`request_changes` with a SOFT note — never `escalate` (which stays
 reserved for plan-wrong/underspecified), so the preserved stale-tip SOFT-defusing rule never flips into
@@ -152,3 +153,7 @@ a HARD hold via this trigger.
 - Memory: [[gate-audit-pin-bracket-test-blocked-by-git-guard]], [[audit-worktree-pre-impl-tip-stale-verdict]],
   [[within-phase-dep-gate-must-rerun-on-integrated-tip]], [[gate-output-curated-excerpt-obscures-mapped-test-evidence]],
   [[gate-evidence-severity-not-verdict-gates-hard-path]] — the originating friction cluster.
+
+## Decision log
+
+- 2026-09-07 · §(C) gains the gate-log completeness qualifier (`tip_sha:` first for the gated sha, `exit_code:` last, else SOFT cannot-confirm), mirrored from `agents/war-auditor.md` and ranked as ADR 0041 `execution` rung 1 · issue #2156

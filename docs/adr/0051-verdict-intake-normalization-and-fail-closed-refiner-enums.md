@@ -66,12 +66,14 @@ and never a new status member. A `status: 'landed'` result carrying the marker i
 marker-absent error land dispatches exactly once and holds `held:land-failed`. The loop is bounded
 by `run.roundLimit` (PIN-9).
 
-The merge-task twin, `segmentedMerge`, applies the same pair read to the four merge-task
+The merge-task twin, `segmentedMerge`, applies the same pair read to the four per-task merge-task
 dispatch sites (the initial merge, the floor-retry re-merge, and the `environment-proceed` and
 `baseline-proceed` re-merges). Its marker is `gate_segment: 'incomplete'`, an optional field on
 `MERGE_RESULT`, and it rides `status: 'error'` under the same `run.roundLimit` bound. A merged
 result carrying a stray marker is a merge, and a marker-absent error is one dispatch that routes
-by its status (#2156).
+by its status (#2156). The two sweep-family merge-task dispatches (`merge:p<id>-polish` and
+`merge:p<id>-terminal`) are not segmented at this record's tip: each is one plain dispatch that
+routes by its status.
 
 ### Fail-closed enum discipline
 
@@ -125,4 +127,4 @@ sites route through `routedMr`, so the reason names the real cause instead of ri
 ## Decision log
 
 - 2026-09-07 · ADR authored in the living form (a `**Status:**` line, in-place body, this log); records intake normalization, the `already_upstream` refusal arm and the segmented-land helper · issues #1869, #1870, #1973, #1797, #1805
-- 2026-09-07 · section 3 extended to the merge-task twin: `segmentedMerge`, the `gate_segment: 'incomplete'` marker on `status: 'error'` across the four merge-task sites, same pair read and `roundLimit` bound · issue #2156
+- 2026-09-07 · section 3 extended to the merge-task twin: `segmentedMerge`, the `gate_segment: 'incomplete'` marker on `status: 'error'` across the four per-task merge-task sites, same pair read and `roundLimit` bound · issue #2156

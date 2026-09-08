@@ -126,3 +126,7 @@ run today (PIN-3).
 - [ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) — section 2
   records the `already_upstream` refusal arm this ADR's pin-transfer section restates; its D4 and
   PIN-8 belong to the 2026-09-06 plan, not to this ADR's ratifying plan.
+
+## Decision log
+
+- 2026-09-07 · section 2's `D4` attributed to this ADR's ratifying plan (the 2026-08-30 plan's D4 row), the relationship heading renamed `Relationship to other ADRs` so the ADR 0051 row fits under it · issue #2156
