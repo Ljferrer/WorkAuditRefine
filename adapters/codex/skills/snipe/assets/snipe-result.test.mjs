@@ -36,6 +36,15 @@ test('absent tests remain absent rather than requiring schema repair to invent e
   assert.deepEqual(validateSnipeVerdict(result, expected), result)
 })
 
+test('test evidence cannot contradict absence or carry invalid repository paths', () => {
+  for (const tests_verified of [
+    { exist: false, inspected: ['test/example.test.mjs'] },
+    ...['', '   ', '/outside.test.js', '../outside.test.js', 'test/../x', 'test//x', './x', 'C:/x', 'test\\x', 'test/\nx'].map(path => ({ exist: true, inspected: [path] })),
+  ]) assert.throws(() => validateSnipeVerdict(valid({ tests_verified }), expected), /tests_verified/)
+  assert.deepEqual(validateSnipeVerdict(valid({ tests_verified: { exist: true, inspected: [] } }), expected).tests_verified, { exist: true, inspected: [] })
+  assert.throws(() => validateSnipeVerdict({ ...valid(), tests_verified: undefined, tests_inspected: [''] }, expected), /tests_verified/)
+})
+
 test('only documented WAR field aliases normalize into the versioned Snipe contract', () => {
   const result = validateSnipeVerdict({
     schema_version: 1,
@@ -139,6 +148,25 @@ test('S-A09 revision rejection fails when its identity guard is removed from a d
   assert.doesNotThrow(() => mutatedModule.validateSnipeVerdict(wrongRevision, expected))
 })
 
+test('each test-evidence guard rejects a witness that its disposable mutant accepts', async () => {
+  const original = readFileSync(new URL('./snipe-result.mjs', import.meta.url), 'utf8')
+    .replace("import { RESERVED_LENSES } from '../../../../../skills/war/assets/war-config.mjs'", "const RESERVED_LENSES = ['execution-evidence', 'pin-validity']")
+  for (const [guard, replacement, tests_verified] of [
+    ['(!tests.exist && tests.inspected.length)', 'false', { exist: false, inspected: ['test.js'] }],
+    ['!path.trim()', 'false', { exist: true, inspected: ['   '] }],
+    ['/[\\\\\\x00-\\x1f\\x7f]/.test(path)', 'false', { exist: true, inspected: ['test\\file'] }],
+    ['/^[a-z]:/i.test(path)', 'false', { exist: true, inspected: ['C:/test'] }],
+    ["path.split('/').some(part => ['', '.', '..'].includes(part))", 'false', { exist: true, inspected: ['../test'] }],
+  ]) {
+    assert.throws(() => validateSnipeVerdict(valid({ tests_verified }), expected), /tests_verified/)
+    assert.ok(original.includes(guard), `missing mutation target: ${guard}`)
+    const file = join(mkdtempSync(join(tmpdir(), 'snipe-evidence-mutant-')), 'result.mjs')
+    writeFileSync(file, original.replace(guard, replacement))
+    const mutant = await import(pathToFileURL(file))
+    assert.doesNotThrow(() => mutant.validateSnipeVerdict(valid({ tests_verified }), expected), guard)
+  }
+})
+
 test('informational report orders scope, outcomes, attributed findings, limitations, and asks', () => {
   const fingerprint = 'd'.repeat(64)
   const sharedFinding = {
@@ -157,7 +185,7 @@ test('informational report orders scope, outcomes, attributed findings, limitati
       },
     },
     complete: false,
-    stability: { stable: false, before: fingerprint, after: 'e'.repeat(64) },
+    stability: { stable: false, before: fingerprint, after: 'e'.repeat(64), error: 'large: file capture byte limit exceeded' },
     seats: [
       { seat: 1, lens: 'correctness', status: 'completed', validation: { status: 'valid' }, repair: { attempted: false }, verdict: {
         verdict: 'request_changes', confidence: 'high', widen: ['security'],
@@ -184,6 +212,7 @@ test('informational report orders scope, outcomes, attributed findings, limitati
   assert.match(report, /INCOMPLETE — do not interpret this panel as clean/)
   assert.match(report, /Dirty advisory scope/)
   assert.match(report, /changed during review/)
+  assert.match(report, /Scope capture failed: large: file capture byte limit exceeded/)
   assert.match(report, /Seat 3 · test-fidelity: invalid_result/)
   assert.match(report, /Seat 4 · usability: completed — validated; verdict escalate; confidence low/)
   assert.match(report, /Operator decision required: The operator must choose the public compatibility policy\./)

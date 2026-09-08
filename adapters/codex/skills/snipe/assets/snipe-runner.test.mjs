@@ -2,11 +2,12 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { listSupportedProfiles, resolveCodexPath, runSnipePanel } from './snipe-runner.mjs'
+import { buildSnipePlugin } from '../../../package-snipe.mjs'
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -153,6 +154,64 @@ test('catalog errors, malformed output, early exit and timeout fail visibly', as
   }
 })
 
+test('catalog completion and failures terminate inherited descendant processes', async () => {
+  for (const mode of ['success', 'malformed', 'timeout', 'output', 'exit', 'cancel', 'error']) {
+    const pidPath = join(mkdtempSync(join(tmpdir(), 'snipe-descendant-')), 'pid')
+    const codexPath = fakeCodex(`
+      const { spawn } = await import('node:child_process')
+      const { writeFileSync } = await import('node:fs')
+      const descendant = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio:'inherit'})
+      writeFileSync(${JSON.stringify(pidPath)}, String(descendant.pid))
+      if (${JSON.stringify(mode)} === 'success') {
+        console.log(JSON.stringify({id:0,result:{}}))
+        console.log(JSON.stringify({id:1,result:{data:[{model:'gpt-test',supportedReasoningEfforts:[{reasoningEffort:'high'}]}]}}))
+      } else if (${JSON.stringify(mode)} === 'malformed') console.log('bad JSON')
+      else if (${JSON.stringify(mode)} === 'output') console.log('x'.repeat(1024*1024+1))
+      else if (${JSON.stringify(mode)} === 'exit') process.exit(1)
+      else if (${JSON.stringify(mode)} === 'error') console.log(JSON.stringify({id:0,error:{message:'catalog unavailable'}}))
+      setInterval(() => {}, 1000)
+    `)
+    let pid
+    const controller = new AbortController()
+    const cancelTimer = mode === 'cancel' ? setTimeout(() => controller.abort(), 400) : null
+    try {
+      const pending = listSupportedProfiles({ codexPath, timeoutMs: 800, signal: controller.signal })
+      if (mode === 'success') await pending
+      else await assert.rejects(pending, { code: 'PROFILE_DISCOVERY_FAILED' })
+      pid = Number(readFileSync(pidPath, 'utf8'))
+      await new Promise(resolve => setTimeout(resolve, 50))
+      assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, mode)
+    } finally {
+      clearTimeout(cancelTimer)
+      pid ??= existsSync(pidPath) ? Number(readFileSync(pidPath, 'utf8')) : null
+      if (pid) { try { process.kill(pid, 'SIGKILL') } catch {} }
+    }
+  }
+})
+
+test('successful auditor exit kills descendants even when they close inherited pipes', async () => {
+  const cwd = fixture()
+  const pidPath = join(mkdtempSync(join(tmpdir(), 'snipe-seat-descendant-')), 'pid')
+  const codexPath = fakeCodex(validVerdictSource(`
+    const { spawn } = await import('node:child_process')
+    const { writeFileSync } = await import('node:fs')
+    const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], {stdio:'ignore'})
+    child.unref()
+    writeFileSync(${JSON.stringify(pidPath)}, String(child.pid))
+  `))
+  let pid
+  try {
+    const result = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath })
+    assert.equal(result.complete, true)
+    pid = Number(readFileSync(pidPath, 'utf8'))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
+  } finally {
+    pid ??= existsSync(pidPath) ? Number(readFileSync(pidPath, 'utf8')) : null
+    if (pid) { try { process.kill(pid, 'SIGKILL') } catch {} }
+  }
+})
+
 test('one seat runs through a fresh read-only Codex process with the canonical scope', async () => {
   const cwd = fixture()
   const capturePath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-capture-')), 'capture.json')
@@ -183,6 +242,8 @@ test('one seat runs through a fresh read-only Codex process with the canonical s
   assert.ok(response.argv.includes('approval_policy="never"'))
   assert.ok(response.argv.includes('mcp_servers={}'))
   assert.ok(response.argv.includes('shell_environment_policy.inherit="none"'))
+  assert.ok(response.argv.includes('shell_environment_policy.set.GIT_NO_REPLACE_OBJECTS="1"'))
+  assert.ok(response.argv.includes('shell_environment_policy.set.GIT_NO_LAZY_FETCH="1"'))
   for (const capability of ['multi_agent', 'apps', 'browser_use', 'computer_use', 'in_app_browser', 'plugins', 'hooks']) {
     assert.ok(response.argv.some((value, index) => value === '--disable' && response.argv[index + 1] === capability))
   }
@@ -194,6 +255,35 @@ test('one seat runs through a fresh read-only Codex process with the canonical s
   assert.match(response.prompt, /Return exactly one JSON object with no Markdown or prose wrapper/)
   assert.match(response.prompt, /Do not widen the panel/)
   assert.match(response.prompt, /Do not use connectors or request escalation/)
+})
+
+test('auditor policy preserves original blobs and removing its injection breaks the evidence oracle', async () => {
+  const cwd = fixture()
+  git(cwd, 'replace', git(cwd, 'rev-parse', 'HEAD:review.txt'), git(cwd, 'rev-parse', 'refs/remotes/origin/main:review.txt'))
+  assert.equal(git(cwd, 'show', 'HEAD:review.txt'), 'base')
+  const codexPath = fakeCodex(validVerdictSource('', `
+    const { execFileSync } = await import('node:child_process')
+    const env = {PATH:'/usr/bin:/bin'}
+    for (const arg of process.argv) {
+      const match = arg.match(/^shell_environment_policy\\.set\\.([^=]+)=(.*)$/)
+      if (match) env[match[1]] = JSON.parse(match[2])
+    }
+    const actual = execFileSync('/usr/bin/git', ['show', scope.headSha + ':review.txt'], {cwd:scope.repository,env,encoding:'utf8'})
+    if (actual !== 'base\\nchange\\n') process.exit(61)
+  `))
+  const input = { cwd, inheritedProfile, supportedProfiles }
+  assert.equal((await runSnipePanel(input, { codexPath })).complete, true)
+  const output = join(mkdtempSync(join(tmpdir(), 'snipe-policy-mutant-')), 'plugin')
+  buildSnipePlugin({ repoRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), output })
+  const file = join(output, 'skills/snipe/assets/snipe-runner.mjs')
+  const original = readFileSync(file, 'utf8')
+  const mutant = original.replace(/^.*Object.entries\(gitEvidenceEnvironment\).*\n/m, '')
+  assert.notEqual(mutant, original)
+  writeFileSync(file, mutant)
+  const runner = await import(pathToFileURL(file))
+  const result = await runner.runSnipePanel(input, { codexPath })
+  assert.equal(result.complete, false)
+  assert.equal(result.seats[0].exitCode, 61)
 })
 
 test('five independent seats are capacity-bounded, distinct, and receive identical scope', async () => {
@@ -281,7 +371,7 @@ test('a seat reporting absent tests completes without a repair that invents evid
   assert.deepEqual(result.seats[0].verdict.tests_verified, { exist: false, inspected: [] })
 })
 
-test('one malformed result receives exactly one schema-only repair attempt', async () => {
+test('malformed judgment is preserved without launching a replacement review', async () => {
   const cwd = fixture()
   const logPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-repair-')), 'attempts.log')
   const codexPath = fakeCodex(validVerdictSource(`
@@ -300,13 +390,13 @@ test('one malformed result receives exactly one schema-only repair attempt', asy
     supportedProfiles,
   }, { codexPath, capacity: 1, timeoutMs: 2_000 })
 
-  assert.equal(readFileSync(logPath, 'utf8').trim().split('\n').length, 2)
-  assert.equal(result.complete, true)
-  assert.equal(result.seats[0].status, 'completed')
-  assert.equal(result.seats[0].validation.status, 'valid')
-  assert.equal(result.seats[0].repair.attempted, true)
-  assert.equal(result.seats[0].repair.succeeded, true)
-  assert.equal(result.seats[0].verdict.scope.audit_sha, result.request.scope.headSha)
+  assert.equal(readFileSync(logPath, 'utf8').trim().split('\n').length, 1)
+  assert.equal(result.complete, false)
+  assert.equal(result.seats[0].status, 'invalid_result')
+  assert.equal(result.seats[0].validation.status, 'invalid')
+  assert.equal(result.seats[0].repair.attempted, false)
+  assert.equal(result.seats[0].verdict, null)
+  assert.equal(result.seats[0].response, '{"verdict":')
 })
 
 test('a persistently invalid seat is incomplete while a valid peer finding survives', async () => {
@@ -334,9 +424,9 @@ test('a persistently invalid seat is incomplete while a valid peer finding survi
   assert.equal(result.seats[0].validation.status, 'valid')
   assert.equal(result.seats[0].verdict.findings[0].title, 'Input bypasses validation')
   assert.equal(result.seats[1].status, 'invalid_result')
-  assert.equal(result.seats[1].repair.attempted, true)
+  assert.equal(result.seats[1].repair.attempted, false)
   assert.equal(result.seats[1].repair.succeeded, false)
-  assert.deepEqual(readFileSync(logPath, 'utf8').trim().split('\n').sort(), ['correctness', 'security', 'security'])
+  assert.deepEqual(readFileSync(logPath, 'utf8').trim().split('\n').sort(), ['correctness', 'security'])
   assert.match(result.report, /INCOMPLETE — do not interpret this panel as clean/)
   assert.match(result.report, /Input bypasses validation/)
   assert.match(result.report, /Seat 2 · security: invalid_result/)

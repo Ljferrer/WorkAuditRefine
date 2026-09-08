@@ -2,6 +2,30 @@
 
 This check supplements the direct `snipe-actual-host.test.mjs` runtime test. A direct host runner cannot establish that a Codex task requests the necessary launch permission.
 
+## Post-land integrity contract (#2160)
+
+Invalid verdicts retain their original raw evidence and leave the panel incomplete;
+only deterministic supported-alias normalization is performed. There is no new
+model response called a schema repair. Historical acceptance records below retain
+the behavior of the versions they tested.
+
+Scope capture has a 30-second aggregate deadline, at most five seconds per Git
+call, 32 MiB per Git output (including the untracked path list), and at most
+64 MiB of untracked content. Regular files are streamed; unsupported file types,
+unreadable files and exceeded limits refuse initial capture. Failed final capture
+preserves completed seat results but marks the panel unstable/incomplete with the
+reason in its report. Synchronous capture is bounded, not instantly cancellable.
+SSH config and working-tree `.gitmodules` use the same bounded regular-file reader
+with a 1 MiB limit. No evidence is silently truncated into a complete result.
+
+Coordinator Git, preparation Git and auditor shell environments share original-object
+and no-lazy-fetch policy. Scope diffs/status force submodules visible regardless of
+ignore preferences. Owned POSIX process groups are killed on completion/failure;
+profile discovery settles only after closure. This does not contain descendants
+that deliberately detach into a different process group.
+
+Validation and finding-class evidence: [self-audit integrity fixes](2026-09-08-snipe-audit-integrity.md).
+
 ## Installed skill discovery (#2211)
 
 In a fresh task, use the installed plugin's qualified invocation:
@@ -33,12 +57,13 @@ This test requires the Snipe plugin already installed and enabled. It builds can
 
 ## Reproduce and verify
 
-### Verified SSH aliases for PR targets (#2213)
+### Declared SSH identities for PR targets (#2213)
 
 PR targets now accept SCP-style and `ssh://git@...` origins whose alias has a
 first matching `HostName github.com` in the host user's `~/.ssh/config`. Owner
 and repository matching is unchanged; this resolves identity only and fetches
-no PR objects. Explicit SSH ports other than 22 are refused.
+no PR objects. Identity comes from the unique literal local origin, without
+includes or `insteadOf` expansion. Explicit SSH ports other than 22 are refused.
 
 The coordinator reads a conservative declarative subset instead of launching
 `ssh -G`: [OpenSSH configuration](https://man.openbsd.org/ssh_config) uses the
@@ -47,12 +72,16 @@ supports ordered `Host` patterns, wildcards, negation, and literal `HostName`.
 The user config must be a regular, user-owned file without group/other write
 permission and at most 1 MiB. Symlinks, `Include`, `Match`, canonicalization,
 tokenized names, quoted `Host` patterns, and malformed identity directives are refused. System-only
-aliases are unsupported. This is a verified declarative identity mapping, not
-a connection test or a claim that every SSH configuration is supported.
+aliases are unsupported. Literal `github.com` SSH URLs receive the same config
+checks as aliases, including refusal when remapped elsewhere. This checks the
+user's declaration, not effective SSH configuration, system settings, network
+routing, or server authentication. HTTPS origins likewise establish declared
+repository identity, not the destination of a future rewritten connection.
 
 Custom Git SSH commands/variants are refused for SSH PR origins; repository
 commands and SSH `ProxyCommand`/`LocalCommand` are never executed by identity
-lookup. Other SSH options are not needed to establish the declared hostname.
+lookup. Active ProxyCommand, ProxyJump, HostKeyAlias and LocalCommand directives
+are refused, as are non-git users and non-22 ports in matching blocks.
 Unverifiable origins retain `PR_REPOSITORY_MISMATCH` with an explicit merge-base
 target as the workaround. No user SSH configuration is rewritten.
 

@@ -1,8 +1,11 @@
 import { execFile, execFileSync } from 'node:child_process'
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
+import { processTreeCleanup, processGroup } from './snipe-process.mjs'
+import { readRegularFile } from './snipe-files.mjs'
+import { gitEvidenceEnvironment } from './snipe-git-policy.mjs'
 
 const exec = promisify(execFile)
 const gitOptions = ['--no-optional-locks', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'submodule.recurse=false', '-c', 'protocol.allow=never']
@@ -13,7 +16,7 @@ function gitEnvironment() {
   return {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_NO_LAZY_FETCH: '1', GIT_NO_REPLACE_OBJECTS: '1', GIT_TERMINAL_PROMPT: '0',
+    ...gitEvidenceEnvironment,
     GIT_ALLOW_PROTOCOL: '',
     GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oPermitLocalCommand=no',
   }
@@ -24,7 +27,13 @@ function safePath(path) {
     && !/[\\\x00-\x1f\x7f]/.test(path) && path.split('/').every(part => part && !['.', '..', '.git'].includes(part.toLowerCase()))
 }
 
-export function localSubmoduleRepository(root, path) {
+function localTimeout(deadline) {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new Error('local Git capture deadline exceeded')
+  return Math.min(5_000, remaining)
+}
+
+export function localSubmoduleRepository(root, path, { deadline = Date.now() + 5_000 } = {}) {
   if (!safePath(path)) return null
   try {
     let nested = realpathSync(root)
@@ -33,7 +42,7 @@ export function localSubmoduleRepository(root, path) {
       if (!lstatSync(nested).isDirectory() || lstatSync(nested).isSymbolicLink()) return null
     }
     if (lstatSync(join(nested, '.git')).isSymbolicLink()) return null
-    const read = (cwd, ...args) => execFileSync('git', [...gitOptions, ...args], { cwd, env: gitEnvironment(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 }).trim()
+    const read = (cwd, ...args) => execFileSync('git', [...gitOptions, ...args], { cwd, env: gitEnvironment(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: localTimeout(deadline), killSignal: 'SIGKILL' }).trim()
     if (realpathSync(read(nested, 'rev-parse', '--show-toplevel')) !== nested) return null
     const gitDir = realpathSync(read(nested, 'rev-parse', '--absolute-git-dir'))
     const common = realpathSync(resolve(root, read(root, 'rev-parse', '--git-common-dir')))
@@ -42,10 +51,10 @@ export function localSubmoduleRepository(root, path) {
   } catch { return null }
 }
 
-export function localCommitAvailable(repository, object) {
+export function localCommitAvailable(repository, object, { deadline = Date.now() + 5_000 } = {}) {
   if (!object) return true
   try {
-    execFileSync('git', [...gitOptions, 'cat-file', '-e', `${object}^{commit}`], { cwd: repository, env: gitEnvironment(), stdio: 'pipe', timeout: 5000 })
+    execFileSync('git', [...gitOptions, 'cat-file', '-e', `${object}^{commit}`], { cwd: repository, env: gitEnvironment(), stdio: 'pipe', timeout: localTimeout(deadline), killSignal: 'SIGKILL' })
     return true
   } catch { return false }
 }
@@ -53,14 +62,9 @@ export function localCommitAvailable(repository, object) {
 async function git(cwd, args, { input, signal, allowFetch = false } = {}) {
   const pending = exec('git', [...gitOptions, ...args], {
     cwd, env: { ...gitEnvironment(), ...(allowFetch ? { GIT_ALLOW_PROTOCOL: 'https:ssh:http' } : {}) }, encoding: 'buffer', timeout: 30000,
-    maxBuffer: 64 * 1024 * 1024, signal, detached: process.platform !== 'win32',
+    maxBuffer: 64 * 1024 * 1024, signal, detached: processGroup,
   })
-  const stop = () => {
-    try {
-      if (process.platform !== 'win32' && pending.child.pid) process.kill(-pending.child.pid, 'SIGKILL')
-      else pending.child.kill('SIGKILL')
-    } catch (error) { if (error.code !== 'ESRCH') throw error }
-  }
+  const stop = processTreeCleanup(pending.child)
   const timer = setTimeout(stop, 30000)
   signal?.addEventListener('abort', stop, { once: true })
   pending.child.once('exit', stop)
@@ -113,7 +117,7 @@ async function moduleRemote(repository, revision, path, signal) {
   if (revision === 'working-tree') {
     const file = join(repository, '.gitmodules')
     if (!lstatSync(file).isFile() || lstatSync(file).isSymbolicLink()) throw new Error('working-tree .gitmodules must be a regular file')
-    data = readFileSync(file)
+    data = readRegularFile(file, 1024 * 1024)
   } else data = await git(repository, ['cat-file', 'blob', `${revision}:.gitmodules`], { signal })
   if (data.length > 1024 * 1024) throw new Error('.gitmodules exceeds preparation limit')
   const config = await git(repository, ['config', '--no-includes', '--file', '-', '--null', '--get-regexp', '^submodule\\..*\\.(path|url)$'], { input: data, signal })
@@ -164,7 +168,10 @@ export async function prepareSnipeSubmodules(scope, { remotes = {}, signal } = {
   try {
     const changes = []
     let origin
-    try { origin = (await git(scope.repository, ['config', '--local', '--no-includes', '--get', 'remote.origin.url'], { signal })).toString().trim() } catch { /* Absolute metadata needs no parent URL. */ }
+    try {
+      origin = (await git(scope.repository, ['config', '--local', '--no-includes', '--get-all', 'remote.origin.url'], { signal })).toString().trim()
+      if (origin.includes('\n')) origin = undefined
+    } catch { /* Absolute metadata needs no parent URL. */ }
     const queue = scope.submodules.map(change => ({ change, repository: scope.repository, relativePath: change.path, revisions: metadataRevisions(scope, change), parentRemote: origin, depth: 0 }))
     for (const { change, repository, relativePath, revisions, parentRemote, depth } of queue) {
       const destination = join(temporary, String(changes.length))

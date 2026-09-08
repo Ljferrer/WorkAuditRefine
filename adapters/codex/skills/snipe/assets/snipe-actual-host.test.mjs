@@ -58,6 +58,27 @@ function snapshot(root) {
   }
 }
 
+test('actual host reviews original pinned blobs despite replacement refs', {
+  skip: !codexPath || !model || !effort,
+  timeout: 10 * 60 * 1000,
+}, async t => {
+  const cwd = fixture()
+  const original = git(cwd, 'rev-parse', 'HEAD:seat.js')
+  const replacement = git(cwd, 'rev-parse', 'refs/remotes/origin/main:seat.js')
+  git(cwd, 'replace', original, replacement)
+  assert.match(git(cwd, 'show', 'HEAD:seat.js'), /Number.isFinite/)
+  const before = snapshot(cwd)
+  const result = await runSnipePanel({
+    cwd, rawArgs: 'correctness', profile: { model, effort }, supportedProfiles: { [model]: [effort] },
+    concern: 'Inspect the exact pinned seat.js blob and its tests. Check invalid and non-finite inputs.',
+  }, { codexPath, timeoutMs: 8 * 60 * 1000 })
+  if (!result.complete) t.diagnostic(JSON.stringify(result.seats))
+  assert.equal(result.complete, true, result.report)
+  assert.equal(result.seats[0].verdict.verdict, 'request_changes', result.report)
+  assert.ok(result.seats[0].verdict.findings.some(finding => /NaN|invalid|non-finite/i.test(finding.title + finding.rationale)), result.report)
+  assert.deepEqual(snapshot(cwd), before)
+})
+
 test('actual host audits prepared submodule blobs without changing the checkout', {
   skip: !codexPath || !model || !effort,
   timeout: 10 * 60 * 1000,

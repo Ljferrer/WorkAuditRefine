@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, truncateSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import os from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { buildSnipePlugin } from '../../../package-snipe.mjs'
 
 import {
   prepareSnipeRequest,
@@ -17,6 +19,27 @@ const supportedProfiles = {
   'gpt-fast': ['low'],
 }
 const inheritedProfile = { model: 'gpt-test', effort: 'high' }
+
+test('scope Git timeout is enforced and removing it breaks the timeout oracle', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'snipe-scope-timeout-'))
+  writeFileSync(join(root, 'git'), `#!${process.execPath}\nsetTimeout(() => process.exit(42), 6500)\n`)
+  chmodSync(join(root, 'git'), 0o755)
+  const output = join(root, 'plugin')
+  buildSnipePlugin({ repoRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), output })
+  const file = join(output, 'skills/snipe/assets/snipe-request.mjs')
+  const source = readFileSync(file, 'utf8')
+  const mutant = source.replace('timeout: Math.min(5_000, remaining)', 'timeout: 0')
+  assert.notEqual(mutant, source)
+  writeFileSync(file, mutant)
+  const modified = await import(pathToFileURL(file))
+  const previous = process.env.PATH
+  try {
+    process.env.PATH = root + ':' + previous
+    const input = { cwd: root, inheritedProfile, supportedProfiles }
+    assert.throws(() => prepareSnipeRequest(input), /ETIMEDOUT/)
+    assert.throws(() => modified.prepareSnipeRequest(input), error => error.code === 'GIT_FAILED' && !error.message.includes('ETIMEDOUT'))
+  } finally { process.env.PATH = previous }
+})
 
 test('GitHub origin identity resolves a declarative trusted SSH alias without connecting', () => {
   const directory = mkdtempSync(join(tmpdir(), 'snipe-ssh-'))
@@ -51,11 +74,23 @@ test('SSH alias identity refuses ambiguous config and never executes its command
     assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null, extra)
   }
   writeFileSync(config, `Host SQP.github.com\n HostName github.com\n ProxyCommand touch ${marker}\n LocalCommand touch ${marker}\n`)
-  assert.ok(githubOriginIdentity('git@SQP.github.com:example/project.git', config))
+  assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null)
   assert.equal(existsSync(marker), false)
   chmodSync(config, 0o666)
   assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null)
   assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', join(directory, 'missing')), null)
+})
+
+test('literal SSH hosts honor declarative remapping and reject active routing overrides', () => {
+  const config = join(mkdtempSync(join(tmpdir(), 'snipe-ssh-')), 'config')
+  writeFileSync(config, 'Host github.com\n HostName elsewhere.invalid\n')
+  assert.equal(githubOriginIdentity('git@github.com:example/project.git', config), null)
+  for (const directive of ['ProxyCommand tunnel', 'ProxyJump relay', 'HostKeyAlias elsewhere', 'LocalCommand touch marker', 'User another', 'Port 2222']) {
+    writeFileSync(config, `Host github.com\n ${directive}\n`)
+    assert.equal(githubOriginIdentity('git@github.com:example/project.git', config), null, directive)
+  }
+  writeFileSync(config, 'Host unrelated\n ProxyCommand tunnel\nHost github.com\n User git\n Port 22\n')
+  assert.deepEqual(githubOriginIdentity('git@github.com:example/project.git', config), { owner: 'example', repository: 'project' })
 })
 
 test('GitHub origin identity rejects malformed, lookalike and injection-shaped remotes', () => {
@@ -245,6 +280,22 @@ test('PR identity rejects a lookalike GitHub origin host', () => {
   )
 })
 
+test('PR identity uses the literal local origin, never URL rewrite results', () => {
+  const { root, base, head } = fixture()
+  git(root, 'update-ref', 'refs/pull/7/head', head)
+  const target = { type: 'pr', url: 'https://github.com/example/project/pull/7', base }
+  git(root, 'remote', 'set-url', 'origin', 'https://elsewhere.invalid/example/project.git')
+  git(root, 'config', 'url.https://github.com/.insteadOf', 'https://elsewhere.invalid/')
+  assert.equal(git(root, 'remote', 'get-url', 'origin'), 'https://github.com/example/project.git')
+  assert.throws(() => prepare(root, { target }), error => error.code === 'PR_REPOSITORY_MISMATCH')
+  git(root, 'config', '--unset-all', 'url.https://github.com/.insteadOf')
+  git(root, 'remote', 'set-url', 'origin', 'https://github.com/example/project.git')
+  git(root, 'config', 'url.https://elsewhere.invalid/.insteadOf', 'https://github.com/')
+  assert.equal(prepare(root, { target }).scope.headSha, head)
+  git(root, 'config', '--add', 'remote.origin.url', 'https://github.com/example/other.git')
+  assert.throws(() => prepare(root, { target }), error => error.code === 'PR_REPOSITORY_MISMATCH')
+})
+
 test('PR targets resolve SSH aliases through the host config and retain repository matching', t => {
   const { root, base, head } = fixture()
   const hostHome = mkdtempSync(join(tmpdir(), 'snipe-host-'))
@@ -266,6 +317,29 @@ test('PR targets resolve SSH aliases through the host config and retain reposito
   assert.throws(() => prepare(root, { target }), error => error.code === 'PR_REPOSITORY_MISMATCH')
   assert.equal(existsSync(marker), false)
   assert.equal(git(root, 'status', '--porcelain=v1'), before)
+})
+
+test('global origin rewrites cannot change the literal PR identity decision', () => {
+  const { root, base, head } = fixture()
+  git(root, 'update-ref', 'refs/pull/7/head', head)
+  const target = { type: 'pr', url: 'https://github.com/example/project/pull/7', base }
+  const config = join(mkdtempSync(join(tmpdir(), 'snipe-global-config-')), 'config')
+  git(root, 'config', '--file', config, 'url.https://github.com/.insteadOf', 'https://elsewhere.invalid/')
+  const previous = process.env.GIT_CONFIG_GLOBAL
+  try {
+    process.env.GIT_CONFIG_GLOBAL = config
+    git(root, 'remote', 'set-url', 'origin', 'https://elsewhere.invalid/example/project.git')
+    assert.equal(git(root, 'remote', 'get-url', 'origin'), 'https://github.com/example/project.git')
+    assert.throws(() => prepare(root, { target }), error => error.code === 'PR_REPOSITORY_MISMATCH')
+    git(root, 'config', '--file', config, '--unset-all', 'url.https://github.com/.insteadOf')
+    git(root, 'config', '--file', config, 'url.https://elsewhere.invalid/.insteadOf', 'https://github.com/')
+    git(root, 'remote', 'set-url', 'origin', 'https://github.com/example/project.git')
+    assert.equal(git(root, 'remote', 'get-url', 'origin'), 'https://elsewhere.invalid/example/project.git')
+    assert.equal(prepare(root, { target }).scope.headSha, head)
+  } finally {
+    if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL
+    else process.env.GIT_CONFIG_GLOBAL = previous
+  }
 })
 
 test('missing refs, empty diffs, and unavailable PR objects are distinct failures', () => {
@@ -296,6 +370,23 @@ test('explicit committed scope ignores unrelated dirty checkout changes', () => 
     before: null,
     after: null,
   })
+})
+
+test('committed gitlink-only scope survives both ignore configuration sources', () => {
+  const { root, base, head } = fixture()
+  git(root, 'update-index', '--add', '--cacheinfo', '160000', base, 'vendor/engine')
+  git(root, 'commit', '-m', 'base gitlink')
+  const from = git(root, 'rev-parse', 'HEAD')
+  git(root, 'update-index', '--cacheinfo', '160000', head, 'vendor/engine')
+  git(root, 'commit', '-m', 'advance gitlink')
+  for (const key of ['diff.ignoreSubmodules', 'submodule.vendor/engine.ignore']) {
+    git(root, 'config', key, 'all')
+    const request = prepare(root, { target: { type: 'range', expression: `${from}..HEAD` }, paths: ['vendor/engine'] })
+    assert.equal(request.scope.submodules.length, 1)
+    assert.equal(request.scope.submodules[0].baseObject, base)
+    assert.equal(request.scope.submodules[0].headObject, head)
+    git(root, 'config', '--unset', key)
+  }
 })
 
 test('committed gitlink changes are disclosed as Snipe scope instead of phase-refused', () => {
@@ -339,6 +430,9 @@ test('dirty staged gitlink changes disclose their exact pointer and availability
   const newObject = git(join(root, 'vendor/engine'), 'rev-parse', 'HEAD')
   git(root, 'add', 'vendor/engine')
 
+  git(root, 'config', 'diff.ignoreSubmodules', 'all')
+  git(root, 'config', 'submodule.vendor/engine.ignore', 'all')
+
   const request = prepare(root)
   assert.equal(request.scope.kind, 'dirty')
   assert.deepEqual(request.scope.submodules, [{
@@ -368,6 +462,8 @@ test('dirty unstaged gitlink changes disclose the checked-out pointer', () => {
   git(join(root, 'vendor/engine'), 'commit', '-am', 'nested advance')
   const newObject = git(join(root, 'vendor/engine'), 'rev-parse', 'HEAD')
 
+  git(root, 'config', 'diff.ignoreSubmodules', 'all')
+  git(root, 'config', 'submodule.vendor/engine.ignore', 'all')
   const request = prepare(root)
   assert.equal(request.scope.kind, 'dirty')
   assert.deepEqual(request.scope.submodules, [{
@@ -394,6 +490,8 @@ test('uncommitted nested submodule content is disclosed as uncaptured and unstab
   const pinnedObject = git(root, 'rev-parse', 'HEAD:vendor/engine')
 
   writeFileSync(join(root, 'vendor/engine', 'nested.txt'), 'uncommitted one\n')
+  git(root, 'config', 'diff.ignoreSubmodules', 'all')
+  git(root, 'config', 'submodule.vendor/engine.ignore', 'all')
   const request = prepare(root)
   assert.deepEqual(request.scope.submodules, [{
     path: 'vendor/engine',
@@ -408,6 +506,36 @@ test('uncommitted nested submodule content is disclosed as uncaptured and unstab
 
   writeFileSync(join(root, 'vendor/engine', 'nested.txt'), 'uncommitted two\n')
   assert.equal(verifySnipeScope(request.scope).stable, false)
+
+  const wrapper = mkdtempSync(join(tmpdir(), 'snipe-status-failure-'))
+  writeFileSync(join(wrapper, 'git'), `#!${process.execPath}\n
+    const { spawnSync } = await import('node:child_process')
+    if (process.argv.includes('status') && process.cwd().endsWith('/vendor/engine')) process.exit(42)
+    const result = spawnSync('/usr/bin/git', process.argv.slice(2), {stdio:'inherit'})
+    process.exit(result.status ?? 1)
+  `)
+  chmodSync(join(wrapper, 'git'), 0o755)
+  const originalPath = process.env.PATH
+  try {
+    process.env.PATH = wrapper + ':' + originalPath
+    const failed = prepare(root)
+    assert.equal(failed.scope.submodules[0].contentsAvailable, false)
+    assert.match(failed.scope.submodules[0].limitation, /status could not be captured/)
+    assert.equal(verifySnipeScope(failed.scope).stable, false)
+  } finally { process.env.PATH = originalPath }
+})
+
+test('oversized untracked input refuses initial capture and makes final capture unstable', () => {
+  const { root } = fixture()
+  const file = join(root, 'large')
+  writeFileSync(file, 'small')
+  const request = prepare(root)
+  truncateSync(file, 64 * 1024 * 1024 + 1)
+  assert.throws(() => prepare(root), error => error.code === 'SCOPE_LIMIT')
+  const result = verifySnipeScope(request.scope)
+  assert.equal(result.stable, false)
+  assert.equal(result.after, null)
+  assert.match(result.error, /large.*byte limit/)
 })
 
 test('dirty default includes staged, unstaged, and untracked content and detects later changes', () => {

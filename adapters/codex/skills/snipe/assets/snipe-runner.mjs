@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { prepareSnipeRequest, verifySnipeScope } from './snipe-request.mjs'
 import { parseSnipeVerdict, renderSnipeReport } from './snipe-result.mjs'
 import { prepareSnipeSubmodules } from './snipe-submodules.mjs'
+import { processTreeCleanup, processGroup } from './snipe-process.mjs'
+import { gitEvidenceEnvironment } from './snipe-git-policy.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
 
@@ -37,26 +39,40 @@ export function resolveCodexPath(explicit, env = process.env) {
 }
 
 // Read capabilities only: never create a thread or start a turn during discovery.
-export function listSupportedProfiles({ codexPath, timeoutMs = 30_000 } = {}) {
+export function listSupportedProfiles({ codexPath, timeoutMs = 30_000, signal } = {}) {
   codexPath = resolveCodexPath(codexPath)
   return new Promise((resolve, reject) => {
-    const child = spawn(codexPath, ['app-server', '--listen', 'stdio://', '-c', 'mcp_servers={}', '--disable', 'plugins', '--disable', 'hooks'], { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(codexPath, ['app-server', '--listen', 'stdio://', '-c', 'mcp_servers={}', '--disable', 'plugins', '--disable', 'hooks'], { stdio: ['pipe', 'pipe', 'pipe'], detached: processGroup })
     const profiles = Object.create(null)
+    const killTree = processTreeCleanup(child)
     let buffer = '', bytes = 0, id = 0, done = false
     const cursors = new Set()
+    let failure
     const finish = (error) => {
       if (done) return
       done = true
       clearTimeout(timer)
-      child.kill('SIGKILL')
-      if (error) reject(Object.assign(new Error(`${error} (Codex executable: ${codexPath}; override with --codex-path /absolute/path/to/codex)`), { code: 'PROFILE_DISCOVERY_FAILED' }))
-      else resolve(profiles)
+      failure = error
+      killTree()
     }
     const timer = setTimeout(() => finish('Codex model/list timed out'), timeoutMs)
+    const cancel = () => finish('Codex model/list cancelled')
+    signal?.addEventListener('abort', cancel, { once: true })
+    if (signal?.aborted) cancel()
     const send = (message) => child.stdin.write(`${JSON.stringify(message)}\n`)
     child.on('error', error => finish(error.message))
     child.stdin.on('error', error => finish(error.message))
-    child.on('close', () => finish('Codex model/list exited before returning a catalog'))
+    child.once('exit', killTree)
+    child.once('close', () => {
+      if (!done) {
+        done = true
+        clearTimeout(timer)
+        failure = 'Codex model/list exited before returning a catalog'
+      }
+      signal?.removeEventListener('abort', cancel)
+      if (failure) reject(Object.assign(new Error(`${failure} (Codex executable: ${codexPath}; override with --codex-path /absolute/path/to/codex)`), { code: 'PROFILE_DISCOVERY_FAILED' }))
+      else resolve(profiles)
+    })
     child.stderr.on('data', chunk => {
       bytes += chunk.length
       if (bytes > 1024 * 1024) finish('Codex model/list output exceeded limit')
@@ -173,6 +189,7 @@ function codexArgs(request, prompt) {
     '-c', 'approval_policy="never"',
     '-c', 'mcp_servers={}',
     '-c', 'shell_environment_policy.inherit="none"',
+    ...Object.entries(gitEvidenceEnvironment).flatMap(([key, value]) => ['-c', `shell_environment_policy.set.${key}=${JSON.stringify(value)}`]),
     prompt,
   ]
 }
@@ -194,34 +211,24 @@ function finalResponse(stdout) {
 function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal, prompt }) {
   return new Promise(resolve => {
     const { lens, rationale } = assignment
-    const useProcessGroup = process.platform !== 'win32'
     const child = spawn(codexPath, codexArgs(request, prompt ?? seatPrompt(request, seat, lens, rationale, concern)), {
       cwd: request.scope.repository,
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: useProcessGroup,
+      detached: processGroup,
     })
     const stdoutChunks = []
+    const killTree = processTreeCleanup(child)
     const stderrChunks = []
     let outputBytes = 0
     let truncated = false
     let terminalReason = null
     let spawnError = null
-    let killTimer = null
     let timer = null
-    const killTree = exitSignal => {
-      try {
-        if (useProcessGroup && child.pid) process.kill(-child.pid, exitSignal)
-        else child.kill(exitSignal)
-      } catch (error) {
-        if (error.code !== 'ESRCH') throw error
-      }
-    }
     const stop = reason => {
       if (terminalReason) return
       terminalReason = reason
       clearTimeout(timer)
-      killTree('SIGTERM')
-      killTimer = setTimeout(() => killTree('SIGKILL'), 1_000)
+      killTree()
     }
     const collect = (chunks, chunk) => {
       const remaining = Math.max(0, maxOutputBytes - outputBytes)
@@ -241,9 +248,9 @@ function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, max
     child.once('error', error => {
       spawnError = error
     })
+    child.once('exit', killTree)
     child.once('close', (exitCode, exitSignal) => {
       clearTimeout(timer)
-      clearTimeout(killTimer)
       signal?.removeEventListener('abort', cancel)
       const stdout = Buffer.concat(stdoutChunks).toString('utf8')
       const stderr = Buffer.concat(stderrChunks).toString('utf8')
@@ -252,18 +259,6 @@ function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, max
       resolve({ seat, lens, rationale, status, exitCode, signal: exitSignal, response, stdout, stderr, truncated, error: spawnError?.message })
     })
   })
-}
-
-function repairPrompt(request, seat, lens, response, error) {
-  return `SCHEMA REPAIR for AUDIT SEAT ${seat} — lens: ${lens}, schema-only.
-Canonical scope:
-${JSON.stringify(request.scope, null, 2)}
-
-Your previous response failed validation: ${error.code}: ${error.message}
-Previous response:
-${response ?? '(missing)'}
-
-Return only one corrected Snipe result JSON object. Preserve the original review judgment and findings; correct only schema, aliases, seat/lens, and scope identity. Do not inspect files, run commands, use tools, widen the panel, request escalation, or perform any external action.`
 }
 
 async function runValidatedSeat(request, seat, assignment, concern, options) {
@@ -276,34 +271,14 @@ async function runValidatedSeat(request, seat, assignment, concern, options) {
     const verdict = parseSnipeVerdict(initial.response, expected)
     return { ...initial, verdict, validation: { status: 'valid', error: null }, repair: { attempted: false, succeeded: false } }
   } catch (error) {
-    const repaired = await runSeat(request, seat, assignment, concern, {
-      ...options,
-      prompt: repairPrompt(request, seat, assignment.lens, initial.response, error),
-    })
-    if (repaired.status === 'completed') {
-      try {
-        const verdict = parseSnipeVerdict(repaired.response, expected)
-        return {
-          ...repaired,
-          verdict,
-          validation: { status: 'valid', error: null },
-          repair: { attempted: true, succeeded: true, initialError: { code: error.code, message: error.message }, initialResponse: initial.response },
-        }
-      } catch (repairError) {
-        return {
-          ...repaired,
-          status: 'invalid_result',
-          verdict: null,
-          validation: { status: 'invalid', error: repairError.message, code: repairError.code },
-          repair: { attempted: true, succeeded: false, initialError: { code: error.code, message: error.message }, initialResponse: initial.response },
-        }
-      }
-    }
+    // A fresh model response cannot prove preservation of an invalid judgment.
+    // Keep the original evidence; only the parser's deterministic aliases normalize it.
     return {
-      ...repaired,
+      ...initial,
+      status: 'invalid_result',
       verdict: null,
-      validation: { status: 'unavailable', error: `repair transport status: ${repaired.status}` },
-      repair: { attempted: true, succeeded: false, initialError: { code: error.code, message: error.message }, initialResponse: initial.response },
+      validation: { status: 'invalid', error: error.message, code: error.code },
+      repair: { attempted: false, succeeded: false },
     }
   }
 }
@@ -376,24 +351,28 @@ function cliOptions(argv) {
   }
 }
 
-async function main(argv) {
+async function execute(argv, signal) {
   if (argv[0] === '--list-profiles') {
     if (argv.length !== 1 && !(argv.length === 3 && argv[1] === '--codex-path')) throw new Error('usage: snipe-runner.mjs --list-profiles [--codex-path /absolute/path/to/codex]')
-    process.stdout.write(`${JSON.stringify(await listSupportedProfiles({ codexPath: argv[2] }), null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify(await listSupportedProfiles({ codexPath: argv[2], signal }), null, 2)}\n`)
     return
   }
   const options = cliOptions(argv)
   options.codexPath = resolveCodexPath(options.codexPath)
   const input = JSON.parse(readFileSync(options.requestPath, 'utf8'))
-  if (input.supportedProfiles === undefined) input.supportedProfiles = await listSupportedProfiles({ codexPath: options.codexPath })
+  if (input.supportedProfiles === undefined) input.supportedProfiles = await listSupportedProfiles({ codexPath: options.codexPath, signal })
+  const result = await runSnipePanel(input, { ...options, signal })
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+  if (!result.complete) process.exitCode = 1
+}
+
+async function main(argv) {
   const controller = new AbortController()
   const cancel = () => controller.abort()
   process.once('SIGINT', cancel)
   process.once('SIGTERM', cancel)
   try {
-    const result = await runSnipePanel(input, { ...options, signal: controller.signal })
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-    if (!result.complete) process.exitCode = 1
+    await execute(argv, controller.signal)
   } finally {
     process.removeListener('SIGINT', cancel)
     process.removeListener('SIGTERM', cancel)
