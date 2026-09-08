@@ -110,3 +110,32 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
   new evidence fields. It is not policy oscillation: no prior fix was reversed.
 - Raw panel: `/private/tmp/war-parity-cycle3.SZX4Gs/audit-result.json`. Three of
   12 panels used. T2 work remains separate WIP; T3 has not started.
+
+### Cycle 4 — T1 repaired collector acceptance
+
+- Pin: `b51ff7d075eac4b4f4fcef67329197136d2508cc`, compared with the goal base.
+- Same three lenses and operator-selected profile. All completed, validated,
+  high-confidence approvals; complete coverage and no validated findings.
+- Collector tests: 22 passing, including fourteen assertion-killed mutations.
+  The prior full baseline is pinned to cycle 2; final integrated baseline remains
+  required after T2/T3. No claim of fresh full-suite evidence at this pin.
+- Raw panel: `/private/tmp/war-parity-cycle4.bThjt6/audit-result.json`.
+  Four of 12 panels used. T1 review converged; T2 remains work in progress and
+  T3 is not implemented, so the campaign is not complete.
+
+## T2 initial evidence
+
+- All P01–P26 catalog rows have independently authored positive records. Each
+  selected expected fact is corrupted on both sides in negative controls; every
+  required artifact kind is removed in turn. These are contract simulations,
+  not real adapter/host or artifact-file verification (bindings deferred T5–T7).
+- Candidate identities are supplied by a separate fixture context. A shared
+  wrong-candidate regression failed before that guard. Cross-fixture SHA
+  normalization first failed on differing raw identities, then passed by commit
+  role with exact within-run pins and tree/ordered-ancestry comparison intact.
+- Parallel completion ordering passes without erasing dependency edges. Unknown
+  top-level decisions and extra/missing/cyclic events fail. No arbitrary global
+  text replacement or unknown-decision dropping is used.
+- Eleven oracle tests pass, including six independently assertion-killed guard
+  removals. T2's narrowed contract-simulation evidence is explicit in its README;
+  no production engine function supplies expected decisions.

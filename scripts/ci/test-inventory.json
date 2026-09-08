@@ -60,5 +60,6 @@
   "skills/war/assets/version-slots.test.mjs",
   "skills/war/assets/war-config.test.mjs",
   "skills/war/assets/workflow-template.test.mjs",
-  "skills/war/references/schemas-manifest.test.sh"
+  "skills/war/references/schemas-manifest.test.sh",
+  "tests/parity/oracle.test.mjs"
 ]
