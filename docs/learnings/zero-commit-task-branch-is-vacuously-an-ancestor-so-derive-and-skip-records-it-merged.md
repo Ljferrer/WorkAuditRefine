@@ -1,6 +1,6 @@
 ---
 name: zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged
-description: "A zero-commit task branch is vacuously an ancestor of the tip, so derive-and-skip falsely records it merged; check the commit count"
+description: "RESOLVED (2026-09-06-engine-and-audit-verdict-integrity, #1895): a zero-commit task branch is vacuously an ancestor of the tip, so derive-and-skip falsely recorded it merged; check the commit count"
 metadata: 
   node_type: memory
   type: project
@@ -34,16 +34,20 @@ it in `landed[]`, the ledger records `merged`, and the Lead closes its issue, wh
 exist anywhere in the window. A gate-audit does not catch it when every needle it checks belongs to a task
 that really landed.
 
-**Still open (#1895):** the `deriveSkipClause` in `skills/war/assets/workflow-template.js` (search
-`SANCTIONED RECOVERY RELAUNCH — derive-then-cut`) still gates only on `merge-base --is-ancestor`; the barrier
-`preMerged` intake has no commit-count check. A partial guard exists only on the merge-slot pin-transfer
-path: an empty post-rebase diff with zero task commits fails closed as `empty-unmatched` (#1931).
+**Resolved (2026-09-06, #1895):** Task 6.1 of the 2026-09-06-engine-and-audit-verdict-integrity plan
+(D9, PIN-13) adds the `git rev-list --count $BASE..<branch>` > 0 conjunct to the `deriveSkipClause` in
+`skills/war/assets/workflow-template.js` (search `SANCTIONED RECOVERY RELAUNCH — derive-then-cut`) beside
+`merge-base --is-ancestor`; a zero-commit branch takes the ordinary ensure-worktree path with a loud
+classification log (fixture `derive-and-skip: zero-commit branch dispatches (#1895/#2006)`). Before that
+landed, the clause gated on the ancestor check alone and the only partial guard sat on the merge-slot
+pin-transfer path: an empty post-rebase diff with zero task commits fails closed as `empty-unmatched`
+(#1931).
 
-**Fix shape:** derive-and-skip must also require `git rev-list --count <base>..<branch>` > 0 before deriving
+**Fix shape (the first half landed with Task 6.1; the phase-level assertion is still a suggestion):** derive-and-skip must also require `git rev-list --count <base>..<branch>` > 0 before deriving
 `preMerged`; a zero-commit branch takes the fresh-run path. Pair it with a phase-level assertion that every
 task the handoff reports `landed` contributed at least one commit to the integration range.
 
-**How to apply until it lands:**
+**How to apply on an engine that predates the fix:**
 - Before trusting any relaunch's `preMerged` set, or any `recovered:pre-merged` audit-log verdict, run
   `git rev-list --count <base>..<branch>` for each skipped task and diff the window for its `Files:`.
 - Delete stale zero-commit task branches before relaunching; that removes the vacuous input entirely.
