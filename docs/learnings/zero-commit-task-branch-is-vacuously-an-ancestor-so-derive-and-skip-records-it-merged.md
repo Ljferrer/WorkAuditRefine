@@ -21,7 +21,7 @@ metadata:
     - missing ADR
     - task 2.2
     - End-state unverified not unmet
-    - rev-list --count guard absent
+    - rev-list --count guard
     - sanctioned recovery relaunch
   originSessionId: fddd64d3-2c2c-400e-b891-9b7b75dcd158
   modified: 2026-08-30T14:48:17.863Z
