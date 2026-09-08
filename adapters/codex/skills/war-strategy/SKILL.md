@@ -6,10 +6,9 @@ description: Author a WAR plan through an interview, or review and convert an ex
 # WAR strategy for Codex
 
 When authoring or converting a plan, read the complete shared strategy doctrine
-at `../../shared/skills/war-strategy/SKILL.md` relative to this installed skill.
-In the source repository, that same canonical file is
-`../../../../skills/war-strategy/SKILL.md`; this source-layout alternative is for
-development only. Use the packaged path when installed, never a checkout fallback.
+at [the packaged canonical entry](../../shared/skills/war-strategy/SKILL.md)
+relative to this installed skill. Build the plugin before invoking this adapter;
+never fall back to a development checkout if an installed resource is missing.
 The host reference beside the packaged doctrine is the Codex host binding.
 
 Invocation is `$work-audit-refine-planning:war-strategy`. The shared doctrine's

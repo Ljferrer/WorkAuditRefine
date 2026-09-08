@@ -1,6 +1,20 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
+
+function manifest(version) {
+  assert.match(version,/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,'invalid planning manifest version')
+  return {
+    name:'work-audit-refine-planning',version,
+    description:'Author WAR plans from an interview or existing draft; does not execute plans.',
+    author:{name:'Ljferrer'},license:'MIT',skills:'./skills/',
+    interface:{displayName:'WAR Planning',shortDescription:'Author and convert WAR plans',
+      longDescription:'Interview and convert drafts into WAR plans without executing them.',
+      developerName:'Ljferrer',category:'Developer Tools',capabilities:['Interactive','Read','Write'],
+      defaultPrompt:['Use $work-audit-refine-planning:war-strategy to plan a change.']},
+  }
+}
 
 const files=[
   ['adapters/codex/skills/war-strategy/SKILL.md','skills/war-strategy/SKILL.md'],
@@ -10,6 +24,33 @@ const files=[
   ['docs/adr/0025-drift-guard-discipline.md','shared/docs/adr/0025-drift-guard-discipline.md'],
 ]
 const expected=['.codex-plugin/plugin.json',...files.map(([,to])=>to)].sort()
+
+function regularSource(root,path) {
+  let current=root
+  for(const part of path.split('/')) {
+    current=join(current,part)
+    const stat=lstatSync(current,{throwIfNoEntry:false})
+    if(!stat || stat.isSymbolicLink())throw new Error(`missing or symlink source: ${path}`)
+  }
+  if(!lstatSync(current).isFile())throw new Error(`missing regular source: ${path}`)
+  return current
+}
+
+// Only the background ADR's citations relocate. Operative doctrine stays byte-identical.
+function backgroundADR(source,path) {
+  let count=0
+  const text=readFileSync(join(source,path),'utf8').replace(/\]\(([^)]+)\)/g,(match,href)=>{
+    if(href.startsWith('https://') || href.startsWith('#'))return match
+    const [file,anchor]=href.split('#')
+    const target=relative(source,resolve(source,dirname(path),file)).split(sep).join('/')
+    if(target.startsWith('../'))throw new Error(`unresolved background citation: ${href}`)
+    regularSource(source,target)
+    count++
+    return `](https://github.com/Ljferrer/WorkAuditRefine/blob/codex-port/${target.split('/').map(encodeURIComponent).join('/')}${anchor ? '#'+anchor : ''})`
+  })
+  assert.equal(count,12,'background citation census changed; review package relocation')
+  return text
+}
 
 function inventory(root,directory=root) {
   return readdirSync(directory,{withFileTypes:true}).flatMap(entry=>{
@@ -24,29 +65,27 @@ export function verifyPlanningPlugin(root) {
   if(!lstatSync(root).isDirectory())throw new Error('package root must be a real directory')
   const actual=inventory(root)
   if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error('unexpected or missing planning component')
-  const manifest=JSON.parse(readFileSync(join(root,'.codex-plugin/plugin.json'),'utf8'))
-  if(manifest.name!=='work-audit-refine-planning' || manifest.skills!=='./skills/' || 'hooks' in manifest)throw new Error('invalid planning manifest')
+  const config=JSON.parse(readFileSync(join(root,'.codex-plugin/plugin.json'),'utf8'))
+  assert.deepEqual(config,manifest(config?.version),'invalid planning manifest')
   return actual
 }
 
 export function buildPlanningPlugin({repoRoot,output}) {
   const source=resolve(repoRoot),destination=resolve(output)
   if(existsSync(destination))throw new Error(`output already exists: ${destination}`)
+  if(!lstatSync(source).isDirectory())throw new Error('source root must be a real directory')
   for(const [from] of files) {
-    if(!lstatSync(join(source,from),{throwIfNoEntry:false})?.isFile())throw new Error(`missing regular source: ${from}`)
+    regularSource(source,from)
   }
-  const version=JSON.parse(readFileSync(join(source,'.claude-plugin/plugin.json'),'utf8')).version
+  const version=JSON.parse(readFileSync(regularSource(source,'.claude-plugin/plugin.json'),'utf8')).version
+  const config=manifest(version)
+  const adr=backgroundADR(source,'docs/adr/0025-drift-guard-discipline.md')
   mkdirSync(join(destination,'.codex-plugin'),{recursive:true})
-  writeFileSync(join(destination,'.codex-plugin/plugin.json'),JSON.stringify({
-    name:'work-audit-refine-planning',version,
-    description:'Author WAR plans from an interview or existing draft; does not execute plans.',
-    author:{name:'Ljferrer'},license:'MIT',skills:'./skills/',
-    interface:{displayName:'WAR Planning',shortDescription:'Author and convert WAR plans',
-      defaultPrompt:'Use $work-audit-refine-planning:war-strategy to plan a change.'},
-  },null,2)+'\n')
+  writeFileSync(join(destination,'.codex-plugin/plugin.json'),JSON.stringify(config,null,2)+'\n')
   for(const [from,to] of files) {
     mkdirSync(dirname(join(destination,to)),{recursive:true})
-    copyFileSync(join(source,from),join(destination,to))
+    if(from==='docs/adr/0025-drift-guard-discipline.md')writeFileSync(join(destination,to),adr)
+    else copyFileSync(join(source,from),join(destination,to))
   }
   return verifyPlanningPlugin(destination)
 }

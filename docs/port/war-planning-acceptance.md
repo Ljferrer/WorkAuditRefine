@@ -80,13 +80,17 @@ future engine. Do not weaken source obligations to satisfy generated prose.
 - P1: contract inventory and scenario specifications recorded; no new code.
   No audit panel consumed. Executable fixtures and observations follow with their
   corresponding vertical implementation slices; none are claimed passing here.
-- P2 in progress: first package slice copies canonical strategy/interview/verifier/
+- P2 first audit checkpoint: package copies canonical strategy/interview/verifier/
   lint, supplies a Codex host reference and preserves Claude mechanics in its own
-  reference. A moved-package lint test was red before the builder existed, then
-  passed; package/source lint outputs and shared file bytes agree. Existing strategy
-  structure checks and 58 package/doc-contract cases pass. Missing-resource,
-  symlink and manifest negative controls plus full resource closure remain before
-  the P2 audit checkpoint. Help and concrete verifier integration remain downstream.
+  reference. Moved-package lint test was red before the builder, then passed;
+  source/package lint output and operative doctrine bytes agree. Manifest-capability
+  refusal, background-link closure and source symlink-ancestor tests each exposed
+  a failing behavior before repair. Four package tests pass; the source structure
+  checks, 58 package/doc-contract cases and 50 Snipe-package/lint cases passed.
+  Plugin and skill validators pass using the dedicated conda Python environment.
+  Only background ADR citations relocate to canonical source URLs (reviewed census);
+  no operative Markdown rewrite occurs at build time. Help remains P5 and concrete
+  verifier integration P4; this checkpoint does not claim installed acceptance.
 - P3–P6: not complete.
 - Audit budget: at most two cycles per code-bearing phase, twelve total; the
   operator's conditional final extra cycle is not pre-spent. Each panel uses three
