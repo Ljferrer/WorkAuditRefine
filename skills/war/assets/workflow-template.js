@@ -440,9 +440,8 @@ const asks = []
 // and did NOT demote — a held phase's whole phaseCloseQueue, a discarded sweep's absorbs on a
 // non-final phase, and a non-final terminal pass's regressed/fresh absorbs. A TOP-LEVEL key on the
 // phase return at BOTH return sites (never inside the handoff — its followUps projection is
-// explicit-key: it carries drainCause since #1799 and nothing a carry needs), present as [] on a
-// phase with nothing carried so absence is never ambiguous. The Lead threads it back as
-// args.seededPhaseClose at the relaunch.
+// explicit-key: it carries drainCause since #1799 and nothing a carry needs), present as [] on a phase with nothing carried so
+// absence is never ambiguous. The Lead threads it back as args.seededPhaseClose at the relaunch.
 const carriedPhaseClose = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
 // status/escalation (D6). Under disposition routing (ADR 0013) `aced` also records the phase-close
@@ -1477,13 +1476,13 @@ const parkAsk = f => {
 // or an unusable sweep roster / polish provisioning (demote:sweep-skipped); a discarded sweep on the
 // FINAL phase — its queue and its sweep-raised absorbs alike (demote:sweep-discarded) — and, on ANY
 // phase, the queue of a panel-APPROVED polish branch whose merge never landed (the approve trail,
-// verdict-integrity D15, #2087: the fix lives on the orphaned branch, so the row files naming it);
-// the terminal pass on the final phase — an absorb it could not commit or merge, or one its seat
-// freshly raised (demote:terminal-pass), and a regressed terminal commit's rows
-// (demote:absorb-regressed); on a NON-final phase those same rows never demote — they ride
-// carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
-// (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
-// exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set). A
+// verdict-integrity D15, #2087: the fix lives on the orphaned branch, so the row files naming it); the terminal
+// pass on the final phase — an absorb it could not commit or merge, or one its seat freshly raised
+// (demote:terminal-pass), and a regressed terminal commit's rows (demote:absorb-regressed); on a
+// NON-final phase those same rows never demote — they ride carriedPhaseClose (D3a/D3b), as does a
+// held phase's whole queue; a fileless absorb (demote:fileless, severity default); a release-slot
+// absorb at birth (demote:release-slot); an exclusion-set hit at sweep time or at the terminal-pass
+// filter (demote:exclusion-set). A
 // FAILED ATTEMPT never demotes: an untouched-file ace row, a dead ace/subset/re-entry worker's rows,
 // and a red gate at an ace-family tip route to the sweep (routeToSweep, phaseClose:true) — the ace
 // attempt did not happen, so the sweep is the next rung. A FRESH absorb born at a re-audit re-enters
@@ -1531,7 +1530,7 @@ const demote = (f, to, why, opts) => {
     if (prior) {
       log('Disposition demotion CORROBORATES: [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') → ' + to + ' — ' + why + '; the content key already lives on ' + prior + ' (D12, #1862) — the raiser joins its seats list, never a second minorsFiled row (logged, never silent).')
       const hit = corroborateSurvivor(f)
-      if (hit) hit.demoteReason = hit.demoteReason || why   // lands on the durable minorsFiled record and renders as the filing row's `engine demote reason` cell — never on the filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
+      if (hit) hit.demoteReason = hit.demoteReason || why   // lands on the durable minorsFiled record only — never on the filing prompt's filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
       return
     }
     filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record
@@ -1729,10 +1728,9 @@ const auditVerdictOf = id => {
 // Phase-close carry (D3b, PIN-5): the rung BELOW the sweep on a phase that still has a successor —
 // a held phase's queue, a discarded sweep's absorbs (except the approve trail — a panel-approved
 // branch whose merge never landed files them naming the branch, D15 #2087) and the terminal pass's
-// unlanded/fresh absorbs on a non-final phase ride carriedPhaseClose (top-level on the phase return)
-// instead of demoting; the Lead threads them back as args.seededPhaseClose. The engine stamps
-// `planSlug` so the carried row clears the #1413 own-token floor on the relaunch by construction.
-// Logged, never silent.
+// unlanded/fresh absorbs on a non-final phase ride carriedPhaseClose (top-level on the phase return) instead of demoting;
+// the Lead threads them back as args.seededPhaseClose. The engine stamps `planSlug` so the carried
+// row clears the #1413 own-token floor on the relaunch by construction. Logged, never silent.
 const carryPhaseClose = (f, why) => {
   queuedKeys.add(remintKey(f))   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
   log('held-carry: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → carriedPhaseClose — ' + why + '.')
@@ -4604,9 +4602,8 @@ if (mergedTasksForGateAudit.length > 0) {
 // barrier:trade-off follow-up with the ask field ⇒ ask, without it ⇒ keep follow-up with the
 // trade-off-without-ask log; any other barrier ⇒ filed as stated; a seat note whose suggested_fix is
 // non-empty and whose file is in phase_diff_files ⇒ absorb + phaseClose:true; phase_diff_files ABSENT
-// reads as an empty Set (#2058) ⇒ the note arm keeps every note, logged, while the follow-up arm
-// still reroutes, and NO demote:floor-skipped comes from this pass; an omitted-disposition fully
-// specified row reads absorb + phaseClose:true
+// reads as an empty Set (#2058) ⇒ the note arm keeps every note, logged, while the follow-up arm still reroutes, and NO demote:floor-skipped
+// comes from this pass; an omitted-disposition fully specified row reads absorb + phaseClose:true
 // (dispositionOf over an EMPTY Set, #2058 — gate-audit rows never join a task ace batch, so in-diff
 // membership has no meaning here, and the end-state-only arm never stamps phase_diff_files; PIN-17
 // holds with the phase diff present or absent), an unspecified one keeps the severity default. A
@@ -4618,7 +4615,7 @@ const routeGateAuditRows = () => {
   // finds no file in it and keeps every note, the same way the omitted-disposition default already
   // classifies over an empty Set. The skip is still logged (never a silent skip).
   const phaseDiff = phaseDiffFiles === null ? new Set() : phaseDiffFiles
-  if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm matches nothing (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
+  if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm skips (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
   for (const f of gateAuditRows.splice(0)) {
     const fix = !blankText(f.suggested_fix)
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
@@ -5098,9 +5095,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       }
       // Discard-arm routing (#1377, D3a): sweep-raised Minor/Nits route through the same ladder — an
       // absorb has nothing to absorb into (the polish branch never merged), so it CARRIES on a
-      // non-final phase and DEMOTES naming the discard on the final. The approve trail (D15, #2087)
-      // does not apply here: a sweep-raised absorb was never fixed on the polish branch, so the
-      // D3a/D3b finality split stands even when approvedUnmerged. A blocked sweep (sweepWhy)
+      // non-final phase and DEMOTES naming the discard on the final. A blocked sweep (sweepWhy)
       // reaches here with NO panel convened, so sweepMinors is empty — vacuous. A sweep-raised ask
       // still parks (#1550): the ruling gate is Lead-side, not branch-bound.
       for (const f of sweepMinors) {
