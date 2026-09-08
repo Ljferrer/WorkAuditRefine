@@ -2,7 +2,9 @@
 
 P1 source snapshot: `1b1d06b746814aada3827430c08977a8958f0b68`.
 Implementation follows the six-phase plan in this directory, on PR #2263.
-This document specifies expected evidence; it does not claim these checks passed.
+The case table specifies required evidence. The chronological ledger preserves
+intermediate failures and pending states; the current acceptance section records
+the final source disposition and the separate installed milestone.
 
 ## Canonical resources and ownership
 
@@ -350,16 +352,26 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   discovery test. All remain explicit opt-in host evidence, not baseline passes.
   The missing-output guard was also removed in an isolated control and failed;
   removing the terminal observed-action assertion still produced a false pass.
+- Audit 8: P6 second/final cycle, `1b1d06b..85d6961b`, complete coverage and stable
+  scope. Plan-faithfulness, test-coverage and cascading-impact all approved with
+  high confidence and no findings. This includes the repaired observation oracle,
+  completed baseline/waiver evidence and the operator's explicit WP15 ruling.
+  Eight panels / twenty-four validated seats were used, with no phase exceeding
+  two cycles; the conditional extra allowance was unused. The temporary request
+  was removed; raw result:
+  `/private/tmp/war-planning-validation.6rhjJv/audit-8.json`.
 
 ## Current acceptance and handoff boundary
 
 Implementation/test checkpoint: `13c076b1c8dd00ded75c7016bcaeb8266211b1b3`.
 Later evidence-only commits do not change that tested implementation. The source
-PR remains a draft pending final review. WP15's combined model-action observation
+Source implementation is complete and submitted for operator review in draft
+PR #2263, targeting `codex-port`. WP15's combined model-action observation
 is unverified and explicitly deferred by the operator's 2026-09-08 ruling below;
-it no longer blocks source acceptance. P6's second/final review remains pending.
-Seven panels have been used: P1 none, P2 two, P3 one, P4 two, P5 one, P6 one.
-The detailed #2097 report is drafted, not yet submitted as a completed campaign.
+it no longer blocks source acceptance. P6's final review approved in all seats.
+Eight panels were used: P1 none, P2 two, P3 one, P4 two, P5 one, P6 two.
+The detailed #2097 report consolidates this chronological record and its class
+closures, incomplete observations, operator ruling and validation evidence.
 
 | Cases | Current evidence |
 |---|---|
