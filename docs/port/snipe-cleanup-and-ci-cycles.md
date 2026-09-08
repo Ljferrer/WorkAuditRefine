@@ -9,8 +9,20 @@ changes are authorized by this implementation experiment.
 
 The operator selected `gpt-5.6-sol / medium`; each checkpoint uses three installed
 Snipe seats. Seven panels total is a hard bound, including incomplete panels.
-This log records checkpoints as they occurred. Final totals, outcomes and exact
-acceptance revisions belong in the PRs and #2097 report.
+This log records all six panels in chronological order. A means approve; RC means
+request changes. Incomplete panels count against the budget and are not clean.
+
+| Panel | Pinned scope | Correctness / test-coverage / cascading-impact | Validated findings |
+|---|---|---|---|
+| 1 | `146e20e..edc6c1d` | A / RC / RC | Two Major, two Minor |
+| 2 | `146e20e..7a4f080` | RC / A / A | One Major |
+| 3 | `7a4f080..ad18b81` | A / A / timeout — incomplete | None |
+| 4 | `146e20e..0e7f3fb` | A / A / timeout — incomplete | Three Minor |
+| 5 | `0e7f3fb..3cbc1a0` | A / A / RC | One Major, one Minor |
+| 6 | `146e20e..23f24d3` | A / A / A | None |
+
+All six scopes were stable with complete coverage. Seat timeouts still made panels
+3 and 4 incomplete. All four Major and six Minor findings were accepted and repaired.
 
 ## Initial cleanup repair
 
@@ -102,20 +114,6 @@ alongside another process-heavy suite. Final acceptance requires a fresh baselin
 without competing local suites; this failed report is not replaced by the later
 targeted passes. No scope-capture deadline was weakened.
 
-## Panel 4: incomplete review with three absorb findings
-
-Scope `146e20e..0e7f3fb`, complete coverage and stable scope. Correctness and
-test-coverage approved; cascading-impact timed out. This is incomplete, not clean.
-The three validated Minor findings were accepted: assert exact cleanup messages
-and their projections; assert normal `retainedRoot: null` and disposal reporting;
-correct the mandatory submodule reference's stale unconditional removal promise.
-The earlier prose sweep searched disposal/retention terms but missed "removed" in
-that active reference. The reference correction preserves fetch/retry/checkout
-authority boundaries and passes the skill validator. Fifteen cleanup mutations
-now fail behavioral assertions, including generic-message and stale-root changes.
-The focused cleanup/disposal/mutation tests pass; no production behavior changed
-in this checkpoint. Full baseline diagnosis remains open for the request fixture.
-
 ## T4 initial preparation
 
 - Added an inert workflow under `scripts/ci`, never `.github/workflows`; its
@@ -140,11 +138,28 @@ in this checkpoint. Full baseline diagnosis remains open for the request fixture
   The dedicated environment already contained PyYAML. Tests now explicitly put
   its bin directory first; no base-environment package was changed.
 
-## T4 panels 3 and 5
+## Panel 3: incomplete T4 review
 
 Panel 3 (`7a4f080..ad18b81`) had stable scope and complete coverage, with two
 validated approvals and a cascading-impact timeout. No validated finding was
 returned; it was incomplete, not clean. It counted against the seven-panel bound.
+
+## Panel 4: incomplete review with three absorb findings
+
+Scope `146e20e..0e7f3fb`, complete coverage and stable scope. Correctness and
+test-coverage approved; cascading-impact timed out. This is incomplete, not clean.
+The three validated Minor findings were accepted: assert exact cleanup messages
+and their projections; assert normal `retainedRoot: null` and disposal reporting;
+correct the mandatory submodule reference's stale unconditional removal promise.
+The earlier prose sweep searched disposal/retention terms but missed "removed" in
+that active reference. The reference correction preserves fetch/retry/checkout
+authority boundaries and passes the skill validator. Fifteen cleanup mutations
+now fail behavioral assertions, including generic-message and stale-root changes.
+The focused cleanup/disposal/mutation tests pass; no production behavior changed
+in this checkpoint. Full baseline diagnosis remains open for the request fixture.
+
+## Panel 5: T4 inventory and evidence corrections
+
 Panel 5 (`0e7f3fb..3cbc1a0`) reviewed the restacked checkpoint with the same
 permissions/profile and a 15-minute bound. It completed, stable, A / A / RC.
 
@@ -156,3 +171,48 @@ positive mirrors and string/null/numeric rejection. Both regressions were red
 before the guards. Six final-gate guard mutations fail behavioral assertions.
 Consequence: stricter validation of branch-only evidence and future manifest
 changes; no installed package, Claude engine, workflow activation or ruleset edit.
+
+## Panel 6: combined-stack acceptance
+
+Exact scope `146e20effe0ff2a9d2739aaf6ccc304bd5899490..23f24d36cf61bdbbfa34e2b8f1c56c07bbef04e1`.
+Correctness, test-coverage and cascading-impact all completed with validated
+approvals and high reported confidence. Coverage was complete, scope was stable,
+and no validated findings were returned. The configured auditor profile remained
+`gpt-5.6-sol / medium`; actual model identity was not independently verified.
+The coordinator used host-bundled Node 24.19.0, and auditor permissions remained
+read-only. This panel used the same 15-minute bound as panel 5.
+
+The fresh clean baseline at that exact head completed all 65 suites: 3,317 tests,
+3,313 passes, zero failures, four named skips, zero cancelled and zero todo.
+Source/index/content remained unchanged. It used host-bundled Node 24.19.0 and
+the dedicated `codex-snipe-port` conda Python environment, not the base environment.
+
+This does not erase earlier failed baselines. Besides the two-failure run recorded
+above, a later baseline at `3cbc1a0` had 3,312 passes, one request-fixture timeout
+and four named skips across 65 suites. The unchanged request suite passed 29/29
+with the host-bundled runtime after failing with NVM Node 24.17.0. A process sample
+observed its wrapper at macOS `_dyld_start` before Node initialization; this did not
+establish the OS cause. Speculative source/fixture changes were reverted, and no
+scope deadline was weakened. Runtime packaging and minor version both changed,
+so neither is independently proven causal.
+
+## Final accounting and review handoff
+
+Six panels used 18 seats: 16 validated outcomes (12 approvals and four requests
+for changes), plus two timeouts. Severity counts include test-proof and inventory
+guard defects, not exclusively production runtime regressions. The operator paused
+at Round 6 and later resumed. Acceptance evidence was rechecked against unchanged
+code; the seventh permitted panel was not needed and was not launched.
+
+- Cleanup PR: [#2262](https://github.com/Ljferrer/WorkAuditRefine/pull/2262),
+  head `a8580b56282e6abda1abad42ad4215e2ab17ae52`.
+- CI PR: [#2261](https://github.com/Ljferrer/WorkAuditRefine/pull/2261),
+  audited implementation head `23f24d36cf61bdbbfa34e2b8f1c56c07bbef04e1`, stacked
+  above cleanup. Both target `codex-port`; review/merge cleanup first.
+- Detailed experiment analysis: [#2097 report](https://github.com/Ljferrer/WorkAuditRefine/issues/2097#issuecomment-5590223257).
+
+This chronological documentation update follows the audited implementation; it
+is not part of the tested SHA and does not represent another audit cycle. Hosted
+Linux/macOS execution, native Windows behavior, the original spontaneous EPERM
+cause, T5–T8 certification and workflow/ruleset activation remain unproven or out
+of scope. No installed plugin or engine campaign changes were made.
