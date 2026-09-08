@@ -67,22 +67,23 @@ export function listSupportedProfiles({ codexPath, timeoutMs = 30_000, signal } 
     const send = (message) => child.stdin.write(`${JSON.stringify(message)}\n`)
     child.on('error', error => finish(error.message))
     child.stdin.on('error', error => finish(error.message))
-    child.once('exit', killTree)
-    child.once('close', () => {
+    killTree.settled.then(cleanup => {
       if (!done) {
         done = true
         clearTimeout(timer)
         failure = 'Codex model/list exited before returning a catalog'
       }
       signal?.removeEventListener('abort', cancel)
-      if (failure) reject(Object.assign(new Error(`${failure} (Codex executable: ${codexPath}; override with --codex-path /absolute/path/to/codex)`), { code: 'PROFILE_DISCOVERY_FAILED' }))
+      if (failure || cleanup.cleanupError) reject(Object.assign(new Error(`${failure ?? 'Codex model/list cleanup failed'}${cleanup.cleanupError ? `; ${cleanup.cleanupError.code}: ${cleanup.cleanupError.message}; process group ${cleanup.processGroupId}, termination unconfirmed (operator cleanup required)` : ''} (Codex executable: ${codexPath}; override with --codex-path /absolute/path/to/codex)`), { code: 'PROFILE_DISCOVERY_FAILED', ...cleanup }))
       else resolve(profiles)
     })
     child.stderr.on('data', chunk => {
+      if (done) return
       bytes += chunk.length
       if (bytes > 1024 * 1024) finish('Codex model/list output exceeded limit')
     })
     child.stdout.on('data', chunk => {
+      if (done) return
       bytes += chunk.length
       if (bytes > 1024 * 1024) return finish('Codex model/list output exceeded limit')
       buffer += chunk.toString()
@@ -231,6 +232,7 @@ function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, max
     let terminalReason = null
     let spawnError = null
     let timer = null
+    let settled = false
     const stop = reason => {
       if (terminalReason) return
       terminalReason = reason
@@ -238,6 +240,7 @@ function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, max
       killTree()
     }
     const collect = (chunks, chunk) => {
+      if (settled) return
       const remaining = Math.max(0, maxOutputBytes - outputBytes)
       if (remaining) chunks.push(chunk.subarray(0, remaining))
       outputBytes += Math.min(chunk.length, remaining)
@@ -255,15 +258,15 @@ function runSeat(request, seat, assignment, concern, { codexPath, timeoutMs, max
     child.once('error', error => {
       spawnError = error
     })
-    child.once('exit', killTree)
-    child.once('close', (exitCode, exitSignal) => {
+    killTree.settled.then(cleanup => {
+      settled = true
       clearTimeout(timer)
       signal?.removeEventListener('abort', cancel)
       const stdout = Buffer.concat(stdoutChunks).toString('utf8')
       const stderr = Buffer.concat(stderrChunks).toString('utf8')
       const response = finalResponse(stdout)
-      const status = terminalReason ?? (exitCode === 0 && response !== null ? 'completed' : 'failed')
-      resolve({ seat, lens, rationale, status, exitCode, signal: exitSignal, response, stdout, stderr, truncated, error: spawnError?.message })
+      const status = terminalReason ?? (!cleanup.cleanupError && child.exitCode === 0 && response !== null ? 'completed' : 'failed')
+      resolve({ seat, lens, rationale, status, exitCode: child.exitCode, signal: child.signalCode, response, stdout, stderr, truncated, error: spawnError?.message, ...cleanup })
     })
   })
 }
@@ -272,7 +275,7 @@ async function runValidatedSeat(request, seat, assignment, concern, options) {
   const expected = { seat, lens: assignment.lens, scope: request.scope }
   const initial = await runSeat(request, seat, assignment, concern, options)
   if (initial.status !== 'completed') {
-    return { ...initial, validation: { status: 'unavailable', error: `transport status: ${initial.status}` }, repair: { attempted: false, succeeded: false } }
+    return { ...initial, validation: { status: 'unavailable', error: `transport status: ${initial.status}${initial.cleanupError ? `; cleanup ${initial.cleanupError.code}: ${initial.cleanupError.message}; process group ${initial.processGroupId}, termination unconfirmed (operator cleanup required)` : ''}` }, repair: { attempted: false, succeeded: false } }
   }
   try {
     const verdict = parseSnipeVerdict(initial.response, expected)

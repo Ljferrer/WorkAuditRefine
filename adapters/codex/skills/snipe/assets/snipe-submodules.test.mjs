@@ -42,6 +42,32 @@ function fixture() {
   return { root, child, baseObject, headObject, input: { cwd: root, target: { type: 'ref', ref: base }, profile: { model: 'test', effort: 'low' }, supportedProfiles: { test: ['low'] } } }
 }
 
+test('cleanup denial stops preparation without source fallback and retains review objects', async t => {
+  const f=fixture(), scope=prepareSnipeRequest(f.input).scope
+  t.after(()=>{rmSync(f.root,{recursive:true,force:true});rmSync(f.child,{recursive:true,force:true})})
+  for(const failAt of [1,2,3,8]) {
+    const original=process.kill, groups=[]
+    let retained, failure
+    process.kill=(pid,signal)=>{
+      if(pid < -1){groups.push(pid);if(groups.length===failAt)throw Object.assign(new Error('injected Git denial'),{code:'EPERM'})}
+      return original(pid,signal)
+    }
+    try {
+      await assert.rejects(prepareSnipeSubmodules(scope), error=>{failure=error;retained=error.retainedRoot;return error.code==='SUBMODULE_CLEANUP_FAILED'})
+      assert.equal(failure.cleanupError.code,'EPERM')
+      assert.equal(failure.terminationConfirmed,false)
+      assert.equal(failure.processGroupId,-groups.at(-1))
+      assert.equal(groups.length,failAt,'no subsequent Git operation or fallback after denied cleanup')
+      assert.equal(existsSync(retained),true)
+      assert.match(failure.message,/operator cleanup required/)
+    } finally {
+      process.kill=original
+      for(const group of groups)try{original(group,'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+      if(retained)rmSync(retained,{recursive:true,force:true})
+    }
+  }
+})
+
 test('preparation copies exact local gitlink contents into a disposable read-only review repository', async () => {
   const { root, input, baseObject, headObject } = fixture()
   const before = git(root, 'status', '--porcelain=v2')

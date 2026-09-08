@@ -2,6 +2,30 @@
 
 This check supplements the direct `snipe-actual-host.test.mjs` runtime test. A direct host runner cannot establish that a Codex task requests the necessary launch permission.
 
+## Cleanup failure contract (#2235)
+
+Discovery, auditor seats and submodule Git operations share one cleanup observer.
+A denied cleanup signal never escapes a timer/event callback and is never retried.
+A successfully requested signal gets a 250 ms final-close allowance; inherited
+pipes cannot keep the caller waiting indefinitely after that allowance expires.
+Failures retain `cleanupError` (code/message), `processGroupId`, and
+`terminationConfirmed: false`. These are failure evidence, not a claim that the
+process died. The operator may need to clean up the retained group separately.
+
+Discovery rejects with `PROFILE_DISCOVERY_FAILED`, preserving its original reason
+and cleanup diagnostic. Seats retain timeout/output-limit/cancellation statuses;
+otherwise an uncertain cleanup becomes failed, even if a valid verdict was emitted.
+Healthy peers remain reportable. Submodule preparation stops rather than retrying
+another source and retains its review directory on uncertain termination; the
+error names that directory. No audit seats start after such preparation failure.
+
+Deterministic regressions inject denied/missing-close outcomes through the real
+runner, including successful responses, direct-child exit, timeout, output-limit
+and cancellation. The submodule regression checks metadata/init/copy failures and
+retention. These tests do not explain the original intermittent OS denial, and
+source verification is not an installed-plugin update. After review and merge,
+rebuild the package and repeat the installed app smoke test before release.
+
 ## Post-land integrity contract (#2160)
 
 Invalid verdicts retain their original raw evidence and leave the panel incomplete;
