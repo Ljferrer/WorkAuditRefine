@@ -6271,9 +6271,9 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.ok(keyBody.includes('aceRelPath(f.file)'), 'remintKey normalizes file through aceRelPath (the ONE path normalizer)')
   assert.ok(keyBody.includes('contentHash('), 'remintKey folds the content hash on the empty-key arm')
   const nfBody = windowOf(src, 'const normalizeFinding = f =>', '\nconst askShaped')
-  assert.ok(nfBody.includes('const { seats, merged, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged (never task — see the control below) and normalizes file through aceRelPath')
-  assert.deepEqual(registrySlice().normalizeFinding({ severity: 'Nit', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }] }), { severity: 'Nit', file: 'skills/a.js' },
-    'normalizeFinding behavior: seats/merged dropped, file aceRelPath-normalized (the source-text pins above are shape only)')
+  assert.ok(nfBody.includes('const { seats, merged, drainCause, demoteReason, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged/drainCause/demoteReason (never task — see the control below) and normalizes file through aceRelPath')
+  assert.deepEqual(registrySlice().normalizeFinding({ severity: 'Nit', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }], drainCause: { dispatch: 'forged', why: 'forged' }, demoteReason: 'forged' }), { severity: 'Nit', file: 'skills/a.js' },
+    'normalizeFinding behavior: seats/merged/drainCause/demoteReason dropped (seat-supplied engine provenance never reaches the filing row), file aceRelPath-normalized (the source-text pins above are shape only)')
   // ONE content definition (#2132): the fold's hash and the demotion predicate both read
   // contentTextOf — neither names a raw content field of its own.
   const nsBody = windowOf(src, 'const normalizeSeat = ', '\nconst mergeSeat')
@@ -10922,7 +10922,7 @@ const LITERAL_REGISTRY = [
   ["terminal-revert:phase-${ph.id}`, dispatchKin"],
   ["merge:p${ph.id}-terminal`, schema: MERGE_RES"],
   ["phase-close sweep DISCARDED (${sweepWhy || ("],
-  ["polish merge returned ${pmr && pmr.status ||"],
+  ["polish merge returned ${pmrStatus}` : 'the p"],
   ["land:phase-${ph.id}`, schema: MERGE_RESULT, "],
   ["phase-${ph.id}-land`, reason: 'submodule-pr'", 3],
   ["phase-${ph.id}-land`, reason: landResult.sta", 2],
@@ -12036,6 +12036,15 @@ const BARE_INTERPOLATION_CENSUS = [
   // before either span renders; `row` is the matched threaded row (non-empty by the membership check)
   // and `rationale` carries citationOf's explicit || fallback — both construction-guaranteed strings.
   'c.rationale', 'c.row',
+  // m.demoteReason (engine-and-audit-verdict-integrity Task 9.1, D13 drain provenance, #1799): the
+  // filing-prompt row's `engine demote reason:` cell — the span sits inside a
+  // `typeof m.demoteReason === 'string' && m.demoteReason ? pt\`…\` : ''` conditional, so it only
+  // renders a non-empty string (the guard is the site's own ternary, never a fallback in the span).
+  'm.demoteReason',
+  // dc.dispatch / dc.why (9.1 re-entry a6): the same filing row's `drain cause:` cell — `dc` is the
+  // hoisted `drainCauseOf(m)` local, and the span sits inside a `dc ? pt\`…\` : ''` conditional;
+  // drainCauseOf's shape guard returns null unless dispatch is a string, and String-coerces why.
+  'dc.dispatch', 'dc.why',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -15576,6 +15585,25 @@ test('demote-census — demote() validates a DEMOTE_REASONS prefix on every foll
   assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('DEMOTE_REASONS MISS')).length, 1, 'exactly one miss logged')
 })
 
+// demote() corroboration arm (#1799 sibling cell): a drain-caused row whose content key is already
+// filed this phase corroborates the survivor — and the survivor inherits the structured
+// `drainCause` { dispatch, why } beside the copied `demoteReason`, never only the prose.
+test('demote corroboration: a drain-caused row colliding with an already-filed key copies drainCause to the survivor', () => {
+  const h = registrySlice()
+  const filed = { severity: 'Minor', task: 't1', title: 'dangling link', file: 'docs/x.md', disposition: 'follow-up', seat: 'audit:t1:docs' }
+  h.fileFollowUp(filed)
+  const drained = { severity: 'Minor', task: 't1', title: 'dangling link', file: 'docs/x.md', disposition: 'absorb', seat: 'audit:t1:style', phaseClose: true, drainCause: { dispatch: 'polish:phase-3', why: 'env-died — 529 Overloaded' } }
+  h.demote(drained, 'follow-up', 'demote:absorb-blocked — sweep died')
+  assert.equal(h.minorsFiled.length, 1, 'the collision never pushes a second minorsFiled row')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('demotion CORROBORATES') && l.includes('dangling link')), 'the corroboration is logged')
+  assert.equal(filed.demoteReason, 'demote:absorb-blocked — sweep died', 'the engine reason reaches the survivor (existing copy)')
+  assert.deepEqual(filed.drainCause, { dispatch: 'polish:phase-3', why: 'env-died — 529 Overloaded' }, 'the survivor inherits the structured drainCause cell')
+  // A survivor that already carries a drainCause keeps its own — first stamp wins, mirroring demoteReason.
+  const second = { ...drained, seat: 'audit:t1:security', drainCause: { dispatch: 'polish-worktree:phase-3', why: 'env-died — later' } }
+  h.demote(second, 'follow-up', 'demote:absorb-blocked — again')
+  assert.equal(filed.drainCause.dispatch, 'polish:phase-3', 'an existing drainCause on the survivor is never overwritten')
+})
+
 // Default-deny census over every demote() call whose disposition argument can evaluate to
 // 'follow-up' — the literal shape and the severity-ternary shape. Each site's reason argument must
 // LEAD with a DEMOTE_REASONS member literal (the variable-head sites carry a literal prefix ahead
@@ -15602,7 +15630,9 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   // task-unapproved, absorb-blocked, sweep-skipped ×2 (the held-phase drain retired — it carries now),
   // exclusion-set ×2 (sweep time + the terminal-pass filter) + release-slot at sweep time,
   // terminal-pass ×4 (no commit / did not merge / a seat-raised absorb / a terminal seat that
-  // returned no verdict, final phase only), sweep-discarded ×2 (final phase only).
+  // returned no verdict, final phase only), sweep-discarded ×2 (the queue drain — the final phase, or
+  // ANY phase on the approve trail of a panel-approved branch whose merge never landed (D15, #2087) —
+  // and the sweep-raised absorb, final phase only).
   assert.equal(sites.length, 25, `the census domain is exactly TWENTY-FIVE follow-up-capable demote() sites (found ${sites.length}) — a new site joins this census with its DEMOTE_REASONS prefix`)
   for (const s of sites) {
     const p = reasonPrefixOf(s.reason)
@@ -15620,7 +15650,7 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   assert.ok(!src.includes(NEGATIVE_REF), 'the negative reference is unwired (never in the engine)')
   // Every member cited somewhere or reserved: the three variable-head/ternary sites carry a literal prefix.
   assert.ok(src.includes("'demote:sweep-skipped — ' + (provDrainCause"), 'the provDrainCause site leads with a literal prefix')
-  assert.ok(src.includes("'demote:sweep-discarded — ' + (sweepDrainCause"), 'the sweepDrainCause site leads with a literal prefix')
+  assert.ok(src.includes("'demote:sweep-discarded — ' + discardWhy"), 'the queue-drain site (discardWhy: the drain cause, the approve trail, or the plain discard) leads with a literal prefix')
   assert.ok(src.includes("'demote:absorb-regressed — failed absorb — ' + (ur"), 'the re-entry regression ternary leads with a literal prefix')
   // Retired follow-up arms: the three failed-attempt sites are routeToSweep calls now.
   const n = normalizedSrc()
@@ -15789,12 +15819,12 @@ test('gate-audit-route — a gate-audit note with a suggested_fix and a file in 
   assert.ok(ev && ev.prompt.includes('PHASE DIFF') && ev.prompt.includes('phase_diff_files'), 'the evidence dispatch asks for phase_diff_files')
 })
 
-test('gate-audit-route — phase_diff_files absent: the follow-up arm still reroutes, the note arm skips with a log, and no demote:floor-skipped comes from this pass', async () => {
+test('gate-audit-route — phase_diff_files absent: the follow-up arm still reroutes, the note arm matches nothing with a log, and no demote:floor-skipped comes from this pass', async () => {
   const bare = gaAbsorb({ title: 'ga follow-up no phase diff', disposition: 'follow-up' })
   const note = gaAbsorb({ title: 'ga note no phase diff', disposition: 'note' })
   const barred = gaAbsorb({ title: 'ga barred no phase diff', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bare, note, barred] }))
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase_diff_files absent') && l.includes('note arm skips')), 'the note-arm skip is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase_diff_files absent') && l.includes('note arm matches nothing')), 'the note-arm empty-Set match is logged')
   assert.ok(polishPromptOf(calls).includes('ga follow-up no phase diff'), 'the follow-up still reroutes into the sweep')
   assert.ok((out.notes || []).some(n => n && n.title === 'ga note no phase diff'), 'the note keeps its classification')
   const filed = demotionOf(out, 'ga barred no phase diff')
@@ -16897,4 +16927,163 @@ test('MERGE_RESULT: gate_segment pinned, optional, evaluated', () => {
   assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'error' }), true, 'a marker-less error is schema-legal (gate_segment optional)')
   assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'error', gate_segment: 'partial' }), false, 'gate_segment rejects any value outside its enum')
   assert.equal(evalSchema(MR, { mode: 'merge-task', status: 'incomplete' }), false, 'incomplete is never a wire status — the status enum is unwidened (PIN-2)')
+})
+
+// ---- Task 9.1 (engine-and-audit-verdict-integrity, End state 15): drain provenance, the discard-sweep
+// stamp, the gate-audit ask arms, the approve-trail conversion, dropDup ---------------------------
+
+// D13 / PIN-17 (#1799): the drain-cause stamp reaches the two surfaces a human triages from — the
+// filing-prompt row (beside the seat rationale, with the engine demote reason) and
+// handoff.followUps[].drainCause. Delete-the-feature: with the row cells and the projection key
+// removed, the stamp survives only on the raw minorsFiled return and every assert below fails.
+test('drain cause reaches filing prompt and followUps: a sweep dispatch death renders `drain cause:` and `engine demote reason:` on the filing row and carries drainCause on the handoff projection; an ordinary discard carries the demote reason only', async () => {
+  const dead = (prompt, opts) => {
+    if ((opts.label || '') === 'polish:phase-3') throw new Error('529 Overloaded')
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), dead)
+  assert.equal(out.handoff.polish, 'discarded', 'presence guard: the dead sweep takes the DISCARD arm')
+  const fp = filingPromptOf(calls)
+  assert.ok(fp.includes('title: "dangling link"'), 'presence guard: the demoted row rides the filing prompt')
+  assert.match(fp, /why not absorbable: [^\n]*· engine demote reason: demote:sweep-discarded — polish:phase-3 sweep dispatch died/, 'the engine demote reason renders beside the seat rationale')
+  assert.match(fp, /· drain cause: polish:phase-3 died — [^\n]*env-died[^\n]*529 Overloaded/, 'the drain cause renders on the same row, naming WHICH dispatch died and WHY')
+  const fu = (out.handoff.followUps || []).find(r => r && /dangling link/.test(r.reason || ''))
+  assert.ok(fu && fu.drainCause && fu.drainCause.dispatch === 'polish:phase-3', 'handoff.followUps carries drainCause.dispatch')
+  assert.match(String(fu.drainCause.why), /env-died.*529 Overloaded/, 'handoff.followUps carries drainCause.why verbatim')
+  // Negative control: a live sweep the panel rejected — no dispatch died, so no drain cause anywhere;
+  // the engine demote reason still renders (the row is engine-demoted).
+  const reject = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+        findings: [{ severity: 'Major', title: 'sweep broke it', file: 'docs/x.md', rationale: 'r' }] }] },
+    sweepBase([queuedAbsorb()]))
+  const plain = await runPhase(SWEEP_ARGS(), reject)
+  const fp2 = filingPromptOf(plain.calls)
+  assert.ok(fp2.includes('engine demote reason: demote:sweep-discarded — phase-close sweep discarded'), 'an ordinary discard still renders its engine demote reason')
+  assert.ok(!fp2.includes('· drain cause:'), 'no drain cause cell on an ordinary discard row (death-scoped, never a discard default); the Demote-Reason instruction names the cell on every prompt')
+  assert.ok(fp2.includes('append it to that same line verbatim'), 'the Demote-Reason instruction carries the drain cause onto the first line when the row has one')
+  const fu2 = (plain.out.handoff.followUps || []).find(r => r && /dangling link/.test(r.reason || ''))
+  assert.ok(fu2 && !('drainCause' in fu2), 'the handoff row carries no drainCause key when no dispatch died')
+})
+
+// #2053: the discard-sweep arm's floorSkipped stamp gets its delete-fails fixture — the escalation,
+// never-ran-drain and terminal-pass arms already had theirs. The polish panel rejects the branch
+// (the DISCARD arm, so the merged arm's identical stamp site never runs) while raising a
+// disposition:follow-up Minor; with `f.floorSkipped = true` deleted at the discard site the row files
+// without the stamp and filed-by renders seat-filed instead of demote:floor-skipped.
+test('discard sweep: floorSkipped stamped and logged — a sweep-raised follow-up on a DISCARDED sweep files with floorSkipped, the stamp is logged, and filed-by renders demote:floor-skipped (#2053)', async () => {
+  const fu = { severity: 'Minor', title: 'discard-arm follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
+  const reject = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+        findings: [{ severity: 'Major', title: 'sweep broke it', file: 'docs/x.md', rationale: 'r' }, fu] }] },
+    sweepBase([queuedAbsorb()]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), reject)
+  assert.equal(out.handoff.polish, 'discarded', 'presence guard: the DISCARD arm ran (the merged arm never did)')
+  const filed = demotionOf(out, 'discard-arm follow-up')
+  assert.ok(filed && filed.engineFiled !== true, 'presence guard: the sweep-raised follow-up files as a seat row')
+  assert.equal(filed.floorSkipped, true, 'the discard arm stamps floorSkipped (no intake floor ran for the polish pseudo-task)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep-raised follow-up "discard-arm follow-up"') && l.includes('floorSkipped')), 'the stamp is logged at the discard site (never a silent stamp)')
+  assert.match(filingPromptOf(calls), /title: "discard-arm follow-up"[^\n]*filed-by: demote:floor-skipped/, 'the filing row renders demote:floor-skipped for the stamped row')
+})
+
+// #2058: the gate-audit floor pass has no noteArmSkipped special case — an absent phase diff reads as
+// an EMPTY Set for the note arm, and the omitted-disposition default classifies over an empty Set
+// whether the row's file is in the phase diff or not (PIN-17), so an IN-diff omitted row still gets
+// absorb + phaseClose:true (gate-audit rows never join a task ace batch). The behavior leg is a
+// characterization pin: routeToSweep stamps phaseClose:true on every gate-audit absorb, so passing
+// the real phase diff to dispositionOf would not move it — the delete-fails legs are the two `src`
+// guards (noteArmSkipped absent; the absent diff reads as an empty Set).
+test('gate-audit-route — an in-diff omitted-disposition row gets phaseClose:true without the special case; noteArmSkipped is gone (#2058)', async () => {
+  const omitted = { severity: 'Minor', title: 'ga in-diff omitted', file: 'docs/ga.md', rationale: 'r', suggested_fix: 'fix it' }
+  const evidence = { perTask: [], phase_diff_files: ['./docs/ga.md'] }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [omitted], evidence }))
+  assert.ok(calls.some(c => /^evidence:phase-/.test(c.opts.label || '')), 'presence guard: the evidence dispatch ran (phase_diff_files present, containing the file)')
+  assert.ok(polishPromptOf(calls).includes('ga in-diff omitted'), 'the in-diff omitted row rides the sweep')
+  const aced = (out.aced || []).find(x => x && x.finding && x.finding.title === 'ga in-diff omitted')
+  assert.ok(aced && aced.finding.phaseClose === true && aced.finding.seat === 'gate-audit:t1:execution-evidence', 'absorb + phaseClose:true, seat-stamped — in-diff membership carries no meaning at this site')
+  assert.ok(!demotionOf(out, 'ga in-diff omitted'), 'never filed')
+  assert.ok(!src.includes('noteArmSkipped'), 'the noteArmSkipped special case is deleted — the note arm reads an empty Set when the phase diff is absent')
+  assert.ok(src.includes("const phaseDiff = phaseDiffFiles === null ? new Set() : phaseDiffFiles"), 'the absent phase diff reads as an EMPTY Set')
+})
+
+// #1792: the integrated-tip and end-state-only ask arms — two thirds of the gate-audit family that
+// the #1692 fixture (per-task seat) never reached. Each parks with its synthetic seat label, the
+// family pseudo-task id and the seat's audit_sha; neither files.
+test('gate-audit ask arms: integrated-tip and end-state park — an intra-dep phase parks the integrated-tip seat\'s ask and a requiresTest:false phase parks the end-state seat\'s ask, each with its synthetic seat label, task and sha (#1792)', async () => {
+  const askOf = title => ({ severity: 'Minor', title, file: 'docs/ga.md', rationale: 'r', disposition: 'ask', ask: { question: 'capture or recompute?', fork: ['capture', 'recompute'] } })
+  // Arm 1: the integrated-tip AUTHORITATIVE seat (a same-repo dep edge + captured integrated-tip gate).
+  const depArgs = SWEEP_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ] })
+  const evidence = { perTask: [], integratedTipGate: { gate_output: 'ok', tip_sha: 'beefcafe12' } }
+  const tipSeat = label => label === 'gate-audit:phase-3:integrated-tip'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: 'cafef00d12', findings: [askOf('integrated-tip ask')] }
+    : null
+  const tip = await runPhase(depArgs, p4Base({ evidence, seatsOf: tipSeat }))
+  assert.ok(tip.calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:integrated-tip'), 'presence guard: the integrated-tip seat convened')
+  assert.equal(tip.out.landDecision, 'landed', 'a gate-audit Minor ask is SOFT — never a hold')
+  const a1 = (tip.out.asks || []).find(x => x && x.question === 'capture or recompute?' && x.seat === 'gate-audit:phase-3:integrated-tip')
+  assert.ok(a1, 'the integrated-tip ask parks with the family\'s synthetic seat label')
+  assert.equal(a1.task, 'phase-3-integrated-tip', 'the parked ask carries the integrated-tip pseudo-task id')
+  assert.equal(a1.sha, 'cafef00d12', 'the parked ask carries the seat\'s audit_sha')
+  assert.ok(!demotionOf(tip.out, 'integrated-tip ask'), 'the ask never files')
+  // Arm 2: the end-state-only seat (nothing merged for gate-audit: requiresTest:false + a claimed End state).
+  const esArgs = SWEEP_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const esSeat = label => label === 'gate-audit:phase-3:end-state'
+    ? { seat: label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', audit_sha: 'feedface12', findings: [askOf('end-state ask')] }
+    : null
+  const es = await runPhase(esArgs, p4Base({ seatsOf: esSeat }))
+  assert.ok(es.calls.some(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state'), 'presence guard: the end-state-only seat convened')
+  assert.ok(!es.calls.some(c => /^gate-audit:t1:/.test(c.opts.label || '')), 'presence guard: no per-task gate-audit seat (empty merge set for gate-audit)')
+  const a2 = (es.out.asks || []).find(x => x && x.question === 'capture or recompute?' && x.seat === 'gate-audit:phase-3:end-state')
+  assert.ok(a2, 'the end-state ask parks with the family\'s synthetic seat label')
+  assert.equal(a2.task, 'phase-3-end-state', 'the parked ask carries the end-state pseudo-task id')
+  assert.equal(a2.sha, 'feedface12', 'the parked ask carries the seat\'s audit_sha')
+  assert.ok(!demotionOf(es.out, 'end-state ask'), 'the ask never files')
+})
+
+// D15 half 2 / PIN-19 (#2087): the approve trail. The polish panel APPROVED the branch and its merge
+// never landed — the branch's audited findings convert to follow-up rows naming the orphaned branch
+// (demote:sweep-discarded, an existing member) on a NON-final phase too, never a silent carry. A
+// panel-reject discard keeps the D3a carry (pinned by the terminal-pass finality fixture above).
+test('polish-discarded: findings become follow-ups — a panel-approved polish branch whose merge never landed files its audited findings as demote:sweep-discarded follow-ups naming the branch on a non-final phase (never carried) and on the final phase', async () => {
+  const approvedUnmerged = (prompt, opts) => (opts.label || '') === 'merge:p3-polish'
+    ? { mode: 'merge-task', status: 'conflict', conflict_files: ['docs/x.md'] }
+    : sweepBase([queuedAbsorb()])(prompt, opts)
+  const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), approvedUnmerged)
+  assert.equal(nonFinal.out.handoff.polish, 'discarded', 'presence guard: the unmerged branch is discarded')
+  assert.ok(nonFinal.out.auditLog.some(e => e && e.task === 'p3-polish' && e.verdict === 'approve'), 'presence guard: the approve trail — the panel approved the branch')
+  assert.ok(nonFinal.out.auditLog.some(e => e && e.verdict === 'polish-discarded' && e.branch === 'war/wtprov-a/p3-polish'), 'the discard names the branch')
+  const d = demotionOf(nonFinal.out, 'dangling link')
+  assert.ok(d, 'the audited finding files as a follow-up on the non-final phase (never a carry)')
+  assert.match(d.demoteReason, /^demote:sweep-discarded — the polish panel approved branch war\/wtprov-a\/p3-polish and its merge never landed \(conflict\)/, 'the reason leads with the existing member and names the orphaned branch + the merge status')
+  assert.ok(!carriedOf(nonFinal.out, 'dangling link'), 'not carried — a carry would re-sweep while the branch rots unnamed')
+  assert.ok(nonFinal.logs.some(l => typeof l === 'string' && l.includes('DISCARDED') && l.includes('polish merge returned conflict') && l.includes('the panel approved the branch')), 'the DISCARDED log names the approve trail')
+  assert.match(filingPromptOf(nonFinal.calls), /title: "dangling link"[^\n]*engine demote reason: demote:sweep-discarded — the polish panel approved branch war\/wtprov-a\/p3-polish/, 'the filing row carries the branch-naming reason')
+  assert.equal(nonFinal.out.landDecision, 'landed', 'the pre-polish tip lands (a discarded sweep recomputes nothing)')
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), approvedUnmerged)
+  const df = demotionOf(final.out, 'dangling link')
+  assert.ok(df && /^demote:sweep-discarded — the polish panel approved branch war\/wtprov-a\/p3-polish/.test(df.demoteReason), 'the final phase files the same branch-naming reason')
+  assert.deepEqual(final.out.carriedPhaseClose, [], 'nothing carried on the final phase')
+})
+
+// #2096: ONE dropDup helper owns the find-log-mergeSeat shape at the drainHeldAbsorbs site and the
+// routeAbsorbTail sites. Census floor (PIN-4): `dropDup(` counts the call sites — the never-ran drain
+// (drainHeldAbsorbs), routeAbsorbTail's phase-close-queue sink and routeAbsorbTail's ace-batch sink;
+// the definition line reads `dropDup = (` and is pinned by its own signature row below. The wordings
+// the retired inline copies logged are now the dropDup whereNoun args `'in this drain'`,
+// `'queued for the phase-close sweep'` and `'in this ace batch'`.
+test('dropDup census: one definition owns the duplicate-drop shape at drainHeldAbsorbs and routeAbsorbTail; the `is a duplicate of a row already` wordings are its whereNoun args `in this drain`, `queued for the phase-close sweep`, `in this ace batch` (#2096)', () => {
+  assert.ok((src.match(/dropDup\(/g) || []).length >= 3, 'dropDup( appears at least three times: the drainHeldAbsorbs call site, routeAbsorbTail\'s phase-close-queue sink call site and routeAbsorbTail\'s ace-batch sink call site (a floor — hand-scan the sites named below)')
+  assert.equal((src.match(/^const dropDup = \(list, f, who, taskId, whereNoun\) =>/gm) || []).length, 1, 'ONE definition with the (list, f, who, taskId, whereNoun) signature')
+  assert.equal((src.match(/is a duplicate of a row already/g) || []).length, 1, 'the log sentence lives ONLY in dropDup — no inline copy survives')
+  assert.ok(src.includes("dropDup(absorbs, f, 'held absorb', t.id, 'in this drain')"), 'drainHeldAbsorbs drops through the helper')
+  assert.ok(src.includes("dropDup(phaseCloseQueue, f, who, r.task.id, 'queued for the phase-close sweep')"), 'routeAbsorbTail drops against the phase-close queue through the helper')
+  assert.ok(src.includes("dropDup(aceable, f, who, r.task.id, 'in this ace batch')"), 'routeAbsorbTail drops against the ace batch through the helper')
+  assert.ok(!src.includes("absorbs.find(a => remintKey(a) === remintKey(f))"), 'the drain\'s inline find is gone')
+  assert.ok(!src.includes("phaseCloseQueue.find(q => remintKey(q) === key)"), 'the absorb tail\'s inline queue find is gone')
+  assert.ok(!src.includes("aceable.find(a => remintKey(a) === key)"), 'the absorb tail\'s inline ace-batch find is gone')
 })
