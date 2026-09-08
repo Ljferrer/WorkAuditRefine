@@ -5,7 +5,7 @@ the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 
 budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and
 the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115, and
 the § Land-barrier endstate-check steps and the § MergeResult merge-task-only fields parenthetical from its Task 5.1, #2156 — ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
-time). Positional words inside the moved blocks ("below", "above") refer to their original card
+time, except the MergeResult parenthetical, which gained its new `gate_segment` row in the same commit). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
 superproject land loop (the card's on-push-success return — the old step 4 — was evicted to
