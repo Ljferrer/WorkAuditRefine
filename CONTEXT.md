@@ -596,6 +596,30 @@ multi-seat roster the human approved is never second-guessed.
 _Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;
 treating the default-roster union as the only source (nomination comes first).
 
+**Decision-forked finding** (audit):
+A blocking (Critical/Major) finding whose fix needs a plan decision the plan does not make, so the
+seat can name no concrete in-file `suggested_fix`. It is the one finding class that escalates: the
+seat returns `escalate` with an `escalate_reason` naming the missing decision, and the engine reads
+that reason into the `escalated[]` record. Its opposite is the **mechanical** blocking finding — a
+concrete in-file edit with round budget left — which is `request_changes` by construction and never
+escalates: on a split the one rebuttal round runs first, then a survivor with a `suggested_fix`
+dispatches a fix round plus a full-roster re-audit (rebuttal first, then fix round when a
+suggested_fix survives), and only a fix-less survivor escalates — the two-sided boundary
+([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md), Decision log 2026-09-08;
+#1989, #1664).
+_Avoid_: escalating a fixable bug because it is severe; a reason-less `escalate` (the schema layer
+re-prompts it); reading **Defect class** as this — that tags a *worker's* block, this a seat's finding.
+
+**Seat-conflict ask** (audit):
+The operator ask the engine synthesizes when a panel splits on one file/locus with the severities on
+both sides of the blocking line and at least one side arguing scope/mandate or an adjudication match
+— a conflict between seats, not a defect a fixer can settle. Instead of escalating, the detector parks
+one `ask` through `parkAsk` carrying a fix-now / follow-up-and-merge fork; interactive rules it at the
+Checkpoint strike-list gate, `--afk` resolves it by citation or demotes it with the question
+preserved (#1914; see **Ask disposition**).
+_Avoid_: holding the phase on a seat conflict; a seat minting this itself (the engine synthesizes it
+from the seats' own verdicts).
+
 **Gate-audit pass**:
 The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
 `execution-evidence` lens — SOFT by default, HARD (land-holding) only on a provably-unrun mapped test.
