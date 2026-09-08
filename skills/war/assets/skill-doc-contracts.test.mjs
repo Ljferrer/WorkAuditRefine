@@ -4349,12 +4349,8 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
   assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
   // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  // Extracted BY CONSTRUCT (Decision 4's opening to Decision 5's pin), never a byte-0 or `## Decision`
-  // prefix slice: the Status currency block carries the same byte-run and would otherwise satisfy the
-  // key on Decision 4's behalf.
-  const dec4 = adr0013.match(/^4\. \*\*Findings route by auditor-owned[\s\S]*?(?=\n5\. \*\*)/m)
-  assert.ok(dec4, 'could not locate ADR 0013 Decision 4 — construct rotted')
-  assert.match(norm(dec4[0]), /rebuttal first, then fix round when a `suggested_fix` survives/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
+  assert.match(norm(decisions), /rebuttal first, then fix round when a `suggested_fix` survives/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
   assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
   assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
 })
