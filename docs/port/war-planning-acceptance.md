@@ -355,8 +355,9 @@ future engine. Do not weaken source obligations to satisfy generated prose.
 
 Implementation/test checkpoint: `13c076b1c8dd00ded75c7016bcaeb8266211b1b3`.
 Later evidence-only commits do not change that tested implementation. The source
-PR remains a draft: WP15 is unverified, the operator's deferral-versus-blocking
-decision is pending, and P6's second/final review cycle is held for settled evidence.
+PR remains a draft pending final review. WP15's combined model-action observation
+is unverified and explicitly deferred by the operator's 2026-09-08 ruling below;
+it no longer blocks source acceptance. P6's second/final review remains pending.
 Seven panels have been used: P1 none, P2 two, P3 one, P4 two, P5 one, P6 one.
 The detailed #2097 report is drafted, not yet submitted as a completed campaign.
 
@@ -371,7 +372,7 @@ The detailed #2097 report is drafted, not yet submitted as a completed campaign.
 | WP09–WP10 | Unfinished source retained on stop; collision question before overwrite; malicious quoted instructions did not authorize execution; original/unrelated bytes preserved. |
 | WP11–WP12 | Help-only observed actions and independent package inventories; source-independent moved lint, byte identity, reference closure and negative package controls. |
 | WP13–WP14 | Actual parser/lint checks on produced artifacts; sentinel bytes/no query log/no memory CLI with Claude environment values supplied. |
-| WP15 | **Unverified.** Independent dispatch and native OS denial/control succeeded, but the model-action event is absent. The strict opt-in oracle now rejects this condition. |
+| WP15 | **Explicitly deferred, not passed.** Independent dispatch and native OS denial/control succeeded, but the model-action event is absent. The strict opt-in oracle still rejects this condition. |
 
 Runtime: Node 24+ and a supported Codex executable/profile for independent verifier
 dispatch. The dedicated conda environment is for validation, not a plugin dependency.
@@ -384,3 +385,19 @@ and separate installation approval, install only the new planning package throug
 the supported plugin flow, then verify its qualified invocations in a fresh task.
 That installed milestone, broader Claude migration/T5–T8, hosted CI activation and
 engine execution certification remain separate; none is implied by this baseline.
+
+### Operator ruling: WP15 combined observation
+
+On 2026-09-08 the operator agreed to accept the separate real-dispatch and native
+OS-enforcement evidence for this source PR, while explicitly deferring the combined
+model-action/denial trace. This is not a claim that the absent event was observed,
+nor permission to relax the read-only implementation or the strict opt-in test.
+It authorizes finishing source review and the #2097 report; it does not authorize
+another paid evaluation, merge, installation or a broader host-runtime repair.
+
+The follow-up remains tracked here as WP15: determine why the captured verifier
+JSONL lacks the command-action event, then obtain a bounded, separately authorized
+observation showing the actual write command, denied result and unchanged bytes.
+Retain the native sandbox positive/negative controls. The reason for deferral is
+concrete independent enforcement evidence with no observed write escape, not an
+assumption about hidden model actions. Installed acceptance remains separate.
