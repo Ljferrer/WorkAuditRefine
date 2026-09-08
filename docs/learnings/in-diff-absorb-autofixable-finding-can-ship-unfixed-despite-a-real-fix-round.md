@@ -2,12 +2,12 @@
 name: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
 description: "A Minor/Nit finding disposed absorb + autoFixable:true, inside the task's own Files diff, can still ship unfixed once the task's verdict reaches approve"
 metadata: 
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-5
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-7
   node_type: memory
   type: project
   provenance: code-verified
   slug: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
-  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +1 recurrence (2026-09-06-engine-and-audit-verdict-integrity/phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79 on dev/2026-09-06-engine-and-audit-verdict-integrity)"
+  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +2 recurrences (2026-09-06-engine-and-audit-verdict-integrity/phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99, both on dev/2026-09-06-engine-and-audit-verdict-integrity)"
   keywords: 
     - absorb disposition
     - autoFixable
@@ -24,6 +24,11 @@ metadata:
     - citationOf
     - schemas.md drift
     - phaseClose queue not drained
+    - drainCause dropped on merge
+    - FOLLOW-UP CONSOLIDATION
+    - mergeSeat
+    - test title lags assertion
+    - drainCauseOf header comment
   tags: 
     - war
     - audit-findings
@@ -31,7 +36,7 @@ metadata:
     - workflow-template
   created: 2026-09-07
   originSessionId: a2a576b1-d8af-4c79-ad1a-af3d3e5c5c91
-  modified: 2026-09-08T09:02:45.943Z
+  modified: 2026-09-08T14:01:43.889Z
 ---
 
 # An in-diff `absorb`/`autoFixable:true` finding can ship unfixed even after a real fix round ran
@@ -110,6 +115,43 @@ not a completion guarantee — and `fixRounds: 0` (an all-Minor/Nit round-1 appr
 that round's absorb findings were ever mechanically applied, `phaseClose` or not.** Always re-Read
 the named construct at the landed tip before trusting a `suggested_fix` landed.
 
+**Recurrence 3 (code-verified — landed tip `b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99` on
+`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 9 "Sweep, terminal pass, filing
+fidelity", task 9.1, read via the run-scoped `_refinery` worktree whose `HEAD` is directly on this
+tip: `<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
+Task 9.1's own audit approved with `fixRounds: 0` — every finding topped out at Minor/Nit, so the
+verdict went straight to `approve` with no fix round at all. Four findings carried
+`disposition: absorb`, `autoFixable: true`; three had no `phaseClose: true` (the in-diff,
+"will be fixed now" shape). All three of those three are confirmed still unfixed at the landed
+tip:
+
+1. The FOLLOW-UP CONSOLIDATION block's `if (hit)` arm (`skills/war/assets/workflow-template.js`,
+   search `mergeSeat(hit, f)`) still has no line copying a merged-away row's `f.drainCause` onto
+   the survivor `hit.drainCause`. The suggested fix (mirror `demote()`'s own first-stamp-wins copy
+   at line 1537, `if (f.drainCause && !hit.drainCause) hit.drainCause = f.drainCause`) was never
+   applied — `mergeSeat(hit, f)` runs and nothing else touches `drainCause` in that arm.
+2. `skills/war/assets/workflow-template.test.mjs` line 6267, the census test title, still reads
+   "normalizeSeat strips seats/merged and demotes empty content" — the body's own assertion
+   message two lines below (`nfBody.includes(...)`) already says "strips
+   seats/merged/drainCause/demoteReason," so the title now visibly lags the assertion it labels.
+3. `drainCauseOf`'s header comment (`skills/war/assets/workflow-template.js`, near line 5433)
+   still reads "both sit outside any local try" — untrue for the filing-prompt row builder, which
+   runs inside the file-followups dispatch's own `try`; only the handoff followUps projection is
+   actually outside a try.
+
+The one absorb finding that DID carry `phaseClose: true` (the ADR 0012 cross-reference) landed
+correctly, but only after the phase's later `p9-polish` task iterated on it across several rounds
+— see the phase-9 recurrence in
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] for that surface's
+own fate (fixed on the ADR, NOT fixed on two sibling glossary/schema surfaces stating the same
+rule).
+
+**Reinforces the pattern with the cleanest case yet:** `fixRounds: 0` plus `disposition: absorb`
+plus `autoFixable: true` plus NO `phaseClose: true` is the strongest-looking "this is definitely
+fixed" shape the audit log can produce for a Minor/Nit — and three-for-three of them still shipped
+untouched. Never infer a fix from the disposition tag, the `autoFixable` flag, or the absence of
+`phaseClose: true`; only a fresh Read at the landed tip confirms it.
+
 **Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
 much larger, heavily-recurring instance of this same root fact for **terminal/polish** tasks
 specifically (no further round exists structurally); this lesson generalizes it to an ordinary,
@@ -126,4 +168,8 @@ evictions from..."); `skills/war/assets/workflow-template.test.mjs`, search "617
 parenthetical byte-identical". Recurrence 2: `skills/war/references/schemas.md`, search `citation?`
 near line 63; `skills/war/assets/workflow-template.js`, search `citationStamp reached only the
 sweep copy` (the `queuedFindingRow` header) and `const citationOf`; `skills/war/assets/workflow-template.test.mjs`,
-search `Args for the citation family` (the `CITE_ARGS` header, around line 12846).
+search `Args for the citation family` (the `CITE_ARGS` header, around line 12846). Recurrence 3:
+`skills/war/assets/workflow-template.js`, search `mergeSeat(hit, f)` (the FOLLOW-UP CONSOLIDATION
+`if (hit)` arm) and `const drainCauseOf` (the header comment reading "both sit outside any local
+try"); `skills/war/assets/workflow-template.test.mjs`, search "strips seats/merged and demotes
+empty content" (the test title, line 6267).
