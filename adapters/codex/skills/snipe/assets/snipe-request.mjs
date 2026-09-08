@@ -239,7 +239,8 @@ function aliasHostName(host, configPath) {
       // evaluator. Refuse instead of silently dropping identity-affecting rules.
       if (['include', 'match', 'canonicalizehostname'].includes(key)) return null
       if (!['host', 'hostname'].includes(key)) continue
-      const value = directive[2].replace(/\s+#.*$/, '').trim().replace(/^"([^"\\]*)"$/, '$1')
+      const rawValue = directive[2].replace(/\s+#.*$/, '').trim()
+      const value = key === 'hostname' ? rawValue.replace(/^"([^"\\]*)"$/, '$1') : rawValue
       if (key === 'host') {
         const patterns = value.split(/\s+/)
         if (patterns.some(pattern => !/^!?[a-z0-9*?._-]+$/i.test(pattern))) return null

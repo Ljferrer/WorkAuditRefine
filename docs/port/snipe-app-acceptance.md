@@ -46,7 +46,7 @@ first obtained value and permits `Match exec` to execute commands. The resolver
 supports ordered `Host` patterns, wildcards, negation, and literal `HostName`.
 The user config must be a regular, user-owned file without group/other write
 permission and at most 1 MiB. Symlinks, `Include`, `Match`, canonicalization,
-tokenized names, and malformed identity directives are refused. System-only
+tokenized names, quoted `Host` patterns, and malformed identity directives are refused. System-only
 aliases are unsupported. This is a verified declarative identity mapping, not
 a connection test or a claim that every SSH configuration is supported.
 

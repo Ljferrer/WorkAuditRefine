@@ -36,6 +36,12 @@ test('SSH alias identity respects first-value, wildcard and negated Host matchin
   assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null)
 })
 
+test('quoted Host groups are not reinterpreted as separate alias patterns', () => {
+  const config = join(mkdtempSync(join(tmpdir(), 'snipe-ssh-')), 'config')
+  writeFileSync(config, 'Host "SQP.github.com other.example"\n HostName github.com\n')
+  assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null)
+})
+
 test('SSH alias identity refuses ambiguous config and never executes its commands', () => {
   const directory = mkdtempSync(join(tmpdir(), 'snipe-ssh-'))
   const config = join(directory, 'config')
