@@ -25,9 +25,9 @@ Create the JSON request in an OS temporary directory, not the target repository.
 
 Never add `--dangerously-bypass-approvals-and-sandbox`, extra writable directories, connectors, or inherited MCP servers. Do not retry permission failures. Do not fetch missing PR objects from a seat.
 
-After seats finish, inspect the runner's `stability` result before making any stable statement. If it changed, lead with the instability and do not call the panel clean. A nonzero exit, timeout, cancellation, output limit, missing response, or malformed response leaves that seat incomplete. Preserve valid peers and never turn an incomplete panel into “no findings.”
+After seats finish, inspect the runner's `stability` result before making any stable statement. If it changed, lead with the instability and do not call the panel clean. A nonzero exit, timeout, cancellation, output limit, missing response, or result that remains invalid after its single schema-only repair attempt leaves that seat incomplete. Preserve valid peers and never turn an incomplete panel into “no findings.”
 
-S3 supplies the strict result validator and final formatter. Until that stage is present, expose raw seat outcomes as development evidence only; do not represent this intermediate build as a production-clean audit.
+Present the runner's `report` field as the Snipe result. It is derived only from validated seat results and orders the canonical scope, seat outcomes, limitations, severity-ranked attributed findings, operator asks, and report-only widening recommendations. Do not replace an incomplete warning with a prose clean summary. Raw transport output is diagnostic evidence, not an additional finding source.
 
 ## Stop boundary
 

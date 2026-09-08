@@ -1,6 +1,6 @@
 # Snipe for Codex — implementation plan and durable checklist
 
-Date: 2026-09-07. Status: planned; implementation has not started. This document is the continuation record for the first Codex feature port. Checkbox completion requires evidence, not an agent's recollection.
+Date: 2026-09-07. Status: implementation in progress; S0-S3 complete. This document is the continuation record for the first Codex feature port. Checkbox completion requires evidence, not an agent's recollection.
 
 ## Start here after compaction
 
@@ -178,11 +178,11 @@ The parent reports scope first, then per-seat outcomes, followed by severity-ran
 
 ### S3 — validation and report
 
-- [ ] Implement the explicit result schema and supported alias normalization.
-- [ ] Reject wrong revision/lens/seat, malformed findings, inconsistent approval and incomplete JSON.
-- [ ] Implement the single bounded schema-repair path and incomplete-panel reporting.
-- [ ] Produce the informational report with attribution, limitations, dirty-state caveat and surfaced asks.
-- [ ] Prove report handling never invokes fixes, git mutation, issue filing or PR comments.
+- [x] Implement the explicit result schema and supported alias normalization.
+- [x] Reject wrong revision/lens/seat, malformed findings, inconsistent approval and incomplete JSON.
+- [x] Implement the single bounded schema-repair path and incomplete-panel reporting.
+- [x] Produce the informational report with attribution, limitations, dirty-state caveat and surfaced asks.
+- [x] Prove report handling never invokes fixes, git mutation, issue filing or PR comments.
 
 **Exit gate:** valid findings survive partial failure; missing evidence cannot become a clean result.
 
@@ -240,7 +240,7 @@ No new GitHub Actions workflows or branch protections are needed for the first s
 | Codex model default | Inherit the invoking session's model/effort when that exact pair is supported by the selected host; validate explicit overrides against the same host map and refuse unsupported pairs. | `snipe-request.test.mjs` covers inherited and explicit supported profiles plus unsupported model/effort refusals. |
 | Explicit target envelope | `rawArgs` contains only legacy seats/lenses. `target` is a structured object: omitted/`default`, `ref`, explicit two-dot `range`, `merge-base`, or full GitHub `pr` URL with a trusted base ref/SHA. `paths` is a separate literal string array. Locally unavailable PR objects are refused without fetching. | Focused tests cover legacy ambiguity, two-dot versus merge-base semantics, non-default PR bases, matching/lookalike origins, missing objects, spaces, quotes, shell metacharacters and Git pathspec magic. |
 | Dirty-state strategy | Default dirty scope is advisory and hashes pinned HEAD plus complete staged/unstaged binary diffs and relevant untracked file contents. Recompute after review; a changed hash is unstable. Explicit committed targets ignore unrelated working-tree changes. Gitlink changes disclose exact pointers and local availability; uncommitted nested-submodule content is explicitly uncaptured and can never produce a stable result. | Focused tests cover staged, unstaged and untracked material, stable recomputation, a mid-run edit, committed scope in a dirty checkout, and committed/staged/unstaged/uncommitted-nested submodule states. |
-| Result field compatibility | Pending S3 | Shared card/schema comparison and alias tests |
+| Result field compatibility | Versioned Snipe result v1 uses numeric `seat`, exact `lens`, a committed or dirty `scope` identity, verdict/confidence, normalized findings, `tests_verified`, and optional `widen`/`escalate_reason`. Supported WAR aliases are `seat-N`, top-level `audit_sha`, `evidence`→`rationale`, `fix`→`suggested_fix`, `tests_inspected`→`tests_verified`, and `ask.fork`→`ask.alternatives`; ambiguous or unknown fields are rejected. | Result tests cover canonical/alias-positive cases, wrong identity, malformed/incomplete JSON, malformed findings, reserved widening, false anti-cheat attestation and inconsistent approval. |
 | Package layout and hooks | Use a Codex manifest with an explicit no-op hook file when the adapter needs no hooks; do not permit default discovery of Claude's `hooks/hooks.json`. | CLI 0.153.4 installed a disposable package containing both `hooks/hooks.json` and an explicit `hooks/codex-hooks.json`; with hook trust enabled only for that isolated package, the default-hook sentinel did not run. The cached package contained every referenced skill, policy and hook file. |
 
 State when this plan was authored: this plan only; the earlier source check passed all 13 existing snipe parser tests. No live Codex snipe audit or denied-write acceptance had run. No runtime implementation, test infrastructure, model configuration, or installed plugin files were changed at that time.
@@ -344,6 +344,35 @@ node --test skills/snipe/assets/snipe-args.test.mjs adapters/codex/skills/snipe/
 
 SNIPE_CODEX_BIN=/Applications/ChatGPT.app/Contents/Resources/codex SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium node --test adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs
   -> 1 passed, 0 failed in 293.85 seconds
+
+conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/skill-creator/scripts/quick_validate.py adapters/codex/skills/snipe
+  -> Skill is valid!
+
+git diff --check
+  -> clean
+```
+
+### 2026-09-07 — S3 validation and report
+
+- Implementation commit: `4ffda74`. Completed checklist items: all five S3 items. Added the versioned Snipe result validator and pure report renderer, integrated both into the bounded coordinator, updated the explicit skill/role instructions, and extended the actual-host contract.
+- Result contract: v1 validates exact seat, lens and scope identity. Committed results must echo the pinned head SHA; dirty results must echo the advisory fingerprint. Canonical findings require severity, title and rationale; Minor/Nit findings require a disposition, `ask` requires a question and explicit alternatives, and `escalate` requires a nonempty operator-decision explanation. An approval carrying Critical/Major findings is invalid, as is a false `tests_verified.exist` anti-cheat attestation.
+- Supported aliases: `seat-N` normalizes to numeric seat; top-level `audit_sha` normalizes to committed scope; `evidence` to `rationale`; `fix` to `suggested_fix`; `tests_inspected` to `tests_verified`; and `ask.fork` to `ask.alternatives`. Canonical-plus-alias ambiguity, unknown fields and reserved widening lenses fail validation instead of being erased.
+- Repair and partial failure: only a transport-completed but invalid result receives one schema-only repair process. The repair prompt carries the identical scope and forbids inspection, tools, widening, escalation and external actions. A persistent invalid result becomes `invalid_result`; timeout, cancellation, output-limit and transport failures are not schema-retried. Valid peer findings survive and the panel/report remain explicitly incomplete.
+- Report behavior: the pure renderer reports scope first, then every seat outcome, limitations, and severity-ranked findings. Exact corroboration is grouped while retaining seat/lens attribution; contradictions remain separate. Dirty instability and submodule limitations are visible, Critical/Major findings say “would block in a phase,” asks and escalation reasons are surfaced, and disposition/widen values are labeled report-only. The module imports no process, filesystem, network or GitHub action capability.
+- Actual-host evidence: the final post-review run on Codex CLI `0.153.4` with `gpt-5.6-sol`/`medium` passed one-seat, two-seat and capability-denial cases under result v1 in 217.87 seconds. Results were schema-validated rather than accepted from exit zero; the capability probe returned validated marker findings while the host still denied the write and left the target snapshot unchanged.
+- Review: parallel Standards and Spec reviews finished with no remaining findings. Review caught and drove two fixes: `tests_verified.exist` must be exactly `true`, and the validator now imports the maintained shared reserved-lens list instead of copying it.
+- Delivery: branch `codex/snipe-port-s3` stacks on and targets `codex/snipe-port-s2`. S4 will branch from and target S3.
+- Remaining limitations: S4 still owns the full focused acceptance/regression sweep, a seeded real-host bug audit, fresh installed-package validation with the development checkout unavailable, and final version/support declarations. No package publication or global installation has occurred.
+- Next unchecked action: S4, beginning with the complete focused acceptance matrix and seeded two-lens host audit.
+
+Exact S3 test commands and results:
+
+```text
+node --test skills/snipe/assets/snipe-args.test.mjs adapters/codex/skills/snipe/assets/snipe-request.test.mjs adapters/codex/skills/snipe/assets/snipe-result.test.mjs adapters/codex/skills/snipe/assets/snipe-runner.test.mjs adapters/codex/skills/snipe/snipe-structure.test.mjs
+  -> 50 passed, 0 failed
+
+SNIPE_CODEX_BIN=/Applications/ChatGPT.app/Contents/Resources/codex SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium node --test adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs
+  -> 1 passed, 0 failed in 217.87 seconds
 
 conda run -n codex-snipe-port python /Users/ljf/.codex/skills/.system/skill-creator/scripts/quick_validate.py adapters/codex/skills/snipe
   -> Skill is valid!
