@@ -972,7 +972,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
     'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
     'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow'])
-  const ownPlanStem = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null
+  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
+  const ownPlanStem = ownPlanBase ? ownPlanBase.replace(/\.md$/i, '') : null
   let ownTokens = [...new Set([planSlug, ownPlanStem]
     .filter(Boolean)
     .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
@@ -983,11 +984,10 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // token — and the fallback is logged; only a launch with neither slug words nor plan.file stays
   // fail-open.
   if (!ownTokens.length && ownPlanStem) {
-    ownTokens = [ownPlanStem.toLowerCase()]
+    ownTokens = [ownPlanStem]
     log('workflow-template: #1413 own-token floor — every slug word is stoplisted or too short; falling back to the plan basename ' + JSON.stringify(ownTokens[0]) + ' as the single anchor token (#1767). The floor still fires.')
   }
   const tokenRe = t => new RegExp('\\b' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
-  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
   const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
   // Predecessor-citation strip for a preformatted STRING row (#1751): the citation segment is the
   // plan id DIRECTLY after `supersedes` (`supersedes docs/plans/<x>.md`, `supersedes: docs/plans/<x>.md`
@@ -1098,17 +1098,17 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
       provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
-    // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
-    // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
+    // hasOwnTokenScannableRow: any non-exempt, non-value row (the own-token refusal surface — a surface
+    // whose rows are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
     // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed), and the
     // foreign-plan-id scan reads every row's (citation-stripped) text, exempt rows included (#1749).
-    const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
+    const hasOwnTokenScannableRow = rows.some(r => !r.exempt && !r.value && r.text)
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
     if (!evidenceText) continue
     const planIds = idText.match(PLAN_ID_RE) || []
     const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
-    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(evidenceText))
+    const ownTokenMiss = hasOwnTokenScannableRow && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(evidenceText))
     // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
     // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
