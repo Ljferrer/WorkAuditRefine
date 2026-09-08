@@ -92,7 +92,8 @@ findings route once judgment is licensed. Full mechanics:
    demotion set with a drift-guard — a guarded-invariant addition to the finding-severity model here, no new
    ADR. This routing/severity model is otherwise unchanged.)*
 5. **The ace string backstop narrows to the two pure version-slot JSONs** (`plugin.json`,
-   `marketplace.json` — canonical as `RELEASE_SLOT_FILES` in `skills/war/assets/land-decision.mjs`) — the only files where a filename alone is sufficient evidence
+   `marketplace.json` — canonical as `RELEASE_SLOT_FILES` in `skills/war/assets/land-decision.mjs`) —
+   the only files where a filename alone is sufficient evidence
    for a sandbox that cannot read code. Release-slot eligibility is otherwise by literal, not by file
    (edited in place 2026-09-08, D20 of the 2026-09-06 verdict-integrity plan; #2000): a `README.md` or
    `CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version
