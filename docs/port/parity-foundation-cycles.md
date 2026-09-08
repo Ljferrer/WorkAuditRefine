@@ -65,3 +65,29 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
 - Early behavioral observation: auditors identified sibling output channels and
   process completion paths, not just the original test cases. This did not prevent
   substantial defects in the initial implementation; no convergence claim yet.
+
+### Cycle 2 — T1 class-closure review
+
+- Pin: `56fc1be`, compared with the goal base; same seats and profile as cycle 1.
+- Raw audit and clean-baseline evidence: `/private/tmp/war-parity-cycle2.Y4YJEJ/`.
+- Clean baseline passed all 62 suites: 3,262 passing observed Node cases/shell
+  assertion rows and four explicitly allowed host skips; source/index/content
+  unchanged. Counts combine the reported units, not a claim of unique scenarios.
+- All seats completed: correctness and test-coverage requested changes;
+  cascading-impact approved. Two Major findings and one absorbable Minor; no
+  follow-ups or asks. The repair's unframed content hash permitted redistributed
+  bytes to collide; the prior tests independently proved neither index nor
+  content digests; cleanup-error rejection had no dedicated negative witness.
+- Repaired with per-file digest/length framed records. Added already-dirty tracked
+  and untracked content probes, index-only changes with stable worktree/HEAD/path
+  membership, a cleanup-error fixture, and a two-file framing collision. The first
+  collision fixture accidentally put another file between the pair; that passing
+  fixture was rejected, filenames corrected, and the collision observed red before
+  fixing the hash. This is evidence of validation iteration, not an oscillating
+  operator policy or a new audit round.
+- 18 collector tests pass, including eleven targeted assertion-killed mutations.
+  Four new mutations independently remove index digest, content digest, framing,
+  and cleanup-error rejection. No claim that the first repair was complete merely
+  because its tests passed; this round found new-code defects in the same class.
+- T2's first independent stale-approval oracle and full scenario catalog are in
+  progress, not yet committed or declared complete. T3 has not started.

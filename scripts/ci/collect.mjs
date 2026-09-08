@@ -21,9 +21,9 @@ function snapshot(root, output) {
     if (path === excluded || path.startsWith(excluded + '/')) continue
     const absolute = join(root, path)
     const stat = lstatSync(absolute, { throwIfNoEntry: false })
-    hash.update(JSON.stringify([path, stat?.mode ?? null]))
-    if (stat?.isSymbolicLink()) hash.update(readlinkSync(absolute))
-    else if (stat?.isFile()) hash.update(readFileSync(absolute))
+    const bytes = stat?.isSymbolicLink() ? Buffer.from(readlinkSync(absolute)) : stat?.isFile() ? readFileSync(absolute) : Buffer.alloc(0)
+    const digest = createHash('sha256').update(bytes).digest('hex')
+    hash.update(JSON.stringify([path, stat?.mode ?? null, bytes.length, digest]) + '\n')
   }
   return { sourceSha: git('rev-parse', 'HEAD').trim(),
     trackedChanges: git('diff', 'HEAD', '--name-only', '-z').split('\0').filter(Boolean),

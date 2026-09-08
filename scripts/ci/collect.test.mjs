@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -150,6 +150,67 @@ test('CLI refuses a staged deletion against the reviewed census', t => {
   assert.throws(() => execFileSync(process.execPath, [fileURLToPath(new URL('./collect.mjs', import.meta.url)), '--run', join(root, 'report')], { cwd: root, encoding: 'utf8', stdio: 'pipe' }), error => error.status !== 0 && /inventory mismatch/.test(error.stderr))
 })
 
+test('metadata-shaped bytes cannot be redistributed across dirty files without detection', async t => {
+  const root = fixture(t, {
+    'a.txt': 'base-a', 'b.txt': 'base-b',
+    'z-action.mjs': "import{writeFileSync,statSync}from'node:fs'; const marker=JSON.stringify(['b.txt',statSync('b.txt').mode]); writeFileSync('a.txt','');writeFileSync('b.txt','X'+marker+'Y');",
+    'hooks/drift.test.sh': 'node z-action.mjs; echo "ok - mutation"',
+  })
+  const marker = JSON.stringify(['b.txt', statSync(join(root, 'b.txt')).mode])
+  writeFileSync(join(root, 'a.txt'), marker + 'X')
+  writeFileSync(join(root, 'b.txt'), 'Y')
+  const report = await collect({ root, output: join(root, 'report') })
+  assert.deepEqual(report.before.trackedChanges, report.after.trackedChanges)
+  assert.equal(report.before.indexDigest, report.after.indexDigest)
+  assert.notEqual(report.before.contentDigest, report.after.contentDigest)
+  assert.equal(report.ok, false)
+})
+
+test('already-dirty content drift is detected without changed path membership', async t => {
+  for (const tracked of [true, false]) {
+    const root = fixture(t, { ...(tracked ? { 'data.txt': 'base' } : {}), 'hooks/drift.test.sh': 'echo after > data.txt; echo "ok - mutation"' })
+    writeFileSync(join(root, 'data.txt'), 'before')
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.before.sourceSha, report.after.sourceSha)
+    assert.equal(report.before.indexDigest, report.after.indexDigest)
+    assert.deepEqual(report.before.trackedChanges, report.after.trackedChanges)
+    assert.deepEqual(report.before.untrackedInputs, report.after.untrackedInputs)
+    assert.equal(report.ok, false)
+  }
+})
+
+test('index-only drift is detected without changing worktree content or path membership', async t => {
+  const root = fixture(t, {
+    'data.txt': 'base',
+    'action.mjs': "import{execFileSync}from'node:child_process';const blob=execFileSync('git',['hash-object','-w','--stdin'],{input:'index-only',encoding:'utf8'}).trim();execFileSync('git',['update-index','--cacheinfo','100644,'+blob+',data.txt']);",
+    'hooks/drift.test.sh': 'node action.mjs; echo "ok - mutation"',
+  })
+  writeFileSync(join(root, 'data.txt'), 'working')
+  const report = await collect({ root, output: join(root, 'report') })
+  assert.equal(report.before.sourceSha, report.after.sourceSha)
+  assert.equal(report.before.contentDigest, report.after.contentDigest)
+  assert.deepEqual(report.before.trackedChanges, report.after.trackedChanges)
+  assert.notEqual(report.before.indexDigest, report.after.indexDigest)
+  assert.equal(report.ok, false)
+})
+
+test('cleanup error independently prevents successful suite classification', async t => {
+  const root = fixture(t, { 'hooks/pass.test.sh': 'echo "ok - assertion"' })
+  const original = process.kill
+  process.kill = (pid, signal) => {
+    if (pid < 0) throw Object.assign(new Error('simulated cleanup denial'), { code: 'EPERM' })
+    return original(pid, signal)
+  }
+  try {
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.suites[0].exitCode, 0)
+    assert.equal(report.suites[0].failure, null)
+    assert.equal(report.suites[0].cleanupError, 'simulated cleanup denial')
+    assert.equal(report.suites[0].status, 'failed')
+    assert.equal(report.ok, false)
+  } finally { process.kill = original }
+})
+
 test('successful suite exit also terminates redirected descendants', async t => {
   const root = fixture(t, {
     'worker.mjs': "import{writeFileSync,appendFileSync}from'node:fs'; writeFileSync(process.argv[2],String(process.pid)); setInterval(()=>appendFileSync(process.argv[3],'x'),20);",
@@ -177,6 +238,10 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['descendant', 'clearTimeout(timer)\n      terminateGroup()', 'clearTimeout(timer)', 'successful suite exit'],
     ['output-limit', 'bytes > 16 * 1024 * 1024', 'false', 'output floods'],
     ['runtime-path', "dirname(process.execPath) + delimiter + (process.env.PATH ?? '')", "process.env.PATH ?? ''", 'nested node'],
+    ['index-digest', ".update(git('ls-files', '--stage', '-z'))", ".update('')", 'index-only'],
+    ['content-digest', "contentDigest: hash.digest('hex')", "contentDigest: 'removed'", 'already-dirty content'],
+    ['cleanup-error', '!execution.cleanupError && ', '', 'cleanup error'],
+    ['framing', "hash.update(JSON.stringify([path, stat?.mode ?? null, bytes.length, digest]) + '\\n')", "hash.update(JSON.stringify([path, stat?.mode ?? null])); hash.update(bytes)", 'metadata-shaped'],
   ]
   for (const [name, from, to, pattern] of cases) {
     assert.equal(source.split(from).length, 2, `mutation ${name} must alter one real guard`)
