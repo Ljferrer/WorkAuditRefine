@@ -321,7 +321,7 @@ None.
 - **Grep as floor** — "grep X, handle every match" requires a manual same-scope title/comment survey;
   list stragglers as survey-derived corrections.
 
-The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`) mechanically flags the cheap literals —
+The advisory `plan-literal-lint.mjs` (resolved through the host reference) mechanically flags the cheap literals —
 line ranges, `*.test.sh` gate lists, suite counts, release-task version literals — at conversion; it is
 report-only (exit 0 by default, `--strict` opt-in), never a `/war` gate. `/war-strategy` runs it on every
 plan it authors (§4).

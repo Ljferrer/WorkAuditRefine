@@ -86,3 +86,19 @@ test('builder refuses source symlink ancestors before producing any package', t 
   assert.throws(()=>buildPlanningPlugin({repoRoot:source,output}),/source/)
   assert.equal(existsSync(output),false)
 })
+
+test('qualified invocation agrees across manifest, skill identity and UI prompt', t=>{
+  const root=mkdtempSync(join(tmpdir(),'war-planning-invocation-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const output=join(root,'work-audit-refine-planning');buildPlanningPlugin({repoRoot,output})
+  const m=JSON.parse(readFileSync(join(output,'.codex-plugin/plugin.json'),'utf8'))
+  const path=join(output,'skills/war-strategy/agents/openai.yaml'),original=readFileSync(path,'utf8')
+  const skillPath=join(output,'skills/war-strategy/SKILL.md'),skill=readFileSync(skillPath,'utf8')
+  const name=skill.match(/^name: (.+)$/m)[1], invocation=`$${m.name}:${name}`
+  assert.deepEqual(m.interface.defaultPrompt.flatMap(p=>p.match(/\$[\w:-]+/g)),[invocation])
+  assert.deepEqual(JSON.parse(original.match(/^\s*default_prompt: (.+)$/m)[1]).match(/\$[\w:-]+/g),[invocation])
+  writeFileSync(path,original.replace(invocation,'$stale:war-strategy'))
+  assert.throws(()=>verifyPlanningPlugin(output),/invocation/)
+  writeFileSync(path,original)
+  writeFileSync(skillPath,skill.replace('name: war-strategy','name: wrong'))
+  assert.throws(()=>verifyPlanningPlugin(output),/invocation/)
+})

@@ -67,6 +67,20 @@ export function verifyPlanningPlugin(root) {
   if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error('unexpected or missing planning component')
   const config=JSON.parse(readFileSync(join(root,'.codex-plugin/plugin.json'),'utf8'))
   assert.deepEqual(config,manifest(config?.version),'invalid planning manifest')
+  const skill=readFileSync(join(root,'skills/war-strategy/SKILL.md'),'utf8')
+  const frontmatter=skill.match(/^---\n([\s\S]*?)\n---/)
+  const names=[...(frontmatter?.[1] ?? '').matchAll(/^name: ([\w-]+)$/gm)]
+  assert.equal(names.length,1,'invocation requires one skill name')
+  const invocation=`$${config.name}:${names[0][1]}`
+  const metadata=readFileSync(join(root,'skills/war-strategy/agents/openai.yaml'),'utf8')
+  const prompts=[...metadata.matchAll(/^\s*default_prompt: (.+)$/gm)]
+  assert.equal(prompts.length,1,'invocation requires one UI default prompt')
+  let uiPrompt
+  try { uiPrompt=JSON.parse(prompts[0][1]) } catch { throw new Error('invalid invocation prompt encoding') }
+  for(const prompt of [...config.interface.defaultPrompt,uiPrompt]) {
+    assert.equal(typeof prompt,'string','invocation prompt must be text')
+    assert.deepEqual(prompt.match(/\$[\w:-]+/g),[invocation],'invocation differs across metadata')
+  }
   return actual
 }
 

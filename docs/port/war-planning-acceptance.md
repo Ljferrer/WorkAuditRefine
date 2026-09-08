@@ -104,8 +104,22 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   behavioral scenarios, each bounded to ten minutes and at most one diagnostic
   rerun. This is separate from Snipe audit accounting and does not authorize
   normal-plugin installation.
-- Audit 1: P2 scope `3535a45..3f775f2`, three Sol/medium seats launched; results
-  pending. P3 changes are outside that pinned scope and require their own checkpoint.
+- Audit 1: P2 scope `3535a45..3f775f2`, three Sol/medium seats returned complete,
+  stable coverage. Correctness approved; test-coverage requested changes;
+  cascading-impact approved. Two Major and two Minor findings reduced to three
+  accepted defect classes (metadata consistency was reported twice):
+  - Claude-preservation checks pinned too few literals. A pre-extraction snapshot
+    now compares the complete discovery and closing blocks; scoped assertions and
+    seven inversion controls cover memory, advisory lint and verifier duties.
+  - Manifest, skill identity and UI invocation could drift independently. Package
+    verification derives the qualified invocation from manifest/skill identity and
+    rejects disagreement. The mutation test failed before the production guard,
+    then passed after repair; both UI-prompt and skill-name drift are exercised.
+  - Shared doctrine retained a checkout-relative lint locator. It now delegates
+    resolution to the host reference, with source and structure regression checks.
+  All seven package/host-contract tests pass after these repairs. No findings were
+  dismissed or deferred. This is deterministic evidence, not behavioral acceptance.
+  P3 changes are outside the original pinned scope and require their own checkpoint.
 - Audit budget: at most two cycles per code-bearing phase, twelve total; the
   operator's conditional final extra cycle is not pre-spent. Each panel uses three
   Sol/medium seats. Log exact scope, verdicts, failure class, repair, red/green proof,

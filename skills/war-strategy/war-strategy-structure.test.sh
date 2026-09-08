@@ -263,7 +263,7 @@ check_f 'use the dotted path'                                # dotted path for n
 check_f 'next free patch above the live base'               # release-task next-free-patch
 check_f 'defined-but-not-yet-emitted; produced in Task N'    # cross-slice annotation
 check_f 'requires a manual same-scope title/comment survey'  # grep-as-floor
-check_f 'The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`)'   # §2 convention block
+check_f 'The advisory `plan-literal-lint.mjs` (resolved through the host reference)' # §2 convention block
 check_f 'use the host reference to run the shared `assets/plan-literal-lint.mjs`' # §4 delegates mechanics, not lint duty
 check_f 'read [references/host.md](references/host.md)'
 for host_literal in 'find -L ~/.claude/skills' 'node skills/war-strategy/assets/plan-literal-lint.mjs <plan>' 'node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings' '.claude/war/runs/'; do
