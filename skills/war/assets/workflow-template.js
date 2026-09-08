@@ -438,8 +438,9 @@ const pinTransfers = []
 const asks = []
 // carriedPhaseClose (in-band-absorb-default D3b, PIN-5): absorb findings this phase could not land
 // and did NOT demote — a held phase's whole phaseCloseQueue, a discarded sweep's absorbs on a
-// non-final phase, and a non-final terminal pass's regressed/fresh absorbs. A TOP-LEVEL key on the
-// phase return at BOTH return sites (never inside the handoff — its followUps projection is
+// non-final phase EXCEPT the approve trail (a panel-approved branch whose merge never landed files
+// them naming the branch, D15 #2087), and a non-final terminal pass's regressed/fresh absorbs. A
+// TOP-LEVEL key on the phase return at BOTH return sites (never inside the handoff — its followUps projection is
 // explicit-key: it carries drainCause since #1799 and nothing a carry needs), present as [] on a
 // phase with nothing carried so absence is never ambiguous. The Lead threads it back as
 // args.seededPhaseClose at the relaunch.
@@ -1532,6 +1533,7 @@ const demote = (f, to, why, opts) => {
       log('Disposition demotion CORROBORATES: [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') → ' + to + ' — ' + why + '; the content key already lives on ' + prior + ' (D12, #1862) — the raiser joins its seats list, never a second minorsFiled row (logged, never silent).')
       const hit = corroborateSurvivor(f)
       if (hit) hit.demoteReason = hit.demoteReason || why   // lands on the durable minorsFiled record and renders as the filing row's `engine demote reason` cell — never on the filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
+      if (hit && f.drainCause && !hit.drainCause) hit.drainCause = f.drainCause   // the sibling drainCause cell (#1799) rides the same copy — a drain-caused row colliding with an already-filed key keeps its structured { dispatch, why } provenance on the survivor
       return
     }
     filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record

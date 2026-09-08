@@ -15581,6 +15581,25 @@ test('demote-census — demote() validates a DEMOTE_REASONS prefix on every foll
   assert.equal(h.logs.filter(l => typeof l === 'string' && l.includes('DEMOTE_REASONS MISS')).length, 1, 'exactly one miss logged')
 })
 
+// demote() corroboration arm (#1799 sibling cell): a drain-caused row whose content key is already
+// filed this phase corroborates the survivor — and the survivor inherits the structured
+// `drainCause` { dispatch, why } beside the copied `demoteReason`, never only the prose.
+test('demote corroboration: a drain-caused row colliding with an already-filed key copies drainCause to the survivor', () => {
+  const h = registrySlice()
+  const filed = { severity: 'Minor', task: 't1', title: 'dangling link', file: 'docs/x.md', disposition: 'follow-up', seat: 'audit:t1:docs' }
+  h.fileFollowUp(filed)
+  const drained = { severity: 'Minor', task: 't1', title: 'dangling link', file: 'docs/x.md', disposition: 'absorb', seat: 'audit:t1:style', phaseClose: true, drainCause: { dispatch: 'polish:phase-3', why: 'env-died — 529 Overloaded' } }
+  h.demote(drained, 'follow-up', 'demote:absorb-blocked — sweep died')
+  assert.equal(h.minorsFiled.length, 1, 'the collision never pushes a second minorsFiled row')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('demotion CORROBORATES') && l.includes('dangling link')), 'the corroboration is logged')
+  assert.equal(filed.demoteReason, 'demote:absorb-blocked — sweep died', 'the engine reason reaches the survivor (existing copy)')
+  assert.deepEqual(filed.drainCause, { dispatch: 'polish:phase-3', why: 'env-died — 529 Overloaded' }, 'the survivor inherits the structured drainCause cell')
+  // A survivor that already carries a drainCause keeps its own — first stamp wins, mirroring demoteReason.
+  const second = { ...drained, seat: 'audit:t1:security', drainCause: { dispatch: 'polish-worktree:phase-3', why: 'env-died — later' } }
+  h.demote(second, 'follow-up', 'demote:absorb-blocked — again')
+  assert.equal(filed.drainCause.dispatch, 'polish:phase-3', 'an existing drainCause on the survivor is never overwritten')
+})
+
 // Default-deny census over every demote() call whose disposition argument can evaluate to
 // 'follow-up' — the literal shape and the severity-ternary shape. Each site's reason argument must
 // LEAD with a DEMOTE_REASONS member literal (the variable-head sites carry a literal prefix ahead
