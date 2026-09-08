@@ -3,7 +3,9 @@
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
+import { lstatSync, readlinkSync } from 'node:fs'
+import { consumeRegularFile, readRegularFile } from './snipe-files.mjs'
+import { gitEvidenceEnvironment } from './snipe-git-policy.mjs'
 import os from 'node:os'
 import { join } from 'node:path'
 import { localCommitAvailable, localSubmoduleRepository } from './snipe-submodules.mjs'
@@ -23,9 +25,27 @@ function fail(code, message) {
   throw new SnipeRequestError(code, message)
 }
 
+// Scope capture is synchronous, so each entrypoint owns this budget until it
+// returns; concurrent asynchronous panels cannot interleave capture operations.
+let captureDeadline = Infinity
+function captureScope(operation) {
+  const previous = captureDeadline
+  captureDeadline = Date.now() + 30_000
+  try {
+    const result = operation()
+    if (Date.now() >= captureDeadline) fail('SCOPE_LIMIT', 'scope capture deadline exceeded (30 seconds)')
+    return result
+  } finally { captureDeadline = previous }
+}
+
 function spawnGit(args, options) {
+  const remaining = captureDeadline - Date.now()
+  if (remaining <= 0) fail('SCOPE_LIMIT', 'scope capture deadline exceeded (30 seconds)')
+  // Scope discovery must not inherit presentation settings that hide gitlinks.
+  if (args[0] === 'diff' || args[0] === 'status') args = [args[0], '--ignore-submodules=none', ...args.slice(1)]
   return spawnSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args], {
-    ...options, env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_NO_REPLACE_OBJECTS: '1' },
+    timeout: Math.min(5_000, remaining), killSignal: 'SIGKILL', maxBuffer: 32 * 1024 * 1024,
+    ...options, env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), ...gitEvidenceEnvironment },
   })
 }
 
@@ -124,7 +144,7 @@ function gitlinkChangesFromArgs(cwd, args, source = null) {
     const path = renamed ? fields[index + 2] : firstPath
     index += renamed ? 3 : 2
     if (match[1] !== '160000' && match[2] !== '160000') continue
-    const nested = localSubmoduleRepository(cwd, path)
+    const nested = localSubmoduleRepository(cwd, path, { deadline: captureDeadline })
     const baseObject = match[1] !== '160000' || /^0+$/.test(match[3]) ? null : match[3]
     let headObject = match[2] !== '160000' || /^0+$/.test(match[4]) ? null : match[4]
     if (source === 'unstaged' && match[2] === '160000' && !headObject && nested) {
@@ -138,22 +158,25 @@ function gitlinkChangesFromArgs(cwd, args, source = null) {
       ? spawnGit(['status', '--porcelain=v2', '-z'], { cwd: nested, encoding: 'utf8' })
       : null
     const nestedDirty = nestedStatus?.status === 0 && nestedStatus.stdout.length > 0
+    const nestedStatusUnavailable = nestedStatus !== null && nestedStatus.status !== 0
     const required = [baseObject, headObject].filter(Boolean)
     const commitsAvailable = required.every(object => (
-      localCommitAvailable(cwd, object) || (nested && localCommitAvailable(nested, object))
+      localCommitAvailable(cwd, object, { deadline: captureDeadline }) || (nested && localCommitAvailable(nested, object, { deadline: captureDeadline }))
     ))
     const unresolvedHead = match[2] === '160000' && !headObject
-    const contentsAvailable = commitsAvailable && !nestedDirty && !unresolvedHead
+    const contentsAvailable = commitsAvailable && !nestedDirty && !nestedStatusUnavailable && !unresolvedHead
     const change = {
       path,
       baseObject,
       headObject,
       contentsAvailable,
-      limitation: nestedDirty
+      limitation: nestedStatusUnavailable ? 'nested submodule status could not be captured'
+        : nestedDirty
         ? 'nested submodule has uncommitted content; exact scope stability cannot be proven'
         : (contentsAvailable ? null : 'one or more pinned submodule commits are unavailable locally'),
     }
     if (nestedDirty) change.nestedDirty = true
+    if (nestedStatusUnavailable) change.nestedDirty = true
     if (unresolvedHead) change.unresolvedHead = true
     if (source) change.source = source
     changes.push(Object.freeze(change))
@@ -229,7 +252,7 @@ function aliasHostName(host, configPath) {
         typeof process.getuid !== 'function' || stat.uid !== process.getuid()) return null
     let active = true
     let hostname = null
-    for (const line of readFileSync(configPath, 'utf8').split(/\r?\n/)) {
+    for (const line of readRegularFile(configPath, 1024 * 1024).toString('utf8').split(/\r?\n/)) {
       const clean = line.trim()
       if (!clean || clean.startsWith('#')) continue
       const directive = clean.match(/^([a-z]+)(?:\s*=\s*|\s+)(.*)$/i)
@@ -238,6 +261,9 @@ function aliasHostName(host, configPath) {
       // Includes, conditional passes and canonicalization require the full SSH
       // evaluator. Refuse instead of silently dropping identity-affecting rules.
       if (['include', 'match', 'canonicalizehostname'].includes(key)) return null
+      const argument = directive[2].replace(/\s+#.*$/, '').trim()
+      if (active && (['proxycommand', 'proxyjump', 'hostkeyalias', 'localcommand'].includes(key) ||
+          (key === 'user' && argument !== 'git') || (key === 'port' && argument !== '22'))) return null
       if (!['host', 'hostname'].includes(key)) continue
       const rawValue = directive[2].replace(/\s+#.*$/, '').trim()
       const value = key === 'hostname' ? rawValue.replace(/^"([^"\\]*)"$/, '$1') : rawValue
@@ -252,9 +278,9 @@ function aliasHostName(host, configPath) {
         if (active && hostname === null) hostname = value.toLowerCase()
       }
     }
-    // First obtained HostName wins over subsequent host blocks and system config.
-    return hostname
-  } catch { return null }
+    // This is a user-config declaration, not proof of the effective SSH route.
+    return hostname ?? host
+  } catch (error) { return error.code === 'ENOENT' ? host : null }
 }
 
 // configPath is a trusted host/test seam, never a field in the request envelope.
@@ -265,14 +291,17 @@ export function githubOriginIdentity(value, configPath = join(os.homedir(), '.ss
   const ssh = value.match(/^(?:git@([a-z0-9][a-z0-9.-]*):|ssh:\/\/git@([a-z0-9][a-z0-9.-]*)(?::22)?\/)([a-z0-9_.-]+)\/([a-z0-9_.-]+?)(?:\.git)?$/i)
   if (!ssh || ['.', '..'].includes(ssh[3]) || ['.', '..'].includes(ssh[4])) return null
   const host = (ssh[1] || ssh[2]).toLowerCase()
-  if (host !== 'github.com' && aliasHostName(host, configPath) !== 'github.com') return null
+  if (aliasHostName(host, configPath) !== 'github.com') return null
   return { owner: ssh[3], repository: ssh[4] }
 }
 
 function originIdentity(cwd) {
-  const result = spawnGit(['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' })
+  // Local declaration is repository identity, not the effective network route.
+  // get-url expands insteadOf and can turn an unrelated origin into GitHub.
+  const result = spawnGit(['config', '--local', '--no-includes', '--get-all', 'remote.origin.url'], { cwd, encoding: 'utf8' })
   if (result.status !== 0) return null
   const value = result.stdout.trim()
+  if (!value || value.includes('\n')) return null
   if (!value.startsWith('https://')) {
     if (process.env.GIT_SSH || process.env.GIT_SSH_COMMAND || process.env.GIT_SSH_VARIANT) return null
     for (const key of ['core.sshCommand', 'ssh.variant']) {
@@ -293,6 +322,8 @@ function dirtyParts(cwd, paths) {
 }
 
 function dirtyFingerprint(cwd, paths) {
+  const deadline = captureDeadline
+  let remaining = 64 * 1024 * 1024
   const hash = createHash('sha256')
   const headSha = resolveCommit(cwd, 'HEAD')
   const { staged, unstaged, untracked } = dirtyParts(cwd, paths)
@@ -301,7 +332,15 @@ function dirtyFingerprint(cwd, paths) {
     const absolute = `${cwd}/${path}`
     const stat = lstatSync(absolute)
     hash.update('\0UNTRACKED\0').update(path).update('\0').update(String(stat.mode)).update('\0')
-    hash.update(stat.isSymbolicLink() ? readlinkSync(absolute) : readFileSync(absolute))
+    try {
+      if (Date.now() > deadline) throw new Error('file capture deadline exceeded')
+      if (stat.isSymbolicLink()) {
+        const link = readlinkSync(absolute)
+        remaining -= Buffer.byteLength(link)
+        if (remaining < 0) throw new Error('file capture byte limit exceeded')
+        hash.update(link)
+      } else remaining -= consumeRegularFile(absolute, remaining, chunk => hash.update(chunk), deadline)
+    } catch (error) { fail('SCOPE_LIMIT', `cannot capture '${path}': ${error.message}`) }
   }
   return hash.digest('hex')
 }
@@ -372,7 +411,7 @@ function resolveTarget(cwd, target, paths) {
     }
     const identity = originIdentity(root)
     if (!identity || identity.owner.toLowerCase() !== pr.owner.toLowerCase() || identity.repository.toLowerCase() !== pr.repository.toLowerCase()) {
-      fail('PR_REPOSITORY_MISMATCH', `PR URL does not match a verified GitHub origin. SSH aliases require a trusted declarative ~/.ssh/config HostName github.com mapping without Include/Match/canonicalization or custom Git SSH commands. Use an explicit merge-base target if identity cannot be verified.`)
+      fail('PR_REPOSITORY_MISMATCH', `PR URL does not match a unique locally declared GitHub origin. SSH hosts require a supported declarative ~/.ssh/config mapping without routing overrides, Include/Match/canonicalization or custom Git SSH commands. This does not attest the effective network destination. Use an explicit merge-base target when the declaration cannot be resolved.`)
     }
     return mergeBaseScope(root, root, target.base, headRef, `PR ${target.url}`, paths)
   }
@@ -391,7 +430,7 @@ export function prepareSnipeRequest(input = {}) {
   }
   const paths = normalizePaths(input.paths)
   const profile = resolveProfile(input)
-  const scope = resolveTarget(input.cwd ?? process.cwd(), input.target, paths)
+  const scope = captureScope(() => resolveTarget(input.cwd ?? process.cwd(), input.target, paths))
   return Object.freeze({
     panel: Object.freeze({ seats: parsed.seats, named: Object.freeze([...parsed.named]), autoCount: parsed.autoCount }),
     profile,
@@ -402,12 +441,19 @@ export function prepareSnipeRequest(input = {}) {
 export function verifySnipeScope(scope) {
   if (!scope || typeof scope !== 'object') fail('INVALID_TARGET', 'scope is required')
   if (scope.kind === 'committed') {
-    resolveCommit(scope.repository, scope.baseSha)
-    resolveCommit(scope.repository, scope.headSha)
+    try {
+      captureScope(() => {
+        resolveCommit(scope.repository, scope.baseSha)
+        resolveCommit(scope.repository, scope.headSha)
+      })
+    } catch (error) { return { stable: false, before: null, after: null, error: error.message } }
     return { stable: true, before: null, after: null }
   }
   if (scope.kind !== 'dirty') fail('INVALID_TARGET', `unknown scope kind '${scope.kind}'`)
-  const after = dirtyFingerprint(scope.repository, scope.paths)
+  let after
+  try { after = captureScope(() => dirtyFingerprint(scope.repository, scope.paths)) } catch (error) {
+    return { stable: false, before: scope.fingerprint, after: null, error: error.message }
+  }
   const uncapturedNestedContent = scope.submodules?.some(change => change.nestedDirty) ?? false
   return { stable: !uncapturedNestedContent && after === scope.fingerprint, before: scope.fingerprint, after }
 }

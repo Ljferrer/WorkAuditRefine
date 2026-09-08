@@ -119,6 +119,10 @@ export function validateSnipeVerdict(input, expected) {
   if (typeof tests.exist !== 'boolean' || !Array.isArray(tests.inspected) || !tests.inspected.every(item => typeof item === 'string')) {
     fail('INVALID_RESULT', 'result.tests_verified must contain a boolean exist and inspected array')
   }
+  if ((!tests.exist && tests.inspected.length) || tests.inspected.some(path =>
+    !path.trim() || /[\\\x00-\x1f\x7f]/.test(path) || /^[a-z]:/i.test(path) || path.split('/').some(part => ['', '.', '..'].includes(part)))) {
+    fail('INVALID_RESULT', 'result.tests_verified must use repository-relative inspected paths and an empty list when tests are absent')
+  }
   if (value.widen !== undefined && (!Array.isArray(value.widen) || value.widen.length === 0 || new Set(value.widen).size !== value.widen.length || !value.widen.every(item => typeof item === 'string' && item.trim() && !RESERVED_LENSES.includes(item)))) {
     fail('INVALID_RESULT', 'result.widen must be a non-empty array of distinct lens names')
   }
@@ -203,6 +207,7 @@ export function renderSnipeReport(panel) {
 
   const limitations = []
   if (!panel.stability.stable) limitations.push('Scope changed during review or contains uncaptured content; no stable clean result is possible.')
+  if (panel.stability.error) limitations.push(`Scope capture failed: ${inline(panel.stability.error)}`)
   for (const change of panel.request.scope.submodules ?? []) {
     if (change.limitation) limitations.push(`${inline(change.path)}: ${inline(change.limitation)}`)
   }

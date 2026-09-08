@@ -13,7 +13,7 @@ test('Snipe is explicit-only and routes execution through the owned coordinator'
   assert.match(skill, /Run only when the user explicitly invokes `\$snipe`/)
   assert.match(skill, /assets\/snipe-runner\.mjs --request/)
   assert.match(skill, /Present the runner's `report` field as the Snipe result/)
-  assert.match(skill, /single schema-only repair attempt/)
+  assert.match(skill, /Only deterministic supported-alias normalization is allowed/)
   assert.match(policy, /allow_implicit_invocation:\s*false/)
 })
 
