@@ -187,6 +187,31 @@ test('approval causal edge mirrors reject shared defects with unchanged event co
   assert.throws(()=>compareObservations(a,b),/initial Major/)
 })
 
+test('causal event pin and identity mirrors preserve all summary and artifact evidence', () => {
+  for (const id of ['P01','P02']) {
+    for (const kind of ['commit','gate','integrate']) {
+      const a=observation(id,'claude'), b=observation(id,'codex')
+      for (const record of [a,b]) record.events.find(e=>e.kind===kind).revision='c'.repeat(40)
+      assert.throws(()=>compareObservations(a,b),/event candidate pin/,`${id}/${kind}`)
+    }
+    for (const change of [
+      r=>{r.events.find(e=>e.id==='audit-1').revision='c'.repeat(40)},
+      r=>{r.events.find(e=>e.id==='audit-2').seat=1},
+      r=>{r.events.find(e=>e.id==='land').task='foreign'},
+      r=>{r.events.find(e=>e.id==='land').id='audit-1'},
+      r=>{r.events.find(e=>e.id==='land').after.push('audit-1')},
+      r=>{r.events.push({id:'extra',task:'a',kind:'error',after:[]})},
+    ]) {
+      const a=observation(id,'claude'), b=observation(id,'codex')
+      change(a); change(b)
+      assert.throws(()=>compareObservations(a,b))
+    }
+  }
+  const a=observation('P02','claude'), b=observation('P02','codex')
+  a.events[0].seat=b.events[0].seat=2
+  assert.throws(()=>compareObservations(a,b),/blocking seat/)
+})
+
 test('oracle guard mutations fail assertions rather than merely failing to initialize', () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-oracle-mutations-'))
   try {
@@ -209,6 +234,14 @@ test('oracle guard mutations fail assertions rather than merely failing to initi
       ['gate artifact revision','    assert.equal(gate.revision,','artifact evidence participates'],
       ['gate artifact exit','    assert.equal(gate.exit,','artifact evidence participates'],
       ['artifact comparison','  assert.deepEqual(artifacts(left,','artifact evidence participates'],
+      ['event candidate pin',"    for (const event of [candidate,gate,land]) assert.equal(",'causal event pin'],
+      ['audit after candidate','      assert.ok(seen.get(event.id).has(candidate.id),','approval causal edge'],
+      ['gate after candidate','    assert.ok(seen.get(gate.id).has(candidate.id),','approval causal edge'],
+      ['event task identity',"      assert.equal(matches[0].task,",'causal event pin'],
+      ['blocking seat',"      assert.equal(blocked.seat,",'causal event pin'],
+      ['unique event ID',"    assert.ok(typeof event.id ===",'causal event pin'],
+      ['unique predecessors',"    assert.ok(Array.isArray(event.after)",'causal event pin'],
+      ['extra approval events',"    assert.equal(record.events.length, record.caseId===",'causal event pin'],
     ]
     for (const [name, prefix, pattern] of mutations) {
       const lines = source.split('\n'), found = lines.filter(line => line.startsWith(prefix))

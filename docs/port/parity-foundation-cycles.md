@@ -164,12 +164,21 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
 - Raw panel: `/private/tmp/war-parity-cycle5.wtes5E/audit-result.json`.
   Five of twelve panels used. T3 fixture work is separate/uncommitted.
 
-### Cycle 6 — T2 repaired evidence acceptance (running)
+### Cycle 6 — T2 repaired evidence acceptance
 
 - Pin `6ad0c91`; same three lenses/profile. Launched after the cycle-5 repair.
   The pinned scope excludes the T3 work developed concurrently.
 - Raw result location: `/private/tmp/war-parity-cycle6.lhIt8I/audit-result.json`.
-  Six of twelve panels used; do not treat an outstanding panel as approval.
+  Six of twelve panels used. Complete coverage: correctness/cascading-impact
+  approved; test-coverage requested changes for one Major coverage gap, no asks or
+  follow-ups. The commit/gate/integration event-pin conjunct lacked its own
+  negative witness. This was residue of cycle 5's new causal checks, not a runtime
+  defect or an inversion of the chosen contract.
+- Added both-sides stale event pins for each relevant event in P01/P02 while
+  facts, artifacts, counts and edges remain unchanged. Swept neighboring event
+  task/seat/ID/predecessor/count and candidate-order checks. Fifteen oracle tests
+  now pass with 24 assertion-killed mutations. Eight added guard removals prove
+  the reported check and neighboring new branches; no oracle behavior changed.
 
 ## T3 initial evidence
 
