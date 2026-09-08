@@ -10728,10 +10728,12 @@ const scanTemplateLiterals = (text = src) => {
 //     the resolveGate discovery/composition mirror (ADR 0036, untouchable), workerSelfQueryRepoFlag,
 //     owned, the ensure-worktree list, the phaseBaseCmd merge-base;
 //   • label / branch / worktree / path / verdict / reason builders — opts.label, t.branch, t.worktree,
-//     the ×5 `${worktreeRoot || '<worktreeRoot>'}/…` path family, escalation task labels & reasons,
-//     gate-audit/land verdict tokens (consumed as VALUES by pt-tagged carriers that guard them);
-//   • log / note / detail lines (log() sinks, auditLog notes, escalation details, one out-of-scope
-//     `.test()` predicate).
+//     the `${worktreeRoot || '<worktreeRoot>'}/…` path family (the merge loop's block-scoped
+//     refineryPath, the phase-level refineryPath, refineryLandPath, the polishWorktree), escalation
+//     task labels & reasons, gate-audit/land verdict tokens (consumed as VALUES by pt-tagged carriers
+//     that guard them);
+//   • log / note / detail lines (log() sinks, auditLog notes, escalation details, the end-state
+//     `/out-of-scope/i.test()` title-or-rationale predicate).
 // Entries are in source-appearance order (which tracks the file's phase structure). Exact multiset
 // equality below is red BOTH ways — a new untagged literal (any spawn site, helper operand, variable,
 // or nested interior) AND a stale row whose literal was removed/renamed.
@@ -11030,9 +11032,10 @@ test('derive-and-skip: zero-commit branch dispatches (#1895/#2006)', async () =>
   assert.match(b, /merge-base --is-ancestor <that task's branch> "\$TIP"/, 'the ancestor check stays')
   assert.match(b, /AND `git rev-list --count "\$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)"\.\.<that task's branch>` is greater than 0/, 'the commit-count conjunct is required alongside the ancestor check, its base rendered inline by branch name')
   assert.doesNotMatch(b, /rev-list --count "\$BASE"/, 'the range never reads a carried $BASE (an unset variable reads as HEAD..<branch> and fails open, #2038)')
-  assert.match(b, /BASE="\$\(git merge-base "\$TIP" dev\/wtprov-a\)"/, 'BASE is bound once as the integration branch fork point off the working branch (the ZERO_COMMIT transcript line)')
+  assert.doesNotMatch(b, /BASE="\$\(git merge-base/, 'no BASE binding remains — the clause carries one inline merge-base rule, never a cross-call shell variable')
   assert.match(b, /ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in `preMerged`/, 'a zero-commit ancestor is classified never-started and never preMerged')
-  assert.match(b, /run that task's ensure-worktree as listed \(the ordinary path\) and print one line `ZERO_COMMIT <that task's id> <that task's branch> at "\$BASE"`/, 'the zero-commit branch takes the ordinary ensure-worktree path with a loud classification line')
+  assert.match(b, /run that task's ensure-worktree as listed \(the ordinary path\) and print one line `ZERO_COMMIT <that task's id> <that task's branch> at \$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)`/, 'the zero-commit branch takes the ordinary ensure-worktree path with a loud classification line whose base renders inline')
+  assert.doesNotMatch(b, /"\$BASE"/, 'the transcript line never reads a carried $BASE (an unset variable renders an empty base)')
   assert.match(b, /never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895/, 'the prompt names why the ancestor check alone is vacuous')
   // Delete-the-feature: the conjunct is recovery-gated — absent recovery the prompt carries no rev-list count at all.
   const dormant = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvision).prompt
@@ -12055,6 +12058,14 @@ test('provenance floor: exempt row foreign id refuses', async () => {
   }), defaultImpl)
   assert.equal(stamped.out.landDecision, 'held:workflow-error', 'an own-plan planFile-stamped row citing a foreign plan path refuses at entry')
   assert.match(stamped.out.workflowError.message, /args\.adjudications names a foreign docs\/plans identifier \(docs\/plans\/some-other-plan\.md\)/)
+  // A source:'auto' row stamped with a FOREIGN planFile refuses on the stamp: the source flag never
+  // buys a bypass of the direct stamp refusal (the stamp arm is read before the auto exemption).
+  const autoStamp = await runPhase(PROVISION_ARGS({
+    adjudications: [{ adjudicated: 'ruled: keep the legacy arm', source: 'auto', planFile: 'docs/plans/some-other-plan.md' }],
+  }), defaultImpl)
+  assert.equal(autoStamp.out.landDecision, 'held:workflow-error', "a source:'auto' row carrying a foreign planFile stamp refuses at entry")
+  assert.match(autoStamp.out.workflowError.message, /some-other-plan\.md/, 'the refusal names the foreign stamp')
+  assert.equal(autoStamp.calls.length, 0, 'zero agents spawned')
   // Control: the same exempt row naming THIS plan's path launches — the scan refuses foreign ids only.
   const own = await runPhase(PROVISION_ARGS({
     backstops: [{ check: 'grep -F pattern docs/plans/wtprov-A.md', why: 'setup-recorded', runner: 'operator', source: 'auto' }],
@@ -12141,6 +12152,10 @@ test('provenance floor: canonical adjudication rows pass un-doped', async () => 
   // adjudicated field must be one whitespace-free token, so this row stays own-token-scanned and refuses.
   const proseSup = await runPhase(PROVISION_ARGS({ adjudications: [{ adjudicated: 'ruled: keep the legacy arm', supersedes: 'the prior ruling' }] }), defaultImpl)
   assert.equal(proseSup.out.landDecision, 'held:workflow-error', 'a prose adjudicated field beside a prose supersedes is not a value row (shape alone never exempts)')
+  // The same row preformatted as its adjRow render refuses too: the string arm anchors the one-token
+  // value segment, so a prose ruling never launches un-doped in string form where its object form refuses.
+  const proseSupStr = await runPhase(PROVISION_ARGS({ adjudications: ['ruled: keep the legacy arm (supersedes plan literal: the prior ruling)'] }), defaultImpl)
+  assert.equal(proseSupStr.out.landDecision, 'held:workflow-error', 'the adjRow render of a prose ruling with a prose supersedes is not a value row either')
   const mixed = await runPhase(PROVISION_ARGS({ adjudications: [...rows, 'ruled: keep the legacy arm this run'] }), defaultImpl)
   assert.equal(mixed.out.landDecision, 'held:workflow-error', 'value rows never vouch for a token-less prose sibling')
 })
