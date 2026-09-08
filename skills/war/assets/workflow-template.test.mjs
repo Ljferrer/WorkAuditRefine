@@ -10214,6 +10214,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(fixP, 'the FIX_NEEDED fix prompt dispatched (presence guard)')
   // Task 11.1 (D17, PIN-29): the REBUTTAL ROUND prompt is only emitted on a split panel — drive it with
   // the split fixture and capture the LIVE rebuttal prompt (the auditor card's split-panel twin).
+  // SPLIT_PANEL_TASKS and splitPanelImpl (with MAJOR_WITH_FIX / MAJOR_NO_FIX) are declared in the Phase 11 block near the end of this file.
   const rebutP = ((await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl())).calls
     .find(c => isAuditor(c) && c.prompt.includes('REBUTTAL ROUND')) || {}).prompt
   assert.ok(rebutP, 'the REBUTTAL ROUND auditor prompt dispatched (presence guard, Task 11.1 row)')
@@ -17350,14 +17351,14 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
 })
 
 // Census (PIN-4 floor + hand scan): the seat-conflict detector parks through parkAsk directly and adds
-// NO dispositionOf call site, so the #1550 order-census stays at its eight sites (the peer's row
+// NO dispositionOf call site, so the #1550 order-census stays at its sites — judgeHeldRow, routeReauditMinors, routeAbsorbTail, the escalation demotion arm, routeGateAuditRows, the sweep merged-arm routing, routeTerminalMinors and the sweep discard-arm routing (the peer's row
 // corroborates through an EXISTING site — aceStage's routing). The rebuttal branch stays whole.
 test('Task 11.1 census: the rebuttal branch stays (isSplit gate, REBUTTAL ROUND prompt, the one-rebuttal-round comment); the deadlock arm is gone; the seat-conflict detector adds no dispositionOf site', () => {
   assert.ok(src.includes("if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split"), 'the isSplit-gated rebuttal branch and its comment stay')
   assert.equal((src.match(/REBUTTAL ROUND/g) || []).length, 1, 'ONE REBUTTAL ROUND prompt build')
   assert.ok(!src.includes("if (isSplit(seats)) { verdict = 'escalate'; break }"), 'the retired deadlock arm is gone (OLD-absent)')
   assert.ok(!/still deadlocked/.test(src), 'the retired human-tiebreak comment is gone (OLD-absent)')
-  assert.equal((src.match(/dispositionOf\(/g) || []).length, 8, 'the #1550 order-census domain is unchanged at eight dispositionOf( sites')
+  assert.equal((src.match(/dispositionOf\(/g) || []).length, 8, 'the #1550 order-census domain is unchanged: its dispositionOf( sites are judgeHeldRow, routeReauditMinors, routeAbsorbTail, the escalation demotion arm, routeGateAuditRows, the sweep merged-arm routing, routeTerminalMinors and the sweep discard-arm routing')
   assert.equal((src.match(/const seatConflictsOf = /g) || []).length, 1, 'the detector: one definition')
   assert.equal((src.match(/seatConflictsOf\(/g) || []).length, 1, 'the detector: one post-rebuttal call site')
 })

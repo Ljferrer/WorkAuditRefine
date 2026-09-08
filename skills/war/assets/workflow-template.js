@@ -1425,7 +1425,7 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // route into asks[] — every dispositionOf-site ask arm (the gate-audit floor pass among them,
 // in-band-absorb-default D15: the gate-audit-family seats (per-task (post-merge), integrated-tip
 // and end-state-only) route through that ONE producer, so its ask arm is a census member like any
-// seat's), AND the demote() ask refusal —
+// seat's), AND the demote() ask refusal, AND the post-rebuttal seat-conflict arm's direct park (D19, PIN-23) —
 // funnels through here, so one finding can never park twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
 // drop): a raiser NEW to the record lands on its `corroborators` list; the survivor's own raiser
 // and a duplicate entry are journalled only (the entry paragraph below states the skip test). Record floor:
@@ -2465,9 +2465,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     p += pt`\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
   }
   if (peers && peers.length) {
-    // Split-panel boundary (verdict-integrity D17, PIN-29, #1989) — mirrored VERBATIM beside the
-    // `escalate` bullet of agents/war-auditor.md (same commit; the `split-panel boundary` registry row
-    // anchors both surfaces): rebuttal first, then a fix round when a `suggested_fix` survives,
+    // Split-panel boundary (verdict-integrity D17, PIN-29, #1989) — its leading clause mirrored VERBATIM beside the
+    // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
+    // same commit; the `split-panel boundary` registry row): rebuttal first, then a fix round when a `suggested_fix` survives,
     // escalation only for a fix-less survivor.
     p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation; a blocking finding you keep standing WITHOUT a fix escalates the phase, so keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\` naming the missing plan decision) — otherwise state the fix or withdraw the finding:\n`
       // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
@@ -3646,18 +3646,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
                 p.seat.findings = (p.seat.findings || []).filter(f => f !== p.finding)
                 log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Parked for the operator ruling instead of escalating; the blocking seat ' + (p.seat.seat ?? '?') + ' neutralizes to approve and the task merges under the fork (interactive: ruled at the Checkpoint; --afk: resolved by citation or demoted Lead-side with the question preserved).')
               }
-              for (const s of seats) if (s.verdict === 'request_changes') { s.verdict = 'approve'; s.seatConflict = true }
+              for (const s of seats) if (s.verdict === 'request_changes') {
+                s.verdict = 'approve'; s.seatConflict = true
+                log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — blocking seat ' + (s.seat ?? '?') + ' neutralizes to approve' + (conflicts.some(p => p.seat === s) ? ' (its blocking finding rides the parked ask)' : ' (it carried no Critical/Major finding to pair — a verdict never stands on findings it does not have)') + '.')
+              }
               verdict = 'approve'; break
             }
             const survivors = blockingOf(seats)
+            const nameThem = fs => fs.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
             const unchanged = survivors.filter(f => lastFixKeys.has(blockerKey(f)))
             if (unchanged.length) {
-              blocked = 'blocking finding survived a fix round unchanged (PIN-29): ' + unchanged.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
+              blocked = 'blocking finding survived a fix round unchanged (PIN-29): ' + nameThem(unchanged)
               log('Task ' + task.id + ': ' + blocked + ' — escalating; another fix round on the same finding would only spend budget.')
               verdict = 'escalate'; break
             }
-            if (!survivors.some(f => !blankText(f.suggested_fix))) {
-              blocked = 'fix-less blocking finding survived the rebuttal (decision-forked, D18): ' + survivors.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
+            if (survivors.every(f => blankText(f.suggested_fix))) {
+              blocked = 'fix-less blocking finding survived the rebuttal (decision-forked, D18): ' + nameThem(survivors)
               log('Task ' + task.id + ': ' + blocked + ' — no suggested_fix to dispatch a fix round on; escalating.')
               verdict = 'escalate'; break
             }
