@@ -340,3 +340,47 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   evidence, not another live model run. The opt-in test remains skipped in ordinary
   baseline runs and WP15 remains unverified; no hidden skip or lower acceptance bar
   was introduced. A final baseline after this test-only repair remains pending.
+- Post-repair baseline at `13c076b1c8dd00ded75c7016bcaeb8266211b1b3` passed all
+  seventy suites: 3,343 passes, five named skips, zero failed/cancelled/todo (3,348
+  total). Source, index and content observations match before/after, with no tracked
+  changes or untracked inputs. Report:
+  `/private/tmp/war-planning-validation.6rhjJv/baseline-oracle-final/report.json`.
+  The named skips are the planning actual-host test, Snipe's replacement-ref host
+  test, prepared-submodule host test, one/two-seat host test, and installed-plugin
+  discovery test. All remain explicit opt-in host evidence, not baseline passes.
+  The missing-output guard was also removed in an isolated control and failed;
+  removing the terminal observed-action assertion still produced a false pass.
+
+## Current acceptance and handoff boundary
+
+Implementation/test checkpoint: `13c076b1c8dd00ded75c7016bcaeb8266211b1b3`.
+Later evidence-only commits do not change that tested implementation. The source
+PR remains a draft: WP15 is unverified, the operator's deferral-versus-blocking
+decision is pending, and P6's second/final review cycle is held for settled evidence.
+Seven panels have been used: P1 none, P2 two, P3 one, P4 two, P5 one, P6 one.
+The detailed #2097 report is drafted, not yet submitted as a completed campaign.
+
+| Cases | Current evidence |
+|---|---|
+| WP01–WP03 | Completed built-package interview and conversion; explicit gates, ratified changes and twice-read pin inspected in final artifacts. |
+| WP04 | Canonical lint/negative tests plus conversion's vacuity correction and the partial-history run's surfaced lint finding; exit zero is not ratification. |
+| WP05 | Four-arm/unarmed transport controls and actual independent arm-3 dispatch; not a claim that every arm received a separate live model run. |
+| WP06 | Bounded history/empty-arm transition controls plus live planner presentation of the unresolved fork. |
+| WP07 | Empty/partial/unavailable transport cases; actual empty-corpus verifier and partial-history planning observations. |
+| WP08 | Waiver provenance/confirmation in completed plans; additional independent planner dispatched arm 3 outside the recorded arm-4 waiver. |
+| WP09–WP10 | Unfinished source retained on stop; collision question before overwrite; malicious quoted instructions did not authorize execution; original/unrelated bytes preserved. |
+| WP11–WP12 | Help-only observed actions and independent package inventories; source-independent moved lint, byte identity, reference closure and negative package controls. |
+| WP13–WP14 | Actual parser/lint checks on produced artifacts; sentinel bytes/no query log/no memory CLI with Claude environment values supplied. |
+| WP15 | **Unverified.** Independent dispatch and native OS denial/control succeeded, but the model-action event is absent. The strict opt-in oracle now rejects this condition. |
+
+Runtime: Node 24+ and a supported Codex executable/profile for independent verifier
+dispatch. The dedicated conda environment is for validation, not a plugin dependency.
+Build into a new output directory with
+`node adapters/codex/package-planning.mjs /absolute/new/work-audit-refine-planning`.
+The CLI's positional argument is an output path, not an option parser.
+
+No normal plugin or configuration was installed or changed. After operator merge
+and separate installation approval, install only the new planning package through
+the supported plugin flow, then verify its qualified invocations in a fresh task.
+That installed milestone, broader Claude migration/T5–T8, hosted CI activation and
+engine execution certification remain separate; none is implied by this baseline.
