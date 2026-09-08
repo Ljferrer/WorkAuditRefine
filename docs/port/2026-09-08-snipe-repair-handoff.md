@@ -13,6 +13,12 @@ reads the discipline when deciding how to review or repair a change.
   distinguish discriminating evidence from test count, and report actionable
   causes without manufacturing more rounds. It does not authorize execution or
   repairs and does not change the verdict schema.
+  This deliberately pays the auditor-reference cost on every launch: Snipe has
+  no authoritative repair-history signal, and guessing from commit subjects
+  would recreate a delivery gap. The reference tells seats how to handle ordinary
+  changes without inventing prior findings. This task's requested role-timed,
+  full-text delivery takes precedence over conditional loading for this reference;
+  it does not raise any standing byte budget or change shared prompt governance.
 - Every consolidated panel return includes `coordinatorGuidance`, independently
   of seat success, findings, approval or cancellation. Its `source` is the fixed
   package-relative `references/post-audit-fixes.md`; its `text` is that file's
@@ -48,3 +54,13 @@ discriminating regression evidence. This complements delivery tests; one exercis
 cannot guarantee all future agents follow the discipline or establish installed
 Desktop acceptance. The installed plugin remains unchanged until separately
 updated after PR review.
+
+The 2026-09-08 exercise passed: the report named `normalizeWeight(Infinity)`,
+while the fresh fixer independently found `normalizeWeights` duplicating the
+faulty rule and traced its `weightedTotal` consumer. It migrated the batch path
+to the shared validator. Its regression suite covered both batch positions and
+the consumer, alongside valid/coercion/order boundaries: 11 tests passed in the
+fixer run and an independent rerun. The fixer recorded pre-fix Infinity failures
+and killed mutations removing either guard, inverting the finite guard, and
+restoring the faulty batch duplicate. This is synthetic-fixture evidence, not a
+claim that the installed plugin or all future repair sessions have been verified.
