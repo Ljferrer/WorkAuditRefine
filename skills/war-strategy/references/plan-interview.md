@@ -15,20 +15,15 @@ falsifier probes + provenance scan against a drafted conversion).
 1. **Static recon** — read the repo tree, `CONTEXT.md`, `docs/adr/`, and the related plans
    under `docs/plans/`.
 2. **The run-history recon lane** — read the four run-history corpus classes:
-   run manifests (`.claude/war/runs/`) · epic phase reports · the war-followup corpus · `docs/learnings/`
+   run manifests (host-resolved location) · epic phase reports · the war-followup corpus · `docs/learnings/`
    — plus the issue-linked evidence artifacts (each cited source issue's
    `## Evidence artifacts` section). What this lane read (or could not) lands in the plan's
    **Evidence consumed** block: one row per linked artifact, read or unread-with-reason —
    placement latitude anywhere in Part 1, never a new required H2.
 3. **Batched memory prefetch** — one batched call, one query per interview area (scope,
-   decomposition, guards, release), mirroring the /war Lead's flag discipline — `--local`
-   always, `--repo` when a repo root resolved, fail-open:
-
-```sh
-node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings
-```
-
-(the `--queries <file>` format is JSONL — one `{"label":…,"text":…}` object per line.)
+   decomposition, guards, release), using the invocation and explicit roots in
+   [the host reference](host.md), fail-open. The host owns discovery and any query-log
+   effects, not a guessed location in the target repository.
 
 Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, or an empty run
 corpus never blocks the interview — proceed without the rows (and without a `--local` root

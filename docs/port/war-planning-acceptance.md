@@ -80,7 +80,14 @@ future engine. Do not weaken source obligations to satisfy generated prose.
 - P1: contract inventory and scenario specifications recorded; no new code.
   No audit panel consumed. Executable fixtures and observations follow with their
   corresponding vertical implementation slices; none are claimed passing here.
-- P2–P6: not complete.
+- P2 in progress: first package slice copies canonical strategy/interview/verifier/
+  lint, supplies a Codex host reference and preserves Claude mechanics in its own
+  reference. A moved-package lint test was red before the builder existed, then
+  passed; package/source lint outputs and shared file bytes agree. Existing strategy
+  structure checks and 58 package/doc-contract cases pass. Missing-resource,
+  symlink and manifest negative controls plus full resource closure remain before
+  the P2 audit checkpoint. Help and concrete verifier integration remain downstream.
+- P3–P6: not complete.
 - Audit budget: at most two cycles per code-bearing phase, twelve total; the
   operator's conditional final extra cycle is not pre-spent. Each panel uses three
   Sol/medium seats. Log exact scope, verdicts, failure class, repair, red/green proof,
