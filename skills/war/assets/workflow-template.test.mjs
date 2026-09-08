@@ -5569,6 +5569,9 @@ test('endstate: compound check exit aggregation (D16/A6, #1782) — the dispatch
   const runner = await esTransportPrompt(twoCmd)
   assert.match(runner, /COMPOUND CHECKS \(#1782\)/, 'the runner instruction names the compound-check clause')
   assert.ok(runner.includes('records one `cmd[i] exit: <n>` line per top-level command'), 'the runner records one cmd[i] exit: line per top-level command')
+  // #2249 escalation fix: `||` is NOT an aggregated join — `A || B` with A red and B green exits 0, so a MAXIMUM over [1, 0] would record red for a passing check (a false-unmet under D8).
+  assert.ok(runner.includes('top-level commands (`;`, `&&` or a newline) records'), 'the aggregated-join enumeration is exactly `;`, `&&`, newline')
+  assert.ok(!/top-level commands \([^)]*`\|\|`[^)]*\) records/.test(runner), 'the aggregated-join enumeration does NOT name `||`')
   assert.match(runner, /final `exit_code:` is the MAXIMUM of those statuses/, 'the artifact\'s final exit_code is the maximum of the per-command statuses')
   assert.match(runner, /never the last command's status alone/, 'the retired reading — the last command\'s status — is named and forbidden')
   assert.match(runner, /never by splitting, re-quoting or re-running the literal/, 'the statuses come from the one whole-file run — the byte-verbatim transport stands')
