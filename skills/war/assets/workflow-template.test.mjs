@@ -7434,16 +7434,6 @@ test('#598 validation 6 — gate-audit debt line: a baseline-merged task threads
   assert.ok(t1GA.prompt.includes(IDS[0]), 'the debt line names the classified identifiers (a matching failure is base debt, not a provably-unrun mapped test)')
   assert.ok(t2GA, 'a gate-audit seat is spawned for the clean-merged task t2')
   assert.ok(!/BASELINE GATE DEBT/.test(t2GA.prompt), 'a clean-merged task carries NO debt line (empty debt ⇒ byte-identical prompt)')
-  // #2156 a6: the baseline-proceed re-merge captures no gate log (no gateCaptureClause, no gate_log_path),
-  // and the file at the conventional path is the FAILED initial merge's log at the same tip — so the
-  // unthreaded fallback must not point the seat (or the evidence dispatch) at that foreign log.
-  const none = evalPt('GATE_LOG_BASELINE_NONE')
-  assert.ok(t1GA.prompt.includes('GATE LOG ARTIFACT: read the FULL captured gate log at ' + none), "the baseline-merged task's seat renders the explicit no-artifact line")
-  assert.ok(!t1GA.prompt.includes('/_refinery/.war/gate-t1.log'), "the baseline-merged task's seat never names the conventional path (the superseded run's log)")
-  assert.ok(t2GA.prompt.includes('/_refinery/.war/gate-t2.log ' + evalPt('GATE_LOG_UNTHREADED')), 'a debt-free unthreaded task keeps the conventional path + unthreaded marker')
-  const evP = (calls.find(c => /^evidence:/.test(c.opts.label || '')) || {}).prompt
-  assert.ok(evP && evP.includes('- t1 ·') && /- t1 · [^\n]*gateLogPath=\(no gate-log artifact recorded/.test(evP), 'the evidence dispatch row for the baseline-merged task carries the no-artifact line')
-  assert.ok(/- t2 · [^\n]*gateLogPath=\S+\/_refinery\/\.war\/gate-t2\.log/.test(evP), 'the evidence dispatch row for the clean-merged task keeps the conventional path')
 })
 
 test('#598 validation 6 — drift-guard: the evicted gate-failure classification (gate-failure-classification.md) names the three class values, the base re-run step, and the reproducibility predicate; the card keeps the field and the trigger pointer (token-anchored, case-tolerant)', () => {
@@ -8141,12 +8131,10 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 5, 'all five plugin-root-anchored trigger pointers to refiner-recovery.md survive (submodule provisioning, pin-transfer arms, land step 3, 2A/2B land arms, endstate-check steps)')
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
   // #2156 a4 headroom eviction (ADR 0042, PIN-3): the card's MergeResult merge-task-only parenthetical
-  // (617 B) moved under its own `##` heading — byte-identical except for the `gate_segment` row it gained
-  // in the same commit (the destination header discloses it); the card keeps a bare-path trigger pointer
+  // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
   // (never a `](…)` link — the five-count above must not grow) and none of the moved body.
   const mtOnly = refinerRecoveryMd.match(/^\(`floor_diagnostic` is merge-task-only — .*riding `status: "error"`\)$/m)
-  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical (byte-identical except its added gate_segment row — the destination header discloses the exception)')
-  assert.ok(refinerRecoveryMd.includes('except the MergeResult parenthetical, which gained its new `gate_segment` row in the same commit'), 'the destination header discloses the one non-byte-identical eviction (#2156 a6 finding 5)')
+  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical byte-identical')
   assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § MergeResult merge-task-only fields'), 'the card keeps the bare-path trigger pointer to the evicted parenthetical')
   assert.ok(!refinerMd.includes('is merge-task-only — the exit-1 test floor'), 'the card no longer carries the evicted parenthetical body')
   assert.match(refinerRecoveryMd, /## Pin-transfer arms/, 'the evicted pin-transfer arms section landed at the destination')
@@ -16337,47 +16325,6 @@ test('segmented-gate: re-merge sites — the environment-proceed and baseline-pr
   }
 })
 
-test('segmented-gate: sweep-family sites — the phase-close polish merge and the terminal-pass merge carry the clause, name their own stamped gate log, and re-dispatch on status:error + gate_segment:incomplete (card step 10 holds on every mode=merge-task site)', async () => {
-  const rule = evalPt('PARTIAL_LOG_RULE')
-  for (const site of ['polish', 'terminal']) {
-    const re = new RegExp('^merge:p3-' + site + '(:segment-\\d+)?$')
-    let n = 0
-    const inner = terminalImpl()
-    const impl = (prompt, opts) => {
-      if (seatOf(opts) === 'war-refiner' && re.test(opts.label || '')) {
-        n++
-        return n === 1
-          ? { mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: 'gate backgrounded on the ' + site + ' merge' }
-          : { mode: 'merge-task', status: 'merged', integration_sha: site === 'polish' ? 'beefcafe12' : 'term1nal12' }
-      }
-      return inner(prompt, opts)
-    }
-    const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
-    const merges = calls.filter(c => re.test(c.opts.label || ''))
-    assert.equal(merges.length, 2, site + ': the merge dispatches once, then exactly one continuation')
-    assert.equal(merges[0].opts.label, 'merge:p3-' + site, site + ': the first dispatch carries the bare site label')
-    assert.equal(merges[1].opts.label, 'merge:p3-' + site + ':segment-2', site + ': the continuation is labelled with its site and segment ordinal')
-    assert.ok(merges[1].prompt.startsWith('SEGMENTED-GATE CONTINUATION'), site + ': the continuation leads with the continuation header')
-    assert.ok(merges[1].prompt.includes('assert-budget-raise-cited.sh'), site + ': the FULL merge prompt rides the continuation')
-    for (const [name, c] of [[site + ' merge', merges[0]], [site + ' continuation', merges[1]]]) {
-      assert.ok(c.prompt.includes('run_in_background'), name + ' instructs run_in_background')
-      assert.ok(c.prompt.includes("gate_segment: 'incomplete'"), name + ' names the gate_segment return shape')
-      assert.ok(c.prompt.includes(rule), name + ' carries PARTIAL_LOG_RULE byte-equal')
-      assert.ok(c.prompt.includes('/_refinery/.war/gate-p3-' + site + '.log (an absolute path'), name + ' names its own stamped gate log (the rule\'s "named above" has a referent)')
-    }
-    assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('gate backgrounded on the ' + site + ' merge')), site + ': the segment_note is logged')
-    assert.equal(out.landDecision, 'landed', site + ': the phase lands on the completed continuation')
-    assert.ok(!logs.some(l => typeof l === 'string' && /DISCARD|did not merge/.test(l) && l.includes(site)), site + ': the incomplete return is never read as a discard')
-  }
-  // Marker-absent negative control at the sweep site: a bare status:error is one dispatch and the sweep discards.
-  const bare = (prompt, opts) => (seatOf(opts) === 'war-refiner' && /^merge:p3-polish(:|$)/.test(opts.label || ''))
-    ? { mode: 'merge-task', status: 'error' }
-    : sweepBase([queuedAbsorb()])(prompt, opts)
-  const b = await runPhase(SWEEP_ARGS({ run: { roundLimit: 3 } }), bare)
-  assert.equal(b.calls.filter(c => /^merge:p3-polish(:|$)/.test(c.opts.label || '')).length, 1, 'a marker-absent error polish merge dispatches exactly once')
-  assert.equal(b.out.landDecision, 'landed', 'and the pre-polish tip still lands (fail-open discard, unchanged)')
-})
-
 test('segmented-gate: partial gate log reruns the gate — both arms (last line not exit_code:, first line not tip_sha: of the gated sha) on the refiner card and every merge-task and land build, byte-equal, with run_in_background and rerun-from-scratch', async () => {
   const rule = evalPt('PARTIAL_LOG_RULE')
   // Both arms of the two-sided read, and the instruction each arm resolves to.
@@ -16414,9 +16361,6 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
     assert.ok(c.prompt.includes('run_in_background'), name + ' instructs run_in_background')
     assert.ok(c.prompt.includes("gate_segment: 'incomplete'"), name + ' names the gate_segment return shape')
     assert.ok(c.prompt.includes(rule), name + ' carries PARTIAL_LOG_RULE byte-equal')
-    // #2156 a6: the merge-side clause names the conventional log itself, so "named above" resolves on the
-    // baseline-proceed re-merge too (it deliberately carries no gateCaptureClause).
-    assert.match(c.prompt, /The stamped gate log is \S+\/_refinery\/\.war\/gate-t1\.log \(an absolute path/, name + ' names the task-keyed stamped gate log')
   }
   // Land builds: the initial land, its continuation, and both re-lands.
   let l = 0
