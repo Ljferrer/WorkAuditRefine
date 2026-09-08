@@ -43,3 +43,12 @@ missing evidence, every selected expected fact, unknown schemas, causal gaps,
 capacity overflow, independent commit identities, and tree/ancestry differences.
 Disposable mutations prove the independent oracle, pin, evidence, graph, schema
 and causal guards fail assertions when removed.
+
+P01/P02 require explicit commit, approval, gate and integration events. A repair
+must descend from the initial Major audit; integration must descend from both
+current-revision approving audits and the successful gate. Audit verdicts and
+finding identities are retained, not inferred from a claimed approval count.
+Gate artifacts bind a fixture-owned command, exact tested revision and exit.
+Every artifact is compared, including its digest. Digests in this contract are
+for semantic evidence, not arbitrary runtime-specific log bytes; adapters must
+retain raw diagnostics separately rather than drop meaningful differences.

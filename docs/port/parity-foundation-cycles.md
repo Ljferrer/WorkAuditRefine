@@ -139,3 +139,27 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
 - Eleven oracle tests pass, including six independently assertion-killed guard
   removals. T2's narrowed contract-simulation evidence is explicit in its README;
   no production engine function supplies expected decisions.
+
+### Cycle 5 — T2 evidence relationships
+
+- Pin `b32a6d786ec01c60d9049af7ff24da7a1c58fc5f`; all three seats completed with
+  high-confidence request-changes verdicts and complete coverage. Four Major
+  entries overlap in two classes: approval/integration causality and artifact
+  binding/comparison. One Minor note preserves the final-baseline obligation.
+  No follow-up or ask dispositions.
+- Verified shared rejecting audits and divergent valid artifact digests both
+  passed the previous oracle; regression assertions failed before repair.
+  Counts and booleans did not establish evidence relationships. Swept P01/P02
+  together, bound initial Major findings and current audit verdicts, required
+  causal edges through repair/approval/gate/integration, and bound P01/P02/P07 gate
+  command/revision/exit. All artifact kinds now participate in comparison.
+- Fourteen oracle tests pass, with sixteen assertion-killed mutations. Edge
+  mirrors retain counts and summaries while removing each approval/gate/repair
+  predecessor. The new exact-kind check made the old artifact-presence conjunct
+  redundant; its surviving mutation exposed that, so it was replaced with the
+  independently necessary digest guard instead of manufacturing a pass.
+- Consequence: P02 gains gate evidence and blocking-audit identity; synthetic
+  fixtures and comparison consumers move together. These remain contract
+  simulations with production bindings deferred, not real artifact verification.
+- Raw panel: `/private/tmp/war-parity-cycle5.wtes5E/audit-result.json`.
+  Five of twelve panels used. T3 fixture work is separate/uncommitted.

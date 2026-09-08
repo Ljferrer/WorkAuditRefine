@@ -35,18 +35,19 @@ function normalizedFacts(record, fixture) {
   if (fixture) {
     for (const key of Object.keys(facts).filter(key => key.endsWith('Revision'))) facts[key] = revisionRole(facts[key], fixture)
     if (facts.audits) facts.audits = facts.audits.map(a => ({...a, revision:revisionRole(a.revision, fixture)})).sort((a,b) => a.seat - b.seat)
+    if (facts.blockedAudit) facts.blockedAudit.revision = revisionRole(facts.blockedAudit.revision, fixture)
   }
   return facts
 }
 
 function assertTrace(record, label) {
-  if (!['P05', 'P06'].includes(record.caseId) && record.events === undefined) return
+  if (!['P01', 'P02', 'P05', 'P06'].includes(record.caseId) && record.events === undefined) return
   assert.ok(Array.isArray(record.events) && record.events.length, `${label}: event trace required`)
   const seen = new Map()
   for (const event of record.events) {
     assert.ok(typeof event.id === 'string' && event.id && !seen.has(event.id), `${label}: unique event identity required`)
     assert.ok(typeof event.task === 'string' && event.task, `${label}: task identity required`)
-    assert.ok(['dispatch', 'integrate', 'complete', 'error'].includes(event.kind), `${label}: unknown event decision ${event.kind}`)
+    assert.ok(['dispatch', 'integrate', 'complete', 'error', 'commit', 'audit', 'gate'].includes(event.kind), `${label}: unknown event decision ${event.kind}`)
     assert.ok(Array.isArray(event.after) && new Set(event.after).size === event.after.length, `${label}: causal predecessors required`)
     const ancestors = new Set()
     for (const predecessor of event.after) {
@@ -56,6 +57,29 @@ function assertTrace(record, label) {
     }
     if (event.revision !== undefined) assert.match(event.revision, /^[a-f0-9]{40}$/, `${label}: invalid event revision`)
     seen.set(event.id, ancestors)
+  }
+  if (['P01','P02'].includes(record.caseId)) {
+    assert.equal(record.events.length, record.caseId==='P01' ? 5 : 6, `${label}: missing or extra approval events`)
+    const one = (kind, predicate=()=>true) => {
+      const matches=record.events.filter(e=>e.kind===kind && predicate(e))
+      assert.equal(matches.length,1,`${label}: ${kind} must occur exactly once`)
+      assert.equal(matches[0].task,'a',`${label}: unexpected task`)
+      return matches[0]
+    }
+    const candidate=one('commit'), gate=one('gate'), land=one('integrate')
+    for (const event of [candidate,gate,land]) assert.equal(event.revision,record.facts.expectedRevision,`${label}: event candidate pin mismatch`)
+    assert.ok(seen.get(gate.id).has(candidate.id),`${label}: gate must test committed candidate`)
+    for (const audit of record.facts.audits) {
+      const event=one('audit',e=>e.seat===audit.seat && e.revision===audit.revision)
+      assert.ok(seen.get(event.id).has(candidate.id),`${label}: audit must follow candidate`)
+      assert.ok(seen.get(land.id).has(event.id),`${label}: integration must follow each approval`)
+    }
+    assert.ok(seen.get(land.id).has(gate.id),`${label}: integration must follow gate`)
+    if (record.caseId==='P02') {
+      const blocked=one('audit',e=>e.revision===record.facts.previousRevision)
+      assert.equal(blocked.seat,record.facts.blockedAudit.seat,`${label}: blocking seat mismatch`)
+      assert.ok(seen.get(candidate.id).has(blocked.id),`${label}: repair must follow blocking audit`)
+    }
   }
   if (record.caseId === 'P05') {
     assert.equal(record.events.length, 7, `${label}: unexpected or missing fixture events`)
@@ -112,7 +136,7 @@ export function assertScenario(record, fixture) {
   assert.ok(record.facts && typeof record.facts === 'object' && !Array.isArray(record.facts), `${label}: facts object required`)
   const additional = {
     P01: ['expectedRevision', 'gateRevision', 'audits'],
-    P02: ['expectedRevision', 'previousRevision', 'audits'],
+    P02: ['expectedRevision', 'previousRevision', 'audits', 'blockedAudit'],
     P03: ['expectedRevision', 'observedRevision'],
     P05: ['baseRevision', 'dependencyRevision'],
     P07: ['expectedRevision', 'gateRevision'],
@@ -125,8 +149,14 @@ export function assertScenario(record, fixture) {
   assert.match(record.sourceSha, /^[a-f0-9]{40}$/, `${label}: source SHA required`)
   assert.equal(record.evidenceLevel, 'contract-simulation', `${label}: T2 validates contract-simulation records, not real-host certification`)
   assert.ok(Array.isArray(record.artifacts), `${label}: artifacts required`)
-  for (const kind of scenario.evidence) {
-    assert.ok(record.artifacts.some(a => a.kind === kind && /^[a-f0-9]{64}$/.test(a.digest)), `${label}: ${kind} evidence required`)
+  for (const artifact of record.artifacts) assert.match(artifact.digest,/^[a-f0-9]{64}$/,`${label}: artifact digest required`)
+  assert.deepEqual(record.artifacts.map(a=>a.kind).sort(), [...scenario.evidence].sort(), `${label}: duplicate or unknown artifact evidence`)
+  if (['P01','P02','P07'].includes(record.caseId)) {
+    const gate=record.artifacts.find(a=>a.kind==='gate')
+    assert.deepEqual(gate.command,fixture.gateCommand,`${label}: gate command mismatch`)
+    assert.ok(Array.isArray(fixture.gateCommand) && fixture.gateCommand.length && fixture.gateCommand.every(s=>typeof s==='string' && s),`${label}: fixture gate command required`)
+    assert.equal(gate.revision,record.facts.expectedRevision,`${label}: gate artifact pin mismatch`)
+    assert.equal(gate.exit,record.caseId==='P07' ? 1 : 0,`${label}: gate artifact exit mismatch`)
   }
   for (const [key, expected] of Object.entries(scenario.expected)) {
     assert.deepEqual(normalizedFacts(record)[key], expected, `${label}: ${key} violates independent fixture expectation`)
@@ -140,7 +170,12 @@ export function assertScenario(record, fixture) {
     for (const audit of audits) {
       assert.ok(typeof audit.lens === 'string' && audit.lens.trim(), `${label}: lens required`)
       assert.equal(audit.revision, record.facts.expectedRevision, `${label}: audit pin mismatch`)
+      assert.equal(audit.verdict,'approve',`${label}: approving verdict required`)
+      assert.deepEqual(audit.findings,[],`${label}: unresolved findings block fixture integration`)
     }
+  }
+  if (scenario.id==='P02') {
+    assert.deepEqual(record.facts.blockedAudit,{seat:1,lens:'correctness',revision:record.facts.previousRevision,verdict:'request_changes',findings:[{id:'major-1',severity:'Major',disposition:'absorb'}]},`${label}: initial Major finding must be preserved`)
   }
   if (additional.includes('gateRevision')) assert.equal(record.facts.gateRevision, record.facts.expectedRevision, `${label}: gate pin mismatch`)
   if (scenario.id === 'P02') assert.notEqual(record.facts.previousRevision, record.facts.expectedRevision, `${label}: repair must change revision`)
@@ -164,5 +199,7 @@ export function compareObservations(left, right, fixtures) {
   assert.deepEqual(normalizedFacts(left, fixtures.left), normalizedFacts(right, fixtures.right), 'runtime observations differ')
   const events = (record, fixture) => (record.events ?? []).map(e => ({...e, ...(e.revision === undefined ? {} : {revision:revisionRole(e.revision, fixture)}), after:[...e.after].sort()})).sort((a,b)=>a.id.localeCompare(b.id))
   assert.deepEqual(events(left, fixtures.left), events(right, fixtures.right), 'causal observations differ')
+  const artifacts=(record,fixture)=>record.artifacts.map(a=>({...a,...(a.revision===undefined ? {} : {revision:revisionRole(a.revision,fixture)})})).sort((a,b)=>a.kind.localeCompare(b.kind))
+  assert.deepEqual(artifacts(left,fixtures.left),artifacts(right,fixtures.right),'artifact evidence differs')
   return { equivalent: true, evidenceLevel: 'contract-simulation', runtimeCompatibility: 'not-established' }
 }

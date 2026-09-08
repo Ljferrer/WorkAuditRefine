@@ -139,6 +139,54 @@ test('unknown top-level decisions and extra or cyclic events cannot pass on both
   }
 })
 
+test('shared rejecting audits or early integration cannot hide behind correct outcome summaries', () => {
+  for (const id of ['P01', 'P02']) {
+    for (const change of [
+      r => { r.facts.audits[0].verdict = 'request_changes' },
+      r => { r.facts.audits[0].findings = [{id:'unfixed', severity:'Major', disposition:'absorb'}] },
+      r => { r.events = [{id:'early', task:'a', kind:'integrate', after:[], revision:r.facts.expectedRevision}] },
+    ]) {
+      const left=observation(id,'claude'), right=observation(id,'codex')
+      change(left); change(right)
+      assert.throws(() => compareObservations(left,right))
+    }
+  }
+})
+
+test('artifact evidence participates in comparison and binds gate command, revision and exit', () => {
+  const left=observation('P07','claude'), right=observation('P07','codex')
+  right.artifacts[0].digest='f'.repeat(64)
+  assert.throws(() => compareObservations(left,right), /artifact/)
+  for (const digest of ['', 'bad', 'f'.repeat(63)]) {
+    const a=observation('P07','claude'), b=observation('P07','codex')
+    a.artifacts[0].digest=b.artifacts[0].digest=digest
+    assert.throws(() => compareObservations(a,b), /digest/)
+  }
+  for (const [key,value] of [['command',['false']], ['revision','c'.repeat(40)], ['exit',0]]) {
+    const a=observation('P07','claude'), b=observation('P07','codex')
+    a.artifacts[0][key]=b.artifacts[0][key]=value
+    assert.throws(() => compareObservations(a,b), /gate/)
+  }
+})
+
+test('approval causal edge mirrors reject shared defects with unchanged event counts and facts', () => {
+  for (const id of ['P01','P02']) {
+    const edges=[['audit-1','candidate'],['audit-2','candidate'],['gate','candidate'],['land','audit-1'],['land','audit-2'],['land','gate']]
+    if (id==='P02') edges.push(['candidate','blocked'])
+    for (const [eventId, predecessor] of edges) {
+      const a=observation(id,'claude'), b=observation(id,'codex')
+      for (const record of [a,b]) {
+        const event=record.events.find(e=>e.id===eventId)
+        event.after=event.after.filter(p=>p!==predecessor)
+      }
+      assert.throws(()=>compareObservations(a,b),undefined,`${id}/${eventId}/${predecessor}`)
+    }
+  }
+  const a=observation('P02','claude'), b=observation('P02','codex')
+  a.facts.blockedAudit.findings=b.facts.blockedAudit.findings=[]
+  assert.throws(()=>compareObservations(a,b),/initial Major/)
+})
+
 test('oracle guard mutations fail assertions rather than merely failing to initialize', () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-oracle-mutations-'))
   try {
@@ -147,10 +195,20 @@ test('oracle guard mutations fail assertions rather than merely failing to initi
     const mutations = [
       ['expected rule', '    assert.deepEqual(normalizedFacts(record)[key], expected,', 'both runtimes must'],
       ['candidate binding', '      assert.equal(record.facts[key], fixture.commits[role].sha,', 'runtime cannot'],
-      ['artifact presence', '    assert.ok(record.artifacts.some(', 'every catalog'],
+      ['artifact digest', '  for (const artifact of record.artifacts) assert.match(', 'artifact evidence participates'],
       ['graph equivalence', '  assert.deepEqual(commitGraph(fixtures.left),', 'independent Git'],
       ['unknown fields', '  assert.ok(Object.keys(record).every(', 'unknown top-level'],
       ['trace dependency', '    assert.ok(seen.get(dependent.id).has(merge.id),', 'causal dependency'],
+      ['audit verdict','      assert.equal(audit.verdict,','shared rejecting'],
+      ['blocking findings','      assert.deepEqual(audit.findings,','shared rejecting'],
+      ['approval before integration','      assert.ok(seen.get(land.id).has(event.id),','approval causal edge'],
+      ['gate before integration','    assert.ok(seen.get(land.id).has(gate.id),','approval causal edge'],
+      ['repair after blocking','      assert.ok(seen.get(candidate.id).has(blocked.id),','approval causal edge'],
+      ['initial finding','    assert.deepEqual(record.facts.blockedAudit,','approval causal edge'],
+      ['gate command','    assert.deepEqual(gate.command,','artifact evidence participates'],
+      ['gate artifact revision','    assert.equal(gate.revision,','artifact evidence participates'],
+      ['gate artifact exit','    assert.equal(gate.exit,','artifact evidence participates'],
+      ['artifact comparison','  assert.deepEqual(artifacts(left,','artifact evidence participates'],
     ]
     for (const [name, prefix, pattern] of mutations) {
       const lines = source.split('\n'), found = lines.filter(line => line.startsWith(prefix))
