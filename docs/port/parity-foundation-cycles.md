@@ -245,3 +245,35 @@ fresh verification, not relabeling this report with a newer revision.
   in this branch's PR and the requested #2097 measurement comment. Those external
   acceptance records can cite the tested commit without changing its source just
   to embed its own SHA. This log preserves the implementation/repair history.
+- Outcome: complete stable coverage; correctness requested changes, test-coverage
+  and cascading-impact approved. One Major (ledger-candidate/remote-base silently
+  re-pushes) plus a Minor note retaining the final-baseline obligation. No asks or
+  follow-ups. This is a missing relationship between individually valid inputs,
+  analogous to cycle 5's individually valid summaries and unrelated evidence.
+- The physical candidate/base regression failed before repair. The driver now
+  preserves contradictory evidence and refuses instead of re-landing. The full
+  absent/base/candidate ledger × base/candidate/foreign tip matrix checks both
+  refusal and success, exact remote updates, ledger preservation and push attempts.
+  Matching and Git-ahead re-entry still work. Production P14 policy is not bound
+  or claimed by this small physical fixture driver.
+- Eight T3 tests pass with twelve assertion-killed mutations, including removal
+  of the pair check and each conjunct separately. The expected nine-row table is
+  literal fixture data, not computed by the driver's routing condition.
+
+## Baseline-discovered production follow-up
+
+The next clean baseline at `2c05d2cc0c9ffc8690f716013d0df31c2ecef31c` failed one
+existing Snipe runner case (`catalog errors, malformed output, early exit and
+timeout fail visibly`) with an uncaught `kill EPERM`; the other suites completed
+and source/index/content stayed stable. Raw report:
+`/private/tmp/war-parity-release-baseline.75oUzs/report/report.json`.
+The collector correctly refused a green result; no test was skipped or weakened.
+
+A direct `listSupportedProfiles` probe outside the collector injects one cleanup
+EPERM and reproduces the uncaught callback exception in two consecutive runs.
+The owned disposable child is subsequently cleaned with the original kill call.
+This proves error containment is defective, not why the OS originally denied
+the signal. Filed #2235 (`codex-port`, `bug`) with the complete reproduction and
+discovery/seat/parent-exit sibling sweep. Production runner changes remain outside
+this foundation PR; no installed plugin was touched. A later successful baseline
+does not close or erase this follow-up.

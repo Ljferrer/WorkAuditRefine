@@ -69,6 +69,12 @@ tip and absent ledger, sends SIGKILL, then launches a fresh process. That proces
 reads the fixture pins, persisted ledger and bare Git state. The test independently
 checks the repaired ledger, retained remote SHA, reflog update count and push log
 across repeated restarts. Unknown Git state and malformed ledger fail closed.
+The ledger/remote pair is checked together: a ledger claiming the candidate landed
+while the remote is back at base is a contradiction, not permission to push again.
+This driver preserves that evidence and refuses; a new explicit landing decision
+is outside its reconciliation fixture. Matching and Git-ahead states remain
+idempotent. The test covers the absent/base/candidate ledger states crossed with
+base/candidate/foreign remote tips. This is not production P14 certification.
 T3 establishes this physical observation seam; binding the production adapter and
 recovery decisions after the engine campaign remains T5–T7 work. These tests do
 not promote P13 to actual runtime/production recovery certification.

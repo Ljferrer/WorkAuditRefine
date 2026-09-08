@@ -88,6 +88,40 @@ test('unknown remote state refuses recovery without overwriting ledger or foreig
   assert.equal(existsSync(join(fixture.root, 'pushes.log')), false)
 })
 
+test('ledger and remote state pairs never turn a contradictory landing claim into another push', {timeout:30000}, async t => {
+  const cases=[
+    ['absent','base','push'], ['absent','candidate','repair'], ['absent','foreign','refuse'],
+    ['base','base','push'], ['base','candidate','repair'], ['base','foreign','refuse'],
+    ['candidate','base','refuse'], ['candidate','candidate','repair'], ['candidate','foreign','refuse'],
+  ]
+  for (const [recorded,remoteState,expected] of cases) {
+      const fixture=createGitFixture(t)
+      if (remoteState==='foreign') {
+        writeFileSync(join(fixture.work,'value.txt'),'foreign\n')
+        fixture.git(['commit','-am','foreign'])
+      }
+      if (remoteState!=='base') fixture.git(['push','origin','HEAD:refs/heads/main'])
+      const tip=fixture.remoteTip(), updates=fixture.remoteUpdates()
+      const ledger=recorded==='absent' ? null : JSON.stringify({landed:fixture[recorded],reconciledFrom:'git'})
+      const path=join(fixture.root,'ledger.json')
+      if (ledger!==null) writeFileSync(path,ledger)
+      const result=await startFixtureProcess(fixture,'land').result
+      const refuses=expected==='refuse'
+      assert.equal(result.code,refuses ? 1 : 0,`${recorded}/${remoteState}: ${result.stderr}`)
+      if (refuses) {
+        assert.equal(fixture.remoteTip(),tip)
+        assert.equal(fixture.remoteUpdates(),updates)
+        assert.equal(existsSync(join(fixture.root,'pushes.log')),false)
+        assert.equal(existsSync(path) ? readFileSync(path,'utf8') : null,ledger)
+      } else {
+        assert.equal(fixture.remoteTip(),fixture.candidate)
+        assert.equal(JSON.parse(readFileSync(path,'utf8')).landed,fixture.candidate)
+        assert.equal(fixture.remoteUpdates(),updates+(expected==='push' ? 1 : 0))
+        assert.equal(existsSync(join(fixture.root,'pushes.log')),expected==='push')
+      }
+  }
+})
+
 test('owned processes have bounded hangs/output and reap inherited-pipe descendants on parent exit', {timeout:20000}, async t => {
   const fixture = createGitFixture(t)
   const hung = await startFixtureProcess(fixture, 'hang', {timeoutMs:150}).result
@@ -118,6 +152,9 @@ test('fixture guard removals produce assertion failures in disposable subprocess
       ['ledger shape','fixture-process.mjs',"  if (Object.keys(ledger ?? {}).sort().join(',') !== 'landed,reconciledFrom') throw new Error('invalid persisted ledger shape')",'','malformed persisted'],
       ['ledger revision','fixture-process.mjs',"  if (![base, candidate].includes(ledger.landed)) throw new Error('unexplained persisted ledger revision')",'','malformed persisted'],
       ['ledger provenance','fixture-process.mjs',"  if (ledger.reconciledFrom !== 'git') throw new Error('invalid persisted ledger provenance')",'','malformed persisted'],
+      ['ledger remote pair','fixture-process.mjs',"if (recordedRevision === candidate && tip === base) throw new Error('ledger-ahead contradiction; explicit landing decision required')",'','ledger and remote'],
+      ['ledger pair first arm','fixture-process.mjs','recordedRevision === candidate && tip === base','tip === base','ledger and remote'],
+      ['ledger pair second arm','fixture-process.mjs','recordedRevision === candidate && tip === base','recordedRevision === candidate','ledger and remote'],
       ['parent exit cleanup','git-fixture.mjs',"  child.on('exit', kill)",'','owned processes'],
       ['output bound','git-fixture.mjs','stdout.length > 1024*1024','false','owned processes'],
       ['issue correlation','fixture-process.mjs',"const matches = await request('GET')",'const matches = []','timeout after issue'],

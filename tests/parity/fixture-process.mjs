@@ -39,13 +39,16 @@ if (operation === 'hang') {
   writeFileSync(join(root, 'issue-result.json'), JSON.stringify(issue))
 } else if (operation === 'land') {
 const ledgerPath = join(root, 'ledger.json')
+let recordedRevision
 if (existsSync(ledgerPath)) {
   const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'))
   if (Object.keys(ledger ?? {}).sort().join(',') !== 'landed,reconciledFrom') throw new Error('invalid persisted ledger shape')
   if (![base, candidate].includes(ledger.landed)) throw new Error('unexplained persisted ledger revision')
   if (ledger.reconciledFrom !== 'git') throw new Error('invalid persisted ledger provenance')
+  recordedRevision = ledger.landed
 }
 const tip = fixtureGit(root, remote, ['rev-parse', 'refs/heads/main'])
+if (recordedRevision === candidate && tip === base) throw new Error('ledger-ahead contradiction; explicit landing decision required')
 if (tip === base) {
   appendFileSync(join(root, 'pushes.log'), `${candidate}\n`)
   fixtureGit(root, work, ['push', remote, `${candidate}:refs/heads/main`])
