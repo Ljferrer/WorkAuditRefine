@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 import { prepareSnipeRequest, verifySnipeScope } from './snipe-request.mjs'
 import { parseSnipeVerdict, renderSnipeReport } from './snipe-result.mjs'
+import { prepareSnipeSubmodules } from './snipe-submodules.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
 
@@ -308,7 +309,7 @@ async function runValidatedSeat(request, seat, assignment, concern, options) {
 }
 
 export async function runSnipePanel(input, options = {}) {
-  const request = prepareSnipeRequest(input)
+  let request = prepareSnipeRequest(input)
   const assignments = assignLenses(request.panel)
   const concern = input.concern ?? ''
   if (typeof concern !== 'string') throw new TypeError('concern must be a string')
@@ -321,35 +322,39 @@ export async function runSnipePanel(input, options = {}) {
   if (!Number.isInteger(maxOutputBytes) || maxOutputBytes < 1) throw new TypeError('maxOutputBytes must be a positive integer')
 
   const signal = options.signal
-  const seats = Array(assignments.length)
-  let nextSeat = 0
-  async function worker() {
-    while (nextSeat < assignments.length) {
-      const index = nextSeat
-      nextSeat += 1
-      const seat = index + 1
-      const assignment = assignments[index]
-      const { lens, rationale } = assignment
-      if (signal?.aborted) {
-        seats[index] = { seat, lens, rationale, status: 'cancelled', exitCode: null, signal: null, response: null, stdout: '', stderr: '', truncated: false }
-        continue
+  const preparation = await prepareSnipeSubmodules(request.scope, { remotes: input.submoduleRemotes, signal })
+  request = Object.freeze({ ...request, scope: preparation.scope })
+  try {
+    const seats = Array(assignments.length)
+    let nextSeat = 0
+    async function worker() {
+      while (nextSeat < assignments.length) {
+        const index = nextSeat
+        nextSeat += 1
+        const seat = index + 1
+        const assignment = assignments[index]
+        const { lens, rationale } = assignment
+        if (signal?.aborted) {
+          seats[index] = { seat, lens, rationale, status: 'cancelled', exitCode: null, signal: null, response: null, stdout: '', stderr: '', truncated: false }
+          continue
+        }
+        seats[index] = await runValidatedSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal })
       }
-      seats[index] = await runValidatedSeat(request, seat, assignment, concern, { codexPath, timeoutMs, maxOutputBytes, signal })
     }
-  }
-  await Promise.all(Array.from({ length: Math.min(capacity, assignments.length) }, () => worker()))
-  const stability = verifySnipeScope(request.scope)
-  const unavailablePaths = Object.freeze([...new Set((request.scope.submodules ?? [])
-    .filter(change => !change.contentsAvailable).map(change => change.path))])
-  const coverage = Object.freeze({ complete: unavailablePaths.length === 0, unavailablePaths })
-  const panel = {
-    request,
-    seats: Object.freeze(seats),
-    stability: Object.freeze(stability),
-    coverage,
-    complete: coverage.complete && stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
-  }
-  return Object.freeze({ ...panel, report: renderSnipeReport(panel) })
+    await Promise.all(Array.from({ length: Math.min(capacity, assignments.length) }, () => worker()))
+    const stability = verifySnipeScope(request.scope)
+    const unavailablePaths = Object.freeze([...new Set((request.scope.submodules ?? [])
+      .filter(change => !change.contentsAvailable).map(change => change.path))])
+    const coverage = Object.freeze({ complete: unavailablePaths.length === 0, unavailablePaths })
+    const panel = {
+      request,
+      seats: Object.freeze(seats),
+      stability: Object.freeze(stability),
+      coverage,
+      complete: coverage.complete && stability.stable && seats.every(seat => seat.status === 'completed' && seat.validation.status === 'valid'),
+    }
+    return Object.freeze({ ...panel, report: renderSnipeReport(panel) })
+  } finally { preparation.dispose() }
 }
 
 function cliOptions(argv) {

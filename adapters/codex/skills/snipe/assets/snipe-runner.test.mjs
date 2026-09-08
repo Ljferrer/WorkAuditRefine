@@ -57,6 +57,29 @@ const supportedProfiles = { 'gpt-test': ['high'] }
 const inheritedProfile = { model: 'gpt-test', effort: 'high' }
 const runnerPath = fileURLToPath(new URL('./snipe-runner.mjs', import.meta.url))
 
+test('coordinator prepares pinned submodules before seats and disposes their review repositories afterward', async () => {
+  const cwd = fixture()
+  const pin = git(cwd, 'rev-parse', 'HEAD')
+  git(cwd, 'update-index', '--add', '--cacheinfo', '160000', pin, 'vendor/utils')
+  git(cwd, 'commit', '-m', 'add locally available gitlink')
+  const before = git(cwd, 'status', '--porcelain')
+  const codexPath = fakeCodex(validVerdictSource('', `
+    const { execFileSync } = await import('node:child_process')
+    const module = scope.submodules[0]
+    if (!module.reviewRepository) process.exit(9)
+    const content = execFileSync('git', ['--git-dir', module.reviewRepository, 'show', module.headObject + ':review.txt'], {encoding:'utf8'})
+    if (!content.includes('change')) process.exit(10)
+  `))
+  const result = await runSnipePanel({ cwd, target: { type: 'ref', ref: pin }, rawArgs: 'correctness,security', inheritedProfile, supportedProfiles }, { codexPath })
+  assert.equal(result.complete, true, result.report)
+  assert.ok(result.seats.every(seat => seat.status === 'completed'))
+  assert.equal(existsSync(result.request.scope.submodules[0].reviewRepository), false)
+  assert.equal(git(cwd, 'status', '--porcelain'), before)
+  const failed = await runSnipePanel({ cwd, target: { type: 'ref', ref: pin }, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex('process.exit(1)') })
+  assert.equal(failed.complete, false)
+  assert.equal(existsSync(failed.request.scope.submodules[0].reviewRepository), false)
+})
+
 function catalogCodex() {
   return fakeCodex(`
     if (process.argv[2] === 'app-server') {

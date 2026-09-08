@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -46,6 +46,21 @@ function prepare(root, overrides = {}) {
     ...overrides,
   })
 }
+
+test('scope capture does not execute repository-configured fsmonitor or text conversion commands', () => {
+  const { root } = fixture()
+  const temporary = mkdtempSync(join(tmpdir(), 'snipe-config-command-'))
+  const script = join(temporary, 'probe')
+  const marker = join(temporary, 'executed')
+  writeFileSync(script, `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed')\n`)
+  chmodSync(script, 0o755)
+  git(root, 'config', 'core.fsmonitor', script)
+  git(root, 'config', 'diff.probe.textconv', script)
+  writeFileSync(join(root, '.gitattributes'), '*.txt diff=probe\n')
+  writeFileSync(join(root, 'review.txt'), 'dirty\n')
+  prepare(root)
+  assert.equal(existsSync(marker), false)
+})
 
 test('default request reuses legacy seat/lens parsing and pins the default-branch comparison', () => {
   const { root, base, head } = fixture()

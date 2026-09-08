@@ -28,7 +28,9 @@ test('S-A16 builds a standalone Snipe-only plugin with its shared dependency clo
     'skills/snipe/assets/snipe-request.mjs',
     'skills/snipe/assets/snipe-result.mjs',
     'skills/snipe/assets/snipe-runner.mjs',
+    'skills/snipe/assets/snipe-submodules.mjs',
     'skills/snipe/references/codex-auditor.md',
+    'skills/snipe/references/submodules.md',
   ])
   const manifest = JSON.parse(readFileSync(join(output, '.codex-plugin/plugin.json'), 'utf8'))
   assert.equal(manifest.skills, './skills/')

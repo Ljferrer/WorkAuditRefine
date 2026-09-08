@@ -12,6 +12,7 @@ This role carries the shared WAR auditor's lens vocabulary, evidence precedence,
 ## Evidence
 
 - For committed scope, inspect the pinned commits and blobs. A mutable working-tree read is never the sole evidence for a committed claim.
+- For each prepared submodule, inspect its `baseObject` and `headObject` through the supplied bare `reviewRepository`, using `git --git-dir=<path> show <sha>:<file>` or `git --git-dir=<path> diff --no-ext-diff --no-textconv <base> <head>`. A null side means addition/deletion; inspect the non-null tree. Attribute findings to the full parent-relative submodule path. Include separately listed nested gitlinks; the parent gitlink diff alone is not a review of their contents. Do not fetch, initialize, check out, or use a mutable submodule working tree as a substitute. Unavailable entries remain scope limitations.
 - For dirty advisory scope, stay within the declared staged, unstaged, and untracked material. The coordinator—not the seat—checks the before/after fingerprint.
 - Do not run tests, formatters, installers, hooks, or other code. You may inspect tests and existing evidence, but do not claim execution you did not observe.
 - Verify that mapped tests still exist and have not been weakened or skipped. Flag vacuous assertions or green-by-deletion.
