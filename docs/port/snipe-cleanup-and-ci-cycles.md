@@ -100,3 +100,17 @@ unchanged source, 65 suites, 3309 passes, two failures and four named skips. It 
 alongside another process-heavy suite. Final acceptance requires a fresh baseline
 without competing local suites; this failed report is not replaced by the later
 targeted passes. No scope-capture deadline was weakened.
+
+## Panel 4: incomplete review with three absorb findings
+
+Scope `146e20e..0e7f3fb`, complete coverage and stable scope. Correctness and
+test-coverage approved; cascading-impact timed out. This is incomplete, not clean.
+The three validated Minor findings were accepted: assert exact cleanup messages
+and their projections; assert normal `retainedRoot: null` and disposal reporting;
+correct the mandatory submodule reference's stale unconditional removal promise.
+The earlier prose sweep searched disposal/retention terms but missed "removed" in
+that active reference. The reference correction preserves fetch/retry/checkout
+authority boundaries and passes the skill validator. Fifteen cleanup mutations
+now fail behavioral assertions, including generic-message and stale-root changes.
+The focused cleanup/disposal/mutation tests pass; no production behavior changed
+in this checkpoint. Full baseline diagnosis remains open for the request fixture.

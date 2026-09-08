@@ -130,6 +130,11 @@ test('coordinator prepares pinned submodules before seats and disposes their rev
   const failed = await runSnipePanel({ cwd, target: { type: 'ref', ref: pin }, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex('process.exit(1)') })
   assert.equal(failed.complete, false)
   assert.equal(existsSync(failed.request.scope.submodules[0].reviewRepository), false)
+  for(const panel of [result,failed]) {
+    assert.equal(panel.retainedRoot,null)
+    assert.match(panel.report,/temporary object stores are discarded after review/)
+    assert.doesNotMatch(panel.report,/operator cleanup required/)
+  }
 })
 
 test('unknown worker failure retains prepared objects until the operator can inspect them', async t => {
@@ -301,6 +306,7 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
           state=panel.seats[0];assert.equal(panel.complete,false);assert.notEqual(state.status,'completed');
           if(${JSON.stringify(mode)}!=='cancel')assert.equal(panel.seats[1].validation.status,'valid','healthy peer retained');
           assert.match(panel.report,/termination unconfirmed/);
+          assert.ok(panel.report.includes(${JSON.stringify(fault==='denied'?'injected denial':'Process close not observed within cleanup drain deadline')}),'report projects cleanup message');
           if(${JSON.stringify(mode)}==='timeout')assert.equal(state.status,'timed_out');
           if(${JSON.stringify(mode)}==='output')assert.equal(state.status,'output_limit');
           if(${JSON.stringify(mode)}==='cancel')assert.equal(state.status,'cancelled');
@@ -308,6 +314,9 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
           if(${JSON.stringify(mode)}==='exit'){assert.equal(state.status,'failed');assert.equal(state.exitCode,1)}
         }
         assert.equal(state.cleanupError.code,${JSON.stringify(fault==='denied'?'EPERM':'CLEANUP_CLOSE_TIMEOUT')});
+        assert.equal(state.cleanupError.message,${JSON.stringify(fault==='denied'?'injected denial':'Process close not observed within cleanup drain deadline')});
+        if(${JSON.stringify(surface)}==='catalog')assert.ok(state.message.includes(state.cleanupError.message),'catalog projects cleanup message');
+        else assert.ok(state.validation.error.includes(state.cleanupError.message),'seat projects cleanup message');
         assert.equal(state.terminationConfirmed,false);assert.equal(state.processGroupId,Number(readFileSync(marker,'utf8')));
         assert.deepEqual(calls,[-state.processGroupId],'cleanup must not retry');
       }finally{clearInterval(cancel);process.kill=original}
@@ -362,6 +371,8 @@ test('cleanup guard removals fail behavioral assertions in disposable copies', {
       ['discovery original cause','snipe-runner.mjs',"${failure ?? 'Codex model/list cleanup failed'}",'lost original cause','cleanup failures are bounded'],
       ['uncertain reader retention','snipe-runner.mjs','retainPreparation = seats.some(seat => seat.cleanupError)','retainPreparation = false','uncertain auditor cleanup'],
       ['unknown reader retention','snipe-runner.mjs','let retainPreparation = true','let retainPreparation = false','unknown worker failure'],
+      ['cleanup message preservation','snipe-process.mjs','message: error.message','message: "generic"','cleanup failures are bounded'],
+      ['normal report projection','snipe-runner.mjs','retainedRoot: retainPreparation ? preparation.root ?? null : null','retainedRoot: preparation.root ?? null','coordinator prepares pinned submodules'],
     ]
     for(const [name,file,from,to,pattern] of cases){
       for(const module of ['snipe-process.mjs','snipe-runner.mjs','snipe-submodules.mjs'])copyFileSync(join(repo,'adapters/codex/skills/snipe/assets',module),join(assets,module))
