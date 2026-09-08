@@ -13002,7 +13002,7 @@ test('citation floor: directional with length floor (D11, PIN-15, #1858): a shor
   assert.ok(acedEntry, 'the contained citation matches and stamps the aced record')
   assert.equal(acedEntry.citation.row, CITED_ADJ[0], 'aced.citation.row IS the threaded row (never the seat transcription)')
   assert.equal(acedEntry.citation.threadedRow, CITED_ADJ[0], 'threadedRow names the same bytes')
-  assert.equal(acedEntry.citation.cited, citationF().citation.row, 'the seat string survives under `cited` for the logs')
+  assert.equal(acedEntry.citation.cited, citationF().citation.row, 'the seat string survives under `cited` on the durable record')
   assert.notEqual(acedEntry.citation.row, citationF().citation.row, 'fixture control: the seat string is a strict prefix, so row-vs-cited is discriminating')
   const ace = m.calls.filter(isAce)[0]                 // round-1 batch: the citation rides the first ace here
   assert.ok(ace && ace.prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '"'), 'the ace dispatch row carries the threaded row')
@@ -13106,7 +13106,7 @@ test('citation-unsound (End state 5, mode-split pair — #1879 addition 2): the 
     assert.equal(calls.filter(isAce).length, 2, `[${mode}] batch + the one re-entry attempt (bounded — no retry after the unsound verdict)`)
     const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
     assert.ok(demoteLog, `[${mode}] the unsound-citation demotion is logged`)
-    assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), `[${mode}] the demotion names the cited row`)
+    assert.ok(demoteLog.includes(CITED_ADJ[0]), `[${mode}] the demotion names the threaded row`)
     assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), `[${mode}] the demotion NAMES the mismatch (the panel finding rationale)`)
     assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
       `[${mode}] the unsound citation finding demotes to follow-up (never a silent drop)`)
@@ -13136,7 +13136,7 @@ test('citation-unsound (End state 5, round-1-batch path): a citation absorb ridi
   assert.equal(calls.filter(isAce).length, 1, 'the round-1 batch ace only (single file group — ambiguous-and-atomic, no subsets)')
   const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
   assert.ok(demoteLog, 'the round-1-batch unsound-citation demotion is logged with the mismatch')
-  assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the batch-path demotion names the cited row')
+  assert.ok(demoteLog.includes(CITED_ADJ[0]), 'the batch-path demotion names the threaded row')
   assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the batch-path demotion NAMES the mismatch (the panel finding rationale)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
     'the citation finding demotes to follow-up on the batch path (never a silent drop)')
@@ -14074,7 +14074,7 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   const build = () => {
     const aced = [], demoted = []
     // eslint-disable-next-line no-new-func
-    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationOf', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
+    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationExtra', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
       aceRelSet, aceRelPath,
       (f, to, why) => { throw new Error('demote() must never be reached from recordAcedTouched — an untouched file is a failed ATTEMPT, routed to the sweep (D13): ' + why) },
       (f, why) => demoted.push({ f, to: 'sweep', why }),
@@ -14177,10 +14177,10 @@ test('#1944 — recordAced call-site census: every occurrence is a NAMED legitim
   const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
   assert.ok(helper, 'the recordAcedTouched helper exists')
   assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
-  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha, citationOf\(f\) \? \{ citation: citationOf\(f\) \} : null\)/,
-    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual); it threads citationOf(f) so the aced record keeps its citation stamp (#1873)")
-  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true, \.\.\.\(citationOf\(f\) \? \{ citation: citationOf\(f\) \} : \{\}\) \}\)/,
-    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent); it threads citationOf(f) too (#1873-class)')
+  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha, citationExtra\(f\)\)/,
+    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual); it threads citationExtra(f) so the aced record keeps its citation stamp (#1873)")
+  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true, \.\.\.citationExtra\(f\) \}\)/,
+    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent); it threads citationExtra(f) too (#1873-class)')
   assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
     'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
   assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
