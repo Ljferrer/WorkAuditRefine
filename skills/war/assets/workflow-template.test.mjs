@@ -10922,7 +10922,7 @@ const LITERAL_REGISTRY = [
   ["terminal-revert:phase-${ph.id}`, dispatchKin"],
   ["merge:p${ph.id}-terminal`, schema: MERGE_RES"],
   ["phase-close sweep DISCARDED (${sweepWhy || ("],
-  ["polish merge returned ${pmr && pmr.status ||"],
+  ["polish merge returned ${pmrStatus}` : 'the p"],
   ["land:phase-${ph.id}`, schema: MERGE_RESULT, "],
   ["phase-${ph.id}-land`, reason: 'submodule-pr'", 3],
   ["phase-${ph.id}-land`, reason: landResult.sta", 2],
