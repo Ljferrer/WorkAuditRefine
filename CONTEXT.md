@@ -601,11 +601,10 @@ A blocking (Critical/Major) finding whose fix needs a plan decision the plan doe
 seat can name no concrete in-file `suggested_fix`. It is the one finding class that escalates without
 a fix round first: the seat returns `escalate` with an `escalate_reason` naming the missing decision,
 and the engine reads that reason into the `escalated[]` record. Its opposite is the **mechanical**
-blocking finding — a
-concrete in-file edit with round budget left — which is `request_changes` by construction and never
-escalates: on a split the one rebuttal round runs first, then a survivor with a `suggested_fix`
-dispatches a fix round plus a full-roster re-audit (rebuttal first, then fix round when a
-suggested_fix survives), and only a fix-less survivor escalates — the two-sided boundary
+blocking finding — a concrete in-file edit with round budget left — which is `request_changes` by
+construction and never escalates: on a split the one rebuttal round runs first, then a survivor with
+a `suggested_fix` dispatches a fix round plus a full-roster re-audit (rebuttal first, then fix round
+when a suggested_fix survives), and only a fix-less survivor escalates — the two-sided boundary
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md), Decision log 2026-09-08;
 #1989, #1664).
 _Avoid_: escalating a fixable bug because it is severe; a reason-less `escalate` (the schema layer
