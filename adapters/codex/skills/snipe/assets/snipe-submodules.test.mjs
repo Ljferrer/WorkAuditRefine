@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 
 import { prepareSnipeRequest } from './snipe-request.mjs'
 import { localSubmoduleRepository, prepareSnipeSubmodules } from './snipe-submodules.mjs'
+import { runSnipePanel } from './snipe-runner.mjs'
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -41,6 +42,73 @@ function fixture() {
   git(root, 'commit', '-m', 'advance submodule')
   return { root, child, baseObject, headObject, input: { cwd: root, target: { type: 'ref', ref: base }, profile: { model: 'test', effort: 'low' }, supportedProfiles: { test: ['low'] } } }
 }
+
+test('cleanup denial stops preparation without source fallback and retains review objects', async t => {
+  const f=fixture(), scope=prepareSnipeRequest(f.input).scope
+  t.after(()=>{rmSync(f.root,{recursive:true,force:true});rmSync(f.child,{recursive:true,force:true})})
+  for(const failAt of [1,2,3,8]) {
+    const original=process.kill, groups=[]
+    let retained, failure
+    process.kill=(pid,signal)=>{
+      if(pid < -1){groups.push(pid);if(groups.length===failAt)throw Object.assign(new Error('injected Git denial'),{code:'EPERM'})}
+      return original(pid,signal)
+    }
+    try {
+      await assert.rejects(prepareSnipeSubmodules(scope), error=>{failure=error;retained=error.retainedRoot;return error.code==='SUBMODULE_CLEANUP_FAILED'})
+      assert.equal(failure.cleanupError.code,'EPERM')
+      assert.equal(failure.terminationConfirmed,false)
+      assert.equal(failure.processGroupId,-groups.at(-1))
+      assert.equal(groups.length,failAt,'no subsequent Git operation or fallback after denied cleanup')
+      assert.equal(existsSync(retained),true)
+      assert.match(failure.message,/operator cleanup required/)
+    } finally {
+      process.kill=original
+      for(const group of groups)try{original(group,'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+      if(retained)rmSync(retained,{recursive:true,force:true})
+    }
+  }
+})
+
+test('late metadata cleanup denial stops the panel; early nonzero exit evidence survives inherited pipes', async t => {
+  const f=fixture(), root=mkdtempSync(join(tmpdir(),'snipe-git-denial-'))
+  const realGit=execFileSync('/usr/bin/which',['git'],{encoding:'utf8'}).trim()
+  const marker=join(root,'pid'), calls=join(root,'calls'), auditor=join(root,'auditor')
+  writeFileSync(auditor,`#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(join(root,'seat-launched'))},'unexpected')\n`);chmodSync(auditor,0o755)
+  const originalKill=process.kill, originalPath=process.env.PATH
+  t.after(()=>{for(const path of [root,f.root,f.child])rmSync(path,{recursive:true,force:true})})
+  for(const mode of ['late-metadata','nonzero']) {
+    let retained, failure, denied=false
+    writeFileSync(calls,'');rmSync(marker,{force:true})
+    writeFileSync(join(root,'git'),`#!${process.execPath}
+      import {spawn,spawnSync} from 'node:child_process';import {appendFileSync,writeFileSync} from 'node:fs';
+      const args=process.argv.slice(2);appendFileSync(${JSON.stringify(calls)},JSON.stringify(args)+'\\n');
+      const target=${JSON.stringify(mode)}==='late-metadata' ? args.includes('blob') && args.some(a=>a.endsWith(':.gitmodules')) : args.includes('--get-all') && args.includes('remote.origin.url');
+      if(target){writeFileSync(${JSON.stringify(marker)},String(process.pid));spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'}).unref();process.exit(${mode==='nonzero'?7:0})}
+      const result=spawnSync(${JSON.stringify(realGit)},args,{stdio:'inherit'});process.exit(result.status??1);
+    `);chmodSync(join(root,'git'),0o755)
+    process.env.PATH=`${root}:${originalPath}`
+    process.kill=(pid,signal)=>{
+      if(existsSync(marker) && pid===-Number(readFileSync(marker,'utf8'))){denied=true;throw Object.assign(new Error('injected semantic Git denial'),{code:'EPERM'})}
+      return originalKill(pid,signal)
+    }
+    try {
+      await assert.rejects(runSnipePanel(f.input,{codexPath:auditor}),error=>{failure=error;retained=error.retainedRoot;return error.code==='SUBMODULE_CLEANUP_FAILED'})
+      assert.equal(denied,true)
+      assert.equal(existsSync(join(root,'seat-launched')),false,'preparation failure must prevent every seat launch')
+      assert.equal(existsSync(retained),true)
+      assert.equal(failure.terminationConfirmed,false)
+      const commands=readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse)
+      const last=commands.at(-1)
+      assert.ok(mode==='late-metadata' ? last.includes('blob') && last.some(a=>a.endsWith(':.gitmodules')) : last.includes('remote.origin.url'),'no subsequent Git operation')
+      if(mode==='late-metadata')assert.ok(commands.some(args=>args.includes('index-pack')),'failure is after local objects were copied')
+      else {assert.equal(failure.exitCode,7);assert.equal(failure.signal,null);assert.match(failure.message,/exit 7/)}
+    } finally {
+      process.kill=originalKill;process.env.PATH=originalPath
+      if(existsSync(marker))try{originalKill(-Number(readFileSync(marker,'utf8')),'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+      if(retained)rmSync(retained,{recursive:true,force:true})
+    }
+  }
+})
 
 test('preparation copies exact local gitlink contents into a disposable read-only review repository', async () => {
   const { root, input, baseObject, headObject } = fixture()

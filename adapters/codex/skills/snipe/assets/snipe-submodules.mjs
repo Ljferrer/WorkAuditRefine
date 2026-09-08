@@ -67,10 +67,22 @@ async function git(cwd, args, { input, signal, allowFetch = false } = {}) {
   const stop = processTreeCleanup(pending.child)
   const timer = setTimeout(stop, 30000)
   signal?.addEventListener('abort', stop, { once: true })
-  pending.child.once('exit', stop)
   pending.child.stdin.on('error', () => {}) // Early Git exits are reported by the process result.
   pending.child.stdin.end(input)
-  try { return (await pending).stdout } finally {
+  // Observe rejection immediately even if bounded cleanup settles first.
+  const outcome = pending.then(value => ({ value }), error => ({ error }))
+  try {
+    const result = await Promise.race([outcome, stop.settled.then(state => state.cleanupError ? { state } : outcome)])
+    const state = result.state ?? await stop.settled
+    if (state.cleanupError) {
+      // execFile settles on close, which inherited pipes may prevent. Preserve
+      // the direct child's observed exit independently of that promise's race.
+      const exitCode = pending.child.exitCode, signal = pending.child.signalCode
+      throw Object.assign(new Error(`Git cleanup ${state.cleanupError.code}: ${state.cleanupError.message}; exit ${exitCode}, signal ${signal}; process group ${state.processGroupId}, termination unconfirmed`), { code: 'SUBMODULE_CLEANUP_FAILED', ...state, exitCode, signal, cause: result.error })
+    }
+    if (result.error) throw result.error
+    return result.value.stdout
+  } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', stop)
     stop()
@@ -171,7 +183,7 @@ export async function prepareSnipeSubmodules(scope, { remotes = {}, signal } = {
     try {
       origin = (await git(scope.repository, ['config', '--local', '--no-includes', '--get-all', 'remote.origin.url'], { signal })).toString().trim()
       if (origin.includes('\n')) origin = undefined
-    } catch { /* Absolute metadata needs no parent URL. */ }
+    } catch (error) { if (error.cleanupError) throw error /* Absolute metadata needs no parent URL. */ }
     const queue = scope.submodules.map(change => ({ change, repository: scope.repository, relativePath: change.path, revisions: metadataRevisions(scope, change), parentRemote: origin, depth: 0 }))
     for (const { change, repository, relativePath, revisions, parentRemote, depth } of queue) {
       const destination = join(temporary, String(changes.length))
@@ -187,7 +199,7 @@ export async function prepareSnipeSubmodules(scope, { remotes = {}, signal } = {
         for (const sha of [change.baseObject, change.headObject].filter(Boolean)) {
           let copied = false
           for (const source of sources) {
-            try { await copyCommit(source, destination, sha, signal); copied = true; break } catch { /* Try the next local source. */ }
+            try { await copyCommit(source, destination, sha, signal); copied = true; break } catch (error) { if (error.cleanupError) throw error /* Try the next local source only after confirmed cleanup. */ }
           }
           if (!copied) {
             if (!Object.hasOwn(remotes, change.path)) throw new Error(`pinned submodule commit ${sha} is unavailable locally; provide an explicitly approved submoduleRemotes entry`)
@@ -207,16 +219,23 @@ export async function prepareSnipeSubmodules(scope, { remotes = {}, signal } = {
         try {
           const recorded = await moduleRemote(repository, revisions[change.headObject ? 1 : 0], relativePath, signal)
           remote = remoteIdentity(recorded, parentRemote).url
-        } catch { /* Local objects or absolute nested URLs do not require a parent remote. */ }
+        } catch (error) { if (error.cleanupError) throw error /* Local objects or absolute nested URLs do not require a parent remote. */ }
         for (const child of children) queue.push({
           change: { ...child, path: `${change.path}/${child.path}` }, repository: destination,
           relativePath: child.path, revisions: [change.baseObject, change.headObject], parentRemote: remote, depth: depth + 1,
         })
         changes.push(Object.freeze({ ...change, contentsAvailable: true, limitation: null, reviewRepository: destination }))
       } catch (error) {
+        if (error.cleanupError) throw error
         changes.push(Object.freeze({ ...change, contentsAvailable: false, limitation: error.message.slice(0, 1000) }))
       }
     }
-    return { scope: Object.freeze({ ...scope, submodules: Object.freeze(changes) }), dispose }
-  } catch (error) { dispose(); throw error }
+    return { scope: Object.freeze({ ...scope, submodules: Object.freeze(changes) }), root: temporary, dispose }
+  } catch (error) {
+    if (error.cleanupError) {
+      error.retainedRoot = temporary
+      error.message += `; operator cleanup required, review objects retained at ${temporary}`
+    } else dispose()
+    throw error
+  }
 }

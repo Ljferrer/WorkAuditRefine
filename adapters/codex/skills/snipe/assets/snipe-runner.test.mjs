@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -130,6 +130,68 @@ test('coordinator prepares pinned submodules before seats and disposes their rev
   const failed = await runSnipePanel({ cwd, target: { type: 'ref', ref: pin }, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex('process.exit(1)') })
   assert.equal(failed.complete, false)
   assert.equal(existsSync(failed.request.scope.submodules[0].reviewRepository), false)
+  for(const panel of [result,failed]) {
+    assert.equal(panel.retainedRoot,null)
+    assert.match(panel.report,/temporary object stores are discarded after review/)
+    assert.doesNotMatch(panel.report,/operator cleanup required/)
+  }
+})
+
+test('unknown worker failure retains prepared objects until the operator can inspect them', async t => {
+  const cwd=fixture(), pin=git(cwd,'rev-parse','HEAD')
+  git(cwd,'update-index','--add','--cacheinfo','160000',pin,'vendor/utils');git(cwd,'commit','-m','gitlink')
+  const codexPath=fakeCodex('process.exit(0)')
+  t.after(()=>{rmSync(cwd,{recursive:true,force:true});rmSync(join(codexPath,'..'),{recursive:true,force:true})})
+  const signal=new AbortController().signal
+  signal.addEventListener=()=>{throw new Error('injected worker setup failure')}
+  let retainedRoot
+  try {
+    await assert.rejects(runSnipePanel({cwd,target:{type:'ref',ref:pin},inheritedProfile,supportedProfiles},{codexPath,signal,timeoutMs:100}),error=>{
+      retainedRoot=error.retainedRoot;assert.equal(typeof retainedRoot,'string')
+      assert.ok(git(join(retainedRoot,'0'),'show',`${pin}:review.txt`).includes('change'))
+      assert.match(error.message,/injected worker setup failure.*operator cleanup required/)
+      return true
+    })
+  } finally {if(retainedRoot)rmSync(retainedRoot,{recursive:true,force:true})}
+})
+
+test('uncertain auditor cleanup retains prepared gitlinks and reports operator cleanup', async t => {
+  const cwd=fixture(), root=mkdtempSync(join(tmpdir(),'snipe-retain-seat-')), marker=join(root,'pid')
+  const pin=git(cwd,'rev-parse','HEAD')
+  git(cwd,'update-index','--add','--cacheinfo','160000',pin,'vendor/utils');git(cwd,'commit','-m','gitlink')
+  t.after(()=>{rmSync(cwd,{recursive:true,force:true});rmSync(root,{recursive:true,force:true})})
+  for(const fault of ['denied','missing-close']) {
+    const codexPath=fakeCodex(validVerdictSource('',`
+      if(seat===1){
+        const {spawn}=await import('node:child_process');const {writeFileSync}=await import('node:fs');
+        writeFileSync(${JSON.stringify(marker)},String(process.pid));
+        spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'}).unref();
+      }
+    `))
+    const original=process.kill;let panel
+    process.kill=(pid,signal)=>{
+      if(existsSync(marker) && pid===-Number(readFileSync(marker,'utf8'))){
+        if(fault==='denied')throw Object.assign(new Error('injected seat denial'),{code:'EPERM'})
+        return true
+      }
+      return original(pid,signal)
+    }
+    try {
+      panel=await runSnipePanel({cwd,target:{type:'ref',ref:pin},rawArgs:'correctness,security',inheritedProfile,supportedProfiles},{codexPath})
+      assert.equal(panel.complete,false);assert.equal(panel.seats[1].validation.status,'valid')
+      const repository=panel.request.scope.submodules[0].reviewRepository
+      assert.equal(existsSync(repository),true,'uncertain readers must retain their object store')
+      assert.equal(join(panel.retainedRoot,'0'),repository)
+      assert.ok(git(repository,'show',`${pin}:review.txt`).includes('change'))
+      assert.ok(panel.report.includes(panel.retainedRoot));assert.match(panel.report,/operator cleanup required/)
+      assert.doesNotMatch(panel.report,/stores are discarded/)
+    } finally {
+      process.kill=original
+      if(existsSync(marker))try{original(-Number(readFileSync(marker,'utf8')),'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+      if(panel?.retainedRoot)rmSync(panel.retainedRoot,{recursive:true,force:true})
+      rmSync(marker,{force:true});rmSync(join(codexPath,'..'),{recursive:true,force:true})
+    }
+  }
 })
 
 function catalogCodex() {
@@ -205,6 +267,126 @@ test('catalog errors, malformed output, early exit and timeout fail visibly', as
   }
 })
 
+test('cleanup failures are bounded, preserve causes and peers, and never become successful audits', {timeout:90000}, t => {
+  const cwd=fixture()
+  t.after(()=>rmSync(cwd,{recursive:true,force:true}))
+  for(const surface of ['catalog','seat']) for(const fault of ['denied','missing-close']) for(const mode of ['success','timeout','output','cancel','exit']) {
+    const root=mkdtempSync(join(tmpdir(),'snipe-cleanup-matrix-')), marker=join(root,'pid')
+    const setup=`
+      const {spawn}=await import('node:child_process'); const {writeFileSync}=await import('node:fs');
+      writeFileSync(${JSON.stringify(marker)},String(process.pid));
+      spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'}).unref();
+    `
+    const trigger=mode==='output' ? `console.log('x'.repeat(1024*1024+1))` : mode==='exit' ? 'process.exit(1)' : ''
+    const catalogSuccess=`console.log(JSON.stringify({id:0,result:{}}));console.log(JSON.stringify({id:1,result:{data:[{model:'gpt-test',supportedReasoningEfforts:[{reasoningEffort:'high'}]}]}}))`
+    const body=surface==='catalog' ? `${setup}${trigger};${mode==='success' ? catalogSuccess : ''};setInterval(()=>{},1000)`
+      : validVerdictSource('', `if(seat===1){${setup}${trigger};${mode==='success' ? '' : 'await new Promise(()=>setInterval(()=>{},1000))'}}`)
+    const codexPath=join(root,'codex')
+    writeFileSync(codexPath,`#!/usr/bin/env node\n${body}\n`);chmodSync(codexPath,0o755)
+    const script=`
+      import assert from 'node:assert/strict';import {existsSync,readFileSync} from 'node:fs';
+      import {listSupportedProfiles,runSnipePanel} from ${JSON.stringify(pathToFileURL(runnerPath).href)};
+      const original=process.kill, marker=${JSON.stringify(marker)}, calls=[];
+      process.kill=(pid,signal)=>{
+        if(existsSync(marker) && pid===-Number(readFileSync(marker,'utf8'))){calls.push(pid);${fault==='denied' ? "throw Object.assign(new Error('injected denial'),{code:'EPERM'})" : 'return true'}}
+        return original(pid,signal)
+      };
+      const controller=new AbortController();
+      const cancel=setInterval(()=>{if(${JSON.stringify(mode)}==='cancel' && existsSync(marker))controller.abort()},10);
+      const options={codexPath:${JSON.stringify(codexPath)},timeoutMs:3000,signal:controller.signal,capacity:2,maxOutputBytes:4096};
+      try{
+        let state;
+        if(${JSON.stringify(surface)}==='catalog'){
+          try{await listSupportedProfiles(options);assert.fail('catalog cleanup cannot succeed')}catch(error){
+            assert.equal(error.code,'PROFILE_DISCOVERY_FAILED');state=error;
+            assert.ok(error.message.includes(${JSON.stringify({success:'cleanup failed',timeout:'timed out',output:'output exceeded limit',cancel:'cancelled',exit:'exited before returning a catalog'}[mode])}),'original discovery reason retained: '+error.message);
+          }
+        }else{
+          const panel=await runSnipePanel({cwd:${JSON.stringify(cwd)},rawArgs:'correctness,security',inheritedProfile:${JSON.stringify(inheritedProfile)},supportedProfiles:${JSON.stringify(supportedProfiles)}},options);
+          state=panel.seats[0];assert.equal(panel.complete,false);assert.notEqual(state.status,'completed');
+          if(${JSON.stringify(mode)}!=='cancel')assert.equal(panel.seats[1].validation.status,'valid','healthy peer retained');
+          assert.match(panel.report,/termination unconfirmed/);
+          assert.ok(panel.report.includes(${JSON.stringify(fault==='denied'?'injected denial':'Process close not observed within cleanup drain deadline')}),'report projects cleanup message');
+          if(${JSON.stringify(mode)}==='timeout')assert.equal(state.status,'timed_out');
+          if(${JSON.stringify(mode)}==='output')assert.equal(state.status,'output_limit');
+          if(${JSON.stringify(mode)}==='cancel')assert.equal(state.status,'cancelled');
+          if(${JSON.stringify(mode)}==='success')assert.equal(state.status,'failed','successful parent with uncertain cleanup cannot become a timeout or approval');
+          if(${JSON.stringify(mode)}==='exit'){assert.equal(state.status,'failed');assert.equal(state.exitCode,1)}
+        }
+        assert.equal(state.cleanupError.code,${JSON.stringify(fault==='denied'?'EPERM':'CLEANUP_CLOSE_TIMEOUT')});
+        assert.equal(state.cleanupError.message,${JSON.stringify(fault==='denied'?'injected denial':'Process close not observed within cleanup drain deadline')});
+        if(${JSON.stringify(surface)}==='catalog')assert.ok(state.message.includes(state.cleanupError.message),'catalog projects cleanup message');
+        else assert.ok(state.validation.error.includes(state.cleanupError.message),'seat projects cleanup message');
+        assert.equal(state.terminationConfirmed,false);assert.equal(state.processGroupId,Number(readFileSync(marker,'utf8')));
+        assert.deepEqual(calls,[-state.processGroupId],'cleanup must not retry');
+      }finally{clearInterval(cancel);process.kill=original}
+    `
+    try {
+      const result=spawnSync(process.execPath,['--input-type=module','--eval',script],{encoding:'utf8',timeout:6000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+      assert.equal(result.status,0,`${surface}/${fault}/${mode}: ${result.stdout}${result.stderr}`)
+    } finally {
+      if(existsSync(marker))try{process.kill(-Number(readFileSync(marker,'utf8')),'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
+      rmSync(root,{recursive:true,force:true})
+    }
+  }
+})
+
+test('non-group natural exits succeed across discovery, seats and preparation; live refusal still fails', async () => {
+  const root=mkdtempSync(join(tmpdir(),'snipe-non-group-'))
+  const repo=fileURLToPath(new URL('../../../../../',import.meta.url))
+  const assets=join(root,'adapters/codex/skills/snipe/assets')
+  try {
+    for(const path of ['adapters/codex','skills/snipe/assets/snipe-args.mjs','skills/war/assets/war-config.mjs','skills/_shared/provision.mjs'])cpSync(join(repo,path),join(root,path),{recursive:true})
+    const path=join(assets,'snipe-process.mjs')
+    writeFileSync(path,readFileSync(path,'utf8').replace("export const processGroup = process.platform !== 'win32'",'export const processGroup = false'))
+    const {processTreeCleanup}=await import(pathToFileURL(path))
+    const {EventEmitter}=await import('node:events')
+    const live=Object.assign(new EventEmitter(),{pid:123,exitCode:null,signalCode:null,kill:()=>false,unref:()=>{}})
+    const stop=processTreeCleanup(live);stop()
+    assert.equal((await stop.settled).cleanupError.code,'SIGNAL_NOT_DELIVERED')
+    for(const [suite,pattern] of [['snipe-runner.test.mjs','CLI accepts explicit profile'],['snipe-submodules.test.mjs','preparation copies exact local']]) {
+      const result=spawnSync(process.execPath,['--test',`--test-name-pattern=${pattern}`,join(assets,suite)],{encoding:'utf8',timeout:30000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+      assert.equal(result.status,0,`${suite}: ${result.stdout}${result.stderr}`)
+    }
+  } finally {rmSync(root,{recursive:true,force:true})}
+})
+
+test('cleanup guard removals fail behavioral assertions in disposable copies', {timeout:240000}, () => {
+  const root=mkdtempSync(join(tmpdir(),'snipe-cleanup-mutants-'))
+  const repo=fileURLToPath(new URL('../../../../../',import.meta.url))
+  const assets=join(root,'adapters/codex/skills/snipe/assets')
+  try {
+    for(const path of ['adapters/codex','skills/snipe/assets/snipe-args.mjs','skills/war/assets/war-config.mjs','skills/_shared/provision.mjs'])cpSync(join(repo,path),join(root,path),{recursive:true})
+    const cases=[
+      ['denial containment','snipe-process.mjs','        finish()\n        return','        throw error','cleanup failures are bounded'],
+      ['drain bound','snipe-process.mjs',"      cleanupError = { code: 'CLEANUP_CLOSE_TIMEOUT', message: 'Process close not observed within cleanup drain deadline' }\n      finish()",'','cleanup failures are bounded'],
+      ['parent exit','snipe-process.mjs',"  child.once('exit', stop)",'','cleanup failures are bounded'],
+      ['identity','snipe-process.mjs','processGroupId: child.pid ?? null,','processGroupId: null,','cleanup failures are bounded'],
+      ['discovery refusal','snipe-runner.mjs','if (failure || cleanup.cleanupError)','if (failure)','cleanup failures are bounded'],
+      ['seat refusal','snipe-runner.mjs','!cleanup.cleanupError && child.exitCode','child.exitCode','cleanup failures are bounded'],
+      ['preparation retention','snipe-submodules.mjs','      error.retainedRoot = temporary','      dispose(); error.retainedRoot = temporary','cleanup denial stops'],
+      ['late metadata refusal','snipe-submodules.mjs','if (error.cleanupError) throw error /* Local objects','/* Local objects','late metadata cleanup'],
+      ['Git original exit','snipe-submodules.mjs','const exitCode = pending.child.exitCode, signal = pending.child.signalCode','const exitCode = null, signal = null','late metadata cleanup'],
+      ['non-group natural exit','snipe-process.mjs','child.exitCode === null && child.signalCode === null && ','','non-group natural exits'],
+      ['discovery original cause','snipe-runner.mjs',"${failure ?? 'Codex model/list cleanup failed'}",'lost original cause','cleanup failures are bounded'],
+      ['uncertain reader retention','snipe-runner.mjs','retainPreparation = seats.some(seat => seat.cleanupError)','retainPreparation = false','uncertain auditor cleanup'],
+      ['unknown reader retention','snipe-runner.mjs','let retainPreparation = true','let retainPreparation = false','unknown worker failure'],
+      ['cleanup message preservation','snipe-process.mjs','message: error.message','message: "generic"','cleanup failures are bounded'],
+      ['normal report projection','snipe-runner.mjs','retainedRoot: retainPreparation ? preparation.root ?? null : null','retainedRoot: preparation.root ?? null','coordinator prepares pinned submodules'],
+    ]
+    for(const [name,file,from,to,pattern] of cases){
+      for(const module of ['snipe-process.mjs','snipe-runner.mjs','snipe-submodules.mjs'])copyFileSync(join(repo,'adapters/codex/skills/snipe/assets',module),join(assets,module))
+      const path=join(assets,file), source=readFileSync(path,'utf8')
+      assert.equal(source.split(from).length,2,name)
+      writeFileSync(path,source.replace(from,to))
+      const suite=['cleanup denial stops','late metadata cleanup'].includes(pattern) ? 'snipe-submodules.test.mjs' : 'snipe-runner.test.mjs'
+      const result=spawnSync(process.execPath,['--test','--test-reporter=tap',`--test-name-pattern=${pattern}`,join(assets,suite)],{encoding:'utf8',timeout:45000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+      assert.equal(result.status,1,`${name}: ${result.stdout}${result.stderr}`)
+      assert.match(result.stdout,/AssertionError/,name)
+    }
+  }finally{rmSync(root,{recursive:true,force:true})}
+})
+
 test('catalog completion and failures terminate inherited descendant processes', async () => {
   for (const mode of ['success', 'malformed', 'timeout', 'output', 'exit', 'cancel', 'error']) {
     const pidPath = join(mkdtempSync(join(tmpdir(), 'snipe-descendant-')), 'pid')
@@ -224,16 +406,16 @@ test('catalog completion and failures terminate inherited descendant processes',
     `)
     let pid
     const controller = new AbortController()
-    const cancelTimer = mode === 'cancel' ? setTimeout(() => controller.abort(), 400) : null
+    const cancelTimer = mode === 'cancel' ? setInterval(() => { if (existsSync(pidPath)) controller.abort() }, 10) : null
     try {
-      const pending = listSupportedProfiles({ codexPath, timeoutMs: 800, signal: controller.signal })
+      const pending = listSupportedProfiles({ codexPath, timeoutMs: 3000, signal: controller.signal })
       if (mode === 'success') await pending
       else await assert.rejects(pending, { code: 'PROFILE_DISCOVERY_FAILED' })
       pid = Number(readFileSync(pidPath, 'utf8'))
       await new Promise(resolve => setTimeout(resolve, 50))
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, mode)
     } finally {
-      clearTimeout(cancelTimer)
+      clearInterval(cancelTimer)
       pid ??= existsSync(pidPath) ? Number(readFileSync(pidPath, 'utf8')) : null
       if (pid) { try { process.kill(pid, 'SIGKILL') } catch {} }
     }

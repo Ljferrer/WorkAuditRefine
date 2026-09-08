@@ -2,6 +2,30 @@
 
 This check supplements the direct `snipe-actual-host.test.mjs` runtime test. A direct host runner cannot establish that a Codex task requests the necessary launch permission.
 
+## Cleanup failure contract (#2235)
+
+Discovery, auditor seats and submodule Git operations share one cleanup observer.
+A denied cleanup signal never escapes a timer/event callback and is never retried.
+A successfully requested signal gets a 250 ms final-close allowance; inherited
+pipes cannot keep the caller waiting indefinitely after that allowance expires.
+Failures retain `cleanupError` (code/message), `processGroupId`, and
+`terminationConfirmed: false`. These are failure evidence, not a claim that the
+process died. The operator may need to clean up the retained group separately.
+
+Discovery rejects with `PROFILE_DISCOVERY_FAILED`, preserving its original reason
+and cleanup diagnostic. Seats retain timeout/output-limit/cancellation statuses;
+otherwise an uncertain cleanup becomes failed, even if a valid verdict was emitted.
+Healthy peers remain reportable. Submodule preparation stops rather than retrying
+another source and retains its review directory on uncertain termination; the
+error names that directory. No audit seats start after such preparation failure.
+
+Deterministic regressions inject denied/missing-close outcomes through the real
+runner, including successful responses, direct-child exit, timeout, output-limit
+and cancellation. The submodule regression checks metadata/init/copy failures and
+retention. These tests do not explain the original intermittent OS denial, and
+source verification is not an installed-plugin update. After review and merge,
+rebuild the package and repeat the installed app smoke test before release.
+
 ## Post-land integrity contract (#2160)
 
 Invalid verdicts retain their original raw evidence and leave the panel incomplete;
@@ -105,7 +129,7 @@ No approval is inferred from `.gitmodules`. Existing local objects need no netwo
 
 Preparation does not clone or check out files into the target, copy source Git configuration, or run checkout hooks. Git environment routing, global URL rewrites, credential helpers and lazy fetching are disabled for preparation; source scope capture also suppresses fsmonitor and text conversion. [Git documents `GIT_NO_LAZY_FETCH`](https://git-scm.com/docs/git) as preventing automatic retrieval from promisor remotes. Allowed remote transports are HTTPS, Git SSH, and loopback-only HTTP for local servers. Redirects, credential-bearing URLs, local-file and arbitrary helper transports are refused. HTTPS authentication requiring a global credential helper is not supported here; approved SSH URLs can use the host's existing keys/agent. Remote identity changes between base/head fail closed with this single-remote-per-path interface.
 
-Limits are 32 prepared gitlinks, four levels, 120 seconds total preparation, 30 seconds per Git process, and 64 MiB per command output/object pack. These bound processing, not total network bytes downloaded by Git. Cancellation or any unavailable object/limit leaves coverage incomplete while preserving other readable findings. Auditors retain the existing read-only/no-network configuration. Temporary `reviewRepository` paths are usable only during the panel and are disposed on completion or failure.
+Limits are 32 prepared gitlinks, four levels, 120 seconds total preparation, 30 seconds per Git process, and 64 MiB per command output/object pack. These bound processing, not total network bytes downloaded by Git. Cancellation or any unavailable object/limit leaves coverage incomplete while preserving other readable findings. Auditors retain the existing read-only/no-network configuration. Temporary `reviewRepository` paths are normally usable only during the panel and are disposed after readers terminate. If auditor cleanup is uncertain, the panel retains the object stores, exposes `retainedRoot`, and reports operator cleanup required; an unknown worker failure conservatively retains them too. Never delete those stores while an uncontained reader may still use them. Ordinary failed verdicts or nonzero exits with successful cleanup do not retain objects.
 
 Repeatable checks:
 
