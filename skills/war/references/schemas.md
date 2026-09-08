@@ -137,7 +137,7 @@ Dispatched as `diff-probe:<taskId>` (`dispatchKind: diff-probe`), ONE per task, 
 
 ## EvidenceResult — `war-refiner` (the post-merge `evidence:phase-<id>` dispatch)
 ```jsonc
-{ perTask?: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence, gate_log_status? }],   // gate_log_status: complete | partial | absent — the dispatch's advisory stamp read of the task's gateLogPath row; rendered on the per-task gate-audit seat as context, never the seat's own determination
+{ perTask?: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }],
   phase_diff_files?: ["path"],   // `git diff --name-only <phaseBase>..<integrationTip>` in _refinery — the phase's git-derived changed-file list; the gate-audit floor pass's note arm reads it (a gate-audit `note` with a suggested_fix in a touched file reroutes to absorb + phaseClose:true); absent ⇒ that arm skips with a log while the follow-up arm still reroutes (in-band-absorb-default D15)
   integratedTipGate?: { gate_output, tip_sha, gate_log_path } }
 ```

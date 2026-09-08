@@ -8131,11 +8131,10 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 5, 'all five plugin-root-anchored trigger pointers to refiner-recovery.md survive (submodule provisioning, pin-transfer arms, land step 3, 2A/2B land arms, endstate-check steps)')
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
   // #2156 a4 headroom eviction (ADR 0042, PIN-3): the card's MergeResult merge-task-only parenthetical
-  // (617 B) moved under its own `##` heading — byte-identical except for the `gate_segment` row it gained
-  // in the same commit; the card keeps a bare-path trigger pointer
+  // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
   // (never a `](…)` link — the five-count above must not grow) and none of the moved body.
   const mtOnly = refinerRecoveryMd.match(/^\(`floor_diagnostic` is merge-task-only — .*riding `status: "error"`\)$/m)
-  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical (byte-identical except its added gate_segment row)')
+  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical byte-identical')
   assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § MergeResult merge-task-only fields'), 'the card keeps the bare-path trigger pointer to the evicted parenthetical')
   assert.ok(!refinerMd.includes('is merge-task-only — the exit-1 test floor'), 'the card no longer carries the evicted parenthetical body')
   assert.match(refinerRecoveryMd, /## Pin-transfer arms/, 'the evicted pin-transfer arms section landed at the destination')
@@ -11862,10 +11861,8 @@ const BARE_INTERPOLATION_CENSUS = [
   // pt-built module consts (GATE_LOG_STAMP / PARTIAL_LOG_RULE / GATE_LOG_READ_RULE / GATE_LOG_UNTHREADED)
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
   // both call sites; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
-  // `label` is the segmentedMerge continuation header's site label (the shared `segmented` loop passes
-  // opts.label — every call site sets one). gateLogStatus (#2156 a5) is gated by an enum-membership
-  // ternary at its single site and gateLogStatusLine is that ternary's pt-built product (else '').
-  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'gateLogStatus', 'gateLogStatusLine', 'label', 'shape',
+  // `opts.label` is the segmentedMerge continuation header's site label — every call site passes one.
+  'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -16364,9 +16361,6 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
     assert.ok(c.prompt.includes('run_in_background'), name + ' instructs run_in_background')
     assert.ok(c.prompt.includes("gate_segment: 'incomplete'"), name + ' names the gate_segment return shape')
     assert.ok(c.prompt.includes(rule), name + ' carries PARTIAL_LOG_RULE byte-equal')
-    // #2156 a5: the merge-side clause names the conventional log itself, so "named above" resolves on the
-    // baseline-proceed re-merge too (it deliberately carries no gateCaptureClause).
-    assert.match(c.prompt, /The stamped gate log is \S+\/_refinery\/\.war\/gate-t1\.log \(an absolute path/, name + ' names the task-keyed stamped gate log')
   }
   // Land builds: the initial land, its continuation, and both re-lands.
   let l = 0
