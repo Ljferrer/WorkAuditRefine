@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFileSync, existsSync, writeFileSync, statSync, mkdtempSync, copyFileSync, rmSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync, statSync, mkdtempSync, copyFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
@@ -140,11 +140,75 @@ test('owned processes have bounded hangs/output and reap inherited-pipe descenda
   assert.equal(statSync(heartbeat).mtimeMs, before)
 })
 
+test('fixture cleanup denial with inherited pipes settles failure and preserves uncertain state', {timeout:10000}, async t => {
+  for(const mode of ['denied','missing-close']) {
+  const fixture=createGitFixture(t), original=process.kill, groups=new Set()
+  process.kill=(pid,signal)=>{
+    if(pid < -1) {
+      groups.add(pid)
+      if(mode==='denied') throw Object.assign(new Error('injected fixture cleanup denial'),{code:'EPERM'})
+      return true
+    }
+    return original(pid,signal)
+  }
+  let pending, deadline
+  try {
+    pending=startFixtureProcess(fixture,'descendant',{timeoutMs:1000}).result
+    const result=await Promise.race([pending,new Promise(resolve=>{deadline=setTimeout(()=>resolve(null),1500)})])
+    assert.notEqual(result,null,'fixture result must not depend on child close')
+    assert.equal(result.code,null,'unconfirmed cleanup cannot masquerade as successful fixture execution')
+    if(mode==='denied') assert.match(result.cleanupError,/injected fixture cleanup denial/)
+    else assert.equal(result.reason,'process-close-timeout')
+    assert.equal(result.terminationConfirmed,false)
+    assert.equal(fixture.cleanupIncomplete,true)
+  } finally {
+    clearTimeout(deadline);process.kill=original
+    for(const group of groups) {try{original(group,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}}
+    await pending
+    // The injected denial has now been cleaned with the real host capability.
+    // Production denials have no such override and preserve their fixture root.
+    fixture.cleanupIncomplete=false
+  }
+  }
+})
+
+test('uncertain fixture cleanup fails teardown and retains evidence even when a caller ignores the result', {timeout:10000}, () => {
+  const root=mkdtempSync(join(tmpdir(),'war-retained-fixture-')), marker=join(root,'root.json')
+  let retained
+  try {
+    const script=`
+      import {test} from 'node:test'
+      import {writeFileSync} from 'node:fs'
+      import {createGitFixture,startFixtureProcess} from ${JSON.stringify(new URL('./git-fixture.mjs',import.meta.url).href)}
+      test('caller ignores result',async t=>{
+        const fixture=createGitFixture(t), original=process.kill, groups=new Set()
+        writeFileSync(${JSON.stringify(marker)},JSON.stringify(fixture.root))
+        process.kill=(pid,signal)=>{if(pid < -1){groups.add(pid);throw Object.assign(new Error('denied'),{code:'EPERM'})}return original(pid,signal)}
+        try{await startFixtureProcess(fixture,'descendant').result}
+        finally{process.kill=original;for(const group of groups)try{original(group,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}}
+      })
+    `
+    const file=join(root,'retained.test.mjs')
+    writeFileSync(file,script)
+    const result=spawnSync(process.execPath,['--test',file],{encoding:'utf8',timeout:5000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+    retained=JSON.parse(readFileSync(marker,'utf8'))
+    assert.equal(result.status,1,result.stdout+result.stderr)
+    assert.match(result.stdout+result.stderr,/fixture cleanup incomplete; evidence retained/)
+    assert.equal(existsSync(join(retained,'fixture.json')),true)
+  } finally {
+    if(retained) rmSync(retained,{recursive:true,force:true})
+    rmSync(root,{recursive:true,force:true})
+  }
+})
+
 test('fixture guard removals produce assertion failures in disposable subprocess tests', {timeout:90000}, () => {
   const dir=mkdtempSync(join(tmpdir(),'war-fixture-mutations-'))
   try {
+    const parity=join(dir,'tests/parity'), ci=join(dir,'scripts/ci')
+    mkdirSync(parity,{recursive:true});mkdirSync(ci,{recursive:true})
     const files=['git-fixture.test.mjs','git-fixture.mjs','fixture-process.mjs','issue-service.mjs']
     const sources=Object.fromEntries(files.map(file=>[file,readFileSync(new URL(file,import.meta.url),'utf8')]))
+    sources['owned-process.mjs']=readFileSync(new URL('../../scripts/ci/owned-process.mjs',import.meta.url),'utf8')
     const mutations=[
       ['duplicate landing','fixture-process.mjs','if (tip === base) {','if (tip === base || tip === candidate) {','real kill'],
       ['unknown remote refusal','fixture-process.mjs',"else if (tip !== candidate) throw new Error('unexplained remote tip; refusing to land or repair ledger')",'','unknown remote state'],
@@ -155,16 +219,20 @@ test('fixture guard removals produce assertion failures in disposable subprocess
       ['ledger remote pair','fixture-process.mjs',"if (recordedRevision === candidate && tip === base) throw new Error('ledger-ahead contradiction; explicit landing decision required')",'','ledger and remote'],
       ['ledger pair first arm','fixture-process.mjs','recordedRevision === candidate && tip === base','tip === base','ledger and remote'],
       ['ledger pair second arm','fixture-process.mjs','recordedRevision === candidate && tip === base','recordedRevision === candidate','ledger and remote'],
-      ['parent exit cleanup','git-fixture.mjs',"  child.on('exit', kill)",'','owned processes'],
+      ['parent exit cleanup','owned-process.mjs',"  child.once('exit',kill)",'','owned processes'],
       ['output bound','git-fixture.mjs','stdout.length > 1024*1024','false','owned processes'],
       ['issue correlation','fixture-process.mjs',"const matches = await request('GET')",'const matches = []','timeout after issue'],
+      ['denial finalization','owned-process.mjs','        finish()\n        return','        return','fixture cleanup denial'],
+      ['drain deadline','owned-process.mjs',"drainTimer ??= setTimeout(()=>{failure ??= 'process-close-timeout';finish()},250)",'','fixture cleanup denial'],
+      ['teardown failure','git-fixture.mjs',"    if(fixture.cleanupIncomplete) throw new Error(`fixture cleanup incomplete; evidence retained at ${root}`)",'','uncertain fixture cleanup'],
     ]
     for (const [name,file,needle,replacement,pattern] of mutations) {
-      for (const item of files) copyFileSync(new URL(item,import.meta.url),join(dir,item))
+      for (const item of files) copyFileSync(new URL(item,import.meta.url),join(parity,item))
+      writeFileSync(join(ci,'owned-process.mjs'),sources['owned-process.mjs'])
       assert.equal(sources[file].split(needle).length,2,name)
-      writeFileSync(join(dir,file),sources[file].replace(needle,replacement))
+      writeFileSync(join(file==='owned-process.mjs' ? ci : parity,file),sources[file].replace(needle,replacement))
       const env={...process.env}; delete env.NODE_TEST_CONTEXT
-      const result=spawnSync(process.execPath,['--test','--test-reporter=tap',`--test-name-pattern=${pattern}`,join(dir,'git-fixture.test.mjs')],{env,encoding:'utf8',timeout:25000,maxBuffer:4*1024*1024})
+      const result=spawnSync(process.execPath,['--test','--test-reporter=tap',`--test-name-pattern=${pattern}`,join(parity,'git-fixture.test.mjs')],{env,encoding:'utf8',timeout:25000,maxBuffer:4*1024*1024})
       assert.equal(result.status,1,`${name}: ${result.stdout}${result.stderr}`)
       assert.match(result.stdout,/not ok/,name)
       assert.match(result.stdout,/AssertionError/,name)

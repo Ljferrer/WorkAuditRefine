@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { ownProcess } from '../../scripts/ci/owned-process.mjs'
 
 // No credential/config forwarding. Git can only use file transport, and every
 // fixture starts from empty config, hooks and templates instead of user defaults.
@@ -22,9 +23,11 @@ export function fixtureGit(root, cwd, args) {
 export function createGitFixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'war-parity-git-'))
   const children = new Set()
+  const fixture = {cleanupIncomplete:false}
   t.after(async () => {
     for (const child of children) child.kill()
     await Promise.all([...children].map(child => child.result))
+    if(fixture.cleanupIncomplete) throw new Error(`fixture cleanup incomplete; evidence retained at ${root}`)
     rmSync(root, {recursive:true, force:true})
   })
   mkdirSync(join(root, 'empty'))
@@ -45,42 +48,40 @@ export function createGitFixture(t) {
   git(['commit', '-am', 'candidate'])
   const candidate = git(['rev-parse', 'HEAD'])
   writeFileSync(join(root, 'fixture.json'), JSON.stringify({base, candidate}))
-  return {root, work, remote, base, candidate, children, git,
+  Object.assign(fixture,{root, work, remote, base, candidate, children, git,
     remoteTip:() => fixtureGit(root, remote, ['rev-parse', 'refs/heads/main']),
-    remoteUpdates:() => fixtureGit(root, remote, ['reflog', 'show', '--format=%H', 'refs/heads/main']).split('\n').length }
+    remoteUpdates:() => fixtureGit(root, remote, ['reflog', 'show', '--format=%H', 'refs/heads/main']).split('\n').length })
+  return fixture
 }
 
 export function startFixtureProcess(fixture, operation, {checkpoint, timeoutMs=5000} = {}) {
   const args = [fileURLToPath(new URL('fixture-process.mjs', import.meta.url)), fixture.root, operation]
   if (checkpoint) args.push(checkpoint)
   const child = spawn(process.execPath, args, {cwd:fixture.root, env:fixtureEnvironment(fixture.root), detached:true, stdio:['ignore','pipe','pipe']})
-  let stdout = '', stderr = '', reason = null, cleanupError = null, done = false
+  let stdout = '', stderr = '', done = false
   const watchers = new Set()
-  const kill = () => {
-    if (!child.pid) return
-    try { process.kill(-child.pid, 'SIGKILL') } catch (error) { if (error.code !== 'ESRCH') cleanupError = error.message }
-  }
-  const timer = setTimeout(() => { reason='timeout'; kill() }, timeoutMs)
   const notify = () => { for (const fn of watchers) fn() }
-  child.stdout.on('data', data => {
-    stdout += data.toString()
-    if (stdout.length > 1024*1024) { stdout=stdout.slice(0,1024*1024); reason='output-limit'; kill() }
-    notify()
+  const owner=ownProcess(child,{timeoutMs,onData(channel,data) {
+    if(channel==='stdout') {
+      stdout += data.toString()
+      if (stdout.length > 1024*1024) { stdout=stdout.slice(0,1024*1024); owner.stop('output-limit') }
+      notify()
+    } else {
+      stderr += data.toString()
+      if (stderr.length > 1024*1024) { stderr=stderr.slice(0,1024*1024); owner.stop('output-limit') }
+    }
+  }})
+  const result=owner.result.then(execution=>{
+    if(execution.terminationConfirmed===false) fixture.cleanupIncomplete=true
+    done=true;notify()
+    const {exitCode,failure,...state}=execution
+    return {...state,code:execution.terminationConfirmed===false ? null : exitCode,
+      stdout,stderr,reason:failure ?? (execution.cleanupError ? 'cleanup-denied' : null)}
   })
-  child.stderr.on('data', data => {
-    stderr += data.toString()
-    if (stderr.length > 1024*1024) { stderr=stderr.slice(0,1024*1024); reason='output-limit'; kill() }
-  })
-  child.on('error', error => { reason=error.message })
-  child.on('exit', kill)
-  const result = new Promise(resolve => child.on('close', (code, signal) => {
-    clearTimeout(timer); done=true; notify()
-    resolve({code, signal, stdout, stderr, reason, cleanupError})
-  }))
-  const handle = {kill, result, checkpoint: name => new Promise((resolve, reject) => {
+  const handle = {kill:owner.kill, result, checkpoint: name => new Promise((resolve, reject) => {
     const inspect = () => {
       if (stdout.split('\n').includes(`checkpoint:${name}`)) { watchers.delete(inspect); resolve() }
-      else if (done) { watchers.delete(inspect); reject(new Error(`missing checkpoint ${name}: ${reason ?? stderr}`)) }
+      else if (done) { watchers.delete(inspect); reject(new Error(`missing checkpoint ${name}: process ended; ${stderr}`)) }
     }
     watchers.add(inspect); inspect()
   })}

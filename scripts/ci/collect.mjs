@@ -4,6 +4,7 @@ import { dirname, delimiter, join, resolve, relative, sep } from 'node:path'
 import { createHash } from 'node:crypto'
 import { platform, arch, release } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { ownProcess } from './owned-process.mjs'
 
 const baselineSkips = JSON.parse(readFileSync(new URL('./baseline-skips.json', import.meta.url), 'utf8'))
 
@@ -89,35 +90,18 @@ export async function collect({ root, output, inventory, timeoutMs = 600000 }) {
   return report
 }
 
-function execute(command, cwd, env, stdout, stderr, timeoutMs) {
-  return new Promise(resolve => {
+async function execute(command, cwd, env, stdout, stderr, timeoutMs) {
     const out = openSync(stdout, 'wx'), err = openSync(stderr, 'wx')
-    let bytes = 0, failure = null, cleanupError = null
+    let bytes = 0
     const child = spawn(command[0], command.slice(1), { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
-    function stop(reason) {
-      if (failure) return
-      failure = reason
-      terminateGroup()
-    }
-    function terminateGroup() {
-      if (!child.pid) return
-      try { process.kill(-child.pid, 'SIGKILL') } catch (error) { if (error.code !== 'ESRCH') cleanupError = error.message }
-    }
-    const timer = setTimeout(() => stop('timeout'), timeoutMs)
-    for (const [stream, fd] of [[child.stdout, out], [child.stderr, err]]) stream.on('data', chunk => {
+    const owner = ownProcess(child, {timeoutMs, onData(channel, chunk) {
       const remaining = Math.max(0, 16 * 1024 * 1024 - bytes)
-      writeSync(fd, chunk.subarray(0, remaining))
+      writeSync(channel === 'stdout' ? out : err, chunk.subarray(0, remaining))
       bytes += chunk.length
-      if (bytes > 16 * 1024 * 1024) stop('output-limit')
-    })
-    child.on('error', error => { failure = error.message })
-    child.on('exit', terminateGroup)
-    child.on('close', (exitCode, signal) => {
-      clearTimeout(timer)
-      closeSync(out); closeSync(err)
-      resolve({ exitCode, signal, failure, cleanupError })
-    })
-  })
+      if (bytes > 16 * 1024 * 1024) owner.stop('output-limit')
+    }})
+    try { return await owner.result }
+    finally { closeSync(out); closeSync(err) }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

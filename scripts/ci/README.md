@@ -41,10 +41,14 @@ transport prevents inherited Git remotes from contacting production. This is
 test hygiene, not an OS network sandbox: execute trusted reviewed tests, preferably
 in a disposable checkout. A test can itself spawn arbitrary programs.
 
-Each suite is bounded to ten minutes and 16 MiB combined logs. On timeout/output
-overflow the collector kills its owned process group and preserves the failure.
-It also terminates remaining group members after a successful parent exit;
-cleanup errors cannot produce a passing suite.
+Each suite has a ten-minute response deadline and 16 MiB combined log bound.
+The collector and physical fixtures share `owned-process.mjs`: timeout/output
+overflow requests group termination, and parent exit also cleans remaining group
+members. A successful signal gets at most 250 ms for final close/log drainage.
+If cleanup is denied or close never arrives, the owner detaches its streams and
+settles failure independently of child close. The report retains `processGroupId`
+and `terminationConfirmed: false`; it does not pretend an unkillable child died.
+Denied cleanup is not retried. Such a run needs operator cleanup and cannot pass.
 Artifacts stay at the requested location; no automatic upload or cleanup occurs.
 The report pins the starting SHA, index digest and source-content digest, then
 repeats the observation after collection. Any drift fails the run and retains

@@ -59,8 +59,13 @@ retain raw diagnostics separately rather than drop meaningful differences.
 remote with reflog recording, fixture-local identity/config/hooks/templates and
 file-only Git transport. `startFixtureProcess` owns detached process groups,
 captures bounded output, kills them on timeout and direct-parent exit, and exposes
-an exact named checkpoint. Test cleanup waits for owned processes before removing
-the temporary root. This requires permission to start/kill local process groups
+an exact named checkpoint. It shares the bounded process lifecycle in
+`scripts/ci/owned-process.mjs` with the collector. A denied kill or missing close
+settles failure without waiting on inherited pipes (250 ms final drain allowance
+after a successful signal). Unconfirmed termination is explicit in the result;
+the test fails and retains its temporary root rather than claiming cleanup.
+Ordinary cleanup waits for owned processes before removing the root.
+This requires permission to start/kill local process groups
 and bind a loopback service; a denied test is a failure, not an allowed skip.
 
 `fixture-process.mjs` is deliberately a tiny **fixture driver**, not a substitute

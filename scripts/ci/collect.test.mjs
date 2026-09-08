@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync, statSync, symlinkSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -195,7 +195,7 @@ test('index-only drift is detected without changing worktree content or path mem
 })
 
 test('cleanup error independently prevents successful suite classification', async t => {
-  const root = fixture(t, { 'hooks/pass.test.sh': 'echo "ok - assertion"' })
+  const root = fixture(t, { 'hooks/pass.test.sh': 'echo "ok - assertion"; while [ ! -s report/0/stdout.log ]; do sleep 0.01; done' })
   const original = process.kill
   process.kill = (pid, signal) => {
     if (pid < 0) throw Object.assign(new Error('simulated cleanup denial'), { code: 'EPERM' })
@@ -232,6 +232,69 @@ async function descendantFixture(t, redirected) {
 test('successful suite exit also terminates redirected descendants', t => descendantFixture(t, true))
 test('successful parent exit terminates descendants with inherited output pipes', t => descendantFixture(t, false))
 
+test('cleanup denial with inherited pipes settles a failed report without waiting for descendant exit', async t => {
+  for(const mode of ['denied','missing-close']) {
+  const root=fixture(t,{
+    'worker.mjs':"import{writeFileSync}from'node:fs';writeFileSync('report/ready','ready');setInterval(()=>{},1000)",
+    'hooks/denied.test.sh':'node worker.mjs &\nwhile [ ! -f report/ready ]; do sleep 0.02; done\necho "ok - ready"',
+  })
+  const original=process.kill, groups=new Set()
+  process.kill=(pid,signal)=>{
+    if(pid < -1) {
+      groups.add(pid)
+      if(mode==='denied') throw Object.assign(new Error('injected group denial'),{code:'EPERM'})
+      return true
+    }
+    return original(pid,signal)
+  }
+  let pending, deadline
+  try {
+    pending=collect({root,output:join(root,'report'),timeoutMs:1000})
+    const report=await Promise.race([pending,new Promise(resolve=>{deadline=setTimeout(()=>resolve(null),1500)})])
+    assert.notEqual(report,null,'cleanup failure must not depend on child close')
+    assert.equal(report.ok,false)
+    if(mode==='denied') assert.match(report.suites[0].cleanupError,/injected group denial/)
+    else assert.equal(report.suites[0].failure,'process-close-timeout')
+    assert.equal(report.suites[0].status,'failed')
+    assert.equal(report.suites[0].terminationConfirmed,false)
+    const saved=readFileSync(join(root,'report/report.json'),'utf8')
+    await new Promise(resolve=>setTimeout(resolve,50))
+    assert.equal(readFileSync(join(root,'report/report.json'),'utf8'),saved)
+  } finally {
+    clearTimeout(deadline);process.kill=original
+    for(const group of groups) {try{original(group,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}}
+    await pending
+  }
+  }
+})
+
+test('shared process owner contains output capture, stream and spawn errors', t => {
+  const temporary=mkdtempSync(join(tmpdir(),'war-owner-errors-'))
+  t.after(()=>rmSync(temporary,{recursive:true,force:true}))
+  for(const mode of ['capture','stream','spawn']) {
+    const script=`
+      import assert from 'node:assert/strict'
+      import {spawn} from 'node:child_process'
+      import {ownProcess} from ${JSON.stringify(new URL('./owned-process.mjs',import.meta.url).href)}
+      const mode=${JSON.stringify(mode)}, uncaught=[]
+      const child=spawn(mode==='spawn' ? ${JSON.stringify(join(temporary,'missing-executable'))} : process.execPath,
+        ['-e','process.stdout.write("ready");setInterval(()=>{},1000)'],{detached:true,stdio:['ignore','pipe','pipe']})
+      const cleanup=()=>{if(child.pid)try{process.kill(-child.pid,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}}
+      const record=error=>{uncaught.push(error.message);cleanup()}
+      process.on('uncaughtException',record)
+      const owner=ownProcess(child,{timeoutMs:1000,onData(){if(mode==='capture')throw new Error('fixture disk error')}})
+      const streamTimer=mode==='stream' ? setTimeout(()=>child.stdout.emit('error',new Error('fixture stream error')),50) : null
+      const rescue=setTimeout(cleanup,2000)
+      let result
+      try{result=await owner.result}finally{clearTimeout(rescue);clearTimeout(streamTimer);process.removeListener('uncaughtException',record);cleanup()}
+      assert.deepEqual(uncaught,[])
+      assert.match(result.failure,mode==='capture' ? /output capture failed/ : mode==='stream' ? /output stream failed/ : /ENOENT/)
+    `
+    const result=spawnSync(process.execPath,['--input-type=module','--eval',script],{encoding:'utf8',timeout:4000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+    assert.equal(result.status,0,`${mode}: ${result.stdout}${result.stderr}`)
+  }
+})
+
 test('zero-exit shell failure rows on either channel still fail', async t => {
   for (const row of ['FAIL - assertion failed', 'not ok 1 - assertion failed']) {
     for (const channel of ['', '>&2']) {
@@ -266,13 +329,12 @@ test('symlinked tracked suite is rejected before executing its target', async t 
 })
 
 test('targeted guard removals fail their independent behavioral regressions', t => {
-  const source = readFileSync(new URL('./collect.mjs', import.meta.url), 'utf8')
   const cases = [
     ['shell-count', 'counts.tests < 1', 'false', 'shell completion'],
     ['stderr-skip', "const errorText = readFileSync(stderr, 'utf8')", "const errorText = ''", 'shell completion'],
     ['census', "if (JSON.stringify(inventory) !== JSON.stringify(discovered)) throw new Error('inventory mismatch')", '', 'CLI refuses'],
     ['revision', "stability === 'unchanged' && ", '', 'revision and'],
-    ['descendant', "child.on('exit', terminateGroup)", '', 'inherited output'],
+    ['descendant', "child.once('exit',kill)", '', 'inherited output', 'owned-process.mjs'],
     ['output-limit', 'bytes > 16 * 1024 * 1024', 'false', 'output floods'],
     ['runtime-path', "dirname(process.execPath) + delimiter + (process.env.PATH ?? '')", "process.env.PATH ?? ''", 'nested node'],
     ['index-digest', ".update(git('ls-files', '--stage', '-z'))", ".update('')", 'index-only'],
@@ -282,12 +344,19 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['failure-row', 'counts.fail > 0', 'false', 'zero-exit shell failure'],
     ['mode', '[path, stat?.mode ?? null, bytes.length, digest]', '[path, null, bytes.length, digest]', 'mode-only'],
     ['regular-file', "lstatSync(join(root, path), { throwIfNoEntry: false })?.isFile()", "lstatSync(join(root, path), { throwIfNoEntry: false })", 'symlinked tracked'],
+    ['denial-finalization', '        finish()\n        return', '        return', 'cleanup denial', 'owned-process.mjs'],
+    ['drain-deadline', "drainTimer ??= setTimeout(()=>{failure ??= 'process-close-timeout';finish()},250)", '', 'cleanup denial', 'owned-process.mjs'],
+    ['capture-error', 'try {onData(channel,chunk)} catch(error) {stop(`output capture failed: ${error.message}`)}', 'onData(channel,chunk)', 'shared process owner', 'owned-process.mjs'],
+    ['stream-error', "stream?.on('error',error=>stop(`output stream failed: ${error.message}`))", '', 'shared process owner', 'owned-process.mjs'],
+    ['spawn-error', "child.on('error',error=>stop(error.message))", '', 'shared process owner', 'owned-process.mjs'],
   ]
-  for (const [name, from, to, pattern] of cases) {
+  for (const [name, from, to, pattern, file='collect.mjs'] of cases) {
+    const source=readFileSync(new URL(file,import.meta.url),'utf8')
     assert.equal(source.split(from).length, 2, `mutation ${name} must alter one real guard`)
     const root = mkdtempSync(join(tmpdir(), 'war-collector-mutant-'))
     t.after(() => rmSync(root, { recursive: true, force: true }))
-    writeFileSync(join(root, 'collect.mjs'), source.replace(from, to))
+    for(const module of ['collect.mjs','owned-process.mjs']) writeFileSync(join(root,module),readFileSync(new URL(module,import.meta.url)))
+    writeFileSync(join(root, file), source.replace(from, to))
     writeFileSync(join(root, 'collect.test.mjs'), readFileSync(fileURLToPath(import.meta.url)))
     writeFileSync(join(root, 'baseline-skips.json'), readFileSync(new URL('./baseline-skips.json', import.meta.url)))
     assert.throws(() => execFileSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern', pattern, join(root, 'collect.test.mjs')], { env: { ...process.env, NODE_TEST_CONTEXT: undefined }, encoding: 'utf8', timeout: 15000, stdio: 'pipe' }), error => error.status === 1 && /not ok \d+ -/.test(error.stdout) && /AssertionError/.test(error.stdout), `mutation ${name} must fail an assertion, not initialization`)

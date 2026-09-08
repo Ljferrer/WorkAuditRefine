@@ -277,3 +277,36 @@ the signal. Filed #2235 (`codex-port`, `bug`) with the complete reproduction and
 discovery/seat/parent-exit sibling sweep. Production runner changes remain outside
 this foundation PR; no installed plugin was touched. A later successful baseline
 does not close or erase this follow-up.
+
+### Cycle 9 — deadline/denial conjunction
+
+- Pin `1e297a36ad57216911b9b9e2b20f5cff3bf22c29`; complete stable coverage.
+  Correctness requested changes for one Major; test-coverage and cascading-impact
+  approved. No asks or follow-ups. Nine of twelve panels used.
+- This panel received a completed clean baseline at its exact SHA: 64 suites,
+  3,293 passing observed cases/rows and four named host skips; zero failures,
+  cancellations or todos, unchanged source/index/content. Report:
+  `/private/tmp/war-parity-acceptance-baseline.hwqfLs/report/report.json`.
+  That ordinary-path pass did not cover the conjunction the panel found.
+- Both foundation process owners still waited exclusively for child close after
+  a denied kill. The previous tests proved denial without inherited pipes and
+  inherited pipes without denial. Combined regressions for collector and fixture
+  each failed their bounded-result assertions before the repair.
+- Both callers now share `scripts/ci/owned-process.mjs`. Denial detaches parent
+  streams and settles failure; a successful signal gets a separate bounded close
+  drain. Unknown termination is explicit with group identity, never claimed as a
+  killed process. Late callbacks cannot write closed collector descriptors. The
+  fixture maps an unconfirmed result to failure, preserves its root and fails
+  teardown even if the test body ignores the result.
+- Swept missing-close, output-capture error, stream error and spawn-error paths,
+  plus both output consumers and the teardown consumer. Retained-root behavior
+  has a real subprocess test. Deliberate injected denials restore actual cleanup
+  only inside their test harness; genuine denial is never retried or waived.
+- All 49 targeted foundation tests pass: T1 24 tests / 19 assertion-killed
+  mutations; T2 15 / 24; T3 10 / 15. New mutations remove denial finalization and
+  drain deadlines for both consumers, error containment in the shared owner and
+  the fixture teardown guard. The complete baseline must be refreshed after this
+  shared-helper repair. Production Snipe still uses its original helper (#2235).
+- Raw panel: `/private/tmp/war-parity-cycle9.sQb59Q/audit-result.json`.
+  This reopens a previously approved T1 lifecycle class at another conjunction;
+  it is not a reversal of an operator policy. The discipline did not prevent it.
