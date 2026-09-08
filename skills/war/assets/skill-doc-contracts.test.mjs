@@ -4370,3 +4370,54 @@ test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbat
   assert.equal(cfg.length, 5, 'design.md says `five seats` — DEFAULTS.audit.roster must carry five entries')
   assert.ok(cfg.every((r) => r.depth === 'deep'), 'design.md says `at `deep`` — every DEFAULTS.audit.roster entry must be depth `deep`')
 })
+
+// (D20, Task 12.2 — release-slot eligibility by literal, not by file; #2000, PIN-24) The NEW rule
+// lives INSIDE disposition-eligibility.md's absorb blockquote (the same block the write-footprint
+// row extracts, so a blank line or a `- ` bullet before it would red that row), CONTEXT.md carries
+// the **Version-literal guard** entry de-mirrored to `RELEASE_SLOT_FILES` and
+// `version-slots.test.mjs`, ADR 0013's Decision 5 is edited in place with a dated Decision-log line,
+// and SKILL.md's `--ace` bullet drops its file-based routing clause. OLD-absent (rule 6, base
+// `ffb3ab6`): the retired clause `or a release-slot filename routes to the` was present in the
+// `--ace` bullet at the task base; the eligibility doc never carried a `touches no version/release
+// slot` sentence there, so the decisive assert is the NEW rule beside the unchanged
+// `barrier:release-slot` bullet. The barrier bullet itself stays byte-stable: `plugin.json` /
+// `marketplace.json` only.
+test('D20 — release-slot eligibility by literal: eligibility absorb block, CONTEXT.md entry, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
+  const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
+  assert.ok(block, "could not locate the `disposition:'absorb'` block in disposition-eligibility.md — construct rotted")
+  const b = norm(block[0])
+  for (const [re, what] of [
+    [/version literal/i, 'the by-literal rule (`version literal`)'],
+    [/`RELEASE_SLOT_FILES`/, 'the de-mirrored basename source `RELEASE_SLOT_FILES`'],
+    [/`version-slots\.test\.mjs`/, 'the merge guard `version-slots.test.mjs`'],
+    [/CHANGELOG head heading/, 'the CHANGELOG head-heading literal'],
+    [/`## Status`/, 'the README `## Status` token'],
+  ]) assert.match(b, re, `disposition-eligibility.md's absorb blockquote must carry ${what} (D20) — inside the block, never after a blank line or a bullet`)
+  assert.match(b, /write footprint/i, 'the write-footprint sentence must stay inside the same absorb block (the D20 line lands beside it, not in a new paragraph)')
+  const barrier = eligibilityRef.match(/^- `barrier:release-slot` — .*$/m)
+  assert.ok(barrier, 'the `barrier:release-slot` bullet must stay in `## Barrier list`')
+  assert.match(barrier[0], /`plugin\.json` \/ `marketplace\.json`/, 'the `barrier:release-slot` bullet names the two pure version-slot JSONs only (D20 leaves it unchanged)')
+  assert.ok(!/README|CHANGELOG/.test(barrier[0]), 'the `barrier:release-slot` bullet must not widen to README/CHANGELOG (by-literal eligibility, PIN-24)')
+  // CONTEXT.md — the glossary entry, de-mirrored (names the source and the guard, never the basenames as a list).
+  const entry = contextMd.match(/^\*\*Version-literal guard\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Version-literal guard**` glossary entry in CONTEXT.md — construct rotted (Task 12.2)')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Version-literal guard** entry must span its `_Avoid_` line — extraction truncated')
+  for (const [re, what] of [
+    [/`RELEASE_SLOT_FILES`/, 'the de-mirrored basename source'],
+    [/version-slots\.test\.mjs/, 'the merge guard'],
+    [/version literal/i, 'the by-literal rule'],
+    [/ADR 0013/, 'the ADR pointer'],
+  ]) assert.match(e, re, `CONTEXT.md's **Version-literal guard** entry must carry ${what} (D20)`)
+  // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
+  const cut = adr0013.indexOf('## Considered options')
+  assert.ok(cut > 0, "ADR 0013: '## Considered options' heading not found — the Decision-body slice cannot be scoped (fail closed)")
+  const decisions = adr0013.slice(0, cut)
+  assert.match(norm(decisions), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
+  assert.match(norm(decisions), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(decisions)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  assert.match(adr0013, /^- 2026-09-08 · Decision 5 edited in place/m, "ADR 0013's Decision log must carry the dated Task 12.2 line")
+  // SKILL.md — the `--ace` bullet's file-based routing clause is retired (OLD-absent, present at ffb3ab6).
+  assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
+  assert.match(skillMd, /`phaseClose:true` routes to the \*\*phase-close queue\*\* instead/, "the `--ace` bullet keeps the `phaseClose:true` routing sentence without the filename arm")
+})
