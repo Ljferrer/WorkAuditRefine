@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { runSnipePanel } from './snipe-runner.mjs'
+import { listSupportedProfiles, runSnipePanel } from './snipe-runner.mjs'
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -56,6 +56,51 @@ function validVerdictSource(prefix = '', suffix = '') {
 const supportedProfiles = { 'gpt-test': ['high'] }
 const inheritedProfile = { model: 'gpt-test', effort: 'high' }
 const runnerPath = fileURLToPath(new URL('./snipe-runner.mjs', import.meta.url))
+
+function catalogCodex() {
+  return fakeCodex(`
+    if (process.argv[2] === 'app-server') {
+      const { createInterface } = await import('node:readline')
+      createInterface({ input: process.stdin }).on('line', line => {
+        const request = JSON.parse(line)
+        if (request.method === 'initialized') return
+        if (!['initialize', 'model/list'].includes(request.method)) process.exit(9)
+        const result = request.method === 'initialize' ? {} : request.params.cursor
+          ? { data: [{model:'gpt-other', supportedReasoningEfforts:[{reasoningEffort:'low'}]}], nextCursor:null }
+          : { data: [{model:'gpt-test', supportedReasoningEfforts:[{reasoningEffort:'high'}]}], nextCursor:'page2' }
+        console.log(JSON.stringify({id:request.id, result}))
+      })
+    } else {
+      ${validVerdictSource()}
+    }
+  `)
+}
+
+test('host catalog discovery initializes and consumes every model page without starting a turn', async () => {
+  assert.deepEqual({ ...await listSupportedProfiles({ codexPath: catalogCodex() }) }, { 'gpt-test': ['high'], 'gpt-other': ['low'] })
+})
+
+test('CLI accepts explicit profile without task metadata or a supplied profile map', () => {
+  const cwd = fixture()
+  const requestPath = join(mkdtempSync(join(tmpdir(), 'snipe-explicit-')), 'request.json')
+  writeFileSync(requestPath, JSON.stringify({ cwd, profile: { model: 'gpt-test', effort: 'high' } }))
+  const result = JSON.parse(execFileSync(process.execPath, [runnerPath, '--request', requestPath, '--codex-path', catalogCodex()], { encoding: 'utf8' }))
+  assert.equal(result.complete, true)
+  assert.deepEqual(result.request.profile, { model: 'gpt-test', effort: 'high' })
+  writeFileSync(requestPath, JSON.stringify({ cwd, profile: { model: 'gpt-test', effort: 'unsupported' } }))
+  assert.throws(() => execFileSync(process.execPath, [runnerPath, '--request', requestPath, '--codex-path', catalogCodex()], { stdio: 'pipe' }), error => /UNSUPPORTED_PROFILE/.test(error.stderr.toString()))
+})
+
+test('catalog errors, malformed output, early exit and timeout fail visibly', async () => {
+  for (const body of [
+    `console.log(JSON.stringify({id:0,error:{message:'unavailable'}}))`,
+    `console.log('not JSON')`,
+    `process.exit(1)`,
+    `setInterval(() => {}, 1000)`,
+  ]) {
+    await assert.rejects(listSupportedProfiles({ codexPath: fakeCodex(body), timeoutMs: 200 }), error => error.code === 'PROFILE_DISCOVERY_FAILED')
+  }
+})
 
 test('one seat runs through a fresh read-only Codex process with the canonical scope', async () => {
   const cwd = fixture()
