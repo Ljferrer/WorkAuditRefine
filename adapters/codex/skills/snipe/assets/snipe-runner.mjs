@@ -9,6 +9,65 @@ import { parseSnipeVerdict, renderSnipeReport } from './snipe-result.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
 
+// Read capabilities only: never create a thread or start a turn during discovery.
+export function listSupportedProfiles({ codexPath = 'codex', timeoutMs = 30_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(codexPath, ['app-server', '--listen', 'stdio://', '-c', 'mcp_servers={}', '--disable', 'plugins', '--disable', 'hooks'], { stdio: ['pipe', 'pipe', 'pipe'] })
+    const profiles = Object.create(null)
+    let buffer = '', bytes = 0, id = 0, done = false
+    const cursors = new Set()
+    const finish = (error) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      child.kill('SIGKILL')
+      if (error) reject(Object.assign(new Error(error), { code: 'PROFILE_DISCOVERY_FAILED' }))
+      else resolve(profiles)
+    }
+    const timer = setTimeout(() => finish('Codex model/list timed out'), timeoutMs)
+    const send = (message) => child.stdin.write(`${JSON.stringify(message)}\n`)
+    child.on('error', error => finish(error.message))
+    child.stdin.on('error', error => finish(error.message))
+    child.on('close', () => finish('Codex model/list exited before returning a catalog'))
+    child.stderr.on('data', chunk => {
+      bytes += chunk.length
+      if (bytes > 1024 * 1024) finish('Codex model/list output exceeded limit')
+    })
+    child.stdout.on('data', chunk => {
+      bytes += chunk.length
+      if (bytes > 1024 * 1024) return finish('Codex model/list output exceeded limit')
+      buffer += chunk.toString()
+      let newline
+      while (!done && (newline = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, newline)
+        buffer = buffer.slice(newline + 1)
+        try {
+          const message = JSON.parse(line)
+          if (message.id !== id) continue
+          if (message.error) return finish(`Codex model/list failed: ${message.error.message}`)
+          if (id === 0) {
+            send({ method: 'initialized' })
+          } else {
+            const page = message.result
+            if (!Array.isArray(page?.data)) return finish('Malformed Codex model/list catalog')
+            for (const model of page.data) {
+              const efforts = model.supportedReasoningEfforts?.map(item => item.reasoningEffort)
+              if (typeof model.model !== 'string' || !Array.isArray(efforts) || !efforts.length || !efforts.every(item => typeof item === 'string')) return finish('Malformed Codex model capabilities')
+              profiles[model.model] = efforts
+            }
+            if (page.nextCursor == null) return Object.keys(profiles).length ? finish() : finish('Codex returned no supported models')
+            if (typeof page.nextCursor !== 'string' || cursors.has(page.nextCursor)) return finish('Invalid Codex model/list cursor')
+            cursors.add(page.nextCursor)
+          }
+          const cursor = message.result?.nextCursor
+          send({ id: ++id, method: 'model/list', params: { limit: 100, includeHidden: true, ...(cursor ? { cursor } : {}) } })
+        } catch (error) { finish(`Invalid Codex model/list response: ${error.message}`) }
+      }
+    })
+    send({ id: 0, method: 'initialize', params: { clientInfo: { name: 'war_snipe', version: '1' } } })
+  })
+}
+
 const AUTO_LENSES = [
   ['correctness', 'baseline behavior and error-path review'],
   ['cascading-impact', 'downstream caller and mirror review'],
@@ -282,8 +341,14 @@ function cliOptions(argv) {
 }
 
 async function main(argv) {
+  if (argv[0] === '--list-profiles') {
+    if (argv.length !== 1) throw new Error('usage: snipe-runner.mjs --list-profiles')
+    process.stdout.write(`${JSON.stringify(await listSupportedProfiles(), null, 2)}\n`)
+    return
+  }
   const options = cliOptions(argv)
   const input = JSON.parse(readFileSync(options.requestPath, 'utf8'))
+  if (input.supportedProfiles === undefined) input.supportedProfiles = await listSupportedProfiles({ codexPath: options.codexPath })
   const controller = new AbortController()
   const cancel = () => controller.abort()
   process.once('SIGINT', cancel)

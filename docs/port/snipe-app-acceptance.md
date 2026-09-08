@@ -21,3 +21,11 @@ WAR issue #2160 correction: https://github.com/Ljferrer/WorkAuditRefine/issues/2
 - This verifies candidate source instructions in an app task. It does not claim that the previously installed package has been updated. Rebuild/reinstall after review and repeat the explicit invocation against the installed skill when accepting the release.
 
 The fix requests host permission only for coordinator initialization. Auditor permissions and the no-retry rule are unchanged. Hosts without an approval mechanism cannot launch this workflow and must report that limitation.
+
+## Missing active-profile acceptance
+
+Fresh tasks may not expose their active model/effort. Test this separately: forbid reading session logs or global settings and invoke `$snipe correctness,security` without an auditor profile. The skill must run `--list-profiles`, show host-returned choices, and ask for a model and effort without launching seats. Then provide an explicit pair (for example, `gpt-5.6-sol` / `medium` if returned by this host). The request must contain `profile`, omit `inheritedProfile` and `supportedProfiles`, and complete both seats through the normal coordinator launch.
+
+The CLI discovers supported profiles via the selected binary's [App Server model/list endpoint](https://learn.chatgpt.com/docs/app-server#list-models-modellist), using only initialize/initialized/model/list. Discovery is bounded to 30 seconds and 1 MiB of output and follows pagination; failures stop before audit dispatch. It neither creates a thread nor starts an inference turn. Programmatic callers can still supply a verified host map. No shared WAR config or persistent defaults are introduced.
+
+Candidate evidence in task `01a07edf-5200-7d10-9380-bbde4f8de204`: turn `01a07f1e-f30f-7ff0-bbb2-1ba074bbdd63` discovered real host profiles and asked for a pair without dispatch. Follow-up turn `01a07f1f-c4ec-7b91-93f0-4129b83a7ce3` received explicit `gpt-5.6-sol` / `medium`, omitted both inherited metadata and the support map, and completed both seats with validated `request_changes`, no repairs, absent tests preserved, and the unchanged fingerprint above. The test explicitly withheld active metadata; no transcript or global-config inference was needed. All 58 deterministic tests passed across the focused suites. Installed-package validation remains a post-review release step.

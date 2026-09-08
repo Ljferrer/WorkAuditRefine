@@ -17,7 +17,13 @@ Use the shared seat/lens grammar for `rawArgs`; do not parse it yourself. `rawAr
 - `{ "type": "merge-base", "base": "...", "head": "..." }` for an explicit merge-base comparison;
 - `{ "type": "pr", "url": "https://github.com/OWNER/REPO/pull/N", "base": "trusted-base-ref-or-sha" }` only when the matching local PR head object already exists.
 
-Put each path filter in the separate `paths` array. Never interpolate targets or paths into shell commands. Supply the invoking session's exact model/effort and the selected host's supported profile map; an unsupported pair is a refusal, not a downgrade. If the host profile or trusted PR base is unavailable, explain that requirement and stop.
+Put each path filter in the separate `paths` array. Never interpolate targets or paths into shell commands. Select the auditor profile in this order:
+
+1. If the user explicitly selects an auditor model and effort, put that complete pair in `profile`, for example `{"model":"gpt-5.6-sol","effort":"medium"}`. No invoking-task metadata is required for an explicit profile. Model/effort are separate from the seat/lens-only `rawArgs`.
+2. Otherwise, when the exact active task model and effort are exposed, put that pair in `inheritedProfile`.
+3. If neither is available, run `node <this-skill>/assets/snipe-runner.mjs --list-profiles` with the same coordinator launch permission described below. Show the returned choices and ask the user which model and effort to use for the auditors. Continue when they answer; missing task metadata is not a permanent blocker. Do not select a fallback silently.
+
+Omit `supportedProfiles` in CLI request files: the runner queries the selected Codex binary's read-only `model/list` endpoint and validates the chosen pair before launching any auditor. Never fabricate a supported-profile map. A catalog failure or unsupported pair is a visible refusal, not a downgrade. A missing trusted PR base still requires operator clarification.
 
 ## Coordinate
 
@@ -25,7 +31,7 @@ Create the JSON request in an OS temporary directory, not the target repository.
 
 In a sandboxed Codex task, request host permission for this coordinator command on its **first invocation**: use the shell tool's `sandbox_permissions: "require_escalated"` with a justification explaining that Codex subprocess initialization needs host app-server/state access while each auditor remains read-only. This is permission for the coordinator launch, not for auditor actions. Do not launch it inside the enclosing workspace sandbox first: nested Codex initialization can fail before its own read-only sandbox starts. If the host does not expose this permission mechanism or denies the request, report that the panel could not start and stop. Never retry a denied launch or a failed seat with broader permissions.
 
-Use the invoking task's current model and effort, including any per-task overrides; saved global configuration is not evidence of the active profile. If the task does not expose its exact profile, stop with that missing requirement.
+Saved global configuration and historical transcripts are not proof of the active task profile. Do not search private session logs to infer it; use an explicit auditor profile when active metadata is unavailable. The report labels the configured auditor profile, not an independently observed model identity.
 
 Never add `--dangerously-bypass-approvals-and-sandbox`, extra writable directories, connectors, or inherited MCP servers. Do not retry permission failures. Do not fetch missing PR objects from a seat.
 
