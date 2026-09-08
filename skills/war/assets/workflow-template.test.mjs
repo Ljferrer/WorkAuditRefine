@@ -11933,6 +11933,11 @@ const BARE_INTERPOLATION_CENSUS = [
   // both call sites; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
   // `opts.label` is the segmentedMerge continuation header's site label — every call site passes one.
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // c.row / c.rationale (engine-and-audit-verdict-integrity Task 7.1 ace, D6 citations): the `c` local is
+  // citationOf's own return at citationStamp and citationSoundnessClause's map callback, gated truthy
+  // before either span renders; `row` is the matched threaded row (non-empty by the membership check)
+  // and `rationale` carries citationOf's explicit || fallback — both construction-guaranteed strings.
+  'c.rationale', 'c.row',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -13002,7 +13007,7 @@ test('citation floor: directional with length floor (D11, PIN-15, #1858): a shor
   assert.ok(acedEntry, 'the contained citation matches and stamps the aced record')
   assert.equal(acedEntry.citation.row, CITED_ADJ[0], 'aced.citation.row IS the threaded row (never the seat transcription)')
   assert.equal(acedEntry.citation.threadedRow, CITED_ADJ[0], 'threadedRow names the same bytes')
-  assert.equal(acedEntry.citation.cited, citationF().citation.row, 'the seat string survives under `cited` for the logs')
+  assert.equal(acedEntry.citation.cited, citationF().citation.row, 'the seat string survives under `cited` on the durable record')
   assert.notEqual(acedEntry.citation.row, citationF().citation.row, 'fixture control: the seat string is a strict prefix, so row-vs-cited is discriminating')
   const ace = m.calls.filter(isAce)[0]                 // round-1 batch: the citation rides the first ace here
   assert.ok(ace && ace.prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '"'), 'the ace dispatch row carries the threaded row')
@@ -13050,8 +13055,9 @@ test('citation refusal: once per phase (D11, #1864): the same fabricated row cit
   const { out, calls, logs } = await runPhase(args, impl)
   assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'presence guard: both tasks land across two waves')
   assert.equal(calls.filter(isAce).length, 2, 'presence guard: each wave dispatched its plain-absorb ace (the citation was refused in both)')
-  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99')).length, 1,
-    'ONE refusal log for the row across both waves (a per-wave registry would log twice)')
+  const refusals = logs.filter(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99'))
+  assert.equal(refusals.length, 1, 'ONE refusal log for the row across both waves (a per-wave registry would log twice)')
+  assert.ok(refusals[0].includes('first cited by task t1'), 'the single line names the FIRST citing task, so the later citing task keeps its attribution through it')
 })
 
 test('sweep aced: citation threaded (D11, #1873): a citation-carrying absorb that rides the phase-close sweep records aced.citation.row = the threaded row and resolves the parked ask under --afk', async () => {
@@ -13059,6 +13065,8 @@ test('sweep aced: citation threaded (D11, #1873): a citation-carrying absorb tha
   const { out, calls, logs } = await runPhase(SWEEP_ARGS({ adjudications: CITED_ADJ, run: { ace: true, afk: true } }), sweepBase([askFinding(), cite]))
   assert.equal(out.handoff.polish, 'merged', 'presence guard: the sweep merged')
   assert.ok(!calls.some(isAce), 'presence guard: the citation absorb never rode a per-task ace — the sweep is its vehicle')
+  const polish = calls.find(c => c && c.opts && typeof c.opts.label === 'string' && c.opts.label.startsWith('polish:'))
+  assert.ok(polish && polish.prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '" — '), 'the sweep prompt row carries the citation stamp with the THREADED row, so the polish commit message holds the durable citation')
   const entry = (out.aced || []).find(a => a && a.finding && a.finding.title === 'mirrored value rides docs/x.md')
   assert.ok(entry && entry.sha === 'polishsha', 'the queued citation absorb is aced at the polish sha')
   assert.ok(entry.citation && entry.citation.row === CITED_ADJ[0], 'the sweep-path aced record carries the citation with the THREADED row (PIN-7 record floor holds on this path)')
@@ -14074,7 +14082,7 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   const build = () => {
     const aced = [], demoted = []
     // eslint-disable-next-line no-new-func
-    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationOf', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
+    const fn = new Function('aceRelSet', 'aceRelPath', 'demote', 'routeToSweep', 'recordAced', 'citationExtra', `return (${m[0].replace(/^\s*const recordAcedTouched = /, '')})`)(
       aceRelSet, aceRelPath,
       (f, to, why) => { throw new Error('demote() must never be reached from recordAcedTouched — an untouched file is a failed ATTEMPT, routed to the sweep (D13): ' + why) },
       (f, why) => demoted.push({ f, to: 'sweep', why }),
@@ -14177,10 +14185,10 @@ test('#1944 — recordAced call-site census: every occurrence is a NAMED legitim
   const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
   assert.ok(helper, 'the recordAcedTouched helper exists')
   assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
-  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha, citationOf\(f\) \? \{ citation: citationOf\(f\) \} : null\)/,
-    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual); it threads citationOf(f) so the aced record keeps its citation stamp (#1873)")
-  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true, \.\.\.\(citationOf\(f\) \? \{ citation: citationOf\(f\) \} : \{\}\) \}\)/,
-    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent); it threads citationOf(f) too (#1873-class)')
+  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha, citationExtra\(f\)\)/,
+    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual); it threads citationExtra(f) so the aced record keeps its citation stamp (#1873)")
+  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true, \.\.\.citationExtra\(f\) \}\)/,
+    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent); it threads citationExtra(f) too (#1873-class)')
   assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
     'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
   assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
