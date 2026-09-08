@@ -4410,7 +4410,9 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, CON
     [/ADR 0013/, 'the ADR pointer'],
   ]) assert.match(e, re, `CONTEXT.md's **Version-literal guard** entry must carry ${what} (D20)`)
   // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
-  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
+  const cut = adr0013.indexOf('## Considered options')
+  assert.ok(cut > 0, "ADR 0013: '## Considered options' heading not found — the Decision-body slice cannot be scoped (fail closed)")
+  const decisions = adr0013.slice(0, cut)
   assert.match(norm(decisions), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
   assert.match(norm(decisions), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
   assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(decisions)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
