@@ -13033,6 +13033,22 @@ test('citation floor: directional with length floor (D11, PIN-15, #1858): a shor
     'the ambiguous citation is refused naming the hit count (an ambiguous citation names no single row)')
   assert.ok(!(a4.out.aced || []).some(x => x && x.citation), 'no aced record carries a citation for the ambiguous citation — no arbitrary row is stamped')
   assert.equal((a4.out.asks || []).length, 1, 'the parked ask survives under --afk (the ambiguous citation never splices it)')
+  // 5. duplicate (ace re-entry a6): the SAME row threaded twice (three Lead-side producers feed the
+  // set) is one distinct row, so an exact citation of it matches — the retired raw-occurrence count
+  // refused it as 'contained by 2' rows.
+  const dup = [CITED_ADJ[0], CITED_ADJ[0]]
+  assert.ok(dup[0] === dup[1] && new Set(dup).size === 1, 'fixture control: the two threaded rows are byte-identical — only a dedupe can keep the exact citation unambiguous')
+  const f5 = citationF(); f5.citation = { row: CITED_ADJ[0], rationale: 'exact row' }
+  const impl5 = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), f5]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), f5])))
+  const a5 = await runPhase(CITE_ARGS({ adjudications: dup, run }), impl5)
+  assert.ok(!a5.logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)')), 'the exact citation of a twice-threaded row is never refused as ambiguous')
+  const aced5 = (a5.out.aced || []).find(x => x && x.citation)
+  assert.ok(aced5, 'the exact citation matches and stamps the aced record')
+  assert.equal(aced5.citation.row, CITED_ADJ[0], 'aced.citation.row IS the (deduped) threaded row')
+  assert.equal((a5.out.asks || []).length, 0, 'the matched citation resolves the parked ask under --afk')
 })
 
 test('recordAced: unique-match before splice (D11, #1863): the exact ask.question derivation wins over a title coinciding with ANOTHER parked question — the coincident ask is never spliced under --afk', async () => {

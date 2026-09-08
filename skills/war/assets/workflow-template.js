@@ -2704,10 +2704,14 @@ const citationOf = f => {
   // the floor), so a fragment drawn from one is contained by several rows and a first-hit scan would
   // stamp an arbitrary row onto the aced record, the prompt rows and the --afk splice. Exact matches
   // are preferred over containment; more than one hit is refused (ambiguity is NO-match, PIN-15),
-  // mirroring recordAced's exactly-one-key-hit rule before a splice.
-  const rows = adjudications.map(adjRow).filter(t => typeof t === 'string' && t.length > 0)
-  const exact = rows.filter(t => t === row)
-  const hits = exact.length > 0 ? exact : rows.filter(t => t.includes(row))
+  // mirroring recordAced's exactly-one-key-hit rule before a splice. DEDUPE (ace re-entry a6):
+  // `adjudications` is assembled Lead-side from three producers (the red-team `## Adjudications`
+  // block, Lead scope adjudications, Checkpoint ask rulings), so one row text can reach the set
+  // twice — the Set keeps DISTINCT row texts, so identical duplicates collapse to one hit while
+  // genuinely distinct containing rows still refuse. An exact member is the single hit outright
+  // (no intermediate array to count).
+  const rows = [...new Set(adjudications.map(adjRow).filter(t => typeof t === 'string' && t.length > 0))]
+  const hits = rows.includes(row) ? [row] : rows.filter(t => t.includes(row))
   if (hits.length === 0) return refuseCitation(f, row, 'matches no threaded standing adjudication row (exact or contained-by-row only; a superset of a row is not a member, PIN-15)')
   if (hits.length > 1) return refuseCitation(f, row, 'is contained by ' + hits.length + ' threaded standing adjudication rows — an ambiguous citation names no single row (ambiguity is NO-match, PIN-15)')
   const threadedRow = hits[0]
@@ -2727,6 +2731,9 @@ const citationStamp = f => { const c = citationOf(f); return c ? pt` [absorb-by-
 // terminal-pass build both render (rule 6: one home on the second hand copy — the two byte-identical
 // inline copies drifted once when citationStamp reached only the sweep copy, #3f55b04). Bytes are
 // unchanged from the inline form; callers pass it straight to `.map`.
+// pt-tagged prompt-feeding row (sweep prompt and terminal-pass prompt, top-level-catch, fail-open
+// polish): f.severity is a required finding field (bare); title/task ?? absence-tolerant;
+// file/rationale/suggested_fix already guarded/defaulted.
 const queuedFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`
 
 let guard = 0
@@ -4770,8 +4777,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       + intentClause
       + pt`Fix ONLY the queued findings below — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), NEVER touch version/release-slot literals, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
       + pt`Queued findings (verbatim):\n`
-      // pt-tagged prompt-feeding rows (sweep prompt, top-level-catch, fail-open polish): f.severity is a required
-      // finding field (bare); title/task ?? absence-tolerant; file/rationale/suggested_fix already guarded/defaulted.
+      // Interpolation-guard rationale for these rows lives on queuedFindingRow's header comment.
       // citationStamp (D6, #1873): a citation-carrying absorb that aces through the sweep renders its
       // row-id + match rationale here too, so the polish commit message carries the citation stamp.
       + phaseCloseQueue.map(queuedFindingRow).join('\n') + pt`\n`
