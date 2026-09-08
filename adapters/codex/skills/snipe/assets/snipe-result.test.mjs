@@ -1,5 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { parseSnipeVerdict, renderSnipeReport, validateSnipeVerdict } from './snipe-result.mjs'
 
@@ -109,6 +113,25 @@ test('wrong identity, malformed findings, and inconsistent approval are rejected
   for (const [value, code] of cases) {
     assert.throws(() => validateSnipeVerdict(value, expected), error => error.code === code)
   }
+})
+
+test('S-A09 revision rejection fails when its identity guard is removed from a disposable mutant', async () => {
+  const wrongRevision = valid({ scope: { kind: 'committed', audit_sha: 'c'.repeat(40) } })
+  assert.throws(() => validateSnipeVerdict(wrongRevision, expected), error => error.code === 'SCOPE_MISMATCH')
+
+  const sourcePath = fileURLToPath(new URL('./snipe-result.mjs', import.meta.url))
+  const original = readFileSync(sourcePath, 'utf8')
+  const mutant = original
+    .replace(
+      "import { RESERVED_LENSES } from '../../../../../skills/war/assets/war-config.mjs'",
+      "const RESERVED_LENSES = ['execution-evidence', 'pin-validity']",
+    )
+    .replace(' || scope.audit_sha !== expected.scope.headSha', '')
+  assert.notEqual(mutant, original)
+  const mutantPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-result-mutant-')), 'snipe-result.mjs')
+  writeFileSync(mutantPath, mutant)
+  const mutatedModule = await import(`${pathToFileURL(mutantPath)}?revision-guard-removed`)
+  assert.doesNotThrow(() => mutatedModule.validateSnipeVerdict(wrongRevision, expected))
 })
 
 test('informational report orders scope, outcomes, attributed findings, limitations, and asks', () => {
