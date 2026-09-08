@@ -58,3 +58,26 @@ test('shared doctrine routes mechanics to its host and forbids automatic closing
     }
   }
 })
+
+test('question budget preserves stop and consent duties without reviving a slash total',()=>{
+  const interview=readFileSync(new URL('../../skills/war-strategy/references/plan-interview.md',import.meta.url),'utf8').replace(/\s+/g,' ')
+  const review=readFileSync(new URL('../../skills/war-review/SKILL.md',import.meta.url),'utf8')
+  const noRetiredNotation=text=>assert.doesNotMatch(text,/Q(?:k|X|\d+)\s*\/\s*(?:14|<budget>)/)
+  for(const text of [interview,review]) {
+    noRetiredNotation(text)
+    for(const old of ['Qk/14','Qk/<budget>','Q3/14'])assert.throws(()=>noRetiredNotation(`${text} ${old}`))
+  }
+  const obligations=[
+    'Stop asking when the completion bar is met, even far below the cap',
+    "Research cannot answer for the operator's intent or silently ratify a choice",
+    'disclose them and ask whether to raise the budget or stop',
+    'do not manufacture questions merely to reach the nominal midpoint',
+    'Echo-backs and their confirmations do not consume question slots',
+    'Other non-question turns do not advance Q either',
+    'including falsifier and checkpoint questions',
+  ]
+  const complete=text=>{for(const clause of obligations)assert.ok(text.includes(clause),clause)}
+  complete(interview)
+  for(const clause of obligations)assert.throws(()=>complete(interview.replace(clause,'')),{name:'AssertionError'},clause)
+  assert.match(review,/actual interview questions only, excluding echo-backs and other non-question turns/)
+})

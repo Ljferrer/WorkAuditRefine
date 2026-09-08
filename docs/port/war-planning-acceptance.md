@@ -148,7 +148,13 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   package byte-identity tests deliver the same canonical correction to Codex.
 - Installation remains gated on operator merge and installation approval as the
   plan specifies. Source completion and installed acceptance are distinct.
-- Audit 3: P3 checkpoint `89d8167..943e15b`, three Sol/medium seats running.
+- Audit 3: P3 checkpoint `89d8167..943e15b`, complete coverage; correctness and
+  cascading-impact approved, test-coverage requested changes. One Major found
+  incomplete question-budget guards; one Minor found the actual stale notation in
+  `war-review`. The consumer now points to the canonical contract instead of copying
+  its display grammar. A regression failed on that consumer before repair. Both
+  active surfaces reject retired slash forms; seven obligation-deletion controls
+  protect completion, intent, cap escalation, midpoint and question counting.
   Includes the initial P4 transport for consequence review, not a P4 completion claim.
 - Verifier subprocess fixtures now exercise the built package's real spawn path,
   catalog refusal before seat launch, hardened arguments, malformed/empty output,
