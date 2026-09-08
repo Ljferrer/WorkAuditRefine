@@ -12185,6 +12185,9 @@ const BARE_INTERPOLATION_CENSUS = [
   // hoisted `drainCauseOf(m)` local, and the span sits inside a `dc ? pt\`…\` : ''` conditional;
   // drainCauseOf's shape guard returns null unless dispatch is a string, and String-coerces why.
   'dc.dispatch', 'dc.why',
+  // NEVER_MOVE_LITERAL (verdict-integrity Task 12.1 ace): the by-literal sentence interpolated at the five
+  // ace-family, sweep and terminal builds — a plain-string module const, construction-guaranteed.
+  'NEVER_MOVE_LITERAL',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -17478,9 +17481,20 @@ test('release-slot prompt: ace on a release task cites version-slots.test.mjs (D
   assert.ok(plainAce, 'the non-release task aces too')
   assert.ok(!plainAce.prompt.includes('RELEASE TASK:') && !plainAce.prompt.includes('version-slots.test.mjs'), 'a non-release task never carries the release-task clause (delete-the-feature: the clause is task-gated)')
   assert.ok(plainAce.prompt.includes(NEVER_MOVE), 'the by-literal sentence rides every ace prompt')
+  // Third arm (12.1 ace): a task WITH a files list that names no RELEASE_SLOT_FILES basename — discriminates the
+  // slot-basename predicate itself (delete-the-feature: `Array.isArray(t.files) && t.files.length > 0` would render
+  // the clause here).
+  const filed = await runPhase(ACE_ARGS({ tasks: [{ ...RELEASE_TASK, files: ['skills/war/assets/workflow-template.js'] }] }),
+    releaseTaskImpl([nit({ file: 'skills/war/assets/workflow-template.js' })]))
+  const filedAce = filed.calls.find(isAce)
+  assert.ok(filedAce, 'the files-bearing non-release task aces too')
+  assert.ok(!filedAce.prompt.includes('RELEASE TASK:'), 'a files-bearing task naming no release-slot basename never carries the release-task clause (the basename predicate, not Array.isArray, gates it)')
   // Source census (PIN-4 floor + hand scan): the clause is interpolated at the three ace-family builds and
   // nowhere else; each of those builds, the phase-close sweep build and the terminal-pass build carry the
-  // replacement sentence; the OLD sentence is absent file-wide in any casing (authoring rule 6).
+  // replacement sentence by interpolating the ONE NEVER_MOVE_LITERAL const (12.1 ace: extract on the second hand
+  // copy); the OLD sentence is absent file-wide in any casing (authoring rule 6).
+  const NEVER_MOVE_SITE = '${NEVER_MOVE_LITERAL}'
+  assert.match(src, /^const NEVER_MOVE_LITERAL = 'never move a version literal or the CHANGELOG head heading'$/m, 'NEVER_MOVE_LITERAL is the one const carrying the by-literal sentence')
   assert.equal((src.match(/releaseSlotAceClause\(r\.task\)/g) || []).length, 3, 'releaseSlotAceClause is interpolated at exactly the three ace-family builds (batch, bisection subset, re-entry)')
   const builds = {
     'ADVISORY POLISH (batch ace)': sliceSrc('pt`ADVISORY POLISH (--ace) for WAR task', "aceLabel(r, 'polish')"),
@@ -17489,10 +17503,10 @@ test('release-slot prompt: ace on a release task cites version-slots.test.mjs (D
   }
   for (const [name, text] of Object.entries(builds)) {
     assert.ok(text.includes('releaseSlotAceClause(r.task)'), `the ${name} build interpolates releaseSlotAceClause`)
-    assert.ok(text.includes(NEVER_MOVE), `the ${name} build says ${NEVER_MOVE}`)
+    assert.ok(text.includes(NEVER_MOVE_SITE), `the ${name} build interpolates NEVER_MOVE_LITERAL (${NEVER_MOVE})`)
   }
-  assert.ok(sliceSrc('pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', 'Queued findings (verbatim)').includes(NEVER_MOVE), 'the PHASE-CLOSE COHERENCE SWEEP build says never move a version literal')
-  assert.ok(sliceSrc('pt`TERMINAL PASS for WAR phase', 'terminalRows.map(queuedFindingRow)').includes(NEVER_MOVE), 'the TERMINAL PASS build says never move a version literal')
+  assert.ok(sliceSrc('pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', 'Queued findings (verbatim)').includes(NEVER_MOVE_SITE), 'the PHASE-CLOSE COHERENCE SWEEP build interpolates NEVER_MOVE_LITERAL')
+  assert.ok(sliceSrc('pt`TERMINAL PASS for WAR phase', 'terminalRows.map(queuedFindingRow)').includes(NEVER_MOVE_SITE), 'the TERMINAL PASS build interpolates NEVER_MOVE_LITERAL')
   assert.equal((src.match(/touch version\/release-slot literals/gi) || []).length, 0, 'the OLD "NEVER touch version/release-slot literals" sentence is gone file-wide, in any casing')
   assert.equal((src.match(/touch version\/release slots/gi) || []).length, 0, 'the OLD batch-ace "Do NOT touch version/release slots" sentence is gone')
   assert.equal((src.match(/version\/release-slot edits/gi) || []).length, 0, 'the OLD subset/re-entry "No version/release-slot edits" sentence is gone')
