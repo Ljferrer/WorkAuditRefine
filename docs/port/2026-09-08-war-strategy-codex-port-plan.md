@@ -61,7 +61,7 @@ The existing Codex distribution is the explicitly Snipe-only
    links. Classify each as required packaged guidance, optional evidence source,
    or external background documentation. Do not bundle an entire repository to
    make broken links disappear.
-3. Build a port map: unchanged doctrine versus exact host substitutions. Explicitly
+3. Build a port map: shared doctrine versus host-owned instructions. Explicitly
    cover Claude skill-directory scans, `.claude/war/runs/`, memory-root handling,
    checkout-relative lint commands and unported closing offers.
 4. Define independent fixtures before adapter changes: new-plan interview,
@@ -80,11 +80,18 @@ explicit evidence level. No mandatory runtime behavior is silently marked option
 2. Add a small explicit planning-package builder and verifier beside the existing
    builder. Reuse established patterns; extract shared plumbing only if concrete
    duplication warrants it. No plugin framework or generic skill compiler.
-3. Choose the narrowest doctrine-delivery mechanism after P1: package canonical
-   sections with bounded, checked host substitutions or reference canonical
-   host-neutral content. Never hand-maintain a second full doctrine. Check
-   substitution cardinality and source-to-package equality outside those edits so
-   upstream changes fail visibly rather than drifting unnoticed.
+3. Prefer extracting host-specific instructions from canonical Markdown over
+   rewriting doctrine during packaging. Shared interview/verifier/template guidance
+   describes the required behavior and evidence; thin host entrypoints supply
+   discovery, invocation, memory/history locations and dispatch mechanics. Preserve
+   Claude's current entrypoints and behavior while making only the minimal planning
+   separation needed here. Never hand-maintain a second full doctrine.
+   Both source adapters reference the same canonical resources. Package those
+   resources as generated distribution copies, byte-identical where no link relocation
+   is needed; installed plugins must not link back into the development checkout.
+   If a package-relative link must change, make that relocation explicit and tested,
+   check its cardinality and verify all other content remains identical. Do not use
+   blanket text replacement to create a separate Codex version of the doctrine.
 4. Provide Codex entrypoints and UI metadata under
    `adapters/codex/skills/war-strategy/` and `war-help/`. Verify the actual qualified
    invocation names. Preserve normal discovery for these new skills unless the
@@ -99,6 +106,18 @@ Acceptance: build into a fresh directory; verify exact independent inventory,
 regular files and contained references; move the package away from the source
 checkout and run its lint. Missing doctrine/lint, an escaping symlink, unexpected
 component or stale rewrite must fail a targeted negative test.
+
+### Shared ownership and the later Claude migration
+
+Shared engine, lint, templates and planning doctrine remain canonical shared source,
+even if some currently live under `skills/`. Directory symmetry is not the goal.
+This port extracts only the planning-related host instructions it needs and proves
+existing Claude behavior remains intact; it does not relocate the active engine.
+
+The broader migration of Claude-specific integration into `adapters/claude/` is an
+explicit post-campaign T5 subtask under #2159, with ownership inventory, caller and
+package migration, compatibility evidence and documented retained entrypoints.
+See [T5 migration scope](2026-09-07-github-parity-testing-plan.md#t5-explicit-subtask-claude-adapter-ownership-and-migration).
 
 ## P3 — Interview, conversion and evidence adapters
 
