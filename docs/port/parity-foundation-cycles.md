@@ -91,3 +91,22 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
   because its tests passed; this round found new-code defects in the same class.
 - T2's first independent stale-approval oracle and full scenario catalog are in
   progress, not yet committed or declared complete. T3 has not started.
+
+### Cycle 3 — T1 lifecycle sibling and evidence review
+
+- Pin: `e88c18e`, compared with the goal base; same seats/profile. All completed.
+- Correctness and test-coverage requested changes; cascading-impact approved.
+  Two Major and two absorbable Minor findings; no asks or follow-ups.
+- Runtime defect: a descendant inheriting output pipes prevented `close` from
+  firing, delaying successful-parent cleanup until timeout. The previous fixture
+  redirected those pipes. Cleanup now starts on direct-child `exit`; `close`
+  retains responsibility for final output/descriptor/result accounting. The real
+  inherited-pipe fixture failed before the fix and passes afterward.
+- Coverage gaps: zero-exit failure rows, mode-only drift, and tracked symlink
+  rejection. Added stdout/stderr and FAIL/not-ok mirrors, a permissions-only
+  change with stable bytes/index/path membership, and a symlink-target sentinel.
+  Targeted mutations independently remove their load-bearing guards.
+- This is another one-recursion-too-shallow recurrence in process completion and
+  new evidence fields. It is not policy oscillation: no prior fix was reversed.
+- Raw panel: `/private/tmp/war-parity-cycle3.SZX4Gs/audit-result.json`. Three of
+  12 panels used. T2 work remains separate WIP; T3 has not started.

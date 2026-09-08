@@ -111,9 +111,9 @@ function execute(command, cwd, env, stdout, stderr, timeoutMs) {
       if (bytes > 16 * 1024 * 1024) stop('output-limit')
     })
     child.on('error', error => { failure = error.message })
+    child.on('exit', terminateGroup)
     child.on('close', (exitCode, signal) => {
       clearTimeout(timer)
-      terminateGroup()
       closeSync(out); closeSync(err)
       resolve({ exitCode, signal, failure, cleanupError })
     })

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync, statSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync, statSync, symlinkSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -211,10 +211,10 @@ test('cleanup error independently prevents successful suite classification', asy
   } finally { process.kill = original }
 })
 
-test('successful suite exit also terminates redirected descendants', async t => {
+async function descendantFixture(t, redirected) {
   const root = fixture(t, {
     'worker.mjs': "import{writeFileSync,appendFileSync}from'node:fs'; writeFileSync(process.argv[2],String(process.pid)); setInterval(()=>appendFileSync(process.argv[3],'x'),20);",
-    'hooks/background.test.sh': 'node worker.mjs report/pid report/heartbeat </dev/null >/dev/null 2>&1 &\nwhile [ ! -f report/heartbeat ]; do sleep 0.02; done\necho "ok - child launched"',
+    'hooks/background.test.sh': `node worker.mjs report/pid report/heartbeat ${redirected ? '</dev/null >/dev/null 2>&1' : ''} &\nwhile [ ! -f report/heartbeat ]; do sleep 0.02; done\necho "ok - child launched"`,
   })
   const report = await collect({ root, output: join(root, 'report'), timeoutMs: 3000 })
   const pid = Number(readFileSync(join(root, 'report/pid'), 'utf8'))
@@ -226,6 +226,43 @@ test('successful suite exit also terminates redirected descendants', async t => 
   try { state = execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' }).trim() } catch (error) { assert.equal(error.status, 1) }
   assert.ok(state === '' || state.startsWith('Z'), `descendant still running: ${state}`)
   assert.equal(report.ok, true)
+  assert.equal(report.suites[0].failure, null)
+}
+
+test('successful suite exit also terminates redirected descendants', t => descendantFixture(t, true))
+test('successful parent exit terminates descendants with inherited output pipes', t => descendantFixture(t, false))
+
+test('zero-exit shell failure rows on either channel still fail', async t => {
+  for (const row of ['FAIL - assertion failed', 'not ok 1 - assertion failed']) {
+    for (const channel of ['', '>&2']) {
+      const root = fixture(t, { 'hooks/fail.test.sh': `echo '${row}' ${channel}; exit 0` })
+      const report = await collect({ root, output: join(root, 'report') })
+      assert.equal(report.suites[0].exitCode, 0)
+      assert.equal(report.suites[0].counts.fail, 1)
+      assert.equal(report.suites[0].status, 'failed')
+      assert.equal(report.ok, false)
+    }
+  }
+})
+
+test('mode-only drift is detected with stable bytes, index and path membership', async t => {
+  const root = fixture(t, { 'data.txt': 'same', 'hooks/mode.test.sh': 'chmod 640 data.txt; echo "ok - permission change"' })
+  chmodSync(join(root, 'data.txt'), 0o600)
+  const report = await collect({ root, output: join(root, 'report') })
+  assert.equal(readFileSync(join(root, 'data.txt'), 'utf8'), 'same')
+  assert.equal(report.before.sourceSha, report.after.sourceSha)
+  assert.equal(report.before.indexDigest, report.after.indexDigest)
+  assert.deepEqual(report.before.trackedChanges, report.after.trackedChanges)
+  assert.equal(report.ok, false)
+})
+
+test('symlinked tracked suite is rejected before executing its target', async t => {
+  const root = fixture(t, { 'target.sh': 'echo changed > sentinel; echo "ok - unexpected execution"', 'hooks/link.test.sh': '' })
+  rmSync(join(root, 'hooks/link.test.sh'))
+  symlinkSync('../target.sh', join(root, 'hooks/link.test.sh'))
+  execFileSync('git', ['-C', root, 'add', 'hooks/link.test.sh'])
+  await assert.rejects(collect({ root, output: join(root, 'report') }), /missing regular test file/)
+  assert.equal(existsSync(join(root, 'sentinel')), false)
 })
 
 test('targeted guard removals fail their independent behavioral regressions', t => {
@@ -235,13 +272,16 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['stderr-skip', "const errorText = readFileSync(stderr, 'utf8')", "const errorText = ''", 'shell completion'],
     ['census', "if (JSON.stringify(inventory) !== JSON.stringify(discovered)) throw new Error('inventory mismatch')", '', 'CLI refuses'],
     ['revision', "stability === 'unchanged' && ", '', 'revision and'],
-    ['descendant', 'clearTimeout(timer)\n      terminateGroup()', 'clearTimeout(timer)', 'successful suite exit'],
+    ['descendant', "child.on('exit', terminateGroup)", '', 'inherited output'],
     ['output-limit', 'bytes > 16 * 1024 * 1024', 'false', 'output floods'],
     ['runtime-path', "dirname(process.execPath) + delimiter + (process.env.PATH ?? '')", "process.env.PATH ?? ''", 'nested node'],
     ['index-digest', ".update(git('ls-files', '--stage', '-z'))", ".update('')", 'index-only'],
     ['content-digest', "contentDigest: hash.digest('hex')", "contentDigest: 'removed'", 'already-dirty content'],
     ['cleanup-error', '!execution.cleanupError && ', '', 'cleanup error'],
     ['framing', "hash.update(JSON.stringify([path, stat?.mode ?? null, bytes.length, digest]) + '\\n')", "hash.update(JSON.stringify([path, stat?.mode ?? null])); hash.update(bytes)", 'metadata-shaped'],
+    ['failure-row', 'counts.fail > 0', 'false', 'zero-exit shell failure'],
+    ['mode', '[path, stat?.mode ?? null, bytes.length, digest]', '[path, null, bytes.length, digest]', 'mode-only'],
+    ['regular-file', "lstatSync(join(root, path), { throwIfNoEntry: false })?.isFile()", "lstatSync(join(root, path), { throwIfNoEntry: false })", 'symlinked tracked'],
   ]
   for (const [name, from, to, pattern] of cases) {
     assert.equal(source.split(from).length, 2, `mutation ${name} must alter one real guard`)
