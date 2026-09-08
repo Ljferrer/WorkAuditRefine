@@ -157,6 +157,15 @@ test('a nonzero seat is retained without losing a successful peer', async () => 
   assert.match(result.seats[1].stderr, /seat transport failed/)
 })
 
+test('a seat reporting absent tests completes without a repair that invents evidence', async () => {
+  const cwd = fixture()
+  const codexPath = fakeCodex(validVerdictSource('', 'verdict.tests_verified = { exist: false, inspected: [] }'))
+  const result = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath, timeoutMs: 2_000 })
+  assert.equal(result.complete, true)
+  assert.equal(result.seats[0].repair.attempted, false)
+  assert.deepEqual(result.seats[0].verdict.tests_verified, { exist: false, inspected: [] })
+})
+
 test('one malformed result receives exactly one schema-only repair attempt', async () => {
   const cwd = fixture()
   const logPath = join(mkdtempSync(join(tmpdir(), 'codex-snipe-repair-')), 'attempts.log')

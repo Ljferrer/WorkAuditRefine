@@ -116,8 +116,8 @@ export function validateSnipeVerdict(input, expected) {
     ? object(value.tests_verified, 'result.tests_verified')
     : { exist: true, inspected: value.tests_inspected }
   exactKeys(tests, ['exist', 'inspected'], 'result.tests_verified')
-  if (tests.exist !== true || !Array.isArray(tests.inspected) || !tests.inspected.every(item => typeof item === 'string')) {
-    fail('INVALID_RESULT', 'result.tests_verified must contain exist: true and inspected')
+  if (typeof tests.exist !== 'boolean' || !Array.isArray(tests.inspected) || !tests.inspected.every(item => typeof item === 'string')) {
+    fail('INVALID_RESULT', 'result.tests_verified must contain a boolean exist and inspected array')
   }
   if (value.widen !== undefined && (!Array.isArray(value.widen) || value.widen.length === 0 || new Set(value.widen).size !== value.widen.length || !value.widen.every(item => typeof item === 'string' && item.trim() && !RESERVED_LENSES.includes(item)))) {
     fail('INVALID_RESULT', 'result.widen must be a non-empty array of distinct lens names')
