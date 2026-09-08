@@ -19,6 +19,7 @@ function preservesExtractedBehavior(text) {
       /`\.claude\/war\/runs\/` in the target repository/,
       /`--local` always,\s*`--repo` when a repo root resolved, fail-open/,
       /node skills\/_shared\/war-memory\.mjs query --queries <file> --local <local root> --repo docs\/learnings/,
+      /Use the installed plugin's shared CLI when the target is not the WAR checkout/,
       /queries file is JSONL: one `\{"label":…, "text":…\}` object per interview area/,
       /missing CLI, Node < 24 or missing corpus does not block the interview/,
       /No local\s*root means no query-log write; never guess a root/,
@@ -34,6 +35,7 @@ test('Claude extraction preserves complete old blocks and every host-specific du
     ['stdout only — never the exit code','exit code only'],
     ['No local\nroot means no query-log write; never guess a root','Guess a local root'],
     ['queries file is JSONL','queries file is plain text'],
+    ["Use the installed plugin's shared CLI when the target is not the WAR checkout.",''],
     ['Preserve report-only\nexit zero by default','Use strict exit by default'],
     ['bounded re-arm and degraded stamps','unlimited silent retries'],
     ['Optionally point at','Automatically invoke'],
@@ -47,5 +49,12 @@ test('Claude extraction preserves complete old blocks and every host-specific du
 test('shared doctrine routes mechanics to its host and forbids automatic closing actions',()=>{
   assert.match(doctrine,/read \[references\/host.md\]\(references\/host.md\)/)
   assert.match(doctrine,/never automatic invocation or authority to execute, install or publish/)
-  assert.equal(doctrine.includes('`skills/war-strategy/assets/`'),false)
+  const interview=readFileSync(new URL('../../skills/war-strategy/references/plan-interview.md',import.meta.url),'utf8')
+  const noCheckoutLocator=text=>assert.doesNotMatch(text,/(?:\.\/)?skills\/war-strategy\/assets(?:\/|\b)/)
+  for(const text of [doctrine,interview]) {
+    noCheckoutLocator(text)
+    for(const locator of ['`skills/war-strategy/assets/`','node skills/war-strategy/assets/plan-literal-lint.mjs','./skills/war-strategy/assets/','skills/war-strategy/assets']) {
+      assert.throws(()=>noCheckoutLocator(`${text}\n${locator}`))
+    }
+  }
 })

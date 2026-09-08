@@ -17,6 +17,8 @@ function manifest(version) {
 }
 
 const files=[
+  ['adapters/codex/skills/war-strategy/assets/strategy-verifier.mjs','shared/skills/war-strategy/assets/strategy-verifier.mjs'],
+  ...['codex-models.mjs','snipe-process.mjs'].map(path=>[`adapters/codex/skills/snipe/assets/${path}`,`shared/skills/snipe/assets/${path}`]),
   ['adapters/codex/skills/war-strategy/SKILL.md','skills/war-strategy/SKILL.md'],
   ['adapters/codex/skills/war-strategy/agents/openai.yaml','skills/war-strategy/agents/openai.yaml'],
   ...['SKILL.md','references/plan-interview.md','references/strategy-verifier.md','assets/plan-literal-lint.mjs'].map(path=>[`skills/war-strategy/${path}`,`shared/skills/war-strategy/${path}`]),
@@ -72,6 +74,9 @@ export function verifyPlanningPlugin(root) {
   const names=[...(frontmatter?.[1] ?? '').matchAll(/^name: ([\w-]+)$/gm)]
   assert.equal(names.length,1,'invocation requires one skill name')
   const invocation=`$${config.name}:${names[0][1]}`
+  const bodyInvocations=skill.match(/\$[\w-]+:[\w-]+/g) ?? []
+  assert.ok(bodyInvocations.length>0,'missing adapter invocation')
+  assert.ok(bodyInvocations.every(token=>token===invocation),'adapter invocation differs across metadata')
   const metadata=readFileSync(join(root,'skills/war-strategy/agents/openai.yaml'),'utf8')
   const prompts=[...metadata.matchAll(/^\s*default_prompt: (.+)$/gm)]
   assert.equal(prompts.length,1,'invocation requires one UI default prompt')

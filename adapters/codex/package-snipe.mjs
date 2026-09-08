@@ -8,6 +8,7 @@ const FILES = [
   ['adapters/codex/skills/snipe/assets/snipe-request.mjs', 'skills/snipe/assets/snipe-request.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-result.mjs', 'skills/snipe/assets/snipe-result.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-runner.mjs', 'skills/snipe/assets/snipe-runner.mjs'],
+  ['adapters/codex/skills/snipe/assets/codex-models.mjs', 'skills/snipe/assets/codex-models.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-submodules.mjs', 'skills/snipe/assets/snipe-submodules.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-process.mjs', 'skills/snipe/assets/snipe-process.mjs'],
   ['adapters/codex/skills/snipe/assets/snipe-files.mjs', 'skills/snipe/assets/snipe-files.mjs'],

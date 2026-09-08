@@ -22,6 +22,7 @@ test('S-A16 builds a standalone Snipe-only plugin with its shared dependency clo
     '.codex-plugin/plugin.json',
     'skills/snipe/SKILL.md',
     'skills/snipe/agents/openai.yaml',
+    'skills/snipe/assets/codex-models.mjs',
     'skills/snipe/assets/shared/skills/_shared/provision.mjs',
     'skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs',
     'skills/snipe/assets/shared/skills/war/assets/war-config.mjs',

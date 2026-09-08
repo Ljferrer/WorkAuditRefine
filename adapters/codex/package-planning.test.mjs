@@ -36,8 +36,11 @@ test('package resource links stay resolvable without pulling the development che
   assert.deepEqual(files,[
     '.codex-plugin/plugin.json',
     'shared/docs/adr/0025-drift-guard-discipline.md',
+    'shared/skills/snipe/assets/codex-models.mjs',
+    'shared/skills/snipe/assets/snipe-process.mjs',
     'shared/skills/war-strategy/SKILL.md',
     'shared/skills/war-strategy/assets/plan-literal-lint.mjs',
+    'shared/skills/war-strategy/assets/strategy-verifier.mjs',
     'shared/skills/war-strategy/references/host.md',
     'shared/skills/war-strategy/references/plan-interview.md',
     'shared/skills/war-strategy/references/strategy-verifier.md',
@@ -99,6 +102,8 @@ test('qualified invocation agrees across manifest, skill identity and UI prompt'
   writeFileSync(path,original.replace(invocation,'$stale:war-strategy'))
   assert.throws(()=>verifyPlanningPlugin(output),/invocation/)
   writeFileSync(path,original)
+  writeFileSync(skillPath,skill.replace(invocation,'$stale:war-strategy'))
+  assert.throws(()=>verifyPlanningPlugin(output),/invocation/)
   writeFileSync(skillPath,skill.replace('name: war-strategy','name: wrong'))
   assert.throws(()=>verifyPlanningPlugin(output),/invocation/)
 })

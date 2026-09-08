@@ -104,6 +104,13 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   behavioral scenarios, each bounded to ten minutes and at most one diagnostic
   rerun. This is separate from Snipe audit accounting and does not authorize
   normal-plugin installation.
+- P4 transport checkpoint in progress: extracted the existing executable resolver
+  and read-only catalog into `codex-models.mjs`, preserving Snipe's public exports
+  and retargeting its cleanup mutants. The planning package uses that same source
+  and cleanup helper, without copying Snipe's verdict schema. Initial built-package
+  contract tests cover four arms, unarmed suppression, bounded refutation and
+  partial/empty/unavailable distinctions. These are injected-dispatch tests, not
+  proof of real host enforcement; process fixtures and actual dispatch remain open.
 - Audit 1: P2 scope `3535a45..3f775f2`, three Sol/medium seats returned complete,
   stable coverage. Correctness approved; test-coverage requested changes;
   cascading-impact approved. Two Major and two Minor findings reduced to three
@@ -124,5 +131,20 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   operator's conditional final extra cycle is not pre-spent. Each panel uses three
   Sol/medium seats. Log exact scope, verdicts, failure class, repair, red/green proof,
   deferred findings and later closure here; preserve timeouts/incomplete panels.
+- Audit 2: P2's second cycle, scope `3535a45..89d8167`, complete coverage;
+  correctness and cascading-impact approved, test-coverage requested changes.
+  Three Major findings and one duplicate Minor identified incomplete closure of
+  the same three classes—not a reversal of the intended behavior. Added the
+  installed-memory-CLI fallback clause and deletion control; expanded the shared
+  locator prohibition to both doctrine files and directory/file/relative variants;
+  verified every qualified adapter-body invocation alongside metadata. The body-only
+  mutation demonstrably passed the old guard (missing expected exception), then
+  failed under the repaired verifier. P2 has consumed its two cycles; subsequent
+  checkpoints will cover these repairs alongside downstream work, not a third P2 panel.
+- Operator-requested shared interview correction: `Qk/14` became `Qk · cap <budget>`;
+  echo-backs do not spend questions, short interviews do not pad to the midpoint,
+  and forecast overruns trigger targeted recon without inventing operator intent.
+  Four structure assertions were red before the guidance change and green after;
+  package byte-identity tests deliver the same canonical correction to Codex.
 - Installation remains gated on operator merge and installation approval as the
   plan specifies. Source completion and installed acceptance are distinct.
