@@ -257,6 +257,8 @@ test('cleanup denial with inherited pipes settles a failed report without waitin
     else assert.equal(report.suites[0].failure,'process-close-timeout')
     assert.equal(report.suites[0].status,'failed')
     assert.equal(report.suites[0].terminationConfirmed,false)
+    assert.ok(Number.isSafeInteger(report.suites[0].processGroupId) && report.suites[0].processGroupId>1)
+    assert.deepEqual([...groups],[-report.suites[0].processGroupId],'retained identity must match the owned signal target')
     const saved=readFileSync(join(root,'report/report.json'),'utf8')
     await new Promise(resolve=>setTimeout(resolve,50))
     assert.equal(readFileSync(join(root,'report/report.json'),'utf8'),saved)
@@ -349,6 +351,7 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['capture-error', 'try {onData(channel,chunk)} catch(error) {stop(`output capture failed: ${error.message}`)}', 'onData(channel,chunk)', 'shared process owner', 'owned-process.mjs'],
     ['stream-error', "stream?.on('error',error=>stop(`output stream failed: ${error.message}`))", '', 'shared process owner', 'owned-process.mjs'],
     ['spawn-error', "child.on('error',error=>stop(error.message))", '', 'shared process owner', 'owned-process.mjs'],
+    ['group-identity', 'processGroupId:child.pid ?? null, ', '', 'cleanup denial', 'owned-process.mjs'],
   ]
   for (const [name, from, to, pattern, file='collect.mjs'] of cases) {
     const source=readFileSync(new URL(file,import.meta.url),'utf8')

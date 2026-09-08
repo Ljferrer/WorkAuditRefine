@@ -139,6 +139,24 @@ test('unknown top-level decisions and extra or cyclic events cannot pass on both
   }
 })
 
+test('eventless contracts reject supplied traces on either runtime, including shared contradictions', () => {
+  const eventless=['P07','P03','P04','P08','P09','P10','P11','P12','P13','P14','P15','P16','P17','P18','P19','P20','P21','P22','P23','P24','P25','P26']
+  const traces=['integrate','dispatch','complete','error','commit','audit','gate'].map(kind=>[{id:'unexpected',task:'a',kind,after:[]}])
+  for(const id of eventless) {
+    assert.equal(compareObservations(observation(id,'claude'),observation(id,'codex')).equivalent,true)
+    for(const events of [...traces,[],null,{},'',false,0]) for(const sides of [[0,1],[0],[1]]) {
+      const records=[observation(id,'claude'),observation(id,'codex')]
+      for(const side of sides) records[side].events=structuredClone(events)
+      assert.throws(()=>compareObservations(...records),/fixture defines no event trace/,`${id}/${JSON.stringify(events)}/${sides}`)
+    }
+  }
+  for(const id of ['P01','P02','P05','P06']) for(const events of [undefined,null,[]]) {
+    const a=observation(id,'claude'),b=observation(id,'codex')
+    a.events=b.events=events
+    assert.throws(()=>compareObservations(a,b),/event trace required/,id)
+  }
+})
+
 test('shared rejecting audits or early integration cannot hide behind correct outcome summaries', () => {
   for (const id of ['P01', 'P02']) {
     for (const change of [
@@ -242,6 +260,7 @@ test('oracle guard mutations fail assertions rather than merely failing to initi
       ['unique event ID',"    assert.ok(typeof event.id ===",'causal event pin'],
       ['unique predecessors',"    assert.ok(Array.isArray(event.after)",'causal event pin'],
       ['extra approval events',"    assert.equal(record.events.length, record.caseId===",'causal event pin'],
+      ['eventless trace refusal','    assert.equal(record.events, undefined,','eventless contracts'],
     ]
     for (const [name, prefix, pattern] of mutations) {
       const lines = source.split('\n'), found = lines.filter(line => line.startsWith(prefix))

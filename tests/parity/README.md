@@ -29,6 +29,10 @@ fail, rather than vanishing. Unknown event metadata is retained for comparison;
 unknown event kinds fail. Artifacts must contain every required evidence kind
 with a digest. Severity/disposition, retries, gate exit, missing evidence and
 permissions remain literal assertions; equal bugs on both sides do not pass.
+Only P01/P02/P05/P06 define event traces in this selected fixture contract. Other
+scenarios reject any supplied `events` field value other than undefined, including
+empty traces, rather than accept unbound decisions alongside correct summary facts.
+Adding a trace requires independent scenario-specific validation first.
 
 Within-run audit/gate pins are exact before normalization. Across independently
 constructed fixtures, revision fields become commit roles only after validation;

@@ -41,7 +41,10 @@ function normalizedFacts(record, fixture) {
 }
 
 function assertTrace(record, label) {
-  if (!['P01', 'P02', 'P05', 'P06'].includes(record.caseId) && record.events === undefined) return
+  if (!['P01', 'P02', 'P05', 'P06'].includes(record.caseId)) {
+    assert.equal(record.events, undefined, `${label}: fixture defines no event trace`)
+    return
+  }
   assert.ok(Array.isArray(record.events) && record.events.length, `${label}: event trace required`)
   const seen = new Map()
   for (const event of record.events) {

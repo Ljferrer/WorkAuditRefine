@@ -160,6 +160,8 @@ test('fixture cleanup denial with inherited pipes settles failure and preserves 
     if(mode==='denied') assert.match(result.cleanupError,/injected fixture cleanup denial/)
     else assert.equal(result.reason,'process-close-timeout')
     assert.equal(result.terminationConfirmed,false)
+    assert.ok(Number.isSafeInteger(result.processGroupId) && result.processGroupId>1)
+    assert.deepEqual([...groups],[-result.processGroupId],'retained identity must match the owned signal target')
     assert.equal(fixture.cleanupIncomplete,true)
   } finally {
     clearTimeout(deadline);process.kill=original
@@ -173,19 +175,26 @@ test('fixture cleanup denial with inherited pipes settles failure and preserves 
 })
 
 test('uncertain fixture cleanup fails teardown and retains evidence even when a caller ignores the result', {timeout:10000}, () => {
+  for(const mode of ['denied','missing-close']) {
   const root=mkdtempSync(join(tmpdir(),'war-retained-fixture-')), marker=join(root,'root.json')
   let retained
   try {
     const script=`
       import {test} from 'node:test'
+      import assert from 'node:assert/strict'
       import {writeFileSync} from 'node:fs'
       import {createGitFixture,startFixtureProcess} from ${JSON.stringify(new URL('./git-fixture.mjs',import.meta.url).href)}
-      test('caller ignores result',async t=>{
+      test('caller ignores result',t=>{
         const fixture=createGitFixture(t), original=process.kill, groups=new Set()
         writeFileSync(${JSON.stringify(marker)},JSON.stringify(fixture.root))
-        process.kill=(pid,signal)=>{if(pid < -1){groups.add(pid);throw Object.assign(new Error('denied'),{code:'EPERM'})}return original(pid,signal)}
-        try{await startFixtureProcess(fixture,'descendant').result}
-        finally{process.kill=original;for(const group of groups)try{original(group,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}}
+        process.kill=(pid,signal)=>{if(pid < -1){groups.add(pid);if(${JSON.stringify(mode)}==='denied')throw Object.assign(new Error('denied'),{code:'EPERM'});return true}return original(pid,signal)}
+        const rescue=()=>{process.kill=original;for(const group of groups)try{original(group,'SIGKILL')}catch(e){if(e.code!=='ESRCH')throw e}}
+        // Registered after fixture teardown, so the injected failure remains
+        // active throughout its wait. Exit rescue also owns every captured group.
+        t.after(rescue);process.once('exit',rescue)
+        startFixtureProcess(fixture,'hang')
+        assert.equal(fixture.children.size,1)
+        assert.equal(fixture.cleanupIncomplete,false)
       })
     `
     const file=join(root,'retained.test.mjs')
@@ -198,6 +207,7 @@ test('uncertain fixture cleanup fails teardown and retains evidence even when a 
   } finally {
     if(retained) rmSync(retained,{recursive:true,force:true})
     rmSync(root,{recursive:true,force:true})
+  }
   }
 })
 
@@ -225,6 +235,8 @@ test('fixture guard removals produce assertion failures in disposable subprocess
       ['denial finalization','owned-process.mjs','        finish()\n        return','        return','fixture cleanup denial'],
       ['drain deadline','owned-process.mjs',"drainTimer ??= setTimeout(()=>{failure ??= 'process-close-timeout';finish()},250)",'','fixture cleanup denial'],
       ['teardown failure','git-fixture.mjs',"    if(fixture.cleanupIncomplete) throw new Error(`fixture cleanup incomplete; evidence retained at ${root}`)",'','uncertain fixture cleanup'],
+      ['group identity','owned-process.mjs','processGroupId:child.pid ?? null, ','','fixture cleanup denial'],
+      ['teardown wait','git-fixture.mjs','    await Promise.all([...children].map(child => child.result))','','uncertain fixture cleanup'],
     ]
     for (const [name,file,needle,replacement,pattern] of mutations) {
       for (const item of files) copyFileSync(new URL(item,import.meta.url),join(parity,item))

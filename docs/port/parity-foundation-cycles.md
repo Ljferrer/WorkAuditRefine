@@ -310,3 +310,33 @@ does not close or erase this follow-up.
 - Raw panel: `/private/tmp/war-parity-cycle9.sQb59Q/audit-result.json`.
   This reopens a previously approved T1 lifecycle class at another conjunction;
   it is not a reversal of an operator policy. The discipline did not prevent it.
+
+### Cycle 10 — optional evidence and overstated lifecycle witnesses
+
+- Pin `573fc9ece3ea14dce29a2cd410a497af587f6037`; complete stable coverage.
+  Correctness requested changes for one Major; test-coverage approved with two
+  absorbable Minor findings; cascading-impact approved. Ten of twelve panels used.
+- Exact-pin clean baseline: 64 suites, 3,297 passing observed cases/rows, four
+  named host skips, no failures/cancellations/todos, unchanged source/index/content.
+  Report: `/private/tmp/war-parity-cycle10-baseline.H7a51u/report/report.json`.
+- Root cause: eventless scenario records accepted generic event graphs without
+  binding their decisions to scenario facts. A shared P07 integration event after
+  the asserted failed gate incorrectly compared equivalent; the regression was
+  observed red before repair. All 22 eventless contracts now reject supplied
+  traces (including empty/malformed values). The independent test crosses all
+  seven supported event kinds, either/both runtime sides, and the absent baseline;
+  P01/P02/P05/P06 continue to require their scenario-specific traces. No additional
+  production event schema is invented. Removing the refusal fails the regression.
+- Lifecycle output sweep: collector and fixture now assert a positive retained
+  group ID exactly matching their intercepted signal target, for denial and
+  missing-close. Each consumer independently kills a field-removal mutation.
+- The previous ignored-result test awaited the promise and ignored only its
+  value. That did not prove teardown waits for an outstanding result. The corrected
+  subprocess truly discards the handle, leaves injected denial/missing-close active
+  through teardown, and rescues only afterward. Removing teardown's wait now
+  fails the retained-evidence assertion; removing its failure guard still fails.
+  The earlier closure claim was stronger than its witness, not a runtime regression.
+- All 50 targeted tests pass: T1 24 / 20 assertion-killed mutations, T2 16 / 25,
+  T3 10 / 17. Complete baseline must be refreshed after this repair. #2235 remains
+  an open production follow-up, not changed or waived here.
+- Raw panel: `/private/tmp/war-parity-cycle10.eF6fO8/audit-result.json`.
