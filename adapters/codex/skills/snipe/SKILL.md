@@ -5,7 +5,9 @@ description: Explicit one-shot read-only WAR-style audit of a pinned diff throug
 
 # Snipe for Codex
 
-Run only when the user explicitly invokes `$snipe`. Convene one to five independent read-only audit seats, report their evidence, and stop. This is not a WAR phase and grants no authority to change the repository or external systems.
+Run only when the user explicitly invokes `$snipe`, the installed plugin's qualified name `$work-audit-refine-snipe:snipe`, or selects Snipe from the skill picker. Convene one to five independent read-only audit seats, report their evidence, and stop. This is not a WAR phase and grants no authority to change the repository or external systems.
+
+For the installed plugin, use the qualified name or picker selection: the host registers this skill as `work-audit-refine-snipe:snipe`, and bare `$snipe` text may not resolve when explicit-only skills are omitted from the default catalog. Do not treat a missing default catalog entry as proof that the plugin is uninstalled. If skill resolution or the owned runner is unavailable, report the limitation and stop; never substitute manual or unconstrained auditor agents.
 
 ## Request
 

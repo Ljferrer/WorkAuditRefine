@@ -32,6 +32,14 @@ test('S-A16 builds a standalone Snipe-only plugin with its shared dependency clo
   ])
   const manifest = JSON.parse(readFileSync(join(output, '.codex-plugin/plugin.json'), 'utf8'))
   assert.equal(manifest.skills, './skills/')
+  const skill = readFileSync(join(output, 'skills/snipe/SKILL.md'), 'utf8')
+  const skillName = skill.match(/^name: (.+)$/m)[1]
+  const invocation = `$${manifest.name}:${skillName}`
+  const metadata = readFileSync(join(output, 'skills/snipe/agents/openai.yaml'), 'utf8')
+  const skillPrompt = JSON.parse(metadata.match(/^\s*default_prompt: (.+)$/m)[1])
+  for (const prompt of [manifest.interface.defaultPrompt, skillPrompt]) {
+    assert.equal(prompt.match(/\$[\w:-]+/)[0], invocation, 'default prompts must use the host plugin-qualified skill name')
+  }
   assert.equal('hooks' in manifest, false)
   assert.equal(inventory.some(path => path.startsWith('hooks/')), false)
   assert.doesNotThrow(() => verifySnipePlugin(output))

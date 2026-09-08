@@ -38,7 +38,7 @@ function manifest(version) {
       category: 'Developer Tools',
       capabilities: ['Interactive', 'Read'],
       websiteURL: 'https://github.com/Ljferrer/WorkAuditRefine',
-      defaultPrompt: 'Run $snipe to audit the current diff through independent read-only lenses.',
+      defaultPrompt: 'Run $work-audit-refine-snipe:snipe to audit the current diff through independent read-only lenses.',
     },
   }
 }
