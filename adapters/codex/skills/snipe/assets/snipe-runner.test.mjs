@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { listSupportedProfiles, runSnipePanel } from './snipe-runner.mjs'
+import { listSupportedProfiles, resolveCodexPath, runSnipePanel } from './snipe-runner.mjs'
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -78,6 +78,34 @@ function catalogCodex() {
 
 test('host catalog discovery initializes and consumes every model page without starting a turn', async () => {
   assert.deepEqual({ ...await listSupportedProfiles({ codexPath: catalogCodex() }) }, { 'gpt-test': ['high'], 'gpt-other': ['low'] })
+})
+
+test('Desktop runtime resolves Codex without a PATH alias; explicit overrides fail closed', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'snipe-desktop-')))
+  const resources = join(root, 'Test App.app', 'Contents', 'Resources')
+  mkdirSync(resources, { recursive: true })
+  const binary = join(resources, 'codex')
+  copyFileSync(catalogCodex(), binary)
+  chmodSync(binary, 0o755)
+  const env = { PATH: '', CODEX_MCP_NODE_PATH: join(resources, 'cua_node/bin/node') }
+  assert.equal(resolveCodexPath(undefined, env), binary)
+  assert.equal(resolveCodexPath(undefined, { PATH: resources }), binary)
+  assert.equal(resolveCodexPath(undefined, { PATH: '', SNIPE_CODEX_BIN: binary }), binary)
+  assert.throws(() => resolveCodexPath('/missing/codex', env), error => error.code === 'CODEX_EXECUTABLE_UNAVAILABLE' && /\/missing\/codex.*--codex-path/.test(error.message))
+  assert.throws(() => resolveCodexPath(undefined, { PATH: '' }), /CODEX|Codex executable unavailable/)
+
+  // Absolute shebang removes even Node's PATH dependency from the fake host.
+  writeFileSync(binary, readFileSync(binary, 'utf8').replace('#!/usr/bin/env node', `#!${process.execPath}`))
+  const profiles = JSON.parse(execFileSync(process.execPath, [runnerPath, '--list-profiles', '--codex-path', binary], { env: { ...process.env, PATH: '' }, encoding: 'utf8' }))
+  assert.deepEqual(profiles['gpt-test'], ['high'])
+  const cwd = fixture()
+  const requestPath = join(root, 'request.json')
+  writeFileSync(requestPath, JSON.stringify({ cwd, profile: { model: 'gpt-test', effort: 'high' } }))
+  // Git is available, but neither system directory contains a Codex executable.
+  const result = JSON.parse(execFileSync(process.execPath, [runnerPath, '--request', requestPath], {
+    env: { ...process.env, PATH: '/usr/bin:/bin', SNIPE_CODEX_BIN: undefined, CODEX_MCP_NODE_PATH: env.CODEX_MCP_NODE_PATH }, encoding: 'utf8',
+  }))
+  assert.equal(result.complete, true)
 })
 
 test('CLI accepts explicit profile without task metadata or a supplied profile map', () => {

@@ -1,7 +1,8 @@
 // Bounded read-only Codex seat coordinator for /snipe.
 
 import { spawn } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { accessSync, constants, readFileSync, realpathSync, statSync } from 'node:fs'
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { prepareSnipeRequest, verifySnipeScope } from './snipe-request.mjs'
@@ -9,8 +10,34 @@ import { parseSnipeVerdict, renderSnipeReport } from './snipe-result.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
 
+export function resolveCodexPath(explicit, env = process.env) {
+  const override = explicit ?? env.SNIPE_CODEX_BIN
+  const candidates = []
+  if (override !== undefined) {
+    if (typeof override === 'string' && isAbsolute(override)) candidates.push(override)
+  } else {
+    // Desktop supplies its Node runtime path even when it supplies no CLI PATH alias.
+    // Only recognize the observed bundle layout; never guess a global app install path.
+    const runtime = env.CODEX_MCP_NODE_PATH
+    if (typeof runtime === 'string' && isAbsolute(runtime) && runtime.endsWith('/Contents/Resources/cua_node/bin/node')) {
+      candidates.push(resolve(dirname(runtime), '../..', 'codex'))
+    }
+    for (const directory of (env.PATH ?? '').split(delimiter).filter(isAbsolute)) {
+      candidates.push(join(directory, process.platform === 'win32' ? 'codex.exe' : 'codex'))
+    }
+  }
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.X_OK)
+      if (statSync(candidate).isFile()) return realpathSync(candidate)
+    } catch { /* Try the next runtime/PATH candidate, never another explicit override. */ }
+  }
+  throw Object.assign(new Error(`Codex executable unavailable. Attempted: ${candidates.join(', ') || String(override ?? '(no runtime hint or absolute PATH entries)')}. Supply --codex-path /absolute/path/to/codex or SNIPE_CODEX_BIN with an executable absolute path (also supported with --list-profiles).`), { code: 'CODEX_EXECUTABLE_UNAVAILABLE' })
+}
+
 // Read capabilities only: never create a thread or start a turn during discovery.
-export function listSupportedProfiles({ codexPath = 'codex', timeoutMs = 30_000 } = {}) {
+export function listSupportedProfiles({ codexPath, timeoutMs = 30_000 } = {}) {
+  codexPath = resolveCodexPath(codexPath)
   return new Promise((resolve, reject) => {
     const child = spawn(codexPath, ['app-server', '--listen', 'stdio://', '-c', 'mcp_servers={}', '--disable', 'plugins', '--disable', 'hooks'], { stdio: ['pipe', 'pipe', 'pipe'] })
     const profiles = Object.create(null)
@@ -21,7 +48,7 @@ export function listSupportedProfiles({ codexPath = 'codex', timeoutMs = 30_000 
       done = true
       clearTimeout(timer)
       child.kill('SIGKILL')
-      if (error) reject(Object.assign(new Error(error), { code: 'PROFILE_DISCOVERY_FAILED' }))
+      if (error) reject(Object.assign(new Error(`${error} (Codex executable: ${codexPath}; override with --codex-path /absolute/path/to/codex)`), { code: 'PROFILE_DISCOVERY_FAILED' }))
       else resolve(profiles)
     }
     const timer = setTimeout(() => finish('Codex model/list timed out'), timeoutMs)
@@ -285,7 +312,7 @@ export async function runSnipePanel(input, options = {}) {
   const assignments = assignLenses(request.panel)
   const concern = input.concern ?? ''
   if (typeof concern !== 'string') throw new TypeError('concern must be a string')
-  const codexPath = options.codexPath ?? 'codex'
+  const codexPath = resolveCodexPath(options.codexPath)
   const timeoutMs = options.timeoutMs ?? 10 * 60 * 1000
   const maxOutputBytes = options.maxOutputBytes ?? 4 * 1024 * 1024
   const capacity = options.capacity ?? assignments.length
@@ -342,11 +369,12 @@ function cliOptions(argv) {
 
 async function main(argv) {
   if (argv[0] === '--list-profiles') {
-    if (argv.length !== 1) throw new Error('usage: snipe-runner.mjs --list-profiles')
-    process.stdout.write(`${JSON.stringify(await listSupportedProfiles(), null, 2)}\n`)
+    if (argv.length !== 1 && !(argv.length === 3 && argv[1] === '--codex-path')) throw new Error('usage: snipe-runner.mjs --list-profiles [--codex-path /absolute/path/to/codex]')
+    process.stdout.write(`${JSON.stringify(await listSupportedProfiles({ codexPath: argv[2] }), null, 2)}\n`)
     return
   }
   const options = cliOptions(argv)
+  options.codexPath = resolveCodexPath(options.codexPath)
   const input = JSON.parse(readFileSync(options.requestPath, 'utf8'))
   if (input.supportedProfiles === undefined) input.supportedProfiles = await listSupportedProfiles({ codexPath: options.codexPath })
   const controller = new AbortController()
