@@ -133,10 +133,11 @@ const EVICTION_DESTINATIONS = [
   // retired-citation homes the hand-enumerated list could not previously see.
   'skills/lessons-learned/references/seeding.md',
   'skills/war/references/design.md',
-  // #1306: the interview doctrine's whole CLI exposure is its Stage-0 recon command
-  // (war-memory.mjs `query`, which resolves against the live VERBS dispatch) — verb-scanned
-  // so a future verb rename rots that command loudly, never silently.
+  // #1306: keep the interview and its extracted Claude host scanned; Stage-0's
+  // war-memory.mjs query command now lives in host.md, and must remain checked
+  // against live dispatch after that move.
   'skills/war-strategy/references/plan-interview.md',
+  'skills/war-strategy/references/host.md',
   // in-band-absorb-default D6 (Task 6.1): sweep-exclusion.md carries the Lead's campaign
   // contention-set duty — a Node one-liner importing the campaign-ledger.mjs EXPORT
   // `extractFilesFromPlanFile` (never a ledger CLI verb; the verb set is closed) — verb-scanned
@@ -369,11 +370,11 @@ test('verb-scan placement census (D2): every skills/*/references/*.md file is co
   assert.deepEqual(scanned, union, 'references-file placement census failed (default-deny).'
     + (unplaced.length ? ` UNPLACED: ${JSON.stringify(unplaced)} — a new references file is red until consciously placed: add it to EVICTION_DESTINATIONS if it phrases a scanned module's CLI commands, else to VERB_SCAN_EXCLUSIONS with a reason comment.` : '')
     + (stale.length ? ` STALE ROW: ${JSON.stringify(stale)} — the listed file is gone from skills/*/references/; restore the file or delete its row (and the coverage it claimed).` : ''))
-  // #1306: the placement itself is load-bearing and the census alone cannot tell WHICH list
-  // a path landed in — plan-interview.md must be in the VERB-SCANNED list, so its Stage-0
-  // recon command stays checked against the live dispatch.
-  assert.ok(EVICTION_DESTINATIONS.includes('skills/war-strategy/references/plan-interview.md'),
-    'plan-interview.md must be verb-scanned (EVICTION_DESTINATIONS), not reason-excluded (#1306)')
+  // The census alone cannot tell WHICH list a path landed in. Follow the command
+  // into its host reference without dropping the shared interview's coverage.
+  for (const name of ['plan-interview.md', 'host.md'])
+    assert.ok(EVICTION_DESTINATIONS.includes(`skills/war-strategy/references/${name}`),
+      `${name} must be verb-scanned (EVICTION_DESTINATIONS), not reason-excluded (#1306)`)
   // ADR 0025 (/red-team adjudication 6): an exclusion's REASON is a checked property, not
   // prose — CLI command prose added to an excluded file reds here instead of rotting
   // unscanned. schemas.md is the single documented carve-out: it names war-config.mjs

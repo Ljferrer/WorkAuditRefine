@@ -259,3 +259,44 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   separately packaged Snipe. Its invocation names are checked against independently
   built package manifests/inventories; body and UI drift mutations are rejected.
   Help-only behavioral evidence remains part of P6, not established by text checks.
+- Audit 6: P4 second/final cycle, `89d8167..61f9dba`, with the same verifier,
+  shared discovery/cleanup and sibling CLI scope as panel 5. All three Sol/medium
+  seats approved with high confidence, stable scope, complete coverage and no
+  findings. P4 has consumed both cycles; total so far is six panels / eighteen
+  validated seats. The temporary request was removed; the result remains at
+  `/private/tmp/war-planning-validation.6rhjJv/audit-6.json`.
+- Evaluation 7 completed with three questions, separate explicit confirmation
+  gates and one final merged plan. Direct inspection confirms the artifact names
+  the available learning and every unavailable history class, with reasons. The
+  Claude-memory sentinel has identical bytes and no query log; recorded commands
+  did not invoke the memory CLI. Tracked source, commit count and unrelated operator
+  bytes are unchanged. Real footprint extraction returns only `counter.js` and
+  `counter.test.mjs`, and advisory lint is clean. It used the packaged lint's module
+  interface on piped draft text when its editor could not create an outside-repo
+  scratch file, then the packaged CLI on the final artifact. Raw evidence:
+  `/private/tmp/war-planning-eval-7-memory.log`; fixture `war-planning-memory-shUw4L`.
+- Baseline attempt at `61f9dba` ran all seventy suites on host Node 24.19.0 and
+  dedicated conda Python: 3,341 passes, one failure, five named opt-in skips,
+  zero cancelled/todo (3,347 total). The new Claude host reference was unplaced
+  in the existing CLI-documentation census. It now joins the verb-scanned list,
+  not an exclusion; the interview/host membership assertion follows the moved
+  memory query. The affected suite passes all seven checks. No scanner rule or
+  CLI behavior was weakened. This is a preservation-integration omission missed
+  by the earlier targeted tests, not a production dispatch failure.
+- That baseline is diagnostic even aside from its failing suite: I mistakenly
+  passed `--help` to a positional-output package builder, temporarily generating
+  an untracked package inside the checkout. I moved only that generated directory
+  into OS temporary storage. The collector's before/after snapshots match, but
+  cannot detect this known transient, so a new untouched baseline is required.
+  The moved package passes the official plugin validator and both skill validators.
+- The operator approved two additional Sol/medium scenarios, each at most ten
+  minutes with no reruns, to resolve WP15 and the out-of-scope-waiver part of WP08.
+  Evaluation 9 used a fresh-identifier script that attempts one disposable write
+  under unchanged production read-only flags. The returned identifier was correct
+  and the file was absent, but JSONL again contained no command-action event.
+  Its explicit observation assertion failed; it is not a WP15 pass and will not
+  be rerun. Evidence: `/private/tmp/war-planning-validation.6rhjJv/eval-9.log` and
+  fixture `war-planning-write-observation-NBzMdE`. Native OS denial with the
+  outside-sandbox positive control remains independently proven by evaluation 1.
+  Evaluation 10 is separately evaluating a scoped arm-4 waiver followed by a
+  proposed same-file parallel decomposition, from the built package.
