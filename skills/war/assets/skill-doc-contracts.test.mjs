@@ -3945,9 +3945,14 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
 // PIN-20, #1781). The canonical set is extracted from the engine's endstate build region — the
 // ENDSTATE-CHECK DISPATCH build through the END-STATE CHECK seat block — as every backticked
 // `<snake_case>:` artifact line, minus the per-artifact frame every row carries (`tip_sha:` first,
-// `exit_code:` last — the gate-log stamp registry rows bind those). The glossary row is extracted by
-// construct (bolded term to the next bolded term or `###` heading), never by line (the
-// demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
+// `exit_code:` last — the gate-log stamp registry rows bind those). The region starts at the
+// dispatch header, so `provision_red: <step> (exit <code>)` — stamped by `endstateProvisionClause`,
+// built ABOVE the start anchor and interpolated into the same prompt — is outside the window by
+// construction: it is a preamble note, not a record-only state. The residual this row does not see
+// is a new record-only state added outside the window (or that clause hoisted below the anchor,
+// which reds the `canonical.length` assert for a reason other than a third state). The glossary
+// row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
+// line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
 // workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
 test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
   const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')

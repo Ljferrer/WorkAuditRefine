@@ -522,17 +522,16 @@ when a land dispatch returns null or an unrecognized status, read skills/war/ref
 **Segmented land / segmented gate**:
 The tool-timeout survival shape for the two refiner dispatches whose gate can outrun a turn. A land
 dispatch forced to return mid-run reports the in-band `land_segment` marker on its error status, and
-a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never a
-new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each — `segmentedLand`
-on all three land sites (initial, environment-proceed, baseline-proceed) and `segmentedMerge` on the
-four per-task merge-task sites (initial, floor-retry, environment-proceed, baseline-proceed); the two
-sweep-family merges are not segmented (ADR 0051 §3) — each helper appends the clause, dispatches, and
-re-dispatches while the marker rides its contracted status pair, bounded by `run.roundLimit`;
-exhaustion routes by the ridden status. The pair
-is the read (PIN-9): a landed or merged result carrying a stray marker stands, and a marker-absent
-error is one dispatch that routes by its status (`held:land-failed` for a land). Both prompt layers
-instruct backgrounding the gate (`run_in_background`) and applying the **Gate-log stamp** read on
-re-dispatch.
+a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never
+a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
+`segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
+`segmentedMerge` on the four per-task merge-task sites (initial, floor-retry, environment-proceed,
+baseline-proceed); the two sweep-family merges are not segmented (ADR 0051 §3) — each helper appends
+the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
+by `run.roundLimit`; exhaustion routes by the ridden status. The pair is the read (PIN-9): a landed
+or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
+routes by its status (`held:land-failed` for a land). Both prompt layers instruct backgrounding the
+gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch.
 _Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read
 without its status pair; a new status enum member for the marker.
 
@@ -656,16 +655,18 @@ HARD determination is made only against the captured file); treating a missing a
 **Gate-log stamp**:
 The two lines every captured gate log carries — `tip_sha:` first and `exit_code:` last — written by
 the refiner after the gate exits, under `gateCaptureClause` on the merge-task sites whose evidence
-contract requires the captured gate (the `captureUses` drift guard in `workflow-template.test.mjs` is
-the arbiter of that site list) and the segmented-land clause on every land site (`GATE_LOG_STAMP` in
-`workflow-template.js`; the refiner
-card's merge-task step is its registry-bound standing twin). The stamp is what makes a partial or
-stale log decidable: on a segmented re-dispatch the refiner reads a log as *this* dispatch's result
-only when its first line is `tip_sha:` of the gated sha AND its last line is `exit_code:`, and
-otherwise reruns the gate from scratch after stopping any backgrounded job (`PARTIAL_LOG_RULE`); a
-seat applies the same two-sided read (`GATE_LOG_READ_RULE` — partial, unstamped or tip-mismatched ⇒
-SOFT cannot-confirm). When `gate_log_path` is unthreaded, the evidence dispatch and both seat prompts
-render the conventional `_refinery/.war/gate-<taskId>.log` path with the
+contract requires the captured gate (the `captureUses` drift guard in `workflow-template.test.mjs`
+is the arbiter of that site list), the segmented-land clause on every land site, and the evidence
+dispatch's intra-dep integrated-tip gate re-run teed to `_refinery/.war/gate-phase-<id>.log`
+(`GATE_LOG_STAMP` in `workflow-template.js`; the refiner card's merge-task step is its
+registry-bound standing twin). The stamp is what makes a partial or stale log decidable: on a
+segmented re-dispatch the refiner reads a log as *this* dispatch's result only when its first line
+is `tip_sha:` of the gated sha AND its last line is `exit_code:`, and otherwise reruns the gate from
+scratch after stopping any backgrounded job (`PARTIAL_LOG_RULE`); a seat applies the same two-sided
+read (`GATE_LOG_READ_RULE` — partial, unstamped or tip-mismatched ⇒ SOFT cannot-confirm). When
+`gate_log_path` is unthreaded, the evidence dispatch's per-task rows and the per-task seat prompt
+render the conventional `_refinery/.war/gate-<taskId>.log` path, and the integrated-tip seat renders
+the conventional `_refinery/.war/gate-phase-<id>.log` path, each with the
 `(gate_log_path unthreaded — conventional path used)` marker, distinct from genuine absence.
 _Avoid_: reading a partial log as a partial result; a complete log from an earlier tip; a bare
 relative log path; treating the unthreaded marker as a missing artifact.
@@ -680,15 +681,16 @@ _Avoid_: conflating the `pin-mismatch` findings tag with the `agent-unverified` 
 
 **Intake normalization**:
 The engine-side pass every seat verdict crosses before any routing reads it — `normalizeFinding` in
-`workflow-template.js`, applied through `normalizeSeat` at every verdict-ingestion site (roster
-seats, the rebuttal-successor re-audit, ace re-audits, the three gate-audit-family seats, the
-endstate seat). It strips the attribution keys only the engine may stamp (a seat's own
-`seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
+`workflow-template.js`, applied through `normalizeSeat` at every verdict-ingestion site
+(auditRound's one collection site — roster seats, the rebuttal round and every re-audit: ace,
+pin-transfer, floor-fix, sweep, terminal — plus the three gate-audit-family seats: post-merge,
+integrated-tip, end-state-only). It strips the attribution keys only the engine may stamp (a seat's
+own `seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
 `aceRelPath`, demotes an empty-content finding to a logged note, and folds a content hash into
 `remintKey` when file and title are both absent — so what `f.file` and `f.seats` mean downstream is
 what the engine set, never what a seat supplied. The auditor card's FINDING-PATH FORM sentence is
-advisory belt and braces; the invariant lives in the engine
-([ADR 0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
+advisory belt and braces; the invariant lives in the engine ([ADR
+0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
 _Avoid_: trusting a seat-supplied corroboration field; a per-site strip (one helper, every site);
 treating the prompt sentence as the guard.
 
