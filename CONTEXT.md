@@ -688,10 +688,11 @@ The engine-side pass every seat verdict crosses before any routing reads it — 
 pin-transfer, floor-fix, sweep, terminal — plus the three gate-audit-family seats: post-merge,
 integrated-tip, end-state-only). It strips the attribution keys only the engine may stamp (a seat's
 own `seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
-`aceRelPath`, and demotes an empty-content finding to a logged note; `remintKey` folds a content
-hash in when file and title are both absent — so what `f.file` and `f.seats` mean downstream is
-what the engine set, never what a seat supplied. The auditor card's and every dispatched auditor
-prompt's FINDING-PATH FORM sentence is advisory belt and braces; the invariant lives in the engine
+`aceRelPath`, and demotes an empty-content finding to a logged note (a plan_ref, scopeBreach or
+ask-shaped row is spared); `remintKey` folds a content hash in when file and title are both
+absent — so what `f.file` and `f.seats` mean downstream is what the engine set, never what a seat
+supplied. The auditor card's and every dispatched auditor prompt's FINDING-PATH FORM sentence is
+advisory belt and braces; the invariant lives in the engine
 ([ADR 0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
 _Avoid_: trusting a seat-supplied corroboration field; a per-site strip (one helper, every site);
 treating the prompt sentence as the guard.
