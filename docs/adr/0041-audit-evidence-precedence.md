@@ -49,7 +49,10 @@ CONTEXT.md `_Avoid_` line is the ratified mitigation.
 
 **`execution`** — "did it run / did it pass."
 1. Gate-evidence artifact (`_refinery/.war/gate-<taskId>.log`) — the **sole** basis for a HARD
-   provably-unrun finding (existing rule, now rung 1).
+   provably-unrun finding (existing rule, now rung 1). A gate log is complete evidence only when
+   its FIRST line is `tip_sha:` of the gated sha and its LAST line is `exit_code:` (the refiner's
+   stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding
+   (ADR 0024 §(C) carries the same qualifier).
 2. Refiner-reported inline gate result — SOFT (possibly curated).
 3. Worker done-report / in-task probe evidence — SOFT, **never a hold**
    (`deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold`).
@@ -186,3 +189,7 @@ the surface that shape's ladder forbids as a verdict basis.
 - Precedent lessons (by slug, in `docs/learnings/` / the memory roots):
   `audit-worktree-pre-impl-tip-stale-verdict`, `audit-log-finding-can-be-stale-by-land-time`,
   `auditor-grep-tool-unrestricted-by-git-verb-bash-guard`.
+
+## Decision log
+
+- 2026-09-07 · `execution` rung 1 gains the gate-log completeness qualifier (`tip_sha:` first, `exit_code:` last, else SOFT cannot-confirm), mirrored from `agents/war-auditor.md` and ADR 0024 §(C) · issue #2156

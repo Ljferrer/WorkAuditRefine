@@ -82,7 +82,9 @@ The `pin-mismatch` tag is a **findings tag**, not a memory-provenance tier: it d
 that any `escalate` halts). This **does not weaken** the default: `gate-evidence` is still SOFT unless a
 mapped test is *provably unrun* (the HARD unrun determination is made only against the captured
 **gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.log`,
-never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold). The
+never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold; an
+artifact is HARD-path evidence only when stamped `tip_sha:` first for the gated sha and
+`exit_code:` last, so a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm too). The
 SOFT-by-default rule still governs Minor/Nit findings, and a `STALE-MISMATCH`/`ERROR`/cannot-confirm
 case keeps `verdict` at `approve`/`request_changes` with a SOFT note — never `escalate` (which stays
 reserved for plan-wrong/underspecified), so the preserved stale-tip SOFT-defusing rule never flips into
