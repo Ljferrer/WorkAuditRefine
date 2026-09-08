@@ -989,19 +989,25 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const tokenRe = t => new RegExp('\\b' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
   const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
   const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
-  // Predecessor-citation strip for a preformatted STRING row (#1751): the `supersedes … docs/plans/<x>.md`
-  // segment is the citation channel (the object form's `supersedes` field), never a leak — drop it
-  // before the foreign-id match. The own-token search reads the unstripped text.
+  // Predecessor-citation strip for a preformatted STRING row (#1751): the citation segment is the
+  // plan id DIRECTLY after `supersedes` (`supersedes docs/plans/<x>.md`, `supersedes: docs/plans/<x>.md`
+  // or the adjRow render `(supersedes plan literal: docs/plans/<x>.md)`) — the object form's
+  // `supersedes` field, never a leak — drop it before the foreign-id match. The strip is anchored to
+  // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
+  // for the scan. The own-token search reads the unstripped text.
   const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
-  const stripSupersedes = text => String(text).replace(/supersedes[^\n]*?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
+  const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
   // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
-  // (a string value plus a string supersedes; a Lead-stamped planFile may ride beside them) or the
-  // string adjRow renders — `<value> (supersedes plan literal: <x>)`.
+  // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
+  // supersedes; a Lead-stamped planFile may ride beside them) or the string adjRow renders —
+  // `<value> (supersedes plan literal: <x>)`. The shape test alone would let a prose ruling with a
+  // prose `supersedes` bypass the own-token floor, so the value field must look like a value.
   const isValueRow = row => typeof row === 'string'
     ? /\(supersedes plan literal: [^\n]+\)\s*$/.test(row)
     : !!row && typeof row === 'object' && typeof (row.adjudicated ?? row.value) === 'string' && typeof row.supersedes === 'string'
+      && /^\S{1,64}$/.test(row.adjudicated ?? row.value)
       && Object.keys(row).every(k => ['adjudicated', 'value', 'supersedes', 'planFile', 'source'].includes(k))
-  // Per-row intent-bearing extraction: { text, exempt } | { foreignStamp } (see the exemption
+  // Per-row intent-bearing extraction: { text, idText?, exempt, value } | { foreignStamp } (see the exemption
   // enumeration above). A string row is its own text (the preformatted adjudication shape). An
   // EXEMPT row never causes an OWN-TOKEN refusal, but its intent-bearing text still COUNTS as
   // own-token evidence for the surface — exemption means "never fails the own-token floor", not
@@ -2443,19 +2449,24 @@ if (tasks.length) {
   const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name, never a shell variable from an earlier call) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is an ancestor of the frozen tip AND carries at least one commit above the phase
-  // base (`rev-list --count "$BASE"..<branch>` > 0 — D9/PIN-13, #1895/#2006) is reported preMerged and
-  // its ensure-worktree is SKIPPED. The ancestor check alone is vacuous for a zero-commit branch sitting
-  // at the phase base (a task that dep-failed or never dispatched in an earlier attempt), so the count is
-  // the paired conjunct: such a branch is classified ZERO_COMMIT in the barrier transcript and takes the
-  // ordinary ensure-worktree path, never preMerged. BASE is the integration branch's fork point off the
-  // working branch (the refiner card's phase integration base) — the residual: a zero-commit branch cut
+  // base (`rev-list --count "$(git merge-base <integration> <working>)"..<branch>` > 0 — D9/PIN-13,
+  // #1895/#2006) is reported preMerged and its ensure-worktree is SKIPPED. The ancestor check alone is
+  // vacuous for a zero-commit branch sitting at the phase base (a task that dep-failed or never
+  // dispatched in an earlier attempt), so the count is the paired conjunct: such a branch is classified
+  // ZERO_COMMIT in the barrier transcript and takes the ordinary ensure-worktree path, never preMerged.
+  // The range renders its base INLINE per task, by branch name, never through a carried "$BASE": an
+  // agent shell does not carry a variable across calls, and an unset BASE reads as HEAD..<branch>,
+  // which exits 0 with a plausible non-zero count — the one arm that would fail silent and open (#2038,
+  // the absorbChargesClause precedent). BASE is still bound once for the ZERO_COMMIT transcript line.
+  // BASE is the integration branch's fork point off the working branch (the refiner card's phase
+  // integration base) — the residual: a zero-commit branch cut
   // at a LATER relaunch's adopted tip counts its siblings' fast-forwarded commits and is not caught here.
   // Deriving before cutting means a fresh cut can never pollute the ancestry check (the "vacuous on a
   // first run" property is true by ordering, not luck). A task branch that exists but is NOT an
   // ancestor (the escalated task's half-done branch) takes the existing-branch reuse path — prior
   // commits kept, no reset (spec §8).
   const deriveSkipClause = recovery
-    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. Bind the phase base ONCE: BASE="$(git merge-base "$TIP" ${ph.workingBranch})" (the integration branch's fork point off the working branch). For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds AND \`git rev-list --count "$BASE"..<that task's branch>\` is greater than 0 (already-integrated on the adopted integration branch WITH at least one commit of its own — BOTH conjuncts, never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895). On BOTH TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in \`preMerged\`; run that task's ensure-worktree as listed (the ordinary path) and print one line \`ZERO_COMMIT <that task's id> <that task's branch> at "$BASE"\` so the classification is visible in your transcript. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
+    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. Bind the phase base ONCE: BASE="$(git merge-base "$TIP" ${ph.workingBranch})" (the integration branch's fork point off the working branch). For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds AND \`git rev-list --count "$(git merge-base ${ph.integrationBranch} ${ph.workingBranch})"..<that task's branch>\` is greater than 0 (the base rendered inline by branch name, never a shell variable from an earlier call: an unset variable reads as HEAD..<branch> and returns a plausible count; already-integrated on the adopted integration branch WITH at least one commit of its own — BOTH conjuncts, never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895). On BOTH TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in \`preMerged\`; run that task's ensure-worktree as listed (the ordinary path) and print one line \`ZERO_COMMIT <that task's id> <that task's branch> at "$BASE"\` so the classification is visible in your transcript. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of

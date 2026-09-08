@@ -11015,8 +11015,9 @@ test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry �
 })
 
 // D9 / PIN-13 (#1895, #2006): derive-and-skip needs commits. The barrier prompt requires BOTH
-// `merge-base --is-ancestor` AND `rev-list --count "$BASE"..<branch>` > 0 before deriving preMerged,
-// binds BASE once as the phase integration base, and classifies a zero-commit ancestor as a
+// `merge-base --is-ancestor` AND `rev-list --count "$(git merge-base <integration> <working>)"..<branch>`
+// > 0 before deriving preMerged (the base inline per task, never a carried "$BASE" — #2038), binds BASE
+// once for the ZERO_COMMIT transcript line, and classifies a zero-commit ancestor as a
 // never-started task that takes the ordinary ensure-worktree path. The engine has no shell, so the
 // prompt is the guard: an honest barrier reports a zero-commit branch in NO array and the worker runs.
 test('derive-and-skip: zero-commit branch dispatches (#1895/#2006)', async () => {
@@ -11027,14 +11028,15 @@ test('derive-and-skip: zero-commit branch dispatches (#1895/#2006)', async () =>
   assert.ok(barrier, 'the barrier was dispatched')
   const b = barrier.prompt
   assert.match(b, /merge-base --is-ancestor <that task's branch> "\$TIP"/, 'the ancestor check stays')
-  assert.match(b, /AND `git rev-list --count "\$BASE"\.\.<that task's branch>` is greater than 0/, 'the commit-count conjunct is required alongside the ancestor check')
-  assert.match(b, /BASE="\$\(git merge-base "\$TIP" dev\/wtprov-a\)"/, 'BASE is bound once as the integration branch fork point off the working branch')
+  assert.match(b, /AND `git rev-list --count "\$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)"\.\.<that task's branch>` is greater than 0/, 'the commit-count conjunct is required alongside the ancestor check, its base rendered inline by branch name')
+  assert.doesNotMatch(b, /rev-list --count "\$BASE"/, 'the range never reads a carried $BASE (an unset variable reads as HEAD..<branch> and fails open, #2038)')
+  assert.match(b, /BASE="\$\(git merge-base "\$TIP" dev\/wtprov-a\)"/, 'BASE is bound once as the integration branch fork point off the working branch (the ZERO_COMMIT transcript line)')
   assert.match(b, /ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in `preMerged`/, 'a zero-commit ancestor is classified never-started and never preMerged')
   assert.match(b, /run that task's ensure-worktree as listed \(the ordinary path\) and print one line `ZERO_COMMIT <that task's id> <that task's branch> at "\$BASE"`/, 'the zero-commit branch takes the ordinary ensure-worktree path with a loud classification line')
   assert.match(b, /never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895/, 'the prompt names why the ancestor check alone is vacuous')
   // Delete-the-feature: the conjunct is recovery-gated — absent recovery the prompt carries no rev-list count at all.
   const dormant = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvision).prompt
-  assert.doesNotMatch(dormant, /rev-list --count "\$BASE"/, 'the count conjunct is dormant without recovery (byte-identical barrier otherwise)')
+  assert.doesNotMatch(dormant, /rev-list --count "\$\(git merge-base/, 'the count conjunct is dormant without recovery (byte-identical barrier otherwise)')
   // The zero-commit task dispatches a worker and is never recorded merged by recovery.
   assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), 'a worker is dispatched for the zero-commit task')
   assert.ok(!(out.auditLog || []).some(a => a && a.task === 't1' && a.verdict === 'recovered:pre-merged'), 't1 is never recorded recovered:pre-merged')
@@ -12100,6 +12102,22 @@ test('provenance floor: string supersedes row launches', async () => {
   }), defaultImpl)
   assert.equal(leak.out.landDecision, 'held:workflow-error', 'a foreign id outside the citation segment still refuses')
   assert.match(leak.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/, 'the refusal names the leaked id, never the stripped citation')
+  // Mirror direction: a foreign id AFTER the word `supersedes` but outside the citation shape is not a
+  // citation — the strip is anchored to the id directly after `supersedes`, never a lazy span to the
+  // next plan id. Both rows are value rows (own-token exempt), so the foreign-id scan is the only floor.
+  for (const row of [
+    '- D11/A6: the ruling supersedes what docs/plans/foreign-thing.md said (supersedes plan literal: 0.9)',
+    'ruled: this supersedes the prior call; see docs/plans/foreign-thing.md (supersedes plan literal: 0.9)',
+  ]) {
+    const after = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
+    assert.equal(after.out.landDecision, 'held:workflow-error', `a foreign id after a bare supersedes word still refuses: ${row}`)
+    assert.match(after.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/, 'the refusal names the foreign id')
+  }
+  // The other citation spellings stay stripped.
+  const colon = await runPhase(PROVISION_ARGS({
+    adjudications: ['- D11/A6: the wtprov release slot reads 0.9.1, supersedes: docs/plans/2026-08-06-older-foreign-plan.md'],
+  }), defaultImpl)
+  assert.equal(colon.out.landDecision, 'landed', `a colon-spelled predecessor citation launches — got ${colon.out.landDecision}`)
 })
 
 test('provenance floor: canonical adjudication rows pass un-doped', async () => {
@@ -12119,6 +12137,10 @@ test('provenance floor: canonical adjudication rows pass un-doped', async () => 
   // Controls: a token-less PROSE row is still intent-bearing and refuses — alone, and beside the value rows.
   const prose = await runPhase(PROVISION_ARGS({ adjudications: [{ adjudicated: 'ruled: keep the legacy arm' }] }), defaultImpl)
   assert.equal(prose.out.landDecision, 'held:workflow-error', 'a supersedes-less prose row is not a value row and still needs an own token')
+  // A prose ruling with a prose supersedes matches the object SHAPE but not the value shape: the
+  // adjudicated field must be one whitespace-free token, so this row stays own-token-scanned and refuses.
+  const proseSup = await runPhase(PROVISION_ARGS({ adjudications: [{ adjudicated: 'ruled: keep the legacy arm', supersedes: 'the prior ruling' }] }), defaultImpl)
+  assert.equal(proseSup.out.landDecision, 'held:workflow-error', 'a prose adjudicated field beside a prose supersedes is not a value row (shape alone never exempts)')
   const mixed = await runPhase(PROVISION_ARGS({ adjudications: [...rows, 'ruled: keep the legacy arm this run'] }), defaultImpl)
   assert.equal(mixed.out.landDecision, 'held:workflow-error', 'value rows never vouch for a token-less prose sibling')
 })
