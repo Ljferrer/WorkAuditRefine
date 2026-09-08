@@ -200,3 +200,38 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
   guard causes the selected assertion test to fail, not an initialization error.
 - Consequence: one new reviewed baseline suite; no adapter/engine/hook/workflow
   changes. Production binding and actual host compatibility remain deferred.
+
+### Cycle 7 — combined T3 acceptance and T2 coverage repair
+
+- Pin `d7bc26f9efc8cd42789544b6e76cb33b1f466eb7`; complete stable coverage.
+  Correctness and cascading-impact approved; test-coverage requested changes for
+  one Major: persisted JSON null shared the absent-ledger sentinel and failed open.
+  No follow-ups or asks. Seven of twelve panels used.
+- The null regression was observed red (exit zero, where refusal was required).
+  File absence is now handled separately from parsing a present ledger. Present
+  values require the exact fixture record keys, a known revision and Git
+  provenance. The negative corpus covers syntax errors, null, scalars, arrays,
+  empty/missing fields, foreign revisions, invalid provenance and unknown fields.
+  Each preserves the invalid file and remote tip and makes no push attempt.
+- Sibling sweep: fixture pins and service configuration are mandatory parsed
+  inputs, not optional-state sentinels; malformed values throw before the operation.
+  Service query results already reject non-arrays before creating an issue. No
+  production reader/engine policy is changed. The ledger's writer and exact-object
+  assertion still agree on the same fixture format.
+- This is a new-phase runtime defect in the fixture driver, not just a missing
+  witness. It repeats the missing-versus-malformed distinction the doctrine
+  explicitly calls out. No prior repair or policy was reversed.
+- Raw panel: `/private/tmp/war-parity-cycle7.axqgkH/audit-result.json`.
+- Seven T3 tests pass, now including nine assertion-killed mutations. The new
+  shape, revision and provenance guards are each removed independently; the
+  selected test fails because the invalid state was accepted, not because the
+  mutated process failed to initialize.
+
+## Integrated baseline checkpoint
+
+Clean checkout at `fedcb81ed20a89804ab4f8b3f00856ae74801155`: all 64 suites
+passed/allowed-skips; 3,291 passing observed Node cases/shell rows, four named
+opt-in host skips, zero failures/cancellations/todos; source/index/content stable.
+Report: `/private/tmp/war-parity-baseline-final.WQ8aIV/report/report.json`.
+This precedes the final coverage and ledger-shape repairs; final handoff requires
+fresh verification, not relabeling this report with a newer revision.

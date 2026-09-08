@@ -82,6 +82,6 @@ probes are explicitly rejected before network transport. This is test isolation,
 not an OS security sandbox for arbitrary untrusted fixture code.
 
 Failure controls additionally cover hangs, output overflow, inherited-pipe
-descendants, stale ledger, unknown foreign commits, and six assertion-killed
+descendants, stale ledger, unknown foreign commits, and assertion-killed
 mutations. Evidence is inspected before temporary cleanup; collector stdout and
 stderr logs retain test results, but fixture directories are not release artifacts.

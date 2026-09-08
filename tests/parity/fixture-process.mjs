@@ -39,8 +39,12 @@ if (operation === 'hang') {
   writeFileSync(join(root, 'issue-result.json'), JSON.stringify(issue))
 } else if (operation === 'land') {
 const ledgerPath = join(root, 'ledger.json')
-const ledger = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : null
-if (ledger !== null && ![base, candidate].includes(ledger.landed)) throw new Error('unexplained persisted ledger')
+if (existsSync(ledgerPath)) {
+  const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'))
+  if (Object.keys(ledger ?? {}).sort().join(',') !== 'landed,reconciledFrom') throw new Error('invalid persisted ledger shape')
+  if (![base, candidate].includes(ledger.landed)) throw new Error('unexplained persisted ledger revision')
+  if (ledger.reconciledFrom !== 'git') throw new Error('invalid persisted ledger provenance')
+}
 const tip = fixtureGit(root, remote, ['rev-parse', 'refs/heads/main'])
 if (tip === base) {
   appendFileSync(join(root, 'pushes.log'), `${candidate}\n`)

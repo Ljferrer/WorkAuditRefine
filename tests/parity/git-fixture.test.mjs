@@ -29,11 +29,21 @@ test('real kill after push before ledger write survives a new process without a 
 
 test('malformed persisted ledger fails before any push; a stale known ledger is reconciled', {timeout:20000}, async t => {
   const fixture = createGitFixture(t)
-  writeFileSync(join(fixture.root, 'ledger.json'), '{partial')
-  const invalid = await startFixtureProcess(fixture, 'land').result
-  assert.equal(invalid.code, 1)
-  assert.equal(fixture.remoteTip(), fixture.base)
-  assert.equal(existsSync(join(fixture.root, 'pushes.log')), false)
+  const malformed=['{partial','null','[]','0','true','"text"','{}',
+    JSON.stringify({landed:fixture.base}),
+    JSON.stringify({landed:fixture.base,reconciledFrom:'ledger'}),
+    JSON.stringify({landed:null,reconciledFrom:'git'}),
+    JSON.stringify({landed:'f'.repeat(40),reconciledFrom:'git'}),
+    JSON.stringify({landed:fixture.base,reconciledFrom:'git',unknownDecision:'allow'}),
+  ]
+  for (const text of malformed) {
+    writeFileSync(join(fixture.root, 'ledger.json'), text)
+    const invalid = await startFixtureProcess(fixture, 'land').result
+    assert.equal(invalid.code, 1, text)
+    assert.equal(fixture.remoteTip(), fixture.base, text)
+    assert.equal(existsSync(join(fixture.root, 'pushes.log')), false, text)
+    assert.equal(readFileSync(join(fixture.root, 'ledger.json'),'utf8'),text,'invalid persisted evidence must survive')
+  }
   writeFileSync(join(fixture.root, 'ledger.json'), JSON.stringify({landed:fixture.base, reconciledFrom:'git'}))
   assert.equal((await startFixtureProcess(fixture, 'land').result).code, 0)
   assert.equal(JSON.parse(readFileSync(join(fixture.root, 'ledger.json'), 'utf8')).landed, fixture.candidate)
@@ -104,7 +114,10 @@ test('fixture guard removals produce assertion failures in disposable subprocess
     const mutations=[
       ['duplicate landing','fixture-process.mjs','if (tip === base) {','if (tip === base || tip === candidate) {','real kill'],
       ['unknown remote refusal','fixture-process.mjs',"else if (tip !== candidate) throw new Error('unexplained remote tip; refusing to land or repair ledger')",'','unknown remote state'],
-      ['ledger read','fixture-process.mjs',"const ledger = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : null",'const ledger = null','malformed persisted'],
+      ['ledger read','fixture-process.mjs',"const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'))","const ledger = {landed:base,reconciledFrom:'git'}",'malformed persisted'],
+      ['ledger shape','fixture-process.mjs',"  if (Object.keys(ledger ?? {}).sort().join(',') !== 'landed,reconciledFrom') throw new Error('invalid persisted ledger shape')",'','malformed persisted'],
+      ['ledger revision','fixture-process.mjs',"  if (![base, candidate].includes(ledger.landed)) throw new Error('unexplained persisted ledger revision')",'','malformed persisted'],
+      ['ledger provenance','fixture-process.mjs',"  if (ledger.reconciledFrom !== 'git') throw new Error('invalid persisted ledger provenance')",'','malformed persisted'],
       ['parent exit cleanup','git-fixture.mjs',"  child.on('exit', kill)",'','owned processes'],
       ['output bound','git-fixture.mjs','stdout.length > 1024*1024','false','owned processes'],
       ['issue correlation','fixture-process.mjs',"const matches = await request('GET')",'const matches = []','timeout after issue'],
