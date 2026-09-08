@@ -33,4 +33,35 @@ repeated or reversed fixes, false positives, and rounds—not only approvals.
 
 ## Panels
 
-No panels launched yet (0/12).
+### Cycle 1 — T1 initial collector
+
+- Pin: `5a23f20`, compared with the goal base.
+- Seats: correctness, test-coverage, cascading-impact; all `gpt-5.6-sol / medium`.
+- Full baseline run was explicitly disclosed as pending in the operator concern.
+- Before panel results, baseline execution exposed an independent collector bug:
+  sanitized environment plus inherited PATH selected a home-dependent Node shim.
+  The fix pins the already-running Node directory first; a shim fixture failed
+  before the change and passed afterward, also checking secret non-forwarding.
+- Added CLI nonzero-exit and bounded-output evidence while the panel runs.
+- All seats completed with validated request-changes verdicts: seven Major and
+  two Minor findings, with overlapping reports of shell and revision defects.
+  No follow-up or ask dispositions. Grouped repairs: non-vacuous shell evidence
+  and stderr skips; before/after revision/index/content binding; successful-parent
+  descendant cleanup; a reviewed CLI census; environment/process negative controls.
+- Shell no-op/stderr, moving-HEAD/content, and CLI deletion fixtures were observed
+  failing before repair. The expanded collector suite passes 14 tests, including
+  seven targeted guard removals that each produce assertion failures. A real
+  redirected descendant is checked by heartbeat and process state after its parent
+  exits. The mutation harness initially inherited Node's test context and silently
+  ran no selected cases; the meta-test exposed this, and clearing that context made
+  the mutations execute and fail for their intended assertions.
+- Baseline run 1: 62 suites, 12 failed, with the inspected failures tracing to the
+  Node shim. Run 2 (runtime fix): only the collector's now-fixed output-limit
+  diagnostic and the legacy all-tests-under-skills assertion failed. That assertion
+  already excluded the Codex suites; it now independently checks the reviewed
+  baseline census. Production WAR gate behavior is unchanged.
+- Raw evidence directory: `/private/tmp/war-parity-t1.bSBgQm/` (local, not a durable
+  artifact). Repair verification against the complete baseline remains pending.
+- Early behavioral observation: auditors identified sibling output channels and
+  process completion paths, not just the original test cases. This did not prevent
+  substantial defects in the initial implementation; no convergence claim yet.

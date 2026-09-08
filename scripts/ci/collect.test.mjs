@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { discoverTests, collect } from './collect.mjs'
 
@@ -14,6 +15,8 @@ function fixture(t, files) {
     mkdirSync(dirname(join(root, name)), { recursive: true })
     writeFileSync(join(root, name), text)
   }
+  mkdirSync(join(root, 'scripts/ci'), { recursive: true })
+  writeFileSync(join(root, 'scripts/ci/test-inventory.json'), JSON.stringify(Object.keys(files).filter(f => /^(skills|hooks|adapters|tests\/parity|scripts\/ci)\/.+\.test\.(mjs|sh)$/.test(f)).sort()))
   execFileSync('git', ['-C', root, 'add', '.'])
   execFileSync('git', ['-C', root, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture'])
   return root
@@ -35,6 +38,19 @@ test('zero-exit empty JavaScript and unapproved skips do not masquerade as execu
   const report = await collect({ root, output: join(root, 'report') })
   assert.equal(report.ok, false)
   assert.ok(report.suites.every(s => s.status !== 'passed'))
+})
+
+test('shell completion requires case evidence and skips on either channel fail', async t => {
+  const root = fixture(t, {
+    'hooks/empty.test.sh': '',
+    'hooks/noop.test.sh': 'exit 0',
+    'hooks/stderr.test.sh': 'echo "ok - first"; echo "SKIP missing tool" >&2',
+    'hooks/pass.test.sh': 'echo "ok 1 - executed assertion"',
+  })
+  const report = await collect({ root, output: join(root, 'report') })
+  assert.deepEqual(report.suites.map(s => s.status), ['failed', 'failed', 'passed', 'failed'])
+  assert.equal(report.suites[2].counts.tests, 1)
+  assert.equal(report.suites[3].skips[0].channel, 'stderr')
 })
 
 test('collector refuses empty, omitted and missing tracked tests before execution', async t => {
@@ -76,4 +92,99 @@ test('timeout kills a hanging suite and is not a successful exit', async t => {
   assert.equal(report.ok, false)
   assert.equal(report.suites[0].failure, 'timeout')
   assert.equal(report.suites[0].signal, 'SIGKILL')
+})
+
+test('nested node uses the running runtime instead of an ambient shim, without forwarding secrets', async t => {
+  const root = fixture(t, { 'hooks/nested.test.sh': 'node -e \'if(process.env.WAR_TEST_SECRET) process.exit(8); console.log(process.version)\'; echo "ok - nested runtime"' })
+  const bin = join(root, 'bin')
+  mkdirSync(bin)
+  writeFileSync(join(bin, 'node'), '#!/bin/sh\necho ambient-shim >&2; exit 9\n')
+  chmodSync(join(bin, 'node'), 0o755)
+  const previousPath = process.env.PATH
+  const previousSecret = process.env.WAR_TEST_SECRET
+  process.env.PATH = bin + ':' + previousPath
+  process.env.WAR_TEST_SECRET = 'must-not-reach-suite'
+  try {
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.ok, true)
+    assert.equal(readFileSync(report.suites[0].stdout, 'utf8').trim(), process.version + '\nok - nested runtime')
+  } finally {
+    process.env.PATH = previousPath
+    if (previousSecret === undefined) delete process.env.WAR_TEST_SECRET
+    else process.env.WAR_TEST_SECRET = previousSecret
+  }
+})
+
+test('CLI exposes the failing child status as nonzero while keeping its diagnostic log', t => {
+  const root = fixture(t, { 'hooks/fail.test.sh': 'echo child-failure; exit 7' })
+  const output = join(root, 'report')
+  assert.throws(() => execFileSync(process.execPath, [fileURLToPath(new URL('./collect.mjs', import.meta.url)), '--run', output], { cwd: root, encoding: 'utf8' }), error => error.status === 1)
+  const report = JSON.parse(readFileSync(join(output, 'report.json'), 'utf8'))
+  assert.equal(report.suites[0].exitCode, 7)
+  assert.match(readFileSync(report.suites[0].stdout, 'utf8'), /child-failure/)
+})
+
+test('output floods are bounded and marked failed rather than accepted on exit zero', async t => {
+  const root = fixture(t, { 'hooks/flood.test.sh': 'node -e \'process.stdout.write("x".repeat(17*1024*1024))\'' })
+  const report = await collect({ root, output: join(root, 'report') })
+  assert.equal(report.ok, false)
+  assert.equal(report.suites[0].failure, 'output-limit')
+  assert.equal(readFileSync(report.suites[0].stdout).length, 16*1024*1024)
+})
+
+test('revision and tracked-content drift cannot bind earlier results to a new clean SHA', async t => {
+  for (const action of ['git -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -qm moved', 'echo changed >> README.md']) {
+    const root = fixture(t, { 'README.md': 'original', 'hooks/move.test.sh': `${action}\necho "ok - ran"` })
+    const initial = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.ok, false)
+    assert.equal(report.sourceSha, initial)
+    assert.equal(report.stability, 'changed')
+    assert.notDeepEqual(report.before, report.after)
+  }
+})
+
+test('CLI refuses a staged deletion against the reviewed census', t => {
+  const root = fixture(t, { 'hooks/a.test.sh': 'echo "ok - a"', 'hooks/b.test.sh': 'echo "ok - b"' })
+  execFileSync('git', ['-C', root, 'rm', 'hooks/b.test.sh'])
+  assert.throws(() => execFileSync(process.execPath, [fileURLToPath(new URL('./collect.mjs', import.meta.url)), '--run', join(root, 'report')], { cwd: root, encoding: 'utf8', stdio: 'pipe' }), error => error.status !== 0 && /inventory mismatch/.test(error.stderr))
+})
+
+test('successful suite exit also terminates redirected descendants', async t => {
+  const root = fixture(t, {
+    'worker.mjs': "import{writeFileSync,appendFileSync}from'node:fs'; writeFileSync(process.argv[2],String(process.pid)); setInterval(()=>appendFileSync(process.argv[3],'x'),20);",
+    'hooks/background.test.sh': 'node worker.mjs report/pid report/heartbeat </dev/null >/dev/null 2>&1 &\nwhile [ ! -f report/heartbeat ]; do sleep 0.02; done\necho "ok - child launched"',
+  })
+  const report = await collect({ root, output: join(root, 'report'), timeoutMs: 3000 })
+  const pid = Number(readFileSync(join(root, 'report/pid'), 'utf8'))
+  t.after(() => { try { process.kill(pid, 'SIGKILL') } catch {} })
+  const first = readFileSync(join(root, 'report/heartbeat'), 'utf8')
+  await new Promise(resolve => setTimeout(resolve, 150))
+  assert.equal(readFileSync(join(root, 'report/heartbeat'), 'utf8'), first, 'redirected descendant must stop executing after parent completes')
+  let state = ''
+  try { state = execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' }).trim() } catch (error) { assert.equal(error.status, 1) }
+  assert.ok(state === '' || state.startsWith('Z'), `descendant still running: ${state}`)
+  assert.equal(report.ok, true)
+})
+
+test('targeted guard removals fail their independent behavioral regressions', t => {
+  const source = readFileSync(new URL('./collect.mjs', import.meta.url), 'utf8')
+  const cases = [
+    ['shell-count', 'counts.tests < 1', 'false', 'shell completion'],
+    ['stderr-skip', "const errorText = readFileSync(stderr, 'utf8')", "const errorText = ''", 'shell completion'],
+    ['census', "if (JSON.stringify(inventory) !== JSON.stringify(discovered)) throw new Error('inventory mismatch')", '', 'CLI refuses'],
+    ['revision', "stability === 'unchanged' && ", '', 'revision and'],
+    ['descendant', 'clearTimeout(timer)\n      terminateGroup()', 'clearTimeout(timer)', 'successful suite exit'],
+    ['output-limit', 'bytes > 16 * 1024 * 1024', 'false', 'output floods'],
+    ['runtime-path', "dirname(process.execPath) + delimiter + (process.env.PATH ?? '')", "process.env.PATH ?? ''", 'nested node'],
+  ]
+  for (const [name, from, to, pattern] of cases) {
+    assert.equal(source.split(from).length, 2, `mutation ${name} must alter one real guard`)
+    const root = mkdtempSync(join(tmpdir(), 'war-collector-mutant-'))
+    t.after(() => rmSync(root, { recursive: true, force: true }))
+    writeFileSync(join(root, 'collect.mjs'), source.replace(from, to))
+    writeFileSync(join(root, 'collect.test.mjs'), readFileSync(fileURLToPath(import.meta.url)))
+    writeFileSync(join(root, 'baseline-skips.json'), readFileSync(new URL('./baseline-skips.json', import.meta.url)))
+    assert.throws(() => execFileSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern', pattern, join(root, 'collect.test.mjs')], { env: { ...process.env, NODE_TEST_CONTEXT: undefined }, encoding: 'utf8', timeout: 15000, stdio: 'pipe' }), error => error.status === 1 && /not ok \d+ -/.test(error.stdout) && /AssertionError/.test(error.stdout), `mutation ${name} must fail an assertion, not initialization`)
+  }
 })
