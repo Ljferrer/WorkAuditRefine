@@ -77,7 +77,9 @@ becomes a land or escalation enum member.**
    negative drift-guard in `land-decision.test.mjs` pins non-membership against **both** the canonical
    exports and the hand-mirrored inline copies in `workflow-template.js` (ADR 0005). Absence is not
    `'implementation'` — the field is only ever set to `'plan'`, keeping prior-run records shape-compatible.
-   (§4.3)
+   The recovery runbook (`resume-and-recovery.md` step 1) also enters the plan-shaped route when the
+   escalation record carries a seat's `escalate_reason` (ADR 0013, Decision log 2026-09-08) — likewise
+   escalation-record metadata, likewise never a land or escalation enum member. (§4.3)
 
 6. **No amendment to ADR 0005 or ADR 0008 is needed — this doctrine operates strictly inside both.** Nothing
    here adds a `HARD_ESCALATION_REASONS` / `KNOWN_LAND_DECISIONS` member or a new task/phase status (ADR 0005:
