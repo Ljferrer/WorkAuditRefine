@@ -1378,8 +1378,9 @@ const intakeFloor = (f, d, diff) => {
 // key under-distinguishes same-question findings on different files).
 const askContentKey = f => (f.task ?? '') + '\u0000' + ((f.ask && f.ask.question) || f.title || '(question unrecorded)')
 // aceRelPath (#1813, culprit-path form D12): repo-relative normalization with any leading `./` run
-// stripped, so a `./`-prefixed report and a bare plan path attribute identically. Non-strings pass
-// through untouched (callers filter them as falsy). File scope (hoisted out of the wave loop,
+// stripped, so a `./`-prefixed report and a bare plan path attribute identically. A non-string
+// passes through untouched (aceRelPath(undefined) === undefined); the culprit consumers in aceBisect
+// (culpritFiles and the culprits/rest split) admit strings only (#1813). File scope (hoisted out of the wave loop,
 // in-band-absorb-default Phase 3): every path-comparing site normalizes through this one helper;
 // no list here — a new caller joins by calling aceRelPath.
 const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
@@ -1500,6 +1501,16 @@ const parkAsk = f => {
 // FORWARD-REVERT REGISTRATION: a demote on a forward-revert arm passes { reverted: true } so the
 // finding's content key lands in revertedKeys — the oscillation bound's enforcement registry (a
 // forward-reverted finding never re-enters; routeReauditMinors consults the set).
+// REGISTRY CONSULT (verdict-integrity D12, PIN-16, #1862): a follow-up demote consults acedKeys and filedKeys BEFORE
+// its minorsFiled push — on the regressed batch arm routeReauditMinors runs before aceBisect, so a
+// seat re-raising a batch finding as a follow-up has already filed the row (fileFollowUp) when the
+// forward-revert demote of the same content key arrives; the same-seat consolidation rule can never
+// collapse two such rows. A hit logs the corroboration, merges the raiser onto the surviving row
+// (corroborateSurvivor) and returns — the revertedKeys stamp still lands first, so the oscillation
+// bound holds either way. queuedKeys is deliberately NOT consulted: a queued re-mint is refused at
+// its own drain against THIS demote's registrations, so the demote must stand as the durable record.
+// revertedKeys is not consulted either: this function stamps it just above the consult, so
+// remintBlock() here would refuse every forward-revert demote and file nothing.
 const demote = (f, to, why, opts) => {
   if (f.disposition === 'ask') {
     log('Disposition demotion REFUSED (ask): [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') — an ask is ruled at the Checkpoint, never demoted (' + why + '); re-routed onto asks[].')
@@ -1510,12 +1521,22 @@ const demote = (f, to, why, opts) => {
     log('DEMOTE_REASONS MISS (unclassified engine demotion, D13): the follow-up reason "' + why + '" for [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') carries no DEMOTE_REASONS prefix — prepending demote:unclassified; classify this demote() site (a /war-review defect signal).')
     why = 'demote:unclassified — ' + why
   }
+  const k = remintKey(f)
+  if (opts && opts.reverted) revertedKeys.add(k)   // the oscillation bound stamps on EVERY forward-revert demote, note arm included, before the consult below
+  if (to !== 'note') {
+    const prior = acedKeys.has(k) ? 'the aced record' : filedKeys.has(k) ? 'the filed follow-up record' : null
+    if (prior) {
+      log('Disposition demotion CORROBORATES: [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') → ' + to + ' — ' + why + '; the content key already lives on ' + prior + ' (D12, #1862) — the raiser joins its seats list, never a second minorsFiled row (logged, never silent).')
+      const hit = corroborateSurvivor(f)
+      if (hit) hit.demoteReason = hit.demoteReason || why   // lands on the durable minorsFiled record only — never on the filing prompt's filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
+      return
+    }
+    filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record
+  }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   f.engineFiled = true
   f.demoteReason = why
   ;(to === 'note' ? notes : minorsFiled).push(f)
-  if (to !== 'note') filedKeys.add(remintKey(f))   // the filed funnel (End state 6) — a demoted follow-up is a filed record
-  if (opts && opts.reverted) revertedKeys.add(remintKey(f))
 }
 // --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
 // one enforceable refusal is the release-slot filename check; the AUDITOR (which reads code) owns the
@@ -1549,8 +1570,9 @@ const acedKeys = new Set()
 // forward-revert funnel (the oscillation bound, A1): every finding demoted on a forward-revert arm
 // (aceReentry's regressed batch; aceBisect's culprit, whole-batch, and depth/split-floor demotions)
 // records its content key here (via demote's { reverted: true } opt) so routeReauditMinors can
-// refuse a content-identical re-mint — a forward-reverted finding never re-enters; its demoted
-// follow-up record in minorsFiled is the durable home (no second file, no aced∩minorsFiled overlap).
+// refuse a content-identical re-mint — a forward-reverted finding never re-enters; its filed
+// follow-up record in minorsFiled is the durable home, whether the engine demoted it or the seat
+// filed it (no second file, no aced∩minorsFiled overlap).
 const revertedKeys = new Set()
 // filed funnel (End state 6, the OTHER direction): every follow-up that lands in minorsFiled on a
 // path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
@@ -1562,8 +1584,8 @@ const revertedKeys = new Set()
 // by the escalation arm's DIRECT push (the never-ran drain's judgeHeldRow consults this registry
 // AFTER the merge queue, so a relaunch seed matching a just-filed row must find it). ONE direct push
 // is NOT stamped: routeTerminalMinors' follow-up arm — no later re-audit runs after it, so no re-mint
-// window exists. Consultation sites: re-audit routing, the re-entry drain, and the held-row judgment
-// (judgeHeldRow). No count word here — a new caller joins by calling fileFollowUp (#2066).
+// window exists. Consultation sites: re-audit routing, the re-entry drain, the held-row judgment
+// (judgeHeldRow), and demote()'s pre-push registry consult (D12, #1862). No count word here — a new caller joins by calling fileFollowUp (#2066).
 const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
@@ -1722,7 +1744,8 @@ const carryPhaseClose = (f, why) => {
 // no drain left) or with run.ace off (D14). BOTH the follow-up and absorb arms consult the content-key registries
 // (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
-// never re-enters (its demoted follow-up record in minorsFiled stands) and never files twice.
+// never re-enters (its filed follow-up record in minorsFiled stands, whether the engine demoted it
+// or the seat filed it) and never files twice.
 // Content-key re-mint suppression (shared by BOTH arms below AND re-checked at aceReentry's drain):
 // returns the reason string when the finding's remintKey is already aced, forward-reverted, filed as
 // a follow-up in an earlier round, or queued for the sweep / re-entry — the caller logs the
@@ -1732,7 +1755,7 @@ const carryPhaseClose = (f, why) => {
 const remintBlock = f => {
   const k = remintKey(f)
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
-  if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
+  if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its filed follow-up record stands, whether the engine demoted it or the seat filed it'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
   if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry, held for the next ace batch, or carried on carriedPhaseClose for the relaunch, this phase — the queued record stands'
   return null
@@ -1857,8 +1880,9 @@ const corroborateSurvivor = f => {
     || carriedPhaseClose.find(q => remintKey(q) === k)
     || terminalQueue.find(q => remintKey(q) === k)   // last: a resolved terminal row lives on aced/carried by then (#2069)
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
-  if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return }
+  if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return null }
   mergeSeat(hit, f)
+  return hit   // demote()'s corroborating arm stamps its demoteReason onto the survivor
 }
 const routeReauditMinors = (r, seats, opts) => {
   liveTaskRecords.add(r)
@@ -2803,17 +2827,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // row-id + match rationale (citationStamp — one citationOf call) so the ace commit message carries
   // the durable citation stamp.
   const aceFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`
-  // Absorb-budget helpers (D5): every ace-side dispatch label carries the task's absorbRounds
-  // (`ace:<task>:a<n>`, n = the slot this commit would charge), and every ace-side COMMIT carries
-  // the `Ace-Charge: <task>:<n>` trailer, n = absorbRounds AFTER the charge — the git-derived
-  // relaunch seed the barrier reads back (highest index). Reverts carry no charge trailer.
-  // Concatenation-built (census-safe).
-  const aceLabel = r => 'ace:' + r.task.id + ':a' + (r.task.absorbRounds + 1)
+  // Absorb-budget helpers (D5): every ace-side WORKER dispatch label carries its SITE segment and
+  // the task's absorbRounds (`ace:<site>:<task>:a<n>` — site is `polish` for the batch ace, `subset`
+  // for a bisection subset, `reentry` for a re-entry batch; n = the slot this commit would charge;
+  // the ace-gate label keeps `ace-gate:<task>:a<n>`, no site segment).
+  // The site segment (verdict-integrity D14, PIN-18, #2085) lets the keep-green reachability floor tell the three
+  // dispatch sites apart by label alone. Every ace-side COMMIT carries the `Ace-Charge: <task>:<n>`
+  // trailer, n = absorbRounds AFTER the charge — the git-derived relaunch seed the barrier reads
+  // back (highest index). Reverts carry no charge trailer. Concatenation-built (census-safe).
+  const aceLabel = (r, site) => 'ace:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
   const aceChargeOf = r => r.task.id + ':' + (r.task.absorbRounds + 1)
   // Shared conditional forward-revert step (bisection subsets + re-entry batches): emitted only
-  // while a failed predecessor commit is still unreverted at the tip.
-  const aceRevertStep = (worktree, sha) => sha
-    ? pt`FIRST, only if \`git -C ${worktree} rev-parse HEAD\` is still ${sha}: forward-revert that failed prior ace commit — \`git -C ${worktree} revert --no-edit ${sha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
+  // while a failed predecessor commit is still unreverted at the tip. The params are named for the
+  // bare-interpolation census (#1860): revertSha is the truthiness gate itself and revertWorktree
+  // is r.task.worktree (entry-validated) at both call sites.
+  const aceRevertStep = (revertWorktree, revertSha) => revertSha
+    ? pt`FIRST, only if \`git -C ${revertWorktree} rev-parse HEAD\` is still ${revertSha}: forward-revert that failed prior ace commit — \`git -C ${revertWorktree} revert --no-edit ${revertSha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
     : ''
   // Shared ace-diff-files charge (#1913, D3/PIN-18): every ace-family worker prompt asks for the
   // GIT-derived changed-file list of its single commit. It is the delta-scale input; files_changed stays
@@ -2864,12 +2893,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // accounted at a SHA the gate never passed. Fail-CLOSED on evidence: an absent, malformed or dead
   // result is NOT green. Fail-OPEN on the task (PIN-2): a red gate forward-reverts the ace tip and the
   // approved pre-ace tip merges; it is never a fix loop and never a hold.
-  const aceGateGreen = async (r, sha) => {
+  const aceGateGreen = async (r, aceTipSha) => {
     const g = await dispatch(
-      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${sha}. READ-ONLY: run the gate, change nothing — never commit, revert, push or rebase.\n`
-      + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${sha}; a moved HEAD is NOT green.\n`
+      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing — never commit, revert, push or rebase.\n`
+      + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-      + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${sha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
+      + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
         label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') })
     // #1935: the echoed head_sha is EVIDENCE, not decoration — compare it. The prompt above asks the
@@ -2881,13 +2910,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // whatever slips past (belt and braces; the PIN-2 forward-revert only fires on a reply the
     // validator already re-asked for). pinMismatch stays fail-open by contract (D2) — isSha carries
     // the presence half here, never a pinMismatch change.
-    if (g && g.gate_green === true && isSha(g.head_sha) && !pinMismatch(g.head_sha, sha)) return true
+    if (g && g.gate_green === true && isSha(g.head_sha) && !pinMismatch(g.head_sha, aceTipSha)) return true
     const gateWhy = !g || g.gate_green !== true
       ? ((g && g.gate_output) || 'no usable gate_green evidence returned')
       : !isSha(g.head_sha)
         ? 'gate_green was true but no usable head_sha was echoed — nothing places the gate at this ace tip'
         : 'gate_green was true but the echoed head_sha ' + g.head_sha + ' names a different commit — the gate did not run at this ace tip'
-    log('ace-gate ' + r.task.id + ': RED at ace tip ' + sha + ' — ' + gateWhy + '. No re-audit runs and no approval transfers (PIN-12); the ace tip is forward-reverted and the approved pre-ace tip merges (PIN-2).')
+    log('ace-gate ' + r.task.id + ': RED at ace tip ' + aceTipSha + ' — ' + gateWhy + '. No re-audit runs and no approval transfers (PIN-12); the ace tip is forward-reverted and the approved pre-ace tip merges (PIN-2).')
     return false
   }
   // ---- DELTA-SCALED RE-AUDIT + SEAT-APPROVAL TRANSFER (D3, PIN-10, PIN-18) ----
@@ -2947,8 +2976,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // Seat-detected excess (PIN-18): the two file arrays come from the SAME agent, so the independent
   // checker is the re-audit seat — it re-runs the diff itself (read-only git, inside the auditor guard)
   // and flags scopeBreach when anything falls outside the claimed set.
-  const aceScopeClause = (scope, w, r, sha) => scope.roster
-    ? pt`\nDELTA-SCALED RE-AUDIT (pin transfer, PIN-18): only the seat(s) that raised the findings this ace commit resolved are re-running; every other seat's approval transfers to ${sha} unchanged. The ace worker CLAIMS it changed exactly these files: ${[...aceRelSet(w && w.ace_diff_files)].sort().join(', ')}. Run \`git -C ${r.task.worktree} diff --name-only ${sha}^ ${sha}\` YOURSELF and compare (the ace commit is always exactly ONE commit, so its parent IS the pre-ace tip) — never widen the claimed set on trust. If ANY changed file falls outside that claimed set, set \`scopeBreach: true\` on your verdict and name the file: the transfer is refused and the FULL panel re-runs.`
+  const aceScopeClause = (scope, w, r, aceTipSha) => scope.roster
+    ? pt`\nDELTA-SCALED RE-AUDIT (pin transfer, PIN-18): only the seat(s) that raised the findings this ace commit resolved are re-running; every other seat's approval transfers to ${aceTipSha} unchanged. The ace worker CLAIMS it changed exactly these files: ${[...aceRelSet(w && w.ace_diff_files)].sort().join(', ')}. Run \`git -C ${r.task.worktree} diff --name-only ${aceTipSha}^ ${aceTipSha}\` YOURSELF and compare (the ace commit is always exactly ONE commit, so its parent IS the pre-ace tip) — never widen the claimed set on trust. If ANY changed file falls outside that claimed set, set \`scopeBreach: true\` on your verdict and name the file: the transfer is refused and the FULL panel re-runs.`
     : ''
   const aceSeatRows = (ran, carried, sha) => [
     ...ran.map(s => ({ seat: s.seat, lens: s.lens, outcome: 're-ran', sha: auditShaOrSentinel(s.audit_sha) })),
@@ -2985,12 +3014,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   }
   const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
     // Culprit attribution: a regression blocking finding NAMES a culprit when its file matches an
-    // aceable finding's file (parsing-shape latitude; both sides aceRelPath-normalized). Empty
+    // aceable finding's file (parsing-shape latitude; both sides aceRelPath-normalized, strings
+    // only — a fileless or non-string `file` on either side never attributes, #1813/#1815). Empty
     // attribution is ambiguous (blind halving); total attribution leaves nothing to salvage — the
     // batch finally fails whole.
-    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => aceRelPath(f.file)).filter(Boolean))
-    const culprits = aceable.filter(f => culpritFiles.has(aceRelPath(f.file)))
-    const rest = aceable.filter(f => !culpritFiles.has(aceRelPath(f.file)))
+    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => f.file).filter(p => typeof p === 'string' && p).map(aceRelPath))
+    const isCulprit = f => typeof f.file === 'string' && culpritFiles.has(aceRelPath(f.file))
+    const culprits = aceable.filter(isCulprit)
+    const rest = aceable.filter(f => !isCulprit(f))
     let queue
     // Every demote below sits on a forward-revert arm ({ reverted: true } — the oscillation-bound
     // registry) and, when the regressed panel flagged citationUnsound, a citation-carrying
@@ -3047,7 +3078,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + FIX_ROUND_DOCTRINE_CLAUSE
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
         + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r), schema: WORKER_RESULT, ...spawnWorker('fix') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('fix') })
       const swWhy = blockedReason(sw)
       if (swWhy || typeof sw.head_sha !== 'string' || !sw.head_sha) {
         // No usable commit — uncharged; the tip state is unknowable, so the ladder abandons here
@@ -3150,7 +3181,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + FIX_ROUND_DOCTRINE_CLAUSE
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
         + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r), schema: WORKER_RESULT, ...spawnWorker('fix') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('fix') })
       const rwWhy = blockedReason(rw)
       if (rwWhy || typeof rw.head_sha !== 'string' || !rw.head_sha) {
         // No usable commit — uncharged; abandon (never hold): this batch and the queue route to the
@@ -3317,7 +3348,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + aceable.map(aceFindingRow).join('\n') + '\n'
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
           + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
-          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r), schema: WORKER_RESULT, ...spawnWorker('fix') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('fix') })
         const aceWhy = blockedReason(ace)
         // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — no worker result carries `.sha`).
         // Guard on a TRUTHY head_sha: a falsy sha would make r.aceReverted falsy (revert clause never
