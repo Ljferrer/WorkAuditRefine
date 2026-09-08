@@ -17378,6 +17378,32 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   assert.ok(ownAsks.some(a => /^Seat conflict on a\.js:40:/.test(a.question)), 'peer-own-ask arm: the conflict ask still parks')
   assert.ok(own.logs.some(l => typeof l === 'string' && l.includes('the peer row already carried its own ask; parked it before the conflict ask replaced the field')), 'peer-own-ask arm: the park is logged')
   assert.ok(own.out.landed.includes('t1') && own.out.landDecision === 'landed', 'peer-own-ask arm: t1 merges and the phase is not held')
+  // Finding-less blocking seat arm (ace re-entry a6): a three-seat roster — correctness approves with the
+  // peer Minor, security blocks on the scope-shaped Major, cascading-impact blocks with `findings: []`.
+  // The detector pairs the one blocker, so the conflict parks ONE ask and the neutralization loop flips
+  // BOTH blocking seats to approve; the finding-less seat's log line takes the `carried no
+  // Critical/Major finding to pair` branch (its sibling arm, an all-finding-less blocking panel, escalates).
+  const THREE_SEAT_TASKS = [{ ...SPLIT_PANEL_TASKS[0], roster: [{ lens: 'correctness' }, { lens: 'security' }, { lens: 'cascading-impact' }] }]
+  const threeSeatImpl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor' && (opts.label || '').startsWith('audit:')) {
+      const lens = (opts.label || '').split(':')[2]
+      const verdict = lens === 'correctness' ? 'approve' : 'request_changes'
+      const findings = lens === 'correctness' ? [{ ...peerMinor }] : lens === 'security' ? [{ ...scopeMajor }] : []
+      return { seat: opts.label, lens, verdict, confidence: 'high', audit_sha: 'deadbeef', findings }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const three = await runPhase(PROVISION_ARGS({ tasks: THREE_SEAT_TASKS }), threeSeatImpl)
+  assert.equal(three.calls.filter(isFixWorker).length, 0, 'finding-less seat arm: no fix worker')
+  const threeAsks = (three.out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(threeAsks.length, 1, 'finding-less seat arm: exactly ONE ask parked (the paired blocker)')
+  const threeEntry = (three.out.auditLog || []).find(e => e && e.task === 't1')
+  assert.equal(threeEntry && threeEntry.verdict, 'approve', 'finding-less seat arm: the panel verdict is approve')
+  assert.ok(three.logs.some(l => typeof l === 'string' && l.includes('blocking seat audit:t1:security:rebut neutralizes to approve (its blocking finding rides the parked ask)')), 'finding-less seat arm: the paired blocking seat neutralizes to approve')
+  assert.ok(three.logs.some(l => typeof l === 'string' && l.includes('blocking seat audit:t1:cascading-impact:rebut neutralizes to approve') && l.includes('it carried no Critical/Major finding to pair')), 'finding-less seat arm: the finding-less blocking seat neutralizes to approve and the log names the branch')
+  assert.ok(!(three.out.escalated || []).some(e => e && e.task === 't1'), 'finding-less seat arm: no escalation')
+  assert.ok(three.out.landed.includes('t1'), 'finding-less seat arm: t1 merges under the fork')
+  assert.equal(three.out.landDecision, 'landed', 'finding-less seat arm: the phase is not held')
   // Negative control (delete-the-feature): the same locus split WITHOUT a scope/mandate/adjudication
   // rationale on either side is not a seat conflict — it takes the fix-less survivor route.
   const plainMajor = { ...scopeMajor, rationale: 'the loop misses the last sibling' }
