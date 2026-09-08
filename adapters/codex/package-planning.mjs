@@ -1,7 +1,8 @@
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync, realpathSync } from 'node:fs'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
+import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 function manifest(version) {
   assert.match(version,/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,'invalid planning manifest version')
@@ -115,7 +116,7 @@ export function buildPlanningPlugin({repoRoot,output}) {
   return verifyPlanningPlugin(destination)
 }
 
-if(process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1])===fileURLToPath(import.meta.url)) {
+if(isMain(import.meta.url)) {
   if(process.argv.length!==3)throw new Error('usage: node adapters/codex/package-planning.mjs OUTPUT')
   const repoRoot=fileURLToPath(new URL('../..',import.meta.url))
   console.log(JSON.stringify({files:buildPlanningPlugin({repoRoot,output:process.argv[2]})}))

@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
-import { readFileSync, realpathSync, existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import { resolveCodexPath, listSupportedProfiles } from '../../snipe/assets/codex-models.mjs'
-import { processGroup, processTreeCleanup } from '../../snipe/assets/snipe-process.mjs'
+import { processGroup, processTreeCleanup, isMain } from '../../snipe/assets/snipe-process.mjs'
 
 const classes=['run manifests','epic phase reports','war-followup','docs/learnings']
 const singleLine=value=>typeof value==='string' && value.trim().length>0 && !/[\r\n]/.test(value)
@@ -17,8 +16,9 @@ export async function verifyRecommendation(input,{dispatch, ...options}={}) {
   const history=input.history ?? []
   assert.ok(Array.isArray(history) && history.length<=2,'at most two prior results')
   assert.ok(history.every(result=>result.status==='refuted'),'only a refuted beat may re-arm')
-  if(!input.arms.length)return {status:'unarmed',next:'present'}
   if(history.length===2)return {status:'refuted',next:'operator-fork',history}
+  if(history.length && !input.arms.length)return {status:'refuted',next:'operator-fork',history}
+  if(!input.arms.length)return {status:'unarmed',next:'present'}
   const corpus=input.corpus ?? {}
   assert.ok(corpus && typeof corpus==='object' && !Array.isArray(corpus),'corpus must be keyed by history class')
   assert.ok(Object.entries(corpus).every(([key,text])=>classes.includes(key) && typeof text==='string' && text.trim()),'corpus entries require named classes and evidence')
@@ -77,7 +77,7 @@ async function dispatchCodex(prompt,input,{codexPath,timeoutMs=600000,signal}={}
   return JSON.parse(response)
 }
 
-if(process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1])===fileURLToPath(import.meta.url)) {
+if(isMain(import.meta.url)) {
   const args=process.argv.slice(2)
   if(args[0]!=='--request' || ![2,4].includes(args.length) || (args.length===4 && args[2]!=='--codex-path'))throw Error('usage: strategy-verifier.mjs --request FILE [--codex-path ABSOLUTE]')
   const controller=new AbortController(),cancel=()=>controller.abort()

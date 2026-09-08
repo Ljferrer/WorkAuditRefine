@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -212,6 +212,18 @@ function catalogCodex() {
     }
   `)
 }
+
+test('packaged Snipe runner executes profile discovery through an explicit alias',t=>{
+  const root=mkdtempSync(join(tmpdir(),'snipe-runner-alias-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const output=join(root,'package'),alias=join(root,'runner.mjs'),codexPath=catalogCodex()
+  t.after(()=>rmSync(join(codexPath,'..'),{recursive:true,force:true}))
+  buildSnipePlugin({repoRoot:fileURLToPath(new URL('../../../../../',import.meta.url)),output})
+  symlinkSync(join(output,'skills/snipe/assets/snipe-runner.mjs'),alias)
+  const result=spawnSync(process.execPath,[alias,'--list-profiles','--codex-path',codexPath],{encoding:'utf8',timeout:10000})
+  assert.equal(result.status,0,result.stderr)
+  assert.ok(result.stdout.trim(),'runner must not silently skip main')
+  assert.deepEqual(JSON.parse(result.stdout),{'gpt-test':['high'],'gpt-other':['low']})
+})
 
 test('host catalog discovery initializes and consumes every model page without starting a turn', async () => {
   assert.deepEqual({ ...await listSupportedProfiles({ codexPath: catalogCodex() }) }, { 'gpt-test': ['high'], 'gpt-other': ['low'] })

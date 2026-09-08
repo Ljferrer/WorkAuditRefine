@@ -77,6 +77,8 @@ test('question budget preserves stop and consent duties without reviving a slash
     'including falsifier and checkpoint questions',
     'use host temporary storage outside the target working tree',
     'Do not leave an extra draft beside the operator\'s source or publish the final plan before the closing gates are satisfied',
+    "record each missing run-history class and source-access failure with its reason in the artifact's Evidence consumed block",
+    'Echo back that artifact block at gate 1 rather than relying on a transcript-only disclosure',
   ]
   const complete=text=>{for(const clause of obligations)assert.ok(text.includes(clause),clause)}
   complete(interview)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test, after } from 'node:test'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -35,6 +35,10 @@ test('one amended retry is the bound; repeated refutation becomes an operator fo
   assert.equal(second.next,'operator-fork')
   const third=await verifyRecommendation({...request,history:[first,second]},{dispatch})
   assert.equal(third.next,'operator-fork');assert.equal(calls,2)
+  for(const history of [[first],[first,second]]) {
+    const cleared=await verifyRecommendation({...request,arms:[],history},{dispatch})
+    assert.equal(cleared.next,'operator-fork');assert.equal(calls,2)
+  }
 })
 test('partial corpus and failed or malformed dispatch remain visibly distinct',async()=>{
   const result=await verifyRecommendation({...request,corpus:{'run manifests':'No successful merges yet.'}},{dispatch:async()=>survived})
@@ -109,6 +113,10 @@ test('transport failures and cancellation never return a fabricated verifier lin
 test('removing retry, fork, failure-visibility or read-only guards fails the behavioral oracle',async()=>{
   const path=join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),source=readFileSync(path,'utf8')
   const cases=[
+    ['if(history.length && !input.arms.length)','if(false)',async verify=>{
+      const dispatch=async()=>({...survived,refuted:true}),first=await verify(request,{dispatch})
+      assert.equal((await verify({...request,arms:[],history:[first]},{dispatch})).next,'operator-fork')
+    }],
     ["if(history.length===2)","if(false)",async verify=>{
       let calls=0;const dispatch=async()=>{calls++;return {...survived,refuted:true}}
       const first=await verify(request,{dispatch}),second=await verify({...request,history:[first]},{dispatch})
@@ -141,7 +149,9 @@ test('removing retry, fork, failure-visibility or read-only guards fails the beh
 test('CLI termination cancels its active verifier before returning',async()=>{
   const fake=fakeCodex('hang'),requestPath=join(root,'cancel-request.json')
   writeFileSync(requestPath,JSON.stringify({...request,repository:root}))
-  const child=spawn(process.execPath,[join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),'--request',requestPath,'--codex-path',fake.codexPath],{stdio:['ignore','pipe','pipe']})
+  const alias=join(root,'verifier-alias.mjs')
+  symlinkSync(join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),alias)
+  const child=spawn(process.execPath,[alias,'--request',requestPath,'--codex-path',fake.codexPath],{stdio:['ignore','pipe','pipe']})
   const chunks=[];child.stdout.on('data',chunk=>chunks.push(chunk));child.stderr.on('data',()=>{})
   const closed=new Promise(resolve=>child.once('close',resolve))
   let pid

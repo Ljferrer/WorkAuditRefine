@@ -219,6 +219,42 @@ future engine. Do not weaken source obligations to satisfy generated prose.
   CLI cancellation now returns unavailable only after its verifier settles. The
   planning builder also has an executable alias fixture. Fourteen combined package/
   verifier tests pass; this is new work after the P5 panel's pinned scope.
+- Audit 5: P4 first cycle, `89d8167..bb0afc8`, complete coverage; all three
+  Sol/medium seats requested changes. Three Major findings (one duplicate) and one
+  Minor grouped into two classes. Clearing `arms` after refutation could take the
+  unarmed fast path and erase the required fork; histories of one and two refutations
+  now take precedence, with a guard-removal control. The alias repair stopped at
+  planning instead of reaching sibling Snipe CLIs; all four entrypoints now share
+  `isMain()` and executable alias fixtures. Both Snipe aliases returned empty output
+  under the old code; the empty-arm transition returned `present` instead of a fork.
+  Those observed-red fixtures now pass. The verifier alias is explicit, not dependent
+  on macOS's incidental `/var` spelling. Seventeen package/verifier tests pass.
+- Evaluation 3 diagnostic rerun completed the new-plan interview: five numbered
+  questions, two distinct echo-backs and operator confirmations, one final merged
+  plan. The artifact retains the twice-read validation pin, scoped waiver, all four
+  missing-history rows, and the defaulted README decision. Real parser extraction
+  returns only `counter.js` and `counter.test.mjs`; advisory lint is clean, tracked
+  files are unchanged, and unrelated operator bytes are preserved. Its rerun is spent.
+- Evaluation 4 diagnostic rerun completed conversion: the same-file edits became
+  one implementation-and-test task; the file-existence check became assertion-bearing
+  Node tests; distinct gates preceded the final plan. Original draft (including its
+  quoted execution instruction), unrelated bytes and tracked files are unchanged;
+  real footprint extraction and advisory lint pass. Unlike evaluation 3, its artifact
+  omitted absent-history rows despite disclosing them at confirmation. The ambiguous
+  shared “proceed without the rows” clause now distinguishes missing query hits from
+  required provenance. Evaluation 7 will exercise that clarified contract with a
+  partial corpus; evaluation 4's rerun is spent.
+- Evaluations 5 and 6 passed their scoped observations: stopping preserved the
+  explicitly unfinished draft without ratification; an output collision produced an
+  operator question before any move or overwrite. Direct byte comparisons confirm
+  both drafts, the existing destination, unrelated work and tracked source remain
+  unchanged. Logs: `/private/tmp/war-planning-eval-5-stop.log` and
+  `/private/tmp/war-planning-eval-6-collision.log`.
+- Evaluation 8 presented an explicit operator fork after the two supplied refutations,
+  rather than dispatching a third verifier. Evidence:
+  `/private/tmp/war-planning-eval-8-refute.log`. Evaluation 7 (partial history plus
+  Claude-memory sentinel) is still running. All eight approved scenario slots have
+  now been used; only the already-authorized per-scenario diagnostic allowances remain.
 - P5 source checkpoint: help lists only the two built planning skills and optional
   separately packaged Snipe. Its invocation names are checked against independently
   built package manifests/inventories; body and UI drift mutations are rejected.

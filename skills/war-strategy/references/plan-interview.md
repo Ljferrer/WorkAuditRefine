@@ -26,8 +26,11 @@ falsifier probes + provenance scan against a drafted conversion).
    effects, not a guessed location in the target repository.
 
 Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, or an empty run
-corpus never blocks the interview — proceed without the rows (and without a `--local` root
-the query writes nothing).
+corpus never blocks the interview. Continue without unavailable query hits, but record
+each missing run-history class and source-access failure with its reason in the artifact's
+Evidence consumed block; absence is provenance, not permission to omit its status. Without
+a `--local` root the query writes nothing. Echo back that artifact block at gate 1 rather
+than relying on a transcript-only disclosure.
 
 **Stage 1 — silent rehearsal + pre-mortem.** Mentally execute the plan-to-be, then name **at
 least two landmine falsifiers** from the WAR falsifier list:

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -7,6 +7,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { buildSnipePlugin, verifySnipePlugin } from './package-snipe.mjs'
+test('Snipe builder executes through a filesystem alias',t=>{
+  const root=mkdtempSync(join(tmpdir(),'snipe-builder-alias-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const alias=join(root,'builder.mjs'),output=join(root,'package')
+  symlinkSync(fileURLToPath(new URL('./package-snipe.mjs',import.meta.url)),alias)
+  const result=spawnSync(process.execPath,[alias,output],{encoding:'utf8'})
+  assert.equal(result.status,0,result.stderr)
+  assert.ok(result.stdout.trim(),'builder must not silently skip main')
+  assert.ok(verifySnipePlugin(output).includes('skills/snipe/SKILL.md'))
+})
 
 const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 

@@ -3,12 +3,11 @@
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { prepareSnipeRequest, verifySnipeScope } from './snipe-request.mjs'
 import { parseSnipeVerdict, renderSnipeReport } from './snipe-result.mjs'
 import { prepareSnipeSubmodules } from './snipe-submodules.mjs'
-import { processTreeCleanup, processGroup } from './snipe-process.mjs'
+import { processTreeCleanup, processGroup, isMain } from './snipe-process.mjs'
 import { gitEvidenceEnvironment } from './snipe-git-policy.mjs'
 
 const AUDITOR_ROLE = readFileSync(new URL('../references/codex-auditor.md', import.meta.url), 'utf8').trim()
@@ -301,7 +300,7 @@ async function main(argv) {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMain(import.meta.url)) {
   main(process.argv.slice(2)).catch(error => {
     process.stderr.write(`${JSON.stringify({ error: error.message, code: error.code ?? 'RUNNER_ERROR' })}\n`)
     process.exitCode = 2
