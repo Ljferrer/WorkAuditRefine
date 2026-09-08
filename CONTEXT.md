@@ -598,9 +598,10 @@ treating the default-roster union as the only source (nomination comes first).
 
 **Decision-forked finding** (audit):
 A blocking (Critical/Major) finding whose fix needs a plan decision the plan does not make, so the
-seat can name no concrete in-file `suggested_fix`. It is the one finding class that escalates: the
-seat returns `escalate` with an `escalate_reason` naming the missing decision, and the engine reads
-that reason into the `escalated[]` record. Its opposite is the **mechanical** blocking finding — a
+seat can name no concrete in-file `suggested_fix`. It is the one finding class that escalates without
+a fix round first: the seat returns `escalate` with an `escalate_reason` naming the missing decision,
+and the engine reads that reason into the `escalated[]` record. Its opposite is the **mechanical**
+blocking finding — a
 concrete in-file edit with round budget left — which is `request_changes` by construction and never
 escalates: on a split the one rebuttal round runs first, then a survivor with a `suggested_fix`
 dispatches a fix round plus a full-roster re-audit (rebuttal first, then fix round when a
