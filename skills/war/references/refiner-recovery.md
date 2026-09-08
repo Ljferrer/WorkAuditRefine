@@ -1,10 +1,10 @@
-# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split, land-barrier endstate-check steps
+# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run, diff probe, merge-task two-worktree split, land-barrier endstate-check steps, MergeResult merge-task-only fields
 
 Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
 the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
 budget eviction; plus the § Diff probe body, the § merge-task two-worktree split paragraph and
 the `### Submodule phase` 2A/2B routing tail from engine-and-audit-verdict-integrity Task 1.1, #2115, and
-the § Land-barrier endstate-check steps from its Task 5.1, #2156 — ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
+the § Land-barrier endstate-check steps and the § MergeResult merge-task-only fields parenthetical from its Task 5.1, #2156 — ADR 0042 headroom evictions; each moved block was byte-identical to its pre-eviction card text at eviction
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
@@ -109,3 +109,9 @@ Trigger: an `endstate-check` dispatch, per enumerated condition row (the card's 
 1. The prompt threads the row's check literal in a **fenced block** whose fence length exceeds every backtick run inside the literal — content backticks are **never** the fence. Write the bytes between the fences **byte-verbatim** to `<_refinery>/.war/endstate-<phaseId>-<n>.cmd` — copy bytes, never re-quote/re-escape (a single-quoted `${...}` run survives exactly) — then verify the written bytes equal the fenced literal: on mismatch record a `cmd_bytes_mismatch` line in the artifact and do **not** execute any corrected variant (the row fails loudly via its artifact). Execute it **from the file** (file-threaded — never interpolated into another script; the done-when floor's hygiene), under a timeout. A row the dispatch intake-linted **unsupported** is record-only: its artifact records the `intake_lint` verdict, never a half-run.
 2. Tee the FULL stdout+stderr of the **entire** command line — a compound/pipeline/multi-command check runs end-to-end, every command's output captured — to the sibling artifact `<_refinery>/.war/endstate-<phaseId>-<n>.log`, stamped: the **first** line is `tip_sha: <git -C <_refinery> rev-parse HEAD>`, then the captured output, then a final `exit_code: <code>` line. The `tip_sha` stamp is **load-bearing** — the gate-audit seats compare it against the confirmed tip and attest a stale (mismatched) artifact `unverified`, so a prior-run artifact can never read as `met`.
 3. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and move on; **a failing check never fails this dispatch**.
+
+## MergeResult merge-task-only fields
+
+Trigger: a merge-task return where the step that sets one of `floor_diagnostic`, `mappedTests`, `done_when_log_path`, `floor_route` or `gate_segment` is in doubt (the card's `## Return` MergeResult parenthetical, evicted #2156 a4).
+
+(`floor_diagnostic` is merge-task-only — the exit-1 test floor's verbatim stderr, per step 4; `mappedTests` is merge-task-only — the exit-0 test floor's matched paths from stdout, per step 4; `done_when_log_path` is merge-task-only — the done-when floor's teed evidence artifact, its absolute path returned on exit 1, per step 8; `floor_route` is merge-task-only — the literal `"budget-uncited"` riding `status: "no-test"` when the step-7 Budget-Raise floor's exit 1 fired, never any other value; `gate_segment` is merge-task-only — step 10's FORCED mid-gate return, `"incomplete"` riding `status: "error"`)

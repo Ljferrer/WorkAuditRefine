@@ -8130,6 +8130,13 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   // steps eviction added its own pointer (the card's endstate-check section routes there per row).
   assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 5, 'all five plugin-root-anchored trigger pointers to refiner-recovery.md survive (submodule provisioning, pin-transfer arms, land step 3, 2A/2B land arms, endstate-check steps)')
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
+  // #2156 a4 headroom eviction (ADR 0042, PIN-3): the card's MergeResult merge-task-only parenthetical
+  // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
+  // (never a `](…)` link — the five-count above must not grow) and none of the moved body.
+  const mtOnly = refinerRecoveryMd.match(/^\(`floor_diagnostic` is merge-task-only — .*riding `status: "error"`\)$/m)
+  assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical byte-identical')
+  assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § MergeResult merge-task-only fields'), 'the card keeps the bare-path trigger pointer to the evicted parenthetical')
+  assert.ok(!refinerMd.includes('is merge-task-only — the exit-1 test floor'), 'the card no longer carries the evicted parenthetical body')
   assert.match(refinerRecoveryMd, /## Pin-transfer arms/, 'the evicted pin-transfer arms section landed at the destination')
   assert.ok(!/\((?:\.\.\/)+[^)]*refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses a forbidden ../-prefixed path, at any depth')
   // Fourth, plain-text pointer — the fixed-shape ADR 0042 trigger line left by the
@@ -10369,7 +10376,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // run_in_background, the land_segment return shape, the phase-keyed land gate log, and the rule.
     { name: 'backgrounded gate — land (D7, PIN-11, #2086): refiner card segmented-land bullet ↔ land + environment-proceed re-land prompts',
       surfaces: [['war-refiner.md', refinerMd], ['land dispatch prompt', landP], ['environment-proceed re-land prompt', epLandP]],
-      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /rerun from scratch/] },
+      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun from scratch/] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
