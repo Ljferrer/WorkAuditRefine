@@ -2,12 +2,12 @@
 name: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
 description: "A Minor/Nit finding disposed absorb + autoFixable:true, inside the task's own Files diff, can still ship unfixed once the task's verdict reaches approve"
 metadata: 
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-7
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-9
   node_type: memory
   type: project
   provenance: code-verified
   slug: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
-  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +2 recurrences (2026-09-06-engine-and-audit-verdict-integrity/phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99, both on dev/2026-09-06-engine-and-audit-verdict-integrity)"
+  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +3 recurrences (phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99; phase-11 task 11.1, landed 8927103891fdc7902f15a498203f7eaeedd74823, all on dev/2026-09-06-engine-and-audit-verdict-integrity)"
   keywords: 
     - absorb disposition
     - autoFixable
@@ -29,6 +29,10 @@ metadata:
     - mergeSeat
     - test title lags assertion
     - drainCauseOf header comment
+    - STATEMENT BOUNDARIES
+    - compound command clause
+    - statement-boundary operator set
+    - printf append
   tags: 
     - war
     - audit-findings
@@ -36,7 +40,7 @@ metadata:
     - workflow-template
   created: 2026-09-07
   originSessionId: a2a576b1-d8af-4c79-ad1a-af3d3e5c5c91
-  modified: 2026-09-08T14:01:43.889Z
+  modified: 2026-09-08T21:26:35.507Z
 ---
 
 # An in-diff `absorb`/`autoFixable:true` finding can ship unfixed even after a real fix round ran
@@ -152,6 +156,23 @@ fixed" shape the audit log can produce for a Minor/Nit — and three-for-three o
 untouched. Never infer a fix from the disposition tag, the `autoFixable` flag, or the absence of
 `phaseClose: true`; only a fresh Read at the landed tip confirms it.
 
+**Recurrence 4 (code-verified — landed tip `8927103891fdc7902f15a498203f7eaeedd74823` on
+`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 11 "Audit-boundary redesign", task 11.1,
+read via the run-scoped `_refinery` worktree whose `HEAD` is directly on this tip:
+`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
+Task 11.1's own audit round approved with `fixRounds: 0`. One finding — "STATEMENT BOUNDARIES
+clause does not exempt a compound command from the printf append" — carried `disposition: absorb`,
+`autoFixable: true`, with a concrete `suggested_fix`: append a sentence naming a `for`/`while`/
+`until`/`if`/`case` block, a `{ }` group, or a `( )` subshell as likewise ONE statement, and extend
+the `endstate: statement-boundary operator set` fixture with an assert on that sentence. Confirmed
+still absent at the landed tip: the STATEMENT BOUNDARIES sentence in
+`skills/war/assets/workflow-template.js` (the ENDSTATE-CHECK DISPATCH prompt, search `STATEMENT
+BOUNDARIES (#1782`) still ends at "an `&&` or `||` list is ONE statement, never split" with no
+compound-command clause, and the `endstate: statement-boundary operator set` fixture in
+`skills/war/assets/workflow-template.test.mjs` carries no assert naming `for`/`while`/`until`/`if`/
+`case`/subshell. Fourth-for-fourth: `fixRounds: 0` plus `disposition: absorb` plus
+`autoFixable: true` plus no `phaseClose: true` keeps shipping unfixed.
+
 **Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
 much larger, heavily-recurring instance of this same root fact for **terminal/polish** tasks
 specifically (no further round exists structurally); this lesson generalizes it to an ordinary,
@@ -172,4 +193,6 @@ search `Args for the citation family` (the `CITE_ARGS` header, around line 12846
 `skills/war/assets/workflow-template.js`, search `mergeSeat(hit, f)` (the FOLLOW-UP CONSOLIDATION
 `if (hit)` arm) and `const drainCauseOf` (the header comment reading "both sit outside any local
 try"); `skills/war/assets/workflow-template.test.mjs`, search "strips seats/merged and demotes
-empty content" (the test title, line 6267).
+empty content" (the test title, line 6267). Recurrence 4: `skills/war/assets/workflow-template.js`,
+search `STATEMENT BOUNDARIES (#1782` (the ENDSTATE-CHECK DISPATCH prompt); `skills/war/assets/workflow-template.test.mjs`,
+search `endstate: statement-boundary operator set`.
