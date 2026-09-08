@@ -5058,7 +5058,7 @@ test('phase-close sweep (criteria 2+5): phaseClose absorb → queue → sweep on
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
   assert.ok(pw, 'ONE sweep worker is dispatched')
   assert.ok(pw.prompt.includes('dangling link'), 'the queued finding is handed over verbatim')
-  assert.match(pw.prompt, /NEVER touch version\/release-slot literals/, 'version-slot literals are off-limits')
+  assert.match(pw.prompt, /never move a version literal or the CHANGELOG head heading/, 'version literals and the CHANGELOG head heading are off-limits (D20: by literal, not file)')
   assert.match(pw.prompt, /EXACTLY ONE commit/, 'one commit only')
   assert.match(pw.prompt, /NO ad-hoc seam hunting/, 'queue-only discovery model')
   assert.ok(pw.prompt.includes('slice 1'), "the merged tasks' plan slices ride along")
@@ -10218,6 +10218,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const rebutP = ((await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl())).calls
     .find(c => isAuditor(c) && c.prompt.includes('REBUTTAL ROUND')) || {}).prompt
   assert.ok(rebutP, 'the REBUTTAL ROUND auditor prompt dispatched (presence guard, Task 11.1 row)')
+  // Task 12.1 (D20, PIN-24, #2000): releaseSlotAceClause renders ONLY on a release task (a plan Files:
+  // list naming a RELEASE_SLOT_FILES basename) — capture the LIVE ace prompt from the release-task
+  // fixture run (RELEASE_TASK / releaseTaskImpl are declared in the Phase 12 block near the end of this file).
+  const relAceP = ((await runPhase(ACE_ARGS({ tasks: [RELEASE_TASK] }), releaseTaskImpl([RELEASE_BLURB]))).calls
+    .find(isAce) || {}).prompt
+  assert.ok(relAceP, 'the release-task ace prompt dispatched (presence guard, Task 12.1 row)')
   // Task 2.3 (done-when floor): the merge-task dispatch carries doneWhenFloorClause only for a
   // doneWhen-bearing task — capture that prompt from its own fixture run.
   const mergeRunCalls = (await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
@@ -10514,6 +10520,15 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                 /exit 1[\s\S]{0,400}budget-uncited/i,
                 /floor_route: ['"]budget-uncited['"]/,
                 /exit 2[\s\S]{0,240}never the budget-uncited route/i] },
+    // Release-slot eligibility by literal (D20, PIN-24, A14, #2000; engine-and-audit-verdict-integrity
+    // Task 12.1, PIN-1): the auditor card's eligibility pointer sentence, the dispatched DISPOSITION
+    // WIDENINGS (4) on every roster seat (auditP) and the release-task ace prompt (releaseSlotAceClause)
+    // all state the by-literal rule, the basename-only refusal and the version-slots.test.mjs merge
+    // guard. `version-slots.test.mjs`, `CHANGELOG head heading` and `refused by basename` each counted 0
+    // on the card and in workflow-template.js at the task base, so a per-surface revert reds this row.
+    { name: 'release-slot eligibility by literal (D20, PIN-24, #2000): auditor card pointer ↔ dispatched DISPOSITION WIDENINGS (4) ↔ release-task ace prompt',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['release-task ace prompt', relAceP]],
+      anchors: [/version literal/i, /CHANGELOG head heading/, /version-slots\.test\.mjs/, /refused by basename/i] },
     // Fix-round doctrine pointer (#2097, engine-and-audit-verdict-integrity Task 1.4, PIN-1): the worker
     // card's trigger sentence and the FIX_NEEDED build's own pointer line both name the reference by its
     // plugin-root-anchored path (ADR 0047) and the dispatch trigger. Anchor precondition: the pointer
@@ -17423,4 +17438,81 @@ test('Task 11.1 census: the rebuttal branch stays (isSplit gate, REBUTTAL ROUND 
   assert.equal((src.match(/dispositionOf\(/g) || []).length, 8, 'the #1550 order-census domain is unchanged: its dispositionOf( sites are judgeHeldRow, routeReauditMinors, routeAbsorbTail, the escalation demotion arm, routeGateAuditRows, the sweep merged-arm routing, routeTerminalMinors and the sweep discard-arm routing')
   assert.equal((src.match(/const seatConflictsOf = /g) || []).length, 1, 'the detector: one definition')
   assert.equal((src.match(/seatConflictsOf\(/g) || []).length, 1, 'the detector: one post-rebuttal call site')
+})
+
+// ---------------------------------------------------------------------------
+// Phase 12 — release-slot eligibility by literal, not file (engine-and-audit-verdict-integrity D20,
+// PIN-24, A14, #2000). The engine's basename refusal (aceEligible / isReleaseSlotFile) is unchanged:
+// README.md/CHANGELOG.md already pass aceEligible at ffb3ab6, so the behavior row below is a
+// CHARACTERIZATION pin and the decisive row is the prompt row — the release-task ace prompt names
+// version-slots.test.mjs as the merge guard and the twins-move-together rule. No engine
+// version-literal detector exists: a literal-moving absorb is caught by version-slots.test.mjs in the
+// gate (A14).
+// ---------------------------------------------------------------------------
+
+// A release task: its plan Files: list names both RELEASE_SLOT_FILES basenames plus the two prose twins.
+const RELEASE_TASK = { id: 't1', issue: 101, title: 'Release 0.21.13', planSlice: 'bump the four slots', roster: [{ lens: 'correctness' }],
+  files: ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'README.md', 'CHANGELOG.md'] }
+// A blurb Minor on the CHANGELOG head entry — prose only, fully specified, absorb.
+const RELEASE_BLURB = { severity: 'Minor', title: 'blurb count', file: 'CHANGELOG.md', rationale: 'the head entry says two comment blocks; the diff touched three',
+  suggested_fix: 'say three', disposition: 'absorb', autoFixable: true }
+// Round 1 raises the given findings; the ace re-audit approves clean.
+const releaseTaskImpl = (findings) => buildSeqImpl(
+  { 'audit:t1:correctness': [approveWith('audit:t1:correctness', findings), approveWith('audit:t1:correctness', [])] },
+  aceBase(findings))
+const NEVER_MOVE = 'never move a version literal or the CHANGELOG head heading'
+
+test('release-slot prompt: ace on a release task cites version-slots.test.mjs (D20, PIN-24, #2000): the release-task ace prompt names the merge guard and the twins-move-together rule; a non-release task never carries the clause; every ace-family, sweep and terminal build says never-move-a-version-literal and the OLD touch-literals sentence is gone', async () => {
+  const { calls } = await runPhase(ACE_ARGS({ tasks: [RELEASE_TASK] }), releaseTaskImpl([RELEASE_BLURB]))
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'the release task aces its blurb Minor')
+  assert.ok(ace.prompt.includes('RELEASE TASK:'), 'the release-task clause renders on the ace prompt')
+  assert.ok(ace.prompt.includes('version-slots.test.mjs in the gate is the merge guard'), 'the ace prompt cites version-slots.test.mjs as the merge guard')
+  assert.match(ace.prompt, /CHANGELOG head entry and the README `## Status` blurb are twins that move together or not at all/, 'the ace prompt requires the CHANGELOG head and README Status twins to move together')
+  assert.ok(ace.prompt.includes('refused by basename'), 'the ace prompt keeps plugin.json/marketplace.json refused by basename (PIN-24)')
+  assert.ok(ace.prompt.includes(NEVER_MOVE), 'the ace prompt states the by-literal rule')
+  // Negative control: a task whose Files: list names no RELEASE_SLOT_FILES basename renders no clause —
+  // the by-literal sentence still rides every ace prompt.
+  const plain = await runPhase(ACE_ARGS(), releaseTaskImpl([nit({ title: 'readme nit', file: 'README.md' })]))
+  const plainAce = plain.calls.find(isAce)
+  assert.ok(plainAce, 'the non-release task aces too')
+  assert.ok(!plainAce.prompt.includes('RELEASE TASK:') && !plainAce.prompt.includes('version-slots.test.mjs'), 'a non-release task never carries the release-task clause (delete-the-feature: the clause is task-gated)')
+  assert.ok(plainAce.prompt.includes(NEVER_MOVE), 'the by-literal sentence rides every ace prompt')
+  // Source census (PIN-4 floor + hand scan): the clause is interpolated at the three ace-family builds and
+  // nowhere else; each of those builds, the phase-close sweep build and the terminal-pass build carry the
+  // replacement sentence; the OLD sentence is absent file-wide in any casing (authoring rule 6).
+  assert.equal((src.match(/releaseSlotAceClause\(r\.task\)/g) || []).length, 3, 'releaseSlotAceClause is interpolated at exactly the three ace-family builds (batch, bisection subset, re-entry)')
+  const builds = {
+    'ADVISORY POLISH (batch ace)': sliceSrc('pt`ADVISORY POLISH (--ace) for WAR task', "aceLabel(r, 'polish')"),
+    'ACE BISECTION SUBSET': sliceSrc('pt`ACE BISECTION SUBSET for WAR task', "aceLabel(r, 'subset')"),
+    'ACE RE-ENTRY BATCH': sliceSrc('pt`ACE RE-ENTRY BATCH for WAR task', "aceLabel(r, 'reentry')"),
+  }
+  for (const [name, text] of Object.entries(builds)) {
+    assert.ok(text.includes('releaseSlotAceClause(r.task)'), `the ${name} build interpolates releaseSlotAceClause`)
+    assert.ok(text.includes(NEVER_MOVE), `the ${name} build says ${NEVER_MOVE}`)
+  }
+  assert.ok(sliceSrc('pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase', 'Queued findings (verbatim)').includes(NEVER_MOVE), 'the PHASE-CLOSE COHERENCE SWEEP build says never move a version literal')
+  assert.ok(sliceSrc('pt`TERMINAL PASS for WAR phase', 'terminalRows.map(queuedFindingRow)').includes(NEVER_MOVE), 'the TERMINAL PASS build says never move a version literal')
+  assert.equal((src.match(/touch version\/release-slot literals/gi) || []).length, 0, 'the OLD "NEVER touch version/release-slot literals" sentence is gone file-wide, in any casing')
+  assert.equal((src.match(/touch version\/release slots/gi) || []).length, 0, 'the OLD batch-ace "Do NOT touch version/release slots" sentence is gone')
+  assert.equal((src.match(/version\/release-slot edits/gi) || []).length, 0, 'the OLD subset/re-entry "No version/release-slot edits" sentence is gone')
+  // The dispatched DISPOSITION WIDENINGS block states the by-literal rule on every roster seat.
+  const seat = calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:'))
+  assert.match(seat.prompt, /DISPOSITION WIDENINGS:[\s\S]*\(4\) release-slot eligibility is by literal, not file/, 'DISPOSITION WIDENINGS (4) states the by-literal rule')
+})
+
+test('release-slot eligibility: blurb Minor lands through ace (characterization, A14): a CHANGELOG.md and a README.md blurb Minor on a release task ride the per-task ace and are aced, never filed; a plugin.json Minor in the same panel is refused by basename and never enters the ace prompt (PIN-24)', async () => {
+  const readme = { ...RELEASE_BLURB, title: 'status blurb', file: 'README.md', rationale: 'the ## Status blurb miscounts its own enumeration' }
+  const manifest = { ...RELEASE_BLURB, title: 'manifest nit', file: '.claude-plugin/plugin.json', rationale: 'key order' }
+  const { out, calls } = await runPhase(ACE_ARGS({ tasks: [RELEASE_TASK] }), releaseTaskImpl([RELEASE_BLURB, readme, manifest]))
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'the release task aces')
+  assert.ok(ace.prompt.includes('blurb count') && ace.prompt.includes('status blurb'), 'both blurb Minors ride the per-task ace')
+  assert.ok(!ace.prompt.includes('manifest nit'), 'the plugin.json Minor never enters the ace prompt')
+  const acedTitles = (out.aced || []).map(a => a && a.finding && a.finding.title)
+  assert.ok(acedTitles.includes('blurb count') && acedTitles.includes('status blurb'), 'both blurb Minors are aced')
+  assert.ok(!acedTitles.includes('manifest nit'), 'the plugin.json Minor is never aced')
+  assert.ok(!demotionOf(out, 'blurb count') && !demotionOf(out, 'status blurb'), 'neither blurb Minor is filed or demoted — README.md/CHANGELOG.md are not release-slot basenames')
+  const refused = demotionOf(out, 'manifest nit')
+  assert.ok(refused && /^demote:release-slot/.test(refused.demoteReason || ''), 'the plugin.json Minor is refused at birth by basename (demote:release-slot)')
 })
