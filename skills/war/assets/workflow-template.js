@@ -149,7 +149,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // citation (in-run-finding-resolution D6, absorb-by-citation): OPTIONAL on a disposition:'absorb'
     // finding whose NAMED trade-off is covered by a threaded standing adjudication row — `row` is the
     // row's identifying text, `rationale` the one-line match rationale. The engine stamps both into
-    // the ace/re-entry commit message (the sweep polish commit too, via citationStamp) and the `aced`
+    // the ace/re-entry commit message (the sweep polish and terminal commits too, via citationStamp) and the `aced`
     // record, and the re-audit panel for a
     // citation-resolved batch is explicitly charged with citation soundness. Ambiguity is NO-match:
     // park the ask instead (match strictness, PIN-6). CONTRACT (both prompt layers mirror it): a
@@ -1579,17 +1579,14 @@ const recordAced = (f, sha, extra) => {
   acedKeys.add(remintKey(f))
   if (extra && extra.citation) {
     // Unpark match (D11, #1863): the parked record's key came from the round-1 ask's `question`.
-    // The EXACT `ask.question` derivation is preferred — the prompt contract asks the seat to echo
-    // the parked `ask` field verbatim — and only when the finding carries no `ask.question` does
-    // the match widen to the title derivation (the schema makes `ask` mandatory only on
-    // disposition:'ask'). Whichever derivation applies must match EXACTLY ONE parked record: a
-    // multi-hit (a title coinciding with another parked question) never splices the first hit,
-    // and a miss is LOGGED — an executed-but-still-parked ask is never silent.
-    const exact = (f.ask && f.ask.question) ? askContentKey({ task: f.task, ask: { question: f.ask.question } }) : null
-    const keys = new Set([askContentKey(f)])
-    if (typeof f.title === 'string' && f.title) keys.add(askContentKey({ task: f.task, title: f.title }))
-    const hitsOf = pred => asks.reduce((acc, a, idx) => (pred(askKeyOf.get(a)) ? acc.concat(idx) : acc), [])
-    const hits = exact ? hitsOf(k => k === exact) : hitsOf(k => keys.has(k))
+    // askContentKey's own question-then-title precedence IS the derivation: the `ask.question` the
+    // prompt contract asks the seat to echo verbatim wins, and only a finding with no `ask.question`
+    // keys on its title (the schema makes `ask` mandatory only on disposition:'ask'). The key must
+    // match EXACTLY ONE parked record: a multi-hit (a title coinciding with another parked question)
+    // never splices the first hit, and a miss is LOGGED — an executed-but-still-parked ask is never
+    // silent.
+    const key = askContentKey(f)
+    const hits = asks.reduce((acc, a, idx) => (askKeyOf.get(a) === key ? acc.concat(idx) : acc), [])
     const i = hits.length === 1 ? hits[0] : -1
     // ponytail: the multi-hit arm is unreachable by construction — parkAsk is the only askKeyOf
     // writer and refuses a second record under an existing key (the collision merges as a
@@ -2705,9 +2702,9 @@ const citationOf = f => {
 // spread yields no keys.
 const citationExtra = f => { const c = citationOf(f); return c ? { citation: c } : null }
 // citationStamp: the ` [absorb-by-citation: row "…" — …]` prompt-row clause, rendered from ONE
-// citationOf call. The ace-family rows (aceFindingRow) and the phase-close sweep row both append it,
-// so the ace commit message AND the polish commit message carry the durable citation stamp the
-// schema comment promises (rule 6: one home for the clause). Empty when no citation stands.
+// citationOf call. The ace-family rows (aceFindingRow), the phase-close sweep row and the terminal-pass
+// row all append it, so the ace, polish and terminal commit messages carry the durable citation stamp
+// the schema comment promises (rule 6: one home for the clause). Empty when no citation stands.
 const citationStamp = f => { const c = citationOf(f); return c ? pt` [absorb-by-citation: row "${c.row}" — ${c.rationale}]` : '' }
 
 let guard = 0
@@ -2826,10 +2823,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // values aceFindingRow renders into the worker prompt/commit message) so the panel judges from
   // its own prompt, never from a commit message it is not directed to read.
   const citationSoundnessClause = batch => {
-    const cited = batch.filter(f => citationOf(f))
+    const cited = batch.map(f => ({ f, c: citationOf(f) })).filter(x => x.c)   // one citationOf call per finding
     return cited.length
       ? pt`\nCITATION SOUNDNESS (absorb-by-citation): this batch contains citation-resolved findings — verify each cited standing adjudication row covers the finding's NAMED trade-off, not merely its topic; ambiguity is NO-match. An unsound citation is a BLOCKING finding: set \`citationUnsound: true\` and name the mismatch in the rationale — the batch is forward-reverted and the finding demotes naming the mismatch. The citation-resolved findings under judgment:\n`
-        + cited.map((f, i) => { const c = citationOf(f); return pt`${i + 1}. "${f.title ?? '(untitled)'}" cites row "${c.row}" — match rationale: ${c.rationale}` }).join('\n')
+        + cited.map(({ f, c }, i) => pt`${i + 1}. "${f.title ?? '(untitled)'}" cites row "${c.row}" — match rationale: ${c.rationale}`).join('\n')
       : ''
   }
   // ---- PIN-12: THE GATE RUNS AT THE ACE TIP BEFORE ANY RE-AUDIT OR TRANSFER ----
@@ -4907,7 +4904,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           + intentClause
           + pt`Gate: ${plan.gate}\n`
           + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Charge: ${terminalCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (one re-audit seat judges the new sha; a regression is forward-reverted). NEVER touch version/release-slot literals. Commit and push ${polishBranch}.\n`
-          + terminalRows.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
+          // citationStamp (#1873-class): a citation absorb the sweep never touched rides this pass, so
+          // the terminal commit message carries the same stamp its recordAced arm records below.
+          + terminalRows.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationStamp(f)}`).join('\n') + pt`\n`
           // No ace_diff_files clause here: the terminal arm has no consumer for it (the merged arm
           // records every terminalRow aced on the one seat's re-approval; the sweep arm's sweepTouched
           // is the only landed-row check) — a prompt never asks for a field nothing reads.

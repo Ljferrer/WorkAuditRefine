@@ -13075,6 +13075,24 @@ test('sweep aced: citation threaded (D11, #1873): a citation-carrying absorb tha
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('polishsha')), 'the resolution is logged at the polish sha')
 })
 
+test('terminal aced: citation threaded (#1873-class sibling): a queued citation absorb the sweep never touched rides the terminal pass — the terminal prompt row carries the citation stamp and the terminal-sha aced record carries the threaded row', async () => {
+  // The sweep report touches docs/x.md only, so the citation absorb on docs/q.md is diverted to the
+  // terminal queue (the overlap rule at the merged sweep arm) and the terminal commit lands it.
+  const cite = citationF(); cite.phaseClose = true; cite.file = 'docs/q.md'
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ adjudications: CITED_ADJ, run: { ace: true, afk: true } }),
+    terminalImpl({ queued: [askFinding(), queuedAbsorb(), cite], polishFindings: [], sweepWorker }))
+  assert.equal(out.handoff.polish, 'merged', 'presence guard: the sweep merged')
+  const tw = terminalCalls(calls)
+  assert.equal(tw.length, 1, 'presence guard: the untouched citation absorb diverted to ONE terminal pass')
+  assert.ok(tw[0].prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '" — '), 'the terminal prompt row carries the citation stamp with the THREADED row, so the terminal commit message holds the durable citation its aced record claims')
+  const entry = (out.aced || []).find(a => a && a.finding && a.finding.title === 'mirrored value rides docs/x.md')
+  assert.ok(entry && entry.sha === 'terminalsha' && entry.terminal === true, 'the diverted citation absorb is aced at the terminal sha')
+  assert.ok(entry.citation && entry.citation.row === CITED_ADJ[0], 'the terminal-path aced record carries the citation with the THREADED row')
+  assert.equal((out.asks || []).length, 0, 'the parked ask resolves at the terminal pass under --afk')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('terminalsha')), 'the resolution is logged at the terminal sha')
+})
+
 test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
   // Ambiguity resolves to NO-match (PIN-6): the seat keeps disposition:'ask' — today's park path.
   const { out } = await runPhase(ACE_ARGS(), quietGate(aceBase([askFinding()])))
