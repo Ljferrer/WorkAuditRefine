@@ -74,10 +74,13 @@ export const meta = {
 //                                     // maxParallel (optional positive integer) is the GLOBAL ceiling on agent dispatches
 //                                     // in flight across the whole run, held by one counting semaphore at the leaf dispatch
 //                                     // seam; absent/null ⇒ agent() is called straight through, a byte-identical dispatch path
-//     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
+//     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared?, planFile? } — every
 //                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
 //                                     // null = legacy plan with no backstop section. Empty/absent ⇒ handoff.backstops = null.
+//                                     // planFile? (backstops and adjudications rows alike, #1768): a Lead-stamped provenance
+//                                     // coordinate — the #1413 floor exempts a row naming THIS plan from the own-token floor
+//                                     // and refuses a row naming a FOREIGN plan at entry; absent ⇒ the row is scanned normally.
 // auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
 // The Lead may inject APPROVED extra stages ONLY by editing the run-scoped, per-phase STAGED copy — the
 // stage-workflow.mjs output under $MAIN/.claude/war/runs/<runId>/ (ADR 0037), which is the sanctioned
@@ -384,8 +387,9 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // ../references/schemas.md ({ taskId, failedCommand, exitCode, stderrTail, provisionSource }) for the
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
 // The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
-// arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip
-// (already-integrated on an adopted branch; the derive-and-skip step, armed only under
+// arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip AND
+// carries at least one commit above the phase base (already-integrated on an adopted branch; a
+// zero-commit ancestor is never reported, #1895; the derive-and-skip step, armed only under
 // args.recovery.sanctioned — recovery mechanics, spec §4.2/§4.4); staleRemote — per-task stale-remote
 // classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
 // STALE_REMOTE marker (always-on classification, never recovery-gated); worktreeHygiene (D20, #1381) —
@@ -595,7 +599,7 @@ const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
 const memoryLocalRoot = (typeof A.memoryLocalRoot === 'string' && A.memoryLocalRoot) ? A.memoryLocalRoot : null
 // Backstops (spec §4.4): the Lead is the single normalization point — plan-declared entries + Setup
 // auto-recorded entries are merged Lead-side into args.backstops (array|null of
-// { check, why, runner, source: 'plan'|'auto', aiDeclared? }). The Workflow passes these Lead-normalized
+// { check, why, runner, source: 'plan'|'auto', aiDeclared?, planFile? }). The Workflow passes these Lead-normalized
 // entries through UNTOUCHED into handoff.backstops[] (rendered as the "Unexecuted backstops" line at
 // land). A legacy plan with no backstop section → null (surfaced note). Never mutate; never re-normalize.
 // SOLE EXCEPTION (spec §6 / ADR 0019): the Workflow itself appends its OWN source:'auto'
@@ -617,8 +621,9 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
 // Absent / non-sanctioned ⇒ THREE recovery-gated barrier arms are DORMANT, not one: (1) the
-// derive-and-skip step (deriveSkipClause — a task branch already an ancestor of the frozen tip is
-// reported preMerged and its ensure-worktree skipped, the §4.2 relaunch prompt delta); (2) the
+// derive-and-skip step (deriveSkipClause — a task branch that is an ancestor of the frozen tip AND
+// carries a commit above the phase base is reported preMerged and its ensure-worktree skipped; a
+// zero-commit ancestor is never preMerged, #1895 — the §4.2 relaunch prompt delta); (2) the
 // pre-checkout ref-holder auto-free (holderFreeClause, #1712 fix 3 — clean prior-generation holders of
 // THIS plan's own refs only, carrying TWO refusal arms: a DIRTY holder and a FOREIGN plan's holder are
 // never freed, each dying loud with the holder path named in stderrTail); (3) the
@@ -641,7 +646,7 @@ const intentClause = intent
 // its own scope adjudications made at the decompose gate or at an escalation AND from the
 // Checkpoint ask rulings — each ruled ask minted as an adjudication row at the strike-list gate —
 // the scope adjudications and the ask rulings per `skills/war/SKILL.md`, then
-// threads the accumulated set here as args.adjudications (array|null of { adjudicated, supersedes }
+// threads the accumulated set here as args.adjudications (array|null of { adjudicated|value, supersedes, planFile? }
 // objects or preformatted strings) — a Lead-read arg, like intent. FOLLOWS the intentClause threading
 // pattern: empty/absent ⇒ adjudicationClause is '' ⇒ every prompt below is byte-identical to a
 // no-adjudication run (back-compat, spec constraint 4). The clause carries the version-precedence rule
@@ -943,12 +948,23 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 //   - EXEMPT rows: source:'auto' rows (Workflow/Setup-authored, never a Lead-assembled cross-plan
 //     surface), predecessor citations (the `supersedes` field is the citation channel — excluded
 //     from the scan), and Lead-stamped `planFile` provenance rows naming THIS plan (a planFile
-//     stamp naming a FOREIGN plan is the leak itself and refuses directly).
-// Each floor applies ONLY when its arg has scannable intent-bearing text (an intent-less launch —
-// and a surface whose rows are all exempt — stays legal; the ratified absent-⇒-byte-identical
-// contract), the foreign check only when plan.file is present, and the own-token floor is skipped
-// when no distinctive token is derivable (fail-open, never a guessed refusal). Messages are
-// concatenation-built (census-safe — the #931 LITERAL_REGISTRY stays byte-unchanged).
+//     stamp naming a FOREIGN plan is the leak itself and refuses directly). Exemption is from the
+//     OWN-TOKEN floor only (D10, #1749): the foreign-plan-id scan runs over EVERY row's text, exempt
+//     rows included — a source:'auto' row is set by the same Lead-assembled channel a foreign args
+//     blob rides, so a flag that channel sets cannot buy a bypass of the foreign-id refusal.
+//   - VALUE rows (D10, #1480): an adjudications row in the canonical version-adjudication shape —
+//     the `{ adjudicated|value, supersedes }` object, or the preformatted string adjRow renders
+//     (`<value> (supersedes plan literal: <x>)`) — carries a VALUE, not intent-bearing prose, so it
+//     never has to carry an own token; a surface whose every row is a value row passes the
+//     own-token floor un-doped. A string row's `supersedes … docs/plans/<x>.md` segment is the
+//     predecessor citation itself and is stripped before the foreign-id match (#1751).
+// Each floor applies ONLY when its arg has scannable text: the foreign-id scan when ANY row carries
+// text (and plan.file is present), the own-token floor when a NON-exempt, non-value row carries
+// text (an intent-less launch — and a surface whose rows are all exempt or all value rows — stays
+// legal; the ratified absent-⇒-byte-identical contract). When the stoplist empties ownTokens but
+// plan.file is present, the plan basename becomes the single anchor token (logged, #1767) — the
+// floor is skipped only when NO anchor is derivable at all (fail-open, never a guessed refusal).
+// Messages are concatenation-built (census-safe — the #931 LITERAL_REGISTRY stays byte-unchanged).
 {
   const provenanceProblems = []
   // Generic-token stoplist (D6): English glue + WAR-universal vocabulary that appears in virtually
@@ -956,29 +972,67 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
     'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
     'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow'])
-  const ownTokens = [...new Set([planSlug, (plan && typeof plan.file === 'string') ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null]
+  const ownPlanStem = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null
+  let ownTokens = [...new Set([planSlug, ownPlanStem]
     .filter(Boolean)
     .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
     .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !PROVENANCE_TOKEN_STOPLIST.has(w)))]
+  // Stoplist fallback (#1767): a slug of WAR-vocabulary words (`gate-and-merge-test-fixes`) empties
+  // ownTokens and would silently switch the leak floor off for the whole run. With plan.file present
+  // the plan basename (stem, .md stripped) is the single anchor — the whole slug as one word-bounded
+  // token — and the fallback is logged; only a launch with neither slug words nor plan.file stays
+  // fail-open.
+  if (!ownTokens.length && ownPlanStem) {
+    ownTokens = [ownPlanStem.toLowerCase()]
+    log('workflow-template: #1413 own-token floor — every slug word is stoplisted or too short; falling back to the plan basename ' + JSON.stringify(ownTokens[0]) + ' as the single anchor token (#1767). The floor still fires.')
+  }
+  const tokenRe = t => new RegExp('\\b' + String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
   const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
   const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
-  // Per-row intent-bearing extraction: { text, exempt } | { foreignStamp } (see the exemption
+  // Predecessor-citation strip for a preformatted STRING row (#1751): the citation segment is the
+  // plan id DIRECTLY after `supersedes` (`supersedes docs/plans/<x>.md`, `supersedes: docs/plans/<x>.md`
+  // or the adjRow render `(supersedes plan literal: docs/plans/<x>.md)`) — the object form's
+  // `supersedes` field, never a leak — drop it before the foreign-id match. The strip is anchored to
+  // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
+  // for the scan. The own-token search reads the unstripped text.
+  const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
+  const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
+  // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
+  // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
+  // supersedes; a Lead-stamped planFile may ride beside them) or the string adjRow renders —
+  // `<value> (supersedes plan literal: <x>)`. The shape test alone would let a prose ruling with a
+  // prose `supersedes` bypass the own-token floor, so the value field must look like a value — in
+  // BOTH arms: the string arm anchors the same one-token value segment before the render suffix, so
+  // a preformatted prose ruling never launches un-doped where its object form refuses.
+  const isValueRow = row => typeof row === 'string'
+    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row)
+    : !!row && typeof row === 'object' && typeof (row.adjudicated ?? row.value) === 'string' && typeof row.supersedes === 'string'
+      && /^\S{1,64}$/.test(row.adjudicated ?? row.value)
+      && Object.keys(row).every(k => ['adjudicated', 'value', 'supersedes', 'planFile', 'source'].includes(k))
+  // Per-row intent-bearing extraction: { text, idText?, exempt, value } | { foreignStamp } (see the exemption
   // enumeration above). A string row is its own text (the preformatted adjudication shape). An
-  // EXEMPT row is never scanned for refusal, but its intent-bearing text still COUNTS as own-token
-  // evidence for the surface — exemption means "never causes a refusal", not "cannot prove
-  // provenance" (a source:'auto' row stamped with the run's own slug token vouches for a generic
-  // Lead-normalized sibling row, the #1666 false-refusal direction).
+  // EXEMPT row never causes an OWN-TOKEN refusal, but its intent-bearing text still COUNTS as
+  // own-token evidence for the surface — exemption means "never fails the own-token floor", not
+  // "cannot prove provenance" (a source:'auto' row stamped with the run's own slug token vouches
+  // for a generic Lead-normalized sibling row, the #1666 false-refusal direction) — and its text IS
+  // still read by the foreign-plan-id scan (#1749).
+  // `value: true` marks a canonical value row (never own-token-scanned; still foreign-id-scanned on
+  // its stripped text); `idText` is the text the foreign-id match reads (a string row's predecessor
+  // citation stripped, #1751) — absent, `text` is read.
   const rowText = row => {
-    if (typeof row === 'string') return { text: row, exempt: false }
+    if (typeof row === 'string') return { text: row, idText: stripSupersedes(row), exempt: false, value: isValueRow(row) }
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['check', 'why', 'adjudicated', 'value']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
-    if (row.source === 'auto') return { text, exempt: true }
+    const value = isValueRow(row)
+    // The planFile stamp is read BEFORE the source:'auto' exemption: a foreign stamp is the leak itself
+    // and refuses whatever flag rides beside it — a source flag never buys a stamp-refusal bypass.
     if (typeof row.planFile === 'string' && row.planFile) {
       if (ownPlanBase && baseOf(row.planFile) !== ownPlanBase) return { foreignStamp: row.planFile }
-      return { text, exempt: true }
+      return { text, exempt: true, value }
     }
-    return { text, exempt: false }
+    if (row.source === 'auto') return { text, exempt: true, value }
+    return { text, exempt: false, value }
   }
   // Ruled-ask rows (#1879 RULING 2 — args.ruledAsks JOINS the floor): per-row intent-bearing text
   // is the ruling + suggested_fix + finding-title fields (the same rowText discipline as
@@ -1000,6 +1054,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
+  // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
+  // the `supersedes` citation idiom is an adjudication-row shape, so these rows expose their full text
+  // to the widened foreign-id scan (the surface loop falls back to `text` when idText is absent).
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
@@ -1016,7 +1073,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // seededPhaseClose rows (D3b, PIN-5) JOIN the floor under the ruledAsks discipline: per-row
   // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
   // FIELD (stamped by the emitting engine's carryPhaseClose) is the provenance coordinate — a
-  // foreign slug refuses directly; the run's own slug exempts the row.
+  // foreign slug refuses directly; the run's own slug exempts the row. As at ruledAskRowText, the
+  // #1751 predecessor-citation strip is adjudications-only: no idText here, the full text is scanned.
   const seededPhaseCloseRowText = row => {
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['title', 'rationale', 'suggested_fix']
@@ -1040,14 +1098,17 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
       provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
-    // scanText: non-exempt rows only (the refusal surface). evidenceText: every row's intent-bearing
-    // text (own-token satisfaction may come from an exempt row).
-    const scanText = rows.filter(r => !r.exempt && r.text).map(r => r.text).join('\n')
+    // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
+    // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
+    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed), and the
+    // foreign-plan-id scan reads every row's (citation-stripped) text, exempt rows included (#1749).
+    const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
-    if (!scanText) continue
-    const planIds = scanText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
+    const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
+    if (!evidenceText) continue
+    const planIds = idText.match(PLAN_ID_RE) || []
     const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
-    const ownTokenMiss = ownTokens.length && !ownTokens.some(t => new RegExp('\\b' + t + '\\b', 'i').test(evidenceText))
+    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(evidenceText))
     // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
     // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
@@ -2395,13 +2456,27 @@ if (tasks.length) {
   // as HEAD..<branch> — empty in the task worktree — and returns a plausible 0 (#2038).
   const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name, never a shell variable from an earlier call) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
-  // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
-  // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
-  // check (the "vacuous on a first run" property is true by ordering, not luck). A task branch that
-  // exists but is NOT an ancestor (the escalated task's half-done branch) takes the existing-branch
-  // reuse path — prior commits kept, no reset (spec §8).
+  // whose local branch is an ancestor of the frozen tip AND carries at least one commit above the phase
+  // base (`rev-list --count "$(git merge-base <integration> <working>)"..<branch>` > 0 — D9/PIN-13,
+  // #1895/#2006) is reported preMerged and its ensure-worktree is SKIPPED. The ancestor check alone is
+  // vacuous for a zero-commit branch sitting at the phase base (a task that dep-failed or never
+  // dispatched in an earlier attempt), so the count is the paired conjunct: such a branch is classified
+  // ZERO_COMMIT in the barrier transcript and takes the ordinary ensure-worktree path, never preMerged.
+  // The range renders its base INLINE per task, by branch name, never through a carried "$BASE". The
+  // reason is the failure-mode asymmetry: an unset BASE renders HEAD..<branch>, which exits 0 with a
+  // plausible count — silent and open (#2038, the absorbChargesClause precedent) — whereas the
+  // is-ancestor conjunct's "$TIP" fails loud when unset, and TIP is bound inside the same step-3
+  // command this clause extends (the holderFreeClause comment records that scope). The ZERO_COMMIT
+  // transcript line renders the same inline merge-base, so the clause carries one base rule. The base is the
+  // integration branch's fork point off the working branch (the refiner card's phase integration
+  // base) — the residual: a zero-commit branch cut at a LATER relaunch's adopted tip counts its
+  // siblings' fast-forwarded commits and is not caught here.
+  // Deriving before cutting means a fresh cut can never pollute the ancestry check (the "vacuous on a
+  // first run" property is true by ordering, not luck). A task branch that exists but is NOT an
+  // ancestor (the escalated task's half-done branch) takes the existing-branch reuse path — prior
+  // commits kept, no reset (spec §8).
   const deriveSkipClause = recovery
-    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds (already-integrated on the adopted integration branch). On TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
+    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds AND \`git rev-list --count "$(git merge-base ${ph.integrationBranch} ${ph.workingBranch})"..<that task's branch>\` is greater than 0 (the base rendered inline by branch name, never a shell variable from an earlier call: an unset variable reads as HEAD..<branch> and returns a plausible count; already-integrated on the adopted integration branch WITH at least one commit of its own — BOTH conjuncts, never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895). On BOTH TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in \`preMerged\`; run that task's ensure-worktree as listed (the ordinary path) and print one line \`ZERO_COMMIT <that task's id> <that task's branch> at $(git merge-base ${ph.integrationBranch} ${ph.workingBranch})\` so the classification is visible in your transcript. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -2460,8 +2535,9 @@ if (tasks.length) {
   }
   // ---- RECOVERY: barrier-derived merged-set skip (§4.2) ----
   // The provision-barrier refiner ran the git-ancestry checks (the Workflow sandbox has no shell/fs) and
-  // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip —
-  // already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
+  // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip AND
+  // carries a commit above the phase base (the deriveSkipClause conjunct pair — a zero-commit ancestor
+  // is never reported, #1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run,
@@ -2484,7 +2560,7 @@ if (tasks.length) {
     if (done.has(id)) continue
     done.add(id); succeeded.add(id); landed.push(id)
     auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
-    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip) — recorded merged, no worker dispatched.`)
+    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip with a commit of its own above the phase base — the barrier's is-ancestor AND rev-list --count conjuncts) — recorded merged, no worker dispatched.`)
   }
   // ---- §4.4 stale-remote classification → per-task env-blocked (always-on, never a phase halt) ----
   // The barrier CONTINUED past a per-task ensure-worktree exit carrying the STALE_REMOTE marker and
@@ -2494,16 +2570,32 @@ if (tasks.length) {
   // dispatch normally; a dependent of a blocked task follows the existing dep-failed semantics (the task is
   // in `done` but NOT `succeeded`). ADR 0021's all-or-nothing topology barrier is untouched — this is env
   // classification, the same family as run.provision failures. The record rides the machine-readable return.
+  // Both id dialects match (#1750 — the same barrier dispatch, the same `{ task: "<that task's id>" }`
+  // prompt phrase that produced the worktree-name dialect in #1704): the row's task id is normalized
+  // through preMergedIdOf on both sides like the preMerged loop, and a row matching no task even after
+  // normalization is LOGGED loudly and dropped — never a silent drop (a silently dropped row loses the
+  // task's env-blocked classification and dispatches a worker into a worktree the barrier never made).
   for (const sr of (Array.isArray(barrierOut.staleRemote) ? barrierOut.staleRemote : [])) {
-    if (!sr || typeof sr !== 'object' || done.has(sr.task) || !tasks.some(t => t.id === sr.task)) continue
-    const br = (tasks.find(t => t.id === sr.task) || {}).branch || '<branch>'
+    if (!sr || typeof sr !== 'object') {
+      log('recovery: barrier staleRemote entry ' + JSON.stringify(sr) + ' is not an object row — entry dropped LOUDLY, no classification applied (#1750).')
+      continue
+    }
+    const norm = preMergedIdOf(sr.task)
+    const t = tasks.find(t => preMergedIdOf(t.id) === norm)
+    if (!t) {
+      log('recovery: barrier staleRemote task id ' + JSON.stringify(sr.task) + ' matches NO task in this phase even after dialect normalization (→ ' + JSON.stringify(norm) + ') — entry dropped LOUDLY, no env-blocked classification applied (#1750).')
+      continue
+    }
+    const id = t.id
+    if (done.has(id)) continue
+    const br = t.branch || '<branch>'
     const remoteSha = sr.remoteSha || '<remote-sha>'
     const frozenTip = sr.frozenTip || '<frozen-tip>'
     const diagnostic = `stale prior attempt: the remote task branch ${br} tip ${remoteSha} is not an ancestor of the frozen integration tip ${frozenTip} — a prior run's torn-down attempt blocks the identically-named relaunch push. Two recovery directions: (a) adopt via \`git branch ${br} ${remoteSha}\` then relaunch, or (b) a sanctioned recovery relaunch (args.recovery.reclaimStaleRemote) threading \`--reclaim-stale-remote\`, which deletes the stale remote after three mechanical proofs then cuts fresh. Restore the deleted ref anytime before remote GC with \`git push origin ${remoteSha}:refs/heads/${br}\`.`
-    done.add(sr.task)
-    escalated.push({ task: sr.task, reason: 'env-blocked', staleRemote: true, remoteSha, frozenTip, diagnostic })
-    auditLog.push({ task: sr.task, verdict: 'env-blocked:stale-remote', findings: [], requested: 0, returned: 0, blocked: diagnostic })
-    log(`Task ${sr.task}: env-blocked — stale remote task branch ${br} (${remoteSha}) is not an ancestor of the frozen tip ${frozenTip}. Worker not spawned; siblings proceed. Recover by adopt-or-reclaim + relaunch.`)
+    done.add(id)
+    escalated.push({ task: id, reason: 'env-blocked', staleRemote: true, remoteSha, frozenTip, diagnostic })
+    auditLog.push({ task: id, verdict: 'env-blocked:stale-remote', findings: [], requested: 0, returned: 0, blocked: diagnostic })
+    log(`Task ${id}: env-blocked — stale remote task branch ${br} (${remoteSha}) is not an ancestor of the frozen tip ${frozenTip}. Worker not spawned; siblings proceed. Recover by adopt-or-reclaim + relaunch.`)
   }
   // ---- D20 (#1381) Lead-visibility carrier: reuse-path worktree hygiene ----
   // The barrier captured WORKTREE_HYGIENE marker lines into the optional worktreeHygiene array

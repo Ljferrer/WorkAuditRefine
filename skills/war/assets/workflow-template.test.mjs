@@ -10728,10 +10728,12 @@ const scanTemplateLiterals = (text = src) => {
 //     the resolveGate discovery/composition mirror (ADR 0036, untouchable), workerSelfQueryRepoFlag,
 //     owned, the ensure-worktree list, the phaseBaseCmd merge-base;
 //   • label / branch / worktree / path / verdict / reason builders — opts.label, t.branch, t.worktree,
-//     the ×5 `${worktreeRoot || '<worktreeRoot>'}/…` path family, escalation task labels & reasons,
-//     gate-audit/land verdict tokens (consumed as VALUES by pt-tagged carriers that guard them);
-//   • log / note / detail lines (log() sinks, auditLog notes, escalation details, one out-of-scope
-//     `.test()` predicate).
+//     the `${worktreeRoot || '<worktreeRoot>'}/…` path family (the merge loop's block-scoped
+//     refineryPath, the phase-level refineryPath, refineryLandPath, the polishWorktree), escalation
+//     task labels & reasons, gate-audit/land verdict tokens (consumed as VALUES by pt-tagged carriers
+//     that guard them);
+//   • log / note / detail lines (log() sinks, auditLog notes, escalation details, the end-state
+//     `/out-of-scope/i.test()` title-or-rationale predicate).
 // Entries are in source-appearance order (which tracks the file's phase structure). Exact multiset
 // equality below is red BOTH ways — a new untagged literal (any spawn site, helper operand, variable,
 // or nested interior) AND a stale row whose literal was removed/renamed.
@@ -10774,7 +10776,7 @@ const LITERAL_REGISTRY = [
   ["phase ${ph.id}: the provision:phase-${ph.id}"],
   ["recovery: task ${id} is pre-merged on the ad"],
   ["stale prior attempt: the remote task branch "],
-  ["Task ${sr.task}: env-blocked — stale remote "],
+  ["Task ${id}: env-blocked — stale remote task "],
   ["No runnable tasks remain — the rest are bloc"],
   ["work:${task.id}`, schema: WORKER_RESULT, ..."],
   ["Task ${task.id}: lone-seat widening (Critica"],
@@ -11012,6 +11014,67 @@ test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry �
   // The classification rides the machine-readable return; a hard dep-failed → held:escalation → handoff emitted.
   assert.ok((out.escalated || []).some(e => e && e.staleRemote), 'the stale-remote classification rides the machine-readable return')
   assert.ok(out.handoff, 'handoff emitted on held:escalation (the classification is handed off to the Lead)')
+})
+
+// D9 / PIN-13 (#1895, #2006): derive-and-skip needs commits. The barrier prompt requires BOTH
+// `merge-base --is-ancestor` AND `rev-list --count "$(git merge-base <integration> <working>)"..<branch>`
+// > 0 before deriving preMerged (the base inline per task, never a carried "$BASE" — #2038), and
+// classifies a zero-commit ancestor as a never-started task that takes the ordinary ensure-worktree
+// path. The engine has no shell, so the
+// prompt is the guard: an honest barrier reports a zero-commit branch in NO array and the worker runs.
+test('derive-and-skip: zero-commit branch dispatches (#1895/#2006)', async () => {
+  const args = PROVISION_ARGS({ recovery: { sanctioned: true } })
+  // The honest barrier result for a zero-commit ancestor branch: nothing preMerged.
+  const { out, calls, logs } = await runPhase(args, barrierEnv({ ok: true, preMerged: [] }))
+  const barrier = calls.find(isProvision)
+  assert.ok(barrier, 'the barrier was dispatched')
+  const b = barrier.prompt
+  assert.match(b, /merge-base --is-ancestor <that task's branch> "\$TIP"/, 'the ancestor check stays')
+  assert.match(b, /AND `git rev-list --count "\$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)"\.\.<that task's branch>` is greater than 0/, 'the commit-count conjunct is required alongside the ancestor check, its base rendered inline by branch name')
+  assert.doesNotMatch(b, /rev-list --count "\$BASE"/, 'the range never reads a carried $BASE (an unset variable reads as HEAD..<branch> and fails open, #2038)')
+  assert.doesNotMatch(b, /BASE="\$\(git merge-base/, 'no BASE binding remains — the clause carries one inline merge-base rule, never a cross-call shell variable')
+  assert.match(b, /ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in `preMerged`/, 'a zero-commit ancestor is classified never-started and never preMerged')
+  assert.match(b, /run that task's ensure-worktree as listed \(the ordinary path\) and print one line `ZERO_COMMIT <that task's id> <that task's branch> at \$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)`/, 'the zero-commit branch takes the ordinary ensure-worktree path with a loud classification line whose base renders inline')
+  assert.doesNotMatch(b, /"\$BASE"/, 'the transcript line never reads a carried $BASE (an unset variable renders an empty base)')
+  assert.match(b, /never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895/, 'the prompt names why the ancestor check alone is vacuous')
+  // Delete-the-feature: the conjunct is recovery-gated — absent recovery the prompt carries no rev-list count at all.
+  const dormant = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvision).prompt
+  assert.doesNotMatch(dormant, /rev-list --count "\$\(git merge-base/, 'the count conjunct is dormant without recovery (byte-identical barrier otherwise)')
+  // The zero-commit task dispatches a worker and is never recorded merged by recovery.
+  assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), 'a worker is dispatched for the zero-commit task')
+  assert.ok(!(out.auditLog || []).some(a => a && a.task === 't1' && a.verdict === 'recovered:pre-merged'), 't1 is never recorded recovered:pre-merged')
+  assert.ok(!logs.some(l => /task t1 is pre-merged/.test(l)), 'no pre-merged log for t1')
+  assert.equal(out.landDecision, 'landed', `the phase lands with t1 actually worked — got ${out.landDecision}`)
+  // A preMerged id the barrier DID derive is accepted with the conjunct pair named in the log.
+  const merged = await runPhase(args, barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.ok(merged.logs.some(l => /task t1 is pre-merged .*is-ancestor AND rev-list --count conjuncts/.test(l)), 'the acceptance log names both barrier conjuncts')
+  assert.ok(!merged.calls.some(c => (c.opts.label || '') === 'work:t1'), 'a derived preMerged task still dispatches no worker')
+})
+
+// #1750: the staleRemote consumption loop normalizes ids through preMergedIdOf on both sides (the
+// preMerged loop's discipline) and logs a row matching no task instead of dropping it silently.
+test('staleRemote dialect normalization', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale task', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 'tSib', issue: 202, title: 'Sibling', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] })
+  // Worktree-name dialect (`p<phase>-<id>`) — the barrier's ensure-worktree lines prime this shape.
+  const { out, calls, logs } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [
+    { task: 'p3-tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' },
+    { task: 'p9-zzz', remoteSha: 'cafebabe', frozenTip: 'deadbeef' },
+    'not-a-row',
+  ] }))
+  const eb = (out.escalated || []).find(e => e && e.task === 'tStale' && e.reason === 'env-blocked')
+  assert.ok(eb, 'the worktree-dialect row classifies the bare-id task env-blocked')
+  assert.equal(eb.staleRemote, true, 'the escalation record is tagged staleRemote')
+  assert.ok((out.auditLog || []).some(a => a && a.task === 'tStale' && a.verdict === 'env-blocked:stale-remote'), 'the auditLog entry keys on the task-id dialect, never the worktree dialect')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:tStale'), 'NO worker dispatched for the stale-remote task')
+  assert.ok(calls.some(c => (c.opts.label || '') === 'work:tSib'), 'the sibling dispatches normally')
+  const dropped = logs.find(l => /barrier staleRemote task id "p9-zzz" matches NO task in this phase even after dialect normalization \(→ "zzz"\) — entry dropped LOUDLY/.test(l))
+  assert.ok(dropped, `an unmatched id is logged loudly and dropped — logs: ${JSON.stringify(logs.filter(l => /staleRemote/.test(l)))}`)
+  const malformed = logs.find(l => /barrier staleRemote entry "not-a-row" is not an object row — entry dropped LOUDLY/.test(l))
+  assert.ok(malformed, 'a non-object row is logged loudly and dropped')
+  assert.ok(!(out.escalated || []).some(e => e && /zzz/.test(String(e.task))), 'the unmatched row classifies nothing')
 })
 
 test('worktreeHygiene capture (D20, #1381): a mocked barrier worktreeHygiene array → ONE run-log summary line; visibility only — no auditLog entry, no routing change, workers dispatch, the phase lands', async () => {
@@ -11814,7 +11877,14 @@ test('global ceiling end-to-end: a rejecting dispatch inside a capped run stays 
 // object bound to a local outside the root whitelist (ph/plan/task/t/r.task) — e.g.
 // `submodLandTask.targetRepo` — is censused but not mapped to an args field; harmless today
 // (targetRepo is exempt and the site is ternary-gated), red-flagged here so a future non-exempt
-// case is not silently unrequired. Escaped `\${…}`
+// case is not silently unrequired; (d) an UNTAGGED template literal that feeds a pt span (#1777):
+// ptSpans() walks pt-tagged literals only, so a fragment built in a plain backtick literal and
+// interpolated into a pt span later is invisible to the extractor — the live instance is the
+// Provision-barrier build's `const ensures = tasks.map(t => \`   provision-worktrees.sh
+// ensure-worktree ${t.worktree} ${t.branch} …\`)`, whose fallback-free `t.worktree` / `t.branch`
+// reads reach the dispatched prompt via `${ensures}` and are censused here only as the outer
+// `ensures` entry; bounded today because both fields are extracted from other pt sites, but a
+// FUTURE bare arg read added only inside such a helper would not red this census. Escaped `\${…}`
 // pairs are prompt PROSE (agent-resolved placeholders) and are dropped by the tokenizer — e.g. the
 // release-baseline rule's `\${integrationBranch}...\${task.branch}` mirror text is not a live site.
 const BARE_INTERPOLATION_CENSUS = [
@@ -11946,32 +12016,66 @@ test('provenance floor: a word-boundary own-token hit passes (case-insensitive)'
   assert.equal(out.landDecision, 'landed', `word-boundary token hit passes the floor — got ${out.landDecision}`)
 })
 
-test('provenance floor: stoplist — a slug of generic tokens derives no ownTokens, so the floor is skipped (fail-open)', async () => {
-  // Every slug word is stoplisted or sub-length: ownTokens is empty ⇒ no refusal is ever guessed.
-  const args = PROVISION_ARGS({
-    planSlug: 'test-and-fix',
-    plan: { file: 'docs/plans/test-and-fix.md', gate: 'make gate' },
-    phase: { id: 3, title: 'P3', integrationBranch: 'integration/test-and-fix/phase-3', workingBranch: 'dev/test-and-fix' },
-    intent: 'Ship the improvements without breaking anything.',
-  })
-  const { out } = await runPhase(args, defaultImpl)
-  assert.equal(out.landDecision, 'landed', `generic-slug run is not falsely refused — got ${out.landDecision}`)
+// #1767 (D10): every slug word stoplisted or sub-length used to EMPTY ownTokens and silently switch the
+// leak floor off for the whole run. With plan.file present the plan basename is the single anchor
+// token, the fallback is logged, and a leak still refuses; the basename itself is the token that passes.
+const STOPLIST_ARGS = (intent) => PROVISION_ARGS({
+  planSlug: 'test-and-fix',
+  plan: { file: 'docs/plans/test-and-fix.md', gate: 'make gate' },
+  phase: { id: 3, title: 'P3', integrationBranch: 'integration/test-and-fix/phase-3', workingBranch: 'dev/test-and-fix' },
+  intent,
 })
 
-// Recorded blast radius (audit, r3): the source:'auto' exemption makes auto-stamped backstop text a
-// TRUSTED, unscanned channel — a poisoned auto row would pass the provenance floor by construction.
-// Accepted residual: auto rows are Setup-recorded and ride the Lead-assembled args channel, so the
-// exemption trusts a Lead-supplied flag — bounded because intent is never exempt and a foreign
-// planFile stamp still refuses.
-test("provenance floor: a source:'auto' row is exempt from the scan — its foreign-looking text never refuses", async () => {
-  const args = PROVISION_ARGS({
-    backstops: [{ check: 'grep -F pattern docs/plans/foreign-thing.md', why: 'setup-recorded', runner: 'operator', source: 'auto' }],
-  })
-  const { out } = await runPhase(args, defaultImpl)
-  assert.equal(out.landDecision, 'landed', `auto-row foreign id is exempt — got ${out.landDecision}`)
+test('provenance floor: stoplist fallback logs and still fires', async () => {
+  const leak = await runPhase(STOPLIST_ARGS('Ship the improvements without breaking anything.'), defaultImpl)
+  assert.equal(leak.out.landDecision, 'held:workflow-error', 'a token-less intent under a fully-stoplisted slug is REFUSED — the floor never silently switches off (#1767)')
+  assert.match(leak.out.workflowError.message, /contains none of the run's own plan-slug tokens \[test-and-fix\]/,
+    'the refusal names the plan-basename anchor the fallback derived')
+  assert.equal(leak.calls.length, 0, 'zero agents spawned')
+  const fallbackLog = leak.logs.find(l => /falling back to the plan basename "test-and-fix" as the single anchor token \(#1767\)/.test(l))
+  assert.ok(fallbackLog, `the fallback is logged — logs: ${JSON.stringify(leak.logs.filter(l => /own-token/.test(l)))}`)
+  // The basename anchor is word-bounded and regex-escaped (a slug carries hyphens; a basename may carry dots).
+  const own = await runPhase(STOPLIST_ARGS('Deliver the test-and-fix end states without regressions.'), defaultImpl)
+  assert.equal(own.out.landDecision, 'landed', `the basename anchor passes the fallback floor — got ${own.out.landDecision}`)
+  const sub = await runPhase(STOPLIST_ARGS('Deliver the test-and-fixture end states.'), defaultImpl)
+  assert.equal(sub.out.landDecision, 'held:workflow-error', 'a substring hit inside a larger word proves nothing under the fallback anchor either')
 })
 
-test("provenance floor: an exempt row's text still vouches for a generic sibling row (the #1666 false-refusal direction)", async () => {
+// D10 (#1749): exemption is from the OWN-TOKEN floor only. The source:'auto' flag rides the same
+// Lead-assembled args channel a foreign blob rides, so an exempt row's text is still scanned for a
+// foreign docs/plans identifier — the pre-D10 exemption was a refusal bypass for foreign auto rows.
+test('provenance floor: exempt row foreign id refuses', async () => {
+  const auto = await runPhase(PROVISION_ARGS({
+    backstops: [{ check: 'grep -F pattern docs/plans/foreign-thing.md', why: 'setup-recorded wtprov', runner: 'operator', source: 'auto' }],
+  }), defaultImpl)
+  assert.equal(auto.out.landDecision, 'held:workflow-error', "a source:'auto' row citing a foreign plan path refuses at entry")
+  assert.match(auto.out.workflowError.message, /args\.backstops names a foreign docs\/plans identifier \(docs\/plans\/foreign-thing\.md\)/,
+    'the refusal names the arg and the foreign identifier')
+  assert.equal(auto.calls.length, 0, 'zero agents spawned')
+  // The own-plan planFile stamp exempts the row from the own-token floor, never from the foreign-id scan.
+  const stamped = await runPhase(PROVISION_ARGS({
+    adjudications: [{ adjudicated: 'ruled: keep the legacy arm per docs/plans/some-other-plan.md', planFile: 'docs/plans/wtprov-A.md' }],
+  }), defaultImpl)
+  assert.equal(stamped.out.landDecision, 'held:workflow-error', 'an own-plan planFile-stamped row citing a foreign plan path refuses at entry')
+  assert.match(stamped.out.workflowError.message, /args\.adjudications names a foreign docs\/plans identifier \(docs\/plans\/some-other-plan\.md\)/)
+  // A source:'auto' row stamped with a FOREIGN planFile refuses on the stamp: the source flag never
+  // buys a bypass of the direct stamp refusal (the stamp arm is read before the auto exemption).
+  const autoStamp = await runPhase(PROVISION_ARGS({
+    adjudications: [{ adjudicated: 'ruled: keep the legacy arm', source: 'auto', planFile: 'docs/plans/some-other-plan.md' }],
+  }), defaultImpl)
+  assert.equal(autoStamp.out.landDecision, 'held:workflow-error', "a source:'auto' row carrying a foreign planFile stamp refuses at entry")
+  assert.match(autoStamp.out.workflowError.message, /some-other-plan\.md/, 'the refusal names the foreign stamp')
+  assert.equal(autoStamp.calls.length, 0, 'zero agents spawned')
+  // Control: the same exempt row naming THIS plan's path launches — the scan refuses foreign ids only.
+  const own = await runPhase(PROVISION_ARGS({
+    backstops: [{ check: 'grep -F pattern docs/plans/wtprov-A.md', why: 'setup-recorded', runner: 'operator', source: 'auto' }],
+  }), defaultImpl)
+  assert.equal(own.out.landDecision, 'landed', `an exempt row naming the run's own plan path launches — got ${own.out.landDecision}`)
+})
+
+test('provenance floor: own-token from an exempt row still launches (#1666 control)', async () => {
+  // The own-token search keeps its every-row evidenceText scope — an exempt row's text vouches for a
+  // token-less Lead-normalized sibling row (the #1666 false-refusal direction); D10 never narrowed it.
   const args = PROVISION_ARGS({
     backstops: [
       { check: 'run the smoke suite nightly', why: 'generic Lead-normalized row', runner: 'ci', source: 'plan' },
@@ -11981,6 +12085,11 @@ test("provenance floor: an exempt row's text still vouches for a generic sibling
   const { out } = await runPhase(args, defaultImpl)
   assert.equal(out.landDecision, 'landed',
     `the auto row's own-token evidence covers the token-less plan row — got ${out.landDecision}`)
+  // Delete-the-feature: without the auto row the generic plan row alone is refused.
+  const alone = await runPhase(PROVISION_ARGS({
+    backstops: [{ check: 'run the smoke suite nightly', why: 'generic Lead-normalized row', runner: 'ci', source: 'plan' }],
+  }), defaultImpl)
+  assert.equal(alone.out.landDecision, 'held:workflow-error', 'the generic plan row alone carries no own token and refuses (the control is non-vacuous)')
 })
 
 test('provenance floor: a predecessor citation (supersedes) is excluded from the scan', async () => {
@@ -11989,6 +12098,69 @@ test('provenance floor: a predecessor citation (supersedes) is excluded from the
   })
   const { out } = await runPhase(args, defaultImpl)
   assert.equal(out.landDecision, 'landed', `supersedes citation never refuses — got ${out.landDecision}`)
+})
+
+test('provenance floor: string supersedes row launches', async () => {
+  // #1751: the preformatted STRING row shape adjRow itself renders — the predecessor citation is the
+  // `supersedes … docs/plans/<x>.md` segment, stripped before the foreign-id match.
+  const cited = await runPhase(PROVISION_ARGS({
+    adjudications: ['- D11/A6: the wtprov release slot reads 0.9.1 (supersedes plan literal: docs/plans/2026-08-06-older-foreign-plan.md)'],
+  }), defaultImpl)
+  assert.equal(cited.out.landDecision, 'landed', `a string row citing its predecessor plan launches — got ${cited.out.landDecision}`)
+  // A foreign plan id OUTSIDE the supersedes segment of the same string row still refuses (the strip is narrow).
+  const leak = await runPhase(PROVISION_ARGS({
+    adjudications: ['- D11/A6: per docs/plans/foreign-thing.md the wtprov release slot reads 0.9.1 (supersedes plan literal: docs/plans/2026-08-06-older-foreign-plan.md)'],
+  }), defaultImpl)
+  assert.equal(leak.out.landDecision, 'held:workflow-error', 'a foreign id outside the citation segment still refuses')
+  assert.match(leak.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/, 'the refusal names the leaked id, never the stripped citation')
+  // Mirror direction: a foreign id AFTER the word `supersedes` but outside the citation shape is not a
+  // citation — the strip is anchored to the id directly after `supersedes`, never a lazy span to the
+  // next plan id. Neither row is a value row (isValueRow's string arm needs the value token right
+  // before the render suffix, and both rows open with prose), so both floors are live: the foreign-id
+  // branch is evaluated before the own-token branch and is what refuses, and the message assert pins
+  // `(docs/plans/foreign-thing.md)` — an over-broad strip would red that assert, not the status.
+  for (const row of [
+    '- D11/A6: the ruling supersedes what docs/plans/foreign-thing.md said (supersedes plan literal: 0.9)',
+    'ruled: this supersedes the prior call; see docs/plans/foreign-thing.md (supersedes plan literal: 0.9)',
+  ]) {
+    const after = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
+    assert.equal(after.out.landDecision, 'held:workflow-error', `a foreign id after a bare supersedes word still refuses: ${row}`)
+    assert.match(after.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/, 'the refusal names the foreign id')
+  }
+  // The other citation spellings stay stripped.
+  const colon = await runPhase(PROVISION_ARGS({
+    adjudications: ['- D11/A6: the wtprov release slot reads 0.9.1, supersedes: docs/plans/2026-08-06-older-foreign-plan.md'],
+  }), defaultImpl)
+  assert.equal(colon.out.landDecision, 'landed', `a colon-spelled predecessor citation launches — got ${colon.out.landDecision}`)
+})
+
+test('provenance floor: canonical adjudication rows pass un-doped', async () => {
+  // #1480: the schemas.md `{ adjudicated|value, supersedes }` object and the adjRow string form carry a
+  // VALUE, not intent-bearing prose — a surface of such rows never has to carry an own token.
+  const rows = [
+    { adjudicated: '0.21.13', supersedes: '0.21.12' },
+    { value: '0.21.13', supersedes: '0.21.12' },
+    '0.21.13 (supersedes plan literal: 0.21.12)',
+  ]
+  for (const row of rows) {
+    const { out } = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
+    assert.equal(out.landDecision, 'landed', `un-doped canonical row ${JSON.stringify(row)} launches — got ${out.landDecision}`)
+  }
+  const all = await runPhase(PROVISION_ARGS({ adjudications: rows }), defaultImpl)
+  assert.equal(all.out.landDecision, 'landed', 'a surface of every canonical row shape launches un-doped')
+  // Controls: a token-less PROSE row is still intent-bearing and refuses — alone, and beside the value rows.
+  const prose = await runPhase(PROVISION_ARGS({ adjudications: [{ adjudicated: 'ruled: keep the legacy arm' }] }), defaultImpl)
+  assert.equal(prose.out.landDecision, 'held:workflow-error', 'a supersedes-less prose row is not a value row and still needs an own token')
+  // A prose ruling with a prose supersedes matches the object SHAPE but not the value shape: the
+  // adjudicated field must be one whitespace-free token, so this row stays own-token-scanned and refuses.
+  const proseSup = await runPhase(PROVISION_ARGS({ adjudications: [{ adjudicated: 'ruled: keep the legacy arm', supersedes: 'the prior ruling' }] }), defaultImpl)
+  assert.equal(proseSup.out.landDecision, 'held:workflow-error', 'a prose adjudicated field beside a prose supersedes is not a value row (shape alone never exempts)')
+  // The same row preformatted as its adjRow render refuses too: the string arm anchors the one-token
+  // value segment, so a prose ruling never launches un-doped in string form where its object form refuses.
+  const proseSupStr = await runPhase(PROVISION_ARGS({ adjudications: ['ruled: keep the legacy arm (supersedes plan literal: the prior ruling)'] }), defaultImpl)
+  assert.equal(proseSupStr.out.landDecision, 'held:workflow-error', 'the adjRow render of a prose ruling with a prose supersedes is not a value row either')
+  const mixed = await runPhase(PROVISION_ARGS({ adjudications: [...rows, 'ruled: keep the legacy arm this run'] }), defaultImpl)
+  assert.equal(mixed.out.landDecision, 'held:workflow-error', 'value rows never vouch for a token-less prose sibling')
 })
 
 test('provenance floor: a Lead-stamped planFile row naming THIS plan is exempt', async () => {
