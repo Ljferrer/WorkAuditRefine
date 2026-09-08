@@ -37,17 +37,18 @@ becomes a land or escalation enum member.**
    provision-barrier refiner, not the engine.** A task branch that is an ancestor of the adopted
    integration tip AND carries at least one commit above the phase integration base — the integration
    branch's fork point off the working branch, `git merge-base <adopted tip> <working branch>`, not the
-   adopted tip of item 1 — (`merge-base --is-ancestor` and `rev-list --count <phase-integration-base>..<branch>`
-   > 0) is recorded `merged` (terminal, task-level status — never `landed`, which is phase-level) and
-   never re-dispatched; a zero-commit ancestor is never reported `merged` — it is vacuously an ancestor
-   and takes the ordinary dispatch path (#1895, #2006); the count's base is the integration branch's fork
-   point off the working branch, so a zero-commit branch cut at a LATER relaunch's adopted tip is a
-   recorded residual, checked by hand per the runbook; only non-ancestor, zero-commit, or absent-branch
-   tasks run. The ancestry checks are shell, and the Workflow sandbox has no shell or filesystem — so the
-   **existing** provision-barrier refiner dispatch runs them and returns the merged set (a `preMerged`
-   list on its env-outcome); the engine only routes that result. Git is the source of truth (ADR 0008);
-   issue labels and `ledger.json` are reconciled toward the derived answer by the Lead, never the
-   reverse. (§4.2)
+   adopted tip of item 1 — (`merge-base --is-ancestor` and
+   `rev-list --count <phase-integration-base>..<branch>` > 0) is recorded `merged` (terminal, task-level
+   status — never `landed`, which is phase-level) and never re-dispatched; a zero-commit ancestor is never
+   reported `merged` — it is vacuously an ancestor and takes the ordinary dispatch path (#1895, #2006); a
+   zero-commit branch cut at a LATER relaunch's adopted tip counts its siblings' commits and is not caught
+   here — it is a recorded residual whose manual `rev-list --count` check rides
+   [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]];
+   only non-ancestor, zero-commit, or absent-branch tasks run. The ancestry checks are shell, and the
+   Workflow sandbox has no shell or filesystem — so the **existing** provision-barrier refiner dispatch runs
+   them and returns the merged set (a `preMerged` list on its env-outcome); the engine only routes that
+   result. Git is the source of truth (ADR 0008); issue labels and `ledger.json` are reconciled toward the
+   derived answer by the Lead, never the reverse. (§4.2)
 
 3. **Only the unfinished task is re-dispatched, and it earns the same evidence as a first run.** The
    re-dispatched task gets the full Work+Audit loop, the serial Refine merge, and the post-merge gate-audit
