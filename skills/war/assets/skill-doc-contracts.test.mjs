@@ -3012,6 +3012,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
 
 // (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
 // correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
+// Since the 2026-09-06 living-ADR ruling that law is amendment-scoped: Decision-section prose on
+// ADR 0013 is edited in place with a dated `## Decision log` line (Decision 4, 2026-09-08), while
+// the pre-existing dated amendments stay append-only and byte-untouched.
 // Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to the NEXT H2 (or EOF), so a
 // later appended amendment cannot satisfy a key on the guarded amendment's behalf (sibling
 // amendments carry the same byte-discipline closing sentence, so an EOF-bound or whole-file key
@@ -3323,7 +3326,10 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // exhaustion") and the 2026-08-27 amendment's currency clause (the floor-retry reserve) are
 // historical law that survives byte-untouched by design, each superseded in *currency* by a dated
 // note rather than edited. A blanket absence assert over the ADR would demand the very edit the
-// append-only law forbids. So the exemption is not a hole: the final block below asserts BOTH
+// append-only law forbids. (The 2026-09-06 living-ADR ruling scopes that law to the dated
+// amendments: Decision-section prose is edited in place with a dated `## Decision log` line, and
+// the amendments themselves stay append-only — so the exemption still holds for them.) So the
+// exemption is not a hole: the final block below asserts BOTH
 // sides of it — the historical clauses still present AND the dated supersession notes present —
 // so deleting the history, or dropping the note that makes it readable as history, reds here.
 //
