@@ -1576,16 +1576,22 @@ const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(remintKey(f)) }
 const recordAced = (f, sha, extra) => {
   acedKeys.add(remintKey(f))
   if (extra && extra.citation) {
-    // Widened unpark match (both derivations): the parked record's key came from the round-1 ask's
-    // `question`; the citation-carrying absorb's key derives from its own `ask.question` OR `title`
-    // (the prompt contract asks the seat to echo the parked `ask` field verbatim, but the schema
-    // makes `ask` mandatory only on disposition:'ask' — so match against every derivation the
-    // citation shape can carry, and LOG a miss: an executed-but-still-parked ask is never silent).
+    // Unpark match (D11, #1863): the parked record's key came from the round-1 ask's `question`.
+    // The EXACT `ask.question` derivation is preferred — the prompt contract asks the seat to echo
+    // the parked `ask` field verbatim — and only when the finding carries no `ask.question` does
+    // the match widen to the title derivation (the schema makes `ask` mandatory only on
+    // disposition:'ask'). Whichever derivation applies must match EXACTLY ONE parked record: a
+    // multi-hit (a title coinciding with another parked question) never splices the first hit,
+    // and a miss is LOGGED — an executed-but-still-parked ask is never silent.
+    const exact = (f.ask && f.ask.question) ? askContentKey({ task: f.task, ask: { question: f.ask.question } }) : null
     const keys = new Set([askContentKey(f)])
     if (typeof f.title === 'string' && f.title) keys.add(askContentKey({ task: f.task, title: f.title }))
-    if (f.ask && f.ask.question) keys.add(askContentKey({ task: f.task, ask: { question: f.ask.question } }))
-    const i = asks.findIndex(a => keys.has(askKeyOf.get(a)))
-    if (i !== -1) {
+    const hitsOf = pred => asks.reduce((acc, a, idx) => (pred(askKeyOf.get(a)) ? acc.concat(idx) : acc), [])
+    const hits = exact ? hitsOf(k => k === exact) : hitsOf(k => keys.has(k))
+    const i = hits.length === 1 ? hits[0] : -1
+    if (hits.length > 1) {
+      log('citation absorb matched ' + hits.length + ' parked asks (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') aced at ' + sha + ' — no unique parked record to resolve, so NO ask is unparked or prefilled (a title coincidence never splices another question, #1863); the operator rules the parked questions at the Checkpoint.')
+    } else if (i !== -1) {
       if (run.afk === true) {
         asks.splice(i, 1)
         log('parked ask resolved by citation (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — the aced record carries row-id + match rationale.')
@@ -2644,6 +2650,44 @@ if (tasks.length) {
   }
 }
 
+// Citation extraction (D6, absorb-by-citation): a well-formed `citation` on a finding — `row`
+// (the standing adjudication row's identifying text) + optional one-line match `rationale`.
+// Malformed/absent ⇒ null (fail-open — the finding rides as a plain absorb, no stamp).
+// ROW-EXISTENCE FLOOR (trust boundary, D11/PIN-15): a seat-asserted `citation` is the only thing
+// standing between a claim and the removal of an operator-gated ask from the Checkpoint channel, so
+// the cited row must be a MEMBER of the threaded adjudications set the engine already holds. The
+// test is DIRECTIONAL: exact match, or the threaded row CONTAINS the cited text — never the reverse
+// (a seat string that merely contains a short threaded row is a superset, not a member, #1858) —
+// and the cited text must reach CITATION_MIN_LENGTH (a short fragment would match nearly every
+// row). Existence is mechanical set-membership, not the A2 matching judgment (which stays with the
+// re-audit panel); a fabricated/mis-transcribed/short/superset row fails open to a PLAIN absorb (no
+// stamp, no unpark) and the refusal is logged once per row per PHASE — the refusal registry lives
+// at file scope, above the wave loop, so a second wave never re-logs the same row (#1864).
+// The returned `row` is the MATCHED THREADED row's own bytes (`threadedRow` is the same value under
+// its explicit name; `cited` keeps the seat's string for the refusal/miss logs): the ace dispatch
+// row, the soundness clause, the afk resolution log and the durable aced.citation.row all carry
+// text the engine validated, never the seat's transcription (#1858).
+const CITATION_MIN_LENGTH = 24
+const refusedCitationRows = new Set()
+const refuseCitation = (row, why) => {
+  if (refusedCitationRows.has(row)) return null
+  refusedCitationRows.add(row)
+  log('citation REFUSED (row-existence floor): cited row "' + row + '" ' + why + ' — the finding rides as a PLAIN absorb (no stamp, no ask unpark). Existence is mechanical set-membership; the soundness judgment stays with the re-audit panel (A2).')
+  return null
+}
+const citationOf = f => {
+  if (!(f && f.citation && typeof f.citation === 'object' && typeof f.citation.row === 'string' && f.citation.row)) return null
+  const row = f.citation.row
+  if (row.length < CITATION_MIN_LENGTH) return refuseCitation(row, 'is ' + row.length + ' characters, under the ' + CITATION_MIN_LENGTH + '-character citation floor (a short fragment is not a row, PIN-15)')
+  // threadedRow (#1879 recovery seed S2): the MATCHED threaded standing row's own bytes — the
+  // strike-list prefill renders THIS, never the seat's citation string (a paraphrase would turn
+  // the operator's one-keystroke confirm into ratifying a description of a row, not the row).
+  let threadedRow = null
+  const member = adjudications.some(r => { const t = adjRow(r); if (typeof t === 'string' && t.length > 0 && (t === row || t.includes(row))) { threadedRow = t; return true } return false })
+  if (!member) return refuseCitation(row, 'matches no threaded standing adjudication row (exact or contained-by-row only; a superset of a row is not a member, PIN-15)')
+  return { row: threadedRow, threadedRow, cited: row, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
+}
+
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // ---- DEP-BLOCK PRE-CHECK — placement is load-bearing (plan §Phase 3, Step 3) ----
@@ -2695,33 +2739,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (g.length < 2) return null                        // atomic — cannot split without breaking D3
     const mid = Math.ceil(g.length / 2)
     return [g.slice(0, mid).flat(), g.slice(mid).flat()]
-  }
-  // Citation extraction (D6, absorb-by-citation): a well-formed `citation` on a finding — `row`
-  // (the standing adjudication row's identifying text) + optional one-line match `rationale`.
-  // Malformed/absent ⇒ null (fail-open — the finding rides as a plain absorb, no stamp).
-  // ROW-EXISTENCE FLOOR (trust boundary): a seat-asserted `citation` is the only thing standing
-  // between a claim and the removal of an operator-gated ask from the Checkpoint channel, so the
-  // cited row must be a MEMBER of the threaded adjudications set the engine already holds — exact
-  // or containment match against adjRow(r). Existence is mechanical set-membership, not the A2
-  // matching judgment (which stays with the re-audit panel); a fabricated/mis-transcribed row
-  // fails open to a PLAIN absorb (no stamp, no unpark) and the refusal is logged once per row.
-  const refusedCitationRows = new Set()
-  const citationOf = f => {
-    if (!(f && f.citation && typeof f.citation === 'object' && typeof f.citation.row === 'string' && f.citation.row)) return null
-    const row = f.citation.row
-    // threadedRow (#1879 recovery seed S2): the MATCHED threaded standing row's own bytes — the
-    // strike-list prefill renders THIS, never the seat's citation string (a paraphrase would turn
-    // the operator's one-keystroke confirm into ratifying a description of a row, not the row).
-    let threadedRow = null
-    const member = adjudications.some(r => { const t = adjRow(r); if (typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t))) { threadedRow = t; return true } return false })
-    if (!member) {
-      if (!refusedCitationRows.has(row)) {
-        refusedCitationRows.add(row)
-        log('citation REFUSED (row-existence floor): cited row "' + row + '" matches no threaded standing adjudication row — the finding rides as a PLAIN absorb (no stamp, no ask unpark). Existence is mechanical set-membership; the soundness judgment stays with the re-audit panel (A2).')
-      }
-      return null
-    }
-    return { row, threadedRow, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
   }
   // Shared unsound-citation lookup (D6 naming duty, PIN-7): pairs a batch finding's citation with a
   // blocking re-audit finding flagged citationUnsound so EVERY demote path fed by a regressed
@@ -4787,7 +4804,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           terminalQueue.push(f)
           continue
         }
-        recordAced(f, polishSha)
+        recordAced(f, polishSha, citationOf(f) ? { citation: citationOf(f) } : null)   // #1873: the sweep path keeps the citation stamp
       }
       log('phase-close sweep: ' + terminalQueue.length + ' queued finding(s) diverted to the terminal queue (unlanded by the sweep commit); the rest recorded aced at ' + polishSha + '.')
       // Merged-arm routing (#1377, D3a): sweep-raised Minor/Nits route by disposition — an absorb
@@ -4935,7 +4952,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
               { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') })
             if (tmr && tmr.status === 'merged') {
               log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
-              for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true })
+              for (const f of terminalRows) recordAced(f, terminalSha, { terminal: true, ...(citationOf(f) ? { citation: citationOf(f) } : {}) })   // #1873-class: the terminal path keeps the citation stamp too
             } else {
               log('terminal pass: phase ' + ph.id + ' — the terminal commit ' + terminalSha + ' did not merge (' + ((tmr && tmr.status) || 'no result') + '); left on ' + polishBranch + ' unmerged (reaping is a human act); the pass is spent — ' + (finalPhase ? 'rows demote' : 'rows carry') + '.')
               for (const f of terminalRows) {

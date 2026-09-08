@@ -12838,7 +12838,7 @@ const citationF = () => ({ severity: 'Minor', title: 'mirrored value rides docs/
   citation: { row: 'ADJ-7: doc facts point at the source, never mirror', rationale: 'the row rules the mirror-vs-point trade-off this ask names' },
   suggested_fix: 'replace the mirrored value with a source pointer' })
 // Args for the citation family: the row-existence floor admits only citations whose `row` matches
-// a THREADED adjudication row (exact/containment against adjRow), so these fixtures thread the
+// a THREADED adjudication row (exact, or the threaded row contains the cited text at ≥ 24 characters — D11), so these fixtures thread the
 // standing set (the row text carries the run's own 'wtprov' slug token for the provenance floor).
 const CITED_ADJ = ['ADJ-7: doc facts point at the source, never mirror — ruled at the wtprov decompose gate']
 const CITE_ARGS = (over = {}) => ACE_ARGS({ adjudications: CITED_ADJ, ...over })
@@ -12855,11 +12855,14 @@ test('citation-resolve (End state 4, afk+match arm — #1879 RULING 1): under ru
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 2, 'batch + the citation-resolved re-entry batch')
   assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH'), 'the citation absorb executes via the re-entry vehicle (D6)')
-  assert.ok(aces[1].prompt.includes('[absorb-by-citation: row "ADJ-7: doc facts point at the source, never mirror" — the row rules the mirror-vs-point trade-off this ask names]'),
-    'the dispatch row stamps row-id + match rationale so the ace commit message carries the citation (PIN-7 record floor)')
+  // D11/#1858: every carrier quotes the MATCHED THREADED row's bytes (CITED_ADJ[0]), never the seat's
+  // citation string (a strict prefix of the row here — the fixture discriminates the two).
+  assert.ok(aces[1].prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '" — the row rules the mirror-vs-point trade-off this ask names]'),
+    'the dispatch row stamps the THREADED row + match rationale so the ace commit message carries validated text (PIN-7 record floor, D11)')
   const acedEntry = (out.aced || []).find(x => x && x.citation)
-  assert.ok(acedEntry && acedEntry.citation.row === 'ADJ-7: doc facts point at the source, never mirror',
-    'the durable aced record carries the row-id')
+  assert.ok(acedEntry && acedEntry.citation.row === CITED_ADJ[0],
+    'the durable aced record carries the threaded row (never the seat transcription)')
+  assert.notEqual(acedEntry.citation.row, citationF().citation.row, 'fixture control: the seat string differs from the threaded row, so the equality above is discriminating')
   assert.ok(acedEntry.citation.rationale.includes('mirror-vs-point'), 'the aced record carries the one-line match rationale')
   // The parked round-1 ask RESOLVES on the ECHOED ask.question key — the citation finding's title
   // deliberately differs from the question, so a title-keyed resolve would false-miss here.
@@ -12871,7 +12874,7 @@ test('citation-resolve (End state 4, afk+match arm — #1879 RULING 1): under ru
   const t1Audits = calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness')
   assert.ok(t1Audits[2] && t1Audits[2].prompt.includes('CITATION SOUNDNESS'),
     'the re-audit prompt for the citation-resolved batch carries the CITATION SOUNDNESS charge')
-  assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "ADJ-7: doc facts point at the source, never mirror" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
+  assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "' + CITED_ADJ[0] + '" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
     'the soundness charge enumerates the citation payload (finding title + row-id + match rationale) into the panel prompt')
   assert.ok(!t1Audits[0].prompt.includes('CITATION SOUNDNESS'), 'a citation-less round carries no soundness clause (byte-identity preserved)')
 })
@@ -12905,8 +12908,8 @@ test('citation-resolve (interactive+match arm, negative control — #1879 RULING
   // Telemetry symmetry (#1879 RULING 1(4)): the aced/citation record — the /war-review
   // over-broad-row narrowing signal's source — is written in the interactive mode too.
   const acedEntry = (out.aced || []).find(x => x && x.citation)
-  assert.ok(acedEntry && acedEntry.citation.row === 'ADJ-7: doc facts point at the source, never mirror',
-    'the interactive execution records in the SAME telemetry channel (aced record with row-id + rationale)')
+  assert.ok(acedEntry && acedEntry.citation.row === CITED_ADJ[0],
+    'the interactive execution records in the SAME telemetry channel (aced record with the threaded row + rationale)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask citation-matched') && l.includes('STAYS PARKED')),
     'the surface-instead-of-unpark path is logged')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation')),
@@ -12929,8 +12932,8 @@ test('citation-resolve (production shape, ask-less citation — mode-split pair,
                                  approveWith('audit:t1:correctness', [])] },
       quietGate(aceBase([askFinding(), a])))
     const { out, logs } = await runPhase(CITE_ARGS({ run: { ace: true, ...runOver } }), impl)
-    assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === 'ADJ-7: doc facts point at the source, never mirror'),
-      `[${mode}] the ask-less citation absorb still aces with its citation stamp`)
+    assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === CITED_ADJ[0]),
+      `[${mode}] the ask-less citation absorb still aces with its citation stamp (the threaded row, D11)`)
     assert.equal((out.asks || []).length, 1, `[${mode}] the parked ask SURVIVES — with no echoed ask field and a differing title, no content key matches (never a coincidence-shaped unpark${mode === 'afk' ? '; decisive: afk unpark is live and the key miss blocks it' : ''})`)
     assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation absorb executed with NO matching parked ask')),
       `[${mode}] the no-match case is LOGGED (never a silent no-op) — the operator still rules the parked question at the Checkpoint`)
@@ -12961,6 +12964,107 @@ test('citation row-existence floor (mode-split pair, #1879 addition 2): a FABRIC
     if (mode === 'interactive') assert.ok(!out.asks[0].citationPrefill,
       'a floor-refused citation attaches NO prefill — a fabricated row must never render as a one-confirm prefill')
   }
+})
+
+test('citation floor: directional with length floor (D11, PIN-15, #1858): a short fragment and a superset of a threaded row are both refused; a contained citation matches and every carrier records the THREADED row', async () => {
+  // Corpus measurement (A5): the shortest `## Adjudications` bullet across docs/red-team/ at the
+  // task base is 66 B, so the 24-character floor sits under every real row while a 16-character
+  // fragment of one is refused. Both refusal arms run under --afk (unpark is live there, so a
+  // false admit would splice the operator's parked ask — the decisive oracle).
+  const run = { ace: true, afk: true }
+  const arm = async citation => {
+    const f = citationF(); f.citation = citation
+    const impl = buildSeqImpl(
+      { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), f]),
+                                 approveWith('audit:t1:correctness', [])] },
+      quietGate(aceBase([askFinding(), f])))
+    return runPhase(CITE_ARGS({ run }), impl)
+  }
+  // 1. short fragment: contained by the threaded row, but under the floor.
+  const short = 'ADJ-7: doc facts'
+  assert.ok(short.length < 24 && CITED_ADJ[0].includes(short), 'fixture control: the fragment is a genuine substring of the threaded row — only the length floor can refuse it')
+  const s = await arm({ row: short, rationale: 'fragment' })
+  assert.ok(s.logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes(short) && l.includes('under the 24-character citation floor')),
+    'the short fragment is refused BY LENGTH, logged with the floor value')
+  assert.equal((s.out.asks || []).length, 1, 'the fragment never unparks the ask (afk unpark is live — the floor blocks it)')
+  assert.ok(!(s.out.aced || []).some(x => x && x.citation), 'no aced record carries a citation stamp for the fragment')
+  // 2. superset: the seat string CONTAINS the whole threaded row — the retired `row.includes(t)` arm admitted it.
+  const superset = CITED_ADJ[0] + " — plus the seat's own gloss"
+  assert.ok(superset.includes(CITED_ADJ[0]) && !CITED_ADJ[0].includes(superset), 'fixture control: the superset contains the row, the row does not contain the superset — only a directional test refuses it')
+  const u = await arm({ row: superset, rationale: 'superset' })
+  assert.ok(u.logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('a superset of a row is not a member')),
+    'the superset is refused as a non-member (containment runs one way: threaded row contains cited text)')
+  assert.equal((u.out.asks || []).length, 1, 'the superset never unparks the ask')
+  assert.ok(!(u.out.aced || []).some(x => x && x.citation), 'no aced record carries a citation stamp for the superset')
+  // 3. match: a contained citation (a strict prefix of the row) matches, and every carrier quotes the threaded row.
+  const m = await arm(citationF().citation)
+  const acedEntry = (m.out.aced || []).find(x => x && x.citation)
+  assert.ok(acedEntry, 'the contained citation matches and stamps the aced record')
+  assert.equal(acedEntry.citation.row, CITED_ADJ[0], 'aced.citation.row IS the threaded row (never the seat transcription)')
+  assert.equal(acedEntry.citation.threadedRow, CITED_ADJ[0], 'threadedRow names the same bytes')
+  assert.equal(acedEntry.citation.cited, citationF().citation.row, 'the seat string survives under `cited` for the logs')
+  assert.notEqual(acedEntry.citation.row, citationF().citation.row, 'fixture control: the seat string is a strict prefix, so row-vs-cited is discriminating')
+  const ace = m.calls.filter(isAce)[0]                 // round-1 batch: the citation rides the first ace here
+  assert.ok(ace && ace.prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '"'), 'the ace dispatch row carries the threaded row')
+  const reaudit = m.calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness')[1]
+  assert.ok(reaudit && reaudit.prompt.includes('cites row "' + CITED_ADJ[0] + '"'), 'the soundness clause carries the threaded row')
+  assert.ok(m.logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")')), 'the afk resolution log carries the threaded row')
+  assert.equal((m.out.asks || []).length, 0, 'the matched citation resolves the parked ask under --afk')
+})
+
+test('recordAced: unique-match before splice (D11, #1863): the exact ask.question derivation wins over a title coinciding with ANOTHER parked question — the coincident ask is never spliced under --afk', async () => {
+  // Two parked asks on t1, B parked FIRST so a first-hit scan over the widened key set (the retired
+  // findIndex shape) would splice B on the title coincidence; the exact ask.question derivation
+  // names A and only A.
+  const askB = askFinding({ title: 'pin or float', ask: { question: 'pin the version or float it?', fork: ['pin', 'float'] } })
+  const cite = citationF(); cite.title = 'pin the version or float it?'   // coincides with B's question; ask.question echoes A's
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askB, askFinding(), cite]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askB, askFinding(), cite])))
+  const { out, logs } = await runPhase(CITE_ARGS({ run: { ace: true, afk: true } }), impl)
+  assert.equal((out.asks || []).length, 1, 'exactly one ask survives — the citation resolved ONE parked record')
+  assert.equal(out.asks[0].question, 'pin the version or float it?', 'the title-coincident ask B survives; A (the echoed ask.question) resolved')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation') && l.includes('"pin the version or float it?" (task t1)')), 'the resolution names the citation finding by its (coincident) title')
+  // Ask-less arm: with no ask.question the title derivation is the only key — it names B uniquely and resolves it.
+  const askless = citationF(); delete askless.ask; askless.title = 'pin the version or float it?'
+  const impl2 = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askB, askFinding(), askless]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askB, askFinding(), askless])))
+  const r2 = await runPhase(CITE_ARGS({ run: { ace: true, afk: true } }), impl2)
+  assert.equal((r2.out.asks || []).length, 1, 'the title derivation resolves exactly one ask when no ask.question is echoed')
+  assert.equal(r2.out.asks[0].question, 'mirror the value or point at the source?', 'A survives; B resolved on the title derivation')
+})
+
+test('citation refusal: once per phase (D11, #1864): the same fabricated row cited in two waves logs ONE refusal — the registry sits above the wave loop', async () => {
+  const fab = () => { const f = citationF(); f.citation = { row: 'ADJ-99: an adjudication row nobody threaded', rationale: 'fabricated' }; return f }
+  const args = CITE_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+  ], run: { ace: true } })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [fab()]), approveWith('audit:t1:correctness', [])],
+      'audit:t2:correctness': [approveWith('audit:t2:correctness', [fab()]), approveWith('audit:t2:correctness', [])] },
+    quietGate(aceBase([])))
+  const { out, calls, logs } = await runPhase(args, impl)
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'presence guard: both tasks land across two waves')
+  assert.equal(calls.filter(isAce).length, 2, 'presence guard: each wave dispatched its plain-absorb ace (the citation was refused in both)')
+  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99')).length, 1,
+    'ONE refusal log for the row across both waves (a per-wave registry would log twice)')
+})
+
+test('sweep aced: citation threaded (D11, #1873): a citation-carrying absorb that rides the phase-close sweep records aced.citation.row = the threaded row and resolves the parked ask under --afk', async () => {
+  const cite = citationF(); cite.phaseClose = true            // phaseClose routes straight to the sweep queue (no per-task ace)
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ adjudications: CITED_ADJ, run: { ace: true, afk: true } }), sweepBase([askFinding(), cite]))
+  assert.equal(out.handoff.polish, 'merged', 'presence guard: the sweep merged')
+  assert.ok(!calls.some(isAce), 'presence guard: the citation absorb never rode a per-task ace — the sweep is its vehicle')
+  const entry = (out.aced || []).find(a => a && a.finding && a.finding.title === 'mirrored value rides docs/x.md')
+  assert.ok(entry && entry.sha === 'polishsha', 'the queued citation absorb is aced at the polish sha')
+  assert.ok(entry.citation && entry.citation.row === CITED_ADJ[0], 'the sweep-path aced record carries the citation with the THREADED row (PIN-7 record floor holds on this path)')
+  assert.ok(entry.citation.rationale.includes('mirror-vs-point'), 'and the match rationale')
+  assert.equal((out.asks || []).length, 0, 'the parked ask resolves at the sweep under --afk (the aced record explains the ruling)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('polishsha')), 'the resolution is logged at the polish sha')
 })
 
 test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
@@ -13356,7 +13460,8 @@ test('ace-group-path (End state 8): aceGroups and the Ace-Subset trailer key on 
   assert.ok(relM, 'the file-scope aceRelPath helper is locatable')
   const aceRelPath = new Function('return ' + relM[1])()
   const sliceStart = src.indexOf('const aceGroups')
-  const sliceEnd = src.indexOf('const citationOf')
+  // citationOf is file-scope too now (D11, #1864 hoist) — the slice ends at the next wave-loop construct.
+  const sliceEnd = src.indexOf('const unsoundReason')
   assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceGroups→aceHalve engine slice is locatable')
   const { aceGroups, aceHalve } = new Function('aceRelPath',
     src.slice(sliceStart, sliceEnd) + '\nreturn { aceGroups, aceHalve }')(aceRelPath)
@@ -14072,10 +14177,10 @@ test('#1944 — recordAced call-site census: every occurrence is a NAMED legitim
   const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
   assert.ok(helper, 'the recordAcedTouched helper exists')
   assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
-  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha\)/,
-    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual)")
-  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true \}\)/,
-    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent)')
+  assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha, citationOf\(f\) \? \{ citation: citationOf\(f\) \} : null\)/,
+    "site 2 is the sweep polish arm — a DELIBERATE direct site: its tip carries a full default-roster re-audit by construction; the #1944 partial-fix shape applies to it too EXCEPT the one case the sweep's changed-file report disproves (terminal-pass D3a — an untouched queued row joins the terminal queue instead; the rest stay recorded aced on re-approval alone, the ruled residual); it threads citationOf(f) so the aced record keeps its citation stamp (#1873)")
+  assert.match(code, /for \(const f of terminalRows\) recordAced\(f, terminalSha, \{ terminal: true, \.\.\.\(citationOf\(f\) \? \{ citation: citationOf\(f\) \} : \{\}\) \}\)/,
+    'site 3 is the terminal-pass merged arm (D3a) — a DELIBERATE direct site: one re-audit seat approved the terminal sha and the refiner merged it; the same #1944-class residual applies (ruled, not silent); it threads citationOf(f) too (#1873-class)')
   assert.equal((code.match(/recordAcedTouched\(/g) || []).length, 3,
     'exactly 3 recordAcedTouched CALL sites: bisect subset, re-entry batch, ace batch')
   assert.equal((code.match(/const recordAcedTouched = /g) || []).length, 1, 'defined exactly once')
