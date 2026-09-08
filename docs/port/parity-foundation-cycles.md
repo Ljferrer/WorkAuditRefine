@@ -23,7 +23,7 @@ is no randomized no-guidance control, and changed tasks/models can affect result
 Measure named-site versus sibling/consumer coverage, new defects in repairs,
 repeated or reversed fixes, false positives, and rounds—not only approvals.
 
-## T1 evidence in progress
+## T1 initial evidence (historical)
 
 - Discovered suites from tracked paths, never recursive worktree traversal.
 - Negative controls: omitted/missing/empty inventory; nonzero shell status with
@@ -235,3 +235,13 @@ opt-in host skips, zero failures/cancellations/todos; source/index/content stabl
 Report: `/private/tmp/war-parity-baseline-final.WQ8aIV/report/report.json`.
 This precedes the final coverage and ledger-shape repairs; final handoff requires
 fresh verification, not relabeling this report with a newer revision.
+
+### Cycle 8 — repaired T1–T3 acceptance
+
+- Launched against `4890769` with the same three read-only lenses and explicit
+  profile; eight of twelve panels used. Raw result location:
+  `/private/tmp/war-parity-cycle8.9Xu3q7/audit-result.json`.
+- Final seat outcomes and the fresh integrated-baseline source pin are recorded
+  in this branch's PR and the requested #2097 measurement comment. Those external
+  acceptance records can cite the tested commit without changing its source just
+  to embed its own SHA. This log preserves the implementation/repair history.
