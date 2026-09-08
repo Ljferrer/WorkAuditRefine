@@ -17046,13 +17046,14 @@ test('polish-discarded: findings become follow-ups — a panel-approved polish b
   assert.deepEqual(final.out.carriedPhaseClose, [], 'nothing carried on the final phase')
 })
 
-// #2096: ONE dropDup helper owns the find-log-mergeSeat shape at both duplicate-drop sites. Census
-// floor (PIN-4): `dropDup(` counts the call sites — the never-ran drain (drainHeldAbsorbs) and the
-// absorb tail's two sinks (routeAbsorbTail: the phase-close queue, then the ace batch); the
-// definition line reads `dropDup = (` and is pinned by its own signature row below. The three
-// wordings the retired inline copies logged are now dropDup whereNoun args.
-test('dropDup census: one definition owns the duplicate-drop shape at drainHeldAbsorbs and routeAbsorbTail; the three `is a duplicate of a row already` wordings are its whereNoun args (#2096)', () => {
-  assert.ok((src.match(/dropDup\(/g) || []).length >= 3, 'dropDup( appears at least three times: the drain call site and the absorb tail\'s two sink call sites (a floor — hand-scan the sites named below)')
+// #2096: ONE dropDup helper owns the find-log-mergeSeat shape at the drainHeldAbsorbs site and the
+// routeAbsorbTail sites. Census floor (PIN-4): `dropDup(` counts the call sites — the never-ran drain
+// (drainHeldAbsorbs), routeAbsorbTail's phase-close-queue sink and routeAbsorbTail's ace-batch sink;
+// the definition line reads `dropDup = (` and is pinned by its own signature row below. The wordings
+// the retired inline copies logged are now the dropDup whereNoun args `'in this drain'`,
+// `'queued for the phase-close sweep'` and `'in this ace batch'`.
+test('dropDup census: one definition owns the duplicate-drop shape at drainHeldAbsorbs and routeAbsorbTail; the `is a duplicate of a row already` wordings are its whereNoun args `in this drain`, `queued for the phase-close sweep`, `in this ace batch` (#2096)', () => {
+  assert.ok((src.match(/dropDup\(/g) || []).length >= 3, 'dropDup( appears at least three times: the drainHeldAbsorbs call site, routeAbsorbTail\'s phase-close-queue sink call site and routeAbsorbTail\'s ace-batch sink call site (a floor — hand-scan the sites named below)')
   assert.equal((src.match(/^const dropDup = \(list, f, who, taskId, whereNoun\) =>/gm) || []).length, 1, 'ONE definition with the (list, f, who, taskId, whereNoun) signature')
   assert.equal((src.match(/is a duplicate of a row already/g) || []).length, 1, 'the log sentence lives ONLY in dropDup — no inline copy survives')
   assert.ok(src.includes("dropDup(absorbs, f, 'held absorb', t.id, 'in this drain')"), 'drainHeldAbsorbs drops through the helper')
