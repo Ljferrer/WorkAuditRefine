@@ -367,7 +367,8 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
 // artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared).
 // Both triggers are DIRECTED on the seat surfaces (the endStateBlock D8 clause + the auditor card's
 // execution rung 1 — D16, PIN-20, #1781), never only asserted here. A compound check's artifact also
-// carries one `cmd[i] exit: <n>` line per top-level command, its exit_code the MAXIMUM of them (#1782).
+// carries one `cmd[i] exit: <n>` line per statement (`;` / newline boundaries only — an `&&` or `||`
+// list is one statement; 2026-09-07 operator ruling), its exit_code the MAXIMUM of them (#1782).
 const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
     n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: {} } } } } }
@@ -1424,7 +1425,7 @@ const remintKey = f => (f.task ?? '') + '\u0000'
 // route into asks[] — every dispositionOf-site ask arm (the gate-audit floor pass among them,
 // in-band-absorb-default D15: the gate-audit-family seats (per-task (post-merge), integrated-tip
 // and end-state-only) route through that ONE producer, so its ask arm is a census member like any
-// seat's), AND the demote() ask refusal —
+// seat's), AND the demote() ask refusal, AND the post-rebuttal seat-conflict arm's direct park (D19, PIN-23) —
 // funnels through here, so one finding can never park twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
 // drop): a raiser NEW to the record lands on its `corroborators` list; the survivor's own raiser
 // and a duplicate entry are journalled only (the entry paragraph below states the skip test). Record floor:
@@ -1943,6 +1944,52 @@ const routeReauditMinors = (r, seats, opts) => {
 }
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
+// Explicit-escalate reader (verdict-integrity D18, PIN-22, #1664): the seat-supplied `escalate_reason`
+// (schema-required when verdict is escalate) of every escalating seat, joined, or null when no seat
+// escalated. The wave thunk stamps it on the result as escalateReason and the collector writes it
+// onto the escalated[] record as `escalate_reason`, so a decision-forked reason reaches the Lead.
+const escalateReasonOf = seats => {
+  const es = seats.filter(s => s.verdict === 'escalate')
+  return es.length ? es.map(s => (s.seat ?? '?') + ': ' + (blankText(s.escalate_reason) ? '(no escalate_reason)' : s.escalate_reason.trim())).join(' | ') : null
+}
+// Seat-conflict detector (verdict-integrity D19, PIN-23, #1914): a post-rebuttal split where EVERY
+// blocking finding (Critical/Major on a request_changes seat) has a same-locus counterpart (same
+// aceRelPath file; equal line when both carry one) rated Minor/Nit by an approving seat, and at least
+// one side of each pair reasons from scope, mandate or an adjudication match. That is a disagreement
+// about what the task owes, not about the code — an operator fork (fix now, or file a follow-up and
+// merge), synthesized as an ask and parked through parkAsk instead of escalating the phase. Returns
+// the pairs, or null when any blocker is unpaired (the fix / escalate arms judge that panel). The
+// locus predicate is implementer latitude (Mechanism latitude); the rationale test reads the
+// finding's rationale only (a title's bare `scope` word is code-review vocabulary, not a rationale).
+const SCOPE_RATIONALE = /\b(?:scope|mandate|adjudicat\w*)\b/i
+const scopeSided = f => SCOPE_RATIONALE.test(String(f.rationale ?? ''))
+const sameLocus = (a, b) => typeof a.file === 'string' && a.file.length > 0 && typeof b.file === 'string' && b.file.length > 0
+  && aceRelPath(a.file) === aceRelPath(b.file) && (a.line == null || b.line == null || a.line === b.line)
+const seatConflictsOf = seats => {
+  const blockers = seats.filter(s => s.verdict === 'request_changes')
+  const approvers = seats.filter(s => s.verdict === 'approve')
+  if (!blockers.length || !approvers.length) return null
+  const pairs = []
+  for (const s of blockers) {
+    for (const f of (s.findings || [])) {
+      if (f.severity !== 'Critical' && f.severity !== 'Major') continue
+      let pair = null
+      for (const a of approvers) {
+        const g = (a.findings || []).find(g => (g.severity === 'Minor' || g.severity === 'Nit') && sameLocus(f, g) && (scopeSided(f) || scopeSided(g)))
+        if (g) { pair = { seat: s, finding: f, peerSeat: a, peer: g }; break }
+      }
+      if (!pair) return null   // an unpaired blocker: not a seat conflict
+      pairs.push(pair)
+    }
+  }
+  return pairs.length ? pairs : null
+}
+// The synthesized ask (D19): question + the fix-now / follow-up-and-merge fork. Concatenation-built
+// (never a pt literal — it feeds asks[], not a prompt).
+const conflictAsk = p => ({
+  question: 'Seat conflict on ' + aceRelPath(p.finding.file) + (p.finding.line ? ':' + p.finding.line : '') + ': ' + (p.seat.seat ?? '?') + ' (' + (p.seat.lens ?? '?') + ') rates "' + (p.finding.title ?? '') + '" ' + p.finding.severity
+    + ' while ' + (p.peerSeat.seat ?? '?') + ' (' + (p.peerSeat.lens ?? '?') + ') rates it ' + p.peer.severity + ' — fix it now, or file a follow-up and merge?',
+  fork: ['fix-now', 'follow-up-and-merge'] })
 // Ruled-ask queueing (D15(b), #1875): the intake-filtered ruledAsks records (the entry block above)
 // ride the phase-close sweep as absorbs; every push stamps queuedKeys, so a re-audit re-mint of the
 // same task + file + title (a seat re-raising the finding the operator already ruled) is refused by
@@ -2350,14 +2397,18 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // FINDING-PATH FORM (D12; both surfaces since verdict-integrity Task 2.1, #1811/#2005) — shared
     // with the three gate-audit-family seats and mirrored on agents/war-auditor.md; see the const.
     + FINDING_PATH_FORM_CLAUSE
-    // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
-    // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)
-    // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
-    // the zero-hit tokens (required when / however severe) on BOTH auditor surfaces. The intake side
+    // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2;
+    // two-sided since verdict-integrity D18, PIN-22, #1664) — the one-sided clause (required when /
+    // however severe) is mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the
+    // Return shape line) and in the schemas.md AuditVerdict row (same commit); the two-sided extension
+    // (decision-forked / mechanical-with-budget) lives on the card's escalate bullet and in this
+    // prompt only, per the D18 slice — schemas.md never carries it. The D3 both-surfaces registry rows
+    // anchor the zero-hit tokens (required when / however severe; two-sided / decision-forked) on
+    // BOTH auditor surfaces. The intake side
     // is the AUDIT_VERDICT if/then conditional above (enforcement arm recorded at that literal): the
     // schema layer re-prompts a reason-less escalate; a persistently non-conforming seat falls into
     // the existing dropped-seat → audit-blocked lane — no NEW hold path (A8, #1410).
-    + pt`\nESCALATE-BOUNDARY CONTRACT: a non-empty \`escalate_reason\` naming the missing plan decision is required when \`verdict\` is \`escalate\` (the schema layer re-prompts a reason-less escalate). A blocking finding whose \`suggested_fix\` is a concrete in-file edit needing no new plan decision is \`request_changes\` by construction, however severe — if you cannot name the missing plan decision in \`escalate_reason\`, you are looking at a fixable bug.`
+    + pt`\nESCALATE-BOUNDARY CONTRACT: a non-empty \`escalate_reason\` naming the missing plan decision is required when \`verdict\` is \`escalate\` (the schema layer re-prompts a reason-less escalate). A blocking finding whose \`suggested_fix\` is a concrete in-file edit needing no new plan decision is \`request_changes\` by construction, however severe — if you cannot name the missing plan decision in \`escalate_reason\`, you are looking at a fixable bug. The boundary is two-sided: a decision-forked blocking finding (the plan makes no decision its fix needs) ⇒ \`escalate\` with \`escalate_reason\`; a mechanical blocking finding while fix budget remains ⇒ \`request_changes\`, never \`escalate\` — the engine reads \`escalate_reason\` into the phase's escalation record.`
     + pt`\nCALIBRATION RULE: judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.`
     // #811 BYTE-COUPLED SURFACE (JS comment — NOT emitted into the prompt): this quote-bearing COST-CLAIM
     // RULE literal is byte-identical to agents/war-auditor.md's Cost-claim rule line AND the test's
@@ -2417,7 +2468,11 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     p += pt`\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
   }
   if (peers && peers.length) {
-    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict:\n`
+    // Split-panel boundary (verdict-integrity D17, PIN-29, #1989) — its leading clause mirrored VERBATIM beside the
+    // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
+    // same commit; the `split-panel boundary` registry row): rebuttal first, then a fix round when a `suggested_fix` survives,
+    // escalation only for a fix-less survivor.
+    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase once no surviving blocker carries a fix. A seat conflict (your blocker and an approving seat\'s Minor/Nit on the same locus, one side reasoning from scope, mandate or an adjudication match) pre-empts every one of those arms: the engine parks an operator ask and the task merges instead. So keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\`), otherwise state the fix or withdraw the finding:\n`
       // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
       // (construction-guaranteed → bare); ${f.title ?? ''} absence-tolerant (title is a schema-optional finding field).
       + peers.map(s => pt`- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => pt`[${f.severity}] ${f.title ?? ''}`).join('; ') || 'no findings'}`).join('\n')
@@ -3550,21 +3605,82 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       }
 
-      let round = 0, verdict = null, seats = [], expected = 0, blocked = null
+      let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null
       const workerTests = impl && impl.tests ? impl.tests : null
       let pin = impl && impl.head_sha   // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
+      // PIN-29 survival registry: the remintKey of every blocking finding the LAST fix round was
+      // dispatched on. A blocker still standing after a fix round + full-roster re-audit + rebuttal
+      // survived that fix round unchanged — the one post-rebuttal shape that escalates with a fix.
+      const blockerKey = f => remintKey({ task: task.id, ...f })
+      let lastFixKeys = new Set()
       while (round < roundLimit) {
         ;({ seats, expected } = await auditRound(task, null, workerTests, pin))      // independent — no cross-talk
         if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
-        if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
+        if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
         if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
           ;({ seats, expected } = await auditRound(task, seats, workerTests, pin))
           if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
-          if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
+          if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
           if (allApprove(seats, expected)) { verdict = 'approve'; break }
-          if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
+          if (isSplit(seats)) {
+            // Post-rebuttal arms (verdict-integrity D17/D18/D19, PIN-29/22/23; #1989, #1664, #1914) —
+            // the retired deadlock arm escalated every surviving split to a human tiebreak. Now, in
+            // order: (a) a seat conflict (every blocker paired with an approving seat's Minor/Nit on
+            // the same locus, a scope/mandate/adjudication rationale on one side) parks ONE ask per
+            // pair through parkAsk — the blocking finding rides the ask record (its `seatConflict`
+            // field carries the pair), its seat neutralizes to approve, the peer's row corroborates the parked record at its
+            // own routing site, and the task merges under the fork (interactive: parked for the
+            // Checkpoint; --afk: resolved by a later citation or demoted Lead-side with the question
+            // preserved) — never an escalation; (b) a blocker that survived the previous fix round
+            // unchanged (same task + file + title) escalates (#1989's bound); (c) a surviving blocker
+            // with a concrete `suggested_fix` falls through to FIX_NEEDED below — one fix worker, then
+            // the full roster re-audits the new sha at the top of the loop, under the same
+            // roundLimit, approval unanimous on that audit_sha; (d) a fix-less survivor escalates as
+            // before (decision-forked). A blocking seat that carries no Critical/Major escalates naming
+            // the seat, never an empty finding list. A split never escalates at round 0 when a fix exists.
+            const conflicts = seatConflictsOf(seats)
+            if (conflicts) {
+              const stamped = new Set()                                  // peers already overwritten by an earlier pair: their ask field is the conflict ask, not their own
+              for (const p of conflicts) {
+                const ask = conflictAsk(p)
+                parkAsk({ task: task.id, seat: p.seat.seat ?? null, lens: p.seat.lens, sha: auditShaOrSentinel(p.seat.audit_sha), ...p.finding, disposition: 'ask', ask,
+                  seatConflict: { blocking: { seat: p.seat.seat ?? null, lens: p.seat.lens, severity: p.finding.severity }, peer: { seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, severity: p.peer.severity } } })
+                if (!stamped.has(p.peer) && p.peer.disposition === 'ask' && p.peer.ask && p.peer.ask.question) {   // the peer already carried its own ask: park it before the overwrite
+                  parkAsk({ task: task.id, seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, sha: auditShaOrSentinel(p.peerSeat.audit_sha), ...p.peer })
+                  log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — the peer row already carried its own ask; parked it before the conflict ask replaced the field (never a silent drop, #1790).')
+                }
+                p.peer.disposition = 'ask'; p.peer.ask = ask; stamped.add(p.peer)   // the peer row corroborates the parked record (parkAsk's collision merge)
+                p.seat.findings = (p.seat.findings || []).filter(f => f !== p.finding)
+                log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Parked for the operator ruling instead of escalating; the blocking seat ' + (p.seat.seat ?? '?') + ' neutralizes to approve and the task merges under the fork (interactive: ruled at the Checkpoint; --afk: resolved by citation or demoted Lead-side with the question preserved).')
+              }
+              for (const s of seats) if (s.verdict === 'request_changes') {
+                s.verdict = 'approve'
+                log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — blocking seat ' + (s.seat ?? '?') + ' neutralizes to approve' + (conflicts.some(p => p.seat === s) ? ' (its blocking finding rides the parked ask)' : ' (it carried no Critical/Major finding to pair — a verdict never stands on findings it does not have)') + '.')
+              }
+              verdict = 'approve'; break
+            }
+            const survivors = blockingOf(seats)
+            const nameThem = fs => fs.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
+            if (!survivors.length) {                                // a blocking seat with no Critical/Major: name the seat, never a phantom finding
+              blocked = 'post-rebuttal split with no blocking finding on the blocking seat(s) ' + seats.filter(s => s.verdict === 'request_changes').map(s => s.seat ?? '?').join(', ') + ' (a verdict never stands on findings it does not have)'
+              log('Task ' + task.id + ': ' + blocked + ' — escalating.')
+              verdict = 'escalate'; break
+            }
+            const unchanged = survivors.filter(f => lastFixKeys.has(blockerKey(f)))
+            if (unchanged.length) {
+              blocked = 'blocking finding survived a fix round unchanged (PIN-29): ' + nameThem(unchanged)
+              log('Task ' + task.id + ': ' + blocked + ' — escalating; another fix round on the same finding would only spend budget.')
+              verdict = 'escalate'; break
+            }
+            if (survivors.every(f => blankText(f.suggested_fix))) {
+              blocked = 'fix-less blocking finding survived the rebuttal (decision-forked, D18): ' + nameThem(survivors)
+              log('Task ' + task.id + ': ' + blocked + ' — no suggested_fix to dispatch a fix round on; escalating.')
+              verdict = 'escalate'; break
+            }
+            log('Task ' + task.id + ': blocking finding with a suggested_fix survived the rebuttal (PIN-29) — dispatching a fix round and a full-roster re-audit instead of escalating.')
+          }
         }
 
         if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat widening (D4/D5; config can disable)
@@ -3591,11 +3707,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + workerMemClause(task.id) + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
+        lastFixKeys = new Set(b.map(blockerKey))   // PIN-29: what this fix round was dispatched on
         pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
         round++
       }
       if (verdict === null) verdict = 'audit-blocked'
-      const r = { task, verdict, seats, expected, round, blocked }
+      const r = { task, verdict, seats, expected, round, blocked, escalateReason }
       // Budget seed at the audit-loop exit (PIN-5/PIN-13): fixRounds records the blocking fix rounds
       // the merge-floor retry loop later continues from; the hoisted ace stage below never charges it
       // (D5 — ace commits charge absorbRounds), and the merge slot only never-lowers this seed.
@@ -4153,7 +4270,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // Wave-collector escalation (worker-authored blocked text: the initial worker's why or a
         // blocked audit-round fix-worker's reason). defectClassOf tags defectClass:'plan' iff the
         // blocked text is sentinel-prefixed; absent otherwise (§4.3, orthogonal to reason).
-        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...defectClassOf(r.blocked) })
+        // escalate_reason (D18, PIN-22, #1664): the seat-supplied decision-forked reason, when an
+        // explicit `escalate` verdict ended the audit loop; absent on every other route.
+        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...(typeof r.escalateReason === 'string' && r.escalateReason ? { escalate_reason: r.escalateReason } : {}), ...defectClassOf(r.blocked) })
       }
     }
   }
@@ -4259,7 +4378,7 @@ if (endStateCheckRows.length > 0) {
     + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
     + pt`First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`.\n`
     + endstateProvisionClause
-    + pt`For EACH condition row below, its check literal rides in a FENCED block: the fence is the row's own line of backticks, whose length was chosen to EXCEED every backtick run inside the literal — a backtick run INSIDE the content is NEVER the fence; only the exact fence line opens and closes the block. Write the bytes BETWEEN the fence lines BYTE-VERBATIM to the row's .cmd file: copy bytes — never re-quote, never re-escape, never substitute (a single-quoted \${...} run is literal bytes and must survive exactly). VERIFY before executing: re-read the written .cmd and compare it byte-for-byte against the fenced literal; on ANY mismatch record a \`cmd_bytes_mismatch: written .cmd bytes != declared check literal\` line in the artifact (after the tip_sha line), do NOT execute any re-quoted/corrected variant, and MOVE ON — the row fails LOUDLY via its artifact, never silently. Then execute the file AS A WHOLE, FROM THE FILE (file-threaded — e.g. \`bash <cmd-file>\`; never interpolate its content into another script; A3/D11 hygiene), under a timeout, teeing the FULL stdout+stderr of the ENTIRE command line to its .log artifact — a compound/pipeline/multi-command check runs END-TO-END with every command's output captured, never a half-run. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. COMPOUND CHECKS (#1782): a check joining several top-level commands (\`;\`, \`&&\` or a newline) records one \`cmd[i] exit: <n>\` line per top-level command before the exit_code line (i = the command's 0-based position on the check line, in run order; a single-command check records \`cmd[0] exit: <n>\`; a command the run never reached — short-circuited by \`&&\` — records \`cmd[i] exit: skipped\`), and its final \`exit_code:\` is the MAXIMUM of those statuses — never the last command's status alone, which reads green over a red earlier command. Derive the statuses from the SAME single whole-file run — e.g. source the .cmd under \`set -o errtrace\` with an ERR trap that prints $? and $BASH_COMMAND for each red command, plus the run's final status — never by splitting, re-quoting or re-running the literal. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch. A row marked INTAKE-LINTED UNSUPPORTED below is record-only: do NOT execute it — write its artifact exactly as its row directs (the lint verdict recorded, never a half-run).\n`
+    + pt`For EACH condition row below, its check literal rides in a FENCED block: the fence is the row's own line of backticks, whose length was chosen to EXCEED every backtick run inside the literal — a backtick run INSIDE the content is NEVER the fence; only the exact fence line opens and closes the block. Write the bytes BETWEEN the fence lines BYTE-VERBATIM to the row's .cmd file: copy bytes — never re-quote, never re-escape, never substitute (a single-quoted \${...} run is literal bytes and must survive exactly). VERIFY before executing: re-read the written .cmd and compare it byte-for-byte against the fenced literal; on ANY mismatch record a \`cmd_bytes_mismatch: written .cmd bytes != declared check literal\` line in the artifact (after the tip_sha line), do NOT execute any re-quoted/corrected variant, and MOVE ON — the row fails LOUDLY via its artifact, never silently. Then execute the file AS A WHOLE, FROM THE FILE (file-threaded — e.g. \`bash <cmd-file>\`; never interpolate its content into another script; A3/D11 hygiene), under a timeout, teeing the FULL stdout+stderr of the ENTIRE command line to its .log artifact — a compound/pipeline/multi-command check runs END-TO-END with every command's output captured, never a half-run. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. STATEMENT BOUNDARIES (#1782, operator ruling 2026-09-07): a statement boundary is a top-level (unquoted) \`;\` or a newline, only — an \`&&\` or \`||\` list is ONE statement, never split. A check records one \`cmd[i] exit: <n>\` line per statement before the exit_code line (i = the statement's 0-based position in the file, in run order; a single-statement check records \`cmd[0] exit: <n>\`); each statement's status is the shell's own status for that statement — \`A && B || C\` reports 0 when C rescues, exactly as bash does — and the final \`exit_code:\` is the MAXIMUM of those statuses, numbers only — never the last statement's status alone, which reads green over a red earlier statement. Derive the statuses from the SAME single whole-file run: after the byte-for-byte verify, append \`printf 'cmd[%d] exit: %d\\n' <i> $?\` after each statement of the .cmd and run the file once — \`$?\` after a list is the list's status, so no trap is needed, and appending status lines at statement boundaries is neither a split nor a re-run — never by splitting, re-quoting or re-running the literal. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch. A row marked INTAKE-LINTED UNSUPPORTED below is record-only: do NOT execute it — write its artifact exactly as its row directs (the lint verdict recorded, never a half-run).\n`
     // pt-tagged prompt-feeding row builder (endstate-check dispatch, top-level-catch): r.n is a derived
     // map index (always defined), r.check is filter-guaranteed non-empty, r.fence/r.unsupported are
     // stamped by the intake-lint loop above (fence always defined; unsupported null when clean).
@@ -4288,7 +4407,7 @@ const endStateBlock = endStateClaims.length
     // plan-less ZERO-TASK claims-bearing phase (still legal), and `pt` throws on an undefined value by contract.
     + pt`(3) a condition owned by a LATER phase — or by a deps-chained sibling task of THIS phase not yet landed at your audit's scope (map each numbered condition to the task slice that owns it before scoring — read the plan at ${(plan && plan.file) ?? '<unset>'} in the checked-out tree for the per-task Plan slice and deps edges) — is out-of-scope for THIS audit — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
     + pt`Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
-    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. An artifact that is present, readable, and correctly tip-stamped but RED for ENVIRONMENTAL reasons — a setup/collection/import failure (ModuleNotFoundError, pytest setup ERROR, usage/collection exit codes) rather than the condition evaluating false — attests 'unverified', NEVER 'unmet': a met condition is never attested unmet for want of environment prep (#1395). Two record-only artifact states attest 'unverified' too, never 'unmet': an \`intake_lint:\`-stamped artifact (the check literal was unsupported by the .cmd transport — the row was never executed) and a \`cmd_bytes_mismatch:\`-stamped artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared). A compound check's artifact carries one \`cmd[i] exit: <n>\` line per top-level command and its final \`exit_code:\` is the MAXIMUM of those statuses: read the per-command lines to name the red command — the maximum alone says only that one went red. A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the per-task gate logs (${refineryPath}/.war/gate-<taskId>.log) plus the integrated-tip gate log (${refineryPath}/.war/gate-phase-${ph.id}.log) when one was produced — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
+    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. An artifact that is present, readable, and correctly tip-stamped but RED for ENVIRONMENTAL reasons — a setup/collection/import failure (ModuleNotFoundError, pytest setup ERROR, usage/collection exit codes) rather than the condition evaluating false — attests 'unverified', NEVER 'unmet': a met condition is never attested unmet for want of environment prep (#1395). Two record-only artifact states attest 'unverified' too, never 'unmet': an \`intake_lint:\`-stamped artifact (the check literal was unsupported by the .cmd transport — the row was never executed) and a \`cmd_bytes_mismatch:\`-stamped artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared). A compound check's artifact carries one \`cmd[i] exit: <n>\` line per statement (\`;\` or newline boundaries only — an \`&&\` or \`||\` list is one statement, its status the shell's own) and its final \`exit_code:\` is the MAXIMUM of those statuses: read the per-statement lines to name the red statement — the maximum alone says only that one went red. A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the per-task gate logs (${refineryPath}/.war/gate-<taskId>.log) plus the integrated-tip gate log (${refineryPath}/.war/gate-phase-${ph.id}.log) when one was produced — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
     // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): every
     // interpolation is guarded — r.condition is filter-guaranteed non-empty, tag/check normalize to
     // null and render behind ternaries, ph.id rides the same pt contract as the seat prompts.

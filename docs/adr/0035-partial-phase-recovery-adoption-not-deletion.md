@@ -77,7 +77,9 @@ becomes a land or escalation enum member.**
    negative drift-guard in `land-decision.test.mjs` pins non-membership against **both** the canonical
    exports and the hand-mirrored inline copies in `workflow-template.js` (ADR 0005). Absence is not
    `'implementation'` — the field is only ever set to `'plan'`, keeping prior-run records shape-compatible.
-   (§4.3)
+   The recovery runbook (`resume-and-recovery.md` step 1) also enters the plan-shaped route when the
+   escalation record carries a seat's `escalate_reason` (ADR 0013, Decision log 2026-09-08) — likewise
+   escalation-record metadata, likewise never a land or escalation enum member. (§4.3)
 
 6. **No amendment to ADR 0005 or ADR 0008 is needed — this doctrine operates strictly inside both.** Nothing
    here adds a `HARD_ESCALATION_REASONS` / `KNOWN_LAND_DECISIONS` member or a new task/phase status (ADR 0005:
@@ -147,6 +149,9 @@ becomes a land or escalation enum member.**
 - [ADR-0021 — run-lifecycle provision contract](0021-run-lifecycle-provision-contract.md) — recovery
   relaunches are fresh runs over reused git state; its all-or-nothing topology barrier the stale-remote
   per-task classification leaves intact.
+- [ADR-0013 — Commander's intent and disposition routing](0013-commanders-intent-and-disposition-routing.md) —
+  its 2026-09-08 Decision log entry is the two-sided blocking boundary item 5's `escalate_reason` route
+  reads.
 - [ADR-0008 — git is the resume source of truth](0008-git-is-the-resume-source-of-truth.md) — the
   repair-toward-git, never-destroy-work rule every proof and every reconciliation honors.
 - [ADR-0005 — a dead phase halts the DAG](0005-dead-phase-halts-the-dag.md) — the `HARD_ESCALATION_REASONS`

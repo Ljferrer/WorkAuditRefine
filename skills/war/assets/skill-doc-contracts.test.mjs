@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { DEFAULTS } from './war-config.mjs'
 
 // Doc-contract drift guards (plan: drift-guards-for-mirrored-and-asserted-facts, Task 1.4).
 // Root is resolved from import.meta.url — NEVER process.cwd() (subagent cwd is the main repo;
@@ -3012,6 +3013,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
 
 // (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
 // correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
+// Since the 2026-09-06 living-ADR ruling that law is amendment-scoped: Decision-section prose on
+// ADR 0013 is edited in place with a dated `## Decision log` line (Decision 4, 2026-09-08), while
+// the pre-existing dated amendments stay append-only and byte-untouched.
 // Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to the NEXT H2 (or EOF), so a
 // later appended amendment cannot satisfy a key on the guarded amendment's behalf (sibling
 // amendments carry the same byte-discipline closing sentence, so an EOF-bound or whole-file key
@@ -3323,7 +3327,10 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // exhaustion") and the 2026-08-27 amendment's currency clause (the floor-retry reserve) are
 // historical law that survives byte-untouched by design, each superseded in *currency* by a dated
 // note rather than edited. A blanket absence assert over the ADR would demand the very edit the
-// append-only law forbids. So the exemption is not a hole: the final block below asserts BOTH
+// append-only law forbids. (The 2026-09-06 living-ADR ruling scopes that law to the dated
+// amendments: Decision-section prose is edited in place with a dated `## Decision log` line, and
+// the amendments themselves stay append-only — so the exemption still holds for them.) So the
+// exemption is not a hole: the final block below asserts BOTH
 // sides of it — the historical clauses still present AND the dated supersession notes present —
 // so deleting the history, or dropping the note that makes it readable as history, reds here.
 //
@@ -4298,4 +4305,68 @@ test('afk-ask-prefix-pin — the SKILL.md Checkpoint `--afk` no-match arm files 
   const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
   assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
   assert.ok(JSON.parse(lit[1].replace(/'/g, '"')).includes('demote:ask-unruled-afk'), '`demote:ask-unruled-afk` must be a `DEMOTE_REASONS` member (land-decision.mjs)')
+})
+
+// (D17/D18/D19 — Task 11.2, #1989/#1664/#1914) THE SPLIT BOUNDARY ON THE DOCTRINE SURFACES. The
+// OLD `one rebuttal round` wording is KEPT by the 2026-09-06 Q2 ruling, so the decisive assert is
+// the NEW sentence present on both surfaces (0 hits at ffb3ab6), matched RAW so it holds exactly
+// where the plan's `grep -c` form holds, plus the one OLD-absent leg on the sentence that DID
+// change — the SKILL.md tail `rebuttal round** → resolve or escalate` (1 hit at ffb3ab6; it
+// omitted the fix round; PIN-8). Each surface is extracted by construct, never by line.
+test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split boundary reads `rebuttal first, then fix round when a suggested_fix survives` on SKILL.md and design.md; the fix-less SKILL.md tail is retired (#1989, Task 11.2)', () => {
+  const NEW = 'rebuttal first, then fix round when a suggested_fix survives'
+  // skills/war/SKILL.md — the `- **Audits**` bullet.
+  const audits = skillMd.match(/^- \*\*Audits\*\*[^\n]*/m)
+  assert.ok(audits, 'could not locate the `- **Audits**` bullet in SKILL.md — construct rotted')
+  assert.ok(audits[0].includes('**one rebuttal round**'), 'the Audits bullet must keep `**one rebuttal round**` (the 2026-09-06 Q2 ruling keeps the rebuttal)')
+  assert.ok(audits[0].includes(NEW), `the Audits bullet must state \`${NEW}\` (0 hits at ffb3ab6; D17, PIN-29)`)
+  assert.match(audits[0], /fix-less survivor escalates/, 'the Audits bullet must state that a fix-less survivor still escalates (D18)')
+  assert.ok(
+    !skillMd.includes('rebuttal round** → resolve or escalate'),
+    'the OLD fix-less tail `rebuttal round** → resolve or escalate` must be gone from SKILL.md (OLD-absent, base-verified 1 hit at ffb3ab6; PIN-8)',
+  )
+  // skills/war/references/design.md — the `- **Auditors**` bullet and the row-12 table row.
+  const auditors = designRefMd.match(/^- \*\*Auditors\*\*[^\n]*/m)
+  assert.ok(auditors, 'could not locate the `- **Auditors**` bullet in design.md — construct rotted')
+  assert.ok(auditors[0].includes('**one rebuttal round**'), 'the design.md Auditors bullet must keep `**one rebuttal round**`')
+  assert.ok(auditors[0].includes(NEW), `the design.md Auditors bullet must state \`${NEW}\` (0 hits at ffb3ab6)`)
+  const row12 = designRefMd.match(/^\| 12 \| Audit independence \|[^\n]*/m)
+  assert.ok(row12, 'could not locate the `| 12 | Audit independence |` row in design.md — construct rotted')
+  assert.ok(row12[0].includes('one rebuttal round'), 'the design.md row 12 must keep `one rebuttal round`')
+  assert.ok(row12[0].includes(NEW), `the design.md row 12 must state \`${NEW}\` (0 hits at ffb3ab6)`)
+  // The §4 step 3 and schemas.md gate-rule stragglers (survey-derived): the still-split-escalate arm is retired.
+  assert.ok(!designRefMd.includes('still-split-escalate'), 'the retired `still-split-escalate` arm must be gone from design.md §4 step 3 (OLD-absent, base-verified 1 hit; PIN-8)')
+  assert.ok(!schemasMd.includes('still-split (escalate)'), 'the retired `still-split (escalate)` arm must be gone from schemas.md’s gate rule (OLD-absent, base-verified 1 hit; PIN-8)')
+  // CONTEXT.md — the two Phase 11 glossary entries (bolded term → next bolded term or `###`).
+  for (const [term, keys] of [
+    ['Decision-forked finding', [[/escalate_reason/, 'the escalate_reason carrier'], [new RegExp(NEW), 'the D17 sentence'], [/never escalates/, 'the mechanical-never-escalates arm'], [/two-sided boundary/, 'the two-sided boundary name']]],
+    ['Seat-conflict ask', [[/parkAsk/, 'the parkAsk route'], [/fix-now \/ follow-up-and-merge fork/, 'the ask fork'], [/strike-list gate/, 'the interactive ruling site'], [/#1914/, 'the source issue']]],
+  ]) {
+    const block = contextMd.match(new RegExp(`^\\*\\*${term}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'))
+    assert.ok(block, `could not locate the \`**${term}**\` glossary entry in CONTEXT.md — construct rotted (Task 11.2)`)
+    for (const [re, what] of keys) assert.match(norm(block[0]), re, `CONTEXT.md's **${term}** entry must carry ${what}`)
+  }
+  // The reconciled Lead arms: resume-and-recovery.md's plan-defect stop-here arm and war-review's grind row.
+  assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
+  assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
+  // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
+  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
+  assert.match(norm(decisions), /rebuttal first, then fix round when a `suggested_fix` survives/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
+  assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
+})
+
+// (D17 sibling, Task 11.2 a6 re-entry) design.md §4 step 3 is the sole prose home of the default
+// roster's enumerated lens list since the ADR 0042 eviction off skills/war/SKILL.md. war-config.mjs's
+// header rule: every prose surface restating a DEFAULTS value carries a pin row. This row binds the
+// parenthesized list to `DEFAULTS.audit.roster` so a default-roster flip reds the doc
+// (default-flip-must-audit-all-doc-surfaces).
+test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbatim (five lenses at deep)', () => {
+  const m = designRefMd.match(/The default roster is five seats \(([^)]+)\) at `deep`/)
+  assert.ok(m, 'could not locate `The default roster is five seats (...) at `deep`` in design.md §4 step 3 — construct rotted')
+  const doc = m[1].split(' / ').map((l) => l.trim())
+  const cfg = DEFAULTS.audit.roster
+  assert.deepEqual(doc, cfg.map((r) => r.lens), 'design.md §4 step 3\'s lens list must equal DEFAULTS.audit.roster in order (war-config.mjs)')
+  assert.equal(cfg.length, 5, 'design.md says `five seats` — DEFAULTS.audit.roster must carry five entries')
+  assert.ok(cfg.every((r) => r.depth === 'deep'), 'design.md says `at `deep`` — every DEFAULTS.audit.roster entry must be depth `deep`')
 })

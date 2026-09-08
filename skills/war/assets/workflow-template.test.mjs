@@ -5564,26 +5564,57 @@ const esSeatPromptFor = async (check) => {
   return seat.prompt
 }
 
-test('endstate: compound check exit aggregation (D16/A6, #1782) — the dispatched END-STATE CHECK runner instruction records a per-command cmd[i] exit: line and the artifact\'s exit_code is the MAXIMUM of the statuses; the seat block and the auditor card carry the reading rule', async () => {
+test('endstate: compound check exit aggregation (D16/A6, #1782; operator ruling 2026-09-07) — the dispatched END-STATE CHECK runner instruction records one cmd[i] exit: line per STATEMENT (`;` / newline boundaries only) and the artifact\'s exit_code is the MAXIMUM of the statement statuses; the seat block and the auditor card carry the reading rule', async () => {
   const twoCmd = "node --test skills/war/assets/wibble.acceptance.test.mjs; grep -c 'wobble' skills/war/assets/wibble.log"
   const runner = await esTransportPrompt(twoCmd)
-  assert.match(runner, /COMPOUND CHECKS \(#1782\)/, 'the runner instruction names the compound-check clause')
-  assert.ok(runner.includes('records one `cmd[i] exit: <n>` line per top-level command'), 'the runner records one cmd[i] exit: line per top-level command')
-  // #2249 escalation fix: `||` is NOT an aggregated join — `A || B` with A red and B green exits 0, so a MAXIMUM over [1, 0] would record red for a passing check (a false-unmet under D8).
-  assert.ok(runner.includes('top-level commands (`;`, `&&` or a newline) records'), 'the aggregated-join enumeration is exactly `;`, `&&`, newline')
-  assert.ok(!/top-level commands \([^)]*`\|\|`[^)]*\) records/.test(runner), 'the aggregated-join enumeration does NOT name `||`')
-  assert.match(runner, /final `exit_code:` is the MAXIMUM of those statuses/, 'the artifact\'s final exit_code is the maximum of the per-command statuses')
-  assert.match(runner, /never the last command's status alone/, 'the retired reading — the last command\'s status — is named and forbidden')
-  assert.match(runner, /never by splitting, re-quoting or re-running the literal/, 'the statuses come from the one whole-file run — the byte-verbatim transport stands')
-  assert.match(runner, /execute the file AS A WHOLE, FROM THE FILE/i, 'the AS A WHOLE clause survives beside the aggregation rule (every command still runs)')
+  assert.match(runner, /STATEMENT BOUNDARIES \(#1782, operator ruling 2026-09-07\)/, 'the runner instruction names the statement-boundary clause (the per-command COMPOUND CHECKS clause is retired)')
+  assert.ok(!runner.includes('COMPOUND CHECKS (#1782)'), 'the retired per-command clause header is gone (OLD-absent)')
+  assert.ok(runner.includes('records one `cmd[i] exit: <n>` line per statement'), 'the runner records one cmd[i] exit: line per statement')
+  assert.ok(!runner.includes('per top-level command'), 'the retired per-top-level-command unit is gone from the runner (OLD-absent)')
+  // Ruling (2): each statement reports the shell's own status — a rescued `||` list reads 0, as bash does.
+  assert.ok(runner.includes("`A && B || C` reports 0 when C rescues, exactly as bash does"), 'a list reports the shell\'s own status for the whole list')
+  // Ruling (3): the maximum is over numbers only — `skipped` is retired as a status.
+  assert.match(runner, /final `exit_code:` is the MAXIMUM of those statuses, numbers only/, 'the artifact\'s final exit_code is the maximum of the per-statement statuses, numbers only')
+  assert.ok(!runner.includes('exit: skipped'), 'the retired `cmd[i] exit: skipped` status is gone (a `||`/`&&` list is one statement, so nothing is short-circuited across a boundary)')
+  assert.match(runner, /never the last statement's status alone/, 'the retired reading — the last statement\'s status — is named and forbidden')
+  // Ruling (4): derivation by appended printf status lines on the one whole-file run — no ERR trap.
+  assert.ok(runner.includes("append `printf 'cmd[%d] exit: %d\\n' <i> $?` after each statement of the .cmd and run the file once"), 'the statuses come from appended printf lines on the single whole-file run')
+  assert.ok(!/ERR trap|errtrace/.test(runner), 'the ERR-trap derivation example is dropped (OLD-absent)')
+  assert.match(runner, /neither a split nor a re-run/, 'appending status lines at statement boundaries is stated as neither a split nor a re-run')
+  assert.match(runner, /never by splitting, re-quoting or re-running the literal/, 'the byte-verbatim transport stands')
+  assert.match(runner, /execute the file AS A WHOLE, FROM THE FILE/i, 'the AS A WHOLE clause survives beside the aggregation rule (every statement still runs)')
   assert.ok(runner.includes(esFenced('```', twoCmd)), 'the ;-joined literal still rides the fenced block whole')
-  // The reading rule — the seat block and the card are the runner instruction\'s twins.
+  // The reading rule — the seat block and the card are the runner instruction's twins.
   const seat = await esSeatPromptFor(twoCmd)
-  assert.ok(seat.includes('one `cmd[i] exit: <n>` line per top-level command'), 'the seat-side END-STATE CHECK block names the per-command lines')
+  assert.ok(seat.includes('one `cmd[i] exit: <n>` line per statement'), 'the seat-side END-STATE CHECK block names the per-statement lines')
+  assert.ok(seat.includes('an `&&` or `||` list is one statement'), 'the seat-side block states the list rule')
   assert.match(seat, /final `exit_code:` is the MAXIMUM of those statuses/, 'the seat-side block carries the maximum rule')
-  assert.match(seat, /read the per-command lines to name the red command/, 'the seat reads the per-command lines, never the maximum alone')
-  assert.ok(auditorMd.includes('one `cmd[i] exit: <n>` line per top-level command'), 'the auditor card carries the per-command lines')
+  assert.match(seat, /read the per-statement lines to name the red statement/, 'the seat reads the per-statement lines, never the maximum alone')
+  assert.ok(auditorMd.includes('one `cmd[i] exit: <n>` line per statement'), 'the auditor card carries the per-statement lines')
+  assert.ok(auditorMd.includes('an `&&` or `||` list is one statement'), 'the auditor card states the list rule')
   assert.match(auditorMd, /final `exit_code:` is the maximum of those statuses/, 'the auditor card carries the maximum reading rule')
+  for (const [name, text] of [['seat-side END-STATE CHECK block', seat], ['war-auditor.md', auditorMd]]) {
+    assert.ok(!text.includes('per top-level command'), `${name}: the retired per-top-level-command unit is gone (OLD-absent)`)
+  }
+})
+
+// Operator ruling (2026-09-07, settles #2257/#2252/#2253; replaces D16/A6's per-command maximum): the
+// boundary set is `;` and newline ONLY — `&&` and `||` are list operators inside ONE statement. The
+// runner's join enumeration is sliced out by its own "a statement boundary is … , only" frame so the
+// later sentence that NAMES `&&`/`||` as non-boundaries cannot green the absence legs. The phase-10
+// label-only match (`;`, `&&` or a newline) is retired above.
+test('endstate: statement-boundary operator set (operator ruling 2026-09-07) — the runner\'s join enumeration is `;` and newline only, carries the word "only", and names neither `&&` nor `||`', async () => {
+  const runner = await esTransportPrompt(ES_CHECK_CMD)
+  const m = /a statement boundary is ([^—]*?), only —/.exec(runner)
+  assert.ok(m, 'the join enumeration is framed as "a statement boundary is <set>, only —" (the frame carries the word "only")')
+  const set = m[1]
+  assert.ok(set.includes('`;`'), 'the operator set names `;`')
+  assert.ok(/newline/.test(set), 'the operator set names a newline')
+  assert.ok(!set.includes('&&'), 'the operator set does NOT name `&&` (an && list is one statement)')
+  assert.ok(!set.includes('||'), 'the operator set does NOT name `||` (a || list is one statement)')
+  assert.ok(runner.includes('an `&&` or `||` list is ONE statement, never split'), 'the list rule follows the enumeration as its own sentence')
+  // The retired enumeration must not survive anywhere on the runner prompt.
+  assert.ok(!/\(`;`, `&&` or a newline\)/.test(runner), 'the retired `;`/`&&`/newline join enumeration is gone (OLD-absent)')
 })
 
 test('endstate: intake_lint and cmd_bytes_mismatch attest unverified (D16, #1781) — both record-only triggers are named as unverified triggers on the dispatched END-STATE CHECK block and on the auditor card, never only in a source comment', async () => {
@@ -10181,6 +10212,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const fixP = ((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls
     .find(c => /^fix:t1:/.test(c.opts.label || '')) || {}).prompt
   assert.ok(fixP, 'the FIX_NEEDED fix prompt dispatched (presence guard)')
+  // Task 11.1 (D17, PIN-29): the REBUTTAL ROUND prompt is only emitted on a split panel — drive it with
+  // the split fixture and capture the LIVE rebuttal prompt (the auditor card's split-panel twin).
+  // SPLIT_PANEL_TASKS and splitPanelImpl (with MAJOR_WITH_FIX / MAJOR_NO_FIX) are declared in the Phase 11 block near the end of this file.
+  const rebutP = ((await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl())).calls
+    .find(c => isAuditor(c) && c.prompt.includes('REBUTTAL ROUND')) || {}).prompt
+  assert.ok(rebutP, 'the REBUTTAL ROUND auditor prompt dispatched (presence guard, Task 11.1 row)')
   // Task 2.3 (done-when floor): the merge-task dispatch carries doneWhenFloorClause only for a
   // doneWhen-bearing task — capture that prompt from its own fixture run.
   const mergeRunCalls = (await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
@@ -10549,14 +10586,34 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (claims-bearing)', esSeatP], ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/`intake_lint:`-stamped/, /`cmd_bytes_mismatch:`-stamped/, /record-only/, /attests? ['`]unverified['`](?: too)?, never ['`]unmet['`]/] },
     // Phase 10 Task 10.1 (D16, PIN-20, A6, #1782): the runner records one `cmd[i] exit: <n>` line per
-    // top-level command and the artifact's exit_code is the MAXIMUM of the statuses; the reading rule is
+    // statement and the artifact's exit_code is the MAXIMUM of the statuses; the reading rule is
     // the card's and the seat block's twin. `cmd[i]` and `maximum` counted 0 on the card and in the
-    // template at the task base, so a per-surface revert reds this row.
-    { name: 'compound-check exit aggregation (D16, PIN-20, A6, #1782): per-command cmd[i] exit: lines + exit_code maximum — endstate-check runner prompt ↔ auditor card execution rung 1 + endStateBlock carriers',
+    // template at the Task 10.1 base, so a per-surface revert reds this row.
+    // Re-pinned to the statement rule (operator ruling 2026-09-07, Task 11.1): one line per STATEMENT,
+    // `;`/newline boundaries only, an `&&`/`||` list one statement. `per statement` counted 0 on the
+    // card and in the template at the task base, so a per-surface revert reds this row.
+    { name: 'compound-check exit aggregation (D16, PIN-20, A6, #1782; operator ruling 2026-09-07): per-statement cmd[i] exit: lines + exit_code maximum — endstate-check runner prompt ↔ auditor card execution rung 1 + endStateBlock carriers',
       surfaces: [['war-auditor.md', auditorMd], ['endstate-check dispatch prompt', esCheckP], ['per-task gate-audit prompt (claims-bearing)', esSeatP], ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
-      anchors: [/one `cmd\[i\] exit: <n>` line per top-level command/, /final `exit_code:` is the maximum of those statuses/i] },
+      anchors: [/one `cmd\[i\] exit: <n>` line per statement/, /an `&&` or `\|\|` list is one statement/i, /final `exit_code:` is the maximum of those statuses/i] },
+    // Task 11.1 (D17, PIN-29, #1989): the split-panel boundary — rebuttal first, then a fix round when a
+    // `suggested_fix` survives, escalation only for a fix-less survivor — on the auditor card's Split
+    // panel bullet and the dispatched REBUTTAL ROUND prompt (the only dispatched carrier: a rebuttal
+    // seat is the one that decides whether a blocker survives). `fix-less survivor` and `full-roster
+    // re-audit` counted 0 on the card and in the template at the task base, so a per-surface revert
+    // reds this row.
+    { name: 'split-panel boundary (D17, PIN-29, #1989): rebuttal first, then fix round on a surviving suggested_fix, escalation only for a fix-less survivor — auditor card Split panel bullet ↔ REBUTTAL ROUND prompt',
+      surfaces: [['war-auditor.md', auditorMd], ['REBUTTAL ROUND auditor prompt', rebutP]],
+      anchors: [/rebuttal first, then a fix round when a `suggested_fix` survives, escalation only for a fix-less survivor/i, /full-roster re-audit/, /state the fix or withdraw the finding/] },
+    // Task 11.1 (D18, PIN-22, #1664): the two-sided escalate boundary — decision-forked ⇒ escalate with
+    // escalate_reason; mechanical with budget ⇒ request_changes, never escalate; the engine reads the
+    // reason into escalated[]. `two-sided` and `decision-forked` counted 0 on the card and in the
+    // template's prompt text at the task base (the template's hits were source comments), so a
+    // per-surface revert reds this row.
+    { name: 'two-sided escalate boundary (D18, PIN-22, #1664): decision-forked ⇒ escalate + escalate_reason, mechanical with budget ⇒ request_changes never escalate — standing card + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/The boundary is two-sided/, /decision-forked blocking finding/, /mechanical blocking finding while fix budget remains ⇒ `request_changes`, never `escalate`/, /reads `escalate_reason` into the phase's escalation record/] },
   ]
-  assert.ok(REGISTRY.length >= 32, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation)')
+  assert.ok(REGISTRY.length >= 34, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt), and the fix-round doctrine pointer row (#2097, engine-and-audit-verdict-integrity Task 1.4: worker card trigger sentence + FIX_NEEDED build pointer line), and the finding-path form row (#1811/#2005, engine-and-audit-verdict-integrity Task 2.1: auditor card + auditPrompt() + the three live gate-audit-family seat prompts), and the pin-transfer dispatch_base row (D4, PIN-8, #1973, engine-and-audit-verdict-integrity Task 4.1: refiner-recovery.md § Pin-transfer arms + the dispatched pin-transfer prompt) — floor equals the true row count, no slack (#693), and the four Task 5.1 gate-segment rows (backgrounded gate merge-task, backgrounded gate land, gate-log stamp, gate-log reading rule), and the two Task 10.1 endstate rows (D16, PIN-20: record-only states attest unverified; compound-check exit aggregation, re-pinned to the statement rule), and the two Task 11.1 boundary rows (D17/PIN-29 split-panel boundary: card ↔ REBUTTAL ROUND prompt; D18/PIN-22 two-sided escalate boundary: card ↔ auditPrompt())')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -17154,4 +17211,216 @@ test('dropDup census: one definition owns the duplicate-drop shape at drainHeldA
   assert.ok(!src.includes("absorbs.find(a => remintKey(a) === remintKey(f))"), 'the drain\'s inline find is gone')
   assert.ok(!src.includes("phaseCloseQueue.find(q => remintKey(q) === key)"), 'the absorb tail\'s inline queue find is gone')
   assert.ok(!src.includes("aceable.find(a => remintKey(a) === key)"), 'the absorb tail\'s inline ace-batch find is gone')
+})
+
+// ---------------------------------------------------------------------------
+// Phase 11 Task 11.1 (verdict-integrity D17/D18/D19, PIN-29/PIN-22/PIN-23; #1989, #1664, #1914):
+// the post-rebuttal deadlock arm is replaced. Harness: a two-seat roster (correctness approves,
+// security blocks) drives the split; `security` answers per audit round through a script so each
+// fixture states the rebuttal outcome explicitly. Every auditor dispatch is counted by its position
+// in `calls` relative to the fix dispatch, so "two audit rounds before the fix" is a real ordering
+// assert, not a count that a second fix round could also satisfy.
+// ---------------------------------------------------------------------------
+const SPLIT_PANEL_TASKS = [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security' }] }]
+// splitPanelImpl(script): `script` maps the security seat's dispatch ordinal (1 = round 0, 2 = the rebuttal,
+// 3 = the post-fix re-audit, …) to the finding it stands on (null = approve). The correctness seat
+// always approves with `peerFindings` (default none). The `findings` arrays are fresh per call.
+const splitPanelImpl = (script = { 1: MAJOR_WITH_FIX, 2: MAJOR_WITH_FIX }, peerFindings = []) => {
+  let securityN = 0
+  return (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor' && (opts.label || '').startsWith('audit:')) {   // roster seats only — the gate-audit family falls to defaultImpl
+      if ((opts.label || '').includes('security')) {
+        const f = script[++securityN] ?? null
+        return f
+          ? { seat: opts.label, lens: 'security', verdict: 'request_changes', confidence: 'high', audit_sha: 'deadbeef', findings: [{ ...f }] }
+          : { seat: opts.label, lens: 'security', verdict: 'approve', confidence: 'high', audit_sha: 'deadbeef', findings: [] }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high', audit_sha: 'deadbeef', findings: peerFindings.map(g => ({ ...g })) }
+    }
+    return defaultImpl(prompt, opts)
+  }
+}
+const MAJOR_WITH_FIX = { severity: 'Major', title: 'null deref on empty roster', file: 'a.js', line: 12, rationale: 'roster[0] is read before the length check', suggested_fix: 'guard with `if (!roster.length) return null` before the read' }
+const MAJOR_NO_FIX = { severity: 'Major', title: 'retry policy undecided', file: 'a.js', rationale: 'the plan never decides whether a dropped seat retries or holds' }
+const auditorIdx = calls => calls.map((c, i) => [c, i]).filter(([c]) => isAuditor(c)).map(([, i]) => i)
+
+test('split panel: blocking finding surviving the rebuttal triggers FIX_NEEDED (D17, PIN-29, #1989) — one Major with a suggested_fix against an approve runs the rebuttal first; the Major stands ⇒ one fix dispatch, fixRounds === 1, the full roster re-audits the new sha, two audit rounds precede the fix dispatch, never an escalation at round 0', async () => {
+  // Round 0: split. Rebuttal (ordinal 2): the Major stands. Post-fix re-audit (ordinal 3): approve.
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_WITH_FIX, 2: MAJOR_WITH_FIX }))
+  const fixes = calls.map((c, i) => [c, i]).filter(([c]) => isFixWorker(c))
+  assert.equal(fixes.length, 1, 'exactly ONE fix worker dispatched on the surviving Major')
+  const fixAt = fixes[0][1]
+  assert.match(fixes[0][0].prompt, /null deref on empty roster[\s\S]*guard with `if \(!roster\.length\) return null`/, 'the fix prompt carries the surviving Major and its suggested_fix')
+  const before = auditorIdx(calls).filter(i => i < fixAt)
+  const after = auditorIdx(calls).filter(i => i > fixAt && !(calls[i].opts.label || '').startsWith('gate-audit:'))
+  assert.equal(before.length, 4, 'two audit rounds (2 seats × 2) precede the fix dispatch: round 0 + the rebuttal')
+  assert.ok(before.some(i => calls[i].prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran BEFORE the fix dispatch (rebuttal first)')
+  assert.equal(after.length, 2, 'the FULL roster (both seats) re-audits after the fix — never the blocking seat alone')
+  assert.ok(after.every(i => !calls[i].prompt.includes('REBUTTAL ROUND')), 'the post-fix re-audit is a fresh independent round (no peers)')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.equal(entry && entry.fixRounds, 1, 'auditLog fixRounds === 1 — one fix round, reached after the rebuttal')
+  assert.equal(entry && entry.verdict, 'approve', 'the panel approves unanimously on the post-fix audit_sha')
+  assert.ok(out.landed.includes('t1'), 't1 merges')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'no escalation — a Major with a suggested_fix never escalates the phase (the #1989 shape)')
+  assert.equal(out.landDecision, 'landed', 'the phase lands')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('survived the rebuttal (PIN-29)') && l.includes('dispatching a fix round and a full-roster re-audit')), 'the fix-round route is logged')
+})
+
+test('split panel: rebuttal withdrawal approves without a fix round (D17, PIN-29 — the delete-the-feature control) — the blocking seat approves at the rebuttal ⇒ fixRounds === 0, no fix dispatch, the task merges', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_WITH_FIX, 2: null }))
+  assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — the Major was withdrawn at the rebuttal')
+  assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran (the withdrawal happened there)')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.equal(entry && entry.fixRounds, 0, 'fixRounds === 0')
+  assert.equal(entry && entry.verdict, 'approve', 'approve on the rebuttal')
+  assert.ok(out.landed.includes('t1'), 't1 merges')
+  assert.equal(out.landDecision, 'landed', 'the phase lands')
+})
+
+test('split panel: fix-less survivor escalates (D17/D18) — a Major with NO suggested_fix that stands at the rebuttal escalates after the rebuttal, as at base; escalated[] names the fix-less survivor', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_NO_FIX, 2: MAJOR_NO_FIX }))
+  assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — nothing to dispatch a fix round on')
+  assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
+  assert.match(esc.blocked, /fix-less blocking finding survived the rebuttal \(decision-forked, D18\): \[Major\] retry policy undecided \(a\.js\)/, 'the escalation names the fix-less survivor')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
+})
+
+test('split panel: a request_changes seat with Minor-only findings escalates naming the seat (11.1 ace a2) — no Critical/Major means blockingOf() is empty, so the escalation names the blocking seat instead of a phantom fix-less finding', async () => {
+  const MINOR_ONLY = { severity: 'Minor', title: 'log line lacks the task id', file: 'a.js', line: 3, rationale: 'the log line reads without its task id', suggested_fix: 'prefix the task id' }
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MINOR_ONLY, 2: MINOR_ONLY }))
+  assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first')
+  assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — there is no blocking finding to fix')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
+  assert.equal(esc.blocked, 'post-rebuttal split with no blocking finding on the blocking seat(s) audit:t1:security:rebut (a verdict never stands on findings it does not have)', 'the escalation names the seat that blocked without a Critical/Major')
+  assert.ok(!/fix-less blocking finding survived/.test(esc.blocked), 'never the fix-less-survivor text with an empty finding list')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('post-rebuttal split with no blocking finding on the blocking seat(s)')), 'the guard logs the escalation')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
+})
+
+test('split panel: a blocker surviving a fix round unchanged escalates (D17, PIN-29 bound, #1989) — the same Major (task + file + title) still standing after fix + full-roster re-audit + rebuttal escalates instead of spending a second fix round', async () => {
+  // Ordinals: 1 round 0 (split), 2 rebuttal (stands → fix), 3 post-fix re-audit (split again), 4 second rebuttal (stands, unchanged).
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { roundLimit: 6 } }), splitPanelImpl({ 1: MAJOR_WITH_FIX, 2: MAJOR_WITH_FIX, 3: MAJOR_WITH_FIX, 4: MAJOR_WITH_FIX }))
+  assert.equal(calls.filter(isFixWorker).length, 1, 'exactly one fix round — the unchanged survivor is never re-dispatched')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc && esc.reason === 'escalate', 't1 escalates')
+  assert.match(esc.blocked, /survived a fix round unchanged \(PIN-29\): \[Major\] null deref on empty roster \(a\.js\)/, 'the escalation names the unchanged survivor')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
+})
+
+test('escalate boundary: decision-forked reason propagates (D18, PIN-22, #1664) — an explicit escalate verdict\'s escalate_reason reaches the escalated[] record as escalate_reason', async () => {
+  const impl = (prompt, opts) => seatOf(opts) === 'war-auditor'
+    ? { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'the plan never decides whether a dropped seat retries or holds', findings: [], confidence: 'high' }
+    : defaultImpl(prompt, opts)
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc && esc.reason === 'escalate', 't1 escalates on the explicit verdict')
+  assert.equal(esc.escalate_reason, 'audit:t1:correctness: the plan never decides whether a dropped seat retries or holds', 'the seat-supplied escalate_reason rides the escalated[] record, seat-attributed')
+  // Delete-the-feature control: a fix-less survivor escalation (no explicit escalate verdict) carries no escalate_reason.
+  const ctl = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_NO_FIX, 2: MAJOR_NO_FIX }))
+  const cEsc = (ctl.out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(cEsc && !('escalate_reason' in cEsc), 'no escalate_reason on a record no seat escalated explicitly')
+})
+
+test('escalate boundary: a mechanical Major at round 0 never escalates (D18, PIN-22, #1664) — a lone request_changes with a suggested_fix dispatches a fix round; the auditor card and auditPrompt state the two-sided rule', async () => {
+  const impl = fixNeededImpl()
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), impl)
+  assert.equal(calls.filter(isFixWorker).length, 1, 'one fix worker at round 0')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'never an escalation at round 0 for a mechanical blocker')
+  assert.ok(out.landed.includes('t1'), 't1 merges after the fix')
+  const auditP = calls.find(isAuditor).prompt
+  for (const [name, text] of [['auditPrompt()', auditP], ['war-auditor.md', auditorMd]]) {
+    assert.ok(text.includes('The boundary is two-sided: a decision-forked blocking finding'), `${name}: states the two-sided boundary`)
+    assert.ok(text.includes('a mechanical blocking finding while fix budget remains ⇒ `request_changes`, never `escalate`'), `${name}: the mechanical side never escalates`)
+  }
+})
+
+test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-rebuttal split where the blocking Major and an approving seat\'s Minor share a locus and one side reasons from scope parks ONE ask with the fix-now / follow-up-and-merge fork; no fix dispatch, no escalation, the phase is not held', async () => {
+  const scopeMajor = { severity: 'Major', title: 'helper lacks the sibling sweep', file: 'a.js', line: 40, rationale: 'the task mandate covers every sibling helper, so the missing sweep is out of scope only if the slice says so' }
+  const peerMinor = { severity: 'Minor', title: 'helper lacks the sibling sweep', file: 'a.js', line: 40, rationale: 'a follow-up sized gap', suggested_fix: 'add the sweep loop' }
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeMajor, 2: scopeMajor }, [peerMinor]))
+  assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first (PIN-29)')
+  assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — the disagreement is about scope, not code')
+  const asks = (out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(asks.length, 1, 'exactly ONE ask parked for the seat conflict')
+  assert.deepEqual(asks[0].fork, ['fix-now', 'follow-up-and-merge'], 'the ask carries the fix-now / follow-up-and-merge fork')
+  assert.match(asks[0].question, /^Seat conflict on a\.js:40: audit:t1:security:rebut \(security\) rates "helper lacks the sibling sweep" Major while audit:t1:correctness:rebut \(correctness\) rates it Minor — fix it now, or file a follow-up and merge\?$/, 'the question names both seats, both severities and the locus')
+  assert.equal(asks[0].seat, 'audit:t1:security:rebut', 'the parked record is raised by the blocking seat')
+  assert.ok(asks[0].finding && asks[0].finding.seatConflict && asks[0].finding.seatConflict.peer.lens === 'correctness', 'the record\'s finding carries the seatConflict pair')
+  assert.ok((asks[0].corroborators || []).some(c => c.seat === 'audit:t1:correctness:rebut'), 'the approving seat\'s Minor corroborates the parked record at its own routing site (one record, never two)')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'no escalation')
+  assert.ok(out.landed.includes('t1'), 't1 merges under the fork')
+  assert.equal(out.landDecision, 'landed', 'the phase is not held')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'helper lacks the sibling sweep'), 'the conflict never files unruled as a follow-up (an ask is ruled at the Checkpoint)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('seat-conflict → ask (D19, PIN-23): task t1')), 'the detector logs the park')
+  // Critical arm: the detector pairs a Critical blocker the same way (it admits f.severity === 'Critical'),
+  // so a scope-split Critical parks the same one ask, never escalates, and the task merges.
+  const scopeCritical = { ...scopeMajor, severity: 'Critical' }
+  const crit = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeCritical, 2: scopeCritical }, [peerMinor]))
+  assert.equal(crit.calls.filter(isFixWorker).length, 0, 'Critical arm: no fix worker')
+  const critAsks = (crit.out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(critAsks.length, 1, 'Critical arm: exactly ONE ask parked')
+  assert.match(critAsks[0].question, /rates "helper lacks the sibling sweep" Critical while/, 'Critical arm: the question names the Critical severity')
+  assert.ok(!(crit.out.escalated || []).some(e => e && e.task === 't1'), 'Critical arm: no escalation')
+  assert.ok(crit.out.landed.includes('t1'), 'Critical arm: t1 merges under the fork')
+  assert.equal(crit.out.landDecision, 'landed', 'Critical arm: the phase is not held')
+  // Peer-own-ask arm (ace re-entry a4): a peer Minor that already carries disposition ask with its own
+  // question parks that question BEFORE the conflict ask replaces the field — both asks reach asks[].
+  const peerAsk = { ...peerMinor, disposition: 'ask', ask: { question: 'sweep as a helper or inline?', fork: ['helper', 'inline'] } }
+  const own = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeMajor, 2: scopeMajor }, [peerAsk]))
+  const ownAsks = (own.out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(ownAsks.length, 2, 'peer-own-ask arm: the peer\'s own ask AND the conflict ask both park (never a silent drop, #1790)')
+  const peerRec = ownAsks.find(a => a.question === 'sweep as a helper or inline?')
+  assert.ok(peerRec && peerRec.seat === 'audit:t1:correctness:rebut', 'peer-own-ask arm: the peer\'s own question parks under the peer seat')
+  assert.deepEqual(peerRec.fork, ['helper', 'inline'], 'peer-own-ask arm: the peer\'s own fork survives verbatim')
+  assert.ok(ownAsks.some(a => /^Seat conflict on a\.js:40:/.test(a.question)), 'peer-own-ask arm: the conflict ask still parks')
+  assert.ok(own.logs.some(l => typeof l === 'string' && l.includes('the peer row already carried its own ask; parked it before the conflict ask replaced the field')), 'peer-own-ask arm: the park is logged')
+  assert.ok(own.out.landed.includes('t1') && own.out.landDecision === 'landed', 'peer-own-ask arm: t1 merges and the phase is not held')
+  // Finding-less blocking seat arm (ace re-entry a6): a three-seat roster — correctness approves with the
+  // peer Minor, security blocks on the scope-shaped Major, cascading-impact blocks with `findings: []`.
+  // The detector pairs the one blocker, so the conflict parks ONE ask and the neutralization loop flips
+  // BOTH blocking seats to approve; the finding-less seat's log line takes the `carried no
+  // Critical/Major finding to pair` branch (its sibling arm, an all-finding-less blocking panel, escalates).
+  const THREE_SEAT_TASKS = [{ ...SPLIT_PANEL_TASKS[0], roster: [{ lens: 'correctness' }, { lens: 'security' }, { lens: 'cascading-impact' }] }]
+  const threeSeatImpl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor' && (opts.label || '').startsWith('audit:')) {
+      const lens = (opts.label || '').split(':')[2]
+      const verdict = lens === 'correctness' ? 'approve' : 'request_changes'
+      const findings = lens === 'correctness' ? [{ ...peerMinor }] : lens === 'security' ? [{ ...scopeMajor }] : []
+      return { seat: opts.label, lens, verdict, confidence: 'high', audit_sha: 'deadbeef', findings }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const three = await runPhase(PROVISION_ARGS({ tasks: THREE_SEAT_TASKS }), threeSeatImpl)
+  assert.equal(three.calls.filter(isFixWorker).length, 0, 'finding-less seat arm: no fix worker')
+  const threeAsks = (three.out.asks || []).filter(a => a && a.task === 't1')
+  assert.equal(threeAsks.length, 1, 'finding-less seat arm: exactly ONE ask parked (the paired blocker)')
+  const threeEntry = (three.out.auditLog || []).find(e => e && e.task === 't1')
+  assert.equal(threeEntry && threeEntry.verdict, 'approve', 'finding-less seat arm: the panel verdict is approve')
+  assert.ok(three.logs.some(l => typeof l === 'string' && l.includes('blocking seat audit:t1:security:rebut neutralizes to approve (its blocking finding rides the parked ask)')), 'finding-less seat arm: the paired blocking seat neutralizes to approve')
+  assert.ok(three.logs.some(l => typeof l === 'string' && l.includes('blocking seat audit:t1:cascading-impact:rebut neutralizes to approve') && l.includes('it carried no Critical/Major finding to pair')), 'finding-less seat arm: the finding-less blocking seat neutralizes to approve and the log names the branch')
+  assert.ok(!(three.out.escalated || []).some(e => e && e.task === 't1'), 'finding-less seat arm: no escalation')
+  assert.ok(three.out.landed.includes('t1'), 'finding-less seat arm: t1 merges under the fork')
+  assert.equal(three.out.landDecision, 'landed', 'finding-less seat arm: the phase is not held')
+  // Negative control (delete-the-feature): the same locus split WITHOUT a scope/mandate/adjudication
+  // rationale on either side is not a seat conflict — it takes the fix-less survivor route.
+  const plainMajor = { ...scopeMajor, rationale: 'the loop misses the last sibling' }
+  const ctl = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: plainMajor, 2: plainMajor }, [{ ...peerMinor, rationale: 'small gap' }]))
+  assert.equal((ctl.out.asks || []).length, 0, 'no ask without a scope-shaped rationale')
+  assert.ok((ctl.out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'escalate'), 'the plain fix-less survivor still escalates')
+})
+
+// Census (PIN-4 floor + hand scan): the seat-conflict detector parks through parkAsk directly and adds
+// NO dispositionOf call site, so the #1550 order-census stays at its sites — judgeHeldRow, routeReauditMinors, routeAbsorbTail, the escalation demotion arm, routeGateAuditRows, the sweep merged-arm routing, routeTerminalMinors and the sweep discard-arm routing (the peer's row
+// corroborates through an EXISTING site — aceStage's routing). The rebuttal branch stays whole.
+test('Task 11.1 census: the rebuttal branch stays (isSplit gate, REBUTTAL ROUND prompt, the one-rebuttal-round comment); the deadlock arm is gone; the seat-conflict detector adds no dispositionOf site', () => {
+  assert.ok(src.includes("if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split"), 'the isSplit-gated rebuttal branch and its comment stay')
+  assert.equal((src.match(/REBUTTAL ROUND/g) || []).length, 1, 'ONE REBUTTAL ROUND prompt build')
+  assert.ok(!src.includes("if (isSplit(seats)) { verdict = 'escalate'; break }"), 'the retired deadlock arm is gone (OLD-absent)')
+  assert.ok(!/still deadlocked/.test(src), 'the retired human-tiebreak comment is gone (OLD-absent)')
+  assert.equal((src.match(/dispositionOf\(/g) || []).length, 8, 'the #1550 order-census domain is unchanged: its dispositionOf( sites are judgeHeldRow, routeReauditMinors, routeAbsorbTail, the escalation demotion arm, routeGateAuditRows, the sweep merged-arm routing, routeTerminalMinors and the sweep discard-arm routing')
+  assert.equal((src.match(/const seatConflictsOf = /g) || []).length, 1, 'the detector: one definition')
+  assert.equal((src.match(/seatConflictsOf\(/g) || []).length, 1, 'the detector: one post-rebuttal call site')
 })

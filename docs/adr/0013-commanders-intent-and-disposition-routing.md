@@ -27,7 +27,9 @@ defaulted `absorb` routes `phaseClose:true` to the phase-close sweep, and every 
 demotion carries a `DEMOTE_REASONS` prefix; see the amendment below; amended 2026-09-04
 (Phase 4, note reroute) — an in-diff `note` that names a fix reroutes to `absorb`, and
 gate-audit-family rows route like any seat's, so Decision 4's "never an issue" for `note` is bounded;
-see the amendment below)
+see the amendment below; edited in place 2026-09-08 (the living-ADR ruling) — Decision 4 carries the
+two-sided blocking boundary: rebuttal first, then fix round when a `suggested_fix` survives, a fix-less
+survivor escalates, a seat conflict is an `ask`; see the Decision log)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -70,7 +72,18 @@ findings route once judgment is licensed. Full mechanics:
    intent-consistent → ace or phase-close sweep; `phaseClose:true` when the fix needs the integrated tip or
    a shared file), `follow-up` (substantive work beyond the phase — must state why it is not absorbable;
    files the issue), `note` (report + servitor feed, never an issue). Defaults when omitted: Minor →
-   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched. *(Coupled —
+   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched. Its
+   boundary is two-sided and settled in-run: on a split the one rebuttal round runs first; a blocking
+   finding that survives it with a concrete in-file `suggested_fix` dispatches a fix round plus a
+   full-roster re-audit at the new SHA (bounded by `run.roundLimit`, approval unanimous on the post-fix
+   `audit_sha`) instead of escalating — rebuttal first, then fix round when a `suggested_fix` survives
+   (#1989); a fix-less survivor is **decision-forked** and escalates with an `escalate_reason` naming
+   the missing plan decision, read into `escalated[]`, while a mechanical blocking finding with budget
+   is `request_changes` and never escalates (#1664); a **seat conflict** — one file/locus, severities
+   split across the blocking line, a scope/mandate or adjudication-match rationale on at least one
+   side — is an operator `ask` with a fix-now / follow-up-and-merge fork, never an escalation (#1914).
+   Escalate otherwise fires only on budget exhaustion, an explicit `escalate` verdict, or a blocking
+   finding surviving a fix round unchanged. *(Coupled —
    [ADR-0032](0032-red-team-grades-by-artifact-kind.md) refines *what counts as a finding at all* when
    `/red-team` grades a plan against a not-yet-mutated repo: a `deliverableAbsence`-flagged finding is a
    non-defect the red-team gate never blocks on. The red-team spec's friction D7 pins that gate's pass-only
@@ -589,3 +602,7 @@ every amendment above stay byte-untouched; this note supersedes their *currency*
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
 body text above — beyond the Status currency line — byte-unchanged.
+
+## Decision log
+
+- 2026-09-08 · Decision 4 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): the blocking boundary is two-sided — on a split the one rebuttal round runs first, a blocking finding that survives it with a `suggested_fix` dispatches a fix round plus a full-roster re-audit instead of escalating (#1989), a fix-less decision-forked survivor escalates with `escalate_reason` read into `escalated[]` while a mechanical blocking finding with budget never escalates (#1664), and a seat conflict on one locus parks an operator `ask` (#1914) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D17/D18/D19, Phase 11 Task 11.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
