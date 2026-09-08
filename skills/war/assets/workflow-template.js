@@ -4327,12 +4327,12 @@ if (mergedTasksForGateAudit.length > 0) {
     + (intraDep
       ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), tee its full stdout+stderr to ${refineryPath}/.war/gate-phase-${ph.id}.log (${GATE_LOG_STAMP}), and return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: ${refineryPath}/.war/gate-phase-${ph.id}.log } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
       : pt`No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
-    + pt`  3. PHASE DIFF — run: git -C ${refineryPath} diff --name-only ${phaseBaseCmd}..$(git -C ${refineryPath} rev-parse HEAD) and return its lines as phase_diff_files (one repo-relative path per entry) — the phase's git-derived changed-file list, read by the gate-audit floor pass; absent ⇒ that pass's note arm skips.\n`
+    + pt`  3. PHASE DIFF — run: git -C ${refineryPath} diff --name-only ${phaseBaseCmd}..$(git -C ${refineryPath} rev-parse HEAD) and return its lines as phase_diff_files (one repo-relative path per entry) — the phase's git-derived changed-file list, read by the gate-audit floor pass; absent ⇒ that pass's note arm reads an empty Set and matches nothing.\n`
     + pt`Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], phase_diff_files, integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', label: `evidence:phase-${ph.id}`, dispatchKind: 'evidence', schema: EVIDENCE_RESULT, ...spawn('refiner') })
   // phase_diff_files (D15): stamped when the dispatch returned an array; otherwise null + one log line.
   if (evidence && Array.isArray(evidence.phase_diff_files)) phaseDiffFiles = new Set(evidence.phase_diff_files.filter(p => typeof p === 'string' && p.length > 0).map(aceRelPath))
-  else log('evidence:phase-' + ph.id + ' returned no phase_diff_files — the gate-audit floor pass\'s note arm skips (the follow-up arm still reroutes; fail-open, D15).')
+  else log('evidence:phase-' + ph.id + ' returned no phase_diff_files — the gate-audit floor pass\'s note arm matches nothing (the follow-up arm still reroutes; fail-open, D15).')
   // Merge the stamped tokens back onto the per-task entries (fail-open: a non-EVIDENCE_RESULT shape — e.g. a
   // stray MergeResult — has no perTask, so nothing is stamped and the seats keep today's behavior).
   if (evidence && Array.isArray(evidence.perTask)) {
@@ -4613,9 +4613,9 @@ const routeGateAuditRows = () => {
   if (!gateAuditRows.length) return
   // An absent phase diff reads as an EMPTY Set (#2058 — no special case): the note arm below then
   // finds no file in it and keeps every note, the same way the omitted-disposition default already
-  // classifies over an empty Set. The skip is still logged (never a silent skip).
+  // classifies over an empty Set. The absent diff is still logged (never a silent fallback).
   const phaseDiff = phaseDiffFiles === null ? new Set() : phaseDiffFiles
-  if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm skips (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
+  if (phaseDiffFiles === null) log('gate-audit floor pass: phase_diff_files absent — the note arm matches nothing (a gate-audit note keeps its classification); the follow-up arm still reroutes (D15).')
   for (const f of gateAuditRows.splice(0)) {
     const fix = !blankText(f.suggested_fix)
     const barrier = BARRIER_TOKENS.includes(f.barrier) ? f.barrier : null
@@ -5077,7 +5077,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // re-sweep the finding next phase while the audit trail reads approve and the branch rots
       // unnamed. A panel-reject, blocked or dead sweep keeps the finality split (D3a/D3b).
       polishStatus = 'discarded'
-      const approvedUnmerged = sweepApproved && !(pmr && pmr.status === 'merged')
+      const approvedUnmerged = sweepApproved   // inside the else of the merged arm, so "approved" already means "its merge never landed"
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${(finalPhase || approvedUnmerged) ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}${approvedUnmerged ? ' (the panel approved the branch — its audited findings file as follow-ups naming it, never a silent carry)' : ''}.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
@@ -5521,7 +5521,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // skills/war/references/file-followups.md (same commit). Every engine-filed issue body carries
       // its DEMOTE_REASONS prefix on a FIXED line; a seat-filed row carries its barrier tag, and a
       // seat row that no intake floor ran on carries demote:floor-skipped (#2051).
-      + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row that no intake floor ran on (a failed probe, or a row raised at the escalation arm, the sweep, or the terminal pass), or \`seat-filed (barrier: <tag>)\` otherwise; a clustered issue lists one such line per member row.\n`
+      + pt`EACH filed issue's body carries, as its FIRST line, \`Demote-Reason: <value>\` copied verbatim from the row's \`filed-by\` field below — the engine's \`demote:<reason>\` prefix on an engine-demoted row, \`demote:floor-skipped\` on a seat row that no intake floor ran on (a failed probe, or a row raised at the escalation arm, the sweep, or the terminal pass), or \`seat-filed (barrier: <tag>)\` otherwise; when the row carries a \`drain cause:\` cell, append it to that same line verbatim (the dispatch that died and why); a clustered issue lists one such line per member row.\n`
       + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens follows the FAMILY-PREFIX rule: a seat label whose FIRST \`:\`-segment is \`gate-audit\` yields the lens \`execution-evidence\` whatever its trailing segments (a phase-level segment like \`phase-1\` or a dispatch suffix like \`integrated-tip\`/\`end-state\` is never a lens); otherwise the lens is the trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).

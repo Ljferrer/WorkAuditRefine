@@ -15796,12 +15796,12 @@ test('gate-audit-route — a gate-audit note with a suggested_fix and a file in 
   assert.ok(ev && ev.prompt.includes('PHASE DIFF') && ev.prompt.includes('phase_diff_files'), 'the evidence dispatch asks for phase_diff_files')
 })
 
-test('gate-audit-route — phase_diff_files absent: the follow-up arm still reroutes, the note arm skips with a log, and no demote:floor-skipped comes from this pass', async () => {
+test('gate-audit-route — phase_diff_files absent: the follow-up arm still reroutes, the note arm matches nothing with a log, and no demote:floor-skipped comes from this pass', async () => {
   const bare = gaAbsorb({ title: 'ga follow-up no phase diff', disposition: 'follow-up' })
   const note = gaAbsorb({ title: 'ga note no phase diff', disposition: 'note' })
   const barred = gaAbsorb({ title: 'ga barred no phase diff', disposition: 'follow-up', barrier: 'barrier:release-slot', file: 'docs/other.md' })
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), p4Base({ gate: [bare, note, barred] }))
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase_diff_files absent') && l.includes('note arm skips')), 'the note-arm skip is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('phase_diff_files absent') && l.includes('note arm matches nothing')), 'the note-arm empty-Set match is logged')
   assert.ok(polishPromptOf(calls).includes('ga follow-up no phase diff'), 'the follow-up still reroutes into the sweep')
   assert.ok((out.notes || []).some(n => n && n.title === 'ga note no phase diff'), 'the note keeps its classification')
   const filed = demotionOf(out, 'ga barred no phase diff')
@@ -16936,7 +16936,8 @@ test('drain cause reaches filing prompt and followUps: a sweep dispatch death re
   const plain = await runPhase(SWEEP_ARGS(), reject)
   const fp2 = filingPromptOf(plain.calls)
   assert.ok(fp2.includes('engine demote reason: demote:sweep-discarded — phase-close sweep discarded'), 'an ordinary discard still renders its engine demote reason')
-  assert.ok(!fp2.includes('drain cause:'), 'no drain cause on an ordinary discard (death-scoped, never a discard default)')
+  assert.ok(!fp2.includes('· drain cause:'), 'no drain cause cell on an ordinary discard row (death-scoped, never a discard default); the Demote-Reason instruction names the cell on every prompt')
+  assert.ok(fp2.includes('append it to that same line verbatim'), 'the Demote-Reason instruction carries the drain cause onto the first line when the row has one')
   const fu2 = (plain.out.handoff.followUps || []).find(r => r && /dangling link/.test(r.reason || ''))
   assert.ok(fu2 && !('drainCause' in fu2), 'the handoff row carries no drainCause key when no dispatch died')
 })
@@ -17060,5 +17061,6 @@ test('dropDup census: one definition owns the duplicate-drop shape at drainHeldA
   assert.ok(src.includes("dropDup(phaseCloseQueue, f, who, r.task.id, 'queued for the phase-close sweep')"), 'routeAbsorbTail drops against the phase-close queue through the helper')
   assert.ok(src.includes("dropDup(aceable, f, who, r.task.id, 'in this ace batch')"), 'routeAbsorbTail drops against the ace batch through the helper')
   assert.ok(!src.includes("absorbs.find(a => remintKey(a) === remintKey(f))"), 'the drain\'s inline find is gone')
-  assert.ok(!src.includes("phaseCloseQueue.find(q => remintKey(q) === key)\n        const dup = dupQ || aceable.find"), 'the absorb tail\'s inline finds are gone')
+  assert.ok(!src.includes("phaseCloseQueue.find(q => remintKey(q) === key)"), 'the absorb tail\'s inline queue find is gone')
+  assert.ok(!src.includes("aceable.find(a => remintKey(a) === key)"), 'the absorb tail\'s inline ace-batch find is gone')
 })
