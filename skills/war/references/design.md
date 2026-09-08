@@ -2,7 +2,7 @@
 
 **Status:** Active. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads. The shipped version lives in [`.claude-plugin/plugin.json`](../../../.claude-plugin/plugin.json).
 
-This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js). It is also an ADR 0042 eviction destination: the §4 step 3 default-roster sentence was byte-identical to its pre-eviction `SKILL.md` text **at eviction time** (2026-09-08; the bullet's trailing `;` became a period).
+This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js). It is also an ADR 0042 eviction destination: the §4 step 3 default-roster sentence was byte-identical to its pre-eviction `SKILL.md` text through `on flagged code` **at eviction time** (2026-09-08; the bullet's trailing `;` became a period).
 
 ## 1. Topology
 `Human ↔ Lead (main session = Mayor) ↔ Workflow → { war-worker, war-auditor, war-refiner }`. The Lead orchestrates, gates, and talks to the human; it **never edits code**. There is no separate orchestrator agent and no standalone Witness agent — those functions live in the Workflow's control flow and lifecycle hooks.
