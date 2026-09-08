@@ -67,7 +67,7 @@ patch-id, or an empty `already_upstream_commits` — and routes by patch-ids ins
 
 The canonical arms and wire shape live in the `PIN_TRANSFER` schema and the merge-slot
 pin-transfer region of `workflow-template.js`; the ledger is `pinTransfers` there. The merge-floor
-retry loop is out of scope and stays in-lock and full-panel (D4).
+retry loop is out of scope and stays in-lock and full-panel (this ADR's ratifying plan's D4).
 
 ### 3. Global dispatch semaphore — one ceiling for the whole run
 
@@ -113,7 +113,7 @@ run today (PIN-3).
   the true ceiling stays unpredictable at every nesting depth, and lowering N throttles the
   shallow sites hardest. One counter at one seam is the only shape that states a ceiling truly.
 
-## Relationship to prior ADRs
+## Relationship to other ADRs
 
 - [ADR 0013](0013-commanders-intent-and-disposition-routing.md) — disposition routing owns what
   happens to findings a transfer or a reverted ace leaves behind; this ADR changes who re-reads,
@@ -126,3 +126,7 @@ run today (PIN-3).
 - [ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) — section 2
   records the `already_upstream` refusal arm this ADR's pin-transfer section restates; its D4 and
   PIN-8 belong to the 2026-09-06 plan, not to this ADR's ratifying plan.
+
+## Decision log
+
+- 2026-09-07 · section 2's `D4` attributed to this ADR's ratifying plan (the 2026-08-30 plan's D4 row), the relationship heading renamed `Relationship to other ADRs` so the ADR 0051 row fits under it · issue #2156
