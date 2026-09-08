@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import os from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -8,6 +9,7 @@ import assert from 'node:assert/strict'
 import {
   prepareSnipeRequest,
   verifySnipeScope,
+  githubOriginIdentity,
 } from './snipe-request.mjs'
 
 const supportedProfiles = {
@@ -15,6 +17,57 @@ const supportedProfiles = {
   'gpt-fast': ['low'],
 }
 const inheritedProfile = { model: 'gpt-test', effort: 'high' }
+
+test('GitHub origin identity resolves a declarative trusted SSH alias without connecting', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'snipe-ssh-'))
+  const config = join(directory, 'config')
+  writeFileSync(config, 'Host SQP.github.com\n  HostName github.com\n  IdentityFile ~/.ssh/key\n')
+  for (const remote of ['git@SQP.github.com:example/project.git', 'ssh://git@SQP.github.com/example/project.git']) {
+    assert.deepEqual(githubOriginIdentity(remote, config), { owner: 'example', repository: 'project' })
+  }
+})
+
+test('SSH alias identity respects first-value, wildcard and negated Host matching', () => {
+  const config = join(mkdtempSync(join(tmpdir(), 'snipe-ssh-')), 'config')
+  writeFileSync(config, 'Host *.github.com !blocked.github.com\n HostName = "github.com" # approved host\nHost *\n HostName elsewhere.invalid\n')
+  assert.deepEqual(githubOriginIdentity('git@SQP.github.com:example/project.git', config), { owner: 'example', repository: 'project' })
+  assert.equal(githubOriginIdentity('git@blocked.github.com:example/project.git', config), null)
+  writeFileSync(config, 'Host *\n HostName evilgithub.com\nHost SQP.github.com\n HostName github.com\n')
+  assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null)
+})
+
+test('SSH alias identity refuses ambiguous config and never executes its commands', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'snipe-ssh-'))
+  const config = join(directory, 'config')
+  const marker = join(directory, 'executed')
+  for (const extra of [`Match exec "touch ${marker}"`, 'Include other.conf', 'CanonicalizeHostname yes', 'HostName %h', 'Host [invalid]']) {
+    writeFileSync(config, `Host SQP.github.com\n HostName github.com\n${extra}\n`)
+    assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null, extra)
+  }
+  writeFileSync(config, `Host SQP.github.com\n HostName github.com\n ProxyCommand touch ${marker}\n LocalCommand touch ${marker}\n`)
+  assert.ok(githubOriginIdentity('git@SQP.github.com:example/project.git', config))
+  assert.equal(existsSync(marker), false)
+  chmodSync(config, 0o666)
+  assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', config), null)
+  assert.equal(githubOriginIdentity('git@SQP.github.com:example/project.git', join(directory, 'missing')), null)
+})
+
+test('GitHub origin identity rejects malformed, lookalike and injection-shaped remotes', () => {
+  const config = join(mkdtempSync(join(tmpdir(), 'snipe-ssh-')), 'config')
+  writeFileSync(config, 'Host SQP.github.com\n HostName github.com\n')
+  for (const remote of [
+    'https://evilgithub.com/example/project.git', 'https://github.com.evil/example/project.git',
+    'http://github.com/example/project.git', 'file://github.com/example/project.git',
+    'https://user:password@github.com/example/project.git',
+    'git@unknown.github.com:example/project.git', 'ssh://git@SQP.github.com:2222/example/project.git',
+    'git@SQP.github.com:example/project.git;touch-marker', 'git@-oProxyCommand=touch:example/project.git',
+    'git@SQP.github.com:example/../project.git', 'git@SQP.github.com:example/%70roject.git',
+    'git@SQP.github.com:example/project.git\n', 'ssh://git@SQP.github.com/example/project.git?x',
+  ]) assert.equal(githubOriginIdentity(remote, config), null, remote)
+  for (const remote of ['https://github.com/example/project.git', 'git@github.com:example/project.git', 'ssh://git@github.com:22/example/project.git']) {
+    assert.deepEqual(githubOriginIdentity(remote, config), { owner: 'example', repository: 'project' })
+  }
+})
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -184,6 +237,29 @@ test('PR identity rejects a lookalike GitHub origin host', () => {
     }),
     error => error.code === 'PR_REPOSITORY_MISMATCH',
   )
+})
+
+test('PR targets resolve SSH aliases through the host config and retain repository matching', t => {
+  const { root, base, head } = fixture()
+  const hostHome = mkdtempSync(join(tmpdir(), 'snipe-host-'))
+  mkdirSync(join(hostHome, '.ssh'))
+  writeFileSync(join(hostHome, '.ssh', 'config'), 'Host SQP.github.com\n HostName github.com\n')
+  t.mock.method(os, 'homedir', () => hostHome)
+  git(root, 'remote', 'set-url', 'origin', 'git@SQP.github.com:example/project.git')
+  git(root, 'update-ref', 'refs/pull/7/head', head)
+  const target = { type: 'pr', url: 'https://github.com/example/project/pull/7', base }
+  const before = git(root, 'status', '--porcelain=v1')
+  const request = prepare(root, { target })
+  assert.equal(request.scope.baseSha, base)
+  assert.equal(request.scope.headSha, head)
+  for (const url of ['https://github.com/other/project/pull/7', 'https://github.com/example/other/pull/7']) {
+    assert.throws(() => prepare(root, { target: { ...target, url } }), error => error.code === 'PR_REPOSITORY_MISMATCH')
+  }
+  const marker = join(hostHome, 'executed')
+  git(root, 'config', 'core.sshCommand', `touch ${marker}`)
+  assert.throws(() => prepare(root, { target }), error => error.code === 'PR_REPOSITORY_MISMATCH')
+  assert.equal(existsSync(marker), false)
+  assert.equal(git(root, 'status', '--porcelain=v1'), before)
 })
 
 test('missing refs, empty diffs, and unavailable PR objects are distinct failures', () => {

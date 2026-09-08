@@ -33,6 +33,37 @@ This test requires the Snipe plugin already installed and enabled. It builds can
 
 ## Reproduce and verify
 
+### Verified SSH aliases for PR targets (#2213)
+
+PR targets now accept SCP-style and `ssh://git@...` origins whose alias has a
+first matching `HostName github.com` in the host user's `~/.ssh/config`. Owner
+and repository matching is unchanged; this resolves identity only and fetches
+no PR objects. Explicit SSH ports other than 22 are refused.
+
+The coordinator reads a conservative declarative subset instead of launching
+`ssh -G`: [OpenSSH configuration](https://man.openbsd.org/ssh_config) uses the
+first obtained value and permits `Match exec` to execute commands. The resolver
+supports ordered `Host` patterns, wildcards, negation, and literal `HostName`.
+The user config must be a regular, user-owned file without group/other write
+permission and at most 1 MiB. Symlinks, `Include`, `Match`, canonicalization,
+tokenized names, and malformed identity directives are refused. System-only
+aliases are unsupported. This is a verified declarative identity mapping, not
+a connection test or a claim that every SSH configuration is supported.
+
+Custom Git SSH commands/variants are refused for SSH PR origins; repository
+commands and SSH `ProxyCommand`/`LocalCommand` are never executed by identity
+lookup. Other SSH options are not needed to establish the declared hostname.
+Unverifiable origins retain `PR_REPOSITORY_MISMATCH` with an explicit merge-base
+target as the workaround. No user SSH configuration is rewritten.
+
+Tests cover both remote forms, first-value ordering, wildcard exclusions,
+unmatched/lookalike hosts, malformed and injection-shaped remotes, command
+non-execution, unsafe config permissions, and PR-level owner/repository checks.
+A read-only check against this host's existing alias resolved the reported
+AutoIndex origin to `Sequoia-Port/AutoIndex`. No model calls, SSH connection, or
+plugin installation were needed for that check. Fresh installed-package
+acceptance remains a post-merge release step.
+
 ### Pinned submodule preparation (#2212)
 
 The optional request field `submoduleRemotes` maps full parent-relative paths to operator-approved remotes. For example:

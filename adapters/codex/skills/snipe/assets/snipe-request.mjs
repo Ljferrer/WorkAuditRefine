@@ -4,6 +4,8 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
+import os from 'node:os'
+import { join } from 'node:path'
 import { localCommitAvailable, localSubmoduleRepository } from './snipe-submodules.mjs'
 
 import { parseSnipeArgs } from '../../../../../skills/snipe/assets/snipe-args.mjs'
@@ -218,20 +220,66 @@ function parsePrUrl(url) {
   return { owner: match[1], repository: match[2], number: Number(match[3]) }
 }
 
+// Read only a conservative declarative subset. Running `ssh -G` can execute
+// Match exec commands. Never evaluate SSH commands or repository-supplied config.
+function aliasHostName(host, configPath) {
+  try {
+    const stat = lstatSync(configPath)
+    if (!stat.isFile() || stat.size > 1024 * 1024 || (stat.mode & 0o022) ||
+        typeof process.getuid !== 'function' || stat.uid !== process.getuid()) return null
+    let active = true
+    let hostname = null
+    for (const line of readFileSync(configPath, 'utf8').split(/\r?\n/)) {
+      const clean = line.trim()
+      if (!clean || clean.startsWith('#')) continue
+      const directive = clean.match(/^([a-z]+)(?:\s*=\s*|\s+)(.*)$/i)
+      if (!directive) return null
+      const key = directive[1].toLowerCase()
+      // Includes, conditional passes and canonicalization require the full SSH
+      // evaluator. Refuse instead of silently dropping identity-affecting rules.
+      if (['include', 'match', 'canonicalizehostname'].includes(key)) return null
+      if (!['host', 'hostname'].includes(key)) continue
+      const value = directive[2].replace(/\s+#.*$/, '').trim().replace(/^"([^"\\]*)"$/, '$1')
+      if (key === 'host') {
+        const patterns = value.split(/\s+/)
+        if (patterns.some(pattern => !/^!?[a-z0-9*?._-]+$/i.test(pattern))) return null
+        const matches = pattern => new RegExp(`^${pattern.replace(/[.]/g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i').test(host)
+        active = patterns.some(pattern => !pattern.startsWith('!') && matches(pattern)) &&
+          !patterns.some(pattern => pattern.startsWith('!') && matches(pattern.slice(1)))
+      } else {
+        if (!/^[a-z0-9][a-z0-9.-]*$/i.test(value)) return null
+        if (active && hostname === null) hostname = value.toLowerCase()
+      }
+    }
+    // First obtained HostName wins over subsequent host blocks and system config.
+    return hostname
+  } catch { return null }
+}
+
+// configPath is a trusted host/test seam, never a field in the request envelope.
+export function githubOriginIdentity(value, configPath = join(os.homedir(), '.ssh', 'config')) {
+  if (typeof value !== 'string' || /[\s\\%?#\x00-\x1f]/.test(value)) return null
+  const https = value.match(/^https:\/\/github\.com\/([a-z0-9_.-]+)\/([a-z0-9_.-]+?)(?:\.git)?$/i)
+  if (https) return { owner: https[1], repository: https[2] }
+  const ssh = value.match(/^(?:git@([a-z0-9][a-z0-9.-]*):|ssh:\/\/git@([a-z0-9][a-z0-9.-]*)(?::22)?\/)([a-z0-9_.-]+)\/([a-z0-9_.-]+?)(?:\.git)?$/i)
+  if (!ssh || ['.', '..'].includes(ssh[3]) || ['.', '..'].includes(ssh[4])) return null
+  const host = (ssh[1] || ssh[2]).toLowerCase()
+  if (host !== 'github.com' && aliasHostName(host, configPath) !== 'github.com') return null
+  return { owner: ssh[3], repository: ssh[4] }
+}
+
 function originIdentity(cwd) {
   const result = spawnGit(['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' })
   if (result.status !== 0) return null
   const value = result.stdout.trim()
-  let path = null
-  try {
-    const parsed = new URL(value)
-    if (parsed.hostname === 'github.com') path = parsed.pathname.slice(1)
-  } catch {
-    const scp = value.match(/^[^@/]+@github\.com:(.+)$/)
-    if (scp) path = scp[1]
+  if (!value.startsWith('https://')) {
+    if (process.env.GIT_SSH || process.env.GIT_SSH_COMMAND || process.env.GIT_SSH_VARIANT) return null
+    for (const key of ['core.sshCommand', 'ssh.variant']) {
+      const setting = spawnGit(['config', '--get', key], { cwd, encoding: 'utf8' })
+      if (setting.status !== 1) return null
+    }
   }
-  const match = path?.match(/^([^/]+)\/([^/]+?)(?:\.git)?$/)
-  return match ? { owner: match[1], repository: match[2] } : null
+  return githubOriginIdentity(value)
 }
 
 function dirtyParts(cwd, paths) {
@@ -323,7 +371,7 @@ function resolveTarget(cwd, target, paths) {
     }
     const identity = originIdentity(root)
     if (!identity || identity.owner.toLowerCase() !== pr.owner.toLowerCase() || identity.repository.toLowerCase() !== pr.repository.toLowerCase()) {
-      fail('PR_REPOSITORY_MISMATCH', `PR URL does not match this repository's GitHub origin`)
+      fail('PR_REPOSITORY_MISMATCH', `PR URL does not match a verified GitHub origin. SSH aliases require a trusted declarative ~/.ssh/config HostName github.com mapping without Include/Match/canonicalization or custom Git SSH commands. Use an explicit merge-base target if identity cannot be verified.`)
     }
     return mergeBaseScope(root, root, target.base, headRef, `PR ${target.url}`, paths)
   }
