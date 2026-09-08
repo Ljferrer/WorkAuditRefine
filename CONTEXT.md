@@ -971,6 +971,17 @@ edits a `ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (
 never a barrier, and the why-not-absorbable prose stays free text beside the tag.
 _Avoid_: a prose barrier; a fifth member minted on a card; the engine estimating fix size.
 
+**Version-literal guard** (`version-slots.test.mjs`):
+Release-slot eligibility is by literal, not by file (ADR 0013 Decision 5, Decision log 2026-09-08;
+#2000). Only the `RELEASE_SLOT_FILES` basenames (canonical in `skills/war/assets/land-decision.mjs`)
+refuse an absorb by filename; a fully specified Minor/Nit on `CHANGELOG.md` or `README.md` is
+`absorb`-eligible when its fix moves no version literal, CHANGELOG head heading or README `## Status`
+version token, and a fix that moves one is a release change, never a Minor. The guard is
+`skills/war/assets/version-slots.test.mjs` in the merge gate — a slot moved out of lock-step reds
+there; the engine carries no literal detector, and the ace prompt cites the guard on a release task.
+_Avoid_: refusing a blurb absorb by filename; an engine version-literal detector; reading a
+lock-step bump of all four slots as a Minor.
+
 **Demote reason prefix** (`DEMOTE_REASONS`):
 The closed prefix enum every engine `follow-up` demotion cites, canonical in
 `skills/war/assets/land-decision.mjs`, hand-mirrored in `workflow-template.js` (mirror-registry row and `F07`

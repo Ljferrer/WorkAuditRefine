@@ -29,7 +29,9 @@ demotion carries a `DEMOTE_REASONS` prefix; see the amendment below; amended 202
 gate-audit-family rows route like any seat's, so Decision 4's "never an issue" for `note` is bounded;
 see the amendment below; edited in place 2026-09-08 (the living-ADR ruling) — Decision 4 carries the
 two-sided blocking boundary: rebuttal first, then fix round when a `suggested_fix` survives, a fix-less
-survivor escalates, a seat conflict is an `ask`; see the Decision log)
+survivor escalates, a seat conflict is an `ask`; see the Decision log; edited in place 2026-09-08 —
+Decision 5 states release-slot eligibility by literal: `README.md`/`CHANGELOG.md` absorbs ride the
+per-task ace when no version literal moves, `version-slots.test.mjs` is the merge guard; see the Decision log)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -90,10 +92,14 @@ findings route once judgment is licensed. Full mechanics:
    demotion set with a drift-guard — a guarded-invariant addition to the finding-severity model here, no new
    ADR. This routing/severity model is otherwise unchanged.)*
 5. **The ace string backstop narrows to the two pure version-slot JSONs** (`plugin.json`,
-   `marketplace.json`) — the only files where a filename alone is sufficient evidence for a sandbox that
-   cannot read code. README and other shared files route to the phase-close sweep instead of being refused.
-   Version-number literals stay protected by the prompt prohibition + mandatory re-audit + forward-revert/
-   discard on every polish path.
+   `marketplace.json`, `RELEASE_SLOT_FILES`) — the only files where a filename alone is sufficient evidence
+   for a sandbox that cannot read code. Release-slot eligibility is otherwise by literal, not by file
+   (edited in place 2026-09-08, D20 of the 2026-09-06 verdict-integrity plan; #2000): a `README.md` or
+   `CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version
+   token rides the per-task ace like any other absorb, and a fix that moves one is a release change, never a
+   Minor. The merge guard is `version-slots.test.mjs` in the gate (a slot moved out of lock-step reds there;
+   no engine literal detector), beside the prompt prohibition (`never move a version literal`) + mandatory
+   re-audit + forward-revert/discard on every polish path.
 6. **End state is verified before land.** The existing post-merge gate-audit pass additionally checks this
    phase's claimed End-state conditions at the confirmed tip: provably unmet → HARD (holds the land);
    anything short of provable → SOFT note. `/red-team` gains an `intent-vs-plan` spine lens grading
@@ -606,3 +612,4 @@ body text above — beyond the Status currency line — byte-unchanged.
 ## Decision log
 
 - 2026-09-08 · Decision 4 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): the blocking boundary is two-sided — on a split the one rebuttal round runs first, a blocking finding that survives it with a `suggested_fix` dispatches a fix round plus a full-roster re-audit instead of escalating (#1989), a fix-less decision-forked survivor escalates with `escalate_reason` read into `escalated[]` while a mechanical blocking finding with budget never escalates (#1664), and a seat conflict on one locus parks an operator `ask` (#1914) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D17/D18/D19, Phase 11 Task 11.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
+- 2026-09-08 · Decision 5 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): release-slot eligibility is by literal, not by file — only the `RELEASE_SLOT_FILES` basenames (`plugin.json`/`marketplace.json`) refuse by filename, a `README.md`/`CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version token rides the per-task ace, a fix that moves one is a release change and never a Minor, and `version-slots.test.mjs` in the merge gate is the guard (no engine literal detector; #2000) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D20, Phase 12 Task 12.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
