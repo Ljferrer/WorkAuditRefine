@@ -33,6 +33,30 @@ This test requires the Snipe plugin already installed and enabled. It builds can
 
 ## Reproduce and verify
 
+### Pinned submodule preparation (#2212)
+
+The optional request field `submoduleRemotes` maps full parent-relative paths to operator-approved remotes. For example:
+
+```json
+{"submoduleRemotes":{"vendor/utils":"git@github.com:OWNER/UTILS.git"}}
+```
+
+No approval is inferred from `.gitmodules`. Existing local objects need no network approval; the coordinator copies exact commit/tree/blob closures into new bare repositories. A missing object can be fetched only from a matching approved remote, after comparing both relevant pinned `.gitmodules` entries. Added/deleted gitlinks inspect the non-null side. Nested changed gitlinks are enumerated from the prepared trees and need their own path-specific approval. Dirty scope uses the corresponding HEAD/index/working-tree metadata rather than replacing it with the current checkout's URL.
+
+Preparation does not clone or check out files into the target, copy source Git configuration, or run checkout hooks. Git environment routing, global URL rewrites, credential helpers and lazy fetching are disabled for preparation; source scope capture also suppresses fsmonitor and text conversion. [Git documents `GIT_NO_LAZY_FETCH`](https://git-scm.com/docs/git) as preventing automatic retrieval from promisor remotes. Allowed remote transports are HTTPS, Git SSH, and loopback-only HTTP for local servers. Redirects, credential-bearing URLs, local-file and arbitrary helper transports are refused. HTTPS authentication requiring a global credential helper is not supported here; approved SSH URLs can use the host's existing keys/agent. Remote identity changes between base/head fail closed with this single-remote-per-path interface.
+
+Limits are 32 prepared gitlinks, four levels, 120 seconds total preparation, 30 seconds per Git process, and 64 MiB per command output/object pack. These bound processing, not total network bytes downloaded by Git. Cancellation or any unavailable object/limit leaves coverage incomplete while preserving other readable findings. Auditors retain the existing read-only/no-network configuration. Temporary `reviewRepository` paths are usable only during the panel and are disposed on completion or failure.
+
+Repeatable checks:
+
+- `node --test adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs`: local copies; approved versus unapproved/mismatched/unsafe remote; missing base/head; symlink escape; dirty index metadata; nested approvals. Network fixtures are isolated loopback Git servers, not real remotes.
+- The runner regression verifies both seats can read prepared pins before temporary repositories are removed. The scope regression demonstrates repository-configured fsmonitor/textconv execution before the fix and its suppression afterward.
+- `SNIPE_CODEX_BIN=/absolute/path/to/codex SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium node --test --test-name-pattern='actual host audits prepared' adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs` runs one real auditor against a seeded submodule bug, asserting a parent-relative finding and unchanged parent/submodule checkout snapshots.
+
+The standalone package now includes the preparation module and conditional submodule reference (twelve files). Installation remains a post-review release step; these checks do not update the live plugin.
+
+### Coordinator launch and dirty scope
+
 1. In a disposable Git repository, commit a `normalizedScore(value, maximum)` helper that rejects non-finite operands with `Number.isFinite`. Configure `origin/HEAD` to that baseline. Remove only the validation in the working tree; leave ratio clamping. Include no tests so absent-test reporting is exercised.
 2. In a Codex app task with workspace sandboxing, invoke `$snipe correctness,security`, with the operator concern “invalid and non-finite inputs.” When validating a candidate before installation, explicitly select its `SKILL.md` and adjacent runner and record that this is source validation.
 3. Inspect the task's command invocation: it must request `sandbox_permissions: "require_escalated"` for the coordinator's first launch. The child command must retain `--sandbox read-only`, `approval_policy="never"`, and the existing disabled connector/plugin/hook surfaces. A denied launch stops; no broader-permission retry is allowed.

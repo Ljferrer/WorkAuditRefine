@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -57,6 +57,38 @@ function snapshot(root) {
     file: hash(readFileSync(join(root, 'seat.js'))),
   }
 }
+
+test('actual host audits prepared submodule blobs without changing the checkout', {
+  skip: !codexPath || !model || !effort,
+  timeout: 10 * 60 * 1000,
+}, async t => {
+  const child = fixture()
+  const root = fixture()
+  const baseObject = git(child, 'rev-parse', 'refs/remotes/origin/main')
+  const headObject = git(child, 'rev-parse', 'HEAD')
+  git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', child, 'vendor/engine')
+  git(root, 'update-index', '--cacheinfo', '160000', baseObject, 'vendor/engine')
+  git(root, 'commit', '-m', 'base pin')
+  const base = git(root, 'rev-parse', 'HEAD')
+  git(root, 'update-index', '--cacheinfo', '160000', headObject, 'vendor/engine')
+  git(root, 'commit', '-m', 'advance pin')
+  const before = snapshot(root)
+  const nestedBefore = snapshot(join(root, 'vendor/engine'))
+  const result = await runSnipePanel({
+    cwd: root, target: { type: 'ref', ref: base }, rawArgs: 'correctness',
+    profile: { model, effort }, supportedProfiles: { [model]: [effort] },
+    concern: 'Check the changed submodule code for invalid and non-finite input behavior.',
+  }, { codexPath, timeoutMs: 8 * 60 * 1000 })
+  if (!result.complete) t.diagnostic(JSON.stringify(result.seats.map(seat => ({ status: seat.status, response: seat.response, repair: seat.repair }))))
+  assert.equal(result.complete, true, result.report)
+  assert.equal(result.seats[0].verdict.verdict, 'request_changes', result.report)
+  assert.ok(result.seats[0].verdict.findings.some(finding => (
+    finding.file?.includes('vendor/engine/seat.js') && /invalid|non-finite|NaN/i.test(finding.title + finding.rationale)
+  )), result.report)
+  assert.equal(existsSync(result.request.scope.submodules[0].reviewRepository), false)
+  assert.deepEqual(snapshot(root), before)
+  assert.deepEqual(snapshot(join(root, 'vendor/engine')), nestedBefore)
+})
 
 function capabilityProbeWrapper() {
   const root = mkdtempSync(join(tmpdir(), 'codex-snipe-probe-wrapper-'))

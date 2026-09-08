@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
-import { resolve, sep } from 'node:path'
+import { localCommitAvailable, localSubmoduleRepository } from './snipe-submodules.mjs'
 
 import { parseSnipeArgs } from '../../../../../skills/snipe/assets/snipe-args.mjs'
 import { RESERVED_LENSES } from '../../../../../skills/war/assets/war-config.mjs'
@@ -21,8 +21,14 @@ function fail(code, message) {
   throw new SnipeRequestError(code, message)
 }
 
+function spawnGit(args, options) {
+  return spawnSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args], {
+    ...options, env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_NO_REPLACE_OBJECTS: '1' },
+  })
+}
+
 function git(cwd, args, { allowDiff = false, binary = false } = {}) {
-  const result = spawnSync('git', args, {
+  const result = spawnGit(args, {
     cwd,
     encoding: binary ? null : 'utf8',
     maxBuffer: 32 * 1024 * 1024,
@@ -41,7 +47,7 @@ function stdout(cwd, args) {
 }
 
 function resolveCommit(cwd, ref) {
-  const result = spawnSync('git', ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`], {
+  const result = spawnGit(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`], {
     cwd,
     encoding: 'utf8',
   })
@@ -86,7 +92,7 @@ function resolveProfile({ profile, inheritedProfile, supportedProfiles }) {
 }
 
 function defaultBranchRef(cwd) {
-  const result = spawnSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+  const result = spawnGit(['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
     cwd,
     encoding: 'utf8',
   })
@@ -97,17 +103,11 @@ function defaultBranchRef(cwd) {
 }
 
 function hasDiff(cwd, baseSha, headSha, paths) {
-  const args = ['diff', '--quiet', baseSha, headSha]
+  const args = ['diff', '--no-ext-diff', '--no-textconv', '--quiet', baseSha, headSha]
   if (paths.length) args.push('--', ...pathspecs(paths))
   const result = git(cwd, args, { allowDiff: true })
   if (result.status > 1) fail('GIT_FAILED', 'git diff failed while validating the review range')
   return result.status === 1
-}
-
-function commitObjectAvailable(cwd, object) {
-  if (!object) return true
-  const result = spawnSync('git', ['cat-file', '-e', `${object}^{commit}`], { cwd, encoding: 'utf8' })
-  return result.status === 0
 }
 
 function gitlinkChangesFromArgs(cwd, args, source = null) {
@@ -122,26 +122,26 @@ function gitlinkChangesFromArgs(cwd, args, source = null) {
     const path = renamed ? fields[index + 2] : firstPath
     index += renamed ? 3 : 2
     if (match[1] !== '160000' && match[2] !== '160000') continue
-    const nested = resolve(cwd, path)
-    const nestedIsInside = nested.startsWith(`${resolve(cwd)}${sep}`)
-    const baseObject = /^0+$/.test(match[3]) ? null : match[3]
-    let headObject = /^0+$/.test(match[4]) ? null : match[4]
-    if (source === 'unstaged' && match[2] === '160000' && !headObject && nestedIsInside) {
-      const nestedHead = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
+    const nested = localSubmoduleRepository(cwd, path)
+    const baseObject = match[1] !== '160000' || /^0+$/.test(match[3]) ? null : match[3]
+    let headObject = match[2] !== '160000' || /^0+$/.test(match[4]) ? null : match[4]
+    if (source === 'unstaged' && match[2] === '160000' && !headObject && nested) {
+      const nestedHead = spawnGit(['rev-parse', '--verify', 'HEAD^{commit}'], {
         cwd: nested,
         encoding: 'utf8',
       })
       if (nestedHead.status === 0) headObject = nestedHead.stdout.trim()
     }
-    const nestedStatus = source === 'unstaged' && nestedIsInside
-      ? spawnSync('git', ['status', '--porcelain=v2', '-z'], { cwd: nested, encoding: 'utf8' })
+    const nestedStatus = source === 'unstaged' && nested
+      ? spawnGit(['status', '--porcelain=v2', '-z'], { cwd: nested, encoding: 'utf8' })
       : null
     const nestedDirty = nestedStatus?.status === 0 && nestedStatus.stdout.length > 0
     const required = [baseObject, headObject].filter(Boolean)
     const commitsAvailable = required.every(object => (
-      commitObjectAvailable(cwd, object) || (nestedIsInside && commitObjectAvailable(nested, object))
+      localCommitAvailable(cwd, object) || (nested && localCommitAvailable(nested, object))
     ))
-    const contentsAvailable = commitsAvailable && !nestedDirty
+    const unresolvedHead = match[2] === '160000' && !headObject
+    const contentsAvailable = commitsAvailable && !nestedDirty && !unresolvedHead
     const change = {
       path,
       baseObject,
@@ -152,6 +152,7 @@ function gitlinkChangesFromArgs(cwd, args, source = null) {
         : (contentsAvailable ? null : 'one or more pinned submodule commits are unavailable locally'),
     }
     if (nestedDirty) change.nestedDirty = true
+    if (unresolvedHead) change.unresolvedHead = true
     if (source) change.source = source
     changes.push(Object.freeze(change))
   }
@@ -159,7 +160,7 @@ function gitlinkChangesFromArgs(cwd, args, source = null) {
 }
 
 function committedGitlinkChanges(cwd, baseSha, headSha, paths) {
-  const args = ['diff', '--raw', '--no-abbrev', '-z', baseSha, headSha]
+  const args = ['diff', '--no-renames', '--no-ext-diff', '--raw', '--no-abbrev', '-z', baseSha, headSha]
   if (paths.length) args.push('--', ...pathspecs(paths))
   return gitlinkChangesFromArgs(cwd, args)
 }
@@ -167,8 +168,8 @@ function committedGitlinkChanges(cwd, baseSha, headSha, paths) {
 function dirtyGitlinkChanges(cwd, paths) {
   const suffix = paths.length ? ['--', ...pathspecs(paths)] : []
   return Object.freeze([
-    ...gitlinkChangesFromArgs(cwd, ['diff', '--cached', '--raw', '--no-abbrev', '-z', 'HEAD', ...suffix], 'staged'),
-    ...gitlinkChangesFromArgs(cwd, ['diff', '--raw', '--no-abbrev', '-z', ...suffix], 'unstaged'),
+    ...gitlinkChangesFromArgs(cwd, ['diff', '--no-renames', '--no-ext-diff', '--cached', '--raw', '--no-abbrev', '-z', 'HEAD', ...suffix], 'staged'),
+    ...gitlinkChangesFromArgs(cwd, ['diff', '--no-renames', '--no-ext-diff', '--raw', '--no-abbrev', '-z', ...suffix], 'unstaged'),
   ])
 }
 
@@ -218,7 +219,7 @@ function parsePrUrl(url) {
 }
 
 function originIdentity(cwd) {
-  const result = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' })
+  const result = spawnGit(['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' })
   if (result.status !== 0) return null
   const value = result.stdout.trim()
   let path = null
@@ -235,8 +236,8 @@ function originIdentity(cwd) {
 
 function dirtyParts(cwd, paths) {
   const suffix = paths.length ? ['--', ...pathspecs(paths)] : []
-  const staged = git(cwd, ['diff', '--cached', '--binary', '--no-ext-diff', ...suffix], { binary: true }).stdout
-  const unstaged = git(cwd, ['diff', '--binary', '--no-ext-diff', ...suffix], { binary: true }).stdout
+  const staged = git(cwd, ['diff', '--cached', '--binary', '--no-ext-diff', '--no-textconv', ...suffix], { binary: true }).stdout
+  const unstaged = git(cwd, ['diff', '--binary', '--no-ext-diff', '--no-textconv', ...suffix], { binary: true }).stdout
   const untrackedOutput = git(cwd, ['ls-files', '--others', '--exclude-standard', '-z', ...suffix], { binary: true }).stdout
   const untracked = untrackedOutput.toString('utf8').split('\0').filter(Boolean).sort()
   return { staged, unstaged, untracked }
@@ -316,7 +317,7 @@ function resolveTarget(cwd, target, paths) {
       fail('INVALID_TARGET', 'PR target requires the PR base ref or commit from trusted coordinator metadata')
     }
     const headRef = `refs/pull/${pr.number}/head`
-    const headResult = spawnSync('git', ['rev-parse', '--verify', '--end-of-options', `${headRef}^{commit}`], { cwd: root, encoding: 'utf8' })
+    const headResult = spawnGit(['rev-parse', '--verify', '--end-of-options', `${headRef}^{commit}`], { cwd: root, encoding: 'utf8' })
     if (headResult.status !== 0) {
       fail('PR_OBJECTS_UNAVAILABLE', `PR #${pr.number} objects are unavailable locally; coordinator-side preparation is required`)
     }
