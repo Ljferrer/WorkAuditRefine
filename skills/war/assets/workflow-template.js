@@ -2469,7 +2469,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
     // same commit; the `split-panel boundary` registry row): rebuttal first, then a fix round when a `suggested_fix` survives,
     // escalation only for a fix-less survivor.
-    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation; a blocking finding you keep standing WITHOUT a fix escalates the phase, so keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\` naming the missing plan decision) — otherwise state the fix or withdraw the finding:\n`
+    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase, so keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\` naming the missing plan decision) — otherwise state the fix or withdraw the finding:\n`
       // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
       // (construction-guaranteed → bare); ${f.title ?? ''} absence-tolerant (title is a schema-optional finding field).
       + peers.map(s => pt`- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => pt`[${f.severity}] ${f.title ?? ''}`).join('; ') || 'no findings'}`).join('\n')
@@ -3626,8 +3626,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // the retired deadlock arm escalated every surviving split to a human tiebreak. Now, in
             // order: (a) a seat conflict (every blocker paired with an approving seat's Minor/Nit on
             // the same locus, a scope/mandate/adjudication rationale on one side) parks ONE ask per
-            // pair through parkAsk — the blocking finding rides the ask record, its seat neutralizes
-            // to approve (tagged seatConflict), the peer's row corroborates the parked record at its
+            // pair through parkAsk — the blocking finding rides the ask record (its `seatConflict`
+            // field carries the pair), its seat neutralizes to approve, the peer's row corroborates the parked record at its
             // own routing site, and the task merges under the fork (interactive: parked for the
             // Checkpoint; --afk: resolved by a later citation or demoted Lead-side with the question
             // preserved) — never an escalation; (b) a blocker that survived the previous fix round
@@ -3635,7 +3635,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // with a concrete `suggested_fix` falls through to FIX_NEEDED below — one fix worker, then
             // the full roster re-audits the new sha at the top of the loop, under the same
             // roundLimit, approval unanimous on that audit_sha; (d) a fix-less survivor escalates as
-            // before (decision-forked). A split never escalates at round 0 when a fix exists.
+            // before (decision-forked). A blocking seat that carries no Critical/Major escalates naming
+            // the seat, never an empty finding list. A split never escalates at round 0 when a fix exists.
             const conflicts = seatConflictsOf(seats)
             if (conflicts) {
               for (const p of conflicts) {
@@ -3647,13 +3648,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
                 log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Parked for the operator ruling instead of escalating; the blocking seat ' + (p.seat.seat ?? '?') + ' neutralizes to approve and the task merges under the fork (interactive: ruled at the Checkpoint; --afk: resolved by citation or demoted Lead-side with the question preserved).')
               }
               for (const s of seats) if (s.verdict === 'request_changes') {
-                s.verdict = 'approve'; s.seatConflict = true
+                s.verdict = 'approve'
                 log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — blocking seat ' + (s.seat ?? '?') + ' neutralizes to approve' + (conflicts.some(p => p.seat === s) ? ' (its blocking finding rides the parked ask)' : ' (it carried no Critical/Major finding to pair — a verdict never stands on findings it does not have)') + '.')
               }
               verdict = 'approve'; break
             }
             const survivors = blockingOf(seats)
             const nameThem = fs => fs.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
+            if (!survivors.length) {                                // a blocking seat with no Critical/Major: name the seat, never a phantom finding
+              blocked = 'post-rebuttal split with no blocking finding on the blocking seat(s) ' + seats.filter(s => s.verdict === 'request_changes').map(s => s.seat ?? '?').join(', ') + ' (a verdict never stands on findings it does not have)'
+              log('Task ' + task.id + ': ' + blocked + ' — escalating.')
+              verdict = 'escalate'; break
+            }
             const unchanged = survivors.filter(f => lastFixKeys.has(blockerKey(f)))
             if (unchanged.length) {
               blocked = 'blocking finding survived a fix round unchanged (PIN-29): ' + nameThem(unchanged)

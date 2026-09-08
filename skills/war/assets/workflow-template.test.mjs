@@ -17287,6 +17287,19 @@ test('split panel: fix-less survivor escalates (D17/D18) — a Major with NO sug
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
 })
 
+test('split panel: a request_changes seat with Minor-only findings escalates naming the seat (11.1 ace a2) — no Critical/Major means blockingOf() is empty, so the escalation names the blocking seat instead of a phantom fix-less finding', async () => {
+  const MINOR_ONLY = { severity: 'Minor', title: 'log line lacks the task id', file: 'a.js', line: 3, rationale: 'the log line reads without its task id', suggested_fix: 'prefix the task id' }
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MINOR_ONLY, 2: MINOR_ONLY }))
+  assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first')
+  assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — there is no blocking finding to fix')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
+  assert.equal(esc.blocked, 'post-rebuttal split with no blocking finding on the blocking seat(s) audit:t1:security:rebut (a verdict never stands on findings it does not have)', 'the escalation names the seat that blocked without a Critical/Major')
+  assert.ok(!/fix-less blocking finding survived/.test(esc.blocked), 'never the fix-less-survivor text with an empty finding list')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('post-rebuttal split with no blocking finding on the blocking seat(s)')), 'the guard logs the escalation')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
+})
+
 test('split panel: a blocker surviving a fix round unchanged escalates (D17, PIN-29 bound, #1989) — the same Major (task + file + title) still standing after fix + full-roster re-audit + rebuttal escalates instead of spending a second fix round', async () => {
   // Ordinals: 1 round 0 (split), 2 rebuttal (stands → fix), 3 post-fix re-audit (split again), 4 second rebuttal (stands, unchanged).
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { roundLimit: 6 } }), splitPanelImpl({ 1: MAJOR_WITH_FIX, 2: MAJOR_WITH_FIX, 3: MAJOR_WITH_FIX, 4: MAJOR_WITH_FIX }))
