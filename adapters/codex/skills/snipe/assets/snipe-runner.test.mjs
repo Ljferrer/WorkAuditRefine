@@ -235,7 +235,10 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
       try{
         let state;
         if(${JSON.stringify(surface)}==='catalog'){
-          try{await listSupportedProfiles(options);assert.fail('catalog cleanup cannot succeed')}catch(error){assert.equal(error.code,'PROFILE_DISCOVERY_FAILED');state=error}
+          try{await listSupportedProfiles(options);assert.fail('catalog cleanup cannot succeed')}catch(error){
+            assert.equal(error.code,'PROFILE_DISCOVERY_FAILED');state=error;
+            assert.ok(error.message.includes(${JSON.stringify({success:'cleanup failed',timeout:'timed out',output:'output exceeded limit',cancel:'cancelled',exit:'exited before returning a catalog'}[mode])}),'original discovery reason retained');
+          }
         }else{
           const panel=await runSnipePanel({cwd:${JSON.stringify(cwd)},rawArgs:'correctness,security',inheritedProfile:${JSON.stringify(inheritedProfile)},supportedProfiles:${JSON.stringify(supportedProfiles)}},options);
           state=panel.seats[0];assert.equal(panel.complete,false);assert.notEqual(state.status,'completed');
@@ -245,6 +248,7 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
           if(${JSON.stringify(mode)}==='output')assert.equal(state.status,'output_limit');
           if(${JSON.stringify(mode)}==='cancel')assert.equal(state.status,'cancelled');
           if(${JSON.stringify(mode)}==='success')assert.equal(state.status,'failed','successful parent with uncertain cleanup cannot become a timeout or approval');
+          if(${JSON.stringify(mode)}==='exit'){assert.equal(state.status,'failed');assert.equal(state.exitCode,1)}
         }
         assert.equal(state.cleanupError.code,${JSON.stringify(fault==='denied'?'EPERM':'CLEANUP_CLOSE_TIMEOUT')});
         assert.equal(state.terminationConfirmed,false);assert.equal(state.processGroupId,Number(readFileSync(marker,'utf8')));
@@ -261,6 +265,26 @@ test('cleanup failures are bounded, preserve causes and peers, and never become 
   }
 })
 
+test('non-group natural exits succeed across discovery, seats and preparation; live refusal still fails', async () => {
+  const root=mkdtempSync(join(tmpdir(),'snipe-non-group-'))
+  const repo=fileURLToPath(new URL('../../../../../',import.meta.url))
+  const assets=join(root,'adapters/codex/skills/snipe/assets')
+  try {
+    for(const path of ['adapters/codex','skills/snipe/assets/snipe-args.mjs','skills/war/assets/war-config.mjs','skills/_shared/provision.mjs'])cpSync(join(repo,path),join(root,path),{recursive:true})
+    const path=join(assets,'snipe-process.mjs')
+    writeFileSync(path,readFileSync(path,'utf8').replace("export const processGroup = process.platform !== 'win32'",'export const processGroup = false'))
+    const {processTreeCleanup}=await import(pathToFileURL(path))
+    const {EventEmitter}=await import('node:events')
+    const live=Object.assign(new EventEmitter(),{pid:123,exitCode:null,signalCode:null,kill:()=>false,unref:()=>{}})
+    const stop=processTreeCleanup(live);stop()
+    assert.equal((await stop.settled).cleanupError.code,'SIGNAL_NOT_DELIVERED')
+    for(const [suite,pattern] of [['snipe-runner.test.mjs','CLI accepts explicit profile'],['snipe-submodules.test.mjs','preparation copies exact local']]) {
+      const result=spawnSync(process.execPath,['--test',`--test-name-pattern=${pattern}`,join(assets,suite)],{encoding:'utf8',timeout:30000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
+      assert.equal(result.status,0,`${suite}: ${result.stdout}${result.stderr}`)
+    }
+  } finally {rmSync(root,{recursive:true,force:true})}
+})
+
 test('cleanup guard removals fail behavioral assertions in disposable copies', {timeout:240000}, () => {
   const root=mkdtempSync(join(tmpdir(),'snipe-cleanup-mutants-'))
   const repo=fileURLToPath(new URL('../../../../../',import.meta.url))
@@ -275,13 +299,17 @@ test('cleanup guard removals fail behavioral assertions in disposable copies', {
       ['discovery refusal','snipe-runner.mjs','if (failure || cleanup.cleanupError)','if (failure)','cleanup failures are bounded'],
       ['seat refusal','snipe-runner.mjs','!cleanup.cleanupError && child.exitCode','child.exitCode','cleanup failures are bounded'],
       ['preparation retention','snipe-submodules.mjs','      error.retainedRoot = temporary','      dispose(); error.retainedRoot = temporary','cleanup denial stops'],
+      ['late metadata refusal','snipe-submodules.mjs','if (error.cleanupError) throw error /* Local objects','/* Local objects','late metadata cleanup'],
+      ['Git original exit','snipe-submodules.mjs','const exitCode = pending.child.exitCode, signal = pending.child.signalCode','const exitCode = null, signal = null','late metadata cleanup'],
+      ['non-group natural exit','snipe-process.mjs','child.exitCode === null && child.signalCode === null && ','','non-group natural exits'],
+      ['discovery original cause','snipe-runner.mjs',"${failure ?? 'Codex model/list cleanup failed'}",'lost original cause','cleanup failures are bounded'],
     ]
     for(const [name,file,from,to,pattern] of cases){
       for(const module of ['snipe-process.mjs','snipe-runner.mjs','snipe-submodules.mjs'])copyFileSync(join(repo,'adapters/codex/skills/snipe/assets',module),join(assets,module))
       const path=join(assets,file), source=readFileSync(path,'utf8')
       assert.equal(source.split(from).length,2,name)
       writeFileSync(path,source.replace(from,to))
-      const suite=pattern==='cleanup denial stops' ? 'snipe-submodules.test.mjs' : 'snipe-runner.test.mjs'
+      const suite=['cleanup denial stops','late metadata cleanup'].includes(pattern) ? 'snipe-submodules.test.mjs' : 'snipe-runner.test.mjs'
       const result=spawnSync(process.execPath,['--test','--test-reporter=tap',`--test-name-pattern=${pattern}`,join(assets,suite)],{encoding:'utf8',timeout:45000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
       assert.equal(result.status,1,`${name}: ${result.stdout}${result.stderr}`)
       assert.match(result.stdout,/AssertionError/,name)

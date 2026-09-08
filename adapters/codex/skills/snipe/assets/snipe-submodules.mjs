@@ -74,7 +74,12 @@ async function git(cwd, args, { input, signal, allowFetch = false } = {}) {
   try {
     const result = await Promise.race([outcome, stop.settled.then(state => state.cleanupError ? { state } : outcome)])
     const state = result.state ?? await stop.settled
-    if (state.cleanupError) throw Object.assign(new Error(`Git cleanup ${state.cleanupError.code}: ${state.cleanupError.message}; process group ${state.processGroupId}, termination unconfirmed`), { code: 'SUBMODULE_CLEANUP_FAILED', ...state, cause: result.error })
+    if (state.cleanupError) {
+      // execFile settles on close, which inherited pipes may prevent. Preserve
+      // the direct child's observed exit independently of that promise's race.
+      const exitCode = pending.child.exitCode, signal = pending.child.signalCode
+      throw Object.assign(new Error(`Git cleanup ${state.cleanupError.code}: ${state.cleanupError.message}; exit ${exitCode}, signal ${signal}; process group ${state.processGroupId}, termination unconfirmed`), { code: 'SUBMODULE_CLEANUP_FAILED', ...state, exitCode, signal, cause: result.error })
+    }
     if (result.error) throw result.error
     return result.value.stdout
   } finally {

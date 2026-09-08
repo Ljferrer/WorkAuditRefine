@@ -9,7 +9,7 @@ changes are authorized by this implementation experiment.
 
 The operator selected `gpt-5.6-sol / medium`; each checkpoint uses three installed
 Snipe seats. Seven panels total is a hard bound, including incomplete panels.
-No panel has launched yet. Final outcomes belong in the PRs and #2097 report.
+One panel has completed. Final outcomes belong in the PRs and #2097 report.
 
 ## Initial cleanup repair
 
@@ -37,3 +37,31 @@ No panel has launched yet. Final outcomes belong in the PRs and #2097 report.
   discovery refusal, seat refusal or retained-object protection; each fails a
   behavioral assertion rather than initialization. Full baseline and checkpoint
   results remain pending; targeted tests are not a complete approval.
+
+## Panel 1 and recursive repair
+
+Scope `146e20e..edc6c1d`; correctness / test-coverage / cascading-impact,
+all complete and stable: A / RC / RC, two Major and two Minor findings.
+All four were accepted, including both Minor findings in the open cleanup class.
+
+- Natural exits in the non-group branch were incorrectly treated as failed kill
+  attempts. Real discovery/seat/preparation consumers under a forced non-group
+  transport failed before the fix and pass afterward; a live child's refused
+  signal still fails. POSIX descendant group cleanup remains unchanged.
+- A semantic late-metadata fixture now denies cleanup after object copies, rather
+  than guessing another Git-call ordinal. It proves no later Git operation or
+  auditor launch and retained objects. Removing that exact catch guard is red.
+- Git close-promise races lost already-observed exit evidence. An exit-7 parent
+  with inherited pipes proved the missing field before repair. The failed result
+  now carries exit/signal observations without waiting indefinitely for close;
+  an unavailable original execFile error remains unavailable, not invented.
+- Catalog terminal reasons and direct-exit seat status/code are asserted exactly.
+  The mutation suite also removes original-cause preservation, non-group exit
+  protection and Git exit evidence. All eleven mutations fail assertions.
+- Consequence: shared lifecycle behavior, submodule diagnostics and test evidence
+  changed; no retries, profile changes, package inventory changes or engine edits.
+  All 37 affected tests pass. The non-group test is a transport-branch simulation,
+  not a claim of native Windows host acceptance.
+- Fixture correction: the semantic panel test initially provided a nonexistent
+  auditor executable and stopped at resolution. It now supplies an executable
+  sentinel and asserts it never launches. This was not a production regression.

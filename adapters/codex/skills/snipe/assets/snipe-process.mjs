@@ -24,7 +24,7 @@ export function processTreeCleanup(child) {
     stopped = true
     try {
       if (processGroup && child.pid) process.kill(-child.pid, 'SIGKILL')
-      else if (child.pid && !child.kill('SIGKILL')) throw Object.assign(new Error('Cleanup signal was not delivered'), { code: 'SIGNAL_NOT_DELIVERED' })
+      else if (child.pid && child.exitCode === null && child.signalCode === null && !child.kill('SIGKILL')) throw Object.assign(new Error('Cleanup signal was not delivered'), { code: 'SIGNAL_NOT_DELIVERED' })
     } catch (error) {
       if (error.code !== 'ESRCH') {
         cleanupError = { code: error.code ?? 'CLEANUP_FAILED', message: error.message }
