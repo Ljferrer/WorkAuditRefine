@@ -856,12 +856,13 @@ test('Task 2 — auditLog records requested and returned on a persistent drop', 
   assert.equal(entry.returned, 2, 'auditLog.returned = 2 (one seat persistently dropped)')
 })
 
-test('Task 2 — auditRound return shape is { seats, expected } (not a bare array)', () => {
+test('Task 2 — auditRound return shape is { seats, expected, died } (not a bare array)', () => {
   // Verify the template source unpacks auditRound at both call sites using destructuring.
   // The plan mandates: ;({ seats, expected } = await auditRound(task, null)) at round-loop call site,
-  // and similarly for the rebuttal call.
-  assert.match(src, /\{\s*seats\s*,\s*expected\s*\}\s*=\s*await\s+auditRound/,
-    'auditRound return value is destructured as { seats, expected }')
+  // and similarly for the rebuttal call; verdict-integrity D21 adds the `died` member (the
+  // site-named seat death the wave loop reads BEFORE the audit-blocked shortfall check).
+  assert.match(src, /\{\s*seats\s*,\s*expected\s*,\s*died\s*\}\s*=\s*await\s+auditRound/,
+    'auditRound return value is destructured as { seats, expected, died }')
 })
 
 // ---------------------------------------------------------------------------
@@ -11832,6 +11833,280 @@ test('Task 2.1(c)(ii) #1411 — SOFT_ENV_REASONS pins the pair in both copies; e
   assert.ok(!JSON.parse(inlineHard[1].replace(/'/g, '"')).includes('env-died'), 'env-died is NEVER in the inline HARD_ESCALATION_REASONS mirror')
 })
 
+// ---------------------------------------------------------------------------
+// Verdict-integrity D21 / PIN-25 (#1481) — every dispatch site is classified. A TAGGED post-spawn
+// death at ANY site resolves at that site through dispatchSite's death arm: a wave audit-round seat
+// death (persisting past the dropped-seat retries) classifies env-died SOFT before the shortfall
+// check; an ace/re-audit seat death demotes the current subset with the existing abandon reason and
+// falls through; a merge, floor-fix, endstate, gate-audit, wrap-up or filing death classifies
+// env-died SOFT naming the site.
+// A dead dispatch never reads as a content verdict — never audit-blocked, never done-unmet.
+// ---------------------------------------------------------------------------
+const twoIndependentTasks = () => PROVISION_ARGS({ tasks: [
+  { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] },
+] })
+
+test('env-died: dead audit seat — a seat that dies post-spawn classifies env-died naming the seat, never audit-blocked; the sibling lands', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'audit:t1:correctness') throw new Error('API error: 529 Overloaded')
+    return defaultImpl(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(twoIndependentTasks(), impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the task with the dead seat escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'a dead audit seat classifies env-died (SOFT)')
+  assert.match(String(esc.blocked), /^audit:t1:correctness dispatch died post-spawn \(env-died\): /, 'blocked names the seat SITE (the dispatch label) as the death site')
+  assert.match(String(esc.blocked), /529 Overloaded/, 'the harness cause is propagated verbatim')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'audit-blocked'), 'a dead seat NEVER reads as audit-blocked (PIN-25)')
+  assert.ok(!(out.auditLog || []).some(a => a && a.verdict === 'audit-blocked'), 'no audit-blocked verdict is recorded for the dead seat')
+  const row = (out.auditLog || []).find(a => a && a.task === 't1')
+  assert.ok(row && row.verdict === 'env-died', 'the auditLog row for the task carries the env-died verdict')
+  assert.equal(calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness').length, 3, 'a dead seat consumes the same 2 retry passes as a dropped seat — only a persistent death classifies env-died')
+  assert.ok(!calls.some(c => isFixWorker(c) && /:t1:/.test(c.opts.label || '')), 'no fix-worker runs on a task whose seat died')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT — the phase lands minus the task')
+  assert.ok(out.landed.includes('t2') && !out.landed.includes('t1'), 'the sibling lands; the dead-seat task does not')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('audit:t1:correctness dispatch died post-spawn (env-died)')), 'the death is log()ged at the site (never silent)')
+})
+
+test('env-died: dead audit seat — negative control: a NON-infra seat throw keeps the HARD escalate class (structural scoping, both ways)', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'audit:t1:correctness') throw new Error('schema mismatch: findings is not an array')
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(twoIndependentTasks(), impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the task escalates (presence guard)')
+  // fakeParallel is Promise.all, so the seat rejection reaches the wave-thunk catch ('escalate'); the live
+  // parallel NULLS a rejected thunk (dropped seat → retries → 'audit-blocked') — the exact literal is harness-bound.
+  assert.ok(HARD_ESCALATION_REASONS.includes(esc.reason) && esc.reason !== 'env-died', 'a non-infra throw at a seat is NOT laundered into env-died — it keeps a HARD_ESCALATION_REASONS class (the message pattern still gates the SOFT class)')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'env-died'), 'no env-died record is minted for a non-infra throw')
+})
+
+test('env-died: dead merge dispatch — negative control: a NON-infra merge throw (no parallel between the throw and the classification) is never laundered into env-died', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'merge:t1') throw new Error('schema mismatch: findings is not an array')
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(twoIndependentTasks(), impl)
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'env-died'), 'no env-died record is minted for a non-infra merge throw')
+  assert.ok(!(out.auditLog || []).some(a => a && a.verdict === 'env-died'), 'no env-died auditLog row is recorded for a non-infra merge throw')
+  assert.equal(out.landDecision, 'held:workflow-error', 'the untagged-class throw keeps its HARD path (the phase-level catch), never the SOFT lands-minus-task route')
+  assert.ok(!out.landed.includes('t1'), 'the task whose merge threw never reads as landed')
+})
+
+test('env-died: dead endstate seat — a dead endstate-check dispatch classifies env-died naming the site; never done-unmet, never an unmet attestation, the phase lands', async () => {
+  const impl = (prompt, opts) => {
+    if (opts.dispatchKind === 'endstate-check') throw new Error('fetch failed: 529 overloaded (transport error)')
+    return gateAuditImpl(prompt, opts)
+  }
+  // ES_ROW_ARGS carries a check:-tagged row, so the endstate-check dispatch fires (ES_ARGS' bare
+  // strings take the judgment path and never dispatch it).
+  const { out, calls, logs } = await runPhase(ES_ROW_ARGS(), impl)
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'endstate-check').length, 1, 'the endstate-check dispatch fired once (non-vacuity)')
+  assert.equal(out.landDecision, 'landed', 'a dead endstate-check dispatch never holds the phase (SOFT)')
+  const esc = (out.escalated || []).find(e => e && e.task === 'phase-3-endstate-check')
+  assert.ok(esc, 'the endstate-check death is recorded (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'the classification is env-died')
+  assert.match(String(esc.blocked), /^endstate-check:phase-3 dispatch died post-spawn \(env-died\): /, 'blocked names the endstate-check SITE')
+  assert.ok(!(out.escalated || []).some(e => e && (e.reason === 'done-unmet' || e.reason === 'gate-evidence')), 'a dead endstate seat NEVER reads as done-unmet or gate-evidence (PIN-25)')
+  assert.ok(out.handoff && Array.isArray(out.handoff.endState), 'handoff emitted with endState rows (presence guard)')
+  assert.ok(out.handoff.endState.every(r => r.status !== 'unmet'), "no End-state row reads 'unmet' on the strength of a dead check dispatch")
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('endstate-check:phase-3 dispatch died post-spawn (env-died)')), 'the death is log()ged at the site')
+})
+
+test('env-died: dead endstate seat — the End-state-only gate-audit seat dying classifies env-died naming the site, never gate-evidence', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'gate-audit:phase-3:end-state') throw new Error('rate limit exceeded')
+    return gateAuditImpl(prompt, opts)
+  }
+  // requiresTest:false ⇒ no per-task gate-audit entry ⇒ the End-state-only seat is the one that spawns.
+  const { out } = await runPhase(ES_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }] }), impl)
+  assert.equal(out.landDecision, 'landed', 'a dead End-state-only seat never holds the phase')
+  const esc = (out.escalated || []).find(e => e && e.task === 'phase-3-end-state')
+  assert.ok(esc && esc.reason === 'env-died', 'the End-state-only seat death is recorded as env-died')
+  assert.match(String(esc.blocked), /^gate-audit:phase-3:end-state dispatch died post-spawn \(env-died\): rate limit exceeded/, 'blocked names the seat SITE and the cause')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'gate-evidence'), 'never a gate-evidence hold')
+  const row = (out.auditLog || []).find(a => a && a.task === 'phase-3-end-state')
+  assert.ok(row && row.verdict === 'gate-audit:env-died' && row.hard === false, 'the auditLog row records the death SOFT')
+})
+
+test('env-died: dead make-pass fix worker — a floor-fix worker that dies classifies env-died naming the site, never done-unmet (PIN-25)', async () => {
+  let merges = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-worker' && /^make-pass:/.test(opts.label || '')) throw new Error('API error: session limit reached')
+    if (seat === 'war-refiner' && opts.phase === 'Refine' && /^merge:t1/.test(opts.label || '')) {
+      merges++
+      return merges === 1 ? { mode: 'merge-task', status: 'done-unmet' } : { mode: 'merge-task', status: 'merged' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], doneWhen: 'true' }] }), impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the task escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'a dead floor-fix worker classifies env-died')
+  assert.match(String(esc.blocked), /^make-pass:t1:r1 dispatch died post-spawn \(env-died\): /, 'blocked names the make-pass SITE')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'done-unmet'), 'a dead make-pass worker NEVER reads as done-unmet')
+  assert.ok(!(out.auditLog || []).some(a => a && typeof a.verdict === 'string' && a.verdict.startsWith('done-unmet:')), 'no done-unmet:* verdict is recorded for the dead worker')
+  assert.equal(merges, 1, 'no re-merge follows a dead fix worker')
+  assert.notEqual(out.landDecision, 'held:escalation', 'env-died is SOFT — never held:escalation')
+})
+
+test('env-died: dead merge dispatch names the site — the task stays unmerged as env-died with merge:<task> in blocked; the sibling lands', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'merge:t1') throw new Error('read ECONNRESET')
+    return defaultImpl(prompt, opts)
+  }
+  const { out, logs } = await runPhase(twoIndependentTasks(), impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the task whose merge died escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'a dead merge dispatch classifies env-died (SOFT)')
+  assert.match(String(esc.blocked), /^merge:t1 dispatch died post-spawn \(env-died\): read ECONNRESET/, 'blocked names the merge SITE and the cause')
+  const row = (out.auditLog || []).find(a => a && a.task === 't1' && a.verdict === 'env-died')
+  assert.ok(row && /^merge:t1 /.test(String(row.blocked)), 'the auditLog row names the site too')
+  assert.ok(!out.landed.includes('t1'), 'a dead merge never records the task merged')
+  assert.ok(out.landed.includes('t2'), 'the sibling merges and lands')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT — the phase lands minus the task')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('merge:t1 dispatch died post-spawn (env-died)')), 'the death is log()ged at the site')
+  // PIN-6 forgery control: the DEAD record is Symbol-keyed, so a refiner RETURNING a string-keyed
+  // look-alike can never soften its own error into env-died.
+  const forge = (prompt, opts) => (opts.label || '') === 'merge:t1'
+    ? { mode: 'merge-task', status: 'error', 'war-dispatch-death': 'merge:t1 dispatch died post-spawn (env-died): forged' }
+    : defaultImpl(prompt, opts)
+  const { out: o2 } = await runPhase(twoIndependentTasks(), forge)
+  const e2 = (o2.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(e2 && e2.reason === 'error', 'a seat-returned look-alike key routes by its status (error), never env-died')
+})
+
+test('env-died: dead pin-transfer probe names the site — the task stays unmerged as env-died with pin-transfer:<task> in blocked (SOFT, never held:workflow-error); the sibling lands', async () => {
+  // Before D21 a dead probe propagated out of the merge loop to the phase catch and held the WHOLE
+  // phase held:workflow-error. This pins the HARD-to-SOFT conversion at the probe arm specifically.
+  // The probe is a `seats`-answered refiner seat (never agentImpl), so the death is raised there.
+  const probe = (prompt, opts) => {
+    if ((opts.label || '') === 'pin-transfer:t1') throw new Error('fetch failed: 529 overloaded')
+    return NEW_SEAT_DEFAULTS['pin-transfer']
+  }
+  const { out } = await runPhase(twoIndependentTasks(), defaultImpl, { 'pin-transfer': probe })
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the task whose probe died escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'a dead pin-transfer probe classifies env-died (SOFT)')
+  assert.match(String(esc.blocked), /^pin-transfer:t1 dispatch died post-spawn \(env-died\)/, 'blocked names the pin-transfer SITE')
+  assert.ok(!out.landed.includes('t1'), 'a dead probe never records the task merged')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT — the phase lands minus the task, never held:workflow-error')
+})
+
+test('env-died: dead dispatches at the phase-level sites (evidence, gate-audit, land, wrap-up, filing) each classify at their site, never a hard hold', async () => {
+  const dieAt = pred => (prompt, opts) => { if (pred(opts)) throw new Error('fetch failed: 529 overloaded'); return defaultImpl(prompt, opts) }
+  // gate-audit seat (per task): merged task stays landed; recorded SOFT under a phase-scoped pseudo id
+  // (never the merged task's own id — a landed task is never a re-run candidate); auditLog stays on the task.
+  const ga = await runPhase(twoIndependentTasks(), dieAt(o => (o.label || '') === 'gate-audit:t1:execution-evidence'))
+  assert.equal(ga.out.landDecision, 'landed', 'a dead gate-audit seat never holds a merged phase')
+  assert.ok(ga.out.landed.includes('t1'), 'the merged task stays landed')
+  const gaEsc = (ga.out.escalated || []).find(e => e && e.task === 'phase-3-gate-audit-t1')
+  assert.ok(gaEsc && gaEsc.reason === 'env-died' && /^gate-audit:t1:execution-evidence /.test(String(gaEsc.blocked)), 'the gate-audit seat death is recorded env-died naming the site')
+  assert.ok(!(ga.out.escalated || []).some(e => e && e.task === 't1'), 'the merged task never appears in both landed and escalated under its own id')
+  assert.ok((ga.out.auditLog || []).some(a => a && a.task === 't1' && a.verdict === 'gate-audit:env-died' && a.hard === false), 'the auditLog row stays keyed on the merged task id')
+  assert.ok(!(ga.out.escalated || []).some(e => e && e.reason === 'gate-evidence'), 'never gate-evidence')
+  // evidence dispatch: fail-open, recorded env-died under its own site id.
+  const ev = await runPhase(twoIndependentTasks(), dieAt(o => o.dispatchKind === 'evidence'))
+  assert.equal(ev.out.landDecision, 'landed', 'a dead evidence dispatch never holds the phase')
+  assert.ok((ev.out.escalated || []).some(e => e && e.task === 'phase-3-evidence' && e.reason === 'env-died' && /^evidence:phase-3 /.test(String(e.blocked))), 'the evidence death is recorded env-died naming the site')
+  // land dispatch: the phase cannot land minus anything — held:land-failed, site-named, no stale result.
+  const ld = await runPhase(twoIndependentTasks(), dieAt(o => (o.label || '') === 'land:phase-3'))
+  assert.equal(ld.out.landDecision, 'held:land-failed', 'a dead land dispatch holds held:land-failed (the Lead re-runs the land)')
+  assert.equal(ld.out.landResult, null, 'no land result is read from a dead dispatch')
+  const ldEsc = (ld.out.escalated || []).find(e => e && e.task === 'phase-3-land')
+  assert.ok(ldEsc && ldEsc.reason === 'env-died' && /^land:phase-3 dispatch died post-spawn \(env-died\)/.test(String(ldEsc.blocked)), 'the land death is recorded env-died naming the site')
+  assert.ok(ld.logs.some(l => typeof l === 'string' && l.includes('land:phase-3 dispatch died post-spawn (env-died)') && l.includes('held:land-failed')), 'the land death log names the hold')
+  // wrap-up (servitor): the landed phase stays landed; servitorResult null; recorded env-died.
+  const wu = await runPhase(twoIndependentTasks(), dieAt(o => seatOf(o) === 'war-servitor'))
+  assert.equal(wu.out.landDecision, 'landed', 'a dead servitor never un-lands the phase')
+  assert.equal(wu.out.servitorResult, null, 'servitorResult reads null (as a dead dispatch returning nothing does)')
+  assert.ok((wu.out.escalated || []).some(e => e && e.task === 'phase-3-wrap-up' && e.reason === 'env-died' && /^wrap-up:phase-3 /.test(String(e.blocked))), 'the servitor death is recorded env-died naming the site')
+})
+
+test('env-died: dead ace re-audit seat — the batch demotes with the abandon reason naming the seat, the ace tip is forward-reverted, the approved tip merges (never a hold, never a regression)', async () => {
+  // Round 1 approves with one aceable nit; the ace re-audit round (the same label, second call) dies.
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()])] },
+    (prompt, opts) => { if ((opts.label || '') === 'audit:t1:correctness') throw new Error('API error: 529 Overloaded'); return aceBase([nit()])(prompt, opts) })
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(calls.some(isAce), 'the ace worker dispatched (non-vacuity: the ladder ran)')
+  assert.ok(out.landed.includes('t1') && out.landDecision === 'landed', 'the approved pre-ace tip merges and the phase lands — an ace-side seat death never blocks a land')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'no escalation for the task — the death demotes the ace batch, never the task')
+  assert.ok(!out.aced || out.aced.length === 0, 'nothing is recorded aced at a tip no seat judged')
+  const merge = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  assert.ok(merge && /FORWARD-REVERT/.test(merge.prompt) && merge.prompt.includes('deadbeef'), 'the merge dispatch forward-reverts the unjudged ace tip')
+  const filed = (out.minorsFiled || []).find(m => m && m.task === 't1' && m.title === 'tidy import')
+  assert.ok(filed, 'the batch row routes to the sweep and drains to follow-up (nothing drops silently)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('tidy import') && l.includes('failed absorb — audit:t1:correctness dispatch died post-spawn (env-died)') && l.includes('the ace tip was never judged')),
+    'the sweep routing carries the existing failed-absorb reason naming the dead seat SITE')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('tidy import') && /absorb-regressed/.test(l)), 'a dead seat is never read as a regression')
+  // Ace-gate death (the refiner gate check at the ace tip) demotes the same way, naming its site.
+  const gateDead = await runPhase(ACE_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()])] }, aceBase([nit()])),
+    { 'ace-gate': () => { throw new Error('socket hang up') } })
+  assert.ok(gateDead.out.landed.includes('t1') && gateDead.out.landDecision === 'landed', 'a dead ace-gate check never blocks the land')
+  assert.ok(gateDead.logs.some(l => typeof l === 'string' && l.includes('failed absorb — ace-gate:t1:a1 dispatch died post-spawn (env-died)')), 'the routing names the ace-gate SITE (the label carries the absorb charge index after the ace commit)')
+  assert.ok(!gateDead.logs.some(l => typeof l === 'string' && l.includes('the task gate was RED')), 'a dead gate check is never read as a red gate')
+})
+
+test('env-died: dead filing dispatch — classifies env-died naming the site and takes the fail-open path (rows stay issue: null, the phase stays landed)', async () => {
+  const f = minor({ title: 'filed later', suggested_fix: 'do x' })
+  const base = floorImpl([f])
+  const impl = (prompt, opts) => { if (opts.dispatchKind === 'file-followups') throw new Error('fetch failed: 529 overloaded'); return base(prompt, opts) }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl, { 'diff-probe': { detail: 'fatal: bad revision' } })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch fired (non-vacuity)')
+  assert.equal(out.landDecision, 'landed', 'a dead filing dispatch never converts the land decision')
+  assert.ok((out.escalated || []).some(e => e && e.task === 'phase-3-file-followups' && e.reason === 'env-died' && /^file-followups:phase-3 dispatch died post-spawn \(env-died\)/.test(String(e.blocked))), 'the filing death is recorded env-died naming the site')
+  const row = demotionOf(out, 'filed later')
+  assert.ok(row && row.issue == null, 'the unfiled row stays issue: null (the Checkpoint floor catches it)')
+})
+
+test('dispatch census: the leaf dispatch seam is awaited only inside dispatchAgent — every other site routes through dispatchSite (D21, PIN-25, #1481)', () => {
+  // Line-comment strip (the dispatch-seam census idiom): the tokens live only in executable code.
+  const code = src.replace(/\/\/[^\n]*/g, '')
+  const agentBlock = code.match(/const dispatchAgent = async \(prompt, opts\) => \{[\s\S]*?\n\}/)
+  assert.ok(agentBlock, 'dispatchAgent is locatable in the template source (feature-presence guard)')
+  const awaited = s => (s.match(/await dispatch\(/g) || []).length
+  assert.ok(awaited(agentBlock[0]) > 0, "dispatchAgent's own body awaits the leaf seam (non-vacuity: the permitted site exists)")
+  assert.equal(awaited(code), awaited(agentBlock[0]),
+    "default-deny: `await dispatch(` appears in the engine exactly as often as inside dispatchAgent's own body — a bare site outside it reds this census")
+  // End state 19's own check is a RAW grep (no comment strip): the unstripped source carries exactly one
+  // `await dispatch(` line too, so a comment quoting the literal cannot split the census from that check.
+  assert.equal(src.split('\n').filter(l => l.includes('await dispatch(')).length, 1, 'the raw source carries exactly one `await dispatch(` line (mirrors the End-state grep -c check)')
+  // The bare-call class too (the un-awaited `seat => dispatch(...)` straggler shape): every code-level
+  // `dispatch(` token is the seam's own definition or the one inside dispatchAgent.
+  const bare = s => (s.match(/(?<![\w.$-])dispatch\(/g) || []).length   // `-` excludes the 're-dispatch(es)' log prose
+  const definitions = (code.match(/async function dispatch\(/g) || []).length
+  assert.equal(bare(code), bare(agentBlock[0]) + definitions, 'no bare dispatch( call survives outside dispatchAgent and the seam definition')
+  // Every death arm reads through the ONE tag layer: dispatchSite wraps dispatchAgent, never dispatch.
+  assert.match(code, /const dispatchSite = \(prompt, opts\) => dispatchAgent\(prompt, opts\)\.catch\(err => dispatchDied\(opts\.label, err\)\)/, 'dispatchSite routes through dispatchAgent (the tag) and its death arm, naming the site by opts.label alone')
+  // Mutation control: a mirrored bare site appended to a copy reds the equality.
+  const mutated = code + '\nconst straggler = async () => { const x = await dispatch(\'p\', {}); return x }\n'
+  assert.notEqual(awaited(mutated), awaited(agentBlock[0]), 'a bare await dispatch( site outside dispatchAgent is caught by the census')
+  // Comment truth: the retired null-return sentence is gone from the dispatchAgent header.
+  assert.ok(!src.includes("stays 'worker returned no result' — no cause is visible there to propagate"), "OLD-absent: the dispatchAgent header no longer claims a null return 'stays' the worker sentence")
+  assert.match(src, /read by the SITE's own null arm/, 'NEW-present: the header states a null return is read at the site')
+})
+
+test('auditRound census: every `await auditRound(` site reads the `died` member — a site that drops it would read a dead seat as audit-blocked (D21, PIN-25)', () => {
+  // Line-comment strip (the dispatch-seam census idiom): the tokens live only in executable code.
+  const code = src.replace(/\/\/[^\n]*/g, '')
+  const total = s => (s.match(/await auditRound\(/g) || []).length
+  // A site reads `died` one way: destructured `{ …, died[: alias] } = await auditRound(`.
+  const reading = s => {
+    let n = 0
+    const destructured = /\{([^{}]*)\}\s*=\s*await auditRound\(/g
+    for (const m of s.matchAll(destructured)) if (/\bdied\b/.test(m[1])) n++
+    return n
+  }
+  assert.ok(total(code) >= 8, "the engine's auditRound call sites (non-vacuity: " + total(code) + ')')
+  assert.equal(reading(code), total(code), 'default-deny: every `await auditRound(` site reads `died` — a straggler that drops it reds this census')
+  // Mutation control: a `died`-less destructuring site reds the equality.
+  const straggler = code + '\nconst straggler = async t => { const { seats, expected } = await auditRound(t, null, null, null); return seats.length < expected }\n'
+  assert.notEqual(reading(straggler), total(straggler), 'a died-less destructuring site is caught by the census')
+})
+
 // (d) #1413 — args provenance floor: refuse at entry, fail-closed, zero agent spawns.
 test('Task 2.1(d) #1413 — a foreign-plan intent is refused at entry (foreign docs/plans identifier), zero agent spawns; a token-less intent fails the own-token floor', async () => {
   // The plan-3 leak shape: a plan-A launch (slug wtprov-a) carrying plan-B's intent (13 × escape, 0 × done-when).
@@ -14338,8 +14613,11 @@ test('#1913 PIN-13 — the merge-slot fixRounds seed never LOWERS the wave-side 
 test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed head_sha names THIS tip: different, absent, and malformed echoes all fail closed', () => {
   const block = src.match(/const aceGateGreen = async \(r, aceTipSha\) => \{[\s\S]*?\n  \}/)
   assert.ok(block, 'src must contain the aceGateGreen definition')
-  const cond = block[0].match(/if \(([\s\S]*?)\) return true/)
-  assert.ok(cond, 'aceGateGreen must gate its `return true` on a condition')
+  // D21: the green arm returns { green: true, died: null } (a dispatch death is a third outcome).
+  // Single-line condition: the death arm's own `if (gateDied) return { green: false, died: gateDied }`
+  // precedes it in the block, so the match must not span lines.
+  const cond = block[0].match(/if \(([^\n]*?)\) return \{ green: true, died: null \}/)
+  assert.ok(cond, 'aceGateGreen must gate its `return { green: true, died: null }` on a condition')
   assert.match(cond[1], /head_sha/, 'the licensing condition must READ head_sha — a requested-but-uncompared echo is #1935')
   // Reuse the shipped sha helpers rather than re-implementing them.
   const isShaSrc = src.match(/const isSha = (s => [^\n]+)/)
@@ -15672,11 +15950,22 @@ test('filing-floor — a failed probe leaves diff_files absent: the old default 
 })
 
 test('filing-floor — a THROWN probe dispatch is fail-open: logged, absent, the old default stands (never a hold)', async () => {
+  // A non-infra throw: dispatchSite rethrows it and the probe's own catch logs 'dispatch threw'.
   const f = minor({ title: 'thrown probe row', suggested_fix: 'do x' })
-  const { out, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), { 'diff-probe': () => { throw new Error('socket hang up') } })
+  const { out, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), { 'diff-probe': () => { throw new Error('schema mismatch: diff_files not an array') } })
   assert.equal(out.landDecision, 'landed', 'a thrown probe never holds the phase')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('diff-probe:t1 dispatch threw') && l.includes('socket hang up')), 'the throw is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('diff-probe:t1 dispatch threw') && l.includes('schema mismatch')), 'the throw is logged')
   assert.ok(demotionOf(out, 'thrown probe row') && demotionOf(out, 'thrown probe row').floorSkipped === true, 'the old default stands with the floor-skipped stamp')
+})
+
+test('filing-floor — a probe dispatch that DIES post-spawn (INFRA_DEATH_RE) is fail-open too: env-died logged with the site, absent, the old default stands (D21)', async () => {
+  const f = minor({ title: 'dead probe row', suggested_fix: 'do x' })
+  const { out, logs } = await runPhase(SWEEP_ARGS(), floorImpl([f]), { 'diff-probe': () => { throw new Error('socket hang up') } })
+  assert.equal(out.landDecision, 'landed', 'a dead probe never holds the phase')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('diff-probe:t1 dispatch died post-spawn (env-died)') && l.includes('socket hang up')), 'the death is logged naming the site and the harness cause')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('diff-probe:t1 returned no diff_files') && l.includes('socket hang up')), 'the absent-probe line names the death, never a bare non-conforming return')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'a dead probe is fail-open — it never escalates the task')
+  assert.ok(demotionOf(out, 'dead probe row') && demotionOf(out, 'dead probe row').floorSkipped === true, 'the old default stands with the floor-skipped stamp')
 })
 
 test('filing-floor — the probe is read-only and idempotent on resume: a second run over the same seats yields the same routing (in-diff absorb) and one probe per run', async () => {
@@ -16085,7 +16374,7 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
 // overrides the polish worker's result (e.g. a files_changed report).
 const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
   terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
-  terminalSeatDrop = false, terminalThrow = null } = {}) => {
+  terminalSeatDrop = false, terminalSeatThrow = null, terminalThrow = null } = {}) => {
   const base = sweepBase(queued)
   let polishAudits = 0
   return (prompt, opts) => {
@@ -16094,6 +16383,7 @@ const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity:
       polishAudits++
       if (polishAudits === 1) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: polishFindings, confidence: 'high' }
       if (terminalSeatDrop) return null   // a dropped seat dispatch — every terminal re-audit call (auditRound's two retries included) returns nothing
+      if (terminalSeatThrow) throw terminalSeatThrow   // a dead seat dispatch (INFRA_DEATH_RE) — persists past auditRound's retries
       return terminalSeat || { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: terminalFindings, confidence: 'high' }
     }
     if (seat === 'war-worker' && label.startsWith('terminal:')) {
@@ -16263,6 +16553,19 @@ test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm,
   assert.deepEqual(carried[0].seats, ['audit:t1:correctness (task t1)', 'audit:p3-polish:correctness (task t1)'],
     'the terminal seat joins the carried row\'s seats list behind its own raiser (corroborateSurvivor searches carriedPhaseClose)')
   assert.ok(!demotionOf(out, 'left unlanded'), 'never demoted')
+})
+
+test('terminal-pass — a terminal re-audit seat that dies post-spawn records verdict env-died with the cause, never terminal-rejected (D21, PIN-25)', async () => {
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatThrow: new Error('API error: 529 Overloaded') }))
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry, 'the terminal auditLog row exists (presence guard)')
+  assert.equal(tEntry.verdict, 'env-died', 'a dead terminal seat records env-died, never a content verdict')
+  assert.match(String(tEntry.blocked), /^audit:p3-polish:correctness dispatch died post-spawn \(env-died\): /, 'the row carries the site-named cause under blocked')
+  assert.ok(!(final.out.auditLog || []).some(e => e && e.terminal === true && e.verdict === 'terminal-rejected'), 'no terminal-rejected row is recorded for the dead seat')
+  const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the dead-seat path')
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('died'), 'final: demotes demote:terminal-pass naming the death')
 })
 
 test('terminal-pass — a terminal worker dispatch that dies post-spawn (INFRA_DEATH_RE) takes the env-died arm: logged, no commit, the rows carry on a non-final phase', async () => {
@@ -17211,6 +17514,24 @@ test('polish-discarded: findings become follow-ups — a panel-approved polish b
   const df = demotionOf(final.out, 'dangling link')
   assert.ok(df && /^demote:sweep-discarded — the polish panel approved branch war\/wtprov-a\/p3-polish/.test(df.demoteReason), 'the final phase files the same branch-naming reason')
   assert.deepEqual(final.out.carriedPhaseClose, [], 'nothing carried on the final phase')
+})
+
+// A DEAD polish merge (D21) is a dispatch death too: the approve-trail discard stamps drainCause on
+// every drained row (End state 15's machine-readable channel), while sweepDrainCause stays null so the
+// #2087 approve-trail prose and the D3a/D3b finality split are untouched.
+test('polish-discarded: a dead polish merge stamps the drain cause — handoff.followUps[].drainCause names polish:phase-3 and the merge site, and the approve-trail reason still leads', async () => {
+  const deadMerge = (prompt, opts) => {
+    if ((opts.label || '') === 'merge:p3-polish') throw new Error('API error: 529 Overloaded')
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, logs } = await runPhase(SWEEP_ARGS({ finalPhase: true }), deadMerge)
+  assert.equal(out.handoff.polish, 'discarded', 'presence guard: the dead merge discards the sweep')
+  const d = demotionOf(out, 'dangling link')
+  assert.ok(d && /^demote:sweep-discarded — the polish panel approved branch war\/wtprov-a\/p3-polish and its merge never landed \(merge:p3-polish dispatch died post-spawn \(env-died\)/.test(d.demoteReason), 'the approve-trail reason leads and names the dead merge site')
+  const fu = (out.handoff.followUps || []).find(r => r && /dangling link/.test(r.reason || ''))
+  assert.ok(fu && fu.drainCause && fu.drainCause.dispatch === 'polish:phase-3', 'handoff.followUps carries drainCause.dispatch for a dead polish merge')
+  assert.match(String(fu.drainCause.why), /^merge:p3-polish dispatch died post-spawn \(env-died\): API error: 529 Overloaded/, 'drainCause.why is the merge site\'s own death cause')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('merge:p3-polish dispatch died post-spawn (env-died)')), 'the death is log()ged at the site')
 })
 
 // #2096: ONE dropDup helper owns the find-log-mergeSeat shape at the drainHeldAbsorbs site and the
