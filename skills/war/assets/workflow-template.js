@@ -2038,8 +2038,9 @@ const blockedReason = r => !r ? 'worker returned no result'
 // seam is awaited (the census in workflow-template.test.mjs is the arbiter).
 // infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
-// matches this pattern set, propagating the harness cause verbatim into `blocked`
-// ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
+// matches this pattern set, propagating the harness cause verbatim into `blocked` — 'worker died:
+// <cause>' at the wave-thunk-catch sites, '<label> dispatch died post-spawn (env-died): <cause>'
+// at every dispatchSite arm. An error thrown anywhere ELSE in the thunk — a pt prompt build,
 // normalizeReportedPaths, the auditRound collection — keeps its HARD class REGARDLESS of message
 // content: an engine-authored throw that EMBEDS worker-supplied text (a task title, a reported path
 // containing e.g. "quota"/"rate limit"/"overloaded") must never be laundered into SOFT env-died,
