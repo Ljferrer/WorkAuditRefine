@@ -122,7 +122,7 @@ test('cancel before dispatch records incomplete, zero attempted seats',async t=>
 })
 test('canonical adjudication distinguishes patched from reproven; gaps outrank stamps',()=>{
   const input={repo:'/repo',fingerprint:{titleLine:'# Plan'},expected:1,rounds:1,roundLimit:3,probeResults:[{probe:'x',status:'fail',technique:'analyzed',read_anchor:{resolved_path:'/repo/plan',plan_title:'# Plan'},findings:[{severity:'Major',claim:'x',adjudicated:true}]}]}
-  assert.equal(gate(input).verdict,'ADJUDICATED');assert.equal(gate(input,[{kind:'source-intake'}]).verdict,'INCOMPLETE')
+  assert.equal(gate(input).verdict,'ADJUDICATED');input.probeResults.push({probe:'diagnostic',dropped:true});input.expected++;assert.equal(gate(input).verdict,'INCOMPLETE')
 })
 
 function executable(f,body) {
@@ -172,4 +172,33 @@ test('source and environment gaps cannot be erased by canonical gate repipe',asy
   const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>({result:{...result(ctx,true),status:'warn',findings:[{severity:'Minor',envGap:true,claim:'dependencies unavailable',reality:'setup failed',evidence:'install refused',planRef:'check'}]}})})
   const input=JSON.parse(readFileSync(join(f.request.evidenceDir,'working-copy.json')))
   assert.equal(run.final.verdict,'INCOMPLETE');assert.equal(gate(input).verdict,'INCOMPLETE')
+})
+
+test('mixed findings get independent confirmations and retain only the reproduced blocker',async t=>{
+  const f=fixture(t),candidates=[]
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{
+    if(ctx.confirmation){assert.equal(ctx.prior.findings.length,1);candidates.push(ctx.prior.findings[0].candidateId);return {result:{...result(ctx),reproduced:ctx.prior.findings[0].claim==='real'}}}
+    const r=result(ctx,true);r.findings=[{...r.findings[0],claim:'real'},{...r.findings[0],claim:'false'}];return {result:r}
+  }})
+  assert.equal(run.final.verdict,'BLOCKED');assert.deepEqual(run.final.blockers.map(f=>f.claim),['real']);assert.equal(run.final.minors[0].claim,'false');assert.equal(new Set(candidates).size,2)
+})
+for(const mutation of ['config','other-ref','ignored-content'])test(`target guard detects ${mutation} without cleanup`,async t=>{
+  const f=fixture(t);writeFileSync(join(f.repo,'.gitignore'),'ignored\n');git(f.repo,'add','.');git(f.repo,'commit','-m','ignore');writeFileSync(join(f.repo,'ignored'),'old')
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{
+    if(mutation==='config')git(f.repo,'remote','add','foreign','https://example.invalid/repo')
+    if(mutation==='other-ref')git(f.repo,'update-ref','refs/notes/foreign','HEAD')
+    if(mutation==='ignored-content')writeFileSync(join(f.repo,'ignored'),'new')
+    return {result:result(ctx)}
+  }})
+  assert.equal(run.final.verdict,'INCOMPLETE');assert.ok(run.gaps.some(g=>g.kind==='target-state-changed'))
+})
+test('operative scope consistently names isolated repository for probes and confirmation',async t=>{
+  const f=fixture(t)
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{assert.equal(ctx.scope.repository,ctx.work);assert.ok(ctx.scope.planFile.startsWith(ctx.scope.repository+'/'));return {result:result(ctx,true)}}})
+  assert.equal(run.final.verdict,'BLOCKED')
+})
+test('prompt larger than argv capacity reaches real process stdin with exact bytes',async t=>{
+  const f=fixture(t),codexPath=executable(f,`let text='';process.stdin.setEncoding('utf8');process.stdin.on('data',s=>text+=s);process.stdin.on('end',()=>console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({length:text.length,tail:text.slice(-4),arg:process.argv.at(-1)})}})));`)
+  const raw=await dispatchCodex({prompt:'x'.repeat(2*1024*1024)+'TAIL',work:f.repo,profile,technique:'analyzed',timeoutMs:3000,codexPath})
+  assert.equal(raw.failure,undefined);assert.equal(raw.result.length,2*1024*1024+4);assert.equal(raw.result.tail,'TAIL');assert.equal(raw.result.arg,'-')
 })

@@ -29,18 +29,20 @@ function issueAddress(value) {
  */
 export async function collectIssueEvidence(request, {
   fetch = globalThis.fetch, maxPages = 100, timeoutMs = 30_000,
-  maxResponseBytes = 8 * 1024 * 1024, headers = {}, signal, now = () => new Date().toISOString(),
+  maxResponseBytes = 8 * 1024 * 1024, maxTotalBytes = 16 * 1024 * 1024, headers = {}, signal, now = () => new Date().toISOString(),
 } = {}) {
   if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 1000) throw new Error('maxPages must be 1–1000');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000) throw new Error('timeoutMs must be 1–300000');
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1) throw new Error('maxResponseBytes must be positive');
+  if (!Number.isInteger(maxTotalBytes) || maxTotalBytes < 1 || maxTotalBytes > 16*1024*1024) throw new Error('maxTotalBytes must be bounded to 16 MiB');
+  let retainedBytes=0;
   const source = issueAddress(request.url);
   const operatorLogins = request.operatorLogins ?? [];
   const linkedArtifacts = request.linkedArtifacts ?? [];
   if (!Array.isArray(operatorLogins) || operatorLogins.some(login => typeof login !== 'string' || !login)) throw new Error('operatorLogins must be explicit login strings');
   if (!Array.isArray(linkedArtifacts)) throw new Error('linkedArtifacts must be an array');
   const result = { source, fetchedAt: now(), body: null, comments: [], operatorLogins,
-    operatorRulings: [], precedence: 'Explicit operator rulings in comments supersede conflicting body sketches; retain all source text. Do not infer a ruling from authorship alone.',
+    operatorComments: [], precedence: 'Explicit operator rulings in comments supersede conflicting body sketches; retain all source text. Do not infer a ruling from authorship alone.',
     links: [], pages: [], complete: false, gaps: [] };
   const gap = (code, sourceUrl, detail) => result.gaps.push({ code, source: sourceUrl, detail });
   async function read(url) {
@@ -80,6 +82,7 @@ export async function collectIssueEvidence(request, {
               const part = await reader.read();
               if (part.done) break;
               bytes += part.value.byteLength;
+              if (bytes + retainedBytes > maxTotalBytes) throw new Error('total evidence bound exceeded');
               if (bytes > maxResponseBytes) throw new Error('Response exceeds byte limit');
               raw += decoder.decode(part.value, { stream: true });
             }
@@ -87,10 +90,13 @@ export async function collectIssueEvidence(request, {
           } finally { await reader.cancel().catch(() => {}); }
         } else {
           raw = await response.text();
-          if (Buffer.byteLength(raw) > maxResponseBytes) throw new Error('Response exceeds byte limit');
+          bytes=Buffer.byteLength(raw);
+          if(bytes + retainedBytes > maxTotalBytes) throw new Error('total evidence bound exceeded');
+          if (bytes > maxResponseBytes) throw new Error('Response exceeds byte limit');
         }
         const value = JSON.parse(raw);
         if (!active) throw new Error('Evidence request already ended');
+        retainedBytes+=bytes;
         result.pages.push({ url, sha256: sha256(raw), etag: response.headers.get('etag'), raw });
         return { value, link: response.headers.get('link') };
       })();
@@ -150,10 +156,10 @@ export async function collectIssueEvidence(request, {
   }
   if (result.comments.length !== record.comments) gap('comment-count-mismatch', commentsUrl, `Expected ${record.comments} comments; retained ${result.comments.length}`);
   const operators = new Set(operatorLogins.map(login => login.toLowerCase()));
-  result.operatorRulings = result.comments.filter(comment => operators.has(comment.user.login.toLowerCase()))
+  result.operatorComments = result.comments.filter(comment => operators.has(comment.user.login.toLowerCase()))
     .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at))
     .map(comment => ({ commentId: comment.id, url: comment.html_url, author: comment.user.login, body: comment.body,
-      createdAt: comment.created_at, updatedAt: comment.updated_at ?? null, precedence: 'over-conflicting-body-sketch', requiresInterpretation: true }));
+      createdAt: comment.created_at, updatedAt: comment.updated_at ?? null, classification: 'unclassified operator-authored evidence', requiresInterpretation: true }));
 
   const supplied = new Map();
   for (const artifact of linkedArtifacts) {
@@ -168,6 +174,8 @@ export async function collectIssueEvidence(request, {
   for (const url of discovered) {
     const artifact = supplied.get(url);
     if (artifact?.status === 'read' && typeof artifact.content === 'string' && artifact.content.length > 0 && artifact.identity) {
+      retainedBytes+=Buffer.byteLength(artifact.content);
+      if(retainedBytes>maxTotalBytes){result.links.push({url,status:'unread',reason:'total evidence bound exceeded'});gap('linked-evidence-gap',url,'total evidence bound exceeded');continue;}
       result.links.push({ ...artifact, sha256: sha256(artifact.content) });
     } else {
       const status = artifact?.status === 'unavailable' ? 'unavailable' : 'unread';

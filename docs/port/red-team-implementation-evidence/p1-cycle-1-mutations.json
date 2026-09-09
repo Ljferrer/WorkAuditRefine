@@ -1,0 +1,56 @@
+[
+  {
+    "name": "scope",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 operative scope consistently names isolated repository for probes and confirmation (669.722583ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 731.450625\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:195:1\n\u2716 operative scope consistently names isolated repository for probes and confirmation (669.722583ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'INCOMPLETE'\n  - 'BLOCKED'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:198:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'INCOMPLETE',\n    expected: 'BLOCKED',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "confirmation-projection",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 mixed findings get independent confirmations and retain only the reproduced blocker (943.421416ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1006.341042\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:177:1\n\u2716 mixed findings get independent confirmations and retain only the reproduced blocker (943.421416ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'INCOMPLETE'\n  - 'BLOCKED'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:183:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'INCOMPLETE',\n    expected: 'BLOCKED',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "candidate-identity",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 mixed findings get independent confirmations and retain only the reproduced blocker (923.171ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 986.75025\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:177:1\n\u2716 mixed findings get independent confirmations and retain only the reproduced blocker (923.171ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  1 !== 2\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:183:162)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 1,\n    expected: 2,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "refutation-direction",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 mixed findings get independent confirmations and retain only the reproduced blocker (909.301666ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 972.874417\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:177:1\n\u2716 mixed findings get independent confirmations and retain only the reproduced blocker (909.301666ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n  + actual - expected\n  \n    [\n  +   'false'\n  -   'real'\n    ]\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:183:52)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: [ 'false' ],\n    expected: [ 'real' ],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "ignored-state",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 target guard detects ignored-content without cleanup (740.618583ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 806.490042\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:185:64\n\u2716 target guard detects ignored-content without cleanup (740.618583ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'CLEARED'\n  - 'INCOMPLETE'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:193:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'CLEARED',\n    expected: 'INCOMPLETE',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "metadata-state",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 target guard detects config without cleanup (765.767833ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 827.245708\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:185:64\n\u2716 target guard detects config without cleanup (765.767833ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'CLEARED'\n  - 'INCOMPLETE'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:193:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'CLEARED',\n    expected: 'INCOMPLETE',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "operator-authority",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 known operator measurement and suggestion remain unclassified evidence, never rulings (15.191917ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 75.522834\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:196:1\n\u2716 known operator measurement and suggestion remain unclassified evidence, never rulings (15.191917ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'binding ruling'\n  - 'unclassified operator-authored evidence'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:200:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'binding ruling',\n    expected: 'unclassified operator-authored evidence',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "intake-total",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 total intake bound spans individually valid response pages (14.613375ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 75.667792\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:202:1\n\u2716 total intake bound spans individually valid response pages (14.613375ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  true !== false\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:204:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: true,\n    expected: false,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "marker-repipe",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 source and environment gaps cannot be erased by canonical gate repipe (686.910417ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 750.098584\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:170:1\n\u2716 source and environment gaps cannot be erased by canonical gate repipe (686.910417ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'CLEARED-WITH-NOTES'\n  - 'INCOMPLETE'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-hs69vw5d/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:174:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'CLEARED-WITH-NOTES',\n    expected: 'INCOMPLETE',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  }
+]

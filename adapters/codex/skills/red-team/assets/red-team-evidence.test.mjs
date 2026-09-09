@@ -23,9 +23,9 @@ test('H2 preserves body sketch and superseding operator comment with explicit pr
   const evidence = await collectIssueEvidence({ url, operatorLogins: ['Operator'] }, fixtures());
   assert.equal(evidence.complete, true);
   assert.equal(evidence.body, body);
-  assert.equal(evidence.operatorRulings[0].body, 'Operator ruling: do not install; hand off the artifact.');
-  assert.equal(evidence.operatorRulings[0].precedence, 'over-conflicting-body-sketch');
-  assert.equal(evidence.operatorRulings[0].requiresInterpretation, true);
+  assert.equal(evidence.operatorComments[0].body, 'Operator ruling: do not install; hand off the artifact.');
+  assert.equal(evidence.operatorComments[0].classification, 'unclassified operator-authored evidence');
+  assert.equal(evidence.operatorComments[0].requiresInterpretation, true);
   assert.equal(evidence.comments[0].updated_at, '2026-09-02T00:00:00Z');
   assert.equal(evidence.source.id, 123);
   assert.match(evidence.source.snapshotSha256, /^[a-f0-9]{64}$/);
@@ -37,9 +37,9 @@ test('unchanged-body control never invents an operator ruling or body amendment'
   const evidence = await collectIssueEvidence({ url, operatorLogins: ['operator'] }, fixtures({ comments: [] }));
   assert.equal(evidence.complete, true);
   assert.equal(evidence.body, body);
-  assert.deepEqual(evidence.operatorRulings, []);
+  assert.deepEqual(evidence.operatorComments, []);
   const unknown = await collectIssueEvidence({ url }, fixtures());
-  assert.deepEqual(unknown.operatorRulings, []);
+  assert.deepEqual(unknown.operatorComments, []);
   assert.equal(unknown.comments.length, 1);
 });
 
@@ -52,7 +52,7 @@ test('all comment pages are retained and operator identity is never inferred fro
   const evidence = await collectIssueEvidence({ url, operatorLogins: ['operator'] }, f);
   assert.equal(evidence.complete, true);
   assert.equal(evidence.comments.length, 2);
-  assert.deepEqual(evidence.operatorRulings.map(row => row.commentId), [42]);
+  assert.deepEqual(evidence.operatorComments.map(row => row.commentId), [42]);
   assert.deepEqual(f.calls, [api, first, second]);
 });
 
@@ -192,3 +192,14 @@ test('external cancellation interrupts a stalled streaming read and preserves pr
   assert.ok(evidence.gaps.some(gap => gap.code === 'source-cancelled'));
   assert.equal(cancelled, true);
 });
+
+test('known operator measurement and suggestion remain unclassified evidence, never rulings',async()=>{
+  const evidence=await collectIssueEvidence({url,operatorLogins:['operator']},fixtures({comments:[{...comment,body:'Measurement: five rounds. Perhaps try automatic installation next time?'}]}))
+  assert.equal(evidence.complete,true);assert.equal(evidence.operatorRulings,undefined)
+  assert.equal(evidence.operatorComments[0].precedence,undefined)
+  assert.equal(evidence.operatorComments[0].classification,'unclassified operator-authored evidence')
+})
+test('total intake bound spans individually valid response pages',async()=>{
+  const evidence=await collectIssueEvidence({url},{...fixtures(),maxResponseBytes:10000,maxTotalBytes:300})
+  assert.equal(evidence.complete,false);assert.ok(evidence.gaps.some(g=>/total evidence bound/.test(g.detail)))
+})
