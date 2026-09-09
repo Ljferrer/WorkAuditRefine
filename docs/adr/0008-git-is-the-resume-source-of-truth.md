@@ -14,6 +14,11 @@ WAR advertises a "three-layer resumable source of truth" — GitHub issue labels
 
 3. **The journal is off-ladder.** The `resumeFromRunId` journal is an intra-phase replay cache, not a landed-state record. A resumed phase re-runs the gate and the push-first CAS, so a stale cached "merged" is caught at re-land, never trusted — no reconciliation is defined for it.
 
+Recovery auto-skips additionally require `task-integrated.sh` proof: integrated ancestry and a
+nonempty task commit carrying `WAR-Task: <task branch>` in the phase history. This committed
+provenance survives cloning and rebasing. Untagged legacy branches take ordinary work/audit;
+a shared commit count or local marker cannot establish task ownership (#2196).
+
 ## Considered options
 
 - **Documentation-only precedence sentence (rejected as too thin).** Just stating "git wins" tells a resuming Lead to trust the branch, but leaves "continue from a stale ledger" as the default action; the active pre-flight converts a wasted re-run (or a silently-absorbed foreign commit) into a deliberate, reported reconciliation.
@@ -33,3 +38,8 @@ WAR advertises a "three-layer resumable source of truth" — GitHub issue labels
 - Audit finding **L2** (2026-06-29 agent-architecture audit) — the originating defect.
 - [ADR-0003](0003-plan-namespaced-branches.md) / the `--owned-file` ownership ledger — the create-time foreign-ref guard whose resume-time gap Class C closes.
 - [ADR-0010](0010-submodule-landing-authority.md) — extends this model to make the submodule remote a co-source-of-truth: git is monotonic there too, so a gitlink SHA is authoritative iff reachable on the submodule remote, and the reconciliation pre-flight extends to verify it.
+
+## Decision log
+
+- 2026-09-09 · Operator authorized Git-resident task provenance before automatic recovery skips;
+  sibling-only, empty-tagged and untagged legacy branches cannot be marked complete (#2196).

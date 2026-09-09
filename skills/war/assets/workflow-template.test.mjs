@@ -11250,39 +11250,25 @@ test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry �
   assert.ok(out.handoff, 'handoff emitted on held:escalation (the classification is handed off to the Lead)')
 })
 
-// D9 / PIN-13 (#1895, #2006): derive-and-skip needs commits. The barrier prompt requires BOTH
-// `merge-base --is-ancestor` AND `rev-list --count "$(git merge-base <integration> <working>)"..<branch>`
-// > 0 before deriving preMerged (the base inline per task, never a carried "$BASE" — #2038), and
-// classifies a zero-commit ancestor as a never-started task that takes the ordinary ensure-worktree
-// path. The engine has no shell, so the
-// prompt is the guard: an honest barrier reports a zero-commit branch in NO array and the worker runs.
-test('derive-and-skip: zero-commit branch dispatches (#1895/#2006)', async () => {
+// Recovery delegates its graph proof to the real-Git helper tested below; no prompt-only count oracle.
+test('derive-and-skip: zero-commit branch dispatches (#1895/#2006/#2196)', async () => {
   const args = PROVISION_ARGS({ recovery: { sanctioned: true } })
-  // The honest barrier result for a zero-commit ancestor branch: nothing preMerged.
-  const { out, calls, logs } = await runPhase(args, barrierEnv({ ok: true, preMerged: [] }))
-  const barrier = calls.find(isProvision)
-  assert.ok(barrier, 'the barrier was dispatched')
-  const b = barrier.prompt
-  assert.match(b, /merge-base --is-ancestor <that task's branch> "\$TIP"/, 'the ancestor check stays')
-  assert.match(b, /AND `git rev-list --count "\$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)"\.\.<that task's branch>` is greater than 0/, 'the commit-count conjunct is required alongside the ancestor check, its base rendered inline by branch name')
-  assert.doesNotMatch(b, /rev-list --count "\$BASE"/, 'the range never reads a carried $BASE (an unset variable reads as HEAD..<branch> and fails open, #2038)')
-  assert.doesNotMatch(b, /BASE="\$\(git merge-base/, 'no BASE binding remains — the clause carries one inline merge-base rule, never a cross-call shell variable')
-  assert.match(b, /ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in `preMerged`/, 'a zero-commit ancestor is classified never-started and never preMerged')
-  assert.match(b, /run that task's ensure-worktree as listed \(the ordinary path\) and print one line `ZERO_COMMIT <that task's id> <that task's branch> at \$\(git merge-base integration\/wtprov-a\/phase-3 dev\/wtprov-a\)`/, 'the zero-commit branch takes the ordinary ensure-worktree path with a loud classification line whose base renders inline')
-  assert.doesNotMatch(b, /"\$BASE"/, 'the transcript line never reads a carried $BASE (an unset variable renders an empty base)')
-  assert.match(b, /never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895/, 'the prompt names why the ancestor check alone is vacuous')
-  // Delete-the-feature: the conjunct is recovery-gated — absent recovery the prompt carries no rev-list count at all.
+  const { out, calls } = await runPhase(args, barrierEnv({ ok: true, preMerged: [] }))
+  const b = calls.find(isProvision).prompt
+  assert.ok(b.includes('task-integrated.sh <that task\'s branch> integration/wtprov-a/phase-3 dev/wtprov-a'))
+  assert.match(b, /exit 0 with TASK_INTEGRATED/)
+  assert.match(b, /Exit 1 with NO_TASK_PROOF/)
+  assert.match(b, /Exit 2 or any unrecognized failure halts/)
+  assert.ok(calls.some(c => c.opts.label === 'work:t1'))
+  assert.ok(!out.auditLog.some(r => r.verdict === 'recovered:pre-merged'))
   const dormant = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(isProvision).prompt
-  assert.doesNotMatch(dormant, /rev-list --count "\$\(git merge-base/, 'the count conjunct is dormant without recovery (byte-identical barrier otherwise)')
-  // The zero-commit task dispatches a worker and is never recorded merged by recovery.
-  assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1'), 'a worker is dispatched for the zero-commit task')
-  assert.ok(!(out.auditLog || []).some(a => a && a.task === 't1' && a.verdict === 'recovered:pre-merged'), 't1 is never recorded recovered:pre-merged')
-  assert.ok(!logs.some(l => /task t1 is pre-merged/.test(l)), 'no pre-merged log for t1')
-  assert.equal(out.landDecision, 'landed', `the phase lands with t1 actually worked — got ${out.landDecision}`)
-  // A preMerged id the barrier DID derive is accepted with the conjunct pair named in the log.
+  assert.ok(!dormant.includes('task-integrated.sh'), 'recovery proof stays dormant on a fresh run')
   const merged = await runPhase(args, barrierEnv({ ok: true, preMerged: ['t1'] }))
-  assert.ok(merged.logs.some(l => /task t1 is pre-merged .*is-ancestor AND rev-list --count conjuncts/.test(l)), 'the acceptance log names both barrier conjuncts')
-  assert.ok(!merged.calls.some(c => (c.opts.label || '') === 'work:t1'), 'a derived preMerged task still dispatches no worker')
+  assert.ok(merged.logs.some(l => /task t1 is pre-merged .*task-integrated.sh/.test(l)))
+  assert.ok(!merged.calls.some(c => c.opts.label === 'work:t1'))
+  for (const c of (await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), fixNeededImpl())).calls.filter(c => isWorker(c) || isFixWorker(c))) {
+    assert.ok(c.prompt.includes('TASK PROVENANCE: put the exact trailer WAR-Task: war/wtprov-a/p3-t1'), 'implementation and fix producers carry the trailer')
+  }
 })
 
 // #1750: the staleRemote consumption loop normalizes ids through preMergedIdOf on both sides (the
@@ -17920,4 +17906,58 @@ test('pin-transfer integrity: abbreviated and full names of the same base cannot
     'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade0123456789', dispatch_base: 'facade0', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } })
   assert.ok(!(out.pinTransfers || []).some(p => p.mode === 'already_upstream'))
   assert.ok(calls.some(isMergeTask), 'contradiction follows the re-audit and ordinary merge path')
+})
+
+test('recovery integrity #2196: real Git provenance distinguishes sibling, legacy, empty, unmerged and rebased task work', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-task-provenance-'))
+  const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const taskBranch = 'war/wtprov-a/p3-t1', integration = 'integration/wtprov-a/phase-3', working = 'dev/wtprov-a'
+  const probe = () => spawnSync('bash', [join(here, 'task-integrated.sh'), taskBranch, integration, working], { cwd: dir, encoding: 'utf8' })
+  const commit = (file, message) => { writeFileSync(join(dir, file), message); git('add', file); git('commit', '-m', message) }
+  const check = async (expected, label) => {
+    const result = probe(); assert.equal(result.status, expected, label + ': ' + result.stdout + result.stderr)
+    const { out, calls } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: result.status === 0 ? ['t1'] : [] }))
+    assert.equal(calls.some(c => c.opts.label === 'work:t1'), expected !== 0, label + ': actual workflow skip')
+    assert.equal(out.auditLog.some(r => r.task === 't1' && r.verdict === 'recovered:pre-merged'), expected === 0)
+    assert.ok(calls.find(isProvision).prompt.includes('task-integrated.sh'), 'barrier uses the tested helper')
+  }
+  try {
+    git('init', '-b', working); git('config', 'user.name', 'WAR Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    commit('base', 'base'); commit('prior-phase', 'prior work\n\nWAR-Task: ' + taskBranch); git('checkout', '-b', integration)
+    commit('sibling', 'sibling\n\nWAR-Task: war/wtprov-a/p3-t2')
+    git('branch', taskBranch)
+    await check(1, 'branch cut at a later sibling tip')
+    git('checkout', taskBranch); commit('legacy', 'legacy task without trailer'); git('checkout', integration); git('merge', '--ff-only', taskBranch)
+    await check(1, 'untagged legacy work is conservative')
+    git('checkout', taskBranch); git('commit', '--allow-empty', '-m', 'bookkeeping\n\nWAR-Task: ' + taskBranch); git('checkout', integration); git('merge', '--ff-only', taskBranch)
+    await check(1, 'empty tagged commit')
+    git('checkout', taskBranch); commit('deliverable', 'implement t1\n\nWAR-Task: ' + taskBranch)
+    await check(1, 'own work not integrated')
+    git('checkout', integration); commit('sibling-later', 'another sibling'); git('checkout', taskBranch); git('rebase', integration); git('checkout', integration); git('merge', '--ff-only', taskBranch)
+    await check(0, 'rebased nonempty own task commit')
+    git('reflog', 'expire', '--expire=now', '--all')
+    await check(0, 'proof does not depend on a local reflog')
+    const clone = join(dir, 'fresh-machine')
+    git('clone', '--no-local', dir, clone)
+    const inClone = (...args) => { const r = spawnSync('git', ['-C', clone, ...args], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr) }
+    inClone('branch', taskBranch, 'origin/' + taskBranch); inClone('branch', working, 'origin/' + working)
+    const recovered = spawnSync('bash', [join(here, 'task-integrated.sh'), taskBranch, integration, working], { cwd: clone, encoding: 'utf8' })
+    assert.equal(recovered.status, 0, 'a fresh clone without prior worktree markers or journal proves the same task: ' + recovered.stderr)
+
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('recovery provenance helper refuses invalid inputs and distinguishes missing task from missing integration', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-task-provenance-errors-'))
+  const run = args => spawnSync('bash', [join(here, 'task-integrated.sh'), ...args], { cwd: dir, encoding: 'utf8' })
+  try {
+    assert.equal(run([]).status, 2)
+    assert.equal(run(['bad..branch', 'integration', 'working']).status, 2)
+    assert.equal(run(['task', 'integration', 'working']).status, 2, 'not a repo is an error')
+    const git = args => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr) }
+    git(['init', '-b', 'working']); git(['config', 'user.name', 'WAR Fixture']); git(['config', 'user.email', 'fixture@example.invalid']); git(['commit', '--allow-empty', '-m', 'base'])
+    assert.equal(run(['task', 'integration', 'working']).status, 1, 'absent task has no skip proof')
+    git(['branch', 'task'])
+    assert.equal(run(['task', 'integration', 'working']).status, 2, 'missing integration cannot prove ancestry')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

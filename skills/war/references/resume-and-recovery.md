@@ -92,3 +92,8 @@ A phase-close polish revert carrying only an auto-generated body is **never self
 1. **Run the gate at the reverted commit itself.** A **green** target proves the revert had no gate justification — treat the revert as the defect, not the polish commit it undid.
 2. **Diff the revert against still-live text for green-by-deletion.** An assertion whose subject is still present in the guarded file is a **guard**, never obsolescence — dropping it greens the pin by removing the check, not by fixing the fact.
 3. **Re-land with a real rationale naming which findings are re-opened**, and **diff the reverted commit's fix-set against the redo pass's fix-set by finding title/file** before treating the absorb queue as drained. A redo pass re-derives its queue from the findings open *at redo time*, so every finding the reverted commit had already closed is silently orphaned — the recorded orphaning mechanism, not a hypothetical.
+
+Recovery auto-skips require `task-integrated.sh` proof of integrated task-owned work, as specified
+in [refiner-recovery.md](refiner-recovery.md#recovery-task-provenance). The worker's exact
+`WAR-Task: <task branch>` trailer must occur on a nonempty commit. A positive shared-phase commit
+count cannot prove ownership; untagged legacy branches run through work/audit again (#2196).

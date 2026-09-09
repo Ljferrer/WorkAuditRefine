@@ -107,3 +107,37 @@ User authorized the #2196 task-provenance requirement: a nonempty worker commit 
 Snipe's post-push death finding is independently reproduced with a real local bare Git remote: merge/push completes, refiner throws ECONNRESET, and the real Workflow still dispatches Land. Regression failed as intended (`published === true`). Proposed D21 exception is pending the operator's choice: hold uncertain merge outcomes for reconciliation versus automatic reconciliation. Reproduction stored in `/private/tmp/war-2297-post-push-regression.txt` and `/private/tmp/war-2297-post-push-red.log`; it is not yet a committed passing test.
 
 Routing/transfer checkpoint validation: `node --test skills/war/assets/workflow-template.test.mjs skills/war/assets/skill-doc-contracts.test.mjs skills/war/assets/prompt-surface-budgets.test.mjs` — **840 passed, 0 failed**. `git diff --check` passed. A ninth mutation restoring strict string equality for abbreviated/full base SHAs failed the new already-upstream contradiction test; prefix-equivalent SHA names now cannot falsely prove distinct base/tip. These are checkpoint checks, not final-candidate evidence.
+
+## Recovery provenance checkpoint
+
+#2196 root cause: the phase-shared commit count cannot establish ownership. The read-only
+`task-integrated.sh` helper resolves local refs to immutable SHAs, requires task ancestry,
+then finds a nonempty non-merge commit in phase history with the exact WAR-Task branch trailer.
+Only its TASK_INTEGRATED result permits the barrier to report preMerged. NO_TASK_PROOF takes
+ordinary work/audit; helper errors stop provisioning. Work/fix prompts and the standing worker
+card produce the trailer. The refiner card, recovery reference, schemas, plan D9/Task 6.1 and
+ADR 0008 now name the same proof. Other Git authority/foreign-commit reconciliation rules stay.
+
+Real-Git regression exercises inherited sibling work, prior-phase task work, untagged legacy work,
+empty tagged commits, unmerged own work, rebased integrated own work, expired reflogs and a fresh
+clone without the original worktree/journal. It drives the helper result through actual Workflow
+skip/dispatch bookkeeping. The old ancestor/count algorithm's false completion was independently
+red before this repair. Four disposable helper mutations (ancestry, owner trailer, nonempty diff,
+phase range) each failed the real-Git fixture. Invalid CLI/repository inputs and missing refs are
+also covered. Checkpoint command: workflow + skill-doc-contracts + prompt-surface-budgets Node
+test files — **842 passed, 0 failed**; `git diff --check` passed.
+
+Consequence: legacy branches may do redundant work/audit, but cannot acquire completion credit
+from sibling history. The proof lives in pushed commit history and survives another-machine
+recovery; it does not claim to prove task acceptance independently of the existing audit/gate
+and resume reconciliation contracts. There is no new local state authority.
+
+## D21 operator direction (2026-09-09)
+
+The operator selected automatic in-phase reconciliation: dispatch a fresh refiner to establish
+Git certainty and complete or safely retry an uncertain task/polish/terminal merge. Hold before
+land only when bounded maintenance cannot prove/recover the state. Never require the human to
+run Git CLI commands; keep auditors read-only. Git remains authoritative, including across
+machines. The operator also authorized a separate stronger refiner recovery tier (Opus for
+judgment-heavy reconciliation; routine refiner remains Sonnet). This supersedes the pending
+hold-versus-reconcile question above. Implementation and alternate-consumer regressions pending.

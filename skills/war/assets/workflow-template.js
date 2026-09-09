@@ -407,7 +407,7 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
 // The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
 // arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip AND
-// carries at least one commit above the phase base (already-integrated on an adopted branch; a
+// carries a nonempty commit with its exact WAR-Task branch trailer (already-integrated; a
 // zero-commit ancestor is never reported, #1895; the derive-and-skip step, armed only under
 // args.recovery.sanctioned — recovery mechanics, spec §4.2/§4.4); staleRemote — per-task stale-remote
 // classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
@@ -643,7 +643,7 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
 // Absent / non-sanctioned ⇒ THREE recovery-gated barrier arms are DORMANT, not one: (1) the
 // derive-and-skip step (deriveSkipClause — a task branch that is an ancestor of the frozen tip AND
-// carries a commit above the phase base is reported preMerged and its ensure-worktree skipped; a
+// carries a nonempty commit with its own WAR-Task trailer is reported preMerged and its ensure-worktree skipped; a
 // zero-commit ancestor is never preMerged, #1895 — the §4.2 relaunch prompt delta); (2) the
 // pre-checkout ref-holder auto-free (holderFreeClause, #1712 fix 3 — clean prior-generation holders of
 // THIS plan's own refs only, carrying TWO refusal arms: a DIRTY holder and a FOREIGN plan's holder are
@@ -1286,6 +1286,7 @@ const provisionClause = provisionList.length
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n')
   : ''
 
+const taskProvenanceClause = task => pt`\nTASK PROVENANCE: put the exact trailer WAR-Task: ${task.branch} on your task implementation/fix commits. Never create an empty commit merely to obtain recovery credit; read head_sha from git rev-parse HEAD after committing.\n`
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 // auditShaOrSentinel (#1693, Phase 5 Task 1): validates the seat-echoed audit_sha before it is stamped
 // as a finding's `sha` — a malformed/free-text value (a ref expression, prose, an empty string) becomes
@@ -2645,28 +2646,9 @@ if (tasks.length) {
   // branch, never "$TIP": an agent shell does not carry a variable across calls, so an unset TIP reads
   // as HEAD..<branch> — empty in the task worktree — and returns a plausible 0 (#2038).
   const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name, never a shell variable from an earlier call) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
-  // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
-  // whose local branch is an ancestor of the frozen tip AND carries at least one commit above the phase
-  // base (`rev-list --count "$(git merge-base <integration> <working>)"..<branch>` > 0 — D9/PIN-13,
-  // #1895/#2006) is reported preMerged and its ensure-worktree is SKIPPED. The ancestor check alone is
-  // vacuous for a zero-commit branch sitting at the phase base (a task that dep-failed or never
-  // dispatched in an earlier attempt), so the count is the paired conjunct: such a branch is classified
-  // ZERO_COMMIT in the barrier transcript and takes the ordinary ensure-worktree path, never preMerged.
-  // The range renders its base INLINE per task, by branch name, never through a carried "$BASE". The
-  // reason is the failure-mode asymmetry: an unset BASE renders HEAD..<branch>, which exits 0 with a
-  // plausible count — silent and open (#2038, the absorbChargesClause precedent) — whereas the
-  // is-ancestor conjunct's "$TIP" fails loud when unset, and TIP is bound inside the same step-3
-  // command this clause extends (the holderFreeClause comment records that scope). The ZERO_COMMIT
-  // transcript line renders the same inline merge-base, so the clause carries one base rule. The base is the
-  // integration branch's fork point off the working branch (the refiner card's phase integration
-  // base) — the residual: a zero-commit branch cut at a LATER relaunch's adopted tip counts its
-  // siblings' fast-forwarded commits and is not caught here.
-  // Deriving before cutting means a fresh cut can never pollute the ancestry check (the "vacuous on a
-  // first run" property is true by ordering, not luck). A task branch that exists but is NOT an
-  // ancestor (the escalated task's half-done branch) takes the existing-branch reuse path — prior
-  // commits kept, no reset (spec §8).
+  // Recovery skips require Git-resident task provenance; the helper owns the graph proof.
   const deriveSkipClause = recovery
-    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds AND \`git rev-list --count "$(git merge-base ${ph.integrationBranch} ${ph.workingBranch})"..<that task's branch>\` is greater than 0 (the base rendered inline by branch name, never a shell variable from an earlier call: an unset variable reads as HEAD..<branch> and returns a plausible count; already-integrated on the adopted integration branch WITH at least one commit of its own — BOTH conjuncts, never the ancestor check alone: a branch with no commits above the phase base is vacuously an ancestor, #1895). On BOTH TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. ZERO-COMMIT CLASSIFICATION: an ancestor branch whose count is 0 is a never-started task, NOT a merged one — never report it in \`preMerged\`; run that task's ensure-worktree as listed (the ordinary path) and print one line \`ZERO_COMMIT <that task's id> <that task's branch> at $(git merge-base ${ph.integrationBranch} ${ph.workingBranch})\` so the classification is visible in your transcript. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
+    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <that task's branch> ${ph.integrationBranch} ${ph.workingBranch} from the target repository. This read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry plus a nonempty task-owned commit carrying the exact WAR-Task branch trailer; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, empty-tagged or untagged legacy branch) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches are reused with their commits intact, never reset.\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -2724,9 +2706,9 @@ if (tasks.length) {
     throw new Error(`phase ${ph.id}: the provision:phase-${ph.id} git-topology barrier did not return { ok: true } — the phase cannot start: ${(barrierOut && barrierOut.stderrTail) || 'no result / no env-outcome returned'}`)
   }
   // ---- RECOVERY: barrier-derived merged-set skip (§4.2) ----
-  // The provision-barrier refiner ran the git-ancestry checks (the Workflow sandbox has no shell/fs) and
+  // The provision-barrier refiner ran task-integrated.sh (the Workflow sandbox has no shell/fs) and
   // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip AND
-  // carries a commit above the phase base (the deriveSkipClause conjunct pair — a zero-commit ancestor
+  // carries a nonempty commit with its own WAR-Task trailer (the deriveSkipClause conjunct pair — a zero-commit ancestor
   // is never reported, #1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
@@ -2750,7 +2732,7 @@ if (tasks.length) {
     if (done.has(id)) continue
     done.add(id); succeeded.add(id); landed.push(id)
     auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
-    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip with a commit of its own above the phase base — the barrier's is-ancestor AND rev-list --count conjuncts) — recorded merged, no worker dispatched.`)
+    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip with verified task-owned work — the barrier's task-integrated.sh ancestry and nonempty WAR-Task provenance proof) — recorded merged, no worker dispatched.`)
   }
   // ---- §4.4 stale-remote classification → per-task env-blocked (always-on, never a phase halt) ----
   // The barrier CONTINUED past a per-task ensure-worktree exit carrying the STALE_REMOTE marker and
@@ -3664,7 +3646,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // deliberately BARE — it is the pinned in-thunk pt-throw trigger (criterion 3's fixture) and a
         // registered member of the remaining-bare-interpolation census.
         + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice ?? '<unset>'}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
-        + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
+        + taskProvenanceClause(task) + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
@@ -3790,7 +3772,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
           + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + FIX_ROUND_DOCTRINE_CLAUSE
-          + workerMemClause(task.id) + provisionClause,
+          + taskProvenanceClause(task) + workerMemClause(task.id) + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
         lastFixKeys = new Set(b.map(blockerKey))   // PIN-29: what this fix round was dispatched on

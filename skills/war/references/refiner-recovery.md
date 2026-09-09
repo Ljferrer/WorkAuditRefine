@@ -118,3 +118,16 @@ Trigger: an `endstate-check` dispatch, per enumerated condition row (the card's 
 Trigger: a merge-task return where the step that sets one of `floor_diagnostic`, `mappedTests`, `done_when_log_path`, `floor_route` or `gate_segment` is in doubt (the card's `## Return` MergeResult parenthetical, evicted #2156 a4).
 
 (`floor_diagnostic` is merge-task-only — the exit-1 test floor's verbatim stderr, per step 4; `mappedTests` is merge-task-only — the exit-0 test floor's matched paths from stdout, per step 4; `done_when_log_path` is merge-task-only — the done-when floor's teed evidence artifact, its absolute path returned on exit 1, per step 8; `floor_route` is merge-task-only — the literal `"budget-uncited"` riding `status: "no-test"` when the step-7 Budget-Raise floor's exit 1 fired, never any other value; `gate_segment` is merge-task-only — step 10's FORCED mid-gate return, `"incomplete"` riding `status: "error"`)
+
+## Recovery task provenance
+
+On a sanctioned recovery relaunch, run `task-integrated.sh <task-branch> <integration> <working>`
+from the target repository before ensure-worktree. This is a read-only helper, a sibling of
+`provision-worktrees.sh`. Exit 0 (`TASK_INTEGRATED`) proves the local task branch is integrated
+and contains a nonempty commit in the phase with the exact `WAR-Task: <task branch>` trailer.
+Only that result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
+and work/audit; it includes sibling-only, zero-commit, empty-tagged and untagged legacy branches.
+Exit 2 or any unrecognized failure stops the barrier with the command and stderr recorded.
+Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
+provenance, available after cloning on another machine; no local marker, reflog, label or journal
+can substitute for the proof. The normal resume pre-flight still reconciles unexplained commits.
