@@ -11979,6 +11979,23 @@ test('env-died: dead merge dispatch names the site — the task stays unmerged a
   assert.ok(e2 && e2.reason === 'error', 'a seat-returned look-alike key routes by its status (error), never env-died')
 })
 
+test('env-died: dead pin-transfer probe names the site — the task stays unmerged as env-died with pin-transfer:<task> in blocked (SOFT, never held:workflow-error); the sibling lands', async () => {
+  // Before D21 a dead probe propagated out of the merge loop to the phase catch and held the WHOLE
+  // phase held:workflow-error. This pins the HARD-to-SOFT conversion at the probe arm specifically.
+  // The probe is a `seats`-answered refiner seat (never agentImpl), so the death is raised there.
+  const probe = (prompt, opts) => {
+    if ((opts.label || '') === 'pin-transfer:t1') throw new Error('fetch failed: 529 overloaded')
+    return NEW_SEAT_DEFAULTS['pin-transfer']
+  }
+  const { out } = await runPhase(twoIndependentTasks(), defaultImpl, { 'pin-transfer': probe })
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'the task whose probe died escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'a dead pin-transfer probe classifies env-died (SOFT)')
+  assert.match(String(esc.blocked), /^pin-transfer:t1 dispatch died post-spawn \(env-died\)/, 'blocked names the pin-transfer SITE')
+  assert.ok(!out.landed.includes('t1'), 'a dead probe never records the task merged')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT — the phase lands minus the task, never held:workflow-error')
+})
+
 test('env-died: dead dispatches at the phase-level sites (evidence, gate-audit, land, wrap-up, filing) each classify at their site, never a hard hold', async () => {
   const dieAt = pred => (prompt, opts) => { if (pred(opts)) throw new Error('fetch failed: 529 overloaded'); return defaultImpl(prompt, opts) }
   // gate-audit seat (per task): merged task stays landed; recorded SOFT under a phase-scoped pseudo id
