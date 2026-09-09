@@ -5,10 +5,13 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-8
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-12
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +22 recurrences (latest 2026-09-06-engine-and-audit-verdict-integrity/phase-12 tasks 12.1+12.2)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +23 recurrences (latest 2026-09-06-engine-and-audit-verdict-integrity/phase-14 task phase-14-end-state)"
   keywords:
+    - artifact predates tip commits
+    - post-release commits land after gate capture
+    - same plan three phases
     - full gates green
     - gate-log artifact
     - pin_status
@@ -70,9 +73,9 @@ metadata:
     - release
     - test-strategy
   created: 2026-07-15
-  updated: 2026-08-30
+  updated: 2026-09-08
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-09-08T23:57:14.277Z
+  modified: 2026-09-09T04:38:38.776Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -849,3 +852,37 @@ cross-artifact corroboration technique this lesson has documented repeatedly.
 code, gap persists in the live capture" framing gets its cleanest same-run, same-tip, sibling-artifact
 proof yet — do not assume a green `gate-log stamp` fixture means every `.war/gate-<taskId>.log`
 this phase actually landed carries the stamp; check the artifact itself.
+
+## Recurrence 22 (2026-09-07/08, plan `2026-09-06-engine-and-audit-verdict-integrity`, phase 14
+"Release", task `phase-14-end-state` gate-audit) — third occurrence of this same gap within ONE
+plan (after phase 8's and phase 12's entries, both mislabeled "Recurrence 21" above — a pre-existing
+numbering collision in this file, left as-is), now on the plan's own terminal Release phase, plus a
+new "artifact predates the tip" sub-shape
+
+Twenty-second occurrence overall. `_refinery/.war/gate-14.1.log` opens with a bare node-reporter
+tick line and closes mid the `schemas-manifest.test.sh` suite's own `ok`/count lines — neither
+`tip_sha:` nor `exit_code:`, the identical unstamped shape as every prior recurrence. `code-verified`
+at the landed tip `05bb597210df34fa6c88194a921f19a47d2fa538` (worktree lookup rung 2: the
+`_refinery` worktree's gitdir physical path
+`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/.git`
+contains this plan's slug and its `HEAD` reads the exact landed tip): line 1 of `gate-14.1.log` is a
+test-tick line; the tail ends mid the `schemas-manifest` suite output, no `exit_code:` line;
+`gate-phase-14.log` does not exist anywhere under that worktree's `.war/` directory (Glob zero
+matches).
+
+**New sub-shape, layered on the plain missing-stamp gap:** the gate-audit's own rationale (auditSha
+`33a3631ad11d17b87dbdba7ad13ed3be86956cbe`, `gateEvidence:true`) additionally names that several
+commits (`8788bf7d`, `a445cb6e`, `70c1bb22`, `82fa2967`, `33a3631a`) landed on `README.md`/
+`CHANGELOG.md` **after** the release commit `gate-14.1.log` gates — the same "artifact captured
+before later commits land" timing gap Recurrence 11 first named for a phase-close `--ace` polish
+commit, here recurring for a release phase's own post-release ace re-entry commits. The seat stayed
+SOFT/`note`/Minor (`gate-audit:approve`, `hard:false`) rather than holding, per the standing rule.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-21) is unaffected. **New signal:** this is
+the third time this exact unstamped-gate-log gap has surfaced within one single plan/run (phase 8,
+phase 12, phase 14 of `2026-09-06-engine-and-audit-verdict-integrity`) — the `GATE_LOG_STAMP` prompt
+clause landed and is tested green (per the phase-8 entry), yet the live refiner capture still never
+carries it three phases later, including on the plan's own terminal Release phase. A Lead/operator
+should treat this as strong evidence the gap is a refiner-invocation/tooling default, not a
+per-phase fluke — worth escalating out of the recurring-Nit lane per Recurrence 10's original
+recommendation.
