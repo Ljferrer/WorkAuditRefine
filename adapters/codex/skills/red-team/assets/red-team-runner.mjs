@@ -294,34 +294,41 @@ export async function runDiagnostic(request, options={}) {
   for(const kind of ['clean','seeded']) {
     const observation={kind,status:'INCOMPLETE',gaps:[]};observations.push(observation)
     try {
-      const repository=join(root,kind+'-target'),nonce=randomUUID(),actual=kind==='clean'?4:5
+      const repository=join(root,kind+'-target'),nonce=randomUUID(),proofNonce=randomUUID(),actual=kind==='clean'?4:5
       mkdirSync(repository)
       execFileSync('git',[...gitOptions,'init','--template=',repository],{env:gitEnv,timeout:30000,stdio:'pipe'})
       const source=`RED_TEAM_SOURCE:${nonce}:${actual}`
       write(repository,'sum.txt',source+'\n')
       write(repository,'plan.md','# Diagnostic sum plan\n\nThe value in sum.txt must be 4. Verify by reading the source and running node proof.mjs.\n')
-      write(repository,'proof.mjs',`import {readFileSync} from 'node:fs';\nconst source=readFileSync(new URL('./sum.txt',import.meta.url),'utf8').trim();\nconst actual=Number(source.split(':').at(-1));\nconsole.log('RED_TEAM_PROOF:${nonce}:'+actual);\nprocess.exitCode=actual===4?0:1;\n`)
+      write(repository,'proof.mjs',`import {readFileSync} from 'node:fs';\nconst source=readFileSync(new URL('./sum.txt',import.meta.url),'utf8').trim();\nconst actual=Number(source.split(':').at(-1));\nconsole.log('RED_TEAM_PROOF:${proofNonce}:'+actual);\nprocess.exitCode=actual===4?0:1;\n`)
       git(repository,['add','.'])
       git(repository,['-c','user.name=Red Team Diagnostic','-c','user.email=diagnostic@example.invalid','-c','commit.gpgsign=false','commit','-m','Disposable diagnostic fixture'])
       const probes=[
-        {name:'analysis',technique:'analyzed',instructions:'Read plan.md and sum.txt with a shell command that prints the complete source. Analyze whether the final colon-separated number fulfills the plan. Report any mismatch as Major. Independently read the source again on confirmation.'},
+        {name:'analysis',technique:'analyzed',instructions:'Read plan.md, then run exactly cat sum.txt in the repository root to print the complete source. Analyze whether the final colon-separated number fulfills the plan. Report any mismatch as Major. Independently run exactly cat sum.txt again on confirmation.'},
         {name:'proof',technique:'executed',instructions:'Run exactly node proof.mjs in the repository root. Inspect its output and exit status against the plan; report a mismatch as Major. On confirmation independently rerun exactly node proof.mjs. Do not edit the fixture.'},
       ]
+      for(const probe of probes)probe.instructions+=' For this diagnostic, encode each finding evidence and confirmation evidence as a JSON string with expected (the numeric plan value), actual (the numeric observed value), and marker (the complete source line for analysis, or complete proof output line for proof). Report only observed facts, not supplied expectations.'
       const run=await runRedTeam({repository,planFile:join(repository,'plan.md'),evidenceDir:join(root,kind+'-run'),profile:request.profile,inheritedProfile:request.inheritedProfile,timeoutMs:request.timeoutMs,retries:0,probes},options)
       observation.runFile=join(kind+'-run','run.json');observation.verdict=run.final.verdict
-      observation.fixture={revision:run.target?.revision,source,proof:`RED_TEAM_PROOF:${nonce}:${actual}`,expectedExit:actual===4?0:1}
+      observation.fixture={revision:run.target?.revision,source,proof:`RED_TEAM_PROOF:${proofNonce}:${actual}`,expectedExit:actual===4?0:1}
+      const gateInput=JSON.parse(readFileSync(join(root,kind+'-run','initial-gate-input.json'),'utf8'))
       const expected=kind==='clean'?'CLEARED':'BLOCKED'
       if(run.final.verdict!==expected)observation.gaps.push(`expected ${expected}; observed ${run.final.verdict}`)
       for(const probe of probes) {
+        const marker=probe.name==='proof'?observation.fixture.proof:source
+        const matchesFacts=text=>{try{const facts=JSON.parse(text);return facts.expected===4 && facts.actual===actual && facts.marker===marker}catch{return false}}
+        if(kind==='seeded' && !classify(allFindings(gateInput.probeResults.filter(r=>r.probe===probe.name))).blockers.some(f=>matchesFacts(f.evidence)))observation.gaps.push(`${probe.name}: no confirmed blocker matches the seeded oracle`)
         const initial=run.attempts.filter(a=>a.probe===probe.name && a.stage==='probe')
         const confirmations=run.attempts.filter(a=>a.probe===probe.name && a.stage==='confirmation')
         if(initial.length!==1 || (kind==='seeded' && confirmations.length<1))observation.gaps.push(`${probe.name}: missing initial or applicable confirmation`)
         for(const attempt of [...initial,...confirmations]) {
-          let events=[]
-          try { events=JSON.parse(readFileSync(join(root,kind+'-run',`attempt-${attempt.id}-raw.json`),'utf8')).stdout.split('\n').filter(Boolean).map(line=>JSON.parse(line)) }catch{}
-          const marker=probe.name==='proof'?observation.fixture.proof:source
+          let events=[],raw
+          try { raw=JSON.parse(readFileSync(join(root,kind+'-run',`attempt-${attempt.id}-raw.json`),'utf8'));events=raw.stdout.split('\n').filter(Boolean).map(line=>JSON.parse(line)) }catch{}
+          if(kind==='seeded' && attempt.stage==='confirmation' && (raw?.result?.reproduced!==true || !matchesFacts(raw.result.evidence)))observation.gaps.push(`${probe.name}: confirmation does not reproduce the seeded oracle`)
           const exit=probe.name==='proof'?observation.fixture.expectedExit:0
-          const observed=events.some(e=>e.type==='item.completed' && e.item?.type==='command_execution' && e.item.status==='completed' && e.item.exit_code===exit && e.item.aggregated_output?.split(/\r?\n/).includes(marker) && (probe.name!=='proof' || /(?:^|[\s/'"])node\s+proof\.mjs(?:$|[\s'"])/.test(e.item.command ?? '')))
+          const command=probe.name==='proof'?'node proof.mjs':'cat sum.txt'
+          const commands=[command,...['/bin/zsh','/bin/bash','/bin/sh'].flatMap(shell=>[`${shell} -lc '${command}'`,`${shell} -lc "${command}"`])]
+          const observed=events.some(e=>e.type==='item.completed' && e.item?.type==='command_execution' && e.item.status==='completed' && e.item.exit_code===exit && e.item.aggregated_output?.split(/\r?\n/).includes(marker) && commands.includes(e.item.command))
           if(attempt.result!=='valid' || !observed)observation.gaps.push(`${probe.name} ${attempt.stage} ${attempt.id}: missing valid result or observed ${marker} command output/exit`)
         }
       }

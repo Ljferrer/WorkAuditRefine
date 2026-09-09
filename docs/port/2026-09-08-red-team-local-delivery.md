@@ -44,7 +44,7 @@ node "$installed_plugin/skills/red-team/assets/red-team-runner.mjs" \
   --diagnostic /absolute/diagnostic-request.json
 ```
 
-In a sandboxed task, request the documented coordinator host launch permission on the first invocation; every child still uses its declared sandbox. Refusal is unavailable evidence; do not widen permissions to retry. Diagnostic targets and raw runs are retained under the evidence directory. `OBSERVED` requires analysis reads, executed proof output/exit and applicable independent confirmations to match known-clean and seeded fixtures. A failed or vacuous run remains `INCOMPLETE` with exit 1. This task's fake-executable tests establish wiring only. Actual installed-host observation, prompt comprehension and B1 remain pending.
+In a sandboxed task, request the documented coordinator host launch permission on the first invocation; every child still uses its declared sandbox. Refusal is unavailable evidence; do not widen permissions to retry. Diagnostic targets and raw runs are retained under the evidence directory. `OBSERVED` requires exact allowlisted source/proof command events, matching output/exit status, and seeded blockers plus confirmation facts matching the controlled expected value, actual value and role-specific marker. Other command forms or unrelated blockers remain incomplete. A failed or vacuous run remains `INCOMPLETE` with exit 1. This task's fake-executable tests establish wiring only. Actual installed-host observation, prompt comprehension and B1 remain pending.
 
 ## Next independent target and stop boundary
 

@@ -1,0 +1,60 @@
+✖ offline relocated diagnostic entrypoint: success (3993.623125ms)
+✖ offline relocated diagnostic entrypoint: wrapped (3806.890584ms)
+✔ offline relocated diagnostic entrypoint: missing (3337.472958ms)
+✔ offline relocated diagnostic entrypoint: unusable (3342.045083ms)
+✔ offline relocated diagnostic entrypoint: vacuous (3877.632167ms)
+✔ offline relocated diagnostic entrypoint: echo-analysis (3721.06425ms)
+✔ offline relocated diagnostic entrypoint: echo-proof (3740.602292ms)
+✔ offline relocated diagnostic entrypoint: unrelated (3765.4765ms)
+✔ offline relocated diagnostic entrypoint: bad-confirmation (3652.636625ms)
+﹣ actual host diagnostic (explicit opt-in; skipped is unavailable evidence) (0.094166ms) # SKIP
+ℹ tests 10
+ℹ suites 0
+ℹ pass 7
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 33296.1805
+
+✖ failing tests:
+
+test at adapters/codex/red-team-actual-host.test.mjs:40:132
+✖ offline relocated diagnostic entrypoint: success (3993.623125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/red-team-actual-host.test.mjs:47:46)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/red-team-actual-host.test.mjs:40:132
+✖ offline relocated diagnostic entrypoint: wrapped (3806.890584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/red-team-actual-host.test.mjs:47:46)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

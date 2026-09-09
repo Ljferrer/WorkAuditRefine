@@ -24,28 +24,34 @@ if(process.argv[2]==='app-server') {
  const text=readFileSync('sum.txt','utf8').trim(),bad=text.endsWith(':5');
  const proof=probe.name==='proof';
  const output=proof?spawnSync(process.execPath,['proof.mjs'],{encoding:'utf8'}):{stdout:readFileSync('sum.txt','utf8'),status:0};
- if(mode!=='vacuous')console.log(JSON.stringify({type:'item.completed',item:{type:'command_execution',status:'completed',command:proof?'node proof.mjs':'cat sum.txt',aggregated_output:output.stdout,exit_code:output.status}}));
+ let command=proof?'node proof.mjs':'cat sum.txt';
+ if(prior && ((mode==='echo-analysis' && !proof)||(mode==='echo-proof' && proof)))command='echo '+command+'; echo '+output.stdout.trim()+'; exit '+output.status;
+ if(mode==='wrapped')command="/bin/zsh -lc '"+command+"'";
+ if(mode!=='vacuous')console.log(JSON.stringify({type:'item.completed',item:{type:'command_execution',status:'completed',command,aggregated_output:output.stdout,exit_code:output.status}}));
  const read_anchor={resolved_path:scope.planFile,plan_sha256:scope.planSha256,target_revision:scope.revision};
- const value=prior?{read_anchor,evidence:text,reproduced:true,note:'Independently repeated the source/proof mismatch.'}:{read_anchor,probe:probe.name,technique:probe.technique,status:bad?'fail':'pass',evidence:text,findings:bad?[{severity:'Major',claim:'Value must be 4',reality:'Value is 5',evidence:text,planRef:'The value in sum.txt must be 4.'}]:[]};
+ const facts=JSON.stringify({expected:mode==='wrong-expected' && !prior?9:4,actual:(mode==='bad-confirmation' && prior)||(mode==='wrong-actual' && !prior)?9:(bad?5:4),marker:mode==='wrong-marker' && !prior?'wrong':(proof?output.stdout.trim():text)});
+ const evidence=mode==='unrelated' && !prior?'An unrelated architecture concern':facts;
+ const value=prior?{read_anchor,evidence,reproduced:true,note:'Independently repeated the source/proof mismatch.'}:{read_anchor,probe:probe.name,technique:probe.technique,status:bad?'fail':'pass',evidence,findings:bad?[{severity:'Major',claim:'Value must be 4',reality:'Value is 5',evidence,planRef:'The value in sum.txt must be 4.'}]:[]};
  console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(value)}}));
 }
 `,{mode:0o755})
   return path
 }
-for(const mode of ['success','missing','unusable','vacuous'])test(`offline relocated diagnostic entrypoint: ${mode}`,t=>{
+for(const mode of ['success','wrapped','missing','unusable','vacuous','echo-analysis','echo-proof','unrelated','bad-confirmation','wrong-expected','wrong-actual','wrong-marker'])test(`offline relocated diagnostic entrypoint: ${mode}`,t=>{
   const root=mkdtempSync(join(tmpdir(),'red-team-host-fixture-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const output=join(root,'work-audit-refine-red-team');buildRedTeamPlugin({repoRoot,output})
   const moved=join(root,'relocated');mkdirSync(moved);const packageRoot=join(moved,'work-audit-refine-red-team');renameSync(output,packageRoot)
   const request=join(root,'request.json'),evidenceDir=join(root,'evidence')
   writeFileSync(request,JSON.stringify({enabled:true,evidenceDir,profile,timeoutMs:5000}))
   const child=spawnSync(process.execPath,[join(packageRoot,'skills/red-team/assets/red-team-runner.mjs'),'--diagnostic',request,'--codex-path',fake(root,mode)],{encoding:'utf8',timeout:40000,maxBuffer:8*1024*1024})
-  assert.equal(child.error,undefined);assert.equal(child.status,mode==='success'?0:1,child.stderr)
+  assert.equal(child.error,undefined);assert.equal(child.status,['success','wrapped'].includes(mode)?0:1,child.stderr+'\n'+child.stdout)
   const result=JSON.parse(readFileSync(join(evidenceDir,'diagnostic-result.json'),'utf8'))
-  assert.equal(result.status,mode==='success'?'OBSERVED':'INCOMPLETE')
+  assert.equal(result.status,['success','wrapped'].includes(mode)?'OBSERVED':'INCOMPLETE')
   assert.deepEqual(result.observations.map(o=>o.kind),['clean','seeded'])
-  assert.ok(result.observations.every(o=>mode==='success'?o.gaps.length===0:o.gaps.length>0))
-  if(mode==='success') {
+  assert.ok(['success','wrapped'].includes(mode)?result.observations.every(o=>o.gaps.length===0):result.observations.some(o=>o.gaps.length>0))
+  if(['success','wrapped'].includes(mode)) {
     assert.deepEqual(result.observations.map(o=>o.verdict),['CLEARED','BLOCKED'])
+    for(const o of result.observations)assert.notEqual(o.fixture.source.split(':')[1],o.fixture.proof.split(':')[1])
     const seeded=JSON.parse(readFileSync(join(evidenceDir,'seeded-run/run.json'),'utf8'))
     assert.equal(seeded.attempts.filter(a=>a.stage==='confirmation').length,2)
     const prompt=readFileSync(join(evidenceDir,'clean-run/attempt-1-prompt.txt'),'utf8')
