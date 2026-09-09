@@ -81,7 +81,7 @@ The `pin-mismatch` tag is a **findings tag**, not a memory-provenance tier: it d
 (defence-in-depth — a finding-less `escalate` no longer lands silently, matching the general WAR rule
 that any `escalate` halts). This **does not weaken** the default: `gate-evidence` is still SOFT unless a
 mapped test is *provably unrun* (the HARD unrun determination is made only against the captured
-**gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.log`,
+**gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.<unique>/gate.log`,
 never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold; an
 artifact is HARD-path evidence only when stamped `tip_sha:` first for the gated sha and
 `exit_code:` last, so a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm too; ADR 0041

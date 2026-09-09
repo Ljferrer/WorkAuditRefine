@@ -2315,26 +2315,17 @@ const classificationClause = (refineryP, baseDesc) =>
   pt`\nGATE-FAILURE CLASSIFICATION (spec §6/§9 / ADR 0019 — on gate failure, BEFORE returning gate_failed): PRECONDITION-MARKER SHORT-CIRCUIT — consult the gate STDERR, not just the TAP stdout: if it carries a recognized precondition marker (e.g. \`REL_GUARD_PRECONDITION_FAILED\`, emitted when a guard's meta-test cannot isolate a clean scratch dir), the gate could not establish its own preconditions ⇒ classify gate_failure_class:'environment' DIRECTLY (never 'introduced'), carry that marker line UNCURATED in gate_output, and skip the base re-run. Otherwise re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
 
 // ---- Gate-log stamp, partial-log rule and the segmented gate (D7/D8, PIN-11/PIN-12, #2086/#2094) ----
-// GATE_LOG_STAMP: the two stamp lines every .war/gate-<taskId>.log carries — tip_sha: first and
+// GATE_LOG_STAMP: the two stamp lines every unique gate artifact carries — tip_sha: first and
 // exit_code: last. The stamp is what makes PARTIAL_LOG_RULE's two-sided read decidable, so the
 // stamp and the rule ride one commit. Standing twin, byte-equal: agents/war-refiner.md merge-task
 // step 9 (the `gate-log stamp` registry row in workflow-template.test.mjs binds the pair).
 const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the sha the gate ran at>\` and its LAST line is \`exit_code: <the gate's exit code>\`, written after the gate exits — the stamp is what makes a partial or stale log decidable.`
-// PARTIAL_LOG_RULE (D7 fallback, operator patch 2026-09-06): nothing proves a run_in_background task
-// outlives the refiner agent that started it, and the log path is keyed by task id alone, so the
-// re-dispatch read is two-sided (tip_sha: first AND exit_code: last) and anything else reruns the
-// gate from scratch — after stopping any surviving background job and truncating the log, so the
-// rerun is the only writer (#2156 a4). The rule names the artifact by the absolute path the prompt
-// (or card step 9) states above it — a bare relative form resolves against the wrong cwd. The REFINER executes the read — the engine never opens the log — so the rule is
-// prompt content: byte-equal on the refiner card and on every merge-task and land build (PIN-1).
-const PARTIAL_LOG_RULE = pt`On a re-dispatch, before anything else, read the stamped gate log named above (an absolute path under <_refinery>/.war/): it is THIS dispatch's gate result ONLY when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`; otherwise — the file is absent, its first line is not \`tip_sha:\` of the sha being gated, or its last line is not \`exit_code:\` — the gate is rerun from scratch (first stop any backgrounded gate job you started and truncate the gate log, so the rerun is the only writer): a partial log is never read as a partial result, and a complete log from an earlier tip never passes.`
-// GATE_LOG_UNTHREADED / GATE_LOG_READ_RULE (D8, PIN-12, #2094): the seat-side fallback marker and the
-// reading rule. The evidence dispatch and both gate-audit seat prompts render the conventional
-// _refinery/.war/gate-<taskId>.log path with the marker when gate_log_path is unthreaded; the read
-// rule is byte-equal on the auditor card's execution rung 1 (reading rule only — the auditor never
-// writes a log). A rendered marker is distinct from genuine absence: the seat decides at read time.
-const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — conventional path used)`
-const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. A path marked \`(gate_log_path unthreaded — conventional path used)\` is the conventional path, not a recorded one: read it the same way.`
+// The refiner reads only a continuation's returned artifact; every other logical attempt
+// allocates a fresh file. Byte-equal standing card twin (PIN-1); the engine never opens logs.
+const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may reuse its returned gate_log_path. Read only that supplied path, never a guessed conventional path: it is THIS logical dispatch's completed gate result only when its FIRST line is \`tip_sha:\` of the sha being gated AND its LAST line is \`exit_code:\`. If absent, unstamped, partial or stale, wait for the known writer or rerun into a FRESH unique artifact; never truncate or reuse a file a prior background job may still write. A fresh logical dispatch always allocates a fresh artifact, even at the same tip.`
+// Missing paths are evidence absence, never permission to read a previous dispatch's file.
+const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifact)`
+const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. An unthreaded gate_log_path means no captured artifact: SOFT cannot-confirm, never guess a conventional path.`
 // backgroundGateRule(shape): the run_in_background instruction, parameterized by the in-band return
 // shape (merge-task: gate_segment; land: land_segment — A4, no status enum change), and closed by
 // PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule.
@@ -2350,16 +2341,16 @@ const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task',
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
 // its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
 // A dispatch death (D21) returns the DEAD record unchanged — the merge slot reads deathOf(mr) first.
-const segmentedMerge = async (prompt, opts) => {
+const segmentedMerge = async (prompt, opts, refineryP, taskId) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  const body = prompt + segmentedGateClause
+  const body = prompt + '\n' + gateCaptureClause(refineryP, taskId) + segmentedGateClause
   let result = await dispatchSite(body, opts)
   let segments = 0
   while (isSegment(result) && segments < roundLimit) {
     segments++
     log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
     result = await dispatchSite(
-      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
+      pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
       { ...opts, label: opts.label + ':segment-' + (segments + 1) })
   }
   if (isSegment(result)) {
@@ -2367,17 +2358,16 @@ const segmentedMerge = async (prompt, opts) => {
   }
   return result
 }
-// gateCaptureClause (D5): the merge-task gate-output capture directive — threaded into the dispatched
-// merge-task prompts whose evidence contract REQUIRES the captured fully-green gate for the post-merge
-// gate-audit (ADR 0024). Never enumerate those sites here: the captureUses drift guard in
-// workflow-template.test.mjs is the arbiter of the site list. Deliberately NOT every merge-task prompt —
-// a prompt with a different evidence contract carries no clause (both-surfaces rule; agents/war-refiner.md's
-// final merge step (step 8) is the standing mirror, same commit). It STRUCTURALLY REPLACES the retired anti-excerpt prose: the
-// refiner tees the FULL step-2 gate stdout+stderr to an absolute artifact file and returns its path, so
-// the gate-audit seat's HARD provably-unrun determination reads the CAPTURED file, never a possibly-
-// curated inline paste. .war/ is git-excluded inside _refinery so the clean-surface posture holds.
+// Every logical gate owns a fresh artifact. Segmented continuations carry the returned path;
+// a missing result never aliases an earlier same-tip log (#2182/#2168).
 const gateCaptureClause = (refineryP, taskId) =>
-  pt`On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) — the post-merge gate-audit pass reads it as NON-AUTHORITATIVE context only. Additionally, tee the FULL step-2 gate stdout+stderr to the artifact file ${refineryP}/.war/gate-${taskId}.log (an ABSOLUTE path — the subagent cwd is the main repo, not _refinery) and return that absolute path in gate_log_path; the gate-audit seat reads this captured file as the AUTHORITATIVE execution evidence, and a HARD provably-unrun finding is minted ONLY against the captured file. First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryP} rev-parse --git-path info/exclude\` — so the artifact never dirties the merge/push clean surface. ${GATE_LOG_STAMP} `
+  pt`FRESH GATE ARTIFACT: for a fresh logical dispatch, ensure .war/ is git-excluded inside ${refineryP} (append \`.war/\` once to \`git -C ${refineryP} rev-parse --git-path info/exclude\`), create .war/ if needed, then allocate a fresh directory with \`mktemp -d "${refineryP}/.war/gate-${taskId}.XXXXXX"\`. Tee the FULL gate stdout+stderr to gate.log inside THAT directory; return its actual absolute path as gate_log_path, including on an incomplete result. Never substitute a conventional task/phase filename. Keep allocation, writer setup and capture in one shell invocation so no shell variable must survive a later call. Populate gate_output only as NON-AUTHORITATIVE context; the captured file is the AUTHORITATIVE execution evidence. ${GATE_LOG_STAMP} `
+const gateLogPathOf = path => typeof path === 'string' && path.startsWith('/') && !path.includes('\0') ? path : null
+const gateArtifactLine = (rawPath, kind) => {
+  const path = gateLogPathOf(rawPath)
+  return path ? pt`GATE LOG ARTIFACT: read the FULL captured ${kind} log at ${path} (read-only Read)`
+    : pt`GATE LOG ARTIFACT: ${GATE_LOG_UNTHREADED}; SOFT cannot-confirm. Do not read any conventional or earlier-dispatch file`
+}
 // SHA format guard (D2): a well-formed abbreviated-or-full git object name, shared by the pin-equality
 // gate below (pinMismatch). pinOrSentinel keeps its own identical-shape literal on purpose — its #393
 // extract-and-eval unit test evals that arrow in isolation, so it must not reference this helper.
@@ -4048,7 +4038,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
         + baselineDebtClause()
-        + gateCaptureClause(refineryPath, r.task.id)
         + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + pt` Also before step (b), run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS — it exits 0 on its own when the diff touches no prompt-surface budget ceiling). Exit 1 (a hard:/advisory: ceiling raise in prompt-surface-budgets.test.mjs with no Budget-Raise trailer on any commit in the range) → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route (the status enum is never widened) — do NOT merge; the required commit trailer form is \`Budget-Raise: ADR-0042 <surface> +<bytes>\`, and a legitimate ceiling change routes through the operator re-baseline pass (skills/war/references/budget-rebaseline.md) — a worker instead funds growth UNDER the ceiling. Exit 2 (a git/ref error) → return { mode: 'merge-task', status: 'error' }, never the budget-uncited route — the exit-1-vs-2 split mirrors the test floor.`
@@ -4060,7 +4049,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }))
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
 
       // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
       const mrDeath = deathOf(mr)
@@ -4191,8 +4180,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
             + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
             + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
-            + gateCaptureClause(refineryPath, r.task.id)
-            + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
+                + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
             + pt`Before the _refinery merge step (b), re-run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} — the floor fix-worker pushed new commits, so the check runs afresh REGARDLESS of requiresTest (the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }. `
@@ -4205,7 +4193,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
           const floorMrDeath = deathOf(floorMr)
           if (floorMrDeath) { mergeDied(floorMrDeath); floorMr = null; reAuditFailed = true; break }   // D21: a dead re-merge is env-died, never a floor status
         }
@@ -4284,8 +4272,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
             + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}.\n`
             + pt`  (b) Run the gate (${plan.gate}) in a FRESH shell with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'merge-task', status: 'gate_failed' } classifying it afresh in gate_failure_class, and do NOT merge.\n`
-            + gateCaptureClause(refineryPath, r.task.id)
-            + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
+                + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
             // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
@@ -4299,7 +4286,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
           const epDeath = deathOf(ep)
           if (epDeath) mergeDied(epDeath)   // D21: a dead environment-proceed re-merge is env-died, site-named
           else if (ep && ep.status === 'merged') landMerged(r.task, ep)
@@ -4334,7 +4321,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id))
           const bpDeath = deathOf(bp)
           if (bpDeath) mergeDied(bpDeath)   // D21: a dead baseline-proceed re-merge is env-died, site-named
           else if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
@@ -4520,7 +4507,7 @@ const endStateBlock = endStateClaims.length
     // plan-less ZERO-TASK claims-bearing phase (still legal), and `pt` throws on an undefined value by contract.
     + pt`(3) a condition owned by a LATER phase — or by a deps-chained sibling task of THIS phase not yet landed at your audit's scope (map each numbered condition to the task slice that owns it before scoring — read the plan at ${(plan && plan.file) ?? '<unset>'} in the checked-out tree for the per-task Plan slice and deps edges) — is out-of-scope for THIS audit — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
     + pt`Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
-    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. An artifact that is present, readable, and correctly tip-stamped but RED for ENVIRONMENTAL reasons — a setup/collection/import failure (ModuleNotFoundError, pytest setup ERROR, usage/collection exit codes) rather than the condition evaluating false — attests 'unverified', NEVER 'unmet': a met condition is never attested unmet for want of environment prep (#1395). Two record-only artifact states attest 'unverified' too, never 'unmet': an \`intake_lint:\`-stamped artifact (the check literal was unsupported by the .cmd transport — the row was never executed) and a \`cmd_bytes_mismatch:\`-stamped artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared). A compound check's artifact carries one \`cmd[i] exit: <n>\` line per statement (\`;\` or newline boundaries only — an \`&&\` or \`||\` list is one statement, its status the shell's own) and its final \`exit_code:\` is the MAXIMUM of those statuses: read the per-statement lines to name the red statement — the maximum alone says only that one went red. A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the per-task gate logs (${refineryPath}/.war/gate-<taskId>.log) plus the integrated-tip gate log (${refineryPath}/.war/gate-phase-${ph.id}.log) when one was produced — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
+    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. An artifact that is present, readable, and correctly tip-stamped but RED for ENVIRONMENTAL reasons — a setup/collection/import failure (ModuleNotFoundError, pytest setup ERROR, usage/collection exit codes) rather than the condition evaluating false — attests 'unverified', NEVER 'unmet': a met condition is never attested unmet for want of environment prep (#1395). Two record-only artifact states attest 'unverified' too, never 'unmet': an \`intake_lint:\`-stamped artifact (the check literal was unsupported by the .cmd transport — the row was never executed) and a \`cmd_bytes_mismatch:\`-stamped artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared). A compound check's artifact carries one \`cmd[i] exit: <n>\` line per statement (\`;\` or newline boundaries only — an \`&&\` or \`||\` list is one statement, its status the shell's own) and its final \`exit_code:\` is the MAXIMUM of those statuses: read the per-statement lines to name the red statement — the maximum alone says only that one went red. A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the recorded per-task paths (${mergedTasksForGateAudit.map(m => gateLogPathOf(m.gateLogPath)).filter(Boolean).join(', ') || GATE_LOG_UNTHREADED}) and any captured integrated-tip artifact explicitly supplied on THIS prompt — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
     // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): every
     // interpolation is guarded — r.condition is filter-guaranteed non-empty, tag/check normalize to
     // null and render behind ternaries, ph.id rides the same pt contract as the seat prompts.
@@ -4554,8 +4541,8 @@ if (mergedTasksForGateAudit.length > 0) {
     // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
     // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
     preMergeTip: m.preMergeTip || phaseBaseCmd,
-    // D8 fallback (#2094): an unthreaded gate_log_path renders the conventional path + `unthreaded` marker.
-    gateLogPath: m.gateLogPath || pt`${refineryPath}/.war/gate-${m.taskId}.log ${GATE_LOG_UNTHREADED}` }))
+    // Unthreaded paths are evidence absence; never guess a previous dispatch artifact.
+    gateLogPath: gateLogPathOf(m.gateLogPath) || GATE_LOG_UNTHREADED }))
   let evidence = await dispatchSite(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
@@ -4569,7 +4556,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — exactly what the task brought in under fast-forward topology), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
     + (intraDep
-      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), tee its full stdout+stderr to ${refineryPath}/.war/gate-phase-${ph.id}.log (${GATE_LOG_STAMP}), and return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: ${refineryPath}/.war/gate-phase-${ph.id}.log } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
+      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), ${gateCaptureClause(refineryPath, 'phase-' + ph.id)} Return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: <the actual absolute captured path> } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
       : pt`No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
     + pt`  3. PHASE DIFF — run: git -C ${refineryPath} diff --name-only ${phaseBaseCmd}..$(git -C ${refineryPath} rev-parse HEAD) and return its lines as phase_diff_files (one repo-relative path per entry) — the phase's git-derived changed-file list, read by the gate-audit floor pass; absent ⇒ that pass's note arm reads an empty Set and matches nothing.\n`
     + pt`Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], phase_diff_files, integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
@@ -4610,10 +4597,8 @@ if (mergedTasksForGateAudit.length > 0) {
       // nested pt-tagged interior (first-class census entry): ${pinEvidence} is ternary-guarded.
       ? pt`${pinStatus}${pinEvidence ? pt` (cited evidence: ${pinEvidence})` : ''}`
       : '(no pin-status token — the evidence dispatch produced none)'
-    // D8 fallback (#2094): an unthreaded gate_log_path renders the CONVENTIONAL artifact path with the
-    // `unthreaded` marker — distinct from genuine absence (a file that cannot be read), which the seat
-    // determines at read time under GATE_LOG_READ_RULE.
-    const artifactLine = gateLogPath || pt`${refineryPath}/.war/gate-${taskId}.log ${GATE_LOG_UNTHREADED}`
+    // Missing paths carry an absence statement, never a read instruction.
+    const artifactLine = gateArtifactLine(gateLogPath, 'gate')
     // mappedTestsLine (D7, Task 3.2): the floor-matched test paths (MergeResult.mappedTests) make the
     // HARD provably-unrun trigger MECHANICAL — the seat greps each path against the CAPTURED gate log.
     // Enumeration-conditional (round-3 fix-forward adjudication): absence is HARD only where the log
@@ -4646,7 +4631,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`CONFIRMED (observed tip == gate-HEAD) or BENIGN-ADVANCE (observed tip descends gate-HEAD and NONE of this task's own files changed in the intervening range) ⇒ the tree you judge corresponds to the current integration tip; a mapped acceptance-criteria test provably unrun AT that confirmed tip stays HARD.\n`
       + pt`STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`
       + pt`In ANY cannot-confirm / STALE-MISMATCH / ERROR case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (escalate is reserved for a plan that is wrong or underspecified; a finding-less escalate is treated as a HARD hold, so it must never be used to signal a stale/unconfirmable tip).\n`
-      + pt`GATE LOG ARTIFACT: read the FULL captured gate log at ${artifactLine} (read-only Read) — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context. ${GATE_LOG_READ_RULE}\n`
+      + pt`${artifactLine} — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context. ${GATE_LOG_READ_RULE}\n`
       + mappedTestsLine
       + guardLine
       + pt`If the pin is CONFIRMED/BENIGN-ADVANCE, confirm the mapped acceptance-criteria test is present in the files at that tip `
@@ -4753,8 +4738,8 @@ if (mergedTasksForGateAudit.length > 0) {
     // #818: the captured integrated-tip gate log is the AUTHORITATIVE HARD-path artifact for THIS seat
     // (mirroring the per-task GATE LOG ARTIFACT clause); an absent path ⇒ SOFT cannot-confirm (fail-open —
     // an in-flight refiner returning integratedTipGate without gate_log_path lands SOFT, never an error).
-    // D8 fallback (#2094): the integrated-tip twin of artifactLine — conventional path + `unthreaded` marker.
-    const authArtifactLine = integratedTip.gate_log_path || pt`${refineryPath}/.war/gate-phase-${ph.id}.log ${GATE_LOG_UNTHREADED}`
+    // Integrated-tip absence uses the same formatter as per-task evidence.
+    const authArtifactLine = gateArtifactLine(integratedTip.gate_log_path, 'integrated-tip gate')
     // Mapped-tests union (D7, Task 3.2): the dep-crossing tasks' floor-matched paths, grepped against
     // the integrated-tip gate log the same mechanical way — including the round-3 enumeration-conditional
     // (mappedTestsLine's twin: absence is HARD only where the log enumerates test file paths; a
@@ -4772,7 +4757,7 @@ if (mergedTasksForGateAudit.length > 0) {
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
       + pt`Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
-      + pt`GATE LOG ARTIFACT: read the FULL captured integrated-tip gate log at ${authArtifactLine} (read-only Read) — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context. ${GATE_LOG_READ_RULE}\n`
+      + pt`${authArtifactLine} — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context. ${GATE_LOG_READ_RULE}\n`
       + authMappedLine
       + pt`Return the sha you reviewed as audit_sha (it should equal ${integratedTip.tip_sha || 'the integration tip'}).\n`
       + pt`Dep-crossing tasks' acceptance criteria:\n${authCriteria}\n`
@@ -5426,7 +5411,7 @@ if (landDecision === 'landed') {
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
-    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. Tee the step-2 gate's FULL stdout+stderr to ${refineryLandPath}/.war/gate-land-phase-${ph.id}.log — first ensure .war/ is git-excluded inside _refinery (append \`.war/\` once to the path printed by \`git -C ${refineryLandPath} rev-parse --git-path info/exclude\`) — ${GATE_LOG_STAMP} That file is the stamped gate log the rule below names. `
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. ${gateCaptureClause(refineryLandPath, 'land-phase-' + ph.id)} `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
   const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
@@ -5468,7 +5453,7 @@ if (landDecision === 'landed') {
       segments++
       log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
       result = await dispatchSite(
-        pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
+        pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
         { ...opts, label: opts.label + ':segment-' + (segments + 1) })
     }
     if (isSegment(result)) {

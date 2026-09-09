@@ -48,7 +48,7 @@ CONTEXT.md `_Avoid_` line is the ratified mitigation.
 3. Worker done-report claims about content.
 
 **`execution`** — "did it run / did it pass."
-1. Gate-evidence artifact (`_refinery/.war/gate-<taskId>.log`) — the **sole** basis for a HARD
+1. Gate-evidence artifact (`_refinery/.war/gate-<taskId>.<unique>/gate.log`) — the **sole** basis for a HARD
    provably-unrun finding (existing rule, now rung 1). A gate log is complete evidence only when
    its FIRST line is `tip_sha:` of the gated sha and its LAST line is `exit_code:` (the refiner's
    stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding
@@ -119,7 +119,7 @@ the surface that shape's ladder forbids as a verdict basis.
   sibling doctrines, not one ladder.
 - **[ADR 0024](0024-audit-gate-verdicts-integrated-tip-captured-evidence.md) — integrated-tip /
   captured-evidence verdicts, §(C).** The canonical source of `execution` rung 1 (the captured
-  gate-evidence artifact — `_refinery/.war/gate-<taskId>.log`, never a possibly-curated inline
+  gate-evidence artifact — `_refinery/.war/gate-<taskId>.<unique>/gate.log`, never a possibly-curated inline
   paste — is the sole basis for a HARD provably-unrun finding) and rung 4 (an absent artifact ⇒
   SOFT `cannot-confirm`, never a hold). This ADR ranks those ratified rules into the `execution`
   ladder; §(C) remains their home — cited, not restated.

@@ -141,3 +141,24 @@ run Git CLI commands; keep auditors read-only. Git remains authoritative, includ
 machines. The operator also authorized a separate stronger refiner recovery tier (Opus for
 judgment-heavy reconciliation; routine refiner remains Sonnet). This supersedes the pending
 hold-versus-reconcile question above. Implementation and alternate-consumer regressions pending.
+
+## Gate artifact isolation checkpoint (2026-09-09)
+
+Reproduced #2182 through baseline-proceed for absent, empty and nonempty baseline debt: six
+regressions failed at `151b3509` (missing capture on all three, stale conventional-file fallback
+on all three). The shared segmented-merge wrapper now supplies capture to all four task merge
+sites. Every logical attempt allocates a fresh `mktemp -d` directory, including integrated-tip
+and land gates. Only explicit segmented continuations can reuse their returned absolute path.
+No evidence consumer guesses a conventional filename; absent/malformed paths mean SOFT evidence
+absence. This closes #2181, #2187 and #2188 within the same class and the same-tip/background-writer
+portion of #2168. It amends D8's unsafe conventional-path fallback; stamp semantics stay unchanged.
+
+Standing refiner/auditor instructions, schemas, recovery reference, ADR evidence descriptions,
+CONTEXT and the operative plan slice were updated together. The existing four-site census and
+byte-equal registry cover producers/readers; baseline retries now participate in that contract.
+Regression fixtures cover debt shapes, malformed paths, returned-path continuation for both modes,
+and execute the actual dispatched mktemp command twice to prove an old same-SHA writer cannot
+replace the current red artifact. Disposable absolute-path, NUL-path and continuation-threading
+mutations each fail their behavioral assertion. Workflow + skill-doc-contracts + prompt-budget
+checkpoint: **853 passed, 0 failed**. `git diff --check` passed. The new path allocation is refiner
+executed; the workflow does not pretend to open or independently authenticate log contents.

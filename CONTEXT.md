@@ -663,7 +663,7 @@ _Avoid_: reading silence as `met` (the failure mode the status exists to close);
 `intake_lint:` or `cmd_bytes_mismatch:` artifact `unmet` because its exit line is not `0`.
 
 **Gate-evidence artifact**:
-The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.log`; the `execution-evidence`
+The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.<unique>/gate.log`; the `execution-evidence`
 seat's source of per-mapped-test PASS evidence (inline `gate_output` is context only). Phase-ephemeral
 (last-write-wins across a task's up-to-four gate runs; destroyed by `_refinery` heal and phase teardown) —
 audit input, never a resume/adjudication record.
@@ -673,22 +673,14 @@ HARD determination is made only against the captured file); treating a missing a
 
 **Gate-log stamp**:
 The two lines every captured gate log carries — `tip_sha:` first and `exit_code:` last — written by
-the refiner after the gate exits, under `gateCaptureClause` on the merge-task sites whose evidence
-contract requires the captured gate (the `captureUses` drift guard in `workflow-template.test.mjs`
-is the arbiter of that site list), the segmented-land clause on every land site, and the evidence
-dispatch's intra-dep integrated-tip gate re-run teed to `_refinery/.war/gate-phase-<id>.log`
-(`GATE_LOG_STAMP` in `workflow-template.js`; the refiner card's merge-task step is its
-registry-bound standing twin). The stamp is what makes a partial or stale log decidable: on a
-segmented re-dispatch the refiner reads a log as *this* dispatch's result only when its first line
-is `tip_sha:` of the gated sha AND its last line is `exit_code:`, and otherwise reruns the gate from
-scratch after stopping any backgrounded job (`PARTIAL_LOG_RULE`); a seat applies the same two-sided
-read (`GATE_LOG_READ_RULE` — partial, unstamped or tip-mismatched ⇒ SOFT cannot-confirm). When
-`gate_log_path` is unthreaded, the evidence dispatch's per-task rows and the per-task seat prompt
-render the conventional `_refinery/.war/gate-<taskId>.log` path, and the integrated-tip seat renders
-the conventional `_refinery/.war/gate-phase-<id>.log` path, each with the
-`(gate_log_path unthreaded — conventional path used)` marker, distinct from genuine absence.
-_Avoid_: reading a partial log as a partial result; a complete log from an earlier tip; a bare
-relative log path; treating the unthreaded marker as a missing artifact.
+`GATE_LOG_STAMP` and mirrored on the refiner card. Every logical gate allocates a fresh directory
+with `mktemp -d` under `_refinery/.war/`; this includes baseline retries, land and integrated-tip
+runs. Only a SEGMENTED continuation may reuse the returned absolute `gate_log_path`, after checking
+both stamps. A partial/stale log requires waiting for the known writer or a fresh artifact; never
+truncate a file an earlier background writer might still write. Auditors read only explicitly
+returned paths. Missing paths render `(gate_log_path unthreaded — no captured artifact)` and mean
+SOFT cannot-confirm; a conventional filename is never guessed, even at the same tip.
+_Avoid_: partial evidence, stale or same-tip prior-attempt logs, relative paths, marker-as-path reads.
 
 **Pin-equality gate**:
 The Node-side check that a seat's returned `audit_sha` equals the SHA it was dispatched to judge; a

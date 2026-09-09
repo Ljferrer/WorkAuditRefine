@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -5662,7 +5662,7 @@ test('endStateAttestations requirement lands in the shared endStateBlock (End st
     assert.match(p, /never a bare verdict/i, `${name}: status + evidence, never a bare verdict`)
     assert.match(p, /met \| unmet \| unverified/, `${name}: the attestation status set`)
     assert.match(p, /as ACTUALLY CAPTURED/i, `${name}: gate:-tagged conditions attest from the gate evidence as actually captured`)
-    assert.ok(p.includes('.war/gate-phase-3.log'), `${name}: names the integrated-tip gate log among the captured gate evidence`)
+    assert.ok(p.includes('any captured integrated-tip artifact explicitly supplied on THIS prompt'), `${name}: only explicitly supplied integrated-tip evidence is authoritative`)
     assert.ok(p.includes('[check:]'), `${name}: the check row is tag-annotated in the enumeration`)
     assert.ok(p.includes(`${REFINERY}/.war/endstate-3-1.log`), `${name}: the check row carries its executed artifact path`)
     assert.match(p, /lands 'unverified' in the handoff, never 'met'/, `${name}: states the no-attestation ⇒ unverified mapping`)
@@ -8690,7 +8690,7 @@ test('T2.1 criterion 2 (D1) — gate-audit seat CONSUMES the stamped PIN STATUS 
   assert.ok(/MAY spot-verify with a SINGLE read-only/.test(p), 'a read-only spot-verify is permitted but optional')
 })
 
-test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifact path + missing-artifact⇒SOFT rule; the merge tees to .war/gate-<taskId>.log and returns gate_log_path; the anti-excerpt prose is gone from ALL surfaces', async () => {
+test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifact path + missing-artifact⇒SOFT rule; the merge allocates a fresh artifact and returns gate_log_path; the anti-excerpt prose is gone from ALL surfaces', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
   const ga = gateAuditCalls(calls)[0].prompt
   assert.ok(ga.includes('GATE LOG ARTIFACT:'), 'the gate-audit prompt threads the captured gate-log artifact')
@@ -8700,7 +8700,7 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // the initial merge prompt tees to the artifact and returns gate_log_path
   const mergeCall = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^merge:t1$/.test(c.opts.label || ''))
   assert.ok(mergeCall, 'a merge dispatch for t1 was made')
-  assert.ok(/tee the FULL step-2 gate stdout\+stderr to .*\.war\/gate-t1\.log/.test(mergeCall.prompt),
+  assert.ok(/mktemp -d ".*\.war\/gate-t1\.XXXXXX"/.test(mergeCall.prompt),
     'the merge prompt tees the full gate output to the .war artifact')
   assert.ok(mergeCall.prompt.includes('gate_log_path'), 'the merge prompt returns the artifact path in gate_log_path')
   // MERGE_RESULT schema declares gate_log_path
@@ -8712,8 +8712,8 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
   // the OLD-absent key scans the eviction destination too, never a relocated read.
   assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
-  const captureUses = (src.match(/gateCaptureClause\(refineryPath, r\.task\.id\)/g) || []).length
-  assert.equal(captureUses, 3, 'the gate-capture clause replaces the anti-excerpt prose at ALL THREE dispatched merge sites (initial + floor-retry + environment-proceed) — the evidence chain must survive a retried merge')
+  const captureUses = (src.match(/schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, refineryPath, r\.task\.id\)\)/g) || []).length
+  assert.equal(captureUses, 4, 'all four task merge sites pass identity to the shared capture wrapper, including baseline-proceed')
 })
 
 // #1151 — the classification-site drift guard: the sibling of captureUses above, and the ARBITER the
@@ -8744,7 +8744,7 @@ test('T2.1 criterion 6 (D5) — fail-open: absent artifact + absent pin token �
     'an absent pin token renders the fail-open placeholder, not "undefined"')
   // D8 (#2094): an unthreaded gate_log_path renders the CONVENTIONAL path + the `unthreaded` marker
   // (the old genuine-absence placeholder is retired — see `gate-log fallback: unthreaded path marker`).
-  assert.ok(p.includes('/_refinery/.war/gate-t1.log (gate_log_path unthreaded — conventional path used)'), 'an unthreaded artifact path renders the conventional path + marker')
+  assert.ok(p.includes('GATE LOG ARTIFACT: (gate_log_path unthreaded — no captured artifact)'), 'an unthreaded artifact path records absence without guessing a path')
   assert.ok(!p.includes('undefined'), 'the fail-open prompt never contains the literal "undefined"')
   assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(p), 'the missing-artifact⇒SOFT rule is present even when everything is absent')
   assert.equal(out.landDecision, 'landed', 'fail-open: no tokens ⇒ no hold, the phase lands')
@@ -8899,7 +8899,7 @@ test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch 
   const ev = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
   assert.ok(ev, 'an evidence:phase-<id> refiner dispatch was made')
   assert.ok(/INTRA-PHASE-DEP phase/.test(ev.prompt), 'the intra-dep phase instructs the integrated-tip gate re-run')
-  assert.ok(ev.prompt.includes('gate-phase-3.log'), 'the integrated-tip re-run tees to gate-phase-<id>.log')
+  assert.ok(ev.prompt.includes('gate-phase-3.XXXXXX'), 'the integrated-tip re-run tees to gate-phase-<id>.log')
   const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
   assert.ok(auth, 'ONE authoritative integrated-tip execution-evidence seat was dispatched')
   assert.ok(auth.prompt.includes('INTEGRATED TIP GATE: all suites passed'),
@@ -8934,7 +8934,7 @@ test('#818 — fail-open: an integratedTipGate WITHOUT gate_log_path ⇒ the aut
   const { out, calls } = await runPhase(PROVISION_ARGS(), noPathImpl)
   const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
   assert.ok(auth, 'the authoritative seat still fires (integratedTipGate.gate_output present)')
-  assert.ok(auth.prompt.includes('/_refinery/.war/gate-phase-3.log (gate_log_path unthreaded — conventional path used)'), 'an unthreaded gate_log_path renders the conventional phase log + marker (D8, #2094), not "undefined"')
+  assert.ok(auth.prompt.includes('GATE LOG ARTIFACT: (gate_log_path unthreaded — no captured artifact)'), 'an unthreaded gate_log_path records missing integrated-tip evidence (D8, #2094), not "undefined"')
   assert.ok(!auth.prompt.includes('undefined'), 'the fail-open authoritative prompt never contains the literal "undefined"')
   assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(auth.prompt), 'the missing-artifact ⇒ SOFT rule is present even with no path')
   assert.equal(out.landDecision, 'landed', 'fail-open: no integrated-tip artifact ⇒ no hold, the phase lands')
@@ -10568,14 +10568,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // per-surface revert reds this row. Byte-equality of the rule itself is pinned by that fixture.
     { name: 'backgrounded gate — merge-task (D7, PIN-11, #2086): refiner card step 10 ↔ merge-task + environment-proceed dispatch prompts',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP], ['environment-proceed re-merge prompt', epMergeP]],
-      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun from scratch/, /never read as a partial result/] },
+      anchors: [/run_in_background/, /gate_segment:\s*['"]incomplete['"]/, /FIRST line is `tip_sha:` of the sha being gated/, /LAST line is `exit_code:`/, /rerun into a FRESH unique artifact/, /never truncate or reuse a file/] },
     // Backgrounded gate, land (D7, PIN-11): the card's segmented-land bullet and every land build (the
     // initial land — captured here — and the environment-proceed re-land; the baseline-proceed re-land
     // and the continuation ride the same segmentedLandClause, walked by the fixture above) carry
     // run_in_background, the land_segment return shape, the phase-keyed land gate log, and the rule.
     { name: 'backgrounded gate — land (D7, PIN-11, #2086): refiner card segmented-land bullet ↔ land + environment-proceed re-land prompts',
       surfaces: [['war-refiner.md', refinerMd], ['land dispatch prompt', landP], ['environment-proceed re-land prompt', epLandP]],
-      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun from scratch/] },
+      anchors: [/run_in_background/, /land_segment:\s*['"]incomplete['"]/, /gate-land-phase-/, /git-excluded/, /rerun into a FRESH unique artifact/] },
     // Gate-log stamp (D8, PIN-12, #2094): the card's merge-task step 9 and every gateCaptureClause
     // carrier (the captureUses census is the arbiter of that site list) plus the land clause stamp
     // tip_sha: first and exit_code: last on the gate log, and the evidence dispatch's intraDep branch
@@ -10592,7 +10592,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // task base, so a per-surface revert reds this row.
     { name: 'gate-log reading rule (D8, PIN-12, #2094): auditor card execution rung 1 ↔ per-task + integrated-tip gate-audit seat prompts',
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit seat prompt', esSeatP], ['integrated-tip gate-audit seat prompt', itSeatP]],
-      anchors: [/gate_log_path unthreaded — conventional path used/, /complete evidence only when its FIRST line is `tip_sha:` of the gated sha and its LAST line is `exit_code:`/, /tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding/] },
+      anchors: [/unthreaded gate_log_path means no captured artifact/, /complete evidence only when its FIRST line is `tip_sha:` of the gated sha and its LAST line is `exit_code:`/, /tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding/] },
     // Phase 10 Task 10.1 (D16, PIN-20, #1781): the two record-only endstate artifact states are DIRECTED
     // `unverified` triggers on the seat surfaces — the auditor card's execution rung 1 and the shared
     // endStateBlock (per-task + end-state-only live carriers; the integrated-tip fixture claims no End
@@ -12432,6 +12432,8 @@ const BARE_INTERPOLATION_CENSUS = [
   // both call sites; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
   // `opts.label` is the segmentedMerge continuation header's site label — every call site passes one.
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
+  // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
+  'kind', 'path',
   // c.row / c.rationale (engine-and-audit-verdict-integrity Task 7.1 ace, D6 citations): the `c` local is
   // citationOf's own return at citationStamp and citationSoundnessClause's map callback, gated truthy
   // before either span renders; `row` is the matched threaded row (non-empty by the membership check)
@@ -17162,10 +17164,9 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
   // Both arms of the two-sided read, and the instruction each arm resolves to.
   assert.match(rule, /LAST line is `exit_code:`/, 'arm 1: the last line must be the exit_code: stamp')
   assert.match(rule, /FIRST line is `tip_sha:` of the sha being gated/, 'arm 2: the first line must be tip_sha: of the sha being gated (a complete log from an earlier tip never passes)')
-  assert.match(rule, /its last line is not `exit_code:` — the gate is rerun from scratch/, 'a partial log reruns the gate from scratch')
-  assert.match(rule, /its first line is not `tip_sha:` of the sha being gated/, 'a stale-tip log reruns the gate from scratch')
-  assert.match(rule, /never read as a partial result/, 'a partial log is never a partial result')
-  assert.match(rule, /complete log from an earlier tip never passes/, 'a stale complete log never passes')
+  assert.match(rule, /If absent, unstamped, partial or stale, wait for the known writer or rerun into a FRESH unique artifact/, 'partial/stale evidence needs completion or a fresh run')
+  assert.match(rule, /never truncate or reuse a file a prior background job may still write/, 'old writers cannot corrupt the new artifact')
+  assert.match(rule, /fresh logical dispatch always allocates a fresh artifact, even at the same tip/, 'same-tip retries are distinct')
   // Standing card: the same sentence, byte-equal (the refiner executes the read; the engine never opens the log).
   assert.ok(refinerMd.includes(rule), 'agents/war-refiner.md carries PARTIAL_LOG_RULE byte-equal')
   assert.match(refinerMd, /run_in_background[\s\S]{0,400}gate_segment: "incomplete"/, 'the card instructs run_in_background with the gate_segment return shape (merge-task)')
@@ -17206,16 +17207,16 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
     assert.ok(c, name + ' dispatched (presence guard)')
     assert.ok(c.prompt.includes('run_in_background'), name + ' instructs run_in_background')
     assert.ok(c.prompt.includes("land_segment: 'incomplete'"), name + ' names the land_segment return shape')
-    assert.ok(c.prompt.includes('/_refinery/.war/gate-land-phase-3.log'), name + ' tees the land gate to the phase-keyed gate log')
+    assert.ok(c.prompt.includes('/_refinery/.war/gate-land-phase-3.XXXXXX'), name + ' tees the land gate to the phase-keyed gate log')
     assert.ok(c.prompt.includes(rule), name + ' carries PARTIAL_LOG_RULE byte-equal')
   }
 })
 
-test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: first and exit_code: last on every .war/gate-<taskId>.log, byte-equal; the land clause and the intra-dep evidence clause carry the same stamp', async () => {
+test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: first and exit_code: last on every unique gate artifact, byte-equal; the land clause and the intra-dep evidence clause carry the same stamp', async () => {
   const stamp = evalPt('GATE_LOG_STAMP')
   assert.match(stamp, /FIRST line is `tip_sha: <the sha the gate ran at>`/, 'the first line is the tip_sha: stamp')
   assert.match(stamp, /LAST line is `exit_code: <the gate's exit code>`/, 'the last line is the exit_code: stamp')
-  assert.match(src, /so the artifact never dirties the merge\/push clean surface\. \$\{GATE_LOG_STAMP\} `/, 'gateCaptureClause closes with GATE_LOG_STAMP (every capture site inherits the stamp)')
+  assert.match(src, /AUTHORITATIVE execution evidence\. \$\{GATE_LOG_STAMP\} `/, 'shared capture helper carries the stamp')
   assert.ok(refinerMd.includes(stamp), 'agents/war-refiner.md merge-task step 9 carries GATE_LOG_STAMP byte-equal')
   const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
   const mergeP = (calls.find(isMergeT1) || {}).prompt
@@ -17226,19 +17227,18 @@ test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: f
   // The integrated-tip gate log is the third write site: its intraDep evidence clause carries the stamp
   // byte-equal, and the refiner card's evidence paragraph points at the step-9 stamp in the land bullet's
   // short form — otherwise GATE_LOG_READ_RULE on the integrated-tip seat rules the artifact SOFT forever.
-  assert.match(src, /tee its full stdout\+stderr to \$\{refineryPath\}\/\.war\/gate-phase-\$\{ph\.id\}\.log \(\$\{GATE_LOG_STAMP\}\), and return integratedTipGate/, 'the evidence dispatch intraDep branch carries GATE_LOG_STAMP after the tee instruction')
   const ev = (await runPhase(PROVISION_ARGS(), evidenceImpl)).calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
   assert.ok(ev && /INTRA-PHASE-DEP phase/.test(ev.prompt), 'intra-dep evidence dispatch made (presence guard)')
-  assert.ok(ev.prompt.includes('/_refinery/.war/gate-phase-3.log (' + stamp + '), and return integratedTipGate'), 'the dispatched intra-dep evidence prompt carries the stamp byte-equal on the gate-phase-<id>.log tee')
-  assert.ok(refinerMd.includes('tee it to `<_refinery>/.war/gate-phase-<id>.log` (stamped per merge-task step 9)'), 'agents/war-refiner.md evidence paragraph stamps the integrated-tip gate log per merge-task step 9')
+  assert.ok(ev.prompt.includes('gate-phase-3.XXXXXX') && ev.prompt.includes(stamp), 'the dispatched intra-dep evidence prompt carries the stamp byte-equal on the gate-phase-<id>.log tee')
+  assert.ok(refinerMd.includes('gate-phase-<id>.XXXXXX') && refinerMd.includes('stamped per merge-task step 9'), 'agents/war-refiner.md evidence paragraph stamps the integrated-tip gate log per merge-task step 9')
   // The stamp rides one commit with the partial-log rule: the rule's two-sided read names both stamp lines.
   const rule = evalPt('PARTIAL_LOG_RULE')
   assert.ok(rule.includes('`tip_sha:`') && rule.includes('`exit_code:`'), 'the partial-log rule reads exactly the two stamp lines')
 })
 
-test('gate-log fallback: unthreaded path marker — an unthreaded gate_log_path renders the conventional _refinery/.war/gate-<taskId>.log path with the `unthreaded` marker on the evidence dispatch and both seat prompts; a threaded path renders bare; the reading rule is byte-equal on the auditor card', async () => {
+test('gate-log fallback: unthreaded path marker — an unthreaded gate_log_path records absence without a conventional-path read on the evidence dispatch and both seat prompts; a threaded path renders bare; the reading rule is byte-equal on the auditor card', async () => {
   const marker = evalPt('GATE_LOG_UNTHREADED')
-  assert.equal(marker, '(gate_log_path unthreaded — conventional path used)', 'the marker literal')
+  assert.equal(marker, '(gate_log_path unthreaded — no captured artifact)', 'the marker literal')
   assert.ok(!src.includes('(no gate-log artifact path recorded)'), 'the OLD genuine-absence placeholder is gone from every build')
   const readRule = evalPt('GATE_LOG_READ_RULE')
   assert.ok(auditorMd.includes(readRule), 'agents/war-auditor.md execution rung 1 carries GATE_LOG_READ_RULE byte-equal (reading rule only)')
@@ -17251,17 +17251,17 @@ test('gate-log fallback: unthreaded path marker — an unthreaded gate_log_path 
   }
   const u = await runPhase(PROVISION_ARGS(), unthreaded)
   const seatP = gateAuditCalls(u.calls)[0].prompt
-  const conventional = '/abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-t1.log ' + marker
-  assert.ok(seatP.includes('GATE LOG ARTIFACT: read the FULL captured gate log at ' + conventional), 'the per-task seat renders the conventional path + marker')
+  const absent = marker
+  assert.ok(seatP.includes('GATE LOG ARTIFACT: ' + absent) && !seatP.includes('read the FULL captured gate log at'), 'the per-task seat records absence without guessing a path')
   assert.ok(seatP.includes(readRule), 'the per-task seat carries the reading rule byte-equal')
   const evP = (u.calls.find(c => /^evidence:/.test(c.opts.label || '')) || {}).prompt
-  assert.ok(evP && evP.includes('gateLogPath=' + conventional), 'the evidence dispatch row renders the conventional path + marker')
+  assert.ok(evP && evP.includes('gateLogPath=' + absent) && !evP.includes('gate-t1.log'), 'the evidence dispatch row records absence without guessing a path')
   assert.ok(!seatP.includes('undefined') && !evP.includes('undefined'), 'no literal "undefined"')
   // Threaded: the merge-returned path renders bare, no marker.
   const t = await runPhase(PROVISION_ARGS(), evidenceImpl)
   const tSeat = gateAuditCalls(t.calls)[0].prompt
   assert.ok(tSeat.includes('GATE LOG ARTIFACT: read the FULL captured gate log at /abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-t1.log (read-only Read)'), 'a threaded gate_log_path renders bare — no marker on the artifact line')
-  // Integrated-tip seat: integratedTipGate without gate_log_path renders the conventional phase log + marker.
+  // Integrated-tip seat: integratedTipGate without gate_log_path records missing integrated-tip evidence.
   const noPath = (prompt, opts) => {
     const seat = seatOf(opts), label = opts.label || ''
     if (seat === 'war-refiner' && /^evidence:/.test(label)) return {
@@ -17272,7 +17272,7 @@ test('gate-log fallback: unthreaded path marker — an unthreaded gate_log_path 
   const it = await runPhase(PROVISION_ARGS(), noPath)
   const auth = it.calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
   assert.ok(auth, 'the integrated-tip seat fires')
-  assert.ok(auth.prompt.includes('/abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-phase-3.log ' + marker), 'the integrated-tip seat renders the conventional phase log + marker')
+  assert.ok(auth.prompt.includes('GATE LOG ARTIFACT: ' + marker) && !auth.prompt.includes('read the FULL captured integrated-tip gate log at'), 'the integrated-tip seat records missing integrated-tip evidence')
   assert.ok(auth.prompt.includes(readRule), 'the integrated-tip seat carries the reading rule byte-equal')
 })
 
@@ -17959,5 +17959,83 @@ test('recovery provenance helper refuses invalid inputs and distinguishes missin
     assert.equal(run(['task', 'integration', 'working']).status, 1, 'absent task has no skip proof')
     git(['branch', 'task'])
     assert.equal(run(['task', 'integration', 'working']).status, 2, 'missing integration cannot prove ancestry')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const ids of [undefined, [], ['preexisting-test']]) {
+  const baselineImpl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ids, gate_base_sha: 'abcd1234', gate_output: 'initial failed gate' }) })
+  test(`gate artifact integrity #2182: baseline-proceed owns fresh capture independent of debt ${JSON.stringify(ids)}`, async () => {
+    const { calls } = await runPhase(CLS_ARGS(), baselineImpl)
+    const p = calls.find(c => /:baseline-proceed$/.test(c.opts.label || ''))?.prompt
+    assert.ok(p && p.includes('FRESH GATE ARTIFACT'), 'baseline uses the common capture protocol')
+    assert.ok(p.includes('mktemp -d'), 'a new logical gate cannot reuse an earlier same-tip log')
+    assert.ok(p.includes('gate_log_path'), 'the result threads the actual artifact')
+  })
+  test(`gate artifact integrity #2182: missing baseline capture never selects an initial log ${JSON.stringify(ids)}`, async () => {
+    const { calls } = await runPhase(CLS_ARGS(), baselineImpl)
+    const ev = calls.find(c => /^evidence:/.test(c.opts.label || ''))?.prompt
+    const seat = calls.find(c => /^gate-audit:/.test(c.opts.label || ''))?.prompt
+    assert.ok(ev && !/gateLogPath=[^\n]*gate-t1\.log/.test(ev), 'no guessed initial path in evidence dispatch')
+    assert.ok(seat && !/read the FULL captured gate log at [^\n]*gate-t1\.log/.test(seat), 'no guessed path in the audit seat')
+    assert.ok(seat.includes('no captured artifact'), 'absence explicitly cannot confirm execution')
+  })
+}
+
+for (const badPath of ['', 'relative.log', '/bad\0path']) {
+  test('gate artifact isolation: malformed returned path is absence: ' + JSON.stringify(badPath), async () => {
+    const { calls } = await runPhase(PROVISION_ARGS(), (p, o) => {
+      const r = evidenceImpl(p, o)
+      if (isMergeT1({ opts: o })) return { ...r, gate_log_path: badPath }
+      if (o.dispatchKind === 'evidence') return { ...r, integratedTipGate: { gate_output: 'ok', tip_sha: 'aaaa1111', gate_log_path: badPath } }
+      return r
+    })
+    const seats = calls.filter(c => isAuditor(c) && /gate-audit/.test(c.opts.label || ''))
+    assert.ok(seats.length)
+    const t1 = seats.find(c => /:t1$/.test(c.opts.label || '')) || gateAuditCalls(calls)[0]
+    assert.ok(t1.prompt.includes('no captured artifact'))
+    assert.ok(!t1.prompt.includes('read the FULL captured gate log at'))
+  })
+}
+
+test('gate artifact isolation: merge and land continuations carry the exact returned path', async () => {
+  const seen = new Set()
+  const paths = { 'merge:t1': '/fresh/task-attempt/gate.log', 'land:phase-3': '/fresh/land-attempt/gate.log' }
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (paths[o.label] && !seen.has(o.label)) {
+      seen.add(o.label)
+      return { mode: o.phase === 'Land' ? 'land-phase' : 'merge-task', status: 'error',
+        [o.phase === 'Land' ? 'land_segment' : 'gate_segment']: 'incomplete', gate_log_path: paths[o.label] }
+    }
+    return defaultImpl(p, o)
+  })
+  for (const [label, path] of Object.entries(paths)) {
+    const c = calls.find(c => c.opts.label === label + ':segment-2')
+    assert.ok(c, label + ' continuation exists')
+    assert.ok(c.prompt.includes('Prior gate_log_path: ' + path), label + ' carries its own returned artifact')
+  }
+})
+
+test('gate artifact isolation: actual dispatched mktemp command isolates same-tip attempts from an old writer', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-gate-isolation-'))
+  try {
+    const args = PROVISION_ARGS({ tasks: SINGLE_TASK })
+    const { calls } = await runPhase(args, defaultImpl)
+    const prompt = calls.find(isMergeT1).prompt
+    const command = prompt.match(/`(mktemp -d "[^"\n]+gate-t1\.XXXXXX")`/)[1]
+    // Substitute only the fixture root; execute the producer's actual allocation command twice.
+    const template = command.match(/"([^"\n]+)"/)[1]
+    mkdirSync(join(dir, '.war'))
+    const allocate = () => {
+      const r = spawnSync('sh', ['-c', command.replace(template, join(dir, '.war/gate-t1.XXXXXX'))], { encoding: 'utf8' })
+      assert.equal(r.status, 0, r.stderr)
+      return join(r.stdout.trim(), 'gate.log')
+    }
+    const old = allocate(), fresh = allocate()
+    assert.notEqual(old, fresh)
+    writeFileSync(old, 'tip_sha: deadbeef\n')
+    writeFileSync(fresh, 'tip_sha: deadbeef\ncurrent run RED\nexit_code: 1\n')
+    // A previous background process finally exits green at the same SHA.
+    writeFileSync(old, 'old run GREEN\nexit_code: 0\n', { flag: 'a' })
+    assert.equal(readFileSync(fresh, 'utf8'), 'tip_sha: deadbeef\ncurrent run RED\nexit_code: 1\n')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
