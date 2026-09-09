@@ -158,7 +158,7 @@ This residual was missed by Phase-2 panel 2 and detected by the Lead's consequen
 
 ### Phase 2 / replacement delivery candidate
 
-Source and code-completion SHA `9a2100037b917632d8bd5d018cd1037e902d0a6f`. Clean source, reproduced artifact digest `f297c2eaca6cec417e7bad36aaa7d46bafc3c242087a867a78d1d27324ef81a3`, version `0.1.0+codex.9a2100037b91.7909b148e75d`; archive digest `5a6583ae372985de783b571b4de374ea44488738fdc40daac90a9a7cff5927ea`. [Current identity](red-team-implementation-evidence/p2-delivery-identity.json), [validator](red-team-implementation-evidence/p2-delivery-validator.log), [build/archive recipe](red-team-implementation-evidence/p2-build-delivery.py). Receipt and installation variable now select the replacement; the earlier candidate and its original identity/validator are retained separately. The next panel reviews this last Phase-2 repair; the reserve remains for whole-implementation coverage including final Phase-1 repairs.
+Source and code-completion SHA `9a2100037b917632d8bd5d018cd1037e902d0a6f`. Clean source, reproduced artifact digest `f297c2eaca6cec417e7bad36aaa7d46bafc3c242087a867a78d1d27324ef81a3`, version `0.1.0+codex.9a2100037b91.7909b148e75d`; archive digest `5a6583ae372985de783b571b4de374ea44488738fdc40daac90a9a7cff5927ea`. [Candidate identity](red-team-implementation-evidence/p2-candidate-9a210003-identity.json), [validator](red-team-implementation-evidence/p2-candidate-9a210003-validator.log), [build/archive recipe](red-team-implementation-evidence/p2-build-delivery.py). Receipt and installation variable now select the replacement; the earlier candidate and its original identity/validator are retained separately. The next panel reviews this last Phase-2 repair; the reserve remains for whole-implementation coverage including final Phase-1 repairs.
 
 ### Phase 2 / cycle 3 — final phase-panel finding
 
@@ -171,3 +171,16 @@ Before repair: include worktree directory path/mode identities (root included, r
 [Directory regressions](red-team-implementation-evidence/p2-cycle-3-directory-red.log) and [host false success](red-team-implementation-evidence/p2-cycle-3-host-red.log) preceded the repair. [Directory controls](red-team-implementation-evidence/p2-cycle-3-directory-fixed.log) and [host valid/invalid controls](red-team-implementation-evidence/p2-cycle-3-host-fixed.log) pass. [Full acceptance](red-team-implementation-evidence/p2-cycle-3-acceptance.log): 96 passed, zero failed, one explicit live skip (~99.8 seconds). [Five assertion-killed mutations](red-team-implementation-evidence/p2-cycle-3-mutations.json) / [harness](red-team-implementation-evidence/p2-cycle-3-mutations.py) cover worktree directories, Git directories, Git root mode, worktree directory mode and refusing symlink traversal.
 
 Shared snapshot closure now spans file contents/modes, symlink targets, refs, worktree directories/root and Git metadata directories/root. Symlink directories are not traversed. Both the original-target escape guard and diagnostic per-attempt guard consume this same implementation; no duplicate snapshot logic was added. Directory-only mutations produce changed identities, while an unrelated outside directory behind a symlink does not. The timestamp/transient-action limitation is explicit in host guidance; real sandbox enforcement is still pending. No current verified material finding or carried Minor remains. This last phase repair is tested but not phase-re-audited; the authorized reserve now reviews all Phase-1 and Phase-2 changes. Panels 3/3, 3/3, 0/1 (6/7).
+
+### Phase 2 / delivery and reserve entry
+
+Source/code-completion SHA `5c11e69d260e7d3893c50a3c59670957c8378bc8`. Clean source and two identical builds: artifact `d7278f0e278cf4705ff8553c374a216bf84fd925565cf3f9e1a89c1a60306fd5`, version `0.1.0+codex.5c11e69d260e.4e10099fdbc2`, archive `6f40362af5a6b2f7e50154c53e737ba15a73cd0ae25caafd5917a64b51a60c8b`. [Delivery identity](red-team-implementation-evidence/p2-delivery-identity.json), [official validator](red-team-implementation-evidence/p2-delivery-validator.log), [operator receipt](2026-09-08-red-team-local-delivery.md). Prior candidates are retained, not overwritten. Phase-2 implementation and acceptance are complete; the one reserve panel is required for the last repairs from both phase loops. No installed-host success or independent-comparison result is asserted.
+
+| Cycle | Audit SHA | Repair/source SHA |
+| --- | --- | --- |
+| Phase 1 / 1 | `616933755e5425f35018c94551ac6e7511924c29` | `abf06d76e421e67d257ad812ee45ac6e53daa45a` |
+| Phase 1 / 2 | `abf06d76e421e67d257ad812ee45ac6e53daa45a` | `8ccd4e8bfb38613d15bc0fbc422cd0936654a004` |
+| Phase 1 / 3 | `8ccd4e8bfb38613d15bc0fbc422cd0936654a004` | `68c6705bfe9515a4f6be9f46f725e29e71cd085d` |
+| Phase 2 / 1 | `d5661d64abc47b3a2cc9648385213c8ff8daeafd` | `055735329e7b91e9e4b99f35f0430ff48a9f9ce6` |
+| Phase 2 / 2 | `191280521005d8d4891055193902ce7d858660bc` | `9a2100037b917632d8bd5d018cd1037e902d0a6f` (Lead-discovered residual) |
+| Phase 2 / 3 | `5e5355d9d5ac921c7f070aca3a5804b89ed316e1` | `5c11e69d260e7d3893c50a3c59670957c8378bc8` |
