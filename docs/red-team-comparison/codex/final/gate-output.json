@@ -1,0 +1,40 @@
+{
+  "verdict": "INCOMPLETE",
+  "blockers": [
+    {
+      "probe": "isolation-package-evidence-failure-paths",
+      "probeStatus": "fail",
+      "severity": "Major",
+      "claim": "The migration plan requires recorded plan/repository identities but never explicitly requires each probe attestation to bind to those identities or includes a discriminating stale-same-path test, so off-target evidence can still certify the run.",
+      "reality": "Task 1 says to record the original plan hash and target revision and to scope target identity, while End states 2–3 require off-target results to remain visible and input identities to remain distinguishable. However, the named reusable gate currently validates only read_anchor.resolved_path and plan_title. It ignores plan content hash and repository revision. A stale or substituted plan retaining the same path/title therefore passes its on-target check. Merely recording the correct identities at run level does not prove that the probe opened them.",
+      "evidence": "Primary source: skills/red-team/assets/red-team-gate.mjs isOnTarget() compares normalized read_anchor.plan_title and an absolute path under repo; the scaffold FINDINGS schema requires only resolved_path and plan_title. Reproduction against the frozen baseline piped one pass result whose read_anchor used the exact plan path/title but plan_sha256=64 f characters and target_revision=40 zeroes, while the envelope carried the correct fingerprint; the gate returned verdict CLEARED, expected=1, onTarget=1. Legitimate control: replacing the title with '# Another plan' returned INCOMPLETE with onTarget=0 and offTarget=['wrong-title']. Thus the failure is specifically missing content/revision binding, not malformed coverage accounting. Practical consequence: a reviewer that opened stale same-title content or the wrong repository snapshot can yield an unqualified clean result, undermining the frozen-input comparison and evidence provenance. Minimal resolution: make Task 1 explicitly require per-result plan-hash and snapshot-revision attestations validated against the run fingerprint, and add a regression where matching path/title with either stale hash or revision is rejected while the exact identity is accepted.",
+      "planRef": "Context baseline limitation; Binding guardrails and End states 2–3 (lines 91–95); Task 1 identity/evidence obligations (lines 121–123); B1 frozen-input evidence requirements (line 167)",
+      "candidateId": "isolation-package-evidence-failure-paths#1",
+      "adjudicated": true
+    }
+  ],
+  "needsDecision": [],
+  "minors": [],
+  "summary": {
+    "probes": 2,
+    "executed": 0,
+    "analyzed": 2,
+    "pass": 1,
+    "fail": 1,
+    "warn": 0,
+    "expected": 8,
+    "onTarget": 2,
+    "offTarget": [],
+    "dropped": [
+      "baseline-and-executable-contracts",
+      "diagnostic-1:source-intake",
+      "diagnostic-2:source-intake",
+      "diagnostic-3:source-intake",
+      "diagnostic-4:source-intake",
+      "diagnostic-5:source-intake"
+    ]
+  },
+  "rounds": 1,
+  "roundLimit": 3,
+  "routeUpstream": false
+}
