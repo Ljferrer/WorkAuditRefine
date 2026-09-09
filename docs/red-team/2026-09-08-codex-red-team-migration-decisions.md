@@ -60,7 +60,7 @@ Options offered:
 - (b) Commit it to `codex-port`.
 - (c) Drop the snapshot claim.
 Answer (verbatim): "The snapshot is intentionally untracked, outside the review branches. It exists at /Users/ljf/GitHub/WorkAuditRefine/docs/port/red-team-research/2026-09-08-issue-2097.json. Read that preserved snapshot if accessible; otherwise report the access gap. A fresh issue fetch is additional evidence, not necessarily identical to the original snapshot."
-Lead check: file readable, 148,970 bytes, 13 comments, issue 2097, SHA-256 `b0f8f558f764e37f97f5266802cd34e9fea1e2f794b21e218e18fabcb026124c`. No checksum sidecar beside it.
+Lead check: file readable, 148,970 bytes, 13 comments, issue 2097, SHA-256 `b0f8f558f764e37f97f5266802cd34e9fea1e2f794b21e218e18fabcb026124c`. The sidecar `2026-09-08-issue-2097.metadata.json` beside it records the same SHA-256 and comment count.
 Patch: Evidence row names the absolute path, hash, comment count, the read-or-record-gap rule, and the fresh-fetch caveat.
 
 ### Q6. Phase-2 completion SHA referent

@@ -11,7 +11,7 @@
 - artifactKind: `impl-plan`. Source of truth: merged arm (Part 1). Prior-report seed: 0 (no prior report). Round limit: 3 (`run.redteamRoundLimit`). Provision: `[]` (no `.war-provision.json`, no submodules). `Explore` present; no analyzed-agent fallback engaged.
 - Raw evidence, preserved before any patch: `docs/red-team/evidence/2026-09-08-codex-red-team-migration/workflow-output.json` (12 post-confirmation probe results), `gate-initial.json` (first gate output, `--rounds=0 --round-limit=3`, verdict BLOCKED), `escape-guard.txt`. Post-adjudication: `gate-adjudicated.json` (`--rounds=1 --round-limit=3`, verdict ADJUDICATED).
 - Workflow run `wf_62a3d17d-07c`: 18 agents (12 probes + 6 adversarial confirms), 0 errors, 0 dropped, ~1.6M subagent tokens, 27 min.
-- Disclosure: none. This review ran with no implementation ledger and no Codex findings in context.
+- Disclosure: initial findings and the first gate output were produced with no implementation ledger and no Codex findings in context. During adjudication, after those initial findings were saved, the Lead consulted the operator of the authoring task for the seven rulings recorded in the decisions log. That is distinct from seeing the future Codex reviewer's findings, which this review never saw.
 
 ## Attack surface
 Spine: claims-vs-reality, executable-proof, coverage-vs-source (merged arm + per-issue evidence join), consistency-placeholders, dependency-feasibility, intent-vs-plan. Bespoke: acceptance-gate-claims (executed), adapter-baseline-repro (executed), construct-anchor-check, drift-guard-doctrine, backstop-legitimacy-judge, war-dispatch-checkpoint (analyzed). Executed in sandbox: executable-proof, acceptance-gate-claims, adapter-baseline-repro.
@@ -26,7 +26,7 @@ Coverage: expected 12, onTarget 12, offTarget [], dropped [].
 - `overrides.testPattern: 'skills/*.test.mjs adapters/codex/*.test.mjs'` passes `war-config.mjs --fill-defaults`; `resolveGate` composes the declared two-glob gate; `assert-test-in-diff.sh` default discovery routes an adapter-only test diff to `no-test` (exit 1) and passes with the override; `assert-packaging-in-diff.sh` is Docker-COPY only → all four Build-order claims hold.
 - Regression demonstration for the Task 2 gap, on the Snipe sibling: flipping `allow_implicit_invocation: false → true` in `agents/openai.yaml` leaves `package-snipe.test.mjs` green (3/3) while `snipe-structure.test.mjs` goes red.
 - Lead re-verification after the patch (fresh clone, same mutation): `node --test adapters/codex/package-snipe.test.mjs adapters/codex/skills/snipe/snipe-structure.test.mjs` → pass 6, fail 1. The patched Task-2-shaped command now detects the instruction-surface regression.
-- #2097 snapshot: readable at `/Users/ljf/GitHub/WorkAuditRefine/docs/port/red-team-research/2026-09-08-issue-2097.json` (untracked root checkout), SHA-256 `b0f8f558f764e37f97f5266802cd34e9fea1e2f794b21e218e18fabcb026124c`, 13 comments, issue 2097. No separate checksum file beside it.
+- #2097 snapshot: readable at `/Users/ljf/GitHub/WorkAuditRefine/docs/port/red-team-research/2026-09-08-issue-2097.json` (untracked root checkout), SHA-256 `b0f8f558f764e37f97f5266802cd34e9fea1e2f794b21e218e18fabcb026124c`, 13 comments, issue 2097. The sidecar `2026-09-08-issue-2097.metadata.json` beside it records the same SHA-256, 13 comments, body `full`, latest included comment `2026-09-08T22:33:21Z`.
 - Escape guard: pre-run snapshot exit 0; post-run `--baseline` exit 1 with one moved ref `refs/heads/war/2026-09-06-engine-and-audit-verdict-integrity/p13-13.1`. Provenance: foreign (a concurrent `/war` campaign committing in its own `.claude/war-worktrees/.../p13-13.1` at 18:42, 19:00, 19:01 per reflog); working tree porcelain-clean; no probe-authored residue. Recorded, not an escape.
 
 ## Findings
@@ -67,5 +67,5 @@ Coverage: expected 12, onTarget 12, offTarget [], dropped [].
 ## Residual risk
 - No probe was re-dispatched after the patches; the Lead re-verified only the Task 2 acceptance gap in a sandbox. The other rows are adjudicated on operator rulings and the patch text.
 - Open-issue counts in the Evidence table (232 open / 186 war-followup) are time-qualified; at review time 238 / 193. Not a defect.
-- The #2097 snapshot has no checksum sidecar; the SHA-256 recorded here is this review's measurement.
+- The #2097 snapshot SHA-256 measured by this review matches the checksum in its metadata sidecar.
 - A concurrent `/war` campaign shares this repository's ref store; the guard reported one foreign ref move (recorded above).
