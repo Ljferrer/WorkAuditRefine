@@ -99,6 +99,8 @@ run today (PIN-3).
 - **Degrade-to-today.** Every refusal path — footprint excess, patch-id mismatch, probe error —
   lands on current behaviour, so the worst case is what the engine already did (PIN-1).
 
+Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Status error alone retains the ordinary merge fallback.
+
 ## Considered options
 
 - **Re-audit every SHA, always (rejected — the status quo).** Correct, and the measured cost is
@@ -130,3 +132,5 @@ run today (PIN-3).
 ## Decision log
 
 - 2026-09-07 · section 2's `D4` attributed to this ADR's ratifying plan (the 2026-08-30 plan's D4 row), the relationship heading renamed `Relationship to other ADRs` so the ADR 0051 row fits under it · issue #2156
+
+- 2026-09-09 · Require positive evidence before transfer or already-upstream completion; invalid destinations hold, missing transfer equality re-audits (#2154, PR #2297 initial Snipe).

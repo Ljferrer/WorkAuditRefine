@@ -221,7 +221,7 @@ test('the fix-worker (FIX_NEEDED) prompt also drops self-create + WAR_WORKTREE, 
       // First seat invocation blocks with a Major; subsequent ones approve.
       return auditRounds <= 1
         ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-            findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+            findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
         : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     }
     return defaultImpl(prompt, opts)
@@ -440,7 +440,7 @@ test('the resolved run.provision list also reaches the fix-worker setup (Part B)
       auditRounds++
       return auditRounds <= 1
         ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-            findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+            findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
         : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     }
     return defaultImpl(prompt, opts)
@@ -2218,7 +2218,7 @@ test('M2 Test 2 — shared budget: audit fixes + no-test fixes together <= round
       // Subsequent (re-audit after fix, and re-audit in no-test sub-loop): approve
       return auditRound2 === 1
         ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-            findings: [{ severity: 'Major', title: 'audit-fix-finding', file: 'a.js', rationale: 'fix needed' }] }
+            findings: [{ severity: 'Major', title: 'audit-fix-finding', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'fix needed' }] }
         : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
@@ -2641,7 +2641,7 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
         // First audit: request_changes with a Major finding to trigger the fix-worker
         if (fixDispatchCount === 0) {
           return { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-            findings: [{ severity: 'Major', title: 'needs-fix', file: 'a.js', rationale: 'fix needed' }] }
+            findings: [{ severity: 'Major', title: 'needs-fix', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'fix needed' }] }
         }
         return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
       }
@@ -3981,7 +3981,7 @@ test('roster — auto-escalate default fallback: a solo Critical with NO widen n
     { 'audit:t1:security': [
         // No `widen` field on the verdict → resolveWidenSource falls back to defaultRoster (trio union).
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
-          findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
+          findings: [{ severity: 'Critical', title: 'lone-seat critical', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
         { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
       ] },
     defaultImpl)
@@ -4007,7 +4007,7 @@ test('roster — autoEscalate:false: a solo Critical does NOT widen the roster',
   const impl = buildSeqImpl(
     { 'audit:t1:security': [
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
-          findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
+          findings: [{ severity: 'Critical', title: 'lone-seat critical', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
         { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
       ] },
     defaultImpl)
@@ -4053,7 +4053,7 @@ test('roster — auto-escalate nominated widening: a lone seat naming valid cata
         // non-reserved) and widens toward performance+usability @ deep — NOT the trio default roster.
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
           widen: ['performance', 'usability'],
-          findings: [{ severity: 'Critical', title: 'smells like a perf+ux issue', file: 'a.js', rationale: 'bad' }] },
+          findings: [{ severity: 'Critical', title: 'smells like a perf+ux issue', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
         { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
       ] },
     defaultImpl)  // performance/usability seats auto-approve via defaultImpl
@@ -4085,7 +4085,7 @@ test('roster — auto-escalate strict fallback: a lone seat whose widen contains
         // reject → resolveWidenSource falls back to the trio default roster (no per-entry salvage).
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
           widen: ['performance', 'pin-validity'],
-          findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
+          findings: [{ severity: 'Critical', title: 'lone-seat critical', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
         { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
       ] },
     defaultImpl)
@@ -4891,7 +4891,7 @@ test('memory: fix-worker (FIX_NEEDED) prompt carries the worker lesson block —
     if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
     if (seat === 'war-auditor') return ++auditN <= 1
       ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-          findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+          findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
       : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     return defaultImpl(prompt, opts)
   }
@@ -6270,7 +6270,7 @@ test('intake normalization: empty-content Critical demotes to note — a title-l
       { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Critical', title: 'real defect', rationale: '' }] },
       { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high', findings: [] } ] },
     seatImpl([])))
-  assert.equal(ctl.calls.filter(isFixWorker).length, 1, 'a Critical with a title (rationale empty) still dispatches the fix round')
+  assert.equal(ctl.out.landDecision, 'held:escalation', 'a titled Critical without a fix remains blocking')
   assert.ok(!(ctl.out.notes || []).some(n => n && n.demoteReason === 'intake:empty-content'), 'and is never demoted')
   // a rationale-only finding is content too (either field suffices)
   const rat = await runPhase(HANDOFF_ARGS(), buildSeqImpl(
@@ -6278,7 +6278,7 @@ test('intake normalization: empty-content Critical demotes to note — a title-l
       { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', rationale: 'the arm is unreachable' }] },
       { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high', findings: [] } ] },
     seatImpl([])))
-  assert.equal(rat.calls.filter(isFixWorker).length, 1, 'a rationale-only Major still blocks')
+  assert.equal(rat.out.landDecision, 'held:escalation', 'a rationale-only Major without a fix still blocks')
   // a titleless, rationale-less ASK carrying question + fork is content: it parks on asks[] and never
   // lands in notes (demote()'s ASK REFUSAL invariant holds at intake too — #2128 Major, #2131)
   const askF = { severity: 'Minor', disposition: 'ask', ask: { question: 'keep or drop the alias?', fork: ['keep', 'drop'] } }
@@ -8489,7 +8489,7 @@ test('T1.3 (D2) — work-wave auditRound demotes a pin-mismatched seat: a blocki
         return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' }
       }
       return { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-               findings: [{ severity: 'Major', title: 'wrong-tree blocker', file: 'a.js', rationale: 'reviewed a stale tree' }],
+               findings: [{ severity: 'Major', title: 'wrong-tree blocker', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'reviewed a stale tree' }],
                audit_sha: auditSha }
     }
     if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok' }
@@ -9157,7 +9157,7 @@ test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker 
 // worker (fix:t1:r1) and the --ace worker (ace:polish:t1:a1 — the absorb meter, not fixRounds) dispatch in one phase. Returns captured opts.
 const runFixAndAce = async (agentsCfg) => {
   const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-    findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+    findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [blockingMajor, approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] },
     aceBase([]))
@@ -9577,7 +9577,7 @@ const fixNeededImpl = () => {
     if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
     if (seat === 'war-auditor') return ++auditN <= 1
       ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-          findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+          findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
       : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     return defaultImpl(prompt, opts)
   }
@@ -10619,7 +10619,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // reds this row.
     { name: 'split-panel boundary (D17, PIN-29, #1989): rebuttal first, then fix round on a surviving suggested_fix, escalation only for a fix-less survivor — auditor card Split panel bullet ↔ REBUTTAL ROUND prompt',
       surfaces: [['war-auditor.md', auditorMd], ['REBUTTAL ROUND auditor prompt', rebutP]],
-      anchors: [/rebuttal first, then a fix round when a `suggested_fix` survives, escalation only for a fix-less survivor/i, /full-roster re-audit/, /state the fix or withdraw the finding/] },
+      anchors: [/Rebuttal first, then a fix round when ALL surviving blockers carry a concrete `suggested_fix`/i, /full-roster re-audit/, /state the fix or withdraw the finding/] },
     // Task 11.1 (D18, PIN-22, #1664): the two-sided escalate boundary — decision-forked ⇒ escalate with
     // escalate_reason; mechanical with budget ⇒ request_changes, never escalate; the engine reads the
     // reason into escalated[]. `two-sided` and `decision-forked` counted 0 on the card and in the
@@ -14415,7 +14415,7 @@ test('#1913 End state 5 (PIN-1) — a patch-id MISMATCH degrades to the in-lock 
 
 test('#1913 End state 5 (PIN-16 positive) — an empty post-rebase diff whose task commits all cherry-match upstream records already_upstream: no panel, no content merge', async () => {
   const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
-    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', pre_rebase_patch_id: 'p1',
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1',
       post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1', 'c0ffee2'] },
   })
   assert.ok(!calls.some(isMergeTask), 'no merge-task dispatch — there is no content to merge')
@@ -14446,9 +14446,9 @@ test('pin-transfer: #1973 verbatim replay merges the task', async () => {
 
 test('pin-transfer: already_upstream contradiction legs — rebased_tip at the dispatch base, a non-empty post patch-id, or empty commits each refuse; unequal patch-ids route to the mismatch re-audit', async () => {
   const refusals = [
-    ['rebased_tip equals the dispatch base', { status: 'already_upstream', rebased_tip: 'base0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
-    ['the post-rebase patch-id is non-empty', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] }],
-    ['already_upstream_commits is empty', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: [] }],
+    ['rebased_tip equals the dispatch base', { status: 'already_upstream', rebased_tip: 'ba5e0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
+    ['the post-rebase patch-id is non-empty', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] }],
+    ['already_upstream_commits is empty', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: [] }],
   ]
   for (const [why, probe] of refusals) {
     const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
@@ -14458,14 +14458,14 @@ test('pin-transfer: already_upstream contradiction legs — rebased_tip at the d
   }
   // Unequal patch-ids under a contradiction → 'mismatch': the full panel re-audits the rebased tip.
   const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
-    'pin-transfer': { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] } })
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] } })
   assert.equal(calls.filter(c => isAuditor(c) && c.prompt.includes('beef0001')).length, 2, 'the FULL two-seat panel re-audits the rebased tip')
   const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
   assert.equal(row.mode, 'mismatch', 'the row records the mismatch re-audit')
   assert.ok(out.landed.includes('t1'), 't1 lands after the re-audit approves')
   // Un-contradicted arm: unchanged (PIN-16) — dispatch_base present and distinct from rebased_tip.
   const ok = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
-    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'base0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } })
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } })
   assert.ok(!ok.calls.some(isMergeTask), 'a genuine already_upstream still skips the content merge')
   assert.ok(ok.out.landed.includes('t1'), 'and records the task merged')
 })
@@ -14489,7 +14489,7 @@ test('#1913 End state 5 (PIN-16 negative, #1895) — an empty diff with zero tas
 test('#1913 End state 6 (PIN-10, merge slot) — every merge-slot seat row records the REBASED tip as its sha, keeping the pre-rebase audit sha under approvedAt', async () => {
   for (const [mode, probe] of [
     ['transferred', { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' }],
-    ['already_upstream', { status: 'already_upstream', rebased_tip: 'facade01', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
+    ['already_upstream', { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
   ]) {
     const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
     const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
@@ -15076,7 +15076,7 @@ test('absorb-budget (End state 4, fixRounds at the audit-loop ceiling): a task w
   // every subset and re-entry). The batch ace still dispatches, and the re-audit-born absorb still
   // re-enters: absorbRounds (0 → 1 → 2 under the default 6) is the only gate.
   const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-    findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+    findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [blockingMajor,
                                approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
@@ -15317,42 +15317,7 @@ test('absorb-budget (D5, snipe: simplicity/correctness): a seeded held row runs 
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('seeded barrierless follow-up') && /rerout/i.test(l)), 'the floor reroute is logged')
 })
 
-test('absorb-budget (D5, snipe: test-fidelity Major): a floor-rerouted NOTE that is then held by open blockers carries disposition:absorb on the hold, so the drain sweeps it instead of noting it', async () => {
-  // in-diff note with a fix → intakeFloor reroutes to absorb → aceable → HELD (open Major) → the task merges with the row still held → drain
-  const rerouted = { severity: 'Nit', title: 'rerouted note then held', file: 'skills/war/assets/x.js', rationale: 'r', suggested_fix: 'do it', disposition: 'note' }
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts), label = opts.label || ''
-    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) return approveBesideMajor([rerouted])
-    return sweepBase([])(prompt, opts)
-  }
-  const { out, logs } = await runPhase(SWEEP_ARGS(), impl, PROBE)
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('note with a specified fix rerouted') && l.includes('rerouted note then held')), 'presence guard: the floor rerouted the note')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 merged with 1 held absorb(s)')), 'presence guard: the row was held and drained')
-  const aced = (out.aced || []).find(a => a && a.finding && a.finding.title === 'rerouted note then held')
-  assert.ok(aced && aced.sha === 'polishsha', 'the held row aces at the polish sha via the sweep')
-  assert.equal(aced.finding.disposition, 'absorb', 'the hold stamped disposition:absorb over the seat-set note')
-  assert.ok(!(out.notes || []).some(n => n && n.title === 'rerouted note then held'), 'never dropped onto notes')
-})
 
-test('absorb-budget (D5, snipe: cascading-impact): two seats raising one absorb on a blocker-held task hold ONE row whose seats list names both raisers, logged', async () => {
-  const row = { severity: 'Nit', title: 'held twice', file: 'skills/h2.js', rationale: 'r', disposition: 'absorb' }
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts), label = opts.label || ''
-    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) {
-      return label.endsWith(':correctness')
-        ? approveBesideMajor([row])
-        : { seat: label, lens: 'simplicity', verdict: 'approve', confidence: 'high', findings: [{ ...row }] }
-    }
-    return sweepBase([])(prompt, opts)
-  }
-  // the TASK roster picks the wave seats (audit.roster is the default/polish roster) — two seats here
-  const { out, logs } = await runPhase(SWEEP_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }] }), impl)
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb "held twice"') && l.includes('duplicate of a row already in this ace batch')), 'the second copy\'s drop is logged by the shared absorb tail before the hold')
-  const aced = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'held twice')
-  assert.equal(aced.length, 1, 'one record for the finding once the merged-with-held drain sweeps it')
-  const seats = aced[0].finding.seats || []
-  assert.ok(seats.some(s => /correctness/.test(s)) && seats.some(s => /simplicity/.test(s)), 'the held row names both raisers')
-})
 
 test('absorb-budget (D5, snipe: correctness): two seats raising one absorb on an UNBLOCKED task put ONE row in the ace batch — one prompt row, one aced record naming both raisers, the drop logged', async () => {
   const row = { severity: 'Nit', title: 'raised twice', file: 'skills/r2.js', rationale: 'r', disposition: 'absorb' }
@@ -15442,43 +15407,11 @@ test('absorb-budget (D5, snipe: two seats): phaseClose wins the cross-sink tie-b
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('split across sinks') && l.includes('PROMOTED to the phase-close queue')), 'the promotion is logged, naming the honored phaseClose')
 })
 
-// A seat approving BESIDE its own Major is the one shape that reaches the batch ace with open
-// blockers (verdict approve, blockingOf > 0): the aceable rows are held, never demoted at the gate.
+// Contradictory approve + Major reports must hold before entering the ace/merge path.
 const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'approve', confidence: 'high',
   findings: [{ severity: 'Major', title: 'open blocker', file: 'skills/blk.js', rationale: 'still open' }, ...findings] })
 
-test('absorb-budget (End state 4, held then escalated): open blockers HOLD the aceable rows on r.pendingAbsorbs; a task that then ends escalated (never merged) demotes them with demote:absorb-blocked', async () => {
-  const row = nit({ title: 'blocked nit', file: 'skills/blocked.js' })
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts)
-    if (seat === 'war-auditor') return approveBesideMajor([row])
-    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'conflict', conflict_files: ['x'] }
-    return aceBase([])(prompt, opts)
-  }
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
-  assert.ok(!calls.some(isAce), 'no ace batch dispatches under open blockers')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('carries 1 open blocking finding(s)') && l.includes('HELD on r.pendingAbsorbs')), 'the hold is logged')
-  assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'conflict'), 'presence guard: the task never merged (conflict escalation)')
-  const filed = (out.minorsFiled || []).find(m => m && m.title === 'blocked nit')
-  assert.ok(filed, 'the held row demotes to follow-up (never dropped)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('blocked nit') && l.includes('demote:absorb-blocked')), 'the demotion reason carries the demote:absorb-blocked prefix')
-  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('ace unavailable (open blocking findings or exhausted fix budget)')), 'the retired shared exhaustion arm is gone')
-})
 
-test('absorb-budget (End state 4, held then merged): a task that merges with rows still held (no later approve came) sends them to the phase-close sweep as absorbs — logged, never dropped', async () => {
-  const row = nit({ title: 'held-merged nit', file: 'skills/hm.js' })
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts)
-    const label = opts.label || ''
-    if (seat === 'war-auditor' && label.includes(':t1:') && !label.startsWith('gate-audit:')) return approveBesideMajor([row])
-    return sweepBase([])(prompt, opts)
-  }
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
-  assert.ok(!calls.some(isAce), 'no ace batch under open blockers')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('task t1 merged with 1 held absorb(s)')), 'the merged-with-held drain is logged')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'held-merged nit' && a.sha === 'polishsha'), 'the held row aces at the polish sha via the sweep')
-  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'held-merged nit'), 'never a follow-up')
-})
 
 test('absorb-budget (D5, #2034, never ran a wave — preMerged): a relaunch-seeded held row on a task the barrier reports preMerged drains to the phase-close sweep with the recovered verdict — logged, never dropped', async () => {
   // t1 enters `done`+`succeeded` before nextWave() (no result object). The drain must still see it.
@@ -17602,7 +17535,7 @@ test('split panel: blocking finding surviving the rebuttal triggers FIX_NEEDED (
   assert.ok(out.landed.includes('t1'), 't1 merges')
   assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'no escalation — a Major with a suggested_fix never escalates the phase (the #1989 shape)')
   assert.equal(out.landDecision, 'landed', 'the phase lands')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('survived the rebuttal (PIN-29)') && l.includes('dispatching a fix round and a full-roster re-audit')), 'the fix-round route is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('all surviving blockers have a suggested_fix') && l.includes('dispatching a fix round and a full-roster re-audit')), 'the fix-round route is logged')
 })
 
 test('split panel: rebuttal withdrawal approves without a fix round (D17, PIN-29 — the delete-the-feature control) — the blocking seat approves at the rebuttal ⇒ fixRounds === 0, no fix dispatch, the task merges', async () => {
@@ -17622,7 +17555,7 @@ test('split panel: fix-less survivor escalates (D17/D18) — a Major with NO sug
   assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first')
   const esc = (out.escalated || []).find(e => e && e.task === 't1')
   assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
-  assert.match(esc.blocked, /fix-less blocking finding survived the rebuttal \(decision-forked, D18\): \[Major\] retry policy undecided \(a\.js\)/, 'the escalation names the fix-less survivor')
+  assert.match(esc.blocked, /fix-less blocking finding survived the rebuttal or agreed-block panel \(decision-forked, D18\): \[Major\] retry policy undecided \(a\.js\)/, 'the escalation names the fix-less survivor')
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
 })
 
@@ -17633,9 +17566,9 @@ test('split panel: a request_changes seat with Minor-only findings escalates nam
   assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — there is no blocking finding to fix')
   const esc = (out.escalated || []).find(e => e && e.task === 't1')
   assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
-  assert.equal(esc.blocked, 'post-rebuttal split with no blocking finding on the blocking seat(s) audit:t1:security:rebut (a verdict never stands on findings it does not have)', 'the escalation names the seat that blocked without a Critical/Major')
+  assert.equal(esc.blocked, 'post-rebuttal split or agreed-block panel with no blocking finding on the blocking seat(s) audit:t1:security:rebut', 'the escalation names the seat that blocked without a Critical/Major')
   assert.ok(!/fix-less blocking finding survived/.test(esc.blocked), 'never the fix-less-survivor text with an empty finding list')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('post-rebuttal split with no blocking finding on the blocking seat(s)')), 'the guard logs the escalation')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('post-rebuttal split or agreed-block panel with no blocking finding on the blocking seat(s)')), 'the guard logs the escalation')
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
 })
 
@@ -17676,7 +17609,7 @@ test('escalate boundary: a mechanical Major at round 0 never escalates (D18, PIN
   }
 })
 
-test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-rebuttal split where the blocking Major and an approving seat\'s Minor share a locus and one side reasons from scope parks ONE ask with the fix-now / follow-up-and-merge fork; no fix dispatch, no escalation, the phase is not held', async () => {
+test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-rebuttal split where the blocking Major and an approving seat\'s Minor share a locus and one side reasons from scope parks ONE ask with the fix-now / follow-up-and-merge fork; no fix dispatch, blockers and asks survive while held', async () => {
   const scopeMajor = { severity: 'Major', title: 'helper lacks the sibling sweep', file: 'a.js', line: 40, rationale: 'the task mandate covers every sibling helper, so the missing sweep is out of scope only if the slice says so' }
   const peerMinor = { severity: 'Minor', title: 'helper lacks the sibling sweep', file: 'a.js', line: 40, rationale: 'a follow-up sized gap', suggested_fix: 'add the sweep loop' }
   const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeMajor, 2: scopeMajor }, [peerMinor]))
@@ -17689,22 +17622,22 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   assert.equal(asks[0].seat, 'audit:t1:security:rebut', 'the parked record is raised by the blocking seat')
   assert.ok(asks[0].finding && asks[0].finding.seatConflict && asks[0].finding.seatConflict.peer.lens === 'correctness', 'the record\'s finding carries the seatConflict pair')
   assert.ok((asks[0].corroborators || []).some(c => c.seat === 'audit:t1:correctness:rebut'), 'the approving seat\'s Minor corroborates the parked record at its own routing site (one record, never two)')
-  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'no escalation')
-  assert.ok(out.landed.includes('t1'), 't1 merges under the fork')
-  assert.equal(out.landDecision, 'landed', 'the phase is not held')
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1'), 'unresolved blocker holds')
+  assert.ok(!out.landed.includes('t1'), 't1 remains unmerged')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase is held')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'helper lacks the sibling sweep'), 'the conflict never files unruled as a follow-up (an ask is ruled at the Checkpoint)')
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('seat-conflict → ask (D19, PIN-23): task t1')), 'the detector logs the park')
   // Critical arm: the detector pairs a Critical blocker the same way (it admits f.severity === 'Critical'),
-  // so a scope-split Critical parks the same one ask, never escalates, and the task merges.
+  // so a scope-split Critical parks the same one ask while held.
   const scopeCritical = { ...scopeMajor, severity: 'Critical' }
   const crit = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: scopeCritical, 2: scopeCritical }, [peerMinor]))
   assert.equal(crit.calls.filter(isFixWorker).length, 0, 'Critical arm: no fix worker')
   const critAsks = (crit.out.asks || []).filter(a => a && a.task === 't1')
   assert.equal(critAsks.length, 1, 'Critical arm: exactly ONE ask parked')
   assert.match(critAsks[0].question, /rates "helper lacks the sibling sweep" Critical while/, 'Critical arm: the question names the Critical severity')
-  assert.ok(!(crit.out.escalated || []).some(e => e && e.task === 't1'), 'Critical arm: no escalation')
-  assert.ok(crit.out.landed.includes('t1'), 'Critical arm: t1 merges under the fork')
-  assert.equal(crit.out.landDecision, 'landed', 'Critical arm: the phase is not held')
+  assert.ok((crit.out.escalated || []).some(e => e && e.task === 't1'), 'Critical arm: held')
+  assert.ok(!crit.out.landed.includes('t1'), 'Critical arm: t1 remains unmerged')
+  assert.equal(crit.out.landDecision, 'held:escalation', 'Critical arm: held')
   // Peer-own-ask arm (ace re-entry a4): a peer Minor that already carries disposition ask with its own
   // question parks that question BEFORE the conflict ask replaces the field — both asks reach asks[].
   const peerAsk = { ...peerMinor, disposition: 'ask', ask: { question: 'sweep as a helper or inline?', fork: ['helper', 'inline'] } }
@@ -17716,12 +17649,10 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   assert.deepEqual(peerRec.fork, ['helper', 'inline'], 'peer-own-ask arm: the peer\'s own fork survives verbatim')
   assert.ok(ownAsks.some(a => /^Seat conflict on a\.js:40:/.test(a.question)), 'peer-own-ask arm: the conflict ask still parks')
   assert.ok(own.logs.some(l => typeof l === 'string' && l.includes('the peer row already carried its own ask; parked it before the conflict ask replaced the field')), 'peer-own-ask arm: the park is logged')
-  assert.ok(own.out.landed.includes('t1') && own.out.landDecision === 'landed', 'peer-own-ask arm: t1 merges and the phase is not held')
+  assert.ok(!own.out.landed.includes('t1') && own.out.landDecision === 'held:escalation', 'peer-own-ask arm: both questions survive while held')
   // Finding-less blocking seat arm (ace re-entry a6): a three-seat roster — correctness approves with the
   // peer Minor, security blocks on the scope-shaped Major, cascading-impact blocks with `findings: []`.
-  // The detector pairs the one blocker, so the conflict parks ONE ask and the neutralization loop flips
-  // BOTH blocking seats to approve; the finding-less seat's log line takes the `carried no
-  // Critical/Major finding to pair` branch (its sibling arm, an all-finding-less blocking panel, escalates).
+  // The paired question survives, and the finding-less blocking seat independently holds.
   const THREE_SEAT_TASKS = [{ ...SPLIT_PANEL_TASKS[0], roster: [{ lens: 'correctness' }, { lens: 'security' }, { lens: 'cascading-impact' }] }]
   const threeSeatImpl = (prompt, opts) => {
     if (seatOf(opts) === 'war-auditor' && (opts.label || '').startsWith('audit:')) {
@@ -17737,12 +17668,11 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   const threeAsks = (three.out.asks || []).filter(a => a && a.task === 't1')
   assert.equal(threeAsks.length, 1, 'finding-less seat arm: exactly ONE ask parked (the paired blocker)')
   const threeEntry = (three.out.auditLog || []).find(e => e && e.task === 't1')
-  assert.equal(threeEntry && threeEntry.verdict, 'approve', 'finding-less seat arm: the panel verdict is approve')
-  assert.ok(three.logs.some(l => typeof l === 'string' && l.includes('blocking seat audit:t1:security:rebut neutralizes to approve (its blocking finding rides the parked ask)')), 'finding-less seat arm: the paired blocking seat neutralizes to approve')
-  assert.ok(three.logs.some(l => typeof l === 'string' && l.includes('blocking seat audit:t1:cascading-impact:rebut neutralizes to approve') && l.includes('it carried no Critical/Major finding to pair')), 'finding-less seat arm: the finding-less blocking seat neutralizes to approve and the log names the branch')
-  assert.ok(!(three.out.escalated || []).some(e => e && e.task === 't1'), 'finding-less seat arm: no escalation')
-  assert.ok(three.out.landed.includes('t1'), 'finding-less seat arm: t1 merges under the fork')
-  assert.equal(three.out.landDecision, 'landed', 'finding-less seat arm: the phase is not held')
+  assert.equal(threeEntry && threeEntry.verdict, 'escalate', 'finding-less blocking seat holds')
+  assert.ok(threeEntry.findings.some(f => f.severity === 'Major'), 'original blocker remains in audit evidence')
+  assert.ok(three.out.escalated.find(e => e.task === 't1').blocked.includes('cascading-impact:rebut'), 'hold names the finding-less seat')
+  assert.ok(!three.out.landed.includes('t1'))
+  assert.equal(three.out.landDecision, 'held:escalation')
   // Negative control (delete-the-feature): the same locus split WITHOUT a scope/mandate/adjudication
   // rationale on either side is not a seat conflict — it takes the fix-less survivor route.
   const plainMajor = { ...scopeMajor, rationale: 'the loop misses the last sibling' }
@@ -17850,4 +17780,144 @@ test('release-slot eligibility: blurb Minor lands through ace (characterization,
   assert.ok(!demotionOf(out, 'blurb count') && !demotionOf(out, 'status blurb'), 'neither blurb Minor is filed or demoted — README.md/CHANGELOG.md are not release-slot basenames')
   const refused = demotionOf(out, 'manifest nit')
   assert.ok(refused && /^demote:release-slot/.test(refused.demoteReason || ''), 'the plugin.json Minor is refused at birth by basename (demote:release-slot)')
+})
+
+// PR #2297 operator ruling (2026-09-09): a scope dispute cannot manufacture approval.
+// The existing harness drives the actual audit, rebuttal, fix, collection and merge paths.
+for (const afk of [false, true]) {
+  test(`verdict integrity #2279: fixable mandate conflict reaches fix and fresh full roster (afk=${afk})`, async () => {
+    const blocker = { ...MAJOR_WITH_FIX, rationale: 'The task mandate includes guarding this read' }
+    const peer = { severity: 'Minor', title: blocker.title, file: blocker.file, line: blocker.line, rationale: 'out of scope for this task', disposition: 'note' }
+    let fixed = false
+    const base = splitPanelImpl({ 1: blocker, 2: blocker }, [peer])
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { afk } }), (prompt, opts) => {
+      if (isFixWorker({ opts })) { fixed = true; return { ...defaultImpl(prompt, opts), head_sha: 'beef1234' } }
+      const result = base(prompt, opts)
+      return fixed && isAuditor({ opts }) ? { ...result, audit_sha: 'beef1234' } : result
+    })
+    assert.equal(calls.filter(isFixWorker).length, 1, 'fixable conflict never bypasses FIX_NEEDED')
+    const fixAt = calls.findIndex(isFixWorker)
+    const rosterAfter = calls.slice(fixAt + 1).filter(c => (c.opts.label || '').startsWith('audit:'))
+    assert.equal(rosterAfter.length, 2, 'full roster re-audits')
+    assert.ok(rosterAfter.every(c => c.prompt.includes('beef1234')), 're-audit pins the new fix tip')
+    assert.ok(out.landed.includes('t1'), 'task merges after actual unanimous post-fix approval')
+    assert.equal(out.auditLog.find(r => r.task === 't1').fixRounds, 1)
+  })
+
+  for (const rationale of ['The reference escapes its lexical scope and throws', 'The scope of the variable is wrong', 'The scoped cache misses this request']) {
+    test(`verdict integrity #2280: ordinary scope prose is no mandate conflict (${rationale}, afk=${afk})`, async () => {
+      const blocker = { ...MAJOR_NO_FIX, rationale }
+      const peer = { severity: 'Minor', title: blocker.title, file: blocker.file, rationale: 'missing test', disposition: 'note' }
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { afk } }), splitPanelImpl({ 1: blocker, 2: blocker }, [peer]))
+      assert.ok(!out.landed.includes('t1'), 'fix-less blocker remains unmerged')
+      assert.equal(out.landDecision, 'held:escalation')
+      assert.equal(calls.filter(isFixWorker).length, 0)
+      assert.equal((out.asks || []).filter(a => a.finding?.seatConflict).length, 0, 'lexical scope is not task mandate')
+    })
+  }
+
+  test(`verdict integrity: mixed fixable and fix-less blockers hold without spending a fix (afk=${afk})`, async () => {
+    const tasks = [{ ...SPLIT_PANEL_TASKS[0], roster: [{ lens: 'correctness' }, { lens: 'security' }, { lens: 'cascading-impact' }] }]
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks, run: { afk } }), (prompt, opts) => {
+      if ((opts.label || '').startsWith('audit:')) {
+        const lens = opts.label.split(':')[2]
+        const finding = lens === 'security' ? MAJOR_WITH_FIX : lens === 'cascading-impact' ? MAJOR_NO_FIX : null
+        return { seat: opts.label, lens, verdict: finding ? 'request_changes' : 'approve', confidence: 'high', audit_sha: 'deadbeef', findings: finding ? [{ ...finding }] : [] }
+      }
+      return defaultImpl(prompt, opts)
+    })
+    assert.equal(calls.filter(isFixWorker).length, 0, 'a mixed batch needs the missing decision before any fix dispatch')
+    assert.equal(out.landDecision, 'held:escalation')
+    assert.ok(!out.landed.includes('t1'))
+    assert.match(out.escalated.find(e => e.task === 't1').blocked, /fix-less/)
+  })
+
+  test(`verdict integrity: mandate conflict cannot bypass unchanged-survivor bound (afk=${afk})`, async () => {
+    const blocker = { ...MAJOR_WITH_FIX, rationale: 'The task mandate requires this guard' }
+    const peer = { severity: 'Minor', title: blocker.title, file: blocker.file, line: blocker.line, rationale: 'out of scope for this task', disposition: 'note' }
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { afk } }), splitPanelImpl({ 1: blocker, 2: blocker, 3: blocker, 4: blocker }, [peer]))
+    assert.equal(calls.filter(isFixWorker).length, 1)
+    assert.equal(out.landDecision, 'held:escalation')
+    assert.ok(!out.landed.includes('t1'))
+    assert.match(out.escalated.find(e => e.task === 't1').blocked, /survived a fix round unchanged/)
+    assert.ok(out.asks.some(a => a.finding?.seatConflict), 'the held mandate question survives')
+  })
+}
+
+for (const status of ['transferred', 'already_upstream', 'mismatch']) {
+  test(`finalization #2154 ${status} refuses an absent or malformed destination before accounting or re-audit`, async () => {
+    for (const tip of [undefined, null, '', 'not-a-sha', 1234567]) {
+      const probe = { status, rebased_tip: tip, pre_rebase_patch_id: 'p1', post_rebase_patch_id: status === 'mismatch' ? 'p2' : 'p1' }
+      const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
+      assert.ok(!out.landed.includes('t1'), `${status}/${String(tip)} cannot land`)
+      assert.ok(!(out.pinTransfers || []).some(p => p.kind === 'merge'), 'no transfer or re-audit receipt without a destination')
+      assert.ok(!calls.some(isMergeTask), 'no ordinary merge fallback after an invalid success claim')
+      assert.ok((out.escalated || []).some(e => e.task === 't1' && /destination/.test(e.detail?.note || '')), 'hold names the missing evidence')
+    }
+  })
+}
+
+test('pin-transfer integrity: success needs patch evidence; incomplete upstream never completes a task', async () => {
+  for (const patch of [{}, { pre_rebase_patch_id: '', post_rebase_patch_id: '' }, { pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2' }, { pre_rebase_patch_id: ' ', post_rebase_patch_id: ' ' }]) {
+    const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+      'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', ...patch } })
+    assert.ok(!(out.pinTransfers || []).some(p => p.kind === 'merge' && p.mode === 'transferred'), 'unproved patch equality cannot transfer')
+    assert.equal(calls.filter(c => isAuditor(c) && c.prompt.includes('beef0001')).length, 2, 'valid destination gets a full fresh panel')
+  }
+  const complete = { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }
+  for (const [field, value] of [['dispatch_base', undefined], ['dispatch_base', 'bad'], ['pre_rebase_patch_id', undefined], ['pre_rebase_patch_id', ' '], ['post_rebase_patch_id', undefined], ['already_upstream_commits', ['not-sha']]]) {
+    const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': { ...complete, [field]: value } })
+    assert.ok(!out.landed.includes('t1'), `incomplete upstream ${field} holds`)
+    assert.ok(!calls.some(isMergeTask))
+    assert.ok(!(out.pinTransfers || []).some(p => p.kind === 'merge'))
+  }
+})
+
+
+test('verdict integrity: unanimous approve labels cannot bypass a surviving Major', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (prompt, opts) => {
+    if ((opts.label || '').startsWith('audit:')) return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high', audit_sha: 'deadbeef', findings: [{ ...MAJOR_NO_FIX }] }
+    return defaultImpl(prompt, opts)
+  })
+  assert.ok(!out.landed.includes('t1'))
+  assert.equal(out.landDecision, 'held:escalation')
+  assert.equal(calls.filter(isFixWorker).length, 0)
+})
+
+test('verdict integrity: advisory rows beside an approving seat’s open Major cannot make that task merge', async () => {
+  for (const disposition of ['note', 'absorb']) {
+    const row = { severity: 'Nit', title: 'advisory beside blocker', file: 'skills/war/assets/x.js', rationale: 'r', suggested_fix: 'guard the read', disposition }
+    const impl = (prompt, opts) => {
+      if (seatOf(opts) === 'war-auditor' && (opts.label || '').startsWith('audit:t1:')) return approveBesideMajor([{ ...row }])
+      return sweepBase([])(prompt, opts)
+    }
+    const { out, calls } = await runPhase(SWEEP_ARGS(), impl, PROBE)
+    assert.equal(out.landDecision, 'held:escalation')
+    assert.ok(!out.landed.includes('t1'))
+    assert.ok(!calls.some(isAce) && !calls.some(isMergeTask), 'neither advisory polish nor merge bypasses the blocker')
+    const evidence = out.auditLog.find(r => r.task === 't1' && r.verdict === 'escalate')
+    assert.ok(evidence.findings.some(f => f.severity === 'Major'), 'original blocker survives')
+    assert.ok(evidence.findings.some(f => f.title === row.title), 'advisory evidence also survives')
+  }
+})
+
+test('verdict integrity: finding-less dissent holds even beside a fixable blocker', async () => {
+  const tasks = [{ ...SPLIT_PANEL_TASKS[0], roster: [{ lens: 'correctness' }, { lens: 'security' }, { lens: 'cascading-impact' }] }]
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks }), (prompt, opts) => {
+    if ((opts.label || '').startsWith('audit:')) {
+      const lens = opts.label.split(':')[2]
+      return { seat: opts.label, lens, verdict: lens === 'correctness' ? 'approve' : 'request_changes', confidence: 'high', audit_sha: 'deadbeef', findings: lens === 'security' ? [{ ...MAJOR_WITH_FIX }] : [] }
+    }
+    return defaultImpl(prompt, opts)
+  })
+  assert.equal(calls.filter(isFixWorker).length, 0)
+  assert.equal(out.landDecision, 'held:escalation')
+  assert.match(out.escalated.find(e => e.task === 't1').blocked, /cascading-impact/)
+})
+
+test('pin-transfer integrity: abbreviated and full names of the same base cannot prove already-upstream work', async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade0123456789', dispatch_base: 'facade0', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } })
+  assert.ok(!(out.pinTransfers || []).some(p => p.mode === 'already_upstream'))
+  assert.ok(calls.some(isMergeTask), 'contradiction follows the re-audit and ordinary merge path')
 })

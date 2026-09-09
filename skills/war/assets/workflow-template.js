@@ -307,12 +307,17 @@ const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
 // unmatched patches, or an empty pre-rebase patch-id — fails CLOSED to a hard escalation, #1895),
 // 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged). dispatch_base (D4,
 // PIN-8, #1973): the merge-base the probe measured PRE from — returned so the consumer can refuse an
-// already_upstream whose rebased_tip is that base (the contradiction signature); OPTIONAL, its absence
-// disables only that one leg of the refusal.
+// already_upstream whose rebased_tip is that base (the contradiction signature). Success evidence
+// is required conditionally by schema and independently checked before the consumer records it.
 const PIN_TRANSFER = { type: 'object', required: ['status'], properties: {
   status: { enum: ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error'] },
   rebased_tip: { type: 'string' }, dispatch_base: { type: 'string' }, pre_rebase_patch_id: { type: 'string' }, post_rebase_patch_id: { type: 'string' },
-  already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } } }
+  already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } }, allOf: [
+  { if: { properties: { status: { enum: ['transferred', 'mismatch', 'already_upstream'] } }, required: ['status'] },
+    then: { required: ['rebased_tip', 'pre_rebase_patch_id', 'post_rebase_patch_id'], properties: { rebased_tip: { pattern: '^[0-9a-f]{7,40}$' } } } },
+  { if: { properties: { status: { const: 'already_upstream' } }, required: ['status'] },
+    then: { required: ['dispatch_base', 'already_upstream_commits'], properties: { dispatch_base: { pattern: '^[0-9a-f]{7,40}$' }, already_upstream_commits: { minItems: 1, items: { type: 'string', pattern: '^[0-9a-f]{7,40}$' } } } } }
+] }
 
 // DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task refiner `diff-probe` dispatch's
 // return — `diff_files`, the GIT-derived changed-file list of the task branch
@@ -1958,7 +1963,7 @@ const routeReauditMinors = (r, seats, opts) => {
     else routeToSweep(f, 'phaseClose absorb born at a re-audit — the sweep is its vehicle')
   }
 }
-const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
+const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve') && blockingOf(seats).length === 0
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 // Explicit-escalate reader (verdict-integrity D18, PIN-22, #1664): the seat-supplied `escalate_reason`
 // (schema-required when verdict is escalate) of every escalating seat, joined, or null when no seat
@@ -1968,16 +1973,9 @@ const escalateReasonOf = seats => {
   const es = seats.filter(s => s.verdict === 'escalate')
   return es.length ? es.map(s => (s.seat ?? '?') + ': ' + (blankText(s.escalate_reason) ? '(no escalate_reason)' : s.escalate_reason.trim())).join(' | ') : null
 }
-// Seat-conflict detector (verdict-integrity D19, PIN-23, #1914): a post-rebuttal split where EVERY
-// blocking finding (Critical/Major on a request_changes seat) has a same-locus counterpart (same
-// aceRelPath file; equal line when both carry one) rated Minor/Nit by an approving seat, and at least
-// one side of each pair reasons from scope, mandate or an adjudication match. That is a disagreement
-// about what the task owes, not about the code — an operator fork (fix now, or file a follow-up and
-// merge), synthesized as an ask and parked through parkAsk instead of escalating the phase. Returns
-// the pairs, or null when any blocker is unpaired (the fix / escalate arms judge that panel). The
-// locus predicate is implementer latitude (Mechanism latitude); the rationale test reads the
-// finding's rationale only (a title's bare `scope` word is code-review vocabulary, not a rationale).
-const SCOPE_RATIONALE = /\b(?:scope|mandate|adjudicat\w*)\b/i
+// A mandate conflict preserves an operator question on a held panel; it never grants approval.
+// Match mandate-shaped rationale, not ordinary lexical/variable scope vocabulary (#2280).
+const SCOPE_RATIONALE = /\b(?:out[- ]of[- ]scope|(?:task|plan|slice|agreed)\s+(?:scope|mandate)|mandate|adjudicat\w*)\b/i
 const scopeSided = f => SCOPE_RATIONALE.test(String(f.rationale ?? ''))
 const sameLocus = (a, b) => typeof a.file === 'string' && a.file.length > 0 && typeof b.file === 'string' && b.file.length > 0
   && aceRelPath(a.file) === aceRelPath(b.file) && (a.line == null || b.line == null || a.line === b.line)
@@ -1994,8 +1992,7 @@ const seatConflictsOf = seats => {
         const g = (a.findings || []).find(g => (g.severity === 'Minor' || g.severity === 'Nit') && sameLocus(f, g) && (scopeSided(f) || scopeSided(g)))
         if (g) { pair = { seat: s, finding: f, peerSeat: a, peer: g }; break }
       }
-      if (!pair) return null   // an unpaired blocker: not a seat conflict
-      pairs.push(pair)
+      if (pair) pairs.push(pair)   // preserve paired questions even when another blocker is unrelated
     }
   }
   return pairs.length ? pairs : null
@@ -2529,9 +2526,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   if (peers && peers.length) {
     // Split-panel boundary (verdict-integrity D17, PIN-29, #1989) — its leading clause mirrored VERBATIM beside the
     // `escalate` bullet of agents/war-auditor.md (the registry row anchors both surfaces by pattern, not by byte-compare;
-    // same commit; the `split-panel boundary` registry row): rebuttal first, then a fix round when a `suggested_fix` survives,
-    // escalation only for a fix-less survivor.
-    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when a \`suggested_fix\` survives, escalation only for a fix-less survivor: a blocking finding you keep standing here WITH a concrete \`suggested_fix\` dispatches one fix worker and a full-roster re-audit at the new sha, never an escalation on that first pass; a blocker still standing UNCHANGED after that fix round escalates; a blocking finding you keep standing WITHOUT a fix escalates the phase once no surviving blocker carries a fix. A seat conflict (your blocker and an approving seat\'s Minor/Nit on the same locus, one side reasoning from scope, mandate or an adjudication match) pre-empts every one of those arms: the engine parks an operator ask and the task merges instead. So keep a fix-less blocker only when it is decision-forked (\`escalate\` with an \`escalate_reason\`), otherwise state the fix or withdraw the finding:\n`
+    // same commit; the `split-panel boundary` registry row): rebuttal first, then fix only an
+    // entirely fixable surviving panel; unresolved blockers hold with their questions preserved.
+    p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict. Rebuttal first, then a fix round when ALL surviving blockers carry a concrete \`suggested_fix\`, followed by a full-roster re-audit at the new sha. ANY fix-less blocker, unchanged survivor after a fix round, or blocking seat without a blocking finding holds the task. A same-locus mandate conflict preserves an operator ask while held; it never removes a blocker or grants approval, in either interactive or --afk runs. A ruling and re-audit are required before approval. Use mandate-shaped rationale (task/plan scope, out-of-scope, mandate or adjudication), never bare lexical scope. For a decision-forked blocker use \`escalate\` with an \`escalate_reason\`; otherwise state the fix or withdraw the finding.\n`
       // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
       // (construction-guaranteed → bare); ${f.title ?? ''} absence-tolerant (title is a schema-optional finding field).
       + peers.map(s => pt`- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => pt`[${f.severity}] ${f.title ?? ''}`).join('; ') || 'no findings'}`).join('\n')
@@ -3718,7 +3715,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       let pin = impl && impl.head_sha   // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
       // PIN-29 survival registry: the remintKey of every blocking finding the LAST fix round was
       // dispatched on. A blocker still standing after a fix round + full-roster re-audit + rebuttal
-      // survived that fix round unchanged — the one post-rebuttal shape that escalates with a fix.
+      // survived that fix round unchanged — hold in split and agreed-block panels alike.
       const blockerKey = f => remintKey({ task: task.id, ...f })
       let lastFixKeys = new Set()
       while (round < roundLimit) {
@@ -3736,64 +3733,41 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
           if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
           if (allApprove(seats, expected)) { verdict = 'approve'; break }
-          if (isSplit(seats)) {
-            // Post-rebuttal arms (verdict-integrity D17/D18/D19, PIN-29/22/23; #1989, #1664, #1914) —
-            // the retired deadlock arm escalated every surviving split to a human tiebreak. Now, in
-            // order: (a) a seat conflict (every blocker paired with an approving seat's Minor/Nit on
-            // the same locus, a scope/mandate/adjudication rationale on one side) parks ONE ask per
-            // pair through parkAsk — the blocking finding rides the ask record (its `seatConflict`
-            // field carries the pair), its seat neutralizes to approve, the peer's row corroborates the parked record at its
-            // own routing site, and the task merges under the fork (interactive: parked for the
-            // Checkpoint; --afk: resolved by a later citation or demoted Lead-side with the question
-            // preserved) — never an escalation; (b) a blocker that survived the previous fix round
-            // unchanged (same task + file + title) escalates (#1989's bound); (c) a surviving blocker
-            // with a concrete `suggested_fix` falls through to FIX_NEEDED below — one fix worker, then
-            // the full roster re-audits the new sha at the top of the loop, under the same
-            // roundLimit, approval unanimous on that audit_sha; (d) a fix-less survivor escalates as
-            // before (decision-forked). A blocking seat that carries no Critical/Major escalates naming
-            // the seat, never an empty finding list. A split never escalates at round 0 when a fix exists.
-            const conflicts = seatConflictsOf(seats)
-            if (conflicts) {
-              const stamped = new Set()                                  // peers already overwritten by an earlier pair: their ask field is the conflict ask, not their own
-              for (const p of conflicts) {
-                const ask = conflictAsk(p)
-                parkAsk({ task: task.id, seat: p.seat.seat ?? null, lens: p.seat.lens, sha: auditShaOrSentinel(p.seat.audit_sha), ...p.finding, disposition: 'ask', ask,
-                  seatConflict: { blocking: { seat: p.seat.seat ?? null, lens: p.seat.lens, severity: p.finding.severity }, peer: { seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, severity: p.peer.severity } } })
-                if (!stamped.has(p.peer) && p.peer.disposition === 'ask' && p.peer.ask && p.peer.ask.question) {   // the peer already carried its own ask: park it before the overwrite
-                  parkAsk({ task: task.id, seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, sha: auditShaOrSentinel(p.peerSeat.audit_sha), ...p.peer })
-                  log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — the peer row already carried its own ask; parked it before the conflict ask replaced the field (never a silent drop, #1790).')
-                }
-                p.peer.disposition = 'ask'; p.peer.ask = ask; stamped.add(p.peer)   // the peer row corroborates the parked record (parkAsk's collision merge)
-                p.seat.findings = (p.seat.findings || []).filter(f => f !== p.finding)
-                log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Parked for the operator ruling instead of escalating; the blocking seat ' + (p.seat.seat ?? '?') + ' neutralizes to approve and the task merges under the fork (interactive: ruled at the Checkpoint; --afk: resolved by citation or demoted Lead-side with the question preserved).')
-              }
-              for (const s of seats) if (s.verdict === 'request_changes') {
-                s.verdict = 'approve'
-                log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — blocking seat ' + (s.seat ?? '?') + ' neutralizes to approve' + (conflicts.some(p => p.seat === s) ? ' (its blocking finding rides the parked ask)' : ' (it carried no Critical/Major finding to pair — a verdict never stands on findings it does not have)') + '.')
-              }
-              verdict = 'approve'; break
-            }
-            const survivors = blockingOf(seats)
-            const nameThem = fs => fs.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
-            if (!survivors.length) {                                // a blocking seat with no Critical/Major: name the seat, never a phantom finding
-              blocked = 'post-rebuttal split with no blocking finding on the blocking seat(s) ' + seats.filter(s => s.verdict === 'request_changes').map(s => s.seat ?? '?').join(', ') + ' (a verdict never stands on findings it does not have)'
-              log('Task ' + task.id + ': ' + blocked + ' — escalating.')
-              verdict = 'escalate'; break
-            }
-            const unchanged = survivors.filter(f => lastFixKeys.has(blockerKey(f)))
-            if (unchanged.length) {
-              blocked = 'blocking finding survived a fix round unchanged (PIN-29): ' + nameThem(unchanged)
-              log('Task ' + task.id + ': ' + blocked + ' — escalating; another fix round on the same finding would only spend budget.')
-              verdict = 'escalate'; break
-            }
-            if (survivors.every(f => blankText(f.suggested_fix))) {
-              blocked = 'fix-less blocking finding survived the rebuttal (decision-forked, D18): ' + nameThem(survivors)
-              log('Task ' + task.id + ': ' + blocked + ' — no suggested_fix to dispatch a fix round on; escalating.')
-              verdict = 'escalate'; break
-            }
-            log('Task ' + task.id + ': blocking finding with a suggested_fix survived the rebuttal (PIN-29) — dispatching a fix round and a full-roster re-audit instead of escalating.')
-          }
         }
+
+        // Integrity-first ruling (#2279/#2280): every surviving blocker must be fixable.
+        // Apply the same hold checks after rebuttal or an agreed-block panel; changing the
+        // panel composition must never evade the unchanged-survivor bound.
+        const survivors = blockingOf(seats)
+        const nameThem = fs => fs.map(f => '[' + f.severity + '] ' + (f.title ?? '') + ' (' + (f.file ?? '') + ')').join('; ')
+        const emptyBlockers = seats.filter(s => s.verdict === 'request_changes' && !blockingOf([s]).length)
+        const unchanged = survivors.filter(f => lastFixKeys.has(blockerKey(f)))
+        const fixless = survivors.filter(f => blankText(f.suggested_fix))
+        blocked = emptyBlockers.length
+          ? 'post-rebuttal split or agreed-block panel with no blocking finding on the blocking seat(s) ' + emptyBlockers.map(s => s.seat ?? '?').join(', ')
+          : unchanged.length ? 'blocking finding survived a fix round unchanged (PIN-29): ' + nameThem(unchanged)
+          : fixless.length ? 'fix-less blocking finding survived the rebuttal or agreed-block panel (decision-forked, D18): ' + nameThem(fixless)
+          : null
+        if (blocked) {
+          const conflicts = seatConflictsOf(seats)
+          if (conflicts) {
+            const stamped = new Set()                                  // peers already overwritten by an earlier pair: their ask field is the conflict ask, not their own
+            for (const p of conflicts) {
+              const ask = conflictAsk(p)
+              parkAsk({ task: task.id, seat: p.seat.seat ?? null, lens: p.seat.lens, sha: auditShaOrSentinel(p.seat.audit_sha), ...p.finding, disposition: 'ask', ask,
+                seatConflict: { blocking: { seat: p.seat.seat ?? null, lens: p.seat.lens, severity: p.finding.severity }, peer: { seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, severity: p.peer.severity } } })
+              if (!stamped.has(p.peer) && p.peer.disposition === 'ask' && p.peer.ask && p.peer.ask.question) {   // the peer already carried its own ask: park it before the overwrite
+                parkAsk({ task: task.id, seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, sha: auditShaOrSentinel(p.peerSeat.audit_sha), ...p.peer })
+                log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — the peer row already carried its own ask; parked it before the conflict ask replaced the field (never a silent drop, #1790).')
+              }
+              p.peer.disposition = 'ask'; p.peer.ask = ask; stamped.add(p.peer)   // the peer row corroborates the parked record (parkAsk's collision merge)
+              log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Task held; a ruling and re-audit are required before approval.')
+            }
+          }
+          log('Task ' + task.id + ': ' + blocked + ' — escalating.')
+          verdict = 'escalate'; break
+        }
+        log('Task ' + task.id + ': all surviving blockers have a suggested_fix — dispatching a fix round and a full-roster re-audit.')
 
         if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat widening (D4/D5; config can disable)
             (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
@@ -3975,12 +3949,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
+        + pt`Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Status error alone retains the ordinary merge fallback.\n`
         + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the ordinary merge dispatch then runs unchanged.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           label: 'pin-transfer:' + r.task.id, schema: PIN_TRANSFER, ...spawn('refiner') })   // concatenation-built (census-safe)
       const probeDeath = deathOf(pinProbe)
       if (probeDeath) { mergeDied(probeDeath); continue }   // D21: a dead probe never reads as a merge result
       let probeStatus = (pinProbe && typeof pinProbe.status === 'string') ? pinProbe.status : 'error'
+      // A success-bearing probe must name the destination BEFORE any transfer receipt,
+      // contradiction routing, re-audit or already-upstream completion (#2154).
+      if (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) && !isSha(pinProbe.rebased_tip)) {
+        escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer refused: missing or malformed destination SHA', probe: pinProbe } })
+        auditLog.push({ task: r.task.id, verdict: 'pin-transfer:invalid-destination', findings: [], fixRounds: r.task.fixRounds })
+        continue
+      }
       // PIN-10 destination convention, mirroring aceSeatRows: a row's `sha` is the sha the approval is
       // now accounted AT — the probe's rebased integration tip, in EVERY mode. It is never the seat's
       // pre-rebase audit_sha; that origin rides `approvedAt` on a transferred row, exactly as
@@ -4010,6 +3992,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         auditLog.push({ task: r.task.id, verdict: 'pin-transfer:empty-unmatched', findings: [], fixRounds: r.task.fixRounds })
         continue
       }
+      if (probeStatus === 'transferred' && (blankText(pinProbe.pre_rebase_patch_id) || blankText(pinProbe.post_rebase_patch_id) || pinProbe.pre_rebase_patch_id !== pinProbe.post_rebase_patch_id)) {
+        log('pin-transfer ' + r.task.id + ': transferred REFUSED — non-empty equal patch IDs are required; re-auditing the destination.')
+        probeStatus = 'mismatch'
+      }
       if (probeStatus === 'already_upstream') {
         // Fail-closed already_upstream (D4, PIN-8, #1973): the enum alone never skips a merge. The
         // arm's own fields must agree with it — a rebased_tip equal to the dispatch base (the rebase
@@ -4022,7 +4008,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const commits = Array.isArray(pinProbe.already_upstream_commits) ? pinProbe.already_upstream_commits : []
         const pre = typeof pinProbe.pre_rebase_patch_id === 'string' ? pinProbe.pre_rebase_patch_id : ''
         const post = typeof pinProbe.post_rebase_patch_id === 'string' ? pinProbe.post_rebase_patch_id : ''
-        const tipIsBase = typeof pinProbe.rebased_tip === 'string' && pinProbe.rebased_tip !== '' && pinProbe.rebased_tip === pinProbe.dispatch_base
+        const tipIsBase = isSha(pinProbe.dispatch_base) && !pinMismatch(pinProbe.rebased_tip, pinProbe.dispatch_base)
         const contradiction = tipIsBase ? 'rebased_tip equals the dispatch base'
           : post ? 'the post-rebase patch-id is non-empty (' + post + ')'
           : commits.length === 0 ? 'already_upstream_commits is empty' : null
@@ -4030,6 +4016,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           probeStatus = (pre && post && pre === post) ? 'transferred' : 'mismatch'
           log('pin-transfer ' + r.task.id + ': already_upstream REFUSED — ' + contradiction + ', so the status contradicts its own fields (D4, PIN-8, #1973); routing by patch-ids to \'' + probeStatus + '\' instead of recording the task merged.')
         } else {
+          if (!isSha(pinProbe.dispatch_base) || blankText(pre) || typeof pinProbe.post_rebase_patch_id !== 'string' || !commits.every(isSha)) {
+            escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'already_upstream refused: incomplete base, patch or matched-commit evidence', probe: pinProbe } })
+            auditLog.push({ task: r.task.id, verdict: 'pin-transfer:incomplete-evidence', findings: [], fixRounds: r.task.fixRounds })
+            continue
+          }
           pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
           log('pin-transfer ' + r.task.id + ': already_upstream — every task commit cherry-matched upstream (' + commits.join(', ') + '); recorded merged at the integration tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' with no panel and no content merge (PIN-16).')
           landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProbe.rebased_tip })

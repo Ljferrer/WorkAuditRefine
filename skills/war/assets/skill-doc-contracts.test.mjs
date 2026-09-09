@@ -4313,8 +4313,8 @@ test('afk-ask-prefix-pin — the SKILL.md Checkpoint `--afk` no-match arm files 
 // where the plan's `grep -c` form holds, plus the one OLD-absent leg on the sentence that DID
 // change — the SKILL.md tail `rebuttal round** → resolve or escalate` (1 hit at ffb3ab6; it
 // omitted the fix round; PIN-8). Each surface is extracted by construct, never by line.
-test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split boundary reads `rebuttal first, then fix round when a suggested_fix survives` on SKILL.md and design.md; the fix-less SKILL.md tail is retired (#1989, Task 11.2)', () => {
-  const NEW = 'rebuttal first, then fix round when a suggested_fix survives'
+test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split boundary reads `rebuttal first, then fix round when all surviving blockers have a suggested_fix` on SKILL.md and design.md; the fix-less SKILL.md tail is retired (#1989, Task 11.2)', () => {
+  const NEW = 'rebuttal first, then fix round when all surviving blockers have a suggested_fix'
   // skills/war/SKILL.md — the `- **Audits**` bullet.
   const audits = skillMd.match(/^- \*\*Audits\*\*[^\n]*/m)
   assert.ok(audits, 'could not locate the `- **Audits**` bullet in SKILL.md — construct rotted')
@@ -4351,7 +4351,7 @@ test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split bou
   assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
   // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
   const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
-  assert.match(norm(decisions), /rebuttal first, then fix round when a `suggested_fix` survives/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  assert.match(norm(decisions), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
   assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
   assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
 })

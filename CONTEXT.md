@@ -597,28 +597,21 @@ _Avoid_: replacing (rather than unioning away from) the lone seat's lens; wideni
 treating the default-roster union as the only source (nomination comes first).
 
 **Decision-forked finding** (audit):
-A blocking (Critical/Major) finding whose fix needs a plan decision the plan does not make, so the
-seat can name no concrete in-file `suggested_fix`. It is the one finding class that escalates without
-a fix round first: the seat returns `escalate` with an `escalate_reason` naming the missing decision,
-and the engine reads that reason into the `escalated[]` record. Its opposite is the **mechanical**
-blocking finding — a concrete in-file edit with round budget left — which is `request_changes` by
-construction and never escalates: on a split the one rebuttal round runs first, then a survivor with
-a `suggested_fix` dispatches a fix round plus a full-roster re-audit (rebuttal first, then fix round
-when a suggested_fix survives), and only a fix-less survivor escalates — the two-sided boundary
-([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md), Decision log 2026-09-08;
-#1989, #1664).
-_Avoid_: escalating a fixable bug because it is severe; a reason-less `escalate` (the schema layer
-re-prompts it); reading **Defect class** as this — that tags a *worker's* block, this a seat's finding.
+A blocking finding whose fix needs a missing plan decision. Return `escalate` with an
+`escalate_reason` naming that decision; the engine carries it into `escalated[]`. The two-sided boundary is
+rebuttal first, then fix round when all surviving blockers have a suggested_fix. A new mechanical
+blocker never escalates merely for severity. Any fix-less blocker, unchanged survivor after fixing,
+or finding-less blocking seat holds, even if another blocker is mechanical. See ADR 0013 Decision 4.
+_Avoid_: a reason-less escalation; confusing this with the worker's **Defect class**.
 
 **Seat-conflict ask** (audit):
-The operator ask the engine synthesizes when a panel splits on one file/locus with the severities on
-both sides of the blocking line and at least one side arguing scope/mandate or an adjudication match
-— a conflict between seats, not a defect a fixer can settle. Instead of escalating, the detector parks
-one `ask` through `parkAsk` carrying a fix-now / follow-up-and-merge fork; interactive rules it at the
-Checkpoint strike-list gate, `--afk` resolves it by citation or demotes it with the question
-preserved (#1914; see **Ask disposition**).
-_Avoid_: holding the phase on a seat conflict; a seat minting this itself (the engine synthesizes it
-from the seats' own verdicts).
+The operator question preserved when a held panel pairs a Critical/Major with an approving
+seat's Minor/Nit at the same locus and either rationale concerns the task mandate or an
+adjudication. The fix-now / follow-up-and-merge fork parks through `parkAsk` in `asks[]` (#1914), for the Checkpoint strike-list gate; it never grants
+approval. Rebuttal precedes fixing; ALL surviving blockers need concrete fixes. ANY fix-less
+blocker, unchanged survivor or finding-less blocking seat holds. A ruling and re-audit must
+precede approval in both interactive and unattended runs (#2279/#2280).
+_Avoid_: treating ordinary lexical scope as a task mandate; erasing dissent when parking a question.
 
 **Gate-audit pass**:
 The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
