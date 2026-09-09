@@ -1,0 +1,18 @@
+{
+  "id": 1,
+  "probe": "baseline-and-executable-contracts",
+  "stage": "probe",
+  "retry": 0,
+  "startedAt": "2026-09-09T16:59:09.643Z",
+  "transport": "completed",
+  "attempted": true,
+  "usage": {
+    "input_tokens": 4549375,
+    "cached_input_tokens": 4306304,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 8668,
+    "reasoning_output_tokens": 3383
+  },
+  "failure": "unusable result: evidence required",
+  "finishedAt": "2026-09-09T17:07:16.199Z"
+}

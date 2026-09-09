@@ -1,0 +1,71 @@
+{
+  "probeResults": [
+    {
+      "probe": "baseline-and-executable-contracts",
+      "dropped": true
+    },
+    {
+      "read_anchor": {
+        "resolved_path": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine/docs/plans/2026-09-08-codex-red-team-migration.md",
+        "plan_sha256": "159b6de7bcfb7075e7ffd5c4bc5f133ef84a3a5276f5cde5a731b4f990f73b57",
+        "target_revision": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+        "plan_title": "# Codex red-team — local experimental port with observable verification"
+      },
+      "evidence": "The opened plan and repository HEAD match the requested fingerprints. PIN-1–PIN-16 map to context/guardrails, Task 1, Task 2, Task 3, the mandatory Phase-2 checkpoint, Step 0, B1/B2, and authoring delivery. A1–A5 have named checks in package/invocation tests, runtime/host fixtures, profile cases, B1, and the final ledger review. End states 1–7 each have an explicit deterministic command, HARD ledger review, or named B1/B2 backstop. H1–H4 are owned initially by Task 1; H4's behavioral half continues through Task 2's actual-host diagnostic and B1. Each task has an acceptance command, while live installed observation is correctly excluded from source-test success. B1 and B2 name concrete deferral reasons, operator runners, timing, retained evidence, and cheaper local proxies. Empty task deps do not split a same-phase fact from its guard: phases are explicitly sequential, shared files have one owner at a time, and the plan records why cross-phase WAR deps are inapplicable. No default flip or new inline canonical mirror is required. Touched machine-derived documentation is covered by the bind/de-mirror/scoped-backstop rule and final ledger/receipt review. Ledger truthfulness cannot be fully decided by a deterministic command, so the final plan-faithfulness sampling is a legitimate judgment check rather than a replaceable mechanical assertion. Unread linked artifacts declared for #1848, #2097, #2235, #1880, and other issue evidence reduce independent corroboration but are explicitly recorded coverage gaps and do not contradict the plan.",
+      "probe": "decision-coverage-and-backstops",
+      "technique": "analyzed",
+      "status": "pass",
+      "findings": []
+    },
+    {
+      "read_anchor": {
+        "resolved_path": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine/docs/plans/2026-09-08-codex-red-team-migration.md",
+        "plan_sha256": "159b6de7bcfb7075e7ffd5c4bc5f133ef84a3a5276f5cde5a731b4f990f73b57",
+        "target_revision": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+        "plan_title": "# Codex red-team — local experimental port with observable verification"
+      },
+      "evidence": "The plan fingerprint and repository HEAD matched the declared identities. Baseline inspection and a read-only gate reproduction showed that a result carrying the correct absolute path and title but deliberately false plan_sha256 and target_revision was classified on-target and produced CLEARED; changing only the title produced INCOMPLETE.",
+      "probe": "isolation-package-evidence-failure-paths",
+      "technique": "analyzed",
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "Major",
+          "claim": "The migration plan requires recorded plan/repository identities but never explicitly requires each probe attestation to bind to those identities or includes a discriminating stale-same-path test, so off-target evidence can still certify the run.",
+          "reality": "Task 1 says to record the original plan hash and target revision and to scope target identity, while End states 2–3 require off-target results to remain visible and input identities to remain distinguishable. However, the named reusable gate currently validates only read_anchor.resolved_path and plan_title. It ignores plan content hash and repository revision. A stale or substituted plan retaining the same path/title therefore passes its on-target check. Merely recording the correct identities at run level does not prove that the probe opened them.",
+          "evidence": "Primary source: skills/red-team/assets/red-team-gate.mjs isOnTarget() compares normalized read_anchor.plan_title and an absolute path under repo; the scaffold FINDINGS schema requires only resolved_path and plan_title. Reproduction against the frozen baseline piped one pass result whose read_anchor used the exact plan path/title but plan_sha256=64 f characters and target_revision=40 zeroes, while the envelope carried the correct fingerprint; the gate returned verdict CLEARED, expected=1, onTarget=1. Legitimate control: replacing the title with '# Another plan' returned INCOMPLETE with onTarget=0 and offTarget=['wrong-title']. Thus the failure is specifically missing content/revision binding, not malformed coverage accounting. Practical consequence: a reviewer that opened stale same-title content or the wrong repository snapshot can yield an unqualified clean result, undermining the frozen-input comparison and evidence provenance. Minimal resolution: make Task 1 explicitly require per-result plan-hash and snapshot-revision attestations validated against the run fingerprint, and add a regression where matching path/title with either stale hash or revision is rejected while the exact identity is accepted.",
+          "planRef": "Context baseline limitation; Binding guardrails and End states 2–3 (lines 91–95); Task 1 identity/evidence obligations (lines 121–123); B1 frozen-input evidence requirements (line 167)",
+          "candidateId": "isolation-package-evidence-failure-paths#1"
+        }
+      ]
+    },
+    {
+      "probe": "diagnostic-1:source-intake",
+      "dropped": true
+    },
+    {
+      "probe": "diagnostic-2:source-intake",
+      "dropped": true
+    },
+    {
+      "probe": "diagnostic-3:source-intake",
+      "dropped": true
+    },
+    {
+      "probe": "diagnostic-4:source-intake",
+      "dropped": true
+    },
+    {
+      "probe": "diagnostic-5:source-intake",
+      "dropped": true
+    }
+  ],
+  "expected": 8,
+  "fingerprint": {
+    "absPath": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine/docs/plans/2026-09-08-codex-red-team-migration.md",
+    "titleLine": "# Codex red-team — local experimental port with observable verification"
+  },
+  "repo": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine",
+  "rounds": 0,
+  "roundLimit": 3
+}

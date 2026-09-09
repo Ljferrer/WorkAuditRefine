@@ -1,0 +1,12 @@
+{
+  "read_anchor": {
+    "resolved_path": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine/docs/plans/2026-09-08-codex-red-team-migration.md",
+    "plan_sha256": "159b6de7bcfb7075e7ffd5c4bc5f133ef84a3a5276f5cde5a731b4f990f73b57",
+    "target_revision": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+    "plan_title": "# Codex red-team — local experimental port with observable verification"
+  },
+  "evidence": "The opened plan and repository HEAD matched the declared fingerprint. In fresh in-memory CLI inputs, the canonical gate returned CLEARED with expected=1 and onTarget=1 when read_anchor used the exact path/title but plan_sha256 was 64 f characters and target_revision was 40 zeroes. The exact-identity control also returned CLEARED. Changing only the title returned INCOMPLETE with onTarget=0. Source inspection explains the result: isOnTarget() checks only normalized plan_title and whether resolved_path is absolute and under repo; the FINDINGS schema requires only resolved_path and plan_title. Neither validates the per-result plan hash or repository revision against the run fingerprint.",
+  "reproduced": true,
+  "note": "The candidate finding is independently reproduced without repository mutation or external state. The stale-identity result was generated from a new in-memory input, and the exact-identity and wrong-title controls rule out malformed coverage accounting or a probe-created setup artifact. The plan requires recorded plan/hash/revision identities and visible off-target evidence, but does not explicitly require the reusable gate to bind each probe attestation to the hash and revision.",
+  "candidateId": "isolation-package-evidence-failure-paths#1"
+}
