@@ -105,8 +105,8 @@ function validateResult(value, probe, scope, confirmation) {
   return value
 }
 
-export async function dispatchCodex({prompt,work,profile,technique,timeoutMs,signal,codexPath}) {
-  const args=['exec','--ephemeral','--ignore-user-config','--ignore-rules','--strict-config','--sandbox',technique==='executed'?'workspace-write':'read-only','--json','--color','never',
+export async function dispatchCodex({prompt,work,profile,technique,timeoutMs,signal,codexPath,readOnly=false}) {
+  const args=['exec','--ephemeral','--ignore-user-config','--ignore-rules','--strict-config','--sandbox',technique==='executed' && !readOnly?'workspace-write':'read-only','--json','--color','never',
     ...['multi_agent','apps','browser_use','computer_use','in_app_browser','plugins','hooks'].flatMap(feature=>['--disable',feature]),
     '-C',work,'-m',profile.model,'-c',`model_reasoning_effort=${JSON.stringify(profile.effort)}`,
     '-c','approval_policy="never"','-c','mcp_servers={}','-c','shell_environment_policy.inherit="none"',
@@ -291,6 +291,15 @@ export async function runDiagnostic(request, options={}) {
   mkdirSync(root)
   write(root,'diagnostic-request.json',request)
   const observations=[]
+  const diagnosticOptions={...options,dispatch:async context=>{
+    let before,raw
+    try {
+      before=snapshotTarget(context.work)
+      raw=await (options.dispatch ?? dispatchCodex)({...context,readOnly:true})
+      const after=snapshotTarget(context.work),changed=JSON.stringify(before)!==JSON.stringify(after)
+      return {...raw,diagnosticFixture:{before,after},...(changed?{failure:'diagnostic fixture changed during attempt'}:{})}
+    }catch(error){return {...raw,diagnosticFixture:{before},failure:`diagnostic fixture guard: ${error.message}`}}
+  }}
   for(const kind of ['clean','seeded']) {
     const observation={kind,status:'INCOMPLETE',gaps:[]};observations.push(observation)
     try {
@@ -308,7 +317,7 @@ export async function runDiagnostic(request, options={}) {
         {name:'proof',technique:'executed',instructions:'Run exactly node proof.mjs in the repository root. Inspect its output and exit status against the plan; report a mismatch as Major. On confirmation independently rerun exactly node proof.mjs. Do not edit the fixture.'},
       ]
       for(const probe of probes)probe.instructions+=' For this diagnostic, encode each finding evidence and confirmation evidence as a JSON string with expected (the numeric plan value), actual (the numeric observed value), and marker (the complete source line for analysis, or complete proof output line for proof). Report only observed facts, not supplied expectations.'
-      const run=await runRedTeam({repository,planFile:join(repository,'plan.md'),evidenceDir:join(root,kind+'-run'),profile:request.profile,inheritedProfile:request.inheritedProfile,timeoutMs:request.timeoutMs,retries:0,probes},options)
+      const run=await runRedTeam({repository,planFile:join(repository,'plan.md'),evidenceDir:join(root,kind+'-run'),profile:request.profile,inheritedProfile:request.inheritedProfile,timeoutMs:request.timeoutMs,retries:0,probes},diagnosticOptions)
       observation.runFile=join(kind+'-run','run.json');observation.verdict=run.final.verdict
       observation.fixture={revision:run.target?.revision,source,proof:`RED_TEAM_PROOF:${proofNonce}:${actual}`,expectedExit:actual===4?0:1}
       const gateInput=JSON.parse(readFileSync(join(root,kind+'-run','initial-gate-input.json'),'utf8'))
