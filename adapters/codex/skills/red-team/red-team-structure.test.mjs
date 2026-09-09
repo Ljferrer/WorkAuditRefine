@@ -147,3 +147,5 @@ test('host guidance does not conflate fixtures, installation, or independent rev
   assert.match(host, /Offline fixtures and a package load check establish local wiring only/);
   assert.match(host, /operator-directed checkpoints/);
 });
+
+test('host request options exclude unsupported capacity',()=>{assert.doesNotMatch(host,/Optional[^.]*`capacity`/);});

@@ -174,8 +174,9 @@ export async function collectIssueEvidence(request, {
   for (const url of discovered) {
     const artifact = supplied.get(url);
     if (artifact?.status === 'read' && typeof artifact.content === 'string' && artifact.content.length > 0 && artifact.identity) {
-      retainedBytes+=Buffer.byteLength(artifact.content);
-      if(retainedBytes>maxTotalBytes){result.links.push({url,status:'unread',reason:'total evidence bound exceeded'});gap('linked-evidence-gap',url,'total evidence bound exceeded');continue;}
+      const artifactBytes=Buffer.byteLength(artifact.content);
+      if(retainedBytes+artifactBytes>maxTotalBytes){result.links.push({url,status:'unread',reason:'total evidence bound exceeded'});gap('linked-evidence-gap',url,'total evidence bound exceeded');continue;}
+      retainedBytes+=artifactBytes;
       result.links.push({ ...artifact, sha256: sha256(artifact.content) });
     } else {
       const status = artifact?.status === 'unavailable' ? 'unavailable' : 'unread';

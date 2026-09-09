@@ -202,3 +202,54 @@ test('prompt larger than argv capacity reaches real process stdin with exact byt
   const raw=await dispatchCodex({prompt:'x'.repeat(2*1024*1024)+'TAIL',work:f.repo,profile,technique:'analyzed',timeoutMs:3000,codexPath})
   assert.equal(raw.failure,undefined);assert.equal(raw.result.length,2*1024*1024+4);assert.equal(raw.result.tail,'TAIL');assert.equal(raw.result.arg,'-')
 })
+
+test('confirmation projection contains no live checkout anchor and saved identity is runner-owned',async t=>{
+  const f=fixture(t)
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{
+    if(ctx.confirmation){assert.equal(ctx.prior.read_anchor.resolved_path,ctx.scope.planFile);assert.ok(!ctx.prompt.includes(f.repo));return {result:{...result(ctx),candidateId:'forged'}}}
+    return {result:result(ctx,true)}
+  }})
+  assert.equal(run.final.verdict,'BLOCKED')
+  assert.equal(JSON.parse(readFileSync(join(f.request.evidenceDir,'confirmation-1-1.json'))).candidateId,'sum#1')
+})
+test('coordinator inspection cannot run a target fsmonitor or clean filter',async t=>{
+  const f=fixture(t),marker=join(f.root,'escaped'),hook=join(f.root,'unsafe')
+  writeFileSync(hook,`#!/bin/sh\nprintf escaped > '${marker}'\ncat\n`,{mode:0o755})
+  git(f.repo,'config','core.fsmonitor',hook)
+  git(f.repo,'config','filter.attack.clean',hook)
+  writeFileSync(join(f.repo,'.gitattributes'),'sum.txt filter=attack\n')
+  // Stage the attribute without evaluating the filter. A later status check might run it.
+  git(f.repo,'add','.gitattributes');git(f.repo,'-c','core.fsmonitor=false','commit','-m','attribute')
+  rmSync(marker,{force:true});writeFileSync(join(f.repo,'sum.txt'),'4\n')
+  await runRedTeam(f.request,{...options,dispatch:async ctx=>({result:result(ctx)})})
+  assert.equal(existsSync(marker),false)
+})
+test('coordinator checkout does not inherit user-configured smudge filters',t=>{
+  const f=fixture(t),marker=join(f.root,'smudge-escaped'),config=join(f.root,'.gitconfig')
+  writeFileSync(join(f.repo,'.gitattributes'),'sum.txt filter=attack\n');git(f.repo,'add','.');git(f.repo,'commit','-m','attribute')
+  writeFileSync(config,`[core]\n autocrlf = true\n[filter "attack"]\n smudge = touch '${marker}'\n`)
+  const script=`import {provision} from ${JSON.stringify(new URL('./red-team-runner.mjs',import.meta.url).href)};import{rmSync,readFileSync}from'node:fs';const p=provision(${JSON.stringify(f.repo)},${JSON.stringify(git(f.repo,'rev-parse','HEAD'))});process.stdout.write(readFileSync(p.work+'/plan.md'));rmSync(p.root,{recursive:true,force:true});`
+  const actual=execFileSync(process.execPath,['--input-type=module','-e',script],{env:{...process.env,HOME:f.root},stdio:'pipe',encoding:'utf8'})
+  assert.equal(actual,readFileSync(f.request.planFile,'utf8'))
+  assert.equal(existsSync(marker),false)
+})
+test('runner archives raw pages even when duplicated archive is larger than role projection',async t=>{
+  const f=fixture(t),url='https://github.com/example/project/issues/1',body='a'.repeat(4*1024*1024)
+  f.request.issues=[{url}]
+  let calls=0
+  const run=await runRedTeam(f.request,{...options,fetch:async address=>new Response(JSON.stringify(address.endsWith('/1')?{id:1,html_url:url,body,comments:1}:[{id:2,html_url:url+'#issuecomment-2',body,user:{login:'someone'},created_at:'2026-09-01T00:00:00Z'}])),dispatch:async ctx=>{calls++;assert.ok(!ctx.prompt.includes('"pages":'));return {result:result(ctx)}}})
+  assert.equal(run.final.verdict,'CLEARED');assert.equal(calls,1)
+  const archive=JSON.parse(readFileSync(join(f.request.evidenceDir,'issue-evidence.json')))
+  assert.equal(archive[0].pages.length,2);assert.equal(archive[0].body.length,body.length)
+})
+
+test('role overflow keeps every fetched issue page and starts no fabricated attempt',async t=>{
+  const f=fixture(t);f.request.issues=[1,2,3].map(n=>({url:`https://github.com/example/project/issues/${n}`}))
+  let calls=0
+  const run=await runRedTeam(f.request,{...options,fetch:async address=>new Response(JSON.stringify(address.includes('/comments?')?[]:{id:Number(address.at(-1)),html_url:address.replace('api.github.com/repos/','github.com/'),body:'x'.repeat(6*1024*1024),comments:0})),dispatch:async()=>{calls++;return {}}})
+  assert.equal(run.final.verdict,'INCOMPLETE');assert.equal(calls,0);assert.equal(run.attempts.length,0)
+  assert.ok(existsSync(join(f.request.evidenceDir,'issue-evidence.json')))
+  const archive=JSON.parse(readFileSync(join(f.request.evidenceDir,'issue-evidence.json')))
+  assert.equal(archive.length,3);assert.ok(archive.every(issue=>issue.pages.length===2))
+  assert.match(run.gaps[0].detail,/role evidence bound exceeded; raw intake retained/)
+})

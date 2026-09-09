@@ -203,3 +203,8 @@ test('total intake bound spans individually valid response pages',async()=>{
   const evidence=await collectIssueEvidence({url},{...fixtures(),maxResponseBytes:10000,maxTotalBytes:300})
   assert.equal(evidence.complete,false);assert.ok(evidence.gaps.some(g=>/total evidence bound/.test(g.detail)))
 })
+
+test('rejected oversized linked artifact leaves room for later small evidence',async()=>{
+  const evidence=await collectIssueEvidence({url,linkedArtifacts:[{url:'large',status:'read',identity:'v1',content:'x'.repeat(3000)},{url:'small',status:'read',identity:'v1',content:'useful'}]},{...fixtures({comments:[]}),maxTotalBytes:1000})
+  assert.equal(evidence.links.find(x=>x.url==='large').status,'unread');assert.equal(evidence.links.find(x=>x.url==='small').status,'read')
+})
