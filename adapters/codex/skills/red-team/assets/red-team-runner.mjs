@@ -38,8 +38,13 @@ function fileIdentity(path) {
 function metadataIdentity(root, directory=root) {
   return readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name)).flatMap(entry=>{
     const path=join(directory,entry.name)
-    return entry.isDirectory()?metadataIdentity(root,path):[[relative(root,path),...fileIdentity(path)]]
+    const current=[relative(root,path),...fileIdentity(path)]
+    return entry.isDirectory()?[current,...metadataIdentity(root,path)]:[current]
   })
+}
+function directoryIdentity(root,directory=root) {
+  return [[relative(root,directory),...fileIdentity(directory)],...readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name)).flatMap(entry=>
+    entry.isDirectory() && !(directory===root && entry.name==='.git')?directoryIdentity(root,join(directory,entry.name)):[])]
 }
 export function snapshotTarget(repository) {
   const files=git(repository,['ls-files','-z','--cached','--others','--exclude-standard']).split('\0').filter(Boolean)
@@ -51,7 +56,7 @@ export function snapshotTarget(repository) {
   const common=realpathSync(git(repository,['rev-parse','--path-format=absolute','--git-common-dir']))
   return { revision:git(repository,['rev-parse','HEAD']),status:git(repository,['status','--porcelain=v1','--untracked-files=all']),
     refs:git(repository,['for-each-ref','--format=%(refname) %(objectname)']),
-    contentSha256:hash(JSON.stringify(contents)),metadataSha256:hash(JSON.stringify(metadataIdentity(common))) }
+    contentSha256:hash(JSON.stringify(contents)),directoriesSha256:hash(JSON.stringify(directoryIdentity(repository))),metadataSha256:hash(JSON.stringify([['',...fileIdentity(common)],...metadataIdentity(common)])) }
 }
 
 function checkTree(root, directory=root) {

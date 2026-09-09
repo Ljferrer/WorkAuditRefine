@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, realpathSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, realpathSync, symlinkSync, mkdirSync, chmodSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runRedTeam, provision, snapshotTarget, dispatchCodex, gate } from './red-team-runner.mjs'
@@ -291,4 +291,17 @@ test('diagnostic requires explicit enablement and preserves prior output',async 
   assert.equal(result.status,'INCOMPLETE');assert.equal(result.observations.length,2)
   assert.ok(result.observations.every(o=>o.gaps.length>0))
   assert.ok(existsSync(join(f.root,'diagnostic','diagnostic-result.json')))
+})
+
+for(const location of ['worktree','git','worktree-mode','git-mode'])test(`directory identity detects ${location}`,t=>{
+  const f=fixture(t),before=snapshotTarget(f.repo)
+  const target=location.startsWith('git')?join(f.repo,'.git'):f.repo
+  if(location.endsWith('-mode'))chmodSync(target,(statSync(target).mode & 0o777)===0o700?0o755:0o700)
+  else mkdirSync(join(target,'empty-directory'))
+  assert.notDeepEqual(snapshotTarget(f.repo),before)
+})
+test('directory identity never follows an outside symlink',t=>{
+  const f=fixture(t),outside=join(f.root,'outside');mkdirSync(outside);symlinkSync(outside,join(f.repo,'outside-link'))
+  const before=snapshotTarget(f.repo);mkdirSync(join(outside,'unrelated-directory'))
+  assert.deepEqual(snapshotTarget(f.repo),before)
 })

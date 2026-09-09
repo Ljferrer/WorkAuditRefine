@@ -10,7 +10,7 @@ const profile={model:'gpt-5.6-sol',effort:'medium'}
 function fake(root,mode) {
   const path=join(root,'codex.mjs')
   writeFileSync(path,`#!${process.execPath}
-import {readFileSync,writeFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 const mode=${JSON.stringify(mode)};
 if(process.argv[2]==='app-server') {
@@ -24,6 +24,7 @@ if(process.argv[2]==='app-server') {
  const {scope,probe,prior}=data;
  const text=readFileSync('sum.txt','utf8').trim(),bad=text.endsWith(':5');
  const proof=probe.name==='proof';
+ if(mode==='directory' && proof)mkdirSync('empty-directory');
  if(mode==='tamper' && proof){const original=readFileSync('proof.mjs','utf8');const marker=original.match(/RED_TEAM_PROOF:[a-f0-9-]+/)[0]+':'+(bad?5:4);writeFileSync('proof.mjs','console.log('+JSON.stringify(marker)+');process.exitCode='+(bad?1:0)+';');}
  const output=proof?spawnSync(process.execPath,['proof.mjs'],{encoding:'utf8'}):{stdout:readFileSync('sum.txt','utf8'),status:0};
  let command=proof?'node proof.mjs':'cat sum.txt';
@@ -39,7 +40,7 @@ if(process.argv[2]==='app-server') {
 `,{mode:0o755})
   return path
 }
-for(const mode of ['tamper','success','wrapped','missing','unusable','vacuous','echo-analysis','echo-proof','unrelated','bad-confirmation','wrong-expected','wrong-actual','wrong-marker'])test(`offline relocated diagnostic entrypoint: ${mode}`,t=>{
+for(const mode of ['directory','tamper','success','wrapped','missing','unusable','vacuous','echo-analysis','echo-proof','unrelated','bad-confirmation','wrong-expected','wrong-actual','wrong-marker'])test(`offline relocated diagnostic entrypoint: ${mode}`,t=>{
   const root=mkdtempSync(join(tmpdir(),'red-team-host-fixture-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const output=join(root,'work-audit-refine-red-team');buildRedTeamPlugin({repoRoot,output})
   const moved=join(root,'relocated');mkdirSync(moved);const packageRoot=join(moved,'work-audit-refine-red-team');renameSync(output,packageRoot)

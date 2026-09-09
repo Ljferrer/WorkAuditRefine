@@ -1,0 +1,12 @@
+✔ directory identity detects worktree (706.823833ms)
+✔ directory identity detects git (663.145708ms)
+✔ directory identity detects worktree-mode (623.019125ms)
+✔ directory identity detects git-mode (615.703625ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2670.550625
