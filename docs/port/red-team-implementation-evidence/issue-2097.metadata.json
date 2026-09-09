@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/Ljferrer/WorkAuditRefine/issues/2097",
+  "issue": 2097,
+  "retrieved_date": "2026-09-08",
+  "snapshot": "2026-09-08-issue-2097.json",
+  "body": "full",
+  "comments": 13,
+  "sha256": "b0f8f558f764e37f97f5266802cd34e9fea1e2f794b21e218e18fabcb026124c",
+  "purpose": "Durable evidence for the red-team migration interview and later implementation comparison; historical issue observations are not independently reproduced results.",
+  "latest_included_comment": "2026-09-08T22:33:21Z",
+  "comparison_branch_policy": "Local research archive; do not add to the independent comparison starting branches in place of the agreed plan-and-instructions payload."
+}
