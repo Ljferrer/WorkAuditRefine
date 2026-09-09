@@ -2065,15 +2065,18 @@ const infraDeathCause = err => {
   const m = String(err.message || err || '')
   return INFRA_DEATH_RE.test(m) ? m : null
 }
-// Per-site death arm (verdict-integrity D21, PIN-25, #1481). dispatchSite(site, prompt, opts) routes a
+// Per-site death arm (verdict-integrity D21, PIN-25, #1481). dispatchSite(prompt, opts) routes a
 // dispatch through dispatchAgent and catches its TAGGED infra death: the death is logged naming the
-// site and the call resolves to the engine-minted DEAD record — keyed by a Symbol, so no seat-returned
-// JSON can forge or mimic it (PIN-6: an in-band field could otherwise soften a hard route). A
-// non-infra throw rethrows untouched (HARD, exactly as before). Every caller reads deathOf(result)
-// FIRST and classifies at its own site: an audit/ace/re-audit seat death demotes the current subset
-// with the existing abandon reason and falls through (the approved tip still merges); a merge,
-// floor-fix, pin-transfer, endstate, gate-audit, wrap-up or filing death classifies env-died SOFT
-// naming the site; a land death holds held:land-failed naming the site (the Lead re-runs the land).
+// site (opts.label — the ONE site name, never restated) and the call resolves to the engine-minted
+// DEAD record — keyed by a Symbol, so no seat-returned JSON can forge or mimic it (PIN-6: an in-band
+// field could otherwise soften a hard route). A non-infra throw rethrows untouched (HARD, exactly as
+// before). Every caller reads deathOf(result) FIRST and classifies at its own site: a wave audit-round
+// seat death (a death that persists past auditRound's retry passes) classifies env-died SOFT before
+// the shortfall check and breaks the round loop (no subset to demote); only an ace/re-audit seat death
+// demotes the current subset with the existing abandon reason and falls through (the approved tip
+// still merges); a merge, floor-fix, pin-transfer, endstate, gate-audit, wrap-up or filing death
+// classifies env-died SOFT naming the site (envDied below is the one recorder); a land death holds
+// held:land-failed naming the site (the Lead re-runs the land).
 // A dead dispatch never reads as a content verdict — never audit-blocked, never done-unmet.
 const DISPATCH_DEATH = Symbol('war-dispatch-death')
 const deathOf = r => (r && typeof r === 'object' && typeof r[DISPATCH_DEATH] === 'string') ? r[DISPATCH_DEATH] : null
@@ -2084,7 +2087,14 @@ const dispatchDied = (site, err) => {
   log(why + ' — an environment event, classified at the site; never a content verdict (D21, PIN-25).')
   return { [DISPATCH_DEATH]: why }
 }
-const dispatchSite = (site, prompt, opts) => dispatchAgent(prompt, opts).catch(err => dispatchDied(site, err))
+const dispatchSite = (prompt, opts) => dispatchAgent(prompt, opts).catch(err => dispatchDied(opts.label, err))
+// env-died recorder shared by the phase-level death arms and the merge slot: one escalated record
+// under `task`, plus an auditLog row when `extra` is given (its fields — verdict, gateEvidence, hard,
+// authoritative, fixRounds, or a `task` override keying the row on the merged task id — spread last).
+const envDied = (task, why, extra) => {
+  escalated.push({ task, reason: 'env-died', blocked: why })
+  if (extra) auditLog.push({ task, findings: [], blocked: why, ...extra })
+}
 // Reported-path normalize-or-throw (this spec: launch-entry-validation; provenance: the former path
 // contract at spec §9 / criterion 10). General workflow agents are unconfined by design — the confined
 // war-worker main-checkout write is already scope-hook-denied, so a main-rooted files_changed entry is a
@@ -2340,13 +2350,13 @@ const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task',
 const segmentedMerge = async (prompt, opts) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
   const body = prompt + segmentedGateClause
-  let result = await dispatchSite(opts.label, body, opts)
+  let result = await dispatchSite(body, opts)
   let segments = 0
   while (isSegment(result) && segments < roundLimit) {
     segments++
     log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
     const segLabel = opts.label + ':segment-' + (segments + 1)
-    result = await dispatchSite(segLabel,
+    result = await dispatchSite(
       pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
       { ...opts, label: segLabel })
   }
@@ -2539,22 +2549,24 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride) 
   const roster = (Array.isArray(rosterOverride) && rosterOverride.length) ? rosterOverride : task.roster
   const expected = roster.length
   // Seat death arm (D21, PIN-25): a TAGGED infra death resolves to the DEAD record at the seat (never
-  // a NULLed thunk), so it is neither retried below nor counted as a dropped seat — `died` carries the
-  // site-named cause to the caller, which demotes or classifies env-died; never audit-blocked.
+  // a NULLed thunk). A dead seat is retried below exactly like a dropped seat (the same 2 passes); only
+  // a death that PERSISTS past the retries reaches `died`, which carries the site-named cause to the
+  // caller, which demotes or classifies env-died; never audit-blocked.
   const seatLabel = seat => `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`
-  const runSeat = seat => dispatchSite(seatLabel(seat), auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
+  const runSeat = seat => dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: seatLabel(seat), schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
   // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).
   let results = await parallel(roster.map(seat => () => runSeat(seat)))
-  // Re-run only the dropped (null) seats — re-keyed on roster entries (lens+depth) — up to 2 retry passes
+  // Re-run only the dropped (null) or dead seats — re-keyed on roster entries (lens+depth) — up to 2 retry passes
+  const droppedSeat = r => r == null || !!deathOf(r)
   for (let retry = 0; retry < 2; retry++) {
-    const dropped = roster.filter((_, i) => results[i] == null)
+    const dropped = roster.filter((_, i) => droppedSeat(results[i]))
     if (!dropped.length) break
     const retried = await parallel(dropped.map(seat => () => runSeat(seat)))
     let ri = 0
-    results = results.map(r => r != null ? r : retried[ri++])
+    results = results.map(r => droppedSeat(r) ? retried[ri++] : r)
   }
   const deaths = results.map(deathOf).filter(Boolean)
   const died = deaths.length ? deaths.join('; ') : null
@@ -3031,7 +3043,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // the current subset with the existing abandon reason (the gate never judged the tip).
   const aceGateGreen = async (r, aceTipSha) => {
     const gateLabel = 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds
-    const g = await dispatchSite(gateLabel,
+    const g = await dispatchSite(
       pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
@@ -3212,7 +3224,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => aceRelPath(f.file)))].sort().join(',')
       const aceCharge = aceChargeOf(r)                   // `Ace-Charge: <task>:<n>` — n = absorbRounds after this commit's charge
       const revertStep = aceRevertStep(r.task.worktree, pendingRevert)
-      const sw = await dispatchSite(aceLabel(r, 'subset'),
+      const sw = await dispatchSite(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
         + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
@@ -3328,7 +3340,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const trailer = r.task.id + ':reentry:a' + (r.task.absorbRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
       const aceCharge = aceChargeOf(r)
       const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
-      const rw = await dispatchSite(aceLabel(r, 'reentry'),
+      const rw = await dispatchSite(
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + aceRevertStep(r.task.worktree, pendingRevert)
         + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
@@ -3501,7 +3513,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const openBlockers = blockingOf(r.seats).length
       if (openBlockers === 0 && aceable.length && r.task.absorbRounds < absorbRounds) {
         const aceCharge = aceChargeOf(r)
-        const ace = await dispatchSite(aceLabel(r, 'polish'),
+        const ace = await dispatchSite(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
@@ -3681,7 +3693,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const probeBase = task.taskType === 'submodule' ? (task.targetBase || '<targetBase>') : ph.integrationBranch
         let probe = null
         try {
-          probe = await dispatchSite('diff-probe:' + task.id,
+          probe = await dispatchSite(
             pt`DIFF PROBE for WAR task ${task.id} (you are the refiner; a read-only git read, no merge, no push, no rebase, no gate). `
             + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${task.worktree} diff --name-only $(git -C ${task.worktree} merge-base ${probeBase} ${tip})..${tip} — the dispatch base is the merge-base of ${probeBase} (the integration branch; for a submodule task its submodule base) and the task tip. `
             + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
@@ -3904,10 +3916,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // or floor re-audit seat classifies env-died SOFT with the site named (the DEAD record's cause)
       // — the task stays unmerged, siblings proceed, the phase lands minus this task. Never a hard
       // reason, never done-unmet, never audit-blocked: the dead dispatch judged nothing.
-      const mergeDied = why => {
-        escalated.push({ task: r.task.id, reason: 'env-died', blocked: why })
-        auditLog.push({ task: r.task.id, verdict: 'env-died', findings: [], blocked: why, fixRounds: r.task.fixRounds })
-      }
+      const mergeDied = why => envDied(r.task.id, why, { verdict: 'env-died', fixRounds: r.task.fixRounds })
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
       // requiresPackaging (spec §4.2): gates the assert-packaging-in-diff.sh floor, INDEPENDENT of
       // requiresTest (like the submodule floor, decoupled from the test flag). Default true; false
@@ -3955,7 +3964,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // fails closed to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
       // member, so no hard escalation can be downgraded by an in-band field (PIN-6).
-      const pinProbe = await dispatchSite('pin-transfer:' + r.task.id,
+      const pinProbe = await dispatchSite(
         pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n`
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
@@ -4154,7 +4163,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFixLabel = `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`
-          const floorFix = await dispatchSite(floorFixLabel,
+          const floorFix = await dispatchSite(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
@@ -4499,7 +4508,7 @@ if (endStateCheckRows.length > 0) {
   log(`endstate-check: dispatching the land-barrier check — ${endStateCheckRows.length} claimed check:-tagged End-state condition(s) execute ONCE at the integrated tip, before any gate-audit seat spawns (D2/F5).`)
   // Death arm (D21, PIN-25): a dead endstate-check dispatch classifies env-died SOFT naming the site;
   // the seats then read absent artifacts and attest 'unverified' — never 'unmet', never done-unmet.
-  const esCheck = await dispatchSite('endstate-check:phase-' + ph.id,
+  const esCheck = await dispatchSite(
     pt`ENDSTATE-CHECK DISPATCH for WAR phase ${ph.id} (the land-barrier check; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
@@ -4516,7 +4525,7 @@ if (endStateCheckRows.length > 0) {
     + pt`Return { artifacts: [{ n, path, tip_sha, exit_code }] } — one row per condition. On any failure return what you have — a partial/empty result is FAIL-OPEN (the seats read the teed artifacts at the enumerated paths and attest anything unreadable — or stale, its stamped tip_sha mismatching the confirmed tip — 'unverified', never 'met'); never block.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', label: `endstate-check:phase-${ph.id}`, dispatchKind: 'endstate-check', schema: ENDSTATE_CHECK_RESULT, ...spawn('refiner') })
   const esCheckDeath = deathOf(esCheck)
-  if (esCheckDeath) escalated.push({ task: 'phase-' + ph.id + '-endstate-check', reason: 'env-died', blocked: esCheckDeath })
+  if (esCheckDeath) envDied('phase-' + ph.id + '-endstate-check', esCheckDeath)
 }
 
 // End-state check (ADR 0013, phase-scoped): rides the gate-audit pass when it runs. TWO channels per
@@ -4572,7 +4581,7 @@ if (mergedTasksForGateAudit.length > 0) {
     preMergeTip: m.preMergeTip || phaseBaseCmd,
     // D8 fallback (#2094): an unthreaded gate_log_path renders the conventional path + `unthreaded` marker.
     gateLogPath: m.gateLogPath || pt`${refineryPath}/.war/gate-${m.taskId}.log ${GATE_LOG_UNTHREADED}` }))
-  const evidence = await dispatchSite('evidence:phase-' + ph.id,
+  const evidence = await dispatchSite(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
@@ -4593,7 +4602,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // Death arm (D21, PIN-25): a dead evidence dispatch classifies env-died SOFT naming the site; the
   // seats keep today's fail-open SOFT cannot-confirm path (no token stamped, nothing HARD).
   const evidenceDeath = deathOf(evidence)
-  if (evidenceDeath) escalated.push({ task: 'phase-' + ph.id + '-evidence', reason: 'env-died', blocked: evidenceDeath })
+  if (evidenceDeath) envDied('phase-' + ph.id + '-evidence', evidenceDeath)
   // phase_diff_files (D15): stamped when the dispatch returned an array; otherwise null + one log line.
   if (evidence && Array.isArray(evidence.phase_diff_files)) phaseDiffFiles = new Set(evidence.phase_diff_files.filter(p => typeof p === 'string' && p.length > 0).map(aceRelPath))
   else log('evidence:phase-' + ph.id + ' returned no phase_diff_files — the gate-audit floor pass\'s note arm matches nothing (the follow-up arm still reroutes; fail-open, D15).')
@@ -4653,7 +4662,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // nested pt-tagged interior (first-class census entry): ${guardEvidence} is ternary-guarded.
       ? pt`\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? pt` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
       : ''
-    let gateAuditVerdict = await dispatchSite('gate-audit:' + taskId + ':execution-evidence',
+    let gateAuditVerdict = await dispatchSite(
       pt`POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
       + pt`${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.\n`
@@ -4693,12 +4702,13 @@ if (mergedTasksForGateAudit.length > 0) {
     // MISSING mapped test (genuinely absent at the confirmed tip, artifact-confirmed on an enumerating half).
     // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
     // Death arm (D21, PIN-25): a dead gate-audit seat classifies env-died SOFT naming the site — the
-    // merged task stays landed (nothing judged it); never gate-evidence, never a hold.
+    // merged task stays landed (nothing judged it); never gate-evidence, never a hold. The escalated
+    // record rides a phase-scoped pseudo id (the sibling seats' shape), never the merged task's own
+    // id — a landed task never reads as a re-run candidate; the auditLog row stays keyed on the task.
     const gateAuditDeath = deathOf(gateAuditVerdict)
     if (gateAuditDeath) {
       gateAuditVerdict = null
-      escalated.push({ task: taskId, reason: 'env-died', blocked: gateAuditDeath })
-      auditLog.push({ task: taskId, verdict: 'gate-audit:env-died', findings: [], gateEvidence: true, hard: false, blocked: gateAuditDeath })
+      envDied('phase-' + ph.id + '-gate-audit-' + taskId, gateAuditDeath, { task: taskId, verdict: 'gate-audit:env-died', gateEvidence: true, hard: false })
     }
     if (gateAuditVerdict) {
       gateAuditVerdict = normalizeSeat(gateAuditVerdict, taskId)   // intake normalization (D2, PIN-6) — this seat sits outside auditRound
@@ -4783,7 +4793,7 @@ if (mergedTasksForGateAudit.length > 0) {
         + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
         + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
-    let authVerdict = await dispatchSite('gate-audit:phase-' + ph.id + ':integrated-tip',
+    let authVerdict = await dispatchSite(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
       + pt`Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
@@ -4808,8 +4818,7 @@ if (mergedTasksForGateAudit.length > 0) {
     const authDeath = deathOf(authVerdict)
     if (authDeath) {
       authVerdict = null
-      escalated.push({ task: 'phase-' + ph.id + '-integrated-tip', reason: 'env-died', blocked: authDeath })   // concatenation-built (census-safe)
-      auditLog.push({ task: 'phase-' + ph.id + '-integrated-tip', verdict: 'gate-audit:env-died', findings: [], gateEvidence: true, hard: false, authoritative: true, blocked: authDeath })
+      envDied('phase-' + ph.id + '-integrated-tip', authDeath, { verdict: 'gate-audit:env-died', gateEvidence: true, hard: false, authoritative: true })   // concatenation-built (census-safe)
     }
     if (authVerdict) {
       authVerdict = normalizeSeat(authVerdict, 'phase-' + ph.id + '-integrated-tip')   // intake normalization (D2, PIN-6) — outside auditRound
@@ -4833,7 +4842,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
   // phase cannot skip its own claimed conditions. The per-task pass's cost saving stands.
   log(`gate-audit: mergedTasksForGateAudit is empty but this phase claims ${endStateClaims.length} End-state condition(s) — spawning ONE End-state-only seat at the confirmed tip (D7 cost saving preserved for the per-task pass).`)
-  let esVerdict = await dispatchSite('gate-audit:phase-' + ph.id + ':end-state',
+  let esVerdict = await dispatchSite(
     pt`END-STATE-ONLY GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence). `
     + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
     + pt`${refineryPath} (the _refinery worktree).\n`
@@ -4855,8 +4864,7 @@ if (mergedTasksForGateAudit.length > 0) {
   const esDeath = deathOf(esVerdict)
   if (esDeath) {
     esVerdict = null
-    escalated.push({ task: 'phase-' + ph.id + '-end-state', reason: 'env-died', blocked: esDeath })   // concatenation-built (census-safe)
-    auditLog.push({ task: 'phase-' + ph.id + '-end-state', verdict: 'gate-audit:env-died', findings: [], gateEvidence: true, hard: false, blocked: esDeath })
+    envDied('phase-' + ph.id + '-end-state', esDeath, { verdict: 'gate-audit:env-died', gateEvidence: true, hard: false })   // concatenation-built (census-safe)
   }
   if (esVerdict) {
     esVerdict = normalizeSeat(esVerdict, 'phase-' + ph.id + '-end-state')   // intake normalization (D2, PIN-6) — outside auditRound
@@ -5164,7 +5172,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // fail-open DISCARDS (the pre-polish tip lands unchanged — see the discard arm below), so no
       // gate-failure classification is dispatched here. The idempotent _refinery re-attach IS still
       // included (hygiene — heals a prior dispatch that died mid-classification detached).
-      pmr = await dispatchSite('merge:p' + ph.id + '-polish',
+      pmr = await dispatchSite(
         pt`Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
@@ -5336,7 +5344,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           } else {
             // Re-approved → Refine like any ace commit: the refiner merges the polish branch (now
             // carrying the terminal commit) at the serial queue's tail; the land proceeds on it.
-            const tmr = await dispatchSite('merge:p' + ph.id + '-terminal',
+            const tmr = await dispatchSite(
               pt`Merge WAR polish branch ${polishBranch} (now carrying the terminal-pass commit ${terminalSha}) into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
               + reattachClause(refineryLandPath)
               + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch sits at the integrated tip plus one commit, so this is normally a no-op).\n`
@@ -5373,11 +5381,13 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // unnamed. A panel-reject, blocked or dead sweep keeps the finality split (D3a/D3b).
       polishStatus = 'discarded'
       // sweepApproved here sits inside the else of the merged arm, so "approved" already means "its merge never landed"
-      const pmrStatus = deathOf(pmr) || (pmr && pmr.status) || 'no result'   // a dead polish merge (D21) names its site here
+      const pmrDeath = deathOf(pmr)   // a dead polish merge (D21) is a dispatch death: it stamps the drain cause below
+      const pmrStatus = pmrDeath || (pmr && pmr.status) || 'no result'   // a dead polish merge (D21) names its site here
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepPanelDeath || (sweepApproved ? `polish merge returned ${pmrStatus}` : 'the panel did not re-approve'))}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${(finalPhase || sweepApproved) ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}${sweepApproved ? ' (the panel approved the branch — its audited findings file as follow-ups naming it, never a silent carry)' : ''}.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
-      // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
-      // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
+      // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath), a dead
+      // dispatch that returned nothing, a dead panel seat or a dead polish merge (pmrDeath); a live
+      // sweep discarded on panel/merge grounds stays unstamped.
       // Finality (D3a/D3b): on a NON-final phase the queue rides carriedPhaseClose (the next phase's
       // sweep is the vehicle); on the final phase it demotes as before; the approve trail demotes on both.
       const sweepDrainCause = sweepDeath || sweepPanelDeath || (!sweep ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
@@ -5385,7 +5395,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         : sweepApproved ? 'the polish panel approved branch ' + polishBranch + ' and its merge never landed (' + pmrStatus + ') — the audited fix lives on that unmerged branch, left in place with worktree ' + polishWorktree + ' for a human to reap; the pre-polish tip lands'
         : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands'
       for (const f of phaseCloseQueue.splice(0)) {
-        if (sweepDrainCause) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause)
+        if (sweepDrainCause || pmrDeath) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause || pmrDeath)
         if (!finalPhase && !sweepApproved) carryPhaseClose(f, 'phase-close sweep discarded (' + (sweepDrainCause || 'the polish branch never merged') + ') on a non-final phase; carried for the relaunch')
         else demote(f, 'follow-up', 'demote:sweep-discarded — ' + discardWhy)
       }
@@ -5476,13 +5486,13 @@ if (landDecision === 'landed') {
   const segmentedLand = async (prompt, opts) => {
     const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
     const body = prompt + segmentedLandClause
-    let result = await dispatchSite(opts.label, body, opts)
+    let result = await dispatchSite(body, opts)
     let segments = 0
     while (isSegment(result) && segments < roundLimit) {
       segments++
       log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
       const segLabel = opts.label + ':segment-' + (segments + 1)
-      result = await dispatchSite(segLabel,
+      result = await dispatchSite(
         pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
         { ...opts, label: segLabel })
     }
@@ -5676,7 +5686,7 @@ const landedTipAnchor = tipSha || 'landed tip unrecorded — ground via the gate
 // is deliberately NOT in this condition anymore: it is the read-path repo root, not a servitor write path.
 let servitorResult = null
 if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
-  servitorResult = await dispatchSite('wrap-up:phase-' + ph.id,
+  servitorResult = await dispatchSite(
     pt`Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
     + pt`Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
     + pt`Your ONLY writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the local memory root): ${memoryLocalRoot}.\n`
@@ -5709,7 +5719,7 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
   const servitorDeath = deathOf(servitorResult)
   if (servitorDeath) {
     servitorResult = null
-    escalated.push({ task: 'phase-' + ph.id + '-wrap-up', reason: 'env-died', blocked: servitorDeath })   // concatenation-built (census-safe)
+    envDied('phase-' + ph.id + '-wrap-up', servitorDeath)   // concatenation-built (census-safe)
   }
 } else if (landResult && landResult.status === 'landed' && !memoryLocalRoot) {
   log(`Phase ${ph.id} landed but no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
@@ -5834,7 +5844,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
     : 'seat-filed (barrier: ' + (typeof m.barrier === 'string' && m.barrier ? m.barrier : 'none') + ')'
   let filingOut = null
   try {
-    filingOut = await dispatchSite('file-followups:phase-' + ph.id,
+    filingOut = await dispatchSite(
       pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
@@ -5876,7 +5886,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   const filingDeath = deathOf(filingOut)
   if (filingDeath) {
     filingOut = null
-    escalated.push({ task: 'phase-' + ph.id + '-file-followups', reason: 'env-died', blocked: filingDeath })   // concatenation-built (census-safe)
+    envDied('phase-' + ph.id + '-file-followups', filingDeath)   // concatenation-built (census-safe)
   }
   // Stamping (D2): each returned row with an in-range integer n AND a numeric issue stamps
   // minorsFiled[n-1].issue; out-of-range/non-numeric/absent rows are ignored. The handoff assembly's
