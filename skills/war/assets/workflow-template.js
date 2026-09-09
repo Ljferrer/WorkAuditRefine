@@ -2078,6 +2078,10 @@ const infraDeathCause = err => {
 // classifies env-died SOFT naming the site (envDied below is the one recorder); a land death holds
 // held:land-failed naming the site (the Lead re-runs the land).
 // A dead dispatch never reads as a content verdict — never audit-blocked, never done-unmet.
+// Doc mirror (schemas.md's two-sentence env-died rule, Task 13.2): the first sentence names the
+// ace/re-audit arms only (a seat death demotes the current subset); the second sentence covers
+// the wave roster seat death as an env-died-soft site, matching this header — never the slice
+// literal's undifferentiated 'audit/ace/re-audit' wording.
 const DISPATCH_DEATH = Symbol('war-dispatch-death')
 const deathOf = r => (r && typeof r === 'object' && typeof r[DISPATCH_DEATH] === 'string') ? r[DISPATCH_DEATH] : null
 const dispatchDied = (site, err) => {
