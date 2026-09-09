@@ -253,3 +253,31 @@ test('role overflow keeps every fetched issue page and starts no fabricated atte
   assert.equal(archive.length,3);assert.ok(archive.every(issue=>issue.pages.length===2))
   assert.match(run.gaps[0].detail,/role evidence bound exceeded; raw intake retained/)
 })
+
+for(const mutation of ['dangling-object','alternates'])test(`target guard detects ${mutation}`,async t=>{
+  const f=fixture(t)
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{
+    if(mutation==='dangling-object')execFileSync('git',['-C',f.repo,'hash-object','-w','--stdin'],{input:'new dangling object',stdio:['pipe','pipe','pipe']})
+    else writeFileSync(join(f.repo,'.git','objects','info','alternates'),join(f.root,'unavailable-object-store')+'\n')
+    return {result:result(ctx)}
+  }})
+  assert.equal(run.final.verdict,'INCOMPLETE');assert.ok(run.gaps.some(g=>g.kind==='target-state-changed'))
+})
+test('model provenance cannot hide an independently confirmed Major',async t=>{
+  const f=fixture(t)
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{const r=result(ctx,true);if(!ctx.confirmation)Object.assign(r.findings[0],{probeStatus:'pass',probe:'forged',adjudicated:true});return {result:r}}})
+  assert.equal(run.final.verdict,'BLOCKED');assert.equal(run.final.blockers[0].probe,'sum');assert.equal(run.final.blockers[0].probeStatus,'fail')
+})
+test('mandatory initial probe and candidate attempts precede retries',async t=>{
+  const f=fixture(t);f.request.retries=1;f.request.probes=['a','b','c'].map(name=>({...f.request.probes[0],name}))
+  const sequence=[],counts={}
+  const run=await runRedTeam(f.request,{...options,dispatch:async ctx=>{
+    const key=ctx.confirmation?'C:'+ctx.prior.findings[0].candidateId:'P:'+ctx.probe.name
+    const n=counts[key]??0;counts[key]=n+1;sequence.push(key+':'+n)
+    if(n===0 && (ctx.confirmation || ctx.probe.name!=='c'))return {failure:'timeout'}
+    const r=result(ctx,true);if(!ctx.confirmation && ctx.probe.name==='c')r.findings.push({...r.findings[0],claim:'second candidate'})
+    return {result:r}
+  }})
+  assert.equal(run.final.verdict,'BLOCKED')
+  assert.deepEqual(sequence,['P:a:0','P:b:0','P:c:0','C:c#1:0','C:c#2:0','P:a:1','P:b:1','C:a#1:0','C:b#1:0','C:c#1:1','C:c#2:1','C:a#1:1','C:b#1:1'])
+})

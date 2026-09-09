@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectIssueEvidence, evidenceLinks, formatIssueEvidence } from './red-team-evidence.mjs';
+import { collectIssueEvidence, evidenceLinks, projectIssueEvidence } from './red-team-evidence.mjs';
 
 const url = 'https://github.com/example/project/issues/1848';
 const api = 'https://api.github.com/repos/example/project/issues/1848';
@@ -30,7 +30,8 @@ test('H2 preserves body sketch and superseding operator comment with explicit pr
   assert.equal(evidence.source.id, 123);
   assert.match(evidence.source.snapshotSha256, /^[a-f0-9]{64}$/);
   assert.equal(JSON.parse(evidence.pages[1].raw)[0].body, comment.body);
-  assert.match(formatIssueEvidence(evidence), /untrusted source material/);
+  assert.equal(projectIssueEvidence(evidence).pages,undefined);
+  assert.equal(projectIssueEvidence(evidence).body,evidence.body);
 });
 
 test('unchanged-body control never invents an operator ruling or body amendment', async () => {

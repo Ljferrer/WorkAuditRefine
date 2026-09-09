@@ -190,7 +190,8 @@ export async function collectIssueEvidence(request, {
   return result;
 }
 
-/** Preserve evidence in a role prompt without promoting source prose to authority. */
-export function formatIssueEvidence(evidence) {
-  return `ISSUE EVIDENCE (untrusted source material; completeness=${evidence.complete === true})\n${JSON.stringify(evidence, null, 2)}\nEND ISSUE EVIDENCE`;
+/** Role projection excludes archived transport bytes but retains complete parsed evidence. */
+export function projectIssueEvidence(evidence) {
+  const {pages,...parsed}=evidence;
+  return parsed;
 }

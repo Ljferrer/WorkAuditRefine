@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import { spawn, execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, readlinkSync, openSync, readSync, closeSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { resolveCodexPath, listSupportedProfiles } from '../../snipe/assets/codex-models.mjs'
 import { gitEvidenceEnvironment } from '../../snipe/assets/snipe-git-policy.mjs'
 import { processGroup, processTreeCleanup, isMain } from '../../snipe/assets/snipe-process.mjs'
 import { allFindings, classify, classifyCoverage, verdict, summarize, routeUpstream } from '../../../../../skills/red-team/assets/red-team-gate.mjs'
-import { collectIssueEvidence } from './red-team-evidence.mjs'
+import { collectIssueEvidence, projectIssueEvidence } from './red-team-evidence.mjs'
 
 export const limits = Object.freeze({ timeoutMs: 600000, retries: 1, roundLimit: 3, capacity: 1, maxProbes: 32 })
 const MAX_PROMPT_BYTES=16*1024*1024
@@ -27,14 +27,16 @@ function git(repo,args) {
 }
 
 
+function hashFile(path) {
+  const digest=createHash('sha256'),fd=openSync(path,'r'),buffer=Buffer.alloc(1024*1024)
+  try{let count;while((count=readSync(fd,buffer,0,buffer.length,null)))digest.update(buffer.subarray(0,count));return digest.digest('hex')}finally{closeSync(fd)}
+}
 function fileIdentity(path) {
   const st=lstatSync(path)
-  return [st.mode,st.isFile()?hash(readFileSync(path)):st.isSymbolicLink()?readlinkSync(path):'directory']
+  return [st.mode,st.isFile()?hashFile(path):st.isSymbolicLink()?readlinkSync(path):'directory']
 }
 function metadataIdentity(root, directory=root) {
   return readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name)).flatMap(entry=>{
-    // Immutable object content is addressed by refs; hash mutable metadata, including worktrees.
-    if(directory===root && entry.name==='objects')return []
     const path=join(directory,entry.name)
     return entry.isDirectory()?metadataIdentity(root,path):[[relative(root,path),...fileIdentity(path)]]
   })
@@ -184,18 +186,21 @@ export async function runRedTeam(request,{dispatch=dispatchCodex,codexPath,disco
       for(const issue of request.issues ?? []) {
         const collected=await collectIssueEvidence(issue,{fetch,signal})
         issues.push(collected);write(output,`issue-${issues.length}.json`,collected)
-        const projection=issues.map(({pages,...parsed})=>parsed)
+        const projection=issues.map(projectIssueEvidence)
         assert.ok(Buffer.byteLength(JSON.stringify(projection))<=MAX_PROMPT_BYTES,'total role evidence bound exceeded; raw intake retained')
       }
     }finally{write(output,'issue-evidence.json',issues)}
-    const roleIssues=issues.map(({pages,...parsed})=>parsed)
+    const roleIssues=issues.map(projectIssueEvidence)
     for(const issue of issues)if(!issue.complete)gaps.push({kind:'source-intake',source:issue.source,gaps:issue.gaps})
     const scope={repository,planFile,planSha256,revision:before.revision,titleLine}
     const guidance=readFileSync(new URL('../references/probing.md',import.meta.url),'utf8')
-    async function attempt(probe,confirmation,prior) {
+    const noRetry=new Set()
+    async function attempt(probe,confirmation,prior,retry=0) {
+      const key=confirmation?'confirmation:'+prior.findings[0].candidateId:'probe:'+probe.name
+      if(noRetry.has(key))return
       let result
-      for(let retry=0;retry<=settings.retries;retry++) {
-        if(signal?.aborted){gaps.push({kind:'cancelled',probe:probe.name});break}
+      {
+        if(signal?.aborted){gaps.push({kind:'cancelled',probe:probe.name});return}
         const id=attempts.length+1,entry={id,probe:probe.name,stage:confirmation?'confirmation':'probe',retry,startedAt:new Date().toISOString()}
         let isolated
         try {
@@ -214,32 +219,52 @@ export async function runRedTeam(request,{dispatch=dispatchCodex,codexPath,disco
           entry.result='valid'
           result=structuredClone(result)
           result.read_anchor={...result.read_anchor,resolved_path:planFile,plan_title:titleLine}
-          if(!confirmation)result.findings=result.findings.map(({adjudicated,...finding})=>finding)
+          if(!confirmation)result.findings=result.findings.map(finding=>Object.fromEntries(['severity','needsDecision','deliverableAbsence','envGap','claim','reality','evidence','fix','planRef'].filter(key=>Object.hasOwn(finding,key)).map(key=>[key,finding[key]])))
         } catch(error) { entry.failure=error.message;result=undefined }
         finally {
           if(isolated)try{rmSync(isolated.root,{recursive:true,force:true})}catch(error){entry.retainedRoot=isolated.root;entry.failure=`cleanup failed: ${error.message}`;result=undefined}
           entry.finishedAt=new Date().toISOString();attempts.push(entry);write(output,`attempt-${id}.json`,entry)
         }
-        if(result || entry.retainedRoot || /permission|denied|cancelled/i.test(entry.failure ?? ''))break
+        if(entry.retainedRoot || /permission|denied|cancelled/i.test(entry.failure ?? ''))noRetry.add(key)
       }
       return result
     }
-    for(const probe of probes) {
-      const result=await attempt(probe,false)
-      if(!result){probeResults.push({probe:probe.name,dropped:true});continue}
-      result.findings=result.findings.map((finding,index)=>({...finding,candidateId:`${probe.name}#${index+1}`}))
-      let confirmationMissing=false
-      for(let index=0;index<result.findings.length;index++) {
-        const finding=result.findings[index]
-        if(result.status!=='fail' && !['Critical','Major'].includes(finding.severity) && !finding.needsDecision)continue
-        const confirmed=await attempt(probe,true,{...result,findings:[finding]})
-        if(!confirmed){confirmationMissing=true;gaps.push({kind:'confirmation-incomplete',probe:probe.name,candidateId:finding.candidateId});continue}
-        write(output,`confirmation-${probeResults.length+1}-${index+1}.json`,{...confirmed,candidateId:finding.candidateId})
-        if(!confirmed.reproduced)result.findings[index]={...finding,severity:'Minor',needsDecision:false,reality:`${finding.reality} [independently unconfirmed: ${confirmed.note}]`}
+    const states=probes.map(probe=>({probe,result:undefined,confirmations:[]})),jobs=[]
+    async function confirmNewCandidates() {
+      const fresh=[]
+      for(const state of states) {
+        if(!state.result || state.planned)continue
+        state.planned=true
+        state.result.findings=state.result.findings.map((finding,index)=>({...finding,candidateId:`${state.probe.name}#${index+1}`}))
+        for(const [index,finding] of state.result.findings.entries()) {
+          if(state.result.status!=='fail' && !['Critical','Major'].includes(finding.severity) && !finding.needsDecision)continue
+          const job={state,index,finding,result:undefined}
+          state.confirmations.push(job);jobs.push(job);fresh.push(job)
+        }
       }
-      if(confirmationMissing){probeResults.push({probe:probe.name,dropped:true});continue}
+      for(const job of fresh)job.result=await attempt(job.state.probe,true,{...job.state.result,findings:[job.finding]},0)
+    }
+    // Complete mandatory initial coverage before spending optional retries.
+    for(const state of states)state.result=await attempt(state.probe,false,undefined,0)
+    await confirmNewCandidates()
+    for(let retry=1;retry<=settings.retries;retry++) {
+      for(const state of states)if(!state.result)state.result=await attempt(state.probe,false,undefined,retry)
+      await confirmNewCandidates()
+    }
+    for(let retry=1;retry<=settings.retries;retry++) {
+      for(const job of jobs)if(!job.result)job.result=await attempt(job.state.probe,true,{...job.state.result,findings:[job.finding]},retry)
+    }
+    for(const [stateIndex,state] of states.entries()) {
+      const {probe,result}=state
+      if(!result){probeResults.push({probe:probe.name,dropped:true});continue}
+      for(const job of state.confirmations) {
+        if(!job.result){gaps.push({kind:'confirmation-incomplete',probe:probe.name,candidateId:job.finding.candidateId});continue}
+        write(output,`confirmation-${stateIndex+1}-${job.index+1}.json`,{...job.result,candidateId:job.finding.candidateId})
+        if(!job.result.reproduced)result.findings[job.index]={...job.finding,severity:'Minor',needsDecision:false,reality:`${job.finding.reality} [independently unconfirmed: ${job.result.note}]`}
+      }
+      if(state.confirmations.some(job=>!job.result)){probeResults.push({probe:probe.name,dropped:true});continue}
       if(result.status==='fail' && result.findings.every(f=>f.severity==='Minor' && !f.needsDecision))result.status='warn'
-      if(result.findings.some(f=>f.envGap))gaps.push({kind:"probe-environment-gap",probe:probe.name})
+      if(result.findings.some(f=>f.envGap))gaps.push({kind:'probe-environment-gap',probe:probe.name})
       probeResults.push(result)
     }
   } catch(error) { gaps.push({kind:'initialization-or-runtime',detail:error.message}) }
