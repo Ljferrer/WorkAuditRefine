@@ -1,0 +1,4 @@
+pre-run snapshot: exit 0 (clean)
+post-run --baseline: exit 1
+moved:   refs/heads/war/2026-09-06-engine-and-audit-verdict-integrity/p13-13.1
+provenance: foreign — concurrent /war campaign task branch, committed in .claude/war-worktrees/.../p13-13.1 at 18:42, 19:00, 19:01 (reflog); not probe-authored; working tree porcelain-clean
