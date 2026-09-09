@@ -2,11 +2,19 @@
 
 Implementation PR: https://github.com/Ljferrer/WorkAuditRefine/pull/2296 (base `codex-port`, left open). Original plan is unchanged: SHA-256 `159b6de7bcfb7075e7ffd5c4bc5f133ef84a3a5276f5cde5a731b4f990f73b57`. Phase 1 start `5b442a28f4063b8f947a582c749842dd0808d4b2`; Phase 2 start `68c6705bfe9515a4f6be9f46f725e29e71cd085d`.
 
-This receipt is being finalized during Phase 2. Final source commit, completion commit, artifact location/version/digest and bounded audit outcomes will be recorded below after validation. No installation, independent review, Phase 3, merge or public release has occurred.
+The retained Phase-2 artifact is built and validated. The implementation/source completion checkpoint is `055735329e7b91e9e4b99f35f0430ff48a9f9ce6`; later evidence-only commits do not change this pinned build. Bounded audit closeout is recorded in the ledger before the final handoff. No installation, independent review, Phase 3, merge or public release has occurred.
 
 ## Build and identity
 
-From the committed implementation source, build into a new directory whose final component is `work-audit-refine-red-team`:
+Source commit / Phase-2 implementation completion SHA: `055735329e7b91e9e4b99f35f0430ff48a9f9ce6` (`source.dirty: false`). Version: `0.1.0+codex.055735329e7b.9f7213877e66`.
+
+- [Package directory](/Users/ljf/.codex/visualizations/2026/09/09/01a08451-dab6-7ea1-9dcc-3a49f05b861b/red-team-phase2-055735329e7b/work-audit-refine-red-team)
+- [Transport archive](/Users/ljf/.codex/visualizations/2026/09/09/01a08451-dab6-7ea1-9dcc-3a49f05b861b/red-team-phase2-055735329e7b/work-audit-refine-red-team.tar.gz)
+- Artifact identity SHA-256: `ca553288911db7e1e74518a1d3e6f98e84e28388e0536de7722a8d73c758da7e`
+- Archive SHA-256: `987fffc7b0d3af8605a746f7e75194be27df3c389aa352c80aa967c55617603b`
+- [Full build receipt](red-team-implementation-evidence/p2-delivery-identity.json)
+
+Two builds from this commit produced the same artifact identity. The official plugin validator passes. From a checkout of this exact source commit, reproduce it into a new directory whose final component is `work-audit-refine-red-team`:
 
 ```sh
 node adapters/codex/package-red-team.mjs /absolute/new-parent/work-audit-refine-red-team
@@ -18,9 +26,10 @@ The artifact's `build-info.json` records source revision, selected-source dirty 
 
 These commands are instructions for the operator after the Phase-2 stop, not actions performed by this task. This is a first installation into the default personal marketplace. They refuse an existing same-name entry; do not force an overwrite without inspecting that entry.
 
-Set `artifact` to the verified delivered directory below. Then:
+Use this verified delivered directory:
 
 ```sh
+artifact="/Users/ljf/.codex/visualizations/2026/09/09/01a08451-dab6-7ea1-9dcc-3a49f05b861b/red-team-phase2-055735329e7b/work-audit-refine-red-team"
 plugin_tools="$HOME/.codex/skills/.system/plugin-creator/scripts"
 plugin_python="/Users/ljf/miniconda3/envs/codex-snipe-port/bin/python"
 "$plugin_python" "$plugin_tools/create_basic_plugin.py" work-audit-refine-red-team \
@@ -52,4 +61,4 @@ After installation and diagnostic, the operator starts a fresh task on `codex/re
 
 ## Validation and evidence
 
-Detailed source, findings, dispositions, counterexamples and cycle counts: [implementation ledger](2026-09-08-red-team-implementation-ledger.md). Raw panels and test logs: [evidence directory](red-team-implementation-evidence/). No independently observed model identity or billed cost is asserted. Final acceptance and delivery identities follow after Phase-2 auditing.
+Detailed source, findings, dispositions, counterexamples and cycle counts: [implementation ledger](2026-09-08-red-team-implementation-ledger.md). Raw panels and test logs: [evidence directory](red-team-implementation-evidence/). No independently observed model identity or billed cost is asserted. Required Phase-2 acceptance: 63 passed, zero failed, one explicitly skipped live diagnostic. Supporting evidence/structure checks: 26 passed. Seven diagnostic guard mutations were assertion-killed. See [acceptance](red-team-implementation-evidence/p2-cycle-1-acceptance.log), [supporting checks](red-team-implementation-evidence/p2-cycle-1-supporting.log), [mutation evidence](red-team-implementation-evidence/p2-cycle-1-mutations.json), and [delivered plugin validation](red-team-implementation-evidence/p2-delivery-validator.log). Panels used so far: Phase 1 3, Phase 2 1, reserve 0; final closeout is recorded below after the remaining bounded review. The artifact is experimental; actual installed-host observation and independent comparison remain unavailable.
