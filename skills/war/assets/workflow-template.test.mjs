@@ -12072,6 +12072,29 @@ test('dispatch census: the leaf dispatch seam is awaited only inside dispatchAge
   assert.match(src, /read by the SITE's own null arm/, 'NEW-present: the header states a null return is read at the site')
 })
 
+test('auditRound census: every `await auditRound(` site reads the `died` member — a site that drops it would read a dead seat as audit-blocked (D21, PIN-25)', () => {
+  // Line-comment strip (the dispatch-seam census idiom): the tokens live only in executable code.
+  const code = src.replace(/\/\/[^\n]*/g, '')
+  const total = s => (s.match(/await auditRound\(/g) || []).length
+  // A site reads `died` one of two ways: destructured `{ …, died[: alias] } = await auditRound(`, or
+  // bound whole (`const full = await auditRound(`) and read as `full.died` within the next three lines.
+  const reading = s => {
+    let n = 0
+    const destructured = /\{([^{}]*)\}\s*=\s*await auditRound\(/g
+    for (const m of s.matchAll(destructured)) if (/\bdied\b/.test(m[1])) n++
+    const bound = /(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await auditRound\([^\n]*\n((?:[^\n]*\n){0,3})/g
+    for (const m of s.matchAll(bound)) if (new RegExp('\\b' + m[1] + '\\.died\\b').test(m[2])) n++
+    return n
+  }
+  assert.ok(total(code) >= 8, 'the engine carries the eight auditRound call sites (non-vacuity: ' + total(code) + ')')
+  assert.equal(reading(code), total(code), 'default-deny: every `await auditRound(` site reads `died` — a straggler that drops it reds this census')
+  // Mutation controls: a `died`-less destructuring site and a `died`-less bound site each red the equality.
+  const straggler = code + '\nconst straggler = async t => { const { seats, expected } = await auditRound(t, null, null, null); return seats.length < expected }\n'
+  assert.notEqual(reading(straggler), total(straggler), 'a died-less destructuring site is caught by the census')
+  const boundStraggler = code + '\nconst straggler = async t => {\n  const r = await auditRound(t, null, null, null)\n  return r.seats.length < r.expected\n}\n'
+  assert.notEqual(reading(boundStraggler), total(boundStraggler), 'a died-less whole-bound site is caught by the census')
+})
+
 // (d) #1413 — args provenance floor: refuse at entry, fail-closed, zero agent spawns.
 test('Task 2.1(d) #1413 — a foreign-plan intent is refused at entry (foreign docs/plans identifier), zero agent spawns; a token-less intent fails the own-token floor', async () => {
   // The plan-3 leak shape: a plan-A launch (slug wtprov-a) carrying plan-B's intent (13 × escape, 0 × done-when).
@@ -16339,7 +16362,7 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
 // overrides the polish worker's result (e.g. a files_changed report).
 const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
   terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
-  terminalSeatDrop = false, terminalThrow = null } = {}) => {
+  terminalSeatDrop = false, terminalSeatThrow = null, terminalThrow = null } = {}) => {
   const base = sweepBase(queued)
   let polishAudits = 0
   return (prompt, opts) => {
@@ -16348,6 +16371,7 @@ const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity:
       polishAudits++
       if (polishAudits === 1) return { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: polishFindings, confidence: 'high' }
       if (terminalSeatDrop) return null   // a dropped seat dispatch — every terminal re-audit call (auditRound's two retries included) returns nothing
+      if (terminalSeatThrow) throw terminalSeatThrow   // a dead seat dispatch (INFRA_DEATH_RE) — persists past auditRound's retries
       return terminalSeat || { seat: label, lens: label.split(':').pop(), verdict: 'approve', findings: terminalFindings, confidence: 'high' }
     }
     if (seat === 'war-worker' && label.startsWith('terminal:')) {
@@ -16517,6 +16541,19 @@ test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm,
   assert.deepEqual(carried[0].seats, ['audit:t1:correctness (task t1)', 'audit:p3-polish:correctness (task t1)'],
     'the terminal seat joins the carried row\'s seats list behind its own raiser (corroborateSurvivor searches carriedPhaseClose)')
   assert.ok(!demotionOf(out, 'left unlanded'), 'never demoted')
+})
+
+test('terminal-pass — a terminal re-audit seat that dies post-spawn records verdict env-died with the cause, never terminal-rejected (D21, PIN-25)', async () => {
+  const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatThrow: new Error('API error: 529 Overloaded') }))
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  assert.ok(tEntry, 'the terminal auditLog row exists (presence guard)')
+  assert.equal(tEntry.verdict, 'env-died', 'a dead terminal seat records env-died, never a content verdict')
+  assert.match(String(tEntry.blocked), /^audit:p3-polish:correctness dispatch died post-spawn \(env-died\): /, 'the row carries the site-named cause under blocked')
+  assert.ok(!(final.out.auditLog || []).some(e => e && e.terminal === true && e.verdict === 'terminal-rejected'), 'no terminal-rejected row is recorded for the dead seat')
+  const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the dead-seat path')
+  const d = demotionOf(final.out, 'polish-panel absorb')
+  assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('died'), 'final: demotes demote:terminal-pass naming the death')
 })
 
 test('terminal-pass — a terminal worker dispatch that dies post-spawn (INFRA_DEATH_RE) takes the env-died arm: logged, no commit, the rows carry on a non-final phase', async () => {

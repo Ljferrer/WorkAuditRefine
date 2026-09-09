@@ -2355,10 +2355,9 @@ const segmentedMerge = async (prompt, opts) => {
   while (isSegment(result) && segments < roundLimit) {
     segments++
     log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-    const segLabel = opts.label + ':segment-' + (segments + 1)
     result = await dispatchSite(
       pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
-      { ...opts, label: segLabel })
+      { ...opts, label: opts.label + ':segment-' + (segments + 1) })
   }
   if (isSegment(result)) {
     log('Phase ' + ph.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status (error).')
@@ -2552,10 +2551,9 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride) 
   // a NULLed thunk). A dead seat is retried below exactly like a dropped seat (the same 2 passes); only
   // a death that PERSISTS past the retries reaches `died`, which carries the site-named cause to the
   // caller, which demotes or classifies env-died; never audit-blocked.
-  const seatLabel = seat => `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`
   const runSeat = seat => dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
     agentType: NS + 'war-auditor', phase: 'Audit',
-    label: seatLabel(seat), schema: AUDIT_VERDICT, ...spawn('auditor') })
+    label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
   // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).
   let results = await parallel(roster.map(seat => () => runSeat(seat)))
@@ -3042,14 +3040,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
   const aceGateGreen = async (r, aceTipSha) => {
-    const gateLabel = 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds
     const g = await dispatchSite(
       pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
       + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
-        label: gateLabel, schema: GATE_CHECK, ...spawn('refiner') })
+        label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') })
     const gateDied = deathOf(g)
     if (gateDied) return { green: false, died: gateDied }
     // #1935: the echoed head_sha is EVIDENCE, not decoration — compare it. The prompt above asks the
@@ -4162,12 +4159,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
-          const floorFixLabel = `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`
           const floorFix = await dispatchSite(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
-            { agentType: NS + 'war-worker', phase: 'Audit', label: floorFixLabel, schema: WORKER_RESULT, ...spawnWorker('fix') })
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Dead floor-fix worker (D21, PIN-25): env-died SOFT naming the site — never the floor's own
           // blocked verdict, never a done-unmet/no-test/unpackaged/budget-uncited exhaustion.
           const floorFixDeath = deathOf(floorFix)
@@ -4191,8 +4187,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
           // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop). The floor
           // cannot judge whether dockerignoring the file (or the added test) was RIGHT; the panel can.
-          let reSeats, reExpected
-          let reDied
+          let reSeats, reExpected, reDied
           ;({ seats: reSeats, expected: reExpected, died: reDied } = await auditRound(r.task, null, null, floorFix && floorFix.head_sha))
           if (reDied) { mergeDied(reDied); floorMr = null; reAuditFailed = true; break }   // D21: a dead floor re-audit seat is env-died, never audit-blocked
           const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
@@ -4581,7 +4576,7 @@ if (mergedTasksForGateAudit.length > 0) {
     preMergeTip: m.preMergeTip || phaseBaseCmd,
     // D8 fallback (#2094): an unthreaded gate_log_path renders the conventional path + `unthreaded` marker.
     gateLogPath: m.gateLogPath || pt`${refineryPath}/.war/gate-${m.taskId}.log ${GATE_LOG_UNTHREADED}` }))
-  const evidence = await dispatchSite(
+  let evidence = await dispatchSite(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
@@ -4602,7 +4597,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // Death arm (D21, PIN-25): a dead evidence dispatch classifies env-died SOFT naming the site; the
   // seats keep today's fail-open SOFT cannot-confirm path (no token stamped, nothing HARD).
   const evidenceDeath = deathOf(evidence)
-  if (evidenceDeath) envDied('phase-' + ph.id + '-evidence', evidenceDeath)
+  if (evidenceDeath) { envDied('phase-' + ph.id + '-evidence', evidenceDeath); evidence = null }   // null, like every sibling death arm — no later read sees the DEAD record
   // phase_diff_files (D15): stamped when the dispatch returned an array; otherwise null + one log line.
   if (evidence && Array.isArray(evidence.phase_diff_files)) phaseDiffFiles = new Set(evidence.phase_diff_files.filter(p => typeof p === 'string' && p.length > 0).map(aceRelPath))
   else log('evidence:phase-' + ph.id + ' returned no phase_diff_files — the gate-audit floor pass\'s note arm matches nothing (the follow-up arm still reroutes; fail-open, D15).')
@@ -5317,7 +5312,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // from the polish panel — every rosterOverride site records its transfer, this one included.
           pinTransfers.push({ task: polishTask.id, kind: 'ace', mode: 'terminal', why: 'one-hop terminal pass — one re-audit seat, the rest transfer from the polish panel', sha: terminalSha,
             seats: defaultRoster.map(s => ({ seat: s.lens, lens: s.lens, outcome: s.lens === seat.lens ? 're-ran' : 'transferred', sha: terminalSha })) })
-          auditLog.push({ task: polishTask.id, verdict: tApproved ? 'approve' : 'terminal-rejected', terminal: true, sha: terminalSha, seat: seat.lens, findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length })
+          auditLog.push({ task: polishTask.id, verdict: tDied ? 'env-died' : tApproved ? 'approve' : 'terminal-rejected', terminal: true, sha: terminalSha, seat: seat.lens, findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length, ...(tDied ? { blocked: tDied } : {}) })
           if (!tApproved) {
             // REGRESSION (a seat returned request_changes or a blocking finding) OR NO VERDICT (the
             // seat dispatch dropped after auditRound's two retries — tSeats.length < tExpected): both
@@ -5491,10 +5486,9 @@ if (landDecision === 'landed') {
     while (isSegment(result) && segments < roundLimit) {
       segments++
       log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-      const segLabel = opts.label + ':segment-' + (segments + 1)
       result = await dispatchSite(
         pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
-        { ...opts, label: segLabel })
+        { ...opts, label: opts.label + ':segment-' + (segments + 1) })
     }
     if (isSegment(result)) {
       log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')
@@ -5508,7 +5502,7 @@ if (landDecision === 'landed') {
   const landDied = res => {
     const why = deathOf(res)
     if (!why) return false
-    escalated.push({ task: 'phase-' + ph.id + '-land', reason: 'env-died', blocked: why })   // concatenation-built (census-safe)
+    envDied('phase-' + ph.id + '-land', why)   // concatenation-built (census-safe)
     landResult = null   // the dead dispatch IS the outcome — null, as a dead dispatch returning nothing reads; never the stale earlier attempt (#1245's shape)
     landDecision = 'held:land-failed'
     log('Phase ' + ph.id + ': ' + why + ' — held:land-failed; the Lead re-runs the land per SKILL.md §4.3.')
