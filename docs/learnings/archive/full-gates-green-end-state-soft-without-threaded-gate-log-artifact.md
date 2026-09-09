@@ -5,9 +5,9 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-08-06-verdict-adjudication-integrity@phase-2
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-8
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +21 recurrences (latest 2026-09-06-engine-and-audit-verdict-integrity/phase-8 task 8.1)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +22 recurrences (latest 2026-09-06-engine-and-audit-verdict-integrity/phase-12 tasks 12.1+12.2)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -72,7 +72,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-08-30
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-09-08T10:53:25.229Z
+  modified: 2026-09-08T23:57:14.277Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -806,3 +806,46 @@ twentieth occurrence and roughly a dozen separate campaigns; the "stamp every ga
 (Recurrences 10/12/15/16) remains unactioned.
 
 > archived 2026-08-17: resolved — moved to archive
+
+## Recurrence 21 (2026-09-08, plan `2026-09-06-engine-and-audit-verdict-integrity`, phase 12
+"Release-slot eligibility by literal", tasks 12.1 and 12.2 `gate-audit:approve`) — same underlying
+stamp gap, this time on the phase that landed the `tip_sha:`/`exit_code:` stamp as engine doctrine
+
+Twenty-first occurrence, and a sharper instance than most: `_refinery/.war/gate-12.1.log` and
+`_refinery/.war/gate-12.2.log` both open with a bare node-reporter tick line, not `tip_sha:`, and
+both close with `All 10 checks passed`, not `exit_code:` (code-verified — landed tip
+`48a7120616627a35ecf2a05e76e34d15dcf985a3` on `dev/2026-09-06-engine-and-audit-verdict-integrity`,
+read directly at `<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/.war/gate-12.1.log`
+and the sibling `gate-12.2.log`; line 1 of each confirmed a test-tick line, not a stamp). The
+engine-side clause this whole lesson has recommended since Recurrence 12 — "every gate-log artifact
+opens with `tip_sha:` and closes with `exit_code:`" — is not a recommendation on this phase: this
+very phase's own Commander's Intent End state 10 mandated `gateCaptureClause` and the fixture
+`gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: first and exit_code: last on
+every .war/gate-<taskId>.log`, and both landed and pass at this tip. **The gap is confirmed to be an
+operational/runtime one, not a missing-code one:** the sibling artifact `endstate-12-1.log` in the
+SAME directory, produced by the SAME refiner run, IS correctly stamped (`tip_sha:` line 1,
+`exit_code: 0` closing line), so the refiner's endstate-check dispatch honors
+`GATE_LOG_STAMP`-equivalent discipline while its gate-capture dispatch for the very same task does
+not.
+
+**New nuance over Recurrences 1-20:** every prior recurrence involved a lesson that had NOT yet
+landed the stamp clause as engine doctrine — the gap was "the fix isn't written yet, or isn't
+tested yet." This occurrence is the first where the stamp clause is landed, tested, and green in
+the SAME repo, at the SAME tip, for a SIBLING artifact class (`endstate-*.log`) produced by the
+SAME dispatching agent in the SAME run — and the `gate-*.log` artifact still ships unstamped. This
+sharpens the "threading/capture, not code, is the recurring gap" framing (Recurrences 10/12/15/16):
+the code path that stamps DOES exist and DOES work (proven by the endstate log), so the gap is
+specifically in the gate-capture code path not calling it, or the refiner's live invocation
+short-circuiting before the stamp write.
+
+**Consequence, still soft:** the gate-audit seat downgraded both findings to `Minor`/`note`
+(non-blocking) because the artifact BODY was still readable and green (`gate-12.1.log`: `All 10
+checks passed`; `gate-12.2.log`: `ℹ pass 1707 / ℹ fail 0` plus every `== gate(bash):` suite
+reporting 0 failed) and a SEPARATE, correctly-stamped artifact (`endstate-12-1.log`, `tip_sha:`
+byte-equal to the confirmed tip) corroborated the pin was not stale — the Recurrence 13/14/18-style
+cross-artifact corroboration technique this lesson has documented repeatedly.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-20) is unaffected, and the "fix landed in
+code, gap persists in the live capture" framing gets its cleanest same-run, same-tip, sibling-artifact
+proof yet — do not assume a green `gate-log stamp` fixture means every `.war/gate-<taskId>.log`
+this phase actually landed carries the stamp; check the artifact itself.
