@@ -54,9 +54,12 @@ export function snapshotTarget(repository) {
     try{return [path,...fileIdentity(absolute)]}catch(error){if(error.code==='ENOENT')return [path,'missing'];throw error}
   })
   const common=realpathSync(git(repository,['rev-parse','--path-format=absolute','--git-common-dir']))
-  return { revision:git(repository,['rev-parse','HEAD']),status:git(repository,['status','--porcelain=v1','--untracked-files=all']),
+  const gitDirectory=realpathSync(git(repository,['rev-parse','--absolute-git-dir']))
+  const treeHash=root=>hash(JSON.stringify([['',...fileIdentity(root)],...metadataIdentity(root)]))
+  const metadataSha256=treeHash(common)
+  return { gitControlIdentity:[join(repository,'.git'),...fileIdentity(join(repository,'.git'))],gitDirectory,commonDirectory:common,gitDirectorySha256:gitDirectory===common?metadataSha256:treeHash(gitDirectory),revision:git(repository,['rev-parse','HEAD']),status:git(repository,['status','--porcelain=v1','--untracked-files=all']),
     refs:git(repository,['for-each-ref','--format=%(refname) %(objectname)']),
-    contentSha256:hash(JSON.stringify(contents)),directoriesSha256:hash(JSON.stringify(directoryIdentity(repository))),metadataSha256:hash(JSON.stringify([['',...fileIdentity(common)],...metadataIdentity(common)])) }
+    contentSha256:hash(JSON.stringify(contents)),directoriesSha256:hash(JSON.stringify(directoryIdentity(repository))),metadataSha256 }
 }
 
 function checkTree(root, directory=root) {

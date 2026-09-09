@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, realpathSync, symlinkSync, mkdirSync, chmodSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, realpathSync, symlinkSync, mkdirSync, chmodSync, statSync, cpSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runRedTeam, provision, snapshotTarget, dispatchCodex, gate } from './red-team-runner.mjs'
 const profile={model:'gpt-5.6-sol',effort:'medium'}
@@ -304,4 +304,35 @@ test('directory identity never follows an outside symlink',t=>{
   const f=fixture(t),outside=join(f.root,'outside');mkdirSync(outside);symlinkSync(outside,join(f.repo,'outside-link'))
   const before=snapshotTarget(f.repo);mkdirSync(join(outside,'unrelated-directory'))
   assert.deepEqual(snapshotTarget(f.repo),before)
+})
+
+for(const mutation of ['bytes','mode'])test(`linked worktree control ${mutation} reaches original-target guard`,async t=>{
+  const f=fixture(t),linked=join(f.root,'linked');git(f.repo,'worktree','add','--detach',linked,'HEAD')
+  const control=join(linked,'.git'),before=snapshotTarget(linked),original=readFileSync(control,'utf8')
+  const run=await runRedTeam({...f.request,repository:linked,planFile:join(linked,'plan.md')},{...options,dispatch:async ctx=>{
+    if(mutation==='bytes')writeFileSync(control,'gitdir: '+relative(linked,resolve(linked,original.slice(8).trim()))+'\n')
+    else chmodSync(control,(statSync(control).mode & 0o777)===0o600?0o644:0o600)
+    return {result:result(ctx)}
+  }})
+  assert.notDeepEqual(snapshotTarget(linked),before)
+  assert.equal(run.final.verdict,'INCOMPLETE');assert.ok(run.gaps.some(g=>g.kind==='target-state-changed'))
+})
+test('root Git control symlink and resolved metadata paths have independent identities',t=>{
+  const f=fixture(t),linked=join(f.root,'linked');git(f.repo,'worktree','add','--detach',linked,'HEAD')
+  const control=join(linked,'.git'),a=join(f.root,'control-a'),b=join(f.root,'control-b')
+  const contents=readFileSync(control,'utf8');writeFileSync(a,contents);writeFileSync(b,contents);rmSync(control);symlinkSync(a,control)
+  const before=snapshotTarget(linked)
+  assert.equal(before.gitDirectory,realpathSync(resolve(linked,contents.slice(8).trim())))
+  assert.equal(before.commonDirectory,realpathSync(join(f.repo,'.git')))
+  rmSync(control);symlinkSync(b,control)
+  assert.notDeepEqual(snapshotTarget(linked),before)
+})
+
+test('separately located per-worktree metadata is included alongside common metadata',t=>{
+  const f=fixture(t),linked=join(f.root,'linked');git(f.repo,'worktree','add','--detach',linked,'HEAD')
+  const control=join(linked,'.git'),original=resolve(linked,readFileSync(control,'utf8').slice(8).trim()),external=join(f.root,'external-gitdir')
+  cpSync(original,external,{recursive:true});writeFileSync(join(external,'commondir'),realpathSync(join(f.repo,'.git'))+'\n');writeFileSync(control,'gitdir: '+external+'\n')
+  assert.equal(git(linked,'rev-parse','--absolute-git-dir'),external)
+  const before=snapshotTarget(linked);writeFileSync(join(external,'marker'),'changed metadata')
+  assert.notDeepEqual(snapshotTarget(linked),before)
 })

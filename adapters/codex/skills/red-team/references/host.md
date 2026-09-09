@@ -22,4 +22,4 @@ After operator installation, create an absolute JSON request with `{"enabled":tr
 
 Diagnostic roles execute in read-only sandboxes because these controlled fixtures require no writes. Each attempt also retains before/after fixture identities; a changed content/path/mode identity yields INCOMPLETE. General adversarial executed probes continue to use their isolated writable clones. The two mechanisms cover the actual host sandbox contract and offline fake-executable control tests separately.
 
-Snapshot identities include worktree and Git directory paths/modes, file bytes/modes, symlink targets and refs. They do not follow directory symlinks or treat access timestamps as source changes; they compare final identities rather than recording every transient action.
+Snapshot identities include the root .git control entry (directory, file or symlink), resolved per-worktree/common Git paths and both metadata trees, worktree directory paths/modes, file bytes/modes, symlink targets and refs. They do not follow directory symlinks or treat access timestamps as source changes; they compare final identities rather than recording every transient action.

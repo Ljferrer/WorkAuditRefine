@@ -67,6 +67,6 @@ Diagnostic roles execute in read-only sandboxes because these controlled fixture
 
 The earlier `05573532` candidate remains retained as historical evidence and is superseded by the package identified above. Its identity is preserved in [the candidate receipt](red-team-implementation-evidence/p2-candidate-05573532-identity.json). The additional fixture-guard mutations are [here](red-team-implementation-evidence/p2-cycle-2-mutations.json).
 
-Snapshot identities include worktree and Git directory paths/modes, file bytes/modes, symlink targets and refs. They do not follow directory symlinks or treat access timestamps as source changes; they compare final identities rather than recording every transient action.
+Snapshot identities include the root .git control entry (directory, file or symlink), resolved per-worktree/common Git paths and both metadata trees, worktree directory paths/modes, file bytes/modes, symlink targets and refs. They do not follow directory symlinks or treat access timestamps as source changes; they compare final identities rather than recording every transient action.
 
 The `9a210003` candidate is likewise retained but superseded; its [identity](red-team-implementation-evidence/p2-candidate-9a210003-identity.json) records the prior fixture snapshot implementation. The final directory-guard mutation evidence is [here](red-team-implementation-evidence/p2-cycle-3-mutations.json).

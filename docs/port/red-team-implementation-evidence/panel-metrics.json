@@ -1,0 +1,543 @@
+{
+  "configuredProfile": {
+    "model": "gpt-5.6-sol",
+    "effort": "medium"
+  },
+  "independentlyObservedModelIdentity": null,
+  "billedCost": null,
+  "panelWallTime": null,
+  "reportedUsageTotals": {
+    "input_tokens": 19499789,
+    "cached_input_tokens": 17124736,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 212591,
+    "reasoning_output_tokens": 123732
+  },
+  "panels": [
+    {
+      "panel": "p1-cycle-1-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 703337,
+              "cached_input_tokens": 628352,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 11250,
+              "reasoning_output_tokens": 7700
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 577071,
+              "cached_input_tokens": 498176,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7133,
+              "reasoning_output_tokens": 4364
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 707979,
+              "cached_input_tokens": 637184,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 10027,
+              "reasoning_output_tokens": 6500
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 577475,
+              "cached_input_tokens": 515456,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 9308,
+              "reasoning_output_tokens": 5919
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        }
+      ]
+    },
+    {
+      "panel": "p1-cycle-2-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 434912,
+              "cached_input_tokens": 360704,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7285,
+              "reasoning_output_tokens": 4500
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 578005,
+              "cached_input_tokens": 484992,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7137,
+              "reasoning_output_tokens": 4023
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 886195,
+              "cached_input_tokens": 793984,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 11239,
+              "reasoning_output_tokens": 7251
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 609411,
+              "cached_input_tokens": 527104,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 9092,
+              "reasoning_output_tokens": 6211
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        }
+      ]
+    },
+    {
+      "panel": "p1-cycle-3-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 433850,
+              "cached_input_tokens": 349312,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 9983,
+              "reasoning_output_tokens": 7054
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 592678,
+              "cached_input_tokens": 521088,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 5169,
+              "reasoning_output_tokens": 2450
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 416839,
+              "cached_input_tokens": 349184,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 5763,
+              "reasoning_output_tokens": 3318
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 518145,
+              "cached_input_tokens": 411392,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7337,
+              "reasoning_output_tokens": 4666
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        }
+      ]
+    },
+    {
+      "panel": "p2-cycle-1-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 564882,
+              "cached_input_tokens": 502528,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7254,
+              "reasoning_output_tokens": 4823
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 577211,
+              "cached_input_tokens": 510208,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7438,
+              "reasoning_output_tokens": 4551
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 542124,
+              "cached_input_tokens": 486400,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 8991,
+              "reasoning_output_tokens": 5625
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 709784,
+              "cached_input_tokens": 645504,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7861,
+              "reasoning_output_tokens": 4660
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        }
+      ]
+    },
+    {
+      "panel": "p2-cycle-2-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 1235898,
+              "cached_input_tokens": 1134720,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 9356,
+              "reasoning_output_tokens": 5468
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 752551,
+              "cached_input_tokens": 645760,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 4153,
+              "reasoning_output_tokens": 1494
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 683291,
+              "cached_input_tokens": 601856,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 5152,
+              "reasoning_output_tokens": 1716
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 1057486,
+              "cached_input_tokens": 973056,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7779,
+              "reasoning_output_tokens": 4317
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        }
+      ]
+    },
+    {
+      "panel": "p2-cycle-3-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 961219,
+              "cached_input_tokens": 859648,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 9767,
+              "reasoning_output_tokens": 6563
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 358383,
+              "cached_input_tokens": 289920,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 4140,
+              "reasoning_output_tokens": 2123
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 524345,
+              "cached_input_tokens": 441344,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 5517,
+              "reasoning_output_tokens": 3308
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 620130,
+              "cached_input_tokens": 528640,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 5535,
+              "reasoning_output_tokens": 2522
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        }
+      ]
+    },
+    {
+      "panel": "reserve-raw.json.gz",
+      "complete": true,
+      "coverage": {
+        "complete": true,
+        "unavailablePaths": []
+      },
+      "stability": {
+        "stable": true,
+        "before": null,
+        "after": null
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "lens": "correctness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 726215,
+              "cached_input_tokens": 611712,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 5829,
+              "reasoning_output_tokens": 2672
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 2,
+          "lens": "simplicity",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 1014606,
+              "cached_input_tokens": 898432,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 7722,
+              "reasoning_output_tokens": 2150
+            }
+          ],
+          "status": "completed",
+          "verdict": "approve"
+        },
+        {
+          "seat": 3,
+          "lens": "plan-faithfulness",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 1172877,
+              "cached_input_tokens": 1048576,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 8539,
+              "reasoning_output_tokens": 4312
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        },
+        {
+          "seat": 4,
+          "lens": "cascading-impact",
+          "reportedUsageEvents": [
+            {
+              "input_tokens": 962890,
+              "cached_input_tokens": 869504,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 6835,
+              "reasoning_output_tokens": 3472
+            }
+          ],
+          "status": "completed",
+          "verdict": "request_changes"
+        }
+      ]
+    }
+  ]
+}
