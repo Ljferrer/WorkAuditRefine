@@ -281,3 +281,14 @@ test('mandatory initial probe and candidate attempts precede retries',async t=>{
   assert.equal(run.final.verdict,'BLOCKED')
   assert.deepEqual(sequence,['P:a:0','P:b:0','P:c:0','C:c#1:0','C:c#2:0','P:a:1','P:b:1','C:a#1:0','C:b#1:0','C:c#1:1','C:c#2:1','C:a#1:1','C:b#1:1'])
 })
+
+test('diagnostic requires explicit enablement and preserves prior output',async t=>{
+  const {runDiagnostic}=await import('./red-team-runner.mjs')
+  const f=fixture(t)
+  await assert.rejects(runDiagnostic({evidenceDir:join(f.root,'diagnostic')}),/enabled:true/)
+  await assert.rejects(runDiagnostic({enabled:true,evidenceDir:f.root}),/already exists/)
+  const result=await runDiagnostic({enabled:true,evidenceDir:join(f.root,'diagnostic'),profile},{codexPath:join(f.root,'absent')})
+  assert.equal(result.status,'INCOMPLETE');assert.equal(result.observations.length,2)
+  assert.ok(result.observations.every(o=>o.gaps.length>0))
+  assert.ok(existsSync(join(f.root,'diagnostic','diagnostic-result.json')))
+})

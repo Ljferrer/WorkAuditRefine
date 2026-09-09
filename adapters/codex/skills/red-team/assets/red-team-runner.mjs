@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, readlinkSync, openSync, readSync, closeSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -282,6 +282,58 @@ export async function runRedTeam(request,{dispatch=dispatchCodex,codexPath,disco
   return completed
 }
 
+/** Explicit disposable host diagnostic. Transcript checks are observations, not model identity proof. */
+export async function runDiagnostic(request, options={}) {
+  assert.equal(request?.enabled,true,'diagnostic requires enabled:true')
+  assert.ok(isAbsolute(request.evidenceDir ?? ''),'diagnostic evidenceDir must be absolute')
+  const root=join(realpathSync(dirname(request.evidenceDir)),request.evidenceDir.split(sep).at(-1))
+  assert.ok(!existsSync(root),'diagnostic evidence already exists; preserve prior attempt')
+  mkdirSync(root)
+  write(root,'diagnostic-request.json',request)
+  const observations=[]
+  for(const kind of ['clean','seeded']) {
+    const observation={kind,status:'INCOMPLETE',gaps:[]};observations.push(observation)
+    try {
+      const repository=join(root,kind+'-target'),nonce=randomUUID(),actual=kind==='clean'?4:5
+      mkdirSync(repository)
+      execFileSync('git',[...gitOptions,'init','--template=',repository],{env:gitEnv,timeout:30000,stdio:'pipe'})
+      const source=`RED_TEAM_SOURCE:${nonce}:${actual}`
+      write(repository,'sum.txt',source+'\n')
+      write(repository,'plan.md','# Diagnostic sum plan\n\nThe value in sum.txt must be 4. Verify by reading the source and running node proof.mjs.\n')
+      write(repository,'proof.mjs',`import {readFileSync} from 'node:fs';\nconst source=readFileSync(new URL('./sum.txt',import.meta.url),'utf8').trim();\nconst actual=Number(source.split(':').at(-1));\nconsole.log('RED_TEAM_PROOF:${nonce}:'+actual);\nprocess.exitCode=actual===4?0:1;\n`)
+      git(repository,['add','.'])
+      git(repository,['-c','user.name=Red Team Diagnostic','-c','user.email=diagnostic@example.invalid','-c','commit.gpgsign=false','commit','-m','Disposable diagnostic fixture'])
+      const probes=[
+        {name:'analysis',technique:'analyzed',instructions:'Read plan.md and sum.txt with a shell command that prints the complete source. Analyze whether the final colon-separated number fulfills the plan. Report any mismatch as Major. Independently read the source again on confirmation.'},
+        {name:'proof',technique:'executed',instructions:'Run exactly node proof.mjs in the repository root. Inspect its output and exit status against the plan; report a mismatch as Major. On confirmation independently rerun exactly node proof.mjs. Do not edit the fixture.'},
+      ]
+      const run=await runRedTeam({repository,planFile:join(repository,'plan.md'),evidenceDir:join(root,kind+'-run'),profile:request.profile,inheritedProfile:request.inheritedProfile,timeoutMs:request.timeoutMs,retries:0,probes},options)
+      observation.runFile=join(kind+'-run','run.json');observation.verdict=run.final.verdict
+      observation.fixture={revision:run.target?.revision,source,proof:`RED_TEAM_PROOF:${nonce}:${actual}`,expectedExit:actual===4?0:1}
+      const expected=kind==='clean'?'CLEARED':'BLOCKED'
+      if(run.final.verdict!==expected)observation.gaps.push(`expected ${expected}; observed ${run.final.verdict}`)
+      for(const probe of probes) {
+        const initial=run.attempts.filter(a=>a.probe===probe.name && a.stage==='probe')
+        const confirmations=run.attempts.filter(a=>a.probe===probe.name && a.stage==='confirmation')
+        if(initial.length!==1 || (kind==='seeded' && confirmations.length<1))observation.gaps.push(`${probe.name}: missing initial or applicable confirmation`)
+        for(const attempt of [...initial,...confirmations]) {
+          let events=[]
+          try { events=JSON.parse(readFileSync(join(root,kind+'-run',`attempt-${attempt.id}-raw.json`),'utf8')).stdout.split('\n').filter(Boolean).map(line=>JSON.parse(line)) }catch{}
+          const marker=probe.name==='proof'?observation.fixture.proof:source
+          const exit=probe.name==='proof'?observation.fixture.expectedExit:0
+          const observed=events.some(e=>e.type==='item.completed' && e.item?.type==='command_execution' && e.item.status==='completed' && e.item.exit_code===exit && e.item.aggregated_output?.split(/\r?\n/).includes(marker) && (probe.name!=='proof' || /(?:^|[\s/'"])node\s+proof\.mjs(?:$|[\s'"])/.test(e.item.command ?? '')))
+          if(attempt.result!=='valid' || !observed)observation.gaps.push(`${probe.name} ${attempt.stage} ${attempt.id}: missing valid result or observed ${marker} command output/exit`)
+        }
+      }
+      if(!observation.gaps.length)observation.status='OBSERVED'
+    }catch(error){observation.gaps.push(error.message)}
+    write(root,kind+'-observation.json',observation)
+  }
+  const result={status:observations.every(o=>o.status==='OBSERVED')?'OBSERVED':'INCOMPLETE',configuredProfile:request.profile ?? request.inheritedProfile,independentlyObservedModelIdentity:null,observations,evidenceDir:root}
+  write(root,'diagnostic-result.json',result)
+  return result
+}
+
 if(isMain(import.meta.url)) {
   const args=process.argv.slice(2),controller=new AbortController(),cancel=()=>controller.abort()
   process.once('SIGINT',cancel);process.once('SIGTERM',cancel)
@@ -291,9 +343,9 @@ if(isMain(import.meta.url)) {
     assert.ok(override<0 || override===args.length-2,'--codex-path requires final absolute executable')
     if(main.length===1 && main[0]==='--list-profiles')console.log(JSON.stringify(await listSupportedProfiles({codexPath,signal:controller.signal}),null,2))
     else {
-      assert.ok(main.length===2 && main[0]==='--request','usage: --request FILE [--codex-path ABSOLUTE] or --list-profiles')
-      const result=await runRedTeam(JSON.parse(readFileSync(main[1],'utf8')),{codexPath,signal:controller.signal})
-      console.log(JSON.stringify(result,null,2));if(result.final.verdict==='INCOMPLETE')process.exitCode=1
+      assert.ok(main.length===2 && ['--request','--diagnostic'].includes(main[0]),'usage: --request FILE or --diagnostic FILE [--codex-path ABSOLUTE] or --list-profiles')
+      const result=await (main[0]==='--diagnostic'?runDiagnostic:runRedTeam)(JSON.parse(readFileSync(main[1],'utf8')),{codexPath,signal:controller.signal})
+      console.log(JSON.stringify(result,null,2));if(result.status==='INCOMPLETE' || result.final?.verdict==='INCOMPLETE')process.exitCode=1
     }
   }catch(error){console.error(error.message);process.exitCode=1}
   finally{process.removeListener('SIGINT',cancel);process.removeListener('SIGTERM',cancel)}
