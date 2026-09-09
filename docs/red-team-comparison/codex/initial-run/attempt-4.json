@@ -1,0 +1,18 @@
+{
+  "id": 4,
+  "probe": "isolation-package-evidence-failure-paths",
+  "stage": "confirmation",
+  "retry": 0,
+  "startedAt": "2026-09-09T17:11:23.045Z",
+  "transport": "completed",
+  "attempted": true,
+  "usage": {
+    "input_tokens": 618632,
+    "cached_input_tokens": 498176,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 2094,
+    "reasoning_output_tokens": 603
+  },
+  "result": "valid",
+  "finishedAt": "2026-09-09T17:12:44.610Z"
+}

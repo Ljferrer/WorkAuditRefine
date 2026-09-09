@@ -1,0 +1,66 @@
+{
+  "repository": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine",
+  "planFile": "/Users/ljf/.codex/worktrees/e186/WorkAuditRefine/docs/plans/2026-09-08-codex-red-team-migration.md",
+  "evidenceDir": "/private/tmp/codex-independent-red-team-20260909/attempt-1",
+  "profile": {
+    "model": "gpt-5.6-sol",
+    "effort": "medium"
+  },
+  "timeoutMs": 600000,
+  "retries": 0,
+  "roundLimit": 3,
+  "issues": [
+    {
+      "url": "https://github.com/Ljferrer/WorkAuditRefine/issues/1848",
+      "operatorLogins": [
+        "Ljferrer"
+      ],
+      "linkedArtifacts": []
+    },
+    {
+      "url": "https://github.com/Ljferrer/WorkAuditRefine/issues/1919",
+      "operatorLogins": [
+        "Ljferrer"
+      ],
+      "linkedArtifacts": []
+    },
+    {
+      "url": "https://github.com/Ljferrer/WorkAuditRefine/issues/2097",
+      "operatorLogins": [
+        "Ljferrer"
+      ],
+      "linkedArtifacts": []
+    },
+    {
+      "url": "https://github.com/Ljferrer/WorkAuditRefine/issues/2235",
+      "operatorLogins": [
+        "Ljferrer"
+      ],
+      "linkedArtifacts": []
+    },
+    {
+      "url": "https://github.com/Ljferrer/WorkAuditRefine/issues/1880",
+      "operatorLogins": [
+        "Ljferrer"
+      ],
+      "linkedArtifacts": []
+    }
+  ],
+  "probes": [
+    {
+      "name": "baseline-and-executable-contracts",
+      "technique": "executed",
+      "instructions": "Review only the original migration plan and this frozen repository baseline. Do not read Claude review results, implementation ledger, implementation PR, docs/port/red-team-research, or comparison research notes; do not seek other refs or private history. The plan is its own decision source, an implementation plan with future files expected absent. Honor its broad mechanism latitude. Missing linked evidence is a coverage gap, not a plan defect. No implementation, plan repairs, external actions, or Phase 3. Covers claims-vs-reality, executable-proof, dependency-feasibility; bespoke baseline-repro and command/floor contracts. Read named baseline constructs: canonical red-team scaffold/gate/escape guard, Snipe process/model/package helpers, WAR phase succeeded state, resolveGate and test/packaging floors. Verify existing claims against source. Execute bounded independent fixtures/current relevant tests for disputed assumptions, especially stated override globs and dependency semantics; keep legitimate controls and actual outputs. Never run missing future acceptance files as alleged defects. Do not execute outward authoring delivery. Falsify candidates before reporting; expected observation is existing interfaces permit this plan within its latitude, or a demonstrated concrete contradiction."
+    },
+    {
+      "name": "decision-coverage-and-backstops",
+      "technique": "analyzed",
+      "instructions": "Review only the original migration plan and this frozen repository baseline. Do not read Claude review results, implementation ledger, implementation PR, docs/port/red-team-research, or comparison research notes; do not seek other refs or private history. The plan is its own decision source, an implementation plan with future files expected absent. Honor its broad mechanism latitude. Missing linked evidence is a coverage gap, not a plan defect. No implementation, plan repairs, external actions, or Phase 3. Covers coverage-vs-source, intent-vs-plan, consistency-placeholders, guard-split-deps-edge, touched-doc-fact-coverage. Map PIN-1 through PIN-16, A1-A5, End states 1-7, H1-H4, checks and B1/B2 to task owners/timing. Check all consequences of suspected omissions against related paraphrases and the explicit implementation latitude. Validate deferrals have reason, runner, timing and local proxies. Confirm whether judged ledger acceptance can truly be deterministic before suggesting replacement. Compare a failing obligation to an unchanged legitimate control. No default-flip or new inline canonical mirror is explicitly required; re-evaluate applicability, do not invent one. Record linked evidence gaps without expanding into excluded materials."
+    },
+    {
+      "name": "isolation-package-evidence-failure-paths",
+      "technique": "analyzed",
+      "instructions": "Review only the original migration plan and this frozen repository baseline. Do not read Claude review results, implementation ledger, implementation PR, docs/port/red-team-research, or comparison research notes; do not seek other refs or private history. The plan is its own decision source, an implementation plan with future files expected absent. Honor its broad mechanism latitude. Missing linked evidence is a coverage gap, not a plan defect. No implementation, plan repairs, external actions, or Phase 3. Covers dependency-feasibility and consistency; bespoke security boundary, package relocation, evidence preservation and vacuity scenarios. Inspect baseline Snipe git-policy/process helpers, package builder and canonical red-team gate/scaffold as reusable source. Trace plan requirements for linked-worktree metadata isolation, read-only versus executed permissions, cancellation, retry zero, confirmation failure, off-target output, known-clean and seeded-defect diagnostics, package required closure, and initial versus adjudicated evidence. Prove any missing requirement has practical consequence not already covered by an outcome guardrail. Inspect sibling success/error paths and valid controls. ff-topology is inapplicable unless you identify an actual per-task merge-parent/three-dot evidence clause; branch ancestry by itself is not that clause."
+    }
+  ]
+}

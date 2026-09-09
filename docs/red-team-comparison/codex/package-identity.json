@@ -1,0 +1,104 @@
+{
+  "installedPath": "/Users/ljf/.codex/plugins/cache/personal/work-audit-refine-red-team/0.1.0+codex.77d91df9fa50.5dc9e2b31180",
+  "buildInfo": {
+    "format": 1,
+    "source": {
+      "revision": "77d91df9fa50ef65b92863e09e9662c1c23bd397",
+      "dirty": false,
+      "status": "identified",
+      "fileHashes": {
+        "adapters/codex/package-red-team.mjs": "22c2213f53d296ae3ddbd2904aa05e7e585a7445f81d15e4952f97eea191cf0c",
+        "adapters/codex/skills/red-team/SKILL.md": "7f5358eb6c171f1d80aff12745c8652fe6cac354ec4fa9cb8652cefa88bb9ec8",
+        "adapters/codex/skills/red-team/agents/openai.yaml": "e2d37ba17b2bb1b14d39fa2ab25cc4016a8e47ed36f470bc32596c3e5dc3a1d1",
+        "adapters/codex/skills/red-team/assets/red-team-evidence.mjs": "5a3a5b368460450c79f0eb40ba744493804244383acba98a60068a4342e375a8",
+        "adapters/codex/skills/red-team/assets/red-team-runner.mjs": "06992e9020f13a1988784e9856bb7c9cb9f08f4d44fa81fc5f2a129f65e14404",
+        "adapters/codex/skills/red-team/references/host.md": "fbf6123067a56376a7124ae043affaf741c08d5bbe69a38ebf6f6965fe418561",
+        "adapters/codex/skills/red-team/references/plan-repair.md": "9beb3ce5b7c9590092f6d8aa14fe9f3f814856c4e62a33995265ffd0a3ebafb3",
+        "adapters/codex/skills/red-team/references/probing.md": "9e8a4fb4b67722e33cf1c25bac70637df8b8cd3dbe8464193a3788c20c4e4334",
+        "adapters/codex/skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "adapters/codex/skills/snipe/assets/snipe-git-policy.mjs": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+        "adapters/codex/skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "skills/red-team/assets/red-team-gate.mjs": "734012918575f6c70e19ce94f970974c6e16ca0e31e1f3b95a8ec5ed6f912c7c"
+      },
+      "sha256": "5dc9e2b31180ef9ba9993a11c0857c37f1815b3ee0418ca0989a442d2c99a50a"
+    },
+    "files": {
+      ".codex-plugin/plugin.json": "5f4bab18fe5dd488acd09657509fde5cc3082da8a871a243a1af945f627ab4c7",
+      "skills/red-team/SKILL.md": "7f5358eb6c171f1d80aff12745c8652fe6cac354ec4fa9cb8652cefa88bb9ec8",
+      "skills/red-team/agents/openai.yaml": "e2d37ba17b2bb1b14d39fa2ab25cc4016a8e47ed36f470bc32596c3e5dc3a1d1",
+      "skills/red-team/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+      "skills/red-team/assets/red-team-evidence.mjs": "5a3a5b368460450c79f0eb40ba744493804244383acba98a60068a4342e375a8",
+      "skills/red-team/assets/red-team-gate.mjs": "734012918575f6c70e19ce94f970974c6e16ca0e31e1f3b95a8ec5ed6f912c7c",
+      "skills/red-team/assets/red-team-runner.mjs": "edc9bda43459651e3d190ee5d40771a509e4d09d7221ca548eb105e5cd7e387e",
+      "skills/red-team/assets/snipe-git-policy.mjs": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+      "skills/red-team/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+      "skills/red-team/references/host.md": "fbf6123067a56376a7124ae043affaf741c08d5bbe69a38ebf6f6965fe418561",
+      "skills/red-team/references/plan-repair.md": "9beb3ce5b7c9590092f6d8aa14fe9f3f814856c4e62a33995265ffd0a3ebafb3",
+      "skills/red-team/references/probing.md": "9e8a4fb4b67722e33cf1c25bac70637df8b8cd3dbe8464193a3788c20c4e4334"
+    },
+    "artifactSha256": "bb16803fe1c2e91cf8df03c25704a90bfc2a4c9500e903e83e95abd704cf1cc5"
+  },
+  "checks": [
+    {
+      "path": ".codex-plugin/plugin.json",
+      "expected": "5f4bab18fe5dd488acd09657509fde5cc3082da8a871a243a1af945f627ab4c7",
+      "actual": "5f4bab18fe5dd488acd09657509fde5cc3082da8a871a243a1af945f627ab4c7"
+    },
+    {
+      "path": "skills/red-team/SKILL.md",
+      "expected": "7f5358eb6c171f1d80aff12745c8652fe6cac354ec4fa9cb8652cefa88bb9ec8",
+      "actual": "7f5358eb6c171f1d80aff12745c8652fe6cac354ec4fa9cb8652cefa88bb9ec8"
+    },
+    {
+      "path": "skills/red-team/agents/openai.yaml",
+      "expected": "e2d37ba17b2bb1b14d39fa2ab25cc4016a8e47ed36f470bc32596c3e5dc3a1d1",
+      "actual": "e2d37ba17b2bb1b14d39fa2ab25cc4016a8e47ed36f470bc32596c3e5dc3a1d1"
+    },
+    {
+      "path": "skills/red-team/assets/codex-models.mjs",
+      "expected": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+      "actual": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034"
+    },
+    {
+      "path": "skills/red-team/assets/red-team-evidence.mjs",
+      "expected": "5a3a5b368460450c79f0eb40ba744493804244383acba98a60068a4342e375a8",
+      "actual": "5a3a5b368460450c79f0eb40ba744493804244383acba98a60068a4342e375a8"
+    },
+    {
+      "path": "skills/red-team/assets/red-team-gate.mjs",
+      "expected": "734012918575f6c70e19ce94f970974c6e16ca0e31e1f3b95a8ec5ed6f912c7c",
+      "actual": "734012918575f6c70e19ce94f970974c6e16ca0e31e1f3b95a8ec5ed6f912c7c"
+    },
+    {
+      "path": "skills/red-team/assets/red-team-runner.mjs",
+      "expected": "edc9bda43459651e3d190ee5d40771a509e4d09d7221ca548eb105e5cd7e387e",
+      "actual": "edc9bda43459651e3d190ee5d40771a509e4d09d7221ca548eb105e5cd7e387e"
+    },
+    {
+      "path": "skills/red-team/assets/snipe-git-policy.mjs",
+      "expected": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+      "actual": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+    },
+    {
+      "path": "skills/red-team/assets/snipe-process.mjs",
+      "expected": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+      "actual": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28"
+    },
+    {
+      "path": "skills/red-team/references/host.md",
+      "expected": "fbf6123067a56376a7124ae043affaf741c08d5bbe69a38ebf6f6965fe418561",
+      "actual": "fbf6123067a56376a7124ae043affaf741c08d5bbe69a38ebf6f6965fe418561"
+    },
+    {
+      "path": "skills/red-team/references/plan-repair.md",
+      "expected": "9beb3ce5b7c9590092f6d8aa14fe9f3f814856c4e62a33995265ffd0a3ebafb3",
+      "actual": "9beb3ce5b7c9590092f6d8aa14fe9f3f814856c4e62a33995265ffd0a3ebafb3"
+    },
+    {
+      "path": "skills/red-team/references/probing.md",
+      "expected": "9e8a4fb4b67722e33cf1c25bac70637df8b8cd3dbe8464193a3788c20c4e4334",
+      "actual": "9e8a4fb4b67722e33cf1c25bac70637df8b8cd3dbe8464193a3788c20c4e4334"
+    }
+  ],
+  "verified": true
+}

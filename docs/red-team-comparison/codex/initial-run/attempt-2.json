@@ -1,0 +1,18 @@
+{
+  "id": 2,
+  "probe": "decision-coverage-and-backstops",
+  "stage": "probe",
+  "retry": 0,
+  "startedAt": "2026-09-09T17:07:16.199Z",
+  "transport": "completed",
+  "attempted": true,
+  "usage": {
+    "input_tokens": 487761,
+    "cached_input_tokens": 357376,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 2132,
+    "reasoning_output_tokens": 1088
+  },
+  "result": "valid",
+  "finishedAt": "2026-09-09T17:08:36.191Z"
+}
