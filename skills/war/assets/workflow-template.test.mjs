@@ -12076,23 +12076,18 @@ test('auditRound census: every `await auditRound(` site reads the `died` member 
   // Line-comment strip (the dispatch-seam census idiom): the tokens live only in executable code.
   const code = src.replace(/\/\/[^\n]*/g, '')
   const total = s => (s.match(/await auditRound\(/g) || []).length
-  // A site reads `died` one of two ways: destructured `{ …, died[: alias] } = await auditRound(`, or
-  // bound whole (`const full = await auditRound(`) and read as `full.died` within the next three lines.
+  // A site reads `died` one way: destructured `{ …, died[: alias] } = await auditRound(`.
   const reading = s => {
     let n = 0
     const destructured = /\{([^{}]*)\}\s*=\s*await auditRound\(/g
     for (const m of s.matchAll(destructured)) if (/\bdied\b/.test(m[1])) n++
-    const bound = /(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await auditRound\([^\n]*\n((?:[^\n]*\n){0,3})/g
-    for (const m of s.matchAll(bound)) if (new RegExp('\\b' + m[1] + '\\.died\\b').test(m[2])) n++
     return n
   }
-  assert.ok(total(code) >= 8, 'the engine carries the eight auditRound call sites (non-vacuity: ' + total(code) + ')')
+  assert.ok(total(code) >= 8, "the engine's auditRound call sites (non-vacuity: " + total(code) + ')')
   assert.equal(reading(code), total(code), 'default-deny: every `await auditRound(` site reads `died` — a straggler that drops it reds this census')
-  // Mutation controls: a `died`-less destructuring site and a `died`-less bound site each red the equality.
+  // Mutation control: a `died`-less destructuring site reds the equality.
   const straggler = code + '\nconst straggler = async t => { const { seats, expected } = await auditRound(t, null, null, null); return seats.length < expected }\n'
   assert.notEqual(reading(straggler), total(straggler), 'a died-less destructuring site is caught by the census')
-  const boundStraggler = code + '\nconst straggler = async t => {\n  const r = await auditRound(t, null, null, null)\n  return r.seats.length < r.expected\n}\n'
-  assert.notEqual(reading(boundStraggler), total(boundStraggler), 'a died-less whole-bound site is caught by the census')
 })
 
 // (d) #1413 — args provenance floor: refuse at entry, fail-closed, zero agent spawns.

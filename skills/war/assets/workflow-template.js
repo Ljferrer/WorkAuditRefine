@@ -3154,10 +3154,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (!scope.roster) { recordAceTransfer(r, sha, 'full-panel', scope.why, seats, []); return { red: false, died: null, seats, expected } }
     if (seats.some(s => s && (s.scopeBreach === true || (s.findings || []).some(f => f && f.scopeBreach === true)))) {
       log('ace-scope ' + r.task.id + ': a re-audit seat detected a file outside the claimed ace_diff_files set — the subset transfer is REFUSED and the FULL panel re-runs at ' + sha + ' (PIN-18).')
-      const full = await auditRound(r.task, null, null, sha, citationSoundnessClause(findings))
-      if (full.died) return { red: false, died: full.died, seats: [], expected: full.expected }
-      recordAceTransfer(r, sha, 'full-panel', 'seat-detected file outside the claimed ace_diff_files set (PIN-18)', full.seats, [])
-      return { red: false, died: null, seats: full.seats, expected: full.expected }
+      const { seats: fSeats, expected: fExpected, died: fDied } = await auditRound(r.task, null, null, sha, citationSoundnessClause(findings))
+      if (fDied) return { red: false, died: fDied, seats: [], expected: fExpected }
+      recordAceTransfer(r, sha, 'full-panel', 'seat-detected file outside the claimed ace_diff_files set (PIN-18)', fSeats, [])
+      return { red: false, died: null, seats: fSeats, expected: fExpected }
     }
     const ran = new Set(scope.roster.map(s => s.lens))
     // Carried approvals ride with EMPTY findings: their Minor/Nits were already routed once at the
@@ -4322,7 +4322,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
-          if (deathOf(ep)) mergeDied(deathOf(ep))   // D21: a dead environment-proceed re-merge is env-died, site-named
+          const epDeath = deathOf(ep)
+          if (epDeath) mergeDied(epDeath)   // D21: a dead environment-proceed re-merge is env-died, site-named
           else if (ep && ep.status === 'merged') landMerged(r.task, ep)
           else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
           else if (ep && ep.status === 'gate_failed') escalated.push({ task: r.task.id, reason: ep.status, detail: ep })   // introduced OR baseline→introduced (bounded)
@@ -4356,7 +4357,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }))
-          if (deathOf(bp)) mergeDied(deathOf(bp))   // D21: a dead baseline-proceed re-merge is env-died, site-named
+          const bpDeath = deathOf(bp)
+          if (bpDeath) mergeDied(bpDeath)   // D21: a dead baseline-proceed re-merge is env-died, site-named
           else if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
           else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })
           else if (bp && bp.status === 'gate_failed') escalated.push({ task: r.task.id, reason: 'gate_failed', detail: bp })   // introduced OR baseline→introduced (bounded)
@@ -5389,8 +5391,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const discardWhy = sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands'
         : sweepApproved ? 'the polish panel approved branch ' + polishBranch + ' and its merge never landed (' + pmrStatus + ') — the audited fix lives on that unmerged branch, left in place with worktree ' + polishWorktree + ' for a human to reap; the pre-polish tip lands'
         : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands'
+      const stampWhy = sweepDrainCause || pmrDeath   // loop-invariant; sweepDrainCause alone drives discardWhy and the carry reason
       for (const f of phaseCloseQueue.splice(0)) {
-        if (sweepDrainCause || pmrDeath) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause || pmrDeath)
+        if (stampWhy) stampDrainCause(f, 'polish:phase-' + ph.id, stampWhy)
         if (!finalPhase && !sweepApproved) carryPhaseClose(f, 'phase-close sweep discarded (' + (sweepDrainCause || 'the polish branch never merged') + ') on a non-final phase; carried for the relaunch')
         else demote(f, 'follow-up', 'demote:sweep-discarded — ' + discardWhy)
       }
