@@ -1,0 +1,21 @@
+✔ offline relocated diagnostic entrypoint: success (4104.635708ms)
+✔ offline relocated diagnostic entrypoint: wrapped (3844.494709ms)
+✔ offline relocated diagnostic entrypoint: missing (3259.785958ms)
+✔ offline relocated diagnostic entrypoint: unusable (3238.091083ms)
+✔ offline relocated diagnostic entrypoint: vacuous (3642.399584ms)
+✔ offline relocated diagnostic entrypoint: echo-analysis (3753.149ms)
+✔ offline relocated diagnostic entrypoint: echo-proof (3743.707542ms)
+✔ offline relocated diagnostic entrypoint: unrelated (3643.921583ms)
+✔ offline relocated diagnostic entrypoint: bad-confirmation (4585.481875ms)
+✔ offline relocated diagnostic entrypoint: wrong-expected (4815.648208ms)
+✔ offline relocated diagnostic entrypoint: wrong-actual (4651.118333ms)
+✔ offline relocated diagnostic entrypoint: wrong-marker (4553.253875ms)
+﹣ actual host diagnostic (explicit opt-in; skipped is unavailable evidence) (0.048625ms) # SKIP
+ℹ tests 13
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 47895.567041

@@ -1,0 +1,44 @@
+[
+  {
+    "name": "fsmonitor-policy",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 coordinator inspection cannot run a target fsmonitor or clean filter (1779.1355ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1845.363959\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:215:1\n\u2716 coordinator inspection cannot run a target fsmonitor or clean filter (1779.1355ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  true !== false\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:225:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: true,\n    expected: false,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "prior-projection",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 confirmation projection contains no live checkout anchor and saved identity is runner-owned (1222.81625ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1285.061583\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:206:1\n\u2716 confirmation projection contains no live checkout anchor and saved identity is runner-owned (1222.81625ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'INCOMPLETE'\n  - 'BLOCKED'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:212:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'INCOMPLETE',\n    expected: 'BLOCKED',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "candidate-stamp",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 confirmation projection contains no live checkout anchor and saved identity is runner-owned (1252.418917ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1316.456208\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:206:1\n\u2716 confirmation projection contains no live checkout anchor and saved identity is runner-owned (1252.418917ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  'forged' !== 'sum#1'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:213:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'forged',\n    expected: 'sum#1',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "filter-override",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 coordinator inspection cannot run a target fsmonitor or clean filter (1518.770709ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1583.160792\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:215:1\n\u2716 coordinator inspection cannot run a target fsmonitor or clean filter (1518.770709ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  true !== false\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:225:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: true,\n    expected: false,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "global-config",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 coordinator checkout does not inherit user-configured smudge filters (552.246625ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 630.166708\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:227:1\n\u2716 coordinator checkout does not inherit user-configured smudge filters (552.246625ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + '# Fixture plan\\r\\n\\r\\nVerify the sum is four.\\r\\n'\n  - '# Fixture plan\\n\\nVerify the sum is four.\\n'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:233:10)\n      at Test.runInAsyncScope (node:async_hooks:227:14)\n      at Test.run (node:internal/test_runner/test:1306:25)\n      at Test.start (node:internal/test_runner/test:1177:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: '# Fixture plan\\r\\n\\r\\nVerify the sum is four.\\r\\n',\n    expected: '# Fixture plan\\n\\nVerify the sum is four.\\n',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "projection-bound",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 runner archives raw pages even when duplicated archive is larger than role projection (1611.598334ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1686.057833\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:236:1\n\u2716 runner archives raw pages even when duplicated archive is larger than role projection (1611.598334ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'INCOMPLETE'\n  - 'CLEARED'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:241:10)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'INCOMPLETE',\n    expected: 'CLEARED',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  {
+    "name": "artifact-budget",
+    "exit": 1,
+    "assertionKilled": true,
+    "output": "\u2716 rejected oversized linked artifact leaves room for later small evidence (17.528ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 150.199708\n\n\u2716 failing tests:\n\ntest at adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:207:1\n\u2716 rejected oversized linked artifact leaves room for later small evidence (17.528ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  'unread' !== 'read'\n  \n      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-mutations-ptba4s3z/adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:209:80)\n      at async Test.run (node:internal/test_runner/test:1313:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'unread',\n    expected: 'read',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  }
+]
