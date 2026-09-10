@@ -1,5 +1,7 @@
 # GitHub testing plan for Claude and Codex parity
 
+> **Continuing roadmap — current sequencing updated 2026-09-10.** Collector/contract/fixture foundations and an inert CI template now exist; production parity is not established. Follow [the authoritative engine integration plan](../plans/2026-09-10-codex-engine-integration.md) next. The campaign-in-progress statements below are dated context. See `scripts/ci/README.md`, `tests/parity/README.md`, and the linked acceptance ledgers for implemented scope; do not infer hosted CI activation or live compatibility from the original proposals.
+
 Date: 2026-09-07. Status: proposed implementation design for discussion; no workflows, GitHub settings, secrets, or releases are changed by this document.
 
 ## Accepted direction and working boundary

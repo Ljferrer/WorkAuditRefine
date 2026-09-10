@@ -1,5 +1,7 @@
 # WorkAuditRefine → Codex: source analysis and port design
 
+> **Historical analysis — sequencing superseded 2026-09-10.** The engine campaign has merged and Codex Snipe/planning implementations now exist. Use [the authoritative engine integration plan](../plans/2026-09-10-codex-engine-integration.md) for the next task. Preserve the dated findings below as evidence of the original baseline, not current compatibility claims.
+
 Analyzed 2026-09-07. Baseline: WorkAuditRefine **0.21.12**, commit **ba08a77f812fe3e00fdf21aa5114a3f00f90df4b**. Local Codex CLI: **0.153.4**; Node: **24.17.0**.
 
 ## Recommendation

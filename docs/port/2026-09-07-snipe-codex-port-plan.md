@@ -1,5 +1,7 @@
 # Snipe for Codex — implementation plan and durable checklist
 
+> **Historical implementation checklist — next task changed 2026-09-10.** Snipe has since been implemented and exercised; the stage labels and campaign status below belong to their dated execution records. Use [the authoritative engine integration plan](../plans/2026-09-10-codex-engine-integration.md) to validate it against the merged engine. Retain original checkbox evidence and consult [app acceptance](snipe-app-acceptance.md) and subsequent port ledgers; source acceptance, installed-host observations and new combined-candidate validation are distinct.
+
 Date: 2026-09-07. Status: implementation in progress; S0-S3 complete. This document is the continuation record for the first Codex feature port. Checkbox completion requires evidence, not an agent's recollection.
 
 ## Start here after compaction
