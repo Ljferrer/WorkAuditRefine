@@ -209,11 +209,15 @@ first parent and exact captured integration second parent. In both cases the cap
 base must be an ancestor of the current target, so a foreign local branch cannot be overwritten.
 The captured remote base must be a full commit SHA; an absent branch cannot be a commit parent.
 A normal non-success reply is confirmed only when both target refs equal their respective
-snapshots. Re-read refs after computing evidence; movement or a Git error returns `{}`. A failed
+snapshots and the source identity still matches. Re-read refs after computing evidence; movement or a Git error returns `{}`. A failed
 read after mutation cannot prove absence, even when the mutator reported a known floor failure.
 The engine records confirmation evidence, or invokes recovery before any completion accounting.
 
-For a task/polish/terminal merge, unchanged target refs allow one retry of the full original
+Before any retry, independently verify source identity: task/polish/terminal patch_id and
+content_id over merge-base(captured base,current source)..current source must equal the
+snapshot; land requires the exact captured source SHA. A preserved task rebase is valid.
+Changed or unproven source content returns uncertain, preserving refs for a fresh audit.
+For a task/polish/terminal merge, matching source and unchanged target refs allow one retry of the full original
 operation in this recovery dispatch. An already-advanced target must be exactly the current
 source tip, fast-forward from the captured base, with no foreign commits and the same nonempty
 patch-id and exact content_id as the captured task diff. Complete an interrupted push without force. Rerun the gate
@@ -235,7 +239,7 @@ Return the engine's `MERGE_RECONCILIATION` shape: echo snapshot identities, repo
 and origin target SHAs, current source tip, verified patch-id, `base_is_ancestor` from Git in both modes,
 and the complete normal MergeResult
 with its captured gate path. A land additionally reports its actual commit parents. `unmerged`
-requires both target refs unchanged from their respective snapshots after the retry; it never
+requires matching source identity and both target refs unchanged after the retry; it never
 means “no response.” The workflow validates these fields before accounting success or safe
 absence. Exhausted uncertainty holds before land (`held:workflow-error`), preserving all branches
 and the evidence ledger for the next agent. A proved-unmerged infrastructure death retains its

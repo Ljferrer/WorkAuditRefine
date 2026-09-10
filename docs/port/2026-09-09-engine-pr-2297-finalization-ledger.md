@@ -946,3 +946,52 @@ failures and the ancestry false-green reproduction. All 17 protected refs and th
 Snipe package's 17 files are unchanged. The remote head/base had no concurrent movement.
 Normal commit/push and a fresh four-seat review of that exact candidate follow. No merge or
 release has been performed.
+
+
+### Candidate 13 — source integrity on failures and repository containment
+
+Candidate 12 (`c86a771e070817f9961253805a89d842ceaa7c46`) received a complete,
+stable four-seat Snipe panel: correctness and simplicity approved; cascading-impact and
+test-fidelity requested changes. Its exact report and manifest are retained alongside this ledger.
+
+- Source-only failure cause: both normal non-success confirmation and reconciliation's
+  `unmerged` arm checked target refs alone. A source edit could survive a classified failure,
+  become the next retry's snapshot, and acquire approval. Both arms now share the same source
+  predicate as success: task patch and exact content identity must match; land source SHA must
+  match. Confirmation/recovery producers independently measure the diff from the merge-base
+  of the captured target and current source. This preserves a content-equivalent task rebase.
+  The sweep covered ordinary, polish, terminal, land, classified baseline/environment proceed,
+  lost replies, normal replies, snapshot/proof schemas, the recovery procedure and schema prose.
+  Recovery must establish source identity before retrying, not after publishing changed content.
+- Relative-path cause: lexical normalization admitted the main checkout itself and outside
+  repositories. Relative submodule and paired Gitlink metadata now require a strict segment
+  descendant of normalized mainCheckout. Root equality, parent traversal and prefix siblings
+  refuse before dispatch; internal aliases, decorated main paths, root descendants and the
+  existing explicit-absolute contract remain valid. This is lexical normalization, with no
+  new filesystem/symlink resolution guarantee.
+- Receipt consequence: the JSONC declaration now includes both exact-content fields already
+  emitted by the runtime. The real transferred-rebase fixture independently measures both
+  identities and checks their presence in the declaration. Familiar prompt duplication and
+  holder diagnostics remain deferred under #2126/#2127; the in-class schema omission is fixed.
+
+Before-source evidence: all eight source-change cases and twelve path escapes fail against
+actual candidate-12 production; all eight source-preserving controls pass. With the repair,
+those 28 cases pass. Missing source/patch/content evidence and path boundary mirrors are added.
+Guard-removal controls discriminate both failure consumers, shared source fields, success
+consumer, relative-only/segment/root/equality/main-normalization branches, receipt emission
+and schema declaration. Full raw controls and final validation will be bound by the candidate-13
+manifest before commit. The first full run had 2,206 passes and ten fixture failures: six old
+malformed-result cases needed actual source evidence in their synthetic unmerged reply; four
+paired-metadata positives incorrectly required that metadata in ordinary worker prompts.
+Those fixtures now read actual Git and normalized input respectively; production guards were
+not weakened. Fresh final full validation is running. No merge or release has occurred.
+
+Candidate-13 final validation: **2,216 JS tests passed, 0 failed**, **31 shell files passed,
+0 failed**, redaction clean, version slots coherent at **0.21.13**. Actual staging is
+**344,138 / 524,288 bytes**. Refiner and workflow prompt hard budgets pass at
+**36,761 / 36,864 B** and **137,169 / 137,216 B**. Fourteen parseable production mutations
+and one schema omission fail their independent assertions. The validation manifest binds
+source hashes, before/after evidence, control logs and all 17 unchanged protected refs.
+The installed Snipe package's 17 files also remain unchanged. Commit/push and the required
+exact-candidate panel follow; the final verdict belongs to the PR and durable external evidence
+so no evidence-only commit changes the SHA after that panel.

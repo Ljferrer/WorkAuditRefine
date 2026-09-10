@@ -911,14 +911,21 @@ for (const t of (tasks || [])) {
     } else if (!t.targetRepo.startsWith('/') && !(typeof mainCheckout === 'string' && mainCheckout.startsWith('/') && !mainCheckout.includes('\0'))) {
       problems.push('workflow-template: task ' + tid + ' requires absolute NUL-free mainCheckout to resolve relative targetRepo')
     } else {
-      const absolute = t.targetRepo.startsWith('/') ? t.targetRepo : mainCheckout + '/' + t.targetRepo
-      const parts = []
-      for (const part of absolute.split('/')) {
-        if (!part || part === '.') continue
-        if (part === '..') parts.pop()
-        else parts.push(part)
+      const normalize = path => {
+        const parts = []
+        for (const part of path.split('/')) {
+          if (!part || part === '.') continue
+          if (part === '..') parts.pop()
+          else parts.push(part)
+        }
+        return '/' + parts.join('/')
       }
-      t.targetRepo = '/' + parts.join('/')
+      const relative = !t.targetRepo.startsWith('/')
+      const base = relative ? normalize(mainCheckout) : null
+      const resolved = normalize(relative ? base + '/' + t.targetRepo : t.targetRepo)
+      if (relative && (resolved === base || !resolved.startsWith(base === '/' ? '/' : base + '/'))) {
+        problems.push('workflow-template: task ' + tid + ' relative targetRepo must resolve to a strict descendant of mainCheckout')
+      } else t.targetRepo = resolved
     }
   }
 }
@@ -2125,12 +2132,15 @@ const MERGE_RECONCILIATION = { type: 'object', required: ['outcome', 'base_sha',
 const fullSha = sha => typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha)
 // Shared by normal confirmation and uncertain-response recovery: no success path has a
 // weaker definition of the task fast-forward or the exact two-parent phase commit.
-const mergeGitMatches = (proof, before, land) => fullSha(proof.local_sha) && proof.remote_sha === proof.local_sha &&
+const sourceGitMatches = (proof, before, land) => land
+  ? proof.source_tip === before.source_sha
+  : fullSha(proof.source_tip) && proof.patch_id === before.patch_id && proof.content_id === before.content_id
+const mergeGitMatches = (proof, before, land) => fullSha(proof.local_sha) && proof.remote_sha === proof.local_sha && sourceGitMatches(proof, before, land) &&
   (land
-    ? fullSha(before.remote_sha) && proof.source_tip === before.source_sha && proof.base_is_ancestor === true &&
+    ? fullSha(before.remote_sha) && proof.base_is_ancestor === true &&
       Array.isArray(proof.parents) && proof.parents.length === 2 && fullSha(proof.parents[0]) &&
       (proof.parents[0] === before.remote_sha || proof.local_sha === before.remote_sha) && proof.parents[1] === before.source_sha
-    : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true && proof.patch_id === before.patch_id && proof.content_id === before.content_id)
+    : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true)
 const mergeSnapshot = async (opts, context) => {
   let before
   const seed = context.seed ?? context.target
@@ -2199,7 +2209,7 @@ const confirmMerge = async (result, opts, context, before) => {
   const claimed = result[context.land ? 'working_sha' : 'integration_sha'] ?? null
   const proof = await dispatchSite(
     pt`GIT MERGE CONFIRMATION (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch snapshot: ${JSON.stringify(before)}. Reported result: ${JSON.stringify({ mode: result.mode, status: result.status, claimed })}.
-Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0). For merge-task return patch_id from git diff <snapshot base_sha>..<current source> | git patch-id --stable (first field). Also return content_id for that same diff using Exact Git diff identity in refiner-recovery.md; never echo the snapshot identity. For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
+Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0). For merge-task return patch_id from git diff <merge-base snapshot-base current-source>..<current source> | git patch-id --stable (first field). Also return content_id for that same diff using Exact Git diff identity in refiner-recovery.md; never echo the snapshot identity. For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-confirm', label: 'git-confirm:' + opts.label, schema: MERGE_CONFIRMATION, ...spawn('refiner') })
   const died = deathOf(proof)
   if (died) {
@@ -2208,7 +2218,7 @@ Read local target and source branch tips with git rev-parse --verify <ref>^{comm
   }
   const confirmed = !!proof && result.mode === mode && (result.status === success
     ? mergeGitMatches(proof, before, context.land) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
-    : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && proof.remote_sha === before.remote_sha)
+    : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && proof.remote_sha === before.remote_sha && sourceGitMatches(proof, before, context.land))
   auditLog.push({ task: context.task, verdict: confirmed ? 'git-confirmed:' + result.status : 'git-confirmation:unresolved', findings: [], site: opts.label, reported: result, before, after: proof })
   return confirmed
 }
@@ -2223,9 +2233,9 @@ const reconcileMerge = async (original, opts, context, before, lost) => {
       pt`GIT MERGE RECONCILIATION for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch Git snapshot: ${JSON.stringify(before)}. Prior response: ${cause}. You are the refiner, with Git write authority; auditors remain read-only. Read refiner-recovery.md section Uncertain merge reconciliation before acting. Establish local and origin target refs and the source branch from Git, never infer no mutation from a lost response, ancestry alone, a local marker, or a log. Recover in this phase without human Git commands.
 `
       + (context.land
-        ? pt`LAND RECOVERY: the target is the working branch and the source is the integration branch. Inspect Git for an already-pushed --no-ff phase commit with EXACT parents [snapshot remote_sha, snapshot source_sha]. Also recognize a phase commit ALREADY at snapshot remote_sha whose second parent is exactly snapshot source_sha and whose first parent is a full Git commit: that phase was published before this dispatch/resume. Return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0), so a local follower may advance to that published commit but foreign local history is never overwritten. If it exists, reuse that commit, complete the local compare-and-swap only as the original land contract allows, and never make a second phase commit. Otherwise retry the original push-first CAS only from the unchanged captured target base. Rerun the full gate into a fresh artifact at the actual landed commit, preserving the original classified baseline allowances. Return outcome landed only with parents, source_tip, the verified snapshot patch_id and a normal land-phase MergeResult whose working_sha equals BOTH local and origin target refs. A foreign/diverged target, unknown writer or missing proof means uncertain; preserve all refs.\n`
-        : pt`If both target refs are unchanged from the snapshot, retry the full original operation below once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with both the source patch-id and exact content_id equal to the snapshot and no foreign commits. Compute content_id for snapshot base_sha..current source using Exact Git diff identity in refiner-recovery.md; never echo its captured value. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA and base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0).\n`)
-      + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha the current source/target/remote SHA, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha, independently recomputed content_id and the verified nonempty patch_id. Return unmerged ONLY when local and origin target refs equal their respective pre-dispatch snapshot values after your retry; include its normal non-success result if available. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
+        ? pt`LAND RECOVERY: the target is the working branch and the source is the integration branch. Inspect Git for an already-pushed --no-ff phase commit with EXACT parents [snapshot remote_sha, snapshot source_sha]. Also recognize a phase commit ALREADY at snapshot remote_sha whose second parent is exactly snapshot source_sha and whose first parent is a full Git commit: that phase was published before this dispatch/resume. Return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0), so a local follower may advance to that published commit but foreign local history is never overwritten. If it exists, reuse that commit, complete the local compare-and-swap only as the original land contract allows, and never make a second phase commit. Otherwise retry push-first CAS only with unchanged source and target base. Rerun the full gate into a fresh artifact at the actual landed commit, preserving the original classified baseline allowances. Return outcome landed only with parents, source_tip, the verified snapshot patch_id and a normal land-phase MergeResult whose working_sha equals BOTH local and origin target refs. A foreign/diverged target, unknown writer or missing proof means uncertain; preserve all refs.\n`
+        : pt`Before retrying, verify source identity per refiner-recovery.md. With matching source and unchanged target refs, retry once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with both the source patch-id and exact content_id equal to the snapshot and no foreign commits. Recompute patch_id via git patch-id --stable and content_id via Exact Git diff identity in refiner-recovery.md over merge-base(snapshot base_sha,current source)..current source; never echo captured values. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA and base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0).\n`)
+      + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha the current source/target/remote SHA, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha, independently recomputed content_id and the verified nonempty patch_id. Return unmerged ONLY with unchanged target refs and matching source identity; include source_tip, patch_id, content_id and any normal non-success result. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
 ORIGINAL OPERATION (all requirements still apply):
 ` + original + '\n' + capture.clause,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-reconcile', label: 'git-reconcile:' + opts.label + ':' + attempt, schema: MERGE_RECONCILIATION, ...spawnRefinerRecovery() })
@@ -2240,7 +2250,7 @@ ORIGINAL OPERATION (all requirements still apply):
       auditLog.push({ task: context.task, verdict: 'git-reconciled:' + success, findings: [], site: opts.label, before, after: recovered })
       return recovered.result
     }
-    if (recovered.outcome === 'unmerged' && recovered.local_sha === before.base_sha && recovered.remote_sha === before.remote_sha &&
+    if (recovered.outcome === 'unmerged' && recovered.local_sha === before.base_sha && recovered.remote_sha === before.remote_sha && sourceGitMatches(recovered, before, context.land) &&
         (!recovered.result || (recovered.result.mode === mode && !['merged', 'landed'].includes(recovered.result.status)))) {
       auditLog.push({ task: context.task, verdict: 'git-reconciled:unmerged', findings: [], site: opts.label, before, after: recovered })
       return recovered.result || lost

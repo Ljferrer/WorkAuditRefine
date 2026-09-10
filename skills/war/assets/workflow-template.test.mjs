@@ -80,7 +80,7 @@ const NEW_SEAT_DEFAULTS = {
     const tip = typeof result.claimed === 'string' && /^[0-9a-f]{7,40}$/.test(result.claimed) ? result.claimed.padEnd(40, '0') : null
     return ['merged', 'landed'].includes(result.status)
       ? { local_sha: tip, remote_sha: tip, source_tip: result.status === 'landed' ? before.source_sha : tip, reported_sha: tip, patch_id: before.patch_id, content_id: before.content_id, base_is_ancestor: true, parents: [before.remote_sha, before.source_sha] }
-      : { local_sha: before.base_sha, remote_sha: before.remote_sha }
+      : { local_sha: before.base_sha, remote_sha: before.remote_sha, source_tip: before.source_sha, patch_id: before.patch_id, content_id: before.content_id }
   },
   // Neutral legacy fixtures describe a coherent synthetic Git world. Raw Git-boundary tests
   // replace these seats with independently measured refs/objects and never use this projection.
@@ -97,7 +97,7 @@ const NEW_SEAT_DEFAULTS = {
   'pin-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
   'target-reconcile': { detail: 'no safe automatic correction in this fixture' },
   'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
-  'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
+  'merge-reconcile': { source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40), outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
   // diff-probe (in-band-absorb-default D4): the per-task refiner probe between the worker's green
   // return and the seat convene. The neutral default is an ABSENT probe (no diff_files) — the
@@ -18751,7 +18751,7 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
           assert.ok(o.label.startsWith('git-reconcile:' + label), 'only the uncertain target is maintained')
           recovered++
           const local = git('rev-parse', target), remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target)
-          if (!shape.startsWith('false-failure')) return { outcome: 'unmerged', ...before, local_sha: local, remote_sha: remote }
+          if (!shape.startsWith('false-failure')) return { outcome: 'unmerged', ...before, source_tip: git('rev-parse', source), patch_id: patch(), content_id: fixtureContentId(dir, base, source), local_sha: local, remote_sha: remote }
           return { outcome: site === 'land' ? 'landed' : 'merged', ...before, content_id: fixtureContentId(dir, base, source), local_sha: local, remote_sha: remote, source_tip: git('rev-parse', source), base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0,
             parents: git('show', '-s', '--format=%P', target).split(' '), result: { mode: site === 'land' ? 'land-phase' : 'merge-task', status: site === 'land' ? 'landed' : 'merged', [site === 'land' ? 'working_sha' : 'integration_sha']: local, gate_log_path: fixtureGatePath(p) } }
         },
@@ -18984,6 +18984,13 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
       if (!accepted) assert.ok(!out.pinTransfers.some(r => ['transferred', 'already_upstream'].includes(r.mode)), 'no false transfer receipt')
       if (kind === 'changed-approved') assert.ok(out.pinTransfers.some(r => r.mode === 'mismatch'), 'only the approving new panel produces the receipt')
       if (accepted && kind !== 'upstream') assert.equal(remote(), rebased)
+      if (kind === 'transferred') {
+        const receipt = out.pinTransfers.find(r => r.kind === 'merge')
+        for (const [field, expected] of [['preContentId', fixtureContentId(dir, base, approved)], ['postContentId', fixtureContentId(dir, targetBefore, rebased)]]) {
+          assert.equal(receipt[field], expected, 'receipt carries independently measured exact identity')
+          assert.ok(schemasMd.match(/pinTransfers: \[ \{[^\n]+/)[0].includes(field + '?'), 'schema declaration exposes ' + field)
+        }
+      }
       if (kind === 'changed-target') { assert.equal(out.landDecision, 'held:workflow-error', 'an unexpected shared mutation cannot be softened to a task skip'); assert.ok(!calls.some(isMergeTask), 'no current-task merge starts after the target moves unexpectedly') }
     } finally { rmSync(dir, { recursive: true, force: true }) }
   })
@@ -19872,4 +19879,111 @@ test('exact Git identity producers expose their fields and canonical read proced
   }
   assert.deepEqual([...seen].sort(), Object.keys(fields).sort())
   assert.ok(refinerMd.includes('§ Exact Git diff identity'), 'the refiner card supplies the resolved reference path')
+})
+
+for (const site of ['task', 'land']) for (const route of ['baseline', 'environment']) for (const response of ['normal', 'lost']) for (const changed of [false, true]) test(`known failure source boundary: ${site} ${route} ${response} changed=${changed}`, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-failed-source-'))
+  const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+  const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const target = site === 'task' ? 'integration' : 'working', source = site === 'task' ? 'task' : 'integration'
+  const label = site === 'task' ? 'merge:t1' : 'land:phase-3', retryLabel = label + ':' + route + '-proceed'
+  const patch = (base, tip) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, tip) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+  const remote = () => git('ls-remote', 'origin', 'refs/heads/' + target).split(/\s/)[0]
+  let retries = 0, maintenance = 0, beforeFailure
+  try {
+    git('init', '-b', target); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD')
+    git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', target)
+    git('checkout', '-b', source); writeFileSync(join(dir, 'owned.js'), 'module.exports = "approved value"\n'); git('add', 'owned.js'); git('commit', '-m', 'approved source'); const approved = git('rev-parse', source)
+    git('checkout', target)
+    if (site === 'task') { writeFileSync(join(dir, 'sibling'), 'published sibling'); git('add', 'sibling'); git('commit', '-m', 'sibling'); git('push', 'origin', target) }
+    const targetBefore = git('rev-parse', target)
+    const snapshot = () => ({ base_sha: git('rev-parse', target), source_sha: git('rev-parse', source), remote_sha: remote(), patch_id: patch(git('merge-base', target, source), source), content_id: fixtureContentId(dir, git('merge-base', target, source), source) })
+    const proof = before => {
+      const ownBase = git('merge-base', before.base_sha, source)
+      return { local_sha: git('rev-parse', target), remote_sha: remote(), source_tip: git('rev-parse', source), patch_id: patch(ownBase, source), content_id: fixtureContentId(dir, ownBase, source), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, target).status === 0, parents: git('show', '-s', '--format=%P', target).split(' ') }
+    }
+    const failure = { mode: site === 'task' ? 'merge-task' : 'land-phase', status: 'gate_failed', gate_failure_class: route, gate_failing_ids: ['existing-test'], gate_base_sha: base, gate_output: 'classified existing failure' }
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+      if (o.label === label) {
+        beforeFailure = snapshot(); git('checkout', source)
+        if (site === 'task') git('rebase', target)
+        if (changed) { writeFileSync(join(dir, 'owned.js'), 'module.exports = "approved  value"\n'); git('add', 'owned.js'); git('commit', '-m', 'significant source drift') }
+        git('checkout', target)
+        assert.equal(git('rev-parse', target), targetBefore); assert.equal(remote(), targetBefore)
+        if (response === 'lost') throw new Error('529 lost failure response')
+        return failure
+      }
+      if (o.label === retryLabel) {
+        retries++; git('checkout', target); git('merge', site === 'task' ? '--ff-only' : '--no-ff', source, '-m', 'proceed'); git('push', 'origin', target)
+        return { mode: failure.mode, status: site === 'task' ? 'merged' : 'landed', [site === 'task' ? 'integration_sha' : 'working_sha']: git('rev-parse', target), gate_log_path: fixtureGatePath(p) }
+      }
+      return defaultImpl(p, o)
+    }, { rawMergeResults: true,
+      'merge-snapshot': (p, o) => p.includes('for ' + label + '.') || p.includes('for ' + retryLabel + '.') ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+      'merge-confirm': (p, o) => {
+        if (!o.label.startsWith('git-confirm:' + label)) return NEW_SEAT_DEFAULTS['merge-confirm'](p)
+        const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), reported = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
+        const r = reported.claimed ? run('rev-parse', '--verify', reported.claimed + '^{commit}') : null
+        return { ...proof(before), reported_sha: r?.status === 0 ? r.stdout.trim() : null }
+      },
+      'merge-reconcile': p => {
+        maintenance++
+        const before = JSON.parse(p.match(/Immutable pre-dispatch Git snapshot: (.+?)\. Prior response:/)[1])
+        return { outcome: 'unmerged', base_sha: before.base_sha, source_sha: before.source_sha, ...proof(before), result: failure }
+      },
+    })
+    assert.ok(beforeFailure, 'the actual operation was dispatched')
+    assert.equal(patch(git('merge-base', targetBefore, source), source), beforeFailure.patch_id, 'both source states retain the same lossy patch ID')
+    assert.equal(out.landed.includes('t1') && out.landDecision === 'landed', !changed, 'source-only mutation cannot acquire approval from a known failure or an unmerged reply')
+    assert.equal(retries, changed ? 0 : 1, 'no proceed dispatch adopts unapproved source as a fresh expected snapshot')
+    if (changed) { assert.ok(maintenance > 0); assert.equal(git('rev-parse', target), targetBefore); assert.equal(remote(), targetBefore) }
+    if (!changed && site === 'task') assert.notEqual(git('rev-parse', source), approved, 'a content-preserving rebase remains an ordinary recoverable failure')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const targetRepo of ['.', './', 'vendor/..', '../sibling', '../repo-other/module', '../../outside']) for (const taskType of ['submodule', 'gitlink-bump']) test('relative repository containment refuses ' + taskType + ': ' + targetRepo, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: '/abs/repo', tasks: [submodRetryTask({ taskType, targetRepo })] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.equal(calls.length, 0, 'a relative repository escape refuses before any dispatch')
+  assert.match(out.workflowError.message, /strict descendant of mainCheckout/)
+})
+
+for (const [mainCheckout, targetRepo, expected] of [
+  ['/abs/repo', 'vendor/../module', '/abs/repo/module'],
+  ['/abs/other/../repo/.', './vendor/module', '/abs/repo/vendor/module'],
+  ['/', 'module', '/module'],
+  ['/abs/repo', '/outside/module', '/outside/module'],
+]) for (const taskType of ['submodule', 'gitlink-bump']) test('repository containment preserves valid input: ' + taskType + ' ' + mainCheckout + ' ' + targetRepo, async () => {
+  const task = submodRetryTask({ taskType, targetRepo })
+  const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout, tasks: [task] }), defaultImpl)
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(calls.some(isWorker))
+  assert.equal(task.targetRepo, expected, 'paired metadata and submodule inputs share normalization')
+  if (taskType === 'submodule') assert.ok(calls.some(c => c.prompt.includes(expected)), 'submodule consumers receive the normalized repository')
+})
+for (const targetRepo of ['.', 'module/..', '..']) test('relative repository containment refuses root equality: ' + targetRepo, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: '/', tasks: [submodRetryTask({ targetRepo })] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error'); assert.equal(calls.length, 0)
+  assert.match(out.workflowError.message, /strict descendant of mainCheckout/)
+})
+
+for (const field of ['source_tip', 'patch_id', 'content_id']) for (const lost of [false, true]) test('failure source evidence refuses missing ' + field + ' lost=' + lost, async () => {
+  const failed = { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'environment failure' }
+  const proof = before => {
+    const value = { local_sha: before.base_sha, remote_sha: before.remote_sha, source_tip: before.source_sha, patch_id: before.patch_id, content_id: before.content_id }
+    delete value[field]; return value
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (o.label === 'merge:t1') { if (lost) throw new Error('529 lost response'); return failed }
+    return defaultImpl(p, o)
+  }, {
+    'merge-confirm': p => proof(JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1])),
+    'merge-reconcile': p => {
+      const before = JSON.parse(p.match(/Immutable pre-dispatch Git snapshot: (.+?)\. Prior response:/)[1])
+      return { ...before, ...proof(before), [field]: undefined, outcome: 'unmerged', result: failed }
+    },
+  })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.ok(!calls.some(c => c.opts.label === 'merge:t1:environment-proceed'))
 })
