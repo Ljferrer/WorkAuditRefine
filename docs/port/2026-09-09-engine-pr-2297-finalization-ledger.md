@@ -1,5 +1,7 @@
 # PR #2297 finalization ledger
 
+Snipe reports, execution manifests and candidate validation evidence are archived in [snipe/](snipe/).
+
 ## Authority and scope
 
 User-requested bounded integrity finalization; source `dev/2026-09-06-engine-and-audit-verdict-integrity`, target `master`, repository `Ljferrer/WorkAuditRefine`. Commit and push fixes and update the existing PR; **do not merge or release**. The authoritative campaign plan remains `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md`.
@@ -89,7 +91,7 @@ Class sweep underway: #2181/#2168/#2187 share gate-source attribution; #2141 rep
 
 ## Initial Snipe complete
 
-All four seats completed and validated, each request_changes/high confidence; coverage complete, scope stable. Exact report: [initial-snipe.md](2026-09-09-engine-pr-2297-initial-snipe.md); request/profile/seat metadata and raw transport hash: [initial-snipe.json](2026-09-09-engine-pr-2297-initial-snipe.json). Audited head remains 6497e0c; current edits are not covered. Packaged post-audit guidance consumed in full. Five Major findings and two Minor findings require disposition. Routing, transfer and baseline findings corroborate the ongoing reproductions; new in-scope investigation: post-push merge-dispatch death and missing alternate death-consumer tests. Seeded-queue duplication and lossy remint hash need bounded classification.
+All four seats completed and validated, each request_changes/high confidence; coverage complete, scope stable. Exact report: [initial-snipe.md](snipe/2026-09-09-engine-pr-2297-initial-snipe.md); request/profile/seat metadata and raw transport hash: [initial-snipe.json](snipe/2026-09-09-engine-pr-2297-initial-snipe.json). Audited head remains 6497e0c; current edits are not covered. Packaged post-audit guidance consumed in full. Five Major findings and two Minor findings require disposition. Routing, transfer and baseline findings corroborate the ongoing reproductions; new in-scope investigation: post-push merge-dispatch death and missing alternate death-consumer tests. Seeded-queue duplication and lossy remint hash need bounded classification.
 
 ## Repair checkpoint — routing and transfer
 
