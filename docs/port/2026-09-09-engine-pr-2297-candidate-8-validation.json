@@ -1,0 +1,546 @@
+{
+  "candidate": "commit containing the following source hashes",
+  "parentSha": "1a25c9e143f804358c4ec9a81b6a9561ff2513b4",
+  "node": "v24.17.0",
+  "javascript": {
+    "command": "node --test 'skills/**/*.test.mjs'",
+    "passed": 2081,
+    "failed": 0,
+    "logSha256": "28da8f7eb6955c72571275e903c69c44e31c69e072b0b93a8f4ec14362a22a6d",
+    "priorRun": "2075 passed / 1 failed before the final external-diff and sanction cases: the standing recovery-pointer census expected six rather than seven. Replaced with a named trigger set before the complete final run."
+  },
+  "shell": {
+    "command": "rg --files hooks skills -g '*.test.sh'; bash each discovered file",
+    "passed": 31,
+    "failed": 0,
+    "files": [
+      {
+        "file": "hooks/guard-conventions.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-0.log",
+        "logSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3"
+      },
+      {
+        "file": "hooks/validate-servitor-provenance.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-1.log",
+        "logSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d"
+      },
+      {
+        "file": "hooks/warn-bash-write-scope.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-2.log",
+        "logSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa"
+      },
+      {
+        "file": "hooks/validate-auditor-git.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-3.log",
+        "logSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c"
+      },
+      {
+        "file": "skills/war-machine/war-pipeline-structure.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-4.log",
+        "logSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78"
+      },
+      {
+        "file": "skills/_shared/war-memory-lint.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-5.log",
+        "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+      },
+      {
+        "file": "skills/_shared/gh-preflight.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-6.log",
+        "logSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4"
+      },
+      {
+        "file": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-7.log",
+        "logSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf"
+      },
+      {
+        "file": "skills/war/assets/assert-done-when.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-8.log",
+        "logSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0"
+      },
+      {
+        "file": "skills/war/assets/gate-pin-status.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-9.log",
+        "logSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133"
+      },
+      {
+        "file": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-10.log",
+        "logSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901"
+      },
+      {
+        "file": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-11.log",
+        "logSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302"
+      },
+      {
+        "file": "skills/war/assets/provision-worktrees.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-12.log",
+        "logSha256": "5fb2277b2fe9537ad9c4c3c82f651ac78af696c9e54443a327d1bb9687e67b7d"
+      },
+      {
+        "file": "skills/war/assets/assert-issues-filed.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-13.log",
+        "logSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84"
+      },
+      {
+        "file": "skills/war/assets/refinery-surface.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-14.log",
+        "logSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345"
+      },
+      {
+        "file": "skills/war/assets/scout-manifest-surface.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-15.log",
+        "logSha256": "da0b5f02d78da293e0750d2044709fe209e6a15a6b5b0b96c37f0f864e07d0aa"
+      },
+      {
+        "file": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-16.log",
+        "logSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f"
+      },
+      {
+        "file": "skills/war/assets/assert-test-in-diff.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-17.log",
+        "logSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515"
+      },
+      {
+        "file": "skills/war/references/schemas-manifest.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-18.log",
+        "logSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49"
+      },
+      {
+        "file": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-19.log",
+        "logSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd"
+      },
+      {
+        "file": "hooks/vale-md/vale-md.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-20.log",
+        "logSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3"
+      },
+      {
+        "file": "hooks/validate-worktree-scope.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-21.log",
+        "logSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad"
+      },
+      {
+        "file": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-22.log",
+        "logSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b"
+      },
+      {
+        "file": "hooks/clean-surface-war-worktree.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-23.log",
+        "logSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5"
+      },
+      {
+        "file": "hooks/reply-standard/gate.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-24.log",
+        "logSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0"
+      },
+      {
+        "file": "hooks/inject-campaign-state.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-25.log",
+        "logSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0"
+      },
+      {
+        "file": "skills/war-strategy/war-strategy-structure.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-26.log",
+        "logSha256": "47bbf1df3b07d8b0a1acd565eb4ce25c7d191fdeb50f625de769451dc631c6bc"
+      },
+      {
+        "file": "skills/red-team/diagnosis-preflight.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-27.log",
+        "logSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402"
+      },
+      {
+        "file": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-28.log",
+        "logSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b"
+      },
+      {
+        "file": "skills/red-team/manifest-provenance.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-29.log",
+        "logSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd"
+      },
+      {
+        "file": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate8-shell-30.log",
+        "logSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18"
+      }
+    ]
+  },
+  "redaction": {
+    "command": "node skills/_shared/war-memory.mjs lint docs/learnings/",
+    "result": "lint: clean",
+    "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+  },
+  "staging": {
+    "command": "node skills/war/assets/stage-workflow.mjs skills/war/assets/workflow-template.js <temp-stage> finalization-2297 1",
+    "bytes": 341256,
+    "cap": 524288
+  },
+  "releaseVersion": "0.21.13",
+  "sourceSha256": {
+    "CHANGELOG.md": "2f5947b79bea530d7534c3027ea0d7a670ccb80451dcbf5082f07f8c627b4210",
+    "README.md": "e7f44d366c5b82bdc5f84534b1583214e8a9da65e4e96cc43fbac1e2a147eca8",
+    "agents/war-auditor.md": "326d39d18f17b455891ce6e7201b52f5659003dfd2f35b8015beec72df23bfaa",
+    "agents/war-refiner.md": "68781e22fa04c6c15cb264d3a81d2b104b1e71d70c5e24fb9705d6b69a489a9e",
+    "docs/adr/0008-git-is-the-resume-source-of-truth.md": "38291ae01131dd28d3a853c0c4fa0c9381e9dc860010c5b57ed51309ae8c320f",
+    "docs/adr/0049-pin-transfer-and-proportional-re-audit.md": "987528d3d7bb26f2a287e23f76fb7d06c1b9e92f4527ea4923903de18e5f60cf",
+    "docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md": "b84de388975a7a91a2bbe9d1b3c4bd42cd1c3041e87f0902126ed0aa38d770e9",
+    "docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md": "9a515be87f17a926f7a59a7721aabfd2c95d094ceaa240d8f3673f3378fd24d8",
+    "skills/war/assets/task-integrated.sh": "1a07f3db392f17061c0e11d3be4429bcbda4ef72d4a98fac4ca2f0be6b3eb624",
+    "skills/war/assets/workflow-template.js": "bc097c6475e05d393d0a008e5b33509166491200db80e8b8ea237f55aafe12b9",
+    "skills/war/assets/workflow-template.test.mjs": "32aba4ba76141c87a632db7d05f8e6a09621b1392a7e18c1fa789bf3a4adff8b",
+    "skills/war/references/refiner-recovery.md": "de7c029dae24ec6e24266c5bc40c92c01aadda295b9f545001aefab066dfd05f",
+    "skills/war/references/resume-and-recovery.md": "ac25899995dabd0bb0d409333a28b7d3428a495e26a194b684f0db7a216a6c67",
+    "skills/war/references/schemas.md": "abc5531edd8f3af10a8976550a3c8f4b9091aab6ab2b2cce090920bfaced345b"
+  },
+  "controls": [
+    {
+      "name": "root-cwd",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-root-cwd.log",
+      "logSha256": "1bf7c50ac3acd18e6f38fb508268c56d44df00973c208b8af3cbffc4734490a3"
+    },
+    {
+      "name": "literal-paths",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-literal-paths.log",
+      "logSha256": "141aa4d1264b8c4606fdfa7c5758bf41b55f581817628f88f188bdff24b89ef0"
+    },
+    {
+      "name": "gitlink-content",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-gitlink-content.log",
+      "logSha256": "fb940220ff34ac49ef1d1a04ad690c443a680aac64e1236cbb33abb85f0f535b"
+    },
+    {
+      "name": "external-diff",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-external-diff.log",
+      "logSha256": "701677e624c491aa51e1eaa443c8722b0180c448fe1e979f6e3e4139a809175a"
+    },
+    {
+      "name": "rename-old-path",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-rename-old-path.log",
+      "logSha256": "880a0d6bf116351954010bcafd114bfa65913fefda454ed940a94d5dff3c00b4"
+    },
+    {
+      "name": "nul-writer",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-nul-writer.log",
+      "logSha256": "81a971f8396eeeb9ea7fb7d75bd01a6348ef0cb8d33de6e20d04effead8c76af"
+    },
+    {
+      "name": "nul-reader",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-nul-reader.log",
+      "logSha256": "cc60f939343b446158f3d97572df3177fda8adf8d90eb7541e8d0940dc4f75c8"
+    },
+    {
+      "name": "nonempty-final",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-nonempty-final.log",
+      "logSha256": "9425952004a32fdfb9e5ea515c712d500aef86c63f9b5615a0c4a0d6b022d3b0"
+    },
+    {
+      "name": "content-equality",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 4,
+      "tests": 4,
+      "log": "/private/tmp/war-2297-candidate8-control-content-equality.log",
+      "logSha256": "c492f4c288dc6641ea0dfa7ac9e7913e6f82a1f0bc34c00940df148d17f87681"
+    },
+    {
+      "name": "list-error-class",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-list-error-class.log",
+      "logSha256": "25485b6de7bc20b1b6631eac9d0c8f419757e0bc18292f0fe37860efcdaa9c77"
+    },
+    {
+      "name": "compare-error-class",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-compare-error-class.log",
+      "logSha256": "c30974e167713e5e4dd5cd40753d330d32208332dca988488c3ab6f286a5a3ae"
+    },
+    {
+      "name": "temp-error-class",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-temp-error-class.log",
+      "logSha256": "8a5f8cc5f6e5e47f7715783a65247a8d77441299ea7a9800d9a3b21eae1e6b17"
+    },
+    {
+      "name": "refs-error-class",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "log": "/private/tmp/war-2297-candidate8-control-refs-error-class.log",
+      "logSha256": "cc7e2cec5b6a6754465b2d82d0bfa84d5d271558847a0170f90a6dd3c65c4205"
+    },
+    {
+      "name": "ref-stability",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 3,
+      "tests": 3,
+      "log": "/private/tmp/war-2297-candidate8-control-ref-stability.log",
+      "logSha256": "90bfd42c94683f674e8980e337467bd0441c5ebbccb1106b4547f03bc9a5545e"
+    },
+    {
+      "name": "cleanup",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 3,
+      "tests": 3,
+      "log": "/private/tmp/war-2297-candidate8-control-cleanup.log",
+      "logSha256": "db87962e407fd31ac1f2aa408db1de742dc1bc88ead0ae02d34f80dde7015eca"
+    },
+    {
+      "name": "submodule-repo",
+      "kind": "workflow",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2,
+      "log": "/private/tmp/war-2297-candidate8-control-submodule-repo.log",
+      "logSha256": "47c5ab0eec97c8f35df0ed9815d0215db95fdaf75b9633e4d5095628df4aa550"
+    },
+    {
+      "name": "submodule-base",
+      "kind": "workflow",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2,
+      "log": "/private/tmp/war-2297-candidate8-control-submodule-base.log",
+      "logSha256": "8d47259fb5b2b0adbe98225be599caae7ea988c19a5bc5bc4dda82e5d313bd08"
+    },
+    {
+      "name": "ordinary-base",
+      "kind": "workflow",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2,
+      "log": "/private/tmp/war-2297-candidate8-control-ordinary-base.log",
+      "logSha256": "74b4ba67dfdc4160e06a165cbf5224d740cad1677e8e2ce5fdbd976e28594bac"
+    },
+    {
+      "name": "absent-phase-task",
+      "kind": "workflow",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2,
+      "log": "/private/tmp/war-2297-candidate8-control-absent-phase-task.log",
+      "logSha256": "793250a347d658e127b16bd2eaae01a4d1b80e87f6b49e9f3b0b854a3aa5976a"
+    },
+    {
+      "name": "recovery-sanction",
+      "kind": "workflow",
+      "exit": 1,
+      "failed": 4,
+      "tests": 4,
+      "log": "/private/tmp/war-2297-candidate8-control-recovery-sanction.log",
+      "logSha256": "0ebb09269ff6ebed2007c8ea6b0db9e175c1b165faa442d34495b3703568c075"
+    },
+    {
+      "name": "before-shell",
+      "kind": "shell",
+      "exit": 1,
+      "failed": 8,
+      "tests": 8,
+      "log": "/private/tmp/war-2297-candidate8-control-before-shell.log",
+      "logSha256": "e2adb3299ce5feafc6d0594f2a6cc0ca1695af12608900dcbaf8b5ab8af878e7"
+    },
+    {
+      "name": "before-context",
+      "kind": "workflow",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2,
+      "log": "/private/tmp/war-2297-candidate8-control-before-context.log",
+      "logSha256": "547ed589c7d105acf696445908b4bfb532d3941866762461e795aed537c22a64"
+    }
+  ],
+  "controlsScriptSha256": "03abf463bca4b3c8ce522acf3fbc09aa616f8e51ebb16b0424d0e29d6f4f1525",
+  "sanctionBefore": {
+    "failed": 4,
+    "logSha256": "1eaaeb9f3ef554934e0e3e416e0d71d9a73200cf552b1b0e510c8cd8b6494536"
+  },
+  "protectedRefs": [
+    {
+      "ref": "refs/heads/claude/codex-red-team-migration-5ca53a",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-4de4e6",
+      "expected": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "actual": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-726b55",
+      "expected": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "actual": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex-port",
+      "expected": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "actual": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-comparison",
+      "expected": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "actual": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-implementation",
+      "expected": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "actual": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-claude",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex",
+      "expected": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "actual": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+      "expected": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "actual": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/dev/2026-08-06-red-team-gate-cli",
+      "expected": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "actual": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-1",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-2",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.1",
+      "expected": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "actual": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.2",
+      "expected": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "actual": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-polish",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-2.1",
+      "expected": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "actual": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-polish",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    }
+  ],
+  "limits": [
+    "14 actual Git content graphs, four ordinary/submodule recovery cases and seven simulated read/race cases around real Git. Agent routing responses are controlled; this is not a live recovery-model end-to-end run.",
+    "20 fresh guard mutations and two before-source sets (eight content-loss and two submodule failures), plus four separate unsanctioned-skip before-source failures. Earlier controls remain historical at their documented candidates.",
+    "Final exact-SHA Snipe and remote checks will be recorded in PR #2297 without changing its reviewed SHA."
+  ]
+}

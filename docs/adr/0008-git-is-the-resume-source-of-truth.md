@@ -16,7 +16,11 @@ WAR advertises a "three-layer resumable source of truth" — GitHub issue labels
 
 Recovery auto-skips additionally require `task-integrated.sh` proof: integrated ancestry and a
 nonempty task commit carrying `WAR-Task: <task branch>` in the phase history. This committed
-provenance survives cloning and rebasing. Untagged legacy branches take ordinary work/audit;
+provenance survives cloning and rebasing. A nonempty final task diff and unchanged content across
+its changed-path footprint at integration are also required, with stable input refs. Later reverts
+or removals cannot count as completed work merely because ancestry remains. Each probe uses its
+own repository and base (submodule targetRepo/targetBase). Untagged legacy, empty-final-diff and
+changed-content branches take ordinary work/audit;
 a shared commit count or local marker cannot establish task ownership (#2196).
 
 ## Considered options

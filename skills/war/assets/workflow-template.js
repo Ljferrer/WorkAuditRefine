@@ -2133,6 +2133,8 @@ const mergeSnapshot = async (opts, context) => {
   throw new Error('Git merge snapshot unavailable before ' + opts.label + '; no merge dispatched')
 }
 // Recompute pin-transfer evidence independently of the refiner that rebased the task.
+// The repository-local base is shared by recovery, task/sweep snapshots and phase land.
+const workingBranchFor = task => task && task.taskType === 'submodule' ? task.targetBase : ph.workingBranch
 const PIN_GIT_PROOF = { type: 'object', properties: {
   head_sha: { type: 'string' }, local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] },
   content_sha: { type: 'string' }, source_parent_sha: { type: 'string' }, approved_tree: { type: 'string' }, content_tree: { type: 'string' }, head_tree: { type: 'string' },
@@ -2804,7 +2806,7 @@ if (tasks.length) {
   const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name, never a shell variable from an earlier call) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery skips require Git-resident task provenance; the helper owns the graph proof.
   const deriveSkipClause = recovery
-    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <that task's branch> ${ph.integrationBranch} ${ph.workingBranch} from the target repository. This read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry plus a nonempty task-owned commit carrying the exact WAR-Task branch trailer; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, empty-tagged or untagged legacy branch) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches are reused with their commits intact, never reset.\n`
+    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a nonempty task-owned commit carrying the exact WAR-Task branch trailer, and a nonempty final task diff whose changed-file content is still identical at integration, with stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, empty-tagged, untagged legacy, empty-final-diff or changed-content branch) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches are reused with their commits intact, never reset.\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -2864,8 +2866,8 @@ if (tasks.length) {
   // ---- RECOVERY: barrier-derived merged-set skip (§4.2) ----
   // The provision-barrier refiner ran task-integrated.sh (the Workflow sandbox has no shell/fs) and
   // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip AND
-  // carries a nonempty commit with its own WAR-Task trailer (the deriveSkipClause conjunct pair — a zero-commit ancestor
-  // is never reported, #1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
+  // carries a nonempty commit with its own WAR-Task trailer and a preserved nonempty final footprint. A zero-commit ancestor
+  // is never reported (#1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run,
@@ -2877,7 +2879,9 @@ if (tasks.length) {
   // drop re-dispatches a merged task next resume). Records key on the MATCHED task's own id, so
   // done/succeeded/landed stay in the task-id dialect. Labels/ledger are Lead-reconciled toward git (ADR 0008).
   const preMergedIdOf = id => { const m = String(id).match(/^p\d+-(.+)$/); return m ? m[1] : String(id) }
-  for (const raw of (Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : [])) {
+  const preMergedRows = Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : []
+  if (!recovery && preMergedRows.length) log('recovery: preMerged ignored outside sanctioned recovery — ordinary work/audit required.')
+  for (const raw of (recovery ? preMergedRows : [])) {
     const norm = preMergedIdOf(raw)
     const t = tasks.find(t => preMergedIdOf(t.id) === norm)
     if (!t) {
@@ -4080,7 +4084,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
       // member, so no hard escalation can be downgraded by an in-band field (PIN-6).
       const taskMergeContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch,
-        target: ph.integrationBranch, seed: isSubmodTask ? r.task.targetBase : ph.workingBranch, revert_sha: r.aceReverted || null }
+        target: ph.integrationBranch, seed: workingBranchFor(r.task), revert_sha: r.aceReverted || null }
       const pinContext = { ...taskMergeContext, pin: true }
       const pinBefore = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
       if (deathOf(pinBefore)) { mergeDied(deathOf(pinBefore)); continue }
@@ -5182,7 +5186,7 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
 }
 const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
 const submodLandTask = tasks.find(t => t.taskType === 'submodule')
-const phaseGitSeed = submodLandTask ? submodLandTask.targetBase : ph.workingBranch
+const phaseGitSeed = workingBranchFor(submodLandTask)
 
 // ---- PHASE-CLOSE COHERENCE SWEEP (ADR 0012) — after the land decision is computed, before the ----
 // ---- land dispatch. Fail-open: the sweep may only improve the tip — a re-approved polish merges ----
@@ -5676,7 +5680,7 @@ if (landDecision === 'landed') {
   const segmentedLand = async (prompt, opts) => {
     const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
     const body = prompt + segmentedLandClause
-    return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: submodLandTask && submodLandTask.targetBase || ph.workingBranch, land: true }, async (body, opts, capture) => {
+    return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, async (body, opts, capture) => {
       let result = admitGateResult(await dispatchSite(body, opts), capture)
       let segments = 0
       while (isSegment(result) && segments < roundLimit) {

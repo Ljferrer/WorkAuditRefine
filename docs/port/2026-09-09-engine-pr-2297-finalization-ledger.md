@@ -654,3 +654,72 @@ covered by the complete final rerun. Candidate-7-validation.json preserves sourc
 unchanged. Commit/push and exact-SHA Snipe follow. The PR body will hold the final report and
 verdict without changing the reviewed SHA; the source ledger and manifests remain its durable
 validation baseline. No merge or release is performed.
+
+
+### Candidate 7 final panel: held for recovery-path integrity
+
+The full-scope four-seat panel at **1a25c9e143f804358c4ec9a81b6a9561ff2513b4** was complete
+and stable. Correctness and cascading-impact requested changes; simplicity and test-fidelity
+approved. The exact report and execution manifest are preserved in candidate-7-snipe.md/.json.
+Two verified source gaps remain: recovery provenance uses the superproject working branch in a
+submodule repository, and task-integrated.sh can accept historical task commits after the task's
+content has been reverted/removed. The new upstream-content path passed review, but the recovery
+skip consumer was missing from that class sweep. It marks tasks done/succeeded/landed and omits
+their task audits, so history alone is insufficient there too.
+
+Repair direction: each recovery probe uses its task repository and repository-local base.
+Task ownership/ancestry remains necessary; automatic skip also requires a nonempty final task
+diff and unchanged final content across its changed-file footprint at integration. No proof
+returns exit 1 and ordinary work/audit, preserving the user-approved conservative recovery policy.
+Read errors retain exit 2. Final ref stability, unusual paths and submodule Gitlinks are included
+in the proof sweep. Real-Git regressions and recursive guard controls are in progress.
+
+The new simplicity Minor recommends deleting the static recovery procedure from the dispatch
+prompt in favor of its canonical reference. This is prompt-placement/duplication cleanup in the
+already deferred #2126/#2127 class; it is not a new behavior defect. The paired instructions are
+currently consistent, so this bounded repair does not take that refactor or change permissions.
+
+
+### Candidate 8 repair closure: recovery proof and completion consumer
+
+- **Cause/rule:** historical ancestry and one owned commit do not prove current task content;
+  a superproject base cannot be resolved inside a submodule. The helper now requires the existing
+  ownership/ancestry proof, a nonempty final task diff, unchanged content over every changed path,
+  and stable input refs. Repository/base selection is shared by recovery, task/polish snapshots
+  and phase land. Submodule entries carry targetRepo/targetBase; ordinary entries retain the phase
+  working branch. No new recovery seat or policy ruling is needed.
+- **Sibling/consumer sweep:** task-integrated.sh's one success exit feeds the provision barrier,
+  then preMerged feeds done/succeeded/landed and skips work/audit. The consumer also accepted
+  unsolicited preMerged outside sanctioned recovery. Four before-source cases reproduced this
+  bypass (missing, false, string and empty-object sanction); it now logs and ignores those rows.
+  Existing recovery fixtures now explicitly supply the sanction they exercise. Stale-remote
+  classification remains always-on; its distinct blocked-task semantics never claim completion.
+- **Regression evidence:** fourteen real-Git final-content graphs cover preserved/unrelated work,
+  reverts, removal, changes, empty final diff, restored rename sources, literal newline paths,
+  Gitlink-only work and Gitlink/mode loss, external-diff masking, and subdirectory invocation.
+  Four real repository cases cover ordinary/submodule bases with and without task provenance;
+  seven failure/race cases cover list/compare/ref/temp failures and movement of all three refs.
+  The prior helper falsely accepts eight negative content cases; the prior context fails both
+  submodule cases. Complete current-content negatives return to ordinary work/audit; Git read
+  errors retain exit 2. The fixtures execute actual Git, then feed its exit into engine routing.
+- **Recursive guard proof:** all **20 new mutations** fail their intended assertions: root cwd,
+  literal paths, submodules, external diff, rename sides, NUL writing/reading, nonempty final diff,
+  content equality, list/compare/temp/ref errors, ref stability, temporary cleanup, submodule
+  repository/base, ordinary/absent-task base arms, and recovery sanction. All controls were rerun
+  together. A redundant no-textconv flag was removed after an actual Git probe showed the raw
+  quiet/name-only comparisons do not need it; the external-diff guard remains discriminated.
+  Earlier candidate controls remain historical, explicitly attributed to their source hashes.
+- **Consequences/residuals:** later overlap in the conservative changed-file footprint can spend
+  ordinary work/audit even if the behavior remains acceptable. This avoids false completion and
+  does not impose a new phase hold for missing proof. The helper makes no Git writes; temporary
+  paths are removed on success/refusal/error. Standing/refiner/schema/recovery/ADR prose agrees.
+  Live-agent procedure adherence remains a disclosed limit; no mock is represented as a live
+  maintenance judgment. The new prompt-duplication Minor remains deferred under #2126/#2127.
+
+Final validation: **2,081 JS tests passed, 0 failed**, **31 shell files passed, 0 failed**,
+redaction clean, release slots coherent at **0.21.13**, and actual staging **341,256 / 524,288
+bytes**. The first full run caught the obsolete recovery-pointer count; the named destination set
+and all later external-diff/sanction cases pass in the final complete run. Candidate-8-validation.json
+preserves source/log hashes and guard evidence. All 17 protected refs and all 17 installed Snipe
+package files remain unchanged. Commit/push and exact-SHA Snipe follow; the final PR body will
+preserve the result and verdict without changing the reviewed SHA. No merge or release performed.

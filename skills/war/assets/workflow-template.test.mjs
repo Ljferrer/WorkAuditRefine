@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -8332,20 +8332,18 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
   // never anchored on the lagging local follower.
   assert.match(refinerRecoveryMd, /NEVER the local follower/, 'refiner-recovery.md pins the discrimination to origin, never the lagging local follower')
-  // the card still ROUTES to the standing copy: all five markdown trigger pointers (submodule
-  // provisioning, land step 3, 2A/2B land arms, the #1913 pin-transfer arms, and the #2156 endstate-check steps) must survive, each in the ratified
-  // plugin-root-anchored family shape — a ](${CLAUDE_PLUGIN_ROOT}/skills/war/references/<file>)
-  // target resolving against the plugin install root regardless of the dispatched seat's cwd
-  // (ADR 0047, agent-card-pointer-skeleton-plugin-root-anchored; adjudication O(1) still
-  // stands: a pointer is best-effort enrichment, decisive rules stay inline). Count-pinned:
-  // presence-only would stay green if two pointers were dropped, orphaning their evicted sections.
-  // Five since engine-and-audit-verdict-integrity Task 5.1 (#2156): the § Land-barrier endstate-check
-  // steps eviction added its own pointer (the card's endstate-check section routes there per row).
-  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 6, 'all six plugin-root-anchored trigger pointers to refiner-recovery.md survive (including Git reconciliation) (submodule provisioning, pin-transfer arms, land step 3, 2A/2B land arms, endstate-check steps)')
+  // Pin the named trigger destinations, not a count that a new recovery pointer can mask.
+  const recoveryTriggers = refinerMd.split('\n').filter(line => line.includes('](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md)'))
+    .map(line => line.match(/§ ([^).]+)/)?.[1])
+  assert.deepEqual(recoveryTriggers.sort(), [
+    'Submodule-as-repo provisioning', 'Uncertain merge reconciliation', 'Recovery task provenance',
+    'Pin-transfer arms', 'Land-barrier endstate-check steps',
+    'Reland discrimination — superproject land-phase step 3', 'Submodule phase — 2A / § Submodule phase — 2B',
+  ].sort())
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
   // #2156 a4 headroom eviction (ADR 0042, PIN-3): the card's MergeResult merge-task-only parenthetical
   // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
-  // (never a `](…)` link — the five-count above must not grow) and none of the moved body.
+  // (never a `](…)` link — the named markdown-trigger set above stays separate) and none of the moved body.
   const mtOnly = refinerRecoveryMd.match(/^\(`floor_diagnostic` is merge-task-only — .*riding `status: "error"`\)$/m)
   assert.ok(mtOnly && Buffer.byteLength(mtOnly[0], 'utf8') === 617, 'refiner-recovery.md § MergeResult merge-task-only fields carries the 617 B evicted parenthetical byte-identical')
   assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md § MergeResult merge-task-only fields'), 'the card keeps the bare-path trigger pointer to the evicted parenthetical')
@@ -11228,7 +11226,7 @@ test('recovery reclaim pass-through: --reclaim-stale-remote rides each ensure-wo
 
 test('recovery preMerged (criterion 10): a mocked barrier preMerged id → merged (NOT landed status), done+succeeded+landed+auditLog, NO worker, NOT in gate-audit; a dep on it is not dep-failed', async () => {
   // PROVISION_ARGS: t1, t2(deps:['t1']). The barrier reports t1 already-integrated on the adopted branch.
-  const { out, calls } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  const { out, calls } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: ['t1'] }))
   assert.equal(out.landDecision, 'landed', 'the recovered phase still lands (t1 pre-merged, t2 re-dispatched + merged)')
   assert.ok(out.landed.includes('t1'), 't1 is recorded in the bare-id landed list')
   assert.ok(!calls.some(c => (c.opts.label || '') === 'work:t1'), 'NO worker dispatched for the pre-merged task t1')
@@ -11247,7 +11245,7 @@ test('recovery preMerged (criterion 10): a mocked barrier preMerged id → merge
 test('recovery all-pre-merged degenerate (criterion 11): endState claims + every task pre-merged → the End-state-only seat fires at the confirmed tip', async () => {
   // ES_ARGS is a single-task phase (t1) claiming End-state conditions. The barrier reports t1 pre-merged,
   // so mergedTasksForGateAudit is empty AND the phase claims conditions → the End-state-only seat branch fires.
-  const { out, calls } = await runPhase(ES_ARGS(), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  const { out, calls } = await runPhase({ ...ES_ARGS(), recovery: { sanctioned: true } }, barrierEnv({ ok: true, preMerged: ['t1'] }))
   assert.ok(out.landed.includes('t1'), 't1 recorded merged/landed (pre-merged)')
   assert.ok(!calls.some(c => (c.opts.label || '') === 'work:t1'), 'no worker dispatched for the pre-merged task')
   const esSeat = calls.filter(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state')
@@ -11287,7 +11285,9 @@ test('derive-and-skip: zero-commit branch dispatches (#1895/#2006/#2196)', async
   const args = PROVISION_ARGS({ recovery: { sanctioned: true } })
   const { out, calls } = await runPhase(args, barrierEnv({ ok: true, preMerged: [] }))
   const b = calls.find(isProvision).prompt
-  assert.ok(b.includes('task-integrated.sh <that task\'s branch> integration/wtprov-a/phase-3 dev/wtprov-a'))
+  assert.ok(b.includes('task-integrated.sh <branch> <integration> <working>'))
+  const proofs = JSON.parse(b.match(/RECOVERY TASK PROOFS: ([^\n]+)/)[1])
+  assert.ok(proofs.every(p => p.repo === '/abs/repo' && p.integration === 'integration/wtprov-a/phase-3' && p.working === 'dev/wtprov-a'))
   assert.match(b, /exit 0 with TASK_INTEGRATED/)
   assert.match(b, /Exit 1 with NO_TASK_PROOF/)
   assert.match(b, /Exit 2 or any unrecognized failure halts/)
@@ -12800,6 +12800,7 @@ test('vacuous-endstate contrast: a phase whose tasks land is NOT clamped (no zer
 // ---- preMerged-dialect fixtures (fold #1704, End state 24) --------------------------------
 
 const PRE_MERGED_ARGS = () => PROVISION_ARGS({
+  recovery: { sanctioned: true },
   phase: { id: 2, title: 'P2', integrationBranch: 'integration/wtprov-a/phase-2', workingBranch: 'dev/wtprov-a' },
   tasks: [
     { id: '2.1', issue: 201, title: 'Task 2.1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
@@ -15444,7 +15445,7 @@ const approveBesideMajor = (findings) => ({ seat: 'audit:t1:correctness', lens: 
 test('absorb-budget (D5, #2034, never ran a wave — preMerged): a relaunch-seeded held row on a task the barrier reports preMerged drains to the phase-close sweep with the recovered verdict — logged, never dropped', async () => {
   // t1 enters `done`+`succeeded` before nextWave() (no result object). The drain must still see it.
   const held = { severity: 'Nit', title: 'seeded on pre-merged', file: 'skills/pm.js', rationale: 'held earlier', autoFixable: true, task: 't1', seat: 'audit:t1:correctness' }
-  const args = PROVISION_ARGS({ tasks: [
+  const args = PROVISION_ARGS({ recovery: { sanctioned: true }, tasks: [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [held] },
     { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
   ] })
@@ -15559,7 +15560,7 @@ test('absorb-budget (D5, #2034, snipe: test-fidelity Major): a relaunch-seeded A
   const ask = { severity: 'Minor', title: 'seeded ask on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'ask', ask: { question: 'keep or drop?', fork: ['keep', 'drop'] }, seat: 'audit:t1:correctness' }
   const fu = { severity: 'Minor', title: 'seeded follow-up on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'follow-up', barrier: 'barrier:underspecified', seat: 'audit:t1:correctness' }
   const note = { severity: 'Nit', title: 'seeded note on pre-merged', file: 'skills/pm.js', rationale: 'r', disposition: 'note', seat: 'audit:t1:correctness' }
-  const args = PROVISION_ARGS({ tasks: [
+  const args = PROVISION_ARGS({ recovery: { sanctioned: true }, tasks: [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], pendingAbsorbs: [ask, fu, note] },
     { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
   ] })
@@ -19468,3 +19469,111 @@ test('pin content re-audit standing charge agrees with the dispatched comparison
   assert.ok(prompt.includes('replace the normal integration...task change-set command'))
   assert.ok(standing.includes('replaces the normal integration diff'))
 })
+
+for (const kind of ['unchanged', 'sibling', 'reverted', 'removed', 'changed', 'empty-final', 'rename-restored', 'odd-sibling', 'odd-changed', 'gitlink', 'gitlink-only', 'mode-changed', 'external-masks-change', 'subdirectory']) {
+  test('recovery current-content proof: real ' + kind, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-recovery-content-'))
+    const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const commit = message => { git('add', '-A'); git('commit', '-m', message) }
+    try {
+      git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      mkdirSync(join(dir, 'nested')); writeFileSync(join(dir, 'nested', 'base'), 'base'); writeFileSync(join(dir, 'original'), 'original'); commit('base'); const base = git('rev-parse', 'HEAD')
+      if (kind.startsWith('gitlink')) { git('update-index', '--add', '--cacheinfo', '160000,' + base + ',module'); git('commit', '-m', 'base gitlink') }
+      git('branch', 'integration'); git('checkout', '-b', 'task')
+      const file = kind.startsWith('odd-') ? ':(glob)*\n odd file' : 'deliverable'
+      writeFileSync(join(dir, file), 'approved work')
+      if (kind === 'rename-restored') git('mv', 'original', 'renamed')
+      if (kind.startsWith('gitlink')) { git('update-index', '--cacheinfo', '160000,' + git('rev-parse', 'HEAD') + ',module'); git('config', 'diff.ignoreSubmodules', 'all') }
+      // Add the ordinary file separately so an ignore-submodules default cannot hide the entire task.
+      if (kind !== 'gitlink-only') git('add', '--', file)
+      git('commit', '-m', 'task work\n\nWAR-Task: task'); const approved = git('rev-parse', 'HEAD')
+      if (kind === 'empty-final') git('revert', '--no-edit', approved)
+      git('checkout', 'integration'); git('merge', '--ff-only', 'task')
+      if (kind === 'reverted') git('revert', '--no-edit', approved)
+      if (kind === 'removed') { git('rm', file); git('commit', '-m', 'remove task work') }
+      if (kind === 'changed' || kind === 'odd-changed' || kind === 'external-masks-change' || kind === 'subdirectory') { writeFileSync(join(dir, file), 'lost accepted behavior'); commit('alter task work') }
+      if (kind === 'sibling' || kind === 'odd-sibling') { writeFileSync(join(dir, kind === 'odd-sibling' ? 'sibling\n odd file' : 'sibling'), 'unrelated work'); commit('sibling work') }
+      if (kind === 'rename-restored') { writeFileSync(join(dir, 'original'), 'original'); commit('restore task-deleted source') }
+      if (kind === 'gitlink') { git('update-index', '--cacheinfo', '160000,' + base + ',module'); git('commit', '-m', 'revert required gitlink') }
+      if (kind === 'external-masks-change') {
+        const driver = join(dir, 'diff-driver')
+        writeFileSync(driver, '#!/bin/sh\ntest "$(cat "$2")" = "approved work"\n', { mode: 0o755 })
+        git('config', 'diff.external', driver); git('config', 'diff.trustExitCode', 'true')
+      }
+      if (kind === 'mode-changed') { git('update-index', '--chmod=+x', file); git('commit', '-m', 'change required file mode') }
+      const result = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: kind === 'subdirectory' ? join(dir, 'nested') : dir, encoding: 'utf8' })
+      const preserved = ['unchanged', 'sibling', 'odd-sibling', 'gitlink-only'].includes(kind)
+      assert.equal(result.status, preserved ? 0 : 1, result.stdout + result.stderr)
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: result.status === 0 ? ['t1'] : [] }))
+      assert.equal(out.auditLog.some(r => r.verdict === 'recovered:pre-merged'), preserved)
+      assert.equal(calls.some(c => c.opts.label === 'work:t1'), !preserved, 'unproved current content returns to work/audit rather than halting provisioning')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+for (const submodule of [false, true]) for (const owned of [false, true]) test('recovery repository-local probe: submodule=' + submodule + ' owned=' + owned, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-recovery-repo-')), parent = join(dir, 'parent'), seed = join(dir, 'seed')
+  const gitAt = (cwd, ...args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const init = (path, branch) => { mkdirSync(path); gitAt(path, 'init', '-b', branch); gitAt(path, 'config', 'user.name', 'Fixture'); gitAt(path, 'config', 'user.email', 'fixture@example.invalid'); writeFileSync(join(path, 'base'), 'base'); gitAt(path, 'add', 'base'); gitAt(path, 'commit', '-m', 'base') }
+  try {
+    init(parent, 'super-only')
+    if (submodule) { init(seed, 'main'); gitAt(parent, '-c', 'protocol.file.allow=always', 'submodule', 'add', seed, 'module'); gitAt(parent, 'commit', '-m', 'add module') }
+    const repo = submodule ? join(parent, 'module') : parent, git = (...args) => gitAt(repo, ...args)
+    git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid'); git('branch', 'integration'); git('checkout', '-b', 'task')
+    writeFileSync(join(repo, 'deliverable'), 'task work'); git('add', 'deliverable'); git('commit', '-m', 'work\n\nWAR-Task: ' + (owned ? 'task' : 'other-task')); git('checkout', 'integration'); git('merge', '--ff-only', 'task')
+    let proofCommand
+    const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: parent, phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: repo, ...(submodule ? { taskType: 'submodule', targetRepo: repo, targetBase: 'main' } : {}) }], recovery: { sanctioned: true } }), (p, o) => {
+      if (o.dispatchKind === 'provision-barrier') {
+        const encoded = p.match(/RECOVERY TASK PROOFS: ([^\n]+)/)
+        proofCommand = encoded ? JSON.parse(encoded[1])[0] : { repo, branch: 'task', integration: 'integration', working: p.match(/task-integrated.sh <that task's branch> integration ([^ ]+) from/)[1] }
+        const r = spawnSync('bash', [join(here, 'task-integrated.sh'), proofCommand.branch, proofCommand.integration, proofCommand.working], { cwd: proofCommand.repo, encoding: 'utf8' })
+        return { ok: r.status !== 2, preMerged: r.status === 0 ? ['t1'] : [], stderrTail: r.stderr }
+      }
+      return defaultImpl(p, o)
+    })
+    assert.notEqual(out.landDecision, 'held:workflow-error', 'the repository-local base must resolve during recovery')
+    assert.equal(proofCommand.repo, repo); assert.equal(proofCommand.working, submodule ? 'main' : 'super-only')
+    assert.equal(out.auditLog.some(r => r.verdict === 'recovered:pre-merged'), owned)
+    assert.equal(calls.some(c => c.opts.label === 'work:t1'), !owned, 'no provenance means normal work, including inside a submodule')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-recovery-proof-error-')), bin = join(dir, 'bin'), scratch = join(dir, 'scratch')
+  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
+  const git = (...args) => { const r = spawnSync(realGit, args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    mkdirSync(bin); mkdirSync(scratch); git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('checkout', '-b', 'task')
+    writeFileSync(join(dir, 'deliverable'), 'approved'); git('add', 'deliverable'); git('commit', '-m', 'task\n\nWAR-Task: task'); const taskTip = git('rev-parse', 'HEAD'); git('branch', 'integration')
+    // The wrapper simulates a concurrent writer or a failed Git read; the helper itself stays read-only.
+    writeFileSync(join(bin, 'git'), `#!/usr/bin/env node
+const { spawnSync } = require('node:child_process')
+const args = process.argv.slice(2), real = ${JSON.stringify(realGit)}, scenario = ${JSON.stringify(scenario)}
+if (scenario === 'list-error' && args.includes('--name-only')) process.exit(128)
+if (scenario === 'compare-error' && args.includes('--quiet') && args.at(-1) === 'deliverable') process.exit(128)
+if (scenario === 'refs-error' && JSON.stringify(args) === JSON.stringify(['rev-parse','refs/heads/task^{commit}','refs/heads/integration^{commit}','refs/heads/working^{commit}'])) process.exit(128)
+const r = spawnSync(real, args, { stdio: 'inherit' })
+if (scenario.endsWith('-moved') && args.includes('--name-only')) {
+  const branch = scenario.slice(0, -6)
+  const moved = spawnSync(real, ['update-ref', 'refs/heads/' + branch, branch !== 'working' ? ${JSON.stringify(base)} : ${JSON.stringify(taskTip)}], { stdio: 'inherit' })
+  if (moved.status !== 0) process.exit(moved.status || 128)
+}
+process.exit(r.status ?? 128)
+`, { mode: 0o755 })
+    const r = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: dir, encoding: 'utf8', env: { ...process.env, PATH: bin + ':' + process.env.PATH, TMPDIR: scenario === 'temp-error' ? join(dir, 'missing') : scratch } })
+    assert.equal(r.status, scenario.endsWith('-moved') ? 1 : 2, r.stdout + r.stderr)
+    assert.ok(!r.stdout.includes('TASK_INTEGRATED'))
+    assert.deepEqual(readdirSync(scratch).filter(name => name.startsWith('war-task-integrated.')), [], 'all temporary proof paths are removed on refusal/error')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+
+for (const recovery of [undefined, { sanctioned: false }, { sanctioned: 'true' }, {}]) {
+  test(`recovery preMerged requires explicit sanction: ${JSON.stringify(recovery)}`, async () => {
+    const { out, calls, logs } = await runPhase(PROVISION_ARGS({ recovery }), barrierEnv({ ok: true, preMerged: ['t1'] }))
+    assert.ok(calls.some(c => c.opts.label === 'work:t1'), 'an unsolicited skip cannot bypass work')
+    assert.ok(!out.auditLog.some(r => r.verdict === 'recovered:pre-merged'), 'no recovered completion receipt')
+    assert.ok(logs.some(l => /preMerged ignored outside sanctioned recovery/.test(l)), 'invalid skip is visible')
+  })
+}

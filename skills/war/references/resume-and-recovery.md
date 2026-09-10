@@ -96,4 +96,6 @@ A phase-close polish revert carrying only an auto-generated body is **never self
 Recovery auto-skips require `task-integrated.sh` proof of integrated task-owned work, as specified
 in [refiner-recovery.md](refiner-recovery.md#recovery-task-provenance). The worker's exact
 `WAR-Task: <task branch>` trailer must occur on a nonempty commit. A positive shared-phase commit
-count cannot prove ownership; untagged legacy branches run through work/audit again (#2196).
+count cannot prove ownership. The final task diff must also be nonempty and its changed-path content
+must remain unchanged at integration; historical commits cannot prove present content. Untagged
+legacy or changed-content branches run through work/audit again (#2196).

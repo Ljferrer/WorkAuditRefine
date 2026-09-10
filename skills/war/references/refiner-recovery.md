@@ -122,11 +122,18 @@ Trigger: a merge-task return where the step that sets one of `floor_diagnostic`,
 ## Recovery task provenance
 
 On a sanctioned recovery relaunch, run `task-integrated.sh <task-branch> <integration> <working>`
-from the target repository before ensure-worktree. This is a read-only helper, a sibling of
+from the per-task repository before ensure-worktree: submodule tasks use targetRepo and targetBase;
+ordinary tasks use the main repository and phase workingBranch. Follow the dispatched RECOVERY TASK
+PROOFS entries. This is a read-only Git helper, a sibling of
 `provision-worktrees.sh`. Exit 0 (`TASK_INTEGRATED`) proves the local task branch is integrated
 and contains a nonempty commit in the phase with the exact `WAR-Task: <task branch>` trailer.
-Only that result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
-and work/audit; it includes sibling-only, zero-commit, empty-tagged and untagged legacy branches.
+It also requires a nonempty final task diff against the phase base and identical task/integration
+content for every changed path, including deletions, renames, Gitlinks and modes. Unrelated
+integration changes are allowed; later changes anywhere in that conservative footprint return
+no proof, even when a fresh audit might accept them. NUL-delimited literal paths prevent filename
+syntax from changing the comparison; input refs are re-read before success. Only that complete
+result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
+and work/audit; it includes sibling-only, zero-commit, empty-tagged, untagged legacy, empty-final-diff and changed-content branches.
 Exit 2 or any unrecognized failure stops the barrier with the command and stderr recorded.
 Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
 provenance, available after cloning on another machine; no local marker, reflog, label or journal
