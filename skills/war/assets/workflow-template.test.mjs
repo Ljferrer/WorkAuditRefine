@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve as resolvePath } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -4629,16 +4629,19 @@ test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff de
   assert.match(w2.prompt, /NEVER resolve/, 'the worker never resolves the conflict')
 })
 
-test('dep-wave visibility: a gitlink-bump task with deps gets NO rebase-first clause (cross-repo dep — taskType scoping)', async () => {
+for (const pairedPath of [undefined, './vendor/lib/']) test('dep-wave visibility: a gitlink-bump task with deps gets NO rebase-first clause (cross-repo dep — taskType scoping): ' + pairedPath, async () => {
   const args = PROVISION_ARGS({ tasks: [
     { id: 'tsub', issue: 301, title: 'Sub task', planSlice: 's1', roster: [{ lens: 'correctness' }],
       taskType: 'submodule', targetRepo: 'vendor/lib', targetBase: 'main' },
     { id: 'tbump', issue: 302, title: 'Bump task', planSlice: 's2', roster: [{ lens: 'correctness' }],
-      taskType: 'gitlink-bump', deps: ['tsub'] },
+      taskType: 'gitlink-bump', targetRepo: pairedPath, deps: ['tsub'] },
   ] })
   const { calls } = await runPhase(args, defaultImpl)
   const wb = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:tbump')
   assert.ok(wb, 'the gitlink-bump worker dispatched (presence guard)')
+  assert.equal(args.tasks[0].targetRepo, '/abs/repo/vendor/lib')
+  assert.equal(args.tasks[1].targetRepo, pairedPath === undefined ? undefined : '/abs/repo/vendor/lib')
+  assert.ok(wb.prompt.includes('git -C /abs/repo add /abs/repo/vendor/lib'), 'the gitlink consumer receives the resolved submodule path')
   assert.ok(!wb.prompt.includes('DEPS ALREADY MERGED'),
     'a gitlink-bump task is EXCLUDED — its dep merged into the submodule repo, not this integration branch')
 })
@@ -19210,7 +19213,7 @@ for (const rows of ['duplicate-first', 'duplicate-second', 'reordered']) test('u
   assert.equal(out.pinTransfers.some(r => r.mode === 'already_upstream'), rows === 'reordered')
 })
 
-for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 'published-seed-ahead']) test('submodule Git certainty uses its own integration and seed: ' + scenario, async () => {
+for (const relative of [false, true]) for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 'published-seed-ahead']) test('submodule Git certainty uses its own integration and seed: ' + scenario + ' relative=' + relative, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-submodule-proof-')), superRepo = join(dir, 'super'), subRepo = join(superRepo, 'module'), seedRepo = join(dir, 'seed')
   const run = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' })
   const gitAt = (cwd, ...args) => { const r = run(cwd, ...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
@@ -19218,7 +19221,8 @@ for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 
   const remote = ref => git('ls-remote', 'origin', 'refs/heads/' + ref).split(/\s/)[0] || null
   const patch = (a, b) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', a, b) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
   const resolve = pin => { if (typeof pin !== 'string' || !/^[0-9a-f]{7,40}$/.test(pin)) return null; const r = run(subRepo, 'rev-parse', '--verify', '--end-of-options', pin + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
-  const context = p => JSON.parse(p.match(/Context: (.+?)\. (?:Before any|Immutable|Observed)/)[1])
+  const observedContexts = []
+  const context = p => { const c = JSON.parse(p.match(/Context: (.+?)\. (?:Before any|Immutable|Observed)/)[1]); observedContexts.push(c); return c }
   try {
     mkdirSync(seedRepo); gitAt(seedRepo, 'init', '-b', 'main'); gitAt(seedRepo, 'config', 'user.name', 'Fixture'); gitAt(seedRepo, 'config', 'user.email', 'fixture@example.invalid')
     writeFileSync(join(seedRepo, 'base'), 'base'); gitAt(seedRepo, 'add', 'base'); gitAt(seedRepo, 'commit', '-m', 'base'); const base = gitAt(seedRepo, 'rev-parse', 'HEAD')
@@ -19231,7 +19235,7 @@ for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 
     if (scenario === 'published-seed-ahead') { writeFileSync(join(seedRepo, 'published'), 'upstream'); gitAt(seedRepo, 'add', 'published'); gitAt(seedRepo, 'commit', '-m', 'published upstream'); gitAt(seedRepo, 'push', 'origin', 'main') }
     const tasks = ['t1', 't2'].map((id, i) => {
       git('checkout', '-b', id, 'integration'); writeFileSync(join(subRepo, id + '.test.js'), id); git('add', id + '.test.js'); git('commit', '-m', id + '\n\nWAR-Task: ' + id)
-      return { ...SINGLE_TASK[0], id, branch: id, worktree: subRepo, taskType: 'submodule', targetRepo: subRepo, targetBase: 'main', deps: i ? ['t1'] : [] }
+      return { ...SINGLE_TASK[0], id, branch: id, worktree: subRepo, taskType: 'submodule', targetRepo: relative ? 'module' : subRepo, targetBase: 'main', deps: i ? ['t1'] : [] }
     })
     git('checkout', 'integration'); const snapshots = [], proofs = [], auditCounts = {}; let mergeCalls = 0
     const snapshot = p => {
@@ -19241,7 +19245,7 @@ for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 
       return { base_sha: git('rev-parse', c.target), source_sha: git('rev-parse', c.source), remote_sha: remote(c.target), seed_sha: remote(seed), patch_id: patch(git('merge-base', c.target, c.source), c.source) }
     }
     const proof = (c, before) => ({ local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), source_tip: git('rev-parse', c.source), base_is_ancestor: run(subRepo, 'merge-base', '--is-ancestor', before.base_sha, c.target).status === 0, patch_id: patch(before.base_sha, c.source), parents: git('show', '-s', '--format=%P', c.target).split(' ') })
-    const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'Submodule', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks, run: { ace: false, roundLimit: 2 } }), (p, o) => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: superRepo, phase: { id: 3, title: 'Submodule', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks, run: { ace: false, roundLimit: 2 } }), (p, o) => {
       const id = o.label?.match(/^(?:work|audit|merge):(t[12])(?:$|:)/)?.[1]
       if (isWorker({ opts: o })) { const task = tasks.find(t => o.label.includes(t.id)); return { task_id: task.id, status: 'implemented', head_sha: git('rev-parse', task.branch) } }
       if (id && isAuditor({ opts: o })) { auditCounts[id] = (auditCounts[id] || 0) + 1; return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: git('rev-parse', id), findings: [] } }
@@ -19296,6 +19300,9 @@ for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 
       assert.equal(git('rev-list', '--count', '--merges', 'main'), '1')
       for (const c of [...snapshots, ...proofs]) { assert.equal(c.repo, subRepo); assert.equal(c.target, c.land ? 'main' : 'integration'); if (!c.land) assert.equal(c.seed, 'main') }
     }
+    if (relative && scenario === 'normal') { gitAt(superRepo, 'add', subRepo); assert.ok(gitAt(superRepo, 'ls-files', '--stage', 'module').includes(git('rev-parse', 'HEAD')), 'Git accepts the absolute submodule path for a gitlink update') }
+    assert.ok(observedContexts.length)
+    for (const c of observedContexts) assert.equal(c.repo, subRepo, 'context assertions survive even a deliberately held seed scenario')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
@@ -19511,7 +19518,7 @@ for (const kind of ['unchanged', 'sibling', 'reverted', 'removed', 'changed', 'e
   })
 }
 
-for (const submodule of [false, true]) for (const owned of [false, true]) test('recovery repository-local probe: submodule=' + submodule + ' owned=' + owned, async () => {
+for (const [submodule, relative] of [[false, false], [true, false], [true, true]]) for (const owned of [false, true]) test('recovery repository-local probe: submodule=' + submodule + ' owned=' + owned + ' relative=' + relative, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-recovery-repo-')), parent = join(dir, 'parent'), seed = join(dir, 'seed')
   const gitAt = (cwd, ...args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
   const init = (path, branch) => { mkdirSync(path); gitAt(path, 'init', '-b', branch); gitAt(path, 'config', 'user.name', 'Fixture'); gitAt(path, 'config', 'user.email', 'fixture@example.invalid'); writeFileSync(join(path, 'base'), 'base'); gitAt(path, 'add', 'base'); gitAt(path, 'commit', '-m', 'base') }
@@ -19522,7 +19529,7 @@ for (const submodule of [false, true]) for (const owned of [false, true]) test('
     git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid'); git('branch', 'integration'); git('checkout', '-b', 'task')
     writeFileSync(join(repo, 'deliverable'), 'task work'); git('add', 'deliverable'); git('commit', '-m', 'work\n\nWAR-Task: ' + (owned ? 'task' : 'other-task')); git('checkout', 'integration'); git('merge', '--ff-only', 'task')
     let proofCommand
-    const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: parent, phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: repo, ...(submodule ? { taskType: 'submodule', targetRepo: repo, targetBase: 'main' } : {}) }], recovery: { sanctioned: true } }), (p, o) => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: parent, phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: repo, ...(submodule ? { taskType: 'submodule', targetRepo: relative ? 'module' : repo, targetBase: 'main' } : {}) }], recovery: { sanctioned: true } }), (p, o) => {
       if (o.dispatchKind === 'provision-barrier') {
         const encoded = p.match(/RECOVERY TASK PROOFS: ([^\n]+)/)
         proofCommand = encoded ? JSON.parse(encoded[1])[0] : { repo, branch: 'task', integration: 'integration', working: p.match(/task-integrated.sh <that task's branch> integration ([^ ]+) from/)[1] }
@@ -19631,3 +19638,65 @@ for (const scenario of ['sibling-after-reverted-owner', 'sibling-before-reverted
     } finally { rmSync(dir, { recursive: true, force: true }) }
   })
 }
+
+
+for (const spelling of ['relative', 'relative-dots', 'absolute', 'absolute-dots']) test('submodule absolute gate artifacts: ' + spelling, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-submodule-path-')), parent = join(dir, 'parent'), expectedRepo = join(parent, 'vendor', 'lib')
+  mkdirSync(expectedRepo, { recursive: true })
+  const targetRepo = spelling === 'relative' ? 'vendor/lib' : spelling === 'relative-dots' ? './vendor/../vendor/lib/' : spelling === 'absolute' ? expectedRepo : expectedRepo + '/../lib/./'
+  const paths = new Map()
+  try {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: parent, tasks: [submodRetryTask({ targetRepo })], recovery: { sanctioned: true } }), (p, o) => {
+      const label = (o.label || '').replace(/:segment-\d+$/, '')
+      if (['merge:t1', 'land:phase-3'].includes(label)) {
+        if (!paths.has(label)) {
+          // Use Node's path resolver and a real file as the independent absolute-path producer.
+          const path = resolvePath(parent, fixtureGatePath(p)); assert.ok(path.startsWith(expectedRepo + '/.war/'), 'allocation remains inside the expected fixture repo'); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, 'gate ran\nexit_code:0\n'); paths.set(label, path)
+          return { mode: label.startsWith('land:') ? 'land-phase' : 'merge-task', status: 'error', [label.startsWith('land:') ? 'land_segment' : 'gate_segment']: 'incomplete', gate_log_path: path }
+        }
+        return { ...defaultImpl(p, o), gate_log_path: paths.get(label) }
+      }
+      return defaultImpl(p, o)
+    })
+    assert.equal(out.landDecision, 'landed')
+    for (const [label, path] of paths) {
+      assert.ok(path.startsWith(expectedRepo + '/.war/'))
+      assert.ok(calls.find(c => c.opts.label === label + ':segment-2')?.prompt.includes('Prior gate_log_path: ' + path), label + ' retains its absolute artifact')
+      assert.equal(readFileSync(path, 'utf8'), 'gate ran\nexit_code:0\n')
+    }
+    const taskAudit = calls.find(c => c.opts.label === 'gate-audit:t1:execution-evidence')
+    assert.ok(taskAudit?.prompt.includes('read the FULL captured gate log at ' + paths.get('merge:t1')), 'the post-merge hard execution check receives the authoritative artifact')
+    const snapshots = calls.filter(c => ['pin-snapshot', 'merge-snapshot', 'merge-confirm'].includes(c.opts.dispatchKind))
+    assert.ok(snapshots.length)
+    for (const c of snapshots) assert.equal(JSON.parse(c.prompt.match(/Context: (.+?)\. (?:Before any|Immutable|Observed)/)[1]).repo, expectedRepo)
+    const barrier = calls.find(isProvision).prompt
+    assert.equal(JSON.parse(barrier.match(/RECOVERY TASK PROOFS: ([^\n]+)/)[1])[0].repo, expectedRepo)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const [targetRepo, mainCheckout, field] of [
+  [undefined, '/abs/repo', 'targetRepo'], [null, '/abs/repo', 'targetRepo'], ['', '/abs/repo', 'targetRepo'], [42, '/abs/repo', 'targetRepo'], ['vendor/\0lib', '/abs/repo', 'targetRepo'],
+  ['vendor/lib', undefined, 'mainCheckout'], ['vendor/lib', null, 'mainCheckout'], ['vendor/lib', 42, 'mainCheckout'], ['vendor/lib', 'relative-root', 'mainCheckout'], ['vendor/lib', '/abs/\0repo', 'mainCheckout'],
+]) test('submodule repo validation: target=' + JSON.stringify(targetRepo) + ' main=' + JSON.stringify(mainCheckout), async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout, tasks: [submodRetryTask({ targetRepo })] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.equal(calls.length, 0, 'invalid path context refuses before any agent or Git mutation')
+  assert.match(out.workflowError.message, new RegExp('requires .*' + field), 'diagnostic identifies the missing path contract')
+})
+
+test('absolute submodule repo does not require mainCheckout for resolution', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: undefined, tasks: [submodRetryTask()] }), defaultImpl)
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(calls.some(isWorker))
+})
+
+
+for (const repos of [['vendor/lib', '/abs/repo/vendor/lib'], ['/abs/repo/vendor/lib', './vendor/lib/']]) test('submodule path aliases retain same-repo integrated evidence: ' + repos[0], async () => {
+  const args = PROVISION_ARGS()
+  args.tasks = args.tasks.map((t, i) => ({ ...t, taskType: 'submodule', targetRepo: repos[i], targetBase: 'main' }))
+  const { calls } = await runPhase(args, evidenceImpl)
+  const evidence = calls.find(c => c.opts.dispatchKind === 'evidence')
+  assert.ok(evidence.prompt.includes('INTRA-PHASE-DEP phase'), 'equivalent repo spellings retain the integrated gate obligation')
+  const audit = calls.find(c => /:integrated-tip$/.test(c.opts.label || ''))
+  assert.ok(audit?.prompt.includes('GATE LOG ARTIFACT: read the FULL captured integrated-tip gate log at ' + fixtureGatePath(evidence.prompt)))
+})

@@ -124,7 +124,9 @@ Trigger: a merge-task return where the step that sets one of `floor_diagnostic`,
 On a sanctioned recovery relaunch, run `task-integrated.sh <task-branch> <integration> <working>`
 from the per-task repository before ensure-worktree: submodule tasks use targetRepo and targetBase;
 ordinary tasks use the main repository and phase workingBranch. Follow the dispatched RECOVERY TASK
-PROOFS entries. This is a read-only Git helper, a sibling of
+PROOFS entries. The engine resolves relative targetRepo values against mainCheckout and normalizes
+the path before provisioning, snapshots, reconciliation and gate capture; use that same absolute
+path and return the artifact produced by the dispatched mktemp prefix. This is a read-only Git helper, a sibling of
 `provision-worktrees.sh`. Exit 0 (`TASK_INTEGRATED`) proves the local task branch is integrated
 and contains a nonempty commit in the phase with the exact `WAR-Task: <task branch>` trailer.
 The helper collects the union of paths changed by every qualifying owned commit, preserving

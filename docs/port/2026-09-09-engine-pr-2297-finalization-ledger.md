@@ -798,3 +798,51 @@ failed**, redaction clean and release slots coherent at **0.21.13**. Actual stag
 logs/script hashes in candidate-9-validation.json. All 17 protected refs remain unchanged; the
 remote source/base had no concurrent movement. Commit/push and the full exact-SHA panel follow;
 its report and verdict will be preserved in the PR description. No merge or release performed.
+
+### Candidate 9 review and candidate 10 path-identity closure
+
+The complete, stable candidate-9 panel reviewed fbb9d048f13458aade491c2ceb5124c5ccb5c08f
+against the pinned baseline with the selected four gpt-5.6-sol/high seats. Correctness,
+simplicity and test-fidelity approved; cascading-impact identified one verified Major:
+documented relative submodule roots generate relative gate prefixes, which reject the
+refiner's compliant absolute artifacts. Both explicit segment continuation and authoritative
+execution-evidence threading lose that evidence. The exact report and execution manifest
+are preserved alongside this ledger. Holder-diagnostic and recovery-prompt duplication
+Minors remain explicitly deferred under #2126/#2127, with no verified behavior defect.
+
+- **Root cause and repair:** normalize each submodule targetRepo once at task input, before
+  any dispatch, resolving relative values against absolute mainCheckout and collapsing POSIX
+  dot segments. Paired gitlink-bump metadata follows the same rule when supplied; absent
+  metadata still derives from the submodule dependency. Invalid path inputs refuse before
+  dispatch with a field-specific diagnostic. Absolute roots remain valid without mainCheckout.
+- **Producer/consumer sweep:** the shared task objects feed provision, repository-local recovery
+  proofs, worker context, Gitlink staging, pin and merge snapshots, confirmation/reconciliation,
+  task and phase-land captures, and same-repository integrated-evidence grouping. All consume
+  the one normalized root. Gate artifact admission remains strict; no alias relaxation or
+  arbitrary path admission was added. Schema, recovery procedure and standing refiner pointer
+  preserve the same path contract and existing recovery obligations.
+- **Regression and recursive proof:** actual Git scenarios now cover relative and absolute
+  repositories for ordinary operation, lost task/land responses, and both seed states. Assertions
+  on captured contexts run outside agent callbacks so expected holds cannot swallow a failed
+  oracle. Relative recovery probes and actual superproject staging of an absolute Gitlink path
+  cover downstream consumers. Real gate files from Node's independent path resolver cover both
+  relative/absolute spellings, dot segments and task/land segmented continuation. Both alias
+  orders retain integrated-tip evidence obligations. Malformed input and absent paired metadata
+  cases discriminate the new selectors and guards. All 19 JavaScript-parseable mutations fail
+  assertion oracles; 22 selected cases fail against candidate 9's actual before-source. The
+  initial control summary parser expected TAP while Node emitted its spec reporter; counts were
+  corrected from retained raw logs, without changing or rerunning the observed test results.
+- **Consequences/residuals:** normalization is lexical POSIX path identity, not symlink realpath
+  resolution. Existing absolute callers keep their behavior; relative callers now share one
+  absolute root across Git and evidence. No new seat, permission, Git mutation or gate-evidence
+  classification is introduced. These fixtures establish real Git mechanics and controlled
+  engine routing, not live-model adherence. Full candidate validation and the next exact-SHA
+  panel are pending; no merge-ready verdict is asserted yet.
+
+Candidate-10 full validation: **2,124 JS tests passed, 0 failed**, **31 shell files passed,
+0 failed**, redaction clean, version slots and prompt budgets passed. Actual staging is
+**342,273 / 524,288 bytes**. The candidate-10 validation manifest binds source and log
+hashes, all 19 mutation controls, the 22 failing before-source cases, and all 17 unchanged
+protected refs. Remote head/base remained candidate 9 / the pinned baseline before commit.
+The installed Snipe package's 17 files match the recorded hashes. The authorized normal
+commit/push and fresh four-seat full-scope review follow; no merge or release is performed.

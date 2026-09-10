@@ -30,7 +30,7 @@ Before a Git snapshot, pin confirmation, merge confirmation or reconciliation di
 
 ## provision
 
-On a sanctioned recovery relaunch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Recovery task provenance. Follow the per-task repository/base entries and the helper's complete current-content proof before reporting preMerged.
+On a sanctioned recovery relaunch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Recovery task provenance. Follow the per-task absolute repository/base entries and the helper's complete current-content proof before reporting preMerged. The engine resolves relative targetRepo inputs against mainCheckout before dispatch; preserve its gate-capture prefix in returned artifact paths.
 
 Provisioning **is** a refiner duty ([ADR 0001](../docs/adr/0001-explicitly-managed-worktrees.md)) — workers never touch shared git state, so the Refinery brings the worktree topology and per-task environment up. A `provision` dispatch is **never** out-of-mode: **do not decline it.** There are three dispatch flavors, each identified by its stable `opts.dispatchKind` discriminator (mocks/handlers/audits key on it, not the label prefix):
 

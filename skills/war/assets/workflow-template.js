@@ -903,6 +903,24 @@ for (const t of (tasks || [])) {
   if (t && t.doneWhen !== undefined && t.doneWhen !== null && typeof t.doneWhen !== 'string') {
     problems.push('workflow-template: task ' + tid + ' has a non-string doneWhen (' + typeof t.doneWhen + ') — doneWhen is the Done when: acceptance command: a string when present, null/absent for legacy (D5)')
   }
+  // Canonicalize the documented relative submodule path once, before any consumer or dispatch.
+  // Gitlink-bump metadata uses the same path; an omitted paired path is still derived from its dep.
+  if (t.taskType === 'submodule' || t.taskType === 'gitlink-bump' && t.targetRepo != null) {
+    if (typeof t.targetRepo !== 'string' || !t.targetRepo.length || t.targetRepo.includes('\0')) {
+      problems.push('workflow-template: task ' + tid + ' requires nonempty NUL-free string targetRepo')
+    } else if (!t.targetRepo.startsWith('/') && !(typeof mainCheckout === 'string' && mainCheckout.startsWith('/') && !mainCheckout.includes('\0'))) {
+      problems.push('workflow-template: task ' + tid + ' requires absolute NUL-free mainCheckout to resolve relative targetRepo')
+    } else {
+      const absolute = t.targetRepo.startsWith('/') ? t.targetRepo : mainCheckout + '/' + t.targetRepo
+      const parts = []
+      for (const part of absolute.split('/')) {
+        if (!part || part === '.') continue
+        if (part === '..') parts.pop()
+        else parts.push(part)
+      }
+      t.targetRepo = '/' + parts.join('/')
+    }
+  }
 }
 //   (5) SWEEP-EXCLUDE class (in-band-absorb-default D2/D6) — args.sweepExclude is the Lead's campaign
 //       contention list: absent/null (no ledger — one log line at sweep time) or an array of
