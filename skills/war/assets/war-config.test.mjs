@@ -498,8 +498,9 @@ test('absorb-budget: run.absorbRounds error message shape == run.roundLimit\'s (
 })
 
 // --- run.maxParallel (optional fan-out throttle) ------------------------------
-// No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). When present,
-// integer >= 1; anything else is rejected with an error naming the key.
+// No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). An explicit null
+// is unset too (the overrides.* convention). When set, integer >= 1; anything else is
+// rejected with an error naming the key.
 
 test('maxParallel valid integer accepted', () => {
   assert.equal(validate({ run: { maxParallel: 3 } }).valid, true)
@@ -521,6 +522,15 @@ test('maxParallel non-integer rejected', () => {
 
 test('maxParallel string rejected', () => {
   assert.equal(validate({ run: { maxParallel: '4' } }).valid, false)
+})
+
+test('maxParallel: null is unset', () => {
+  // #2088: explicit null reads as unset, like overrides.*; it is never a validation error
+  // and fillDefaults does not replace it with a number.
+  const r = validate({ run: { maxParallel: null } })
+  assert.equal(r.valid, true, r.errors.join('\n'))
+  assert.equal(r.errors.some(e => /run\.maxParallel/.test(e)), false)
+  assert.equal(fillDefaults({ run: { maxParallel: null } }).run.maxParallel, null)
 })
 
 test('maxParallel absent passes and has no DEFAULTS.run entry', () => {
@@ -1450,12 +1460,12 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
 // compared. The relation is non-strict, so an equal-rank move stays green by design.
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'servitor', 'redteam', 'snipe']
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe']
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
   const expected = Object.keys(DEFAULTS.agents).flatMap(k =>
-    k === 'worker' ? ['worker', ...Object.keys(DEFAULTS.agents.worker).filter(s => isObj(DEFAULTS.agents.worker[s])).map(s => `worker.${s}`)] : [k])
+    [k, ...Object.keys(DEFAULTS.agents[k]).filter(s => isObj(DEFAULTS.agents[k][s])).map(s => `${k}.${s}`)])
   assert.deepEqual([...TIER_PATHS].sort(), [...expected].sort(), 'TIER_PATHS must cover every DEFAULTS.agents tier exactly once')
   assert.deepEqual(Object.values(BULLET_LABELS).sort(), [...expected].sort(), 'BULLET_LABELS must map onto every DEFAULTS.agents tier exactly once')
 })
@@ -1499,7 +1509,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {
@@ -1719,14 +1729,16 @@ test('CLI symlinked invocation still runs main() — usage on stdout, non-zero e
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
   // workflow-template.js cannot import ES modules so it duplicates the constant inline.
   // This test pins that inline literal to the canonical export in land-decision.mjs.
-  // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
+  // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence.
   // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — the inline literal and the
   // canonical export are IDENTICAL (exact equality, no scheduler-local divergence).
-  // M2: 'no-test' added to both mirrors (8 members). Container-packaging: 'unpackaged' added to both mirrors (9 members).
-  // Precision-chain Task 2.3: 'done-unmet' added to both mirrors (10 members total).
+  // M2: 'no-test' added to both mirrors. Container-packaging: 'unpackaged' added to both mirrors.
+  // Precision-chain Task 2.3: 'done-unmet' added to both mirrors.
+  // Engine-and-audit-verdict-integrity D6 (ADR 0005): 'budget-uncited' added to both mirrors — the
+  // routedMr-normalized Budget-Raise floor route escalates under its own name at every per-task merge-task dispatch site.
   //
   // The template has:
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.
@@ -1739,6 +1751,7 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'), 'dep-failed must be in HARD_ESCALATION_REASONS (F02 foundation)')
   assert.ok(HARD_ESCALATION_REASONS.includes('no-test'), 'no-test must be in canonical HARD_ESCALATION_REASONS (M2)')
   assert.ok(HARD_ESCALATION_REASONS.includes('unpackaged'), 'unpackaged must be in canonical HARD_ESCALATION_REASONS (container-packaging floor)')
+  assert.ok(HARD_ESCALATION_REASONS.includes('budget-uncited'), 'budget-uncited must be in canonical HARD_ESCALATION_REASONS (Budget-Raise floor, D6)')
 })
 
 // ---------------------------------------------------------------------------
@@ -2838,4 +2851,17 @@ test('meta-guard(F07): sanity — exactly 9 Keep-in-sync/Mirror-of markers exist
     `Expected exactly 9 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
+})
+
+test('refiner recovery tier: defaults, partial overrides and validation are independent of routine refiner', () => {
+  assert.deepEqual(DEFAULTS.agents.refiner.recovery, { model: 'opus', effort: 'high' })
+  const c = fillDefaults({ agents: { refiner: { model: 'sonnet', effort: 'medium', recovery: { model: 'fable', effort: 'default' } } } })
+  assert.equal(c.agents.refiner.model, 'sonnet')
+  assert.deepEqual(c.agents.refiner.recovery, { model: 'fable', effort: 'default' })
+  assert.equal(validate(c).valid, true)
+  for (const recovery of [null, [], { model: 'invalid' }, { effort: 'invalid' }, { surprise: true }]) {
+    const v = validate({ agents: { refiner: { recovery } } })
+    assert.equal(v.valid, false, JSON.stringify(recovery))
+    assert.ok(v.errors.some(e => e.includes('agents.refiner.recovery')))
+  }
 })

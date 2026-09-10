@@ -519,6 +519,24 @@ can't own); a manual `git push` / `--force-with-lease` land that bypasses the gu
 **Dead-agent land failure**:
 when a land dispatch returns null or an unrecognized status, read skills/war/references/glossary-cold.md
 
+**Segmented land / segmented gate**:
+The tool-timeout survival shape for the two refiner dispatches whose gate can outrun a turn. A land
+dispatch forced to return mid-run reports the in-band `land_segment` marker on its error status, and
+a merge-task reports `gate_segment` the same way — in-band fields riding the existing status, never
+a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper each —
+`segmentedLand` on all three land sites (initial, environment-proceed, baseline-proceed) and
+`segmentedMerge` on the four per-task merge-task sites (initial, floor-retry, environment-proceed,
+baseline-proceed); the two sweep-family merges are not segmented (ADR 0051 §3; the
+`segmented-land: re-land sites` and `segmented-gate: re-merge sites` fixtures in
+`workflow-template.test.mjs` are the arbiters of those two site lists) — each helper appends
+the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
+by `run.roundLimit`; exhaustion routes by the ridden status. The pair is the read (PIN-9): a landed
+or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
+routes by its status (`held:land-failed` for a land). Both prompt layers instruct backgrounding the
+gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch.
+_Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read
+without its status pair; a new status enum member for the marker.
+
 ### Audit
 
 **Audit roster**:
@@ -578,6 +596,23 @@ multi-seat roster the human approved is never second-guessed.
 _Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;
 treating the default-roster union as the only source (nomination comes first).
 
+**Decision-forked finding** (audit):
+A blocking finding whose fix needs a missing plan decision. Return `escalate` with an
+`escalate_reason` naming that decision; the engine carries it into `escalated[]`. The two-sided boundary is
+rebuttal first, then fix round when all surviving blockers have a suggested_fix. A new mechanical
+blocker never escalates merely for severity. Any fix-less blocker, unchanged survivor after fixing,
+or finding-less blocking seat holds, even if another blocker is mechanical. See ADR 0013 Decision 4.
+_Avoid_: a reason-less escalation; confusing this with the worker's **Defect class**.
+
+**Seat-conflict ask** (audit):
+The operator question preserved when a held panel pairs a Critical/Major with an approving
+seat's Minor/Nit at the same locus and either rationale concerns the task mandate or an
+adjudication. The fix-now / follow-up-and-merge fork parks through `parkAsk` in `asks[]` (#1914), for the Checkpoint strike-list gate; it never grants
+approval. Rebuttal precedes fixing; ALL surviving blockers need concrete fixes. ANY fix-less
+blocker, unchanged survivor or finding-less blocking seat holds. A ruling and re-audit must
+precede approval in both interactive and unattended runs (#2279/#2280).
+_Avoid_: treating ordinary lexical scope as a task mandate; erasing dissent when parking a question.
+
 **Gate-audit pass**:
 The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
 `execution-evidence` lens — SOFT by default, HARD (land-holding) only on a provably-unrun mapped test.
@@ -617,19 +652,35 @@ The handoff End-state status for a claimed condition no seat attests — attesta
 channel (every gate-audit-family seat returns one `endStateAttestations` row per claimed condition:
 the condition verbatim, status `met` | `unmet` | `unverified`, evidence), so silence maps to
 `unverified`, never `met`. A missing, unreadable, or stale artifact (its stamped tip SHA mismatching
-the confirmed tip) also attests `unverified`. Whole-pass absence stays all-`deferred`; findings stay
-defect-only (attestation rides the rows, never a finding).
+the confirmed tip) also attests `unverified`, and so do the two record-only artifact states the
+land-barrier endstate-check dispatch stamps: `intake_lint:` (the check literal failed the intake lint,
+so the row was never executed) and `cmd_bytes_mismatch:` (the written `.cmd` failed the byte-for-byte
+verify, so the row was not executed as declared). Such an artifact is present, readable and
+tip-matched, yet its condition was never evaluated, so it is never `unmet` (#1781). Whole-pass absence
+stays all-`deferred`; findings stay defect-only (attestation rides the rows, never a finding).
 _Avoid_: reading silence as `met` (the failure mode the status exists to close); conflating it with
-`deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure).
+`deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure); attesting an
+`intake_lint:` or `cmd_bytes_mismatch:` artifact `unmet` because its exit line is not `0`.
 
 **Gate-evidence artifact**:
-The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.log`; the `execution-evidence`
-seat's source of per-mapped-test PASS evidence, replacing curated `gate_output` prose. Phase-ephemeral
-(last-write-wins across a task's up-to-four gate runs; destroyed by `_refinery` heal and phase teardown) —
+The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.<unique>/gate.log`; the `execution-evidence`
+seat's source of per-mapped-test PASS evidence (inline `gate_output` is context only). Phase-ephemeral
+(fresh directory per logical gate attempt; destroyed by `_refinery` heal and phase teardown) —
 audit input, never a resume/adjudication record.
 _Avoid_: minting a HARD provably-unrun finding from a possibly-curated inline `gate_output` paste (the
 HARD determination is made only against the captured file); treating a missing artifact as a hold (missing
 ⇒ SOFT cannot-confirm).
+
+**Gate-log stamp**:
+The two lines every captured gate log carries — `tip_sha:` first and `exit_code:` last — written by
+`GATE_LOG_STAMP` and mirrored on the refiner card. Every logical gate allocates a fresh directory
+with `mktemp -d` under `_refinery/.war/`; this includes baseline retries, land and integrated-tip
+runs. Only a SEGMENTED continuation may reuse the returned absolute `gate_log_path`, after checking
+both stamps. A partial/stale log requires waiting for the known writer or a fresh artifact; never
+truncate a file an earlier background writer might still write. Auditors read only explicitly
+returned paths. Missing paths render `(gate_log_path unthreaded — no captured artifact)` and mean
+SOFT cannot-confirm; a conventional filename is never guessed, even at the same tip.
+_Avoid_: partial evidence, stale or same-tip prior-attempt logs, relative paths, marker-as-path reads.
 
 **Pin-equality gate**:
 The Node-side check that a seat's returned `audit_sha` equals the SHA it was dispatched to judge; a
@@ -638,6 +689,22 @@ well-formed mismatch tags that seat's findings `pin-mismatch` and excludes them 
 _Avoid_: conflating the `pin-mismatch` findings tag with the `agent-unverified` *memory-provenance* tier
 ([ADR 0007](docs/adr/0007-memory-provenance.md)) — unrelated concepts; confusing it with `pin_status`
 (which classifies the `gateHeadSha`↔`observedHead` relationship — this checks seat-vs-dispatched-pin).
+
+**Intake normalization**:
+The engine-side pass every seat verdict crosses before any routing reads it — `normalizeFinding` in
+`workflow-template.js`, applied through `normalizeSeat` at every verdict-ingestion site
+(auditRound's one collection site — roster seats, the rebuttal round and every re-audit: ace,
+pin-transfer, floor-fix, sweep, terminal — plus the three gate-audit-family seats: post-merge,
+integrated-tip, end-state-only). It strips the attribution keys only the engine may stamp (a seat's
+own `seats`/`merged` corroboration and the filing provenance pair), normalizes `file` through
+`aceRelPath`, and demotes an empty-content finding to a logged note (a plan_ref, scopeBreach or
+ask-shaped row is spared); `remintKey` folds a content hash in when file and title are both
+absent — so what `f.file` and `f.seats` mean downstream is what the engine set, never what a seat
+supplied. The auditor card's and every dispatched auditor prompt's FINDING-PATH FORM sentence is
+advisory belt and braces; the invariant lives in the engine
+([ADR 0051](docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md)).
+_Avoid_: trusting a seat-supplied corroboration field; a per-site strip (one helper, every site);
+treating the prompt sentence as the guard.
 
 **Claim shape**:
 Which of the **four closed evidence categories** a claim under audit falls into — `content-at-pin`,
@@ -799,7 +866,10 @@ _Avoid_: per-ask mini-gates; any severity, count, or staleness exception to the 
 **Grind measurement**:
 The #1664 backstop's read of decision-shaped round-grinding from three terminal sources — manifest
 `phases[].dispatches.fixRounds`, the filing site's audit-round field, and `minorsFiled` rationales —
-coarseness named: round-level attribution does not exist.
+coarseness named: round-level attribution does not exist. Since the two-sided boundary landed (ADR
+0013, Decision log 2026-09-08) the escalate-at-round-0 grind it measured is engine-refused — read
+the residual as post-rebuttal `fixRounds` beside the `escalated[]` rows carrying a seat's
+`escalate_reason`; the boundary is defined under **Decision-forked finding**.
 _Avoid_: inventing per-round attribution the record does not carry.
 
 **Failure-routing asymmetry**:
@@ -885,6 +955,17 @@ edits a `ponytail:`/deliberate-mirror rationale line), and `barrier:trade-off` (
 `skills/war/references/disposition-eligibility.md` (ADR 0013 amendment 2026-09-04). A scope argument is
 never a barrier, and the why-not-absorbable prose stays free text beside the tag.
 _Avoid_: a prose barrier; a fifth member minted on a card; the engine estimating fix size.
+
+**Version-literal guard** (`version-slots.test.mjs`):
+Release-slot eligibility is by literal, not by file (ADR 0013 Decision 5, Decision log 2026-09-08;
+#2000). Only the `RELEASE_SLOT_FILES` basenames (canonical in `skills/war/assets/land-decision.mjs`)
+refuse an absorb by filename; a fully specified Minor/Nit on `CHANGELOG.md` or `README.md` is
+`absorb`-eligible when its fix moves no version literal, CHANGELOG head heading or README `## Status`
+version token, and a fix that moves one is a release change, never a Minor. The guard is
+`skills/war/assets/version-slots.test.mjs` in the merge gate — a slot moved out of lock-step reds
+there; the engine carries no literal detector, and the ace prompt cites the guard on a release task.
+_Avoid_: refusing a blurb absorb by filename; an engine version-literal detector; reading a
+lock-step bump of all four slots as a Minor.
 
 **Demote reason prefix** (`DEMOTE_REASONS`):
 The closed prefix enum every engine `follow-up` demotion cites, canonical in
@@ -974,8 +1055,10 @@ The end-state a phase owes the next: a tip whose quality debt is **zero or enume
 — every finding absorbed (commit-cited), filed (issue + why-not-absorbable), noted (report), or parked
 as an ask (question + fork — ruled at the Checkpoint strike-list gate, never filed unruled) — plus a
 machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, notes, endState,
-intentPresent, backstops }`) emitted on `landed`, `held:escalation` and `held:land-failed` for the
-next phase's decompose — a held land forfeits the land, not the filing fidelity.
+intentPresent, backstops }`) emitted on `landed` and `held:escalation` only (the engine's emit gate)
+for the next phase's decompose. The follow-up filing pass is a distinct, wider gate: it runs on
+`landed`, `held:escalation` and also `held:land-failed` (#1597) — a held land forfeits the land, not
+the filing fidelity; there the stamped issues ride the top-level return's `minorsFiled`.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
 
@@ -1551,6 +1634,16 @@ playbook (single-task vs full-DAG forms, orphan adoption, `args.recovery` and
 _Avoid_: `resumeFromRunId` for an escalation; letter-suffixed phase ids ("4b"); rewriting the kept
 commits on a retried branch; hand-filtering the DAG to the unmerged tasks (pass the full DAG; git at the
 barrier is the filter).
+
+**Relaunch attempt**:
+One Workflow run of a phase that a prior run of the same phase did not finish — a `resumeFromRunId`
+retry or a recovery relaunch. Each attempt has its own `workflowRunId` + `transcriptDir` when the
+launch envelope surfaces a fresh run id (a relaunch that repeats the prior id archives nothing; the
+transcript dir's basename is the run id); the run manifest overwrites the pair **together**, archives
+the died attempt under `attempts[]`, and sums dispatch counts across attempts (the shape lives in
+`skills/war/references/run-manifest.md` § Relaunch).
+_Avoid_: overwriting one field of the pair; dropping a died attempt's counts; reading the manifest
+on resume (it is telemetry, never resume input).
 
 ### GitHub side-effects
 

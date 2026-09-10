@@ -43,27 +43,38 @@ that duty into the dispatched delta-scaled re-audit prompt
 
 At the merge slot the refiner requires a conflict-free rebase, then compares
 `git patch-id --stable` of the **task's own diff**: dispatchBase→tip before the rebase, and
-integration-tip→tip after. Equal patch-ids mean the rebase carried the approved content
-unchanged, so the whole panel's pin transfers to the rebased tip and no panel re-convenes in the
-lock. A mismatch falls back to the in-lock full-panel re-audit for that one task — today's
+integration-tip→tip after. Stable patch IDs ignore whitespace, so equal IDs alone cannot
+prove content preservation. The independent verifier also compares exact changed-path/blob/mode
+identities using [Exact Git diff identity](../../skills/war/references/refiner-recovery.md#exact-git-diff-identity).
+Only equality of both measures permits the whole panel's pin to transfer without another panel. A mismatch falls back to the in-lock full-panel re-audit for that one task — today's
 behaviour, byte for byte (D2, PIN-1). The record stores `reauditedTip`, `rebasedTip` and both
-patch-ids, so a later audit re-verifies the transfer without replaying the rebase (PIN-14).
+patch-ids plus `preContentId`/`postContentId`, so a later audit re-verifies the transfer without replaying the rebase (PIN-14).
 
 The literal predicate first proposed — a whole-tree `git diff <reauditedTip> <rebasedTip>` — was
 replaced with patch equality on the operator's confirmation, because the rebased tree contains
 every earlier task's merged changes and so is non-empty for every task after the first.
 
 One arm precedes the equality test. If the post-rebase task diff is empty, the task had at least
-one commit at the pre-rebase tip, and `git cherry` matches every task commit upstream, the task
-records `merged` with an `already_upstream` provenance field naming the matched task commits —
-no panel and no content merge (PIN-16). Its git legs run against the pre-rebase task tip. An
+one commit at the pre-rebase tip, and `git cherry` matches every listed non-merge task commit
+upstream, the engine checks the complete final Git tree against the approved tree. Equal trees
+permit `merged` with `already_upstream` provenance naming those matched commits, no panel and
+no content merge (PIN-16). Cherry omits merge commits and can match later-reverted upstream work;
+it cannot by itself prove current content. Different or unavailable final tree evidence requires
+a full content re-audit comparing the original task and changes since approval. Unanimous fresh
+approval plus unchanged published refs permits completion with a `mismatch` receipt, without an
+empty merge. The canonical procedure is in refiner-recovery.md. The cherry legs run against the
+pre-rebase task tip. An
 empty diff with zero task commits, an unmatched patch, or an empty pre-rebase patch-id fails
 **closed** to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
-empty-equals-empty must never transfer a pin (#1895).
+empty-equals-empty must never transfer a pin (#1895). The consumer refuses an `already_upstream`
+whose fields contradict it — `rebased_tip` equal to `dispatch_base`, a non-empty post-rebase
+patch-id, or an empty `already_upstream_commits` — and routes by patch-ids instead (the
+2026-09-06 engine-and-audit-verdict-integrity plan's D4 and PIN-8, #1973; the arm's record is
+[ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) section 2).
 
 The canonical arms and wire shape live in the `PIN_TRANSFER` schema and the merge-slot
 pin-transfer region of `workflow-template.js`; the ledger is `pinTransfers` there. The merge-floor
-retry loop is out of scope and stays in-lock and full-panel (D4).
+retry loop is out of scope and stays in-lock and full-panel (this ADR's ratifying plan's D4).
 
 ### 3. Global dispatch semaphore — one ceiling for the whole run
 
@@ -92,8 +103,11 @@ run today (PIN-3).
   wire status, and `PIN_TRANSFER` is its own schema rather than a widening of `MERGE_RESULT`, so
   no status enum, `HARD_ESCALATION_REASONS` member, or `KNOWN_LAND_DECISIONS` member moves for it
   (PIN-6).
-- **Degrade-to-today.** Every refusal path — footprint excess, patch-id mismatch, probe error —
-  lands on current behaviour, so the worst case is what the engine already did (PIN-1).
+- **Refusal preserves approval integrity.** Footprint excess and changed patches require a full
+  audit; missing Git proof holds instead of transferring approval. Probe errors use the same
+  independent content check before fallback (PR finalization amendment).
+
+Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. A separate read-only Git proof verifies the original approved content, actual refs and patch/cherry evidence. An error, missing or unknown status retains the ordinary fallback only for unchanged approved content or independently equal patch and exact content identities; changed content requires the full re-audit. See [refiner-recovery.md](../../skills/war/references/refiner-recovery.md#uncertain-merge-reconciliation) for the target preflight and proof procedure.
 
 ## Considered options
 
@@ -109,7 +123,7 @@ run today (PIN-3).
   the true ceiling stays unpredictable at every nesting depth, and lowering N throttles the
   shallow sites hardest. One counter at one seam is the only shape that states a ceiling truly.
 
-## Relationship to prior ADRs
+## Relationship to other ADRs
 
 - [ADR 0013](0013-commanders-intent-and-disposition-routing.md) — disposition routing owns what
   happens to findings a transfer or a reverted ace leaves behind; this ADR changes who re-reads,
@@ -119,3 +133,12 @@ run today (PIN-3).
   skipping it.
 - [ADR 0041](0041-audit-evidence-precedence.md) — the per-claim-shape evidence ladder; the
   gate-green precondition here is the evidence a transferred approval rests on.
+- [ADR 0051](0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md) — section 2
+  records the `already_upstream` refusal arm this ADR's pin-transfer section restates; its D4 and
+  PIN-8 belong to the 2026-09-06 plan, not to this ADR's ratifying plan.
+
+## Decision log
+
+- 2026-09-07 · section 2's `D4` attributed to this ADR's ratifying plan (the 2026-08-30 plan's D4 row), the relationship heading renamed `Relationship to other ADRs` so the ADR 0051 row fits under it · issue #2156
+
+- 2026-09-09 · Require positive evidence before transfer or already-upstream completion; invalid destinations hold, missing transfer equality re-audits (#2154, PR #2297 initial Snipe).
