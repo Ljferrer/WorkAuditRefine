@@ -1,6 +1,6 @@
 # Codex engine integration ledger
 
-Status: Ready for integration review; final baseline and packaged panel passed. Publication receipt pending. This top block is the sole current resume authority; sections below are historical evidence. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
+Status: Complete — ready for integration review. Final baseline and packaged panel passed; PR #2298 is open into codex-port. This top block is the sole current resume authority; sections below are historical evidence. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
 
 ## Pins and isolation
 
@@ -26,10 +26,10 @@ Status: Ready for integration review; final baseline and packaged panel passed. 
 - [x] Census reviewed; candidate-1 and candidate-2 clean-source collectors passed.
 - [x] Current candidate full baseline and final evidence acceptance.
 - [x] Fresh external packages, moved-package tests and final packaged panel.
-- [ ] Final evidence commit, push and PR into codex-port.
+- [x] Final evidence commit, push and PR into codex-port: #2298.
 
 Node v24.17.0; complete prerequisite identities recorded below.
-Next action: publish the candidate to origin and open its PR into codex-port, then record the publication receipt. No further source edits or validation reruns are pending. Prior baseline/panel runs are complete evidence, not instructions to repeat unchanged work. User authorization covers in-scope repairs outside the report-only audit.
+Next action: operator review of [PR #2298](https://github.com/Ljferrer/WorkAuditRefine/pull/2298). Integration delivery is complete; no source edits, tests, publication or audit reruns are pending. Prior baseline/panel runs are complete evidence, not instructions to repeat unchanged work. User authorization covers in-scope repairs outside the report-only audit.
 
 ## Backstops
 
@@ -140,3 +140,8 @@ Affected paths before edits: planning verifier/host/test already in repair footp
 The final panel has no findings. Prior SHA-256 Git object-format support remains explicitly unimplemented (SHA-1-only scope); that compatibility claim is held for separate work. Seat-reported inspection and coordinator-supplied verifier history are not authenticated receipts. Recommendation-text normalization proves represented change only; the interviewer still owes substantive amendment. Package-source preflight assumes no concurrent hostile source mutation. These limits are not hidden skips or claims of runtime parity.
 
 B1 hosted Linux/macOS/CI gate behavior, B2 fresh installed discovery and WP15, B3 full Codex WAR execution/recovery parity, and B4 frozen red-team completion remain deferred exactly as recorded above. The original historical port documents already point to the authoritative integration plan; their dated evidence and status banners were preserved. No release, PR merge, CI activation or full runner was performed. Next operator action after publication: review the integration PR into codex-port; promotion/release remain separate decisions.
+
+
+## Publication receipt
+
+[PR #2298](https://github.com/Ljferrer/WorkAuditRefine/pull/2298), `codex/engine-integration` → `codex-port`, opened after normal push of evidence commit `ded156cfe2af8e7d10fcfd66f5a15ee9adb32b16`. This receipt update is also evidence-only; the PR body and final task response record the exact final remote head. Both evidence commits preserve non-evidence tree digest `cd8c534195e75550b4a3e676dd6b0ce3eb4a19bc1fccb8b2dd63cd5294e76e18` from tested/audited `56e63e70e30c7b142e71e5d934ddfe460e76b949`. No PR merge or release performed. Source/package validation is complete within the disclosed backstops.

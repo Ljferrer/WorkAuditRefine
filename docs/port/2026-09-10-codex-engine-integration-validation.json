@@ -7376,5 +7376,12 @@
   "protectedRefsUnchanged": true,
   "installedInitialSnipeUnchanged": true,
   "verdict": "ready for integration review, bounded source/package acceptance",
-  "publication": "pending PR receipt; final delivery commit is evidence-only relative to auditedSourceIdentity.sha"
+  "publication": {
+    "pr": "https://github.com/Ljferrer/WorkAuditRefine/pull/2298",
+    "base": "codex-port",
+    "headBranch": "codex/engine-integration",
+    "initialPublishedEvidenceCommit": "ded156cfe2af8e7d10fcfd66f5a15ee9adb32b16",
+    "receiptCommit": "the commit containing this publication receipt; final remote SHA is recorded in PR body and task response",
+    "nonEvidenceTreeUnchanged": true
+  }
 }
