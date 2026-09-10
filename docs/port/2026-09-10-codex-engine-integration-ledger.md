@@ -1,6 +1,6 @@
 # Codex engine integration ledger
 
-Status: Phase 2, repairs validated locally; final clean-source host-permitted baseline pending. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
+Status: Candidate-3 repairs complete; delivery acceptance pending refreshed baseline and final packaged panel. This top block is the sole current resume authority; sections below are historical evidence. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
 
 ## Pins and isolation
 
@@ -22,13 +22,14 @@ Status: Phase 2, repairs validated locally; final clean-source host-permitted ba
 - [x] Read relevant gate-evidence learning excerpts; historical recipes do not override merged engine or plan. Preserve exact command logs and exits.
 - [x] Initial installed-package panel on common-base...PORT_BASE.
 - [x] Dependency/path inventory and normal merge of ENGINE_BASE.
-- [ ] Reconcile observed compatibility defects with discriminating tests.
-- [ ] Census and complete clean-source collector.
+- [x] Reconcile observed compatibility defects with discriminating tests; later findings and disposition recorded below.
+- [x] Census reviewed; candidate-1 and candidate-2 clean-source collectors passed.
+- [ ] Current candidate full baseline and final evidence acceptance.
 - [ ] Fresh moved packages and final packaged panel.
 - [ ] Final evidence commit, push and PR into codex-port.
 
-Node currently available: v24.17.0. Remaining prerequisite identities to record before baseline.
-Next action: launch installed Snipe coordinator with host permission; retain report and read packaged post-audit repair discipline. User's overarching integration instruction authorizes subsequent in-scope fixes outside the report-only audit.
+Node v24.17.0; complete prerequisite identities recorded below.
+Next action: run the candidate-3 full baseline from a clean commit, rebuild packages, and obtain the final packaged panel; then record final evidence, push and open PR. Prior baseline/panel runs are complete evidence, not instructions to repeat unchanged work. User authorization covers in-scope repairs outside the report-only audit.
 
 ## Backstops
 
@@ -93,7 +94,7 @@ Additional edited paths beyond plan list are the Snipe intake/renderer/tests/rol
 
 Frozen red-team receipt read at artifacts ref `0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0`: original target `46aef4a25b68874bff7b3b3fed14f9058c270da7`, plan hash `159b6de7bcfb7075e7ffd5c4bc5f133ef84a3a5276f5cde5a731b4f990f73b57`, installed version `0.1.0+codex.77d91df9fa50.5dc9e2b31180`, INCOMPLETE report. No installed/experiment mutation.
 
-Next: commit repairs/evidence, run full collector with host permission for loopback/process inspection; build fresh packages and run final four-seat packaged panel at frozen candidate. Evidence-only commits afterward must preserve executable/package-source identities.
+Historical candidate-1 checkpoint: commit repairs/evidence, run full collector with host permission for loopback/process inspection; build fresh packages and run final four-seat packaged panel at frozen candidate. Evidence-only commits afterward must preserve executable/package-source identities.
 
 ## Candidate 1 validation and final-panel finding
 
@@ -106,4 +107,19 @@ Before repair, affected paths: `adapters/codex/package-snipe.mjs`, `package-snip
 
 Package-source class closure: both builders now import one `regularSource` implementation extracted from planning and extended to reject a symlinked source root. Snipe applies it to every FILES entry and the version manifest before output creation; planning also uses it for ADR reference validation. Regression failed on old Snipe; both-builder root/ancestor/leaf/version cases now pass and assert absent output. Root, ancestor and nonregular-leaf mutations each fail an independent oracle. Existing missing-input, component inventory, filesystem CLI alias, moved-package lint/reference and invocation tests remain green. Read-time races during a concurrent source mutation remain outside this static preflight check; builds use this dedicated clean checkout. This repair adds no authentication claim and no generated package file.
 
-Candidate-1 panel is preserved in `snipe/2026-09-10-codex-integration-candidate-1-snipe.md`; candidate-1 baseline/packages/validated seat results are in the validation manifest. Final refreshed evidence is pending after the builder repair.
+Candidate-1 panel is preserved in `snipe/2026-09-10-codex-integration-candidate-1-snipe.md`; candidate-1 baseline/packages/validated seat results are in the validation manifest. Historical candidate-2 checkpoint: refreshed evidence was then pending after the builder repair.
+
+
+## Candidate-2 panel and next repair footprint
+
+Candidate-2 baseline passed all 70 suites at `313f105b3315ee10b935e7177295626ede1e7fa8` (3,935 passes, five authorized skips, unchanged source). Final packaged panel: stable/complete and four validated seats; correctness request_changes, simplicity/cascading-impact/test-fidelity approve. Package-source class approved. New Major: a genuine refutation can be retried without amendment. New Minors: documented usability lens missing from shared bare-lens catalog, stale top-level ledger progress. Full report/raw retained in `final-snipe-2.md/json`.
+
+Affected paths before edits: planning verifier/host/test already in repair footprint; `skills/snipe/assets/snipe-args.mjs`, `skills/snipe/assets/snipe-args.test.mjs`, and `adapters/codex/skills/snipe/assets/snipe-request.test.mjs` for shared catalog and packaged request mirrors. Rule: one refutation requires represented amendment before redispatch; unchanged text including whitespace-only changes stays operator-fork even if a fresh seat would approve. Text comparison is a mechanical minimum, not proof of semantic amendment. Sweep all history-bearing tests so genuine amended retries remain exercised. The bare-lens catalog must cover documented standard lenses while preserving structured targets and custom comma-list grammar. Ledger top status/checklist/next action is canonical; historical checkpoints are labeled.
+
+
+## Candidate-3 class closure
+
+- Unchanged-refutation retry: normalized recommendation comparison now preserves the prior refutation and operator-fork without dispatch. The same shared normalization is applied to prior and current text. Exact-repeat and whitespace-only before-source controls failed; after repair, both input orders and removal of guard/trim/whitespace folding fail mutation oracles. Old unarmed and two-attempt fixtures now use actual changed recommendations so the new guard cannot mask their own removals. A represented text change is a minimum, not semantic proof; the interviewer still owes the charter's substantive amendment. Empty/malformed history validation remains before branching, no-history unarmed behavior is unchanged, and second-refutation history still forks before any third dispatch.
+- Documented standard-lens reachability: shared catalog now includes usability; Claude and Codex consumers use the same parser. One-seat raw forms and every documented Codex standard lens are checked; a moved package with usability removed fails the independent request oracle. Custom comma lists, reserved lenses and structured targets retain their existing suites. No Codex-specific parser fork.
+- Progress authority: one top status/checklist/next action governs resume. Lower sections retain historical checkpoints with labels. Final evidence-only commit will close the remaining acceptance boxes.
+- Targeted current checks: 54 tests passed (`candidate-3-targeted-final.log`); updated moved-package mutation assertion passed (`candidate-3-lens-mutation.log`). `candidate-3-before.log` retains all three intended failures. Intermediate mutation failures exposed masking by the new unchanged-text guard and a nonunique mutation anchor; fixtures were corrected, not relaxed.

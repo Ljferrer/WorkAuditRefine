@@ -4480,5 +4480,246 @@
         "skills/war-strategy/agents/openai.yaml": "b198fa73d3411c20b0f5d39c7498ac7cf013c9315d56b74055b93f3eb68fa9a9"
       }
     }
+  },
+  "candidate2Baseline": {
+    "sourceSha": "313f105b3315ee10b935e7177295626ede1e7fa8",
+    "before": {
+      "sourceSha": "313f105b3315ee10b935e7177295626ede1e7fa8",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "3c15929e24fc74705fe70440a31029934dfed81fb4752b3b8a2f754197207146",
+      "contentDigest": "8fa19d89239611c4b0c552c93bc19c659bc565c207cb3e8a2e2022f87490cb68"
+    },
+    "after": {
+      "sourceSha": "313f105b3315ee10b935e7177295626ede1e7fa8",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "3c15929e24fc74705fe70440a31029934dfed81fb4752b3b8a2f754197207146",
+      "contentDigest": "8fa19d89239611c4b0c552c93bc19c659bc565c207cb3e8a2e2022f87490cb68"
+    },
+    "stability": "unchanged",
+    "environment": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "osRelease": "25.6.0",
+      "node": "v24.17.0",
+      "git": "git version 2.50.1 (Apple Git-155)",
+      "bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)"
+    },
+    "ok": true,
+    "reportPath": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-2/report.json",
+    "reportSha256": "65352b6da54eb5121738291b21bae643fcdcd9b0926dc33127acc9ea2e8e5a16"
+  },
+  "candidate2Panel": {
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/21ae/WorkAuditRefine",
+      "description": "merge-base 668e4ff990f1c689fcf9710768c3d73c2601920c...313f105b3315ee10b935e7177295626ede1e7fa8",
+      "comparison": "merge-base",
+      "baseSha": "668e4ff990f1c689fcf9710768c3d73c2601920c",
+      "headSha": "313f105b3315ee10b935e7177295626ede1e7fa8",
+      "paths": [],
+      "submodules": []
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "stability": {
+      "stable": true,
+      "before": null,
+      "after": null
+    },
+    "coverage": {
+      "complete": true,
+      "unavailablePaths": []
+    },
+    "seats": [
+      {
+        "seat": 1,
+        "lens": "correctness",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 1,
+          "lens": "correctness",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "313f105b3315ee10b935e7177295626ede1e7fa8"
+          },
+          "verdict": "request_changes",
+          "confidence": "high",
+          "findings": [
+            {
+              "severity": "Major",
+              "title": "An unchanged refuted recommendation can be retried and returned as verified",
+              "file": "adapters/codex/skills/war-strategy/assets/strategy-verifier.mjs",
+              "locator": "verifyRecommendation second-attempt path",
+              "line": 30,
+              "rationale": "The shared charter requires refutation to proceed through dispatch \u2192 amend \u2192 re-arm \u2192 fork. After validating one prior result, however, a request with nonempty arms falls through to dispatch without comparing input.recommendation with history[0].recommendation. Calling the verifier again with the identical recommendation and arms is therefore accepted; if the second verifier returns refuted:false, the function returns status \"verified\" for text that the first verifier already refuted, rather than preserving the disagreement as an operator fork. This is separate from the disclosed lack of authenticated history: even a genuine first result does not enforce the required amendment. planning-verifier.test.mjs always supplies changed text for attempt two and has no unchanged-recommendation rejection case.",
+              "suggested_fix": "After validating a single prior result, require a substantive represented amendment before dispatch\u2014at minimum, normalized recommendation text must differ from the prior recommendation. If it does not, return the existing operator-fork outcome without invoking dispatch. Add a regression whose second dispatcher would approve the unchanged text and assert that it is never called and the prior refutation cannot become verified."
+            },
+            {
+              "severity": "Minor",
+              "title": "The documented usability lens cannot be selected as a one-seat Snipe request",
+              "file": "adapters/codex/skills/snipe/assets/snipe-request.mjs",
+              "locator": "prepareSnipeRequest rawArgs parsing",
+              "plan_ref": "docs/port/2026-09-07-snipe-codex-port-plan.md S-A03",
+              "line": 423,
+              "rationale": "The packaged auditor role defines usability as a supported lens, while the shared SNIPE_LENS_CATALOG omits it. parseSnipeArgs therefore interprets bare \"usability\" as legacy target text, and the Codex boundary rejects it with AMBIGUOUS_TARGET because targets must use the structured envelope. Prefixing a seat count does not help, and adding \",auto\" forces a two-seat panel, so the documented one-seat lens is unreachable through the normal request syntax. Existing request tests cover a two-item custom lens list but not this standard bare lens.",
+              "suggested_fix": "Recognize usability as a bare lens while retaining the shared parser\u2014preferably by adding it to SNIPE_LENS_CATALOG\u2014and add a request test proving rawArgs \"usability\" produces one named usability seat with no target ambiguity.",
+              "disposition": "absorb"
+            }
+          ],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 2,
+        "lens": "simplicity",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 2,
+          "lens": "simplicity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "313f105b3315ee10b935e7177295626ede1e7fa8"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [
+            {
+              "severity": "Minor",
+              "title": "The integration ledger retains multiple conflicting progress authorities",
+              "file": "docs/port/2026-09-10-codex-engine-integration-ledger.md",
+              "plan_ref": "End state 7 and Resume after compaction",
+              "line": 3,
+              "rationale": "The header still says Phase 2 validation is pending, the checklist leaves reconciliation and census unchecked, and the first live-looking Next action says to launch the initial panel. Later sections record that panel, the repairs, candidate-1 validation, and the subsequent package-source repair. The plan's resume rule tells a new operator to resume the first unchecked item, so these parallel state markers require reconstructing chronology and can cause completed work to be repeated. The final appended paragraph is current, but nothing marks the earlier status and Next action entries as historical.",
+              "suggested_fix": "Keep one canonical status/checklist/next-action block at the top and update it when appending evidence. Relabel earlier Next action lines as historical checkpoints or remove them after their outcomes are recorded.",
+              "disposition": "absorb"
+            }
+          ],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/planning-contract.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "adapters/codex/skills/snipe/snipe-structure.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs",
+              "scripts/ci/collect.test.mjs",
+              "skills/_shared/doc-cli-consistency.test.mjs",
+              "skills/war/assets/war-config.test.mjs",
+              "tests/parity/git-fixture.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 3,
+        "lens": "cascading-impact",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 3,
+          "lens": "cascading-impact",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "313f105b3315ee10b935e7177295626ede1e7fa8"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "scripts/ci/collect.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs",
+              "tests/parity/oracle.test.mjs",
+              "skills/_shared/doc-cli-consistency.test.mjs",
+              "skills/war-strategy/war-strategy-structure.test.sh",
+              "skills/war/assets/war-config.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 4,
+        "lens": "test-fidelity",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 4,
+          "lens": "test-fidelity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "313f105b3315ee10b935e7177295626ede1e7fa8"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/planning-actual-host.test.mjs",
+              "adapters/codex/planning-contract.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-files.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs",
+              "scripts/ci/collect.test.mjs",
+              "skills/_shared/doc-cli-consistency.test.mjs",
+              "skills/war-strategy/war-strategy-structure.test.sh",
+              "skills/war/assets/war-config.test.mjs",
+              "tests/parity/git-fixture.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        }
+      }
+    ]
   }
 }

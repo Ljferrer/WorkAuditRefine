@@ -46,7 +46,10 @@ operator ratification. On refutation, amend once or put the unresolved fork to t
 operator immediately. For the amended call pass `history: [<first returned object>]`.
 History records are structurally checked, coordinator-supplied evidence, not
 authenticated dispatch receipts. Keep records from this beat in attempt order;
-an amendment may change recommendation text and fired arms.
+an amendment must change recommendation text beyond whitespace and may change
+fired arms. Unchanged text stays a live operator fork without another dispatch.
+This text comparison is a minimum check; the interviewer still owes a substantive
+amendment under the shared charter.
 A second refutation requires a live operator fork: never reset history to obtain
 more attempts. Invalid or failed dispatch is visibly unverified, not a retry cue.
 An unarmed beat does not dispatch. An explicit operator waiver skips dispatch only

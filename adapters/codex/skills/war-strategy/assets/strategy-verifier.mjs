@@ -6,6 +6,7 @@ import { resolveCodexPath, listSupportedProfiles } from '../../snipe/assets/code
 import { processGroup, processTreeCleanup, isMain } from '../../snipe/assets/snipe-process.mjs'
 
 const classes=['run manifests','epic phase reports','war-followup','docs/learnings']
+const normalizedRecommendation=value=>value.trim().replace(/\s+/g,' ')
 const singleLine=value=>typeof value==='string' && value.trim().length>0 && !/[\r\n]/.test(value)
 const validVerifierResult=result=>result && typeof result.refuted==='boolean' && singleLine(result.consequence) && singleLine(result.caughtBy) && typeof result.reason==='string' && result.reason.trim()
 
@@ -29,6 +30,7 @@ export async function verifyRecommendation(input,{dispatch, ...options}={}) {
   }
   if(history.length===2)return {status:'refuted',next:'operator-fork',history}
   if(history.length && !input.arms.length)return {status:'refuted',next:'operator-fork',history}
+  if(history.length && normalizedRecommendation(input.recommendation)===normalizedRecommendation(history[0].recommendation))return {status:'refuted',next:'operator-fork',history}
   if(!input.arms.length)return {status:'unarmed',next:'present'}
   const corpus=input.corpus ?? {}
   assert.ok(corpus && typeof corpus==='object' && !Array.isArray(corpus),'corpus must be keyed by history class')
