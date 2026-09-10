@@ -104,8 +104,8 @@ export function validateSnipeVerdict(input, expected) {
   if (!['high', 'medium', 'low'].includes(value.confidence)) fail('INVALID_RESULT', 'result.confidence is invalid')
   if (!Array.isArray(value.findings)) fail('INVALID_RESULT', 'result.findings must be an array')
   const findings = value.findings.map(normalizeFinding)
-  if (value.verdict === 'approve' && findings.some(finding => ['Critical', 'Major'].includes(finding.severity))) {
-    fail('INCONSISTENT_VERDICT', 'approve cannot carry a Critical or Major finding')
+  if ((value.verdict === 'request_changes') !== findings.some(finding => ['Critical', 'Major'].includes(finding.severity))) {
+    fail('INCONSISTENT_VERDICT', 'request_changes requires a Critical or Major finding; other verdicts cannot carry one')
   }
   if (value.verdict === 'escalate') nonempty(value.escalate_reason, 'result.escalate_reason')
   else if (value.escalate_reason !== undefined) fail('INCONSISTENT_VERDICT', 'escalate_reason is only valid for an escalate verdict')
@@ -203,6 +203,10 @@ export function renderSnipeReport(panel) {
     const repair = seat.repair?.attempted ? `; repair ${seat.repair.succeeded ? 'succeeded' : 'failed'}` : ''
     const judgment = seat.verdict ? `; verdict ${seat.verdict.verdict}; confidence ${seat.verdict.confidence}` : ''
     lines.push(`- Seat ${seat.seat} · ${inline(seat.lens)}: ${seat.status} — ${validation}${repair}${judgment}`)
+    if (seat.verdict?.tests_verified) {
+      const tests = seat.verdict.tests_verified
+      lines.push(`  Seat-reported tests: ${tests.inspected.length ? tests.inspected.map(inline).join(', ') : tests.exist ? 'tests exist; none inspected' : 'no tests reported'}.`)
+    }
   }
 
   const limitations = []

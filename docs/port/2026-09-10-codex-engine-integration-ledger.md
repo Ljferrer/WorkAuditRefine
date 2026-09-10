@@ -1,6 +1,6 @@
 # Codex engine integration ledger
 
-Status: Phase 1, initial audit pending. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
+Status: Phase 2, repairs validated locally; final clean-source host-permitted baseline pending. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
 
 ## Pins and isolation
 
@@ -20,8 +20,8 @@ Status: Phase 1, initial audit pending. Owner: Codex task `01a08d29-9d5a-7d02-8c
 - [x] Fetch origin (required host permission for shared Git metadata); inspect plan, branch reflog, worktree ownership and open PRs.
 - [x] Apply user-provided global AGENTS instructions; no tracked AGENTS.md in port tree.
 - [x] Read relevant gate-evidence learning excerpts; historical recipes do not override merged engine or plan. Preserve exact command logs and exits.
-- [ ] Initial installed-package panel on common-base...PORT_BASE.
-- [ ] Dependency/path inventory and normal merge of ENGINE_BASE.
+- [x] Initial installed-package panel on common-base...PORT_BASE.
+- [x] Dependency/path inventory and normal merge of ENGINE_BASE.
 - [ ] Reconcile observed compatibility defects with discriminating tests.
 - [ ] Census and complete clean-source collector.
 - [ ] Fresh moved packages and final packaged panel.
@@ -63,3 +63,34 @@ Normal merge of ENGINE_BASE auto-merged all four common paths without conflicts;
 - SHA-256 support: pre-existing object-format limitation spanning request, result and submodule modules. No merge-induced change. Investigate scope/contract before expanding format support.
 - Verifier history: pre-existing coordinator-supplied history validation; inspect charter and legitimate amended recommendation semantics before imposing identity rules that could forbid amendment.
 - Claimed inspected-test existence: schema validation cannot prove actual inspection; assess claimed evidence boundary separately from report omission.
+
+## Repair class closure
+
+1. **Verdict coherence**: confirmed against the Snipe role (which uses request_changes for blocking findings). Result intake previously rejected blocker-bearing approval only, allowing empty request_changes and blocker-bearing escalation. Changed the shared intake predicate in both directions; kept nonblocking operator escalation. The role text and runner regression mirror it. Full severity × verdict matrix fails before repair; disposable removed-guard witnesses fail assertions for both inverse cases. These are Snipe semantics, not changes to engine escalation routing.
+2. **P02 schema fidelity**: fixture and oracle independently encoded an invalid Major disposition. Removed it from both; preserved id/severity/current pin and causal audit assertions. New regression failed before repair. Existing removed-initial-finding oracle mutation fails; invented disposition and missing blocking finding remain negative controls. No production parity claim.
+3. **Test evidence projection**: renderer omitted validated tests_verified. Added explicitly labeled seat-reported paths/absence/uninspected states. Three independent cases failed before repair; projection-removal mutant fails. The validator remains a schema validator, not proof of model inspection or filesystem provenance. Initial Minor about nonexistent paths is retained as prior evidence-hardening debt; checking blob existence would not prove actual inspection and requires dirty/submodule policy. No independent inspection claim is made.
+4. **Verifier retry records**: status-only records could skip dispatch. Validate refuted result shape, sequential attempt, transition, nonempty recommendation/arms and preserved evidence line. Sibling sweep included dispatched result validation (shared predicate), packaged tests and `adapters/codex/skills/war-strategy/references/host.md`. Invalid/reordered records fail; legitimate amendments may change recommendation and arms. Negative controls failed before repair; removed/inverted status, attempt, recommendation, arms, transition and result guards fail independent mutation oracles. Coordinator history is not authenticated; unrelated but well-shaped histories cannot be cryptographically distinguished without new persistent identity machinery. Explicitly documented, not claimed solved by shape checks.
+5. **SHA-256 Git repositories**: prior Major limitation remains outside this bounded integration. The request/result/submodule parsers support SHA-1 object IDs only. Optional scope question offered; no expansion presumed. Hold SHA-256 compatibility and record as operator-visible prior debt. This repository and all audited refs use SHA-1. No failure is hidden by a skip.
+
+Additional edited paths beyond plan list are the Snipe intake/renderer/tests/role and planning verifier/tests/host listed above; no runtime engine code or CI policy changed.
+
+## Baseline and regression evidence
+
+- Normal merge commit: `1c889d694c8d56c489f66435b827a31781102c6d`; parents PORT_BASE then ENGINE_BASE. Git auto-merge preserved both behaviors, confirmed by source diffs.
+- Complete 70-suite merge baseline exited 1 with unchanged clean source. 64 passed, 3 allowed-skip suites (five named host skips), 3 failed: submodule loopback fixtures, collector ps checks, physical parity fixtures. Host sandbox denies loopback/ps; retain logs. No timeouts or unconfirmed cleanup reported. The large workflow suite passed; a temporary output pause was not a hang. Isolated concurrency test also passed (diagnostic only).
+- `repair-before.log` contains all three intended regression failures; `history-before.log` contains malformed-history failure.
+- Result + parity suites passed (`repair-after.log`); verifier + runner passed 38 tests (`verifier-runner-after.log`). Result/verifier mutation suites passed 21 tests (`repair-mutations.log`); shared verifier-predicate follow-up passed (`history-final.log`). Final collector will cover current complete source.
+- Census is byte-equal to discovery: 70 suites; no update or exclusions needed. Redaction, version monotonicity/coherence, hard budgets, reference/CLI suites are in census. No applicable external gate identified.
+
+## Follow-on production binding matrix (B3)
+
+| Future scenario | Existing engine regression / independent assertion | Remaining gap |
+| --- | --- | --- |
+| Sibling-only recovery | workflow-template.test.mjs recovery owned footprint and current-content proof; real Git task-integrated.sh tests require owned surviving content, ancestry and stable refs | Bind Codex runtime decisions, not fixture driver |
+| Matching patch ID with changed content | upstream content proof / exact pin content refusal; real commits distinguish whitespace and lost/reverted task content | Actual Codex approval-transfer behavior |
+| Changed source after uncertain failure | known failure source boundary crosses task/land × baseline/environment × normal/lost reply × changed/unchanged; asserts retries and remote tips | Live lost-response and recovery-role observation |
+| Stale gate-artifact selection | gate artifact isolation and dispatch-owned gate evidence; exact returned paths and same-tip retry rejection | Live dispatch/log binding |
+
+Frozen red-team receipt read at artifacts ref `0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0`: original target `46aef4a25b68874bff7b3b3fed14f9058c270da7`, plan hash `159b6de7bcfb7075e7ffd5c4bc5f133ef84a3a5276f5cde5a731b4f990f73b57`, installed version `0.1.0+codex.77d91df9fa50.5dc9e2b31180`, INCOMPLETE report. No installed/experiment mutation.
+
+Next: commit repairs/evidence, run full collector with host permission for loopback/process inspection; build fresh packages and run final four-seat packaged panel at frozen candidate. Evidence-only commits afterward must preserve executable/package-source identities.

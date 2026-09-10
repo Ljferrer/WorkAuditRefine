@@ -44,6 +44,9 @@ Dispatch before presenting the recommendation. Carry the returned `line` and any
 `stamp` onto the beat verbatim; `verified` means a valid verifier response, not
 operator ratification. On refutation, amend once or put the unresolved fork to the
 operator immediately. For the amended call pass `history: [<first returned object>]`.
+History records are structurally checked, coordinator-supplied evidence, not
+authenticated dispatch receipts. Keep records from this beat in attempt order;
+an amendment may change recommendation text and fired arms.
 A second refutation requires a live operator fork: never reset history to obtain
 more attempts. Invalid or failed dispatch is visibly unverified, not a retry cue.
 An unarmed beat does not dispatch. An explicit operator waiver skips dispatch only

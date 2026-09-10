@@ -113,6 +113,19 @@ test('transport failures and cancellation never return a fabricated verifier lin
 test('removing retry, fork, failure-visibility or read-only guards fails the behavioral oracle',async()=>{
   const path=join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),source=readFileSync(path,'utf8')
   const cases=[
+    ...[
+      ["prior.status==='refuted'", {...survived,refuted:true}, prior=>({...prior,status:'verified'})],
+      ['prior.attempt===index+1', {...survived,refuted:true}, prior=>({...prior,attempt:2})],
+      ["prior.recommendation.trim()", {...survived,refuted:true}, prior=>({...prior,recommendation:'   '})],
+      ['prior.arms.length>0', {...survived,refuted:true}, prior=>({...prior,arms:[]})],
+      ['prior.arms.every(arm=>[1,2,3,4].includes(arm))', {...survived,refuted:true}, prior=>({...prior,arms:[5]})],
+      ["prior.next===(index===0?'amend-or-fork':'operator-fork')", {...survived,refuted:true}, prior=>({...prior,next:'present'})],
+      ['result.refuted===true', {...survived,refuted:true}, prior=>({...prior,result:{...prior.result,refuted:false}})],
+      ["result.reason.trim()", {...survived,refuted:true}, prior=>({...prior,result:{...prior.result,reason:'   '}})],
+    ].map(([guard,response,corrupt])=>[guard,'true',async verify=>{
+      const dispatch=async()=>response,first=await verify(request,{dispatch})
+      await assert.rejects(()=>verify({...request,arms:[],history:[corrupt(first)]},{dispatch}),/history/)
+    }]),
     ['if(history.length && !input.arms.length)','if(false)',async verify=>{
       const dispatch=async()=>({...survived,refuted:true}),first=await verify(request,{dispatch})
       assert.equal((await verify({...request,arms:[],history:[first]},{dispatch})).next,'operator-fork')
@@ -171,4 +184,22 @@ test('CLI termination cancels its active verifier before returning',async()=>{
     if(pid)try{process.kill(process.platform==='win32'?pid:-pid,'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
     await closed
   }
+})
+
+test('retry history rejects malformed and reordered records before bypassing dispatch', async () => {
+  const dispatch=async()=>({...survived,refuted:true})
+  const first=await verifyRecommendation(request,{dispatch})
+  const second=await verifyRecommendation({...request,recommendation:'Amended guard.',history:[first]},{dispatch})
+  const malformed=[
+    {status:'refuted'}, {...first,result:{...first.result,refuted:false}},
+    {...first,attempt:2}, {...first,next:'present'}, {...first,recommendation:''},
+    {...first,arms:[]}, {...first,line:'invented evidence'},
+    {...first,result:{...first.result,reason:''}},
+    {...first,result:{...first.result,consequence:'two\nlines'}},
+    {...first,result:{...first.result,caughtBy:''}},
+  ]
+  for (const history of [...malformed.map(row=>[row]),[second,first],[first,first]]) {
+    for (const arms of [[],[4]]) await assert.rejects(()=>verifyRecommendation({...request,arms,history},{dispatch:async()=>{assert.fail('malformed history must not dispatch')}}),/history/)
+  }
+  assert.equal((await verifyRecommendation({...request,recommendation:'Different amended recommendation',arms:[2],history:[first]},{dispatch})).attempt,2,'an amendment may change recommendation and re-arming classification')
 })

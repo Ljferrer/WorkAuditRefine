@@ -60,7 +60,7 @@ export function observation(caseId, runtime) {
       {id:'land',task:'a',kind:'integrate',after:['audit-1','audit-2','gate'],revision:'b'.repeat(40)},
     ]
     if (caseId==='P02') {
-      record.facts.blockedAudit={seat:1,lens:'correctness',revision:'c'.repeat(40),verdict:'request_changes',findings:[{id:'major-1',severity:'Major',disposition:'absorb'}]}
+      record.facts.blockedAudit={seat:1,lens:'correctness',revision:'c'.repeat(40),verdict:'request_changes',findings:[{id:'major-1',severity:'Major'}]}
       record.events[0].after=['blocked']
       record.events.unshift({id:'blocked',task:'a',kind:'audit',seat:1,after:[],revision:'c'.repeat(40)})
     }
