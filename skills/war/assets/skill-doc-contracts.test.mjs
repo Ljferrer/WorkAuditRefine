@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { DEFAULTS } from './war-config.mjs'
 
 // Doc-contract drift guards (plan: drift-guards-for-mirrored-and-asserted-facts, Task 1.4).
 // Root is resolved from import.meta.url — NEVER process.cwd() (subagent cwd is the main repo;
@@ -37,9 +38,11 @@ const specProseDrift = readFileSync(
 )
 // Glossary + contract reads (D19/D20) — same construct-anchored style as the rows above.
 // CONTEXT.md is the repo-root ubiquitous-language glossary; schemas.md is the war skill's contract
-// sheet (skills/war/references/), so the two roots differ — both resolved from HERE, never cwd.
+// sheet (skills/war/references/), so the two roots differ — each resolved from HERE, never cwd;
+// run-manifest.md is the war skill's cold per-stamp reference, same root as schemas.md.
 const contextMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
 const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
+const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 // (D23) This file's FIRST `docs/adr/` read — same construct-anchored style, third root.
 const adr0037 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0037-run-scoped-staged-phase-scripts.md'),
@@ -641,6 +644,125 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
         'retry-spent sentence is false on one of the two paths (#1039)',
     )
   }
+})
+
+// (D21, extended — 2026-09-06 engine-and-audit-verdict-integrity Task 1.2, #1597/#1801) The handoff
+// EMIT gate and the follow-up FILING gate are two DISTINCT status sets in workflow-template.js: the
+// handoff block is emitted on `landed` + `held:escalation` only, while the filing dispatch also runs
+// on `held:land-failed`. CONTEXT.md's **Clean handoff** row used to fold them into one three-member
+// emit claim (`… emitted on `landed`, `held:escalation` and `held:land-failed` for the …`) — false
+// for the emit gate. Both sets are EXTRACTED from the engine, and the emit pair is ADDITIONALLY
+// pinned against the ratified literal `['held:escalation', 'landed']` as a canary, so a gate widening
+// reds this pin by name at the literal (deliberately, never silently) before the doc assert retunes.
+//
+// The OLD-absent key targets the SENTENCE, never the `held:land-failed` token: the token legitimately
+// stays in the row as the filing gate's third member. CONTEXT.md is hard-wrapped, so the row is
+// whitespace-folded first (a line-anchored grep false-negates on a re-wrap).
+const gateStatuses = (src, label, re) => {
+  const m = src.match(re)
+  assert.ok(m, `could not locate the ${label} gate in workflow-template.js — construct rotted (non-vacuous guard)`)
+  const set = [...m[1].matchAll(/landDecision === '([^']+)'/g)].map((x) => x[1])
+  assert.ok(set.length > 0, `the ${label} gate names no landDecision member — extraction rotted`)
+  return set
+}
+test('D21 (extended) — CONTEXT.md **Clean handoff** names the engine emit pair and the filing gate\'s third member as two distinct sets (#1597, #1801)', () => {
+  const emitSet = gateStatuses(
+    workflowTemplateSrc, 'handoff emit',
+    /let handoff = null\nif \(((?:landDecision === '[^']+'(?: \|\| )?)+)\) \{/,
+  )
+  const filingSet = gateStatuses(
+    workflowTemplateSrc, 'file-followups',
+    /if \(\(((?:landDecision === '[^']+'(?: \|\| )?)+)\) && minorsFiled\.length > 0\) \{/,
+  )
+  // The engine's own shape: the filing gate is the emit pair plus exactly one more member.
+  assert.deepEqual([...emitSet].sort(), ['held:escalation', 'landed'], 'the handoff emit gate is the pair landed + held:escalation')
+  const third = filingSet.filter((s) => !emitSet.includes(s))
+  assert.deepEqual(third, ['held:land-failed'], 'the filing gate is the emit pair plus held:land-failed alone')
+  const handoff = contextMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(handoff, 'could not locate the `**Clean handoff**` glossary entry in CONTEXT.md — construct rotted')
+  const h = norm(handoff[0])
+  assert.match(h, /_Avoid_/, 'the extracted **Clean handoff** entry must span its `_Avoid_` line — extraction truncated')
+  // Emit clause: `emitted on <pair> only` — names exactly the emit set, never the filing member.
+  const emit = h.match(/emitted on ([^.]*?) only/)
+  assert.ok(emit, 'the **Clean handoff** entry must carry an `emitted on … only` clause naming the emit gate')
+  const named = [...emit[1].matchAll(/`([^`]+)`/g)].map((x) => x[1])
+  assert.deepEqual([...named].sort(), [...emitSet].sort(), `the emit clause must name exactly the engine's emit pair (${emitSet.join(', ')}) — got: ${named.join(', ')}`)
+  // Filing clause: names the third member as the filing gate's, distinct from the emit set.
+  assert.match(
+    h,
+    new RegExp(`filing pass[^.]*\`${third[0]}\``),
+    `the **Clean handoff** entry must name \`${third[0]}\` as the filing pass's extra member (#1597)`,
+  )
+  // OLD sentence absent (the three-member emit claim), whitespace-folded, case-insensitive.
+  assert.doesNotMatch(
+    h,
+    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
+    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is still in the **Clean handoff** row — the handoff never emits on held:land-failed (#1801)',
+  )
+  // File-scoped companion: the same OLD sentence must be absent from ALL of CONTEXT.md, not only
+  // the **Clean handoff** row — a reintroduction elsewhere in the glossary would otherwise stay green.
+  assert.doesNotMatch(
+    norm(contextMd),
+    /`held:escalation`\s+and\s+`held:land-failed`\s+for\s+the/i,
+    'the OLD three-member emit sentence (`… `held:escalation` and `held:land-failed` for the …`) is present somewhere in CONTEXT.md outside the **Clean handoff** row (#1801)',
+  )
+})
+
+// (2026-09-06 Task 1.2, #1801) resume-and-recovery.md's `Segmented land (in-band marker) and
+// filing-on-held` bullet carried an emit-on-held disjunct — "or the `handoff` carries an explicit
+// unfiled-followups block the Lead executes" — that no engine path produces (the handoff never
+// emits on held:land-failed; the stamped issues ride the top-level return's `minorsFiled`). The D21
+// pin's region ENDS at this bullet's header (same-indent terminator), so it cannot see it: this is
+// its own extraction over the 2-space `- **Segmented land` header through the next same-indent
+// sibling (or the list's end).
+test('Segmented-land bullet — filing-on-held names the filing dispatch alone; the unfiled-followups handoff disjunct is gone (#1801)', () => {
+  const lines = resumeMd.split('\n')
+  const headerIdx = lines.findIndex((l) => /^ {2}- \*\*Segmented land \(in-band marker\) and filing-on-held\./.test(l))
+  assert.ok(headerIdx >= 0, 'could not locate the 2-space `- **Segmented land (in-band marker) and filing-on-held.` bullet header in references/resume-and-recovery.md — anchor rotted (non-vacuous guard)')
+  let endIdx = lines.length
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (/^ {2}- \*\*/.test(lines[i]) || /^\S/.test(lines[i])) { endIdx = i; break }
+  }
+  const region = norm(lines.slice(headerIdx, endIdx).join('\n'))
+  assert.match(region, /Filing-on-held:/, 'the extracted Segmented-land region must reach item (2) `Filing-on-held:` — extraction truncated')
+  assert.match(region, /filing dispatch still runs/, 'item (2) must keep the one true shape: the follow-up filing dispatch still runs on held:land-failed')
+  assert.match(region, /`minorsFiled`/, 'item (2) must say where the stamped issue numbers ride on held:land-failed (the top-level return\'s `minorsFiled`)')
+  assert.doesNotMatch(region, /unfiled-followups block/i, 'the OLD `unfiled-followups block` disjunct is still in the Segmented-land bullet — no engine path emits a handoff on held:land-failed (#1801)')
+  assert.doesNotMatch(region, /or the `handoff` carries/i, 'the OLD emit-on-held disjunct (`or the `handoff` carries …`) is still in the Segmented-land bullet (#1801)')
+})
+
+// (2026-09-06 Task 1.2 — D22, PIN-26) Doc-truth pins on the remaining surfaces: the manifest
+// relaunch arm lives in run-manifest.md alone (schemas.md points, never restates), the handoff
+// `followUps` literal is the de-mirrored four-key summary, the ask-ruling gate's overrule clause is
+// ratify-or-record-dissent (#1886), the card carries the relaunch trigger pointer (ADR 0042), and
+// /war-review carries the basename-vs-workflowRunId warning.
+test('doc-truth (T1.2) — relaunch arm, followUps literal, overrule clause, relaunch pointer, war-review warning (#1916, #1793, #1886)', () => {
+  // run-manifest.md: the relaunch section carries the pair rule, attempts[], and the summed counts.
+  const relaunch = runManifestMd.match(/^## Relaunch[\s\S]*$/m)
+  assert.ok(relaunch, 'could not locate the `## Relaunch` section in run-manifest.md — construct rotted')
+  const r = norm(relaunch[0])
+  assert.match(r, /Checkpoint on-return reminder/, 'the Relaunch section must span its Checkpoint on-return reminder — extraction truncated (non-vacuity floor)')
+  for (const [re, what] of [
+    [/overwrite `workflowRunId` \+ `transcriptDir` together/, 'the overwrite-together rule'],
+    [/attempts: \[/, 'the `attempts[]` jsonc shape'],
+    [/summed across attempts/, 'the summed dispatch counts rule'],
+    [/re-check that the phase record's `workflowRunId` \+ `transcriptDir`/, 'the on-return re-stamp reminder'],
+  ]) assert.match(r, re, `run-manifest.md § Relaunch must carry ${what} (D22)`)
+  // schemas.md: a pointer to run-manifest.md, never a restated shape (de-mirror).
+  const manifest = schemasMd.match(/^## Run manifest[\s\S]*?(?=\n## )/m)
+  assert.ok(manifest, 'could not locate `## Run manifest` in schemas.md — construct rotted')
+  assert.match(manifest[0], /`attempts\[\]`[\s\S]*run-manifest\.md/, 'schemas.md § Run manifest must point `attempts[]` at run-manifest.md (de-mirror)')
+  assert.doesNotMatch(manifest[0], /attempts: \[/, 'schemas.md restates the `attempts[]` shape — the shape lives only in run-manifest.md (de-mirror)')
+  // schemas.md: the handoff followUps literal, house de-mirror form.
+  assert.match(schemasMd, /followUps: \[ \{ issue, reason, merged\?, drainCause\? \} \],\s*\/\/ Authoritative shape: the followUps projection in workflow-template\.js — this row is a de-mirrored summary/, 'schemas.md must carry the `followUps: [ { issue, reason, merged?, drainCause? } ]` literal in the house de-mirror form (#1793)')
+  // SKILL.md: the overrule clause is ratify-or-record-dissent; the OLD `confirms or overrules` is gone.
+  assert.ok(!/confirms or overrules/i.test(skillMd), 'the OLD `confirms or overrules` clause is still in skills/war/SKILL.md (#1886)')
+  assert.match(skillMd, /ratifies the prefill or records a dissent as the ruling/, 'the ask ruling gate must carry the ratify-or-record-dissent clause (#1886)')
+  // SKILL.md: the ADR 0042 trigger pointer, fixed shape.
+  assert.match(skillMd, /when a phase is relaunched, read \[references\/run-manifest\.md\]\(references\/run-manifest\.md\)/, 'SKILL.md § Run manifest must carry the trigger pointer "when a phase is relaunched, read [references/run-manifest.md](references/run-manifest.md)" (ADR 0042)')
+  // /war-review: the basename-vs-workflowRunId warning.
+  const w = norm(warReviewSkillMd)
+  assert.match(w, /basename is the harness run id, so it must equal the phase's `workflowRunId`/, '/war-review must warn that the transcript dir basename must equal the phase `workflowRunId` (D22)')
 })
 
 // (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
@@ -2891,6 +3013,9 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
 
 // (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
 // correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
+// Since the 2026-09-06 living-ADR ruling that law is amendment-scoped: Decision-section prose on
+// ADR 0013 is edited in place with a dated `## Decision log` line (Decision 4, 2026-09-08), while
+// the pre-existing dated amendments stay append-only and byte-untouched.
 // Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to the NEXT H2 (or EOF), so a
 // later appended amendment cannot satisfy a key on the guarded amendment's behalf (sibling
 // amendments carry the same byte-discipline closing sentence, so an EOF-bound or whole-file key
@@ -3202,7 +3327,10 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
 // exhaustion") and the 2026-08-27 amendment's currency clause (the floor-retry reserve) are
 // historical law that survives byte-untouched by design, each superseded in *currency* by a dated
 // note rather than edited. A blanket absence assert over the ADR would demand the very edit the
-// append-only law forbids. So the exemption is not a hole: the final block below asserts BOTH
+// append-only law forbids. (The 2026-09-06 living-ADR ruling scopes that law to the dated
+// amendments: Decision-section prose is edited in place with a dated `## Decision log` line, and
+// the amendments themselves stay append-only — so the exemption still holds for them.) So the
+// exemption is not a hole: the final block below asserts BOTH
 // sides of it — the historical clauses still present AND the dated supersession notes present —
 // so deleting the history, or dropping the note that makes it readable as history, reds here.
 //
@@ -3817,6 +3945,98 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
   }
 })
 
+// (unverified-triggers) CONTEXT.md's **`unverified`** (End-state status) entry restates two engine
+// literals it cannot de-mirror: the record-only artifact states the land-barrier endstate-check
+// dispatch stamps (`intake_lint:`, `cmd_bytes_mismatch:`), which the END-STATE CHECK seat block names
+// as `unverified` triggers (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2; D16,
+// PIN-20, #1781). The canonical set is extracted from the engine's endstate build region — the
+// ENDSTATE-CHECK DISPATCH build through the END-STATE CHECK seat block — as every backticked
+// `<snake_case>:` artifact line, minus the per-artifact frame every row carries (`tip_sha:` first,
+// `exit_code:` last — the gate-log stamp registry rows bind those). The region starts at the
+// dispatch header, so `provision_red: <step> (exit <code>)` — stamped by `endstateProvisionClause`,
+// built ABOVE the start anchor and interpolated into the same prompt — is outside the window by
+// construction: it is a preamble note, not a record-only state. The residual this row does not see
+// is a new record-only state added outside the window (or that clause hoisted below the anchor,
+// which reds the `canonical.length` assert for a reason other than a third state), and a
+// non-record-only backticked `<snake_case>:` token entering the window (a seat-block mention of
+// `provision_red:`, say), which reds the same assert with a message that misnames the cause. The glossary
+// row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
+// line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
+// workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
+test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
+  const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')
+  const end = workflowTemplateSrc.indexOf('if (mergedTasksForGateAudit.length > 0)')
+  assert.ok(start > 0 && end > start, 'could not locate the endstate build region (ENDSTATE-CHECK DISPATCH … END-STATE CHECK) in workflow-template.js — the extraction anchors rotted')
+  const region = workflowTemplateSrc.slice(start, end)
+  const FRAME = ['tip_sha', 'exit_code']
+  const stamps = [...new Set([...region.matchAll(/`([a-z][a-z_]*_[a-z_]+):/g)].map((m) => m[1]))]
+  for (const f of FRAME) {
+    assert.ok(stamps.includes(f), `the endstate build must stamp \`${f}:\` on every artifact — the frame anchor rotted`)
+  }
+  const canonical = stamps.filter((t) => !FRAME.includes(t)).sort()
+  assert.equal(canonical.length, 2, 'the endstate build must stamp exactly its two record-only artifact states (D16: intake_lint, cmd_bytes_mismatch)')
+  const entry = contextMd.match(/^\*\*`unverified`\*\* \(End-state status\):[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **`unverified`** (End-state status) glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **`unverified`** entry must span its `_Avoid_` line — extraction truncated')
+  const named = [...new Set([...e.matchAll(/`([a-z][a-z_]*_[a-z_]+):`/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(
+    named,
+    canonical,
+    'the CONTEXT.md **`unverified`** entry must name exactly the engine\'s record-only artifact states as `unverified` triggers — ' +
+      'update this glossary copy in the same commit as the endstate build (D16, PIN-20)',
+  )
+  assert.match(e, /never `unmet` \(#1781\)/, 'the **`unverified`** entry must state that a record-only artifact is never attested `unmet` (#1781)')
+})
+
+// (gate-log-stamp-glossary) CONTEXT.md's **Gate-log stamp** entry restates three engine literals it
+// cannot de-mirror (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2 re-entry; D7/D8,
+// PIN-11/PIN-12): the two stamp lines `GATE_LOG_STAMP` builds (`tip_sha:` first, `exit_code:` last)
+// and the `GATE_LOG_UNTHREADED` fallback marker the evidence dispatch renders on an unthreaded
+// `gate_log_path`. The gate-log-stamp registry rows in workflow-template.test.mjs bind the engine
+// build to the refiner card, and the `unverified-triggers` row above asserts the two stamp tokens
+// only on the engine side (its FRAME), so nothing else watches this glossary copy — a rename of
+// either stamp token or a rewording of the marker would leave it silently stale. Both literals are
+// extracted from workflow-template.js by construct (the `const <NAME> = pt\`…\`` declaration — the
+// stamp literal escapes its inner backticks, so the extraction stops at the first unescaped one),
+// and the entry is extracted by the bolded-term-to-next-bolded-term idiom the `unverified-triggers`
+// row uses, never by line. Two rows, one extractor: the stamp row asserts the entry names EXACTLY
+// the backticked `<snake_case>:` tokens the stamp literal carries, and the marker row asserts the
+// entry contains the marker text verbatim.
+const gateLogStampEntry = () => {
+  const entry = contextMd.match(/^\*\*Gate-log stamp\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the **Gate-log stamp** glossary entry in CONTEXT.md — the extraction construct rotted')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Gate-log stamp** entry must span its `_Avoid_` line — extraction truncated')
+  return e
+}
+const ptConst = (name) => {
+  const m = workflowTemplateSrc.match(new RegExp('^const ' + name + ' = pt`((?:[^`\\\\]|\\\\.)*)`', 'm'))
+  assert.ok(m, `could not locate the \`const ${name} = pt\`…\`\` declaration in workflow-template.js — the extraction construct rotted`)
+  return m[1]
+}
+
+test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry names exactly the `<snake_case>:` stamp tokens GATE_LOG_STAMP builds', () => {
+  const stamp = ptConst('GATE_LOG_STAMP')
+  const canonical = [...new Set([...stamp.matchAll(/`([a-z][a-z_]*_[a-z_]+):/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(canonical, ['exit_code', 'tip_sha'], 'GATE_LOG_STAMP must build exactly the two stamp lines (tip_sha: first, exit_code: last) — the engine literal rotted')
+  const named = [...new Set([...gateLogStampEntry().matchAll(/`([a-z][a-z_]*_[a-z_]+):`/g)].map((m) => m[1]))].sort()
+  assert.deepEqual(
+    named,
+    canonical,
+    'the CONTEXT.md **Gate-log stamp** entry must name exactly the stamp tokens GATE_LOG_STAMP builds — update this glossary copy in the same commit as the engine literal (D7, PIN-11)',
+  )
+})
+
+test('gate-log-stamp-glossary — the CONTEXT.md **Gate-log stamp** entry carries the GATE_LOG_UNTHREADED marker verbatim', () => {
+  const marker = ptConst('GATE_LOG_UNTHREADED')
+  assert.match(marker, /^\(gate_log_path unthreaded/, 'GATE_LOG_UNTHREADED must be the parenthesized unthreaded-path marker — the engine literal rotted')
+  assert.ok(
+    gateLogStampEntry().includes('`' + marker + '`'),
+    `the CONTEXT.md **Gate-log stamp** entry must quote the engine's unthreaded marker \`${marker}\` verbatim — update this glossary copy in the same commit as GATE_LOG_UNTHREADED (D8, PIN-12)`,
+  )
+})
+
 // (ace-off-route) THE RETIRED "with `--ace` off every absorb demotes this way" RESIDUAL-RULE WORDING
 // IS ABSENT FROM skills/war/SKILL.md (plan 2026-09-03-in-band-absorb-default, End state 12 · Task
 // 4.2; D14, PIN-16). Base-verified at this task's cut base: the `--ace` bullet's Residual rule read
@@ -3982,7 +4202,6 @@ test('terminal-pass-term — CONTEXT.md carries **Terminal pass** and **Carried 
 // `references/sweep-exclusion.md` is read directly (ADR 0042: the card carries the trigger
 // pointer only, the body lives in references/).
 const sweepExclusionMd = readFileSync(join(HERE, '..', 'references', 'sweep-exclusion.md'), 'utf8')
-const runManifestMd = readFileSync(join(HERE, '..', 'references', 'run-manifest.md'), 'utf8')
 
 test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and sweep-exclusion.md carries the Lead duty (End state 16, D6, PIN-8)', () => {
   // The pointer sits in the per-phase launch paragraph (the one that threads the Workflow `args`),
@@ -4086,4 +4305,119 @@ test('afk-ask-prefix-pin — the SKILL.md Checkpoint `--afk` no-match arm files 
   const lit = landDecisionSrc.match(/export const DEMOTE_REASONS = (\[[^\]]+\])/)
   assert.ok(lit, 'could not locate the `export const DEMOTE_REASONS = [...]` literal in land-decision.mjs')
   assert.ok(JSON.parse(lit[1].replace(/'/g, '"')).includes('demote:ask-unruled-afk'), '`demote:ask-unruled-afk` must be a `DEMOTE_REASONS` member (land-decision.mjs)')
+})
+
+// (D17/D18/D19 — Task 11.2, #1989/#1664/#1914) THE SPLIT BOUNDARY ON THE DOCTRINE SURFACES. The
+// OLD `one rebuttal round` wording is KEPT by the 2026-09-06 Q2 ruling, so the decisive assert is
+// the NEW sentence present on both surfaces (0 hits at ffb3ab6), matched RAW so it holds exactly
+// where the plan's `grep -c` form holds, plus the one OLD-absent leg on the sentence that DID
+// change — the SKILL.md tail `rebuttal round** → resolve or escalate` (1 hit at ffb3ab6; it
+// omitted the fix round; PIN-8). Each surface is extracted by construct, never by line.
+test('D17 (2026-09-06 engine-and-audit-verdict-integrity plan) — the split boundary reads `rebuttal first, then fix round when all surviving blockers have a suggested_fix` on SKILL.md and design.md; the fix-less SKILL.md tail is retired (#1989, Task 11.2)', () => {
+  const NEW = 'rebuttal first, then fix round when all surviving blockers have a suggested_fix'
+  // skills/war/SKILL.md — the `- **Audits**` bullet.
+  const audits = skillMd.match(/^- \*\*Audits\*\*[^\n]*/m)
+  assert.ok(audits, 'could not locate the `- **Audits**` bullet in SKILL.md — construct rotted')
+  assert.ok(audits[0].includes('**one rebuttal round**'), 'the Audits bullet must keep `**one rebuttal round**` (the 2026-09-06 Q2 ruling keeps the rebuttal)')
+  assert.ok(audits[0].includes(NEW), `the Audits bullet must state \`${NEW}\` (0 hits at ffb3ab6; D17, PIN-29)`)
+  assert.match(audits[0], /fix-less survivor escalates/, 'the Audits bullet must state that a fix-less survivor still escalates (D18)')
+  assert.ok(
+    !skillMd.includes('rebuttal round** → resolve or escalate'),
+    'the OLD fix-less tail `rebuttal round** → resolve or escalate` must be gone from SKILL.md (OLD-absent, base-verified 1 hit at ffb3ab6; PIN-8)',
+  )
+  // skills/war/references/design.md — the `- **Auditors**` bullet and the row-12 table row.
+  const auditors = designRefMd.match(/^- \*\*Auditors\*\*[^\n]*/m)
+  assert.ok(auditors, 'could not locate the `- **Auditors**` bullet in design.md — construct rotted')
+  assert.ok(auditors[0].includes('**one rebuttal round**'), 'the design.md Auditors bullet must keep `**one rebuttal round**`')
+  assert.ok(auditors[0].includes(NEW), `the design.md Auditors bullet must state \`${NEW}\` (0 hits at ffb3ab6)`)
+  const row12 = designRefMd.match(/^\| 12 \| Audit independence \|[^\n]*/m)
+  assert.ok(row12, 'could not locate the `| 12 | Audit independence |` row in design.md — construct rotted')
+  assert.ok(row12[0].includes('one rebuttal round'), 'the design.md row 12 must keep `one rebuttal round`')
+  assert.ok(row12[0].includes(NEW), `the design.md row 12 must state \`${NEW}\` (0 hits at ffb3ab6)`)
+  // The §4 step 3 and schemas.md gate-rule stragglers (survey-derived): the still-split-escalate arm is retired.
+  assert.ok(!designRefMd.includes('still-split-escalate'), 'the retired `still-split-escalate` arm must be gone from design.md §4 step 3 (OLD-absent, base-verified 1 hit; PIN-8)')
+  assert.ok(!schemasMd.includes('still-split (escalate)'), 'the retired `still-split (escalate)` arm must be gone from schemas.md’s gate rule (OLD-absent, base-verified 1 hit; PIN-8)')
+  // CONTEXT.md — the two Phase 11 glossary entries (bolded term → next bolded term or `###`).
+  for (const [term, keys] of [
+    ['Decision-forked finding', [[/escalate_reason/, 'the escalate_reason carrier'], [new RegExp(NEW), 'the D17 sentence'], [/never escalates/, 'the mechanical-never-escalates arm'], [/two-sided boundary/, 'the two-sided boundary name']]],
+    ['Seat-conflict ask', [[/parkAsk/, 'the parkAsk route'], [/fix-now \/ follow-up-and-merge fork/, 'the ask fork'], [/strike-list gate/, 'the interactive ruling site'], [/#1914/, 'the source issue']]],
+  ]) {
+    const block = contextMd.match(new RegExp(`^\\*\\*${term}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'))
+    assert.ok(block, `could not locate the \`**${term}**\` glossary entry in CONTEXT.md — construct rotted (Task 11.2)`)
+    for (const [re, what] of keys) assert.match(norm(block[0]), re, `CONTEXT.md's **${term}** entry must carry ${what}`)
+  }
+  // The reconciled Lead arms: resume-and-recovery.md's plan-defect stop-here arm and war-review's grind row.
+  assert.match(norm(resumeMd), /escalated\[\]` record carries a seat's `escalate_reason` \(a \*\*decision-forked\*\* blocking finding/, "resume-and-recovery.md's step-1 adjudication arm must read a seat's escalate_reason as plan-shaped (D18)")
+  assert.match(norm(warReviewSkillMd), /Two-sided boundary/, "war-review's grind row must be re-pointed at the two-sided boundary (D18)")
+  // ADR 0013 — Decision 4 edited in place (the living-ADR ruling) and the dated Decision-log line.
+  const decisions = adr0013.slice(0, adr0013.indexOf('## Considered options'))
+  assert.match(norm(decisions), /blockers ALL carry a concrete in-file `suggested_fix`/, "ADR 0013 Decision 4 must carry the in-place two-sided boundary (D17/D18/D19; no dated amendment)")
+  assert.match(adr0013, /^## Decision log$/m, 'ADR 0013 must carry a `## Decision log` section (the 2026-09-06 living-ADR ruling)')
+  assert.match(adr0013, /^- 2026-09-08 · Decision 4 edited in place/m, "ADR 0013's Decision log must carry the dated Task 11.2 line")
+})
+
+// (D17 sibling, Task 11.2 a6 re-entry) design.md §4 step 3 is the sole prose home of the default
+// roster's enumerated lens list since the ADR 0042 eviction off skills/war/SKILL.md. war-config.mjs's
+// header rule: every prose surface restating a DEFAULTS value carries a pin row. This row binds the
+// parenthesized list to `DEFAULTS.audit.roster` so a default-roster flip reds the doc
+// (default-flip-must-audit-all-doc-surfaces).
+test('D17 sibling — design.md §4 step 3 restates DEFAULTS.audit.roster verbatim (five lenses at deep)', () => {
+  const m = designRefMd.match(/The default roster is five seats \(([^)]+)\) at `deep`/)
+  assert.ok(m, 'could not locate `The default roster is five seats (...) at `deep`` in design.md §4 step 3 — construct rotted')
+  const doc = m[1].split(' / ').map((l) => l.trim())
+  const cfg = DEFAULTS.audit.roster
+  assert.deepEqual(doc, cfg.map((r) => r.lens), 'design.md §4 step 3\'s lens list must equal DEFAULTS.audit.roster in order (war-config.mjs)')
+  assert.equal(cfg.length, 5, 'design.md says `five seats` — DEFAULTS.audit.roster must carry five entries')
+  assert.ok(cfg.every((r) => r.depth === 'deep'), 'design.md says `at `deep`` — every DEFAULTS.audit.roster entry must be depth `deep`')
+})
+
+// (D20, Task 12.2 — release-slot eligibility by literal, not by file; #2000, PIN-24) The NEW rule
+// lives INSIDE disposition-eligibility.md's absorb blockquote (the same block the write-footprint
+// row extracts, so a blank line or a `- ` bullet before it would red that row), CONTEXT.md carries
+// the **Version-literal guard** entry de-mirrored to `RELEASE_SLOT_FILES` and
+// `version-slots.test.mjs`, ADR 0013's Decision 5 is edited in place with a dated Decision-log line,
+// and SKILL.md's `--ace` bullet drops its file-based routing clause. OLD-absent (rule 6, base
+// `ffb3ab6`): the retired clause `or a release-slot filename routes to the` was present in the
+// `--ace` bullet at the task base; the eligibility doc never carried a `touches no version/release
+// slot` sentence there, so the decisive assert is the NEW rule beside the unchanged
+// `barrier:release-slot` bullet. The barrier bullet itself stays byte-stable: `plugin.json` /
+// `marketplace.json` only.
+test('D20 — release-slot eligibility by literal: eligibility absorb block, CONTEXT.md entry, ADR 0013 Decision 5 + log line, and the retired SKILL.md `--ace` routing clause', () => {
+  const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
+  assert.ok(block, "could not locate the `disposition:'absorb'` block in disposition-eligibility.md — construct rotted")
+  const b = norm(block[0])
+  for (const [re, what] of [
+    [/version literal/i, 'the by-literal rule (`version literal`)'],
+    [/`RELEASE_SLOT_FILES`/, 'the de-mirrored basename source `RELEASE_SLOT_FILES`'],
+    [/`version-slots\.test\.mjs`/, 'the merge guard `version-slots.test.mjs`'],
+    [/CHANGELOG head heading/, 'the CHANGELOG head-heading literal'],
+    [/`## Status`/, 'the README `## Status` token'],
+  ]) assert.match(b, re, `disposition-eligibility.md's absorb blockquote must carry ${what} (D20) — inside the block, never after a blank line or a bullet`)
+  assert.match(b, /write footprint/i, 'the write-footprint sentence must stay inside the same absorb block (the D20 line lands beside it, not in a new paragraph)')
+  const barrier = eligibilityRef.match(/^- `barrier:release-slot` — .*$/m)
+  assert.ok(barrier, 'the `barrier:release-slot` bullet must stay in `## Barrier list`')
+  assert.match(barrier[0], /`plugin\.json` \/ `marketplace\.json`/, 'the `barrier:release-slot` bullet names the two pure version-slot JSONs only (D20 leaves it unchanged)')
+  assert.ok(!/README|CHANGELOG/.test(barrier[0]), 'the `barrier:release-slot` bullet must not widen to README/CHANGELOG (by-literal eligibility, PIN-24)')
+  // CONTEXT.md — the glossary entry, de-mirrored (names the source and the guard, never the basenames as a list).
+  const entry = contextMd.match(/^\*\*Version-literal guard\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(entry, 'could not locate the `**Version-literal guard**` glossary entry in CONTEXT.md — construct rotted (Task 12.2)')
+  const e = norm(entry[0])
+  assert.match(e, /_Avoid_/, 'the extracted **Version-literal guard** entry must span its `_Avoid_` line — extraction truncated')
+  for (const [re, what] of [
+    [/`RELEASE_SLOT_FILES`/, 'the de-mirrored basename source'],
+    [/version-slots\.test\.mjs/, 'the merge guard'],
+    [/version literal/i, 'the by-literal rule'],
+    [/ADR 0013/, 'the ADR pointer'],
+  ]) assert.match(e, re, `CONTEXT.md's **Version-literal guard** entry must carry ${what} (D20)`)
+  // ADR 0013 — Decision 5 edited in place (the living-ADR ruling) and the dated Decision-log line.
+  const cut = adr0013.indexOf('## Considered options')
+  assert.ok(cut > 0, "ADR 0013: '## Considered options' heading not found — the Decision-body slice cannot be scoped (fail closed)")
+  const decisions = adr0013.slice(0, cut)
+  assert.match(norm(decisions), /Release-slot eligibility is otherwise by literal, not by file/, 'ADR 0013 Decision 5 must carry the in-place by-literal rule (D20; no dated amendment)')
+  assert.match(norm(decisions), /`version-slots\.test\.mjs`/, 'ADR 0013 Decision 5 must name `version-slots.test.mjs` as the merge guard')
+  assert.ok(!/README and other shared files route to the phase-close sweep instead of being refused/.test(norm(decisions)), "ADR 0013 Decision 5's retired file-based routing sentence must be gone (OLD-absent, in-place edit)")
+  assert.match(adr0013, /^- 2026-09-08 · Decision 5 edited in place/m, "ADR 0013's Decision log must carry the dated Task 12.2 line")
+  // SKILL.md — the `--ace` bullet's file-based routing clause is retired (OLD-absent, present at ffb3ab6).
+  assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
+  assert.match(skillMd, /`phaseClose:true` routes to the \*\*phase-close queue\*\* instead/, "the `--ace` bullet keeps the `phaseClose:true` routing sentence without the filename arm")
 })

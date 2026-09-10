@@ -39,7 +39,7 @@ export const DEFAULTS = {
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
     auditor:  { model: 'opus',   effort: 'high' },
-    refiner:  { model: 'sonnet', effort: 'high' },
+    refiner:  { model: 'sonnet', effort: 'high', recovery: { model: 'opus', effort: 'high' } },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
     // sub-agents. NOT a phase role (never in ROLES/agentMatrix); defaulted here (the balanced value)
@@ -246,6 +246,7 @@ export function validate(input) {
     if (Object.prototype.hasOwnProperty.call(worker, 'docs')) validateAgentTier(worker.docs, 'agents.worker.docs', errors)
     if (Object.prototype.hasOwnProperty.call(worker, 'fix')) validateAgentTier(worker.fix, 'agents.worker.fix', errors)
   }
+  if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
   // agentMatrix stays four roles). Defaulted in DEFAULTS (preset-overridden); a config
@@ -273,8 +274,9 @@ export function validate(input) {
   // run.absorbRounds mirrors run.roundLimit's shape exactly (same message form; null and non-integers rejected).
   if (!Number.isInteger(c.run.absorbRounds) || c.run.absorbRounds < 1) errors.push(`run.absorbRounds must be an integer >= 1 (got ${JSON.stringify(c.run.absorbRounds)})`)
   // run.maxParallel is optional with NO DEFAULTS.run entry: absence IS the default (unthrottled
-  // fan-out, byte-identical to pre-knob behavior). When present it must be an integer >= 1.
-  if (c.run.maxParallel !== undefined && (!Number.isInteger(c.run.maxParallel) || c.run.maxParallel < 1)) errors.push(`run.maxParallel must be an integer >= 1 when present (got ${JSON.stringify(c.run.maxParallel)})`)
+  // fan-out, byte-identical to pre-knob behavior). An explicit null is unset too (the overrides.*
+  // null-as-unset convention, #2088). When set it must be an integer >= 1.
+  if (c.run.maxParallel != null && (!Number.isInteger(c.run.maxParallel) || c.run.maxParallel < 1)) errors.push(`run.maxParallel must be an integer >= 1 when set (got ${JSON.stringify(c.run.maxParallel)})`)
   if (!Number.isInteger(c.run.redteamRoundLimit) || c.run.redteamRoundLimit < 1) errors.push(`run.redteamRoundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.redteamRoundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
   if (typeof c.run.ace !== 'boolean') errors.push('run.ace must be a boolean')

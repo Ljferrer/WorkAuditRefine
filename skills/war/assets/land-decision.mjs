@@ -15,11 +15,15 @@
 // done-unmet: a doneWhen-bearing task whose own `Done when:` acceptance command still exits red via assert-done-when.sh
 // (exit 1 — a red command or a timeout; exit 2 git/env error never collapses here) after the bounded make-this-command-pass
 // sub-loop exhausted the shared budget (precision-chain D1, Task 2.3). Mirrors no-test/unpackaged; must land in BOTH mirrors + the drift guard.
+// budget-uncited: the Budget-Raise floor's route (assert-budget-raise-cited.sh exit 1 — a prompt-surface ceiling raise with no
+// Budget-Raise trailer), carried on the wire as status:'no-test' + floor_route:'budget-uncited' and normalized by the Workflow's routedMr
+// at every merge-task dispatch site; a hard reason under its own name so the escalation record names the tripped floor (D6, ADR 0005).
+// Mirrors no-test/unpackaged/done-unmet; must land in BOTH mirrors + the drift guard.
 // defectClass ('plan') is escalation-record METADATA on the escalation record, orthogonal to `reason` — it is NEVER a member of this
 // array nor of KNOWN_LAND_DECISIONS (ADR 0005). A worker-authored plan/spec defect is *classified*, never routed through a new reason
 // enum member; the negative drift-guard in land-decision.test.mjs pins both tokens ('plan-defect'/'held:plan-defect') out of both sets
 // permanently, so "completing" the sentinel feature into an enum here fails loud.
-export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
+export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
 
 // SOFT_ENV_REASONS (#1411): the soft env/infra family of per-task escalation reasons —
 // 'env-blocked' (a run.provision step failed: the worker was never spawned) and 'env-died' (a
@@ -36,12 +40,14 @@ export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict',
 export const SOFT_ENV_REASONS = ['env-blocked', 'env-died']
 
 // The canonical landDecision known-set — the SINGLE source of truth for every phase-land outcome.
-// SUPERSET of two smaller sets it must contain: decideLand's 3 in-flow outputs
-// ('landed' | 'held:escalation' | 'held:nothing-merged') and the Workflow's 6 emitted values (the
-// prior 3 plus 'held:submodule-pr', 'held:land-failed', and the catch block's 'held:workflow-error').
+// SUPERSET of two smaller sets it must contain: decideLand's in-flow outputs
+// ('landed' | 'held:escalation' | 'held:nothing-merged') and the Workflow's emitted values (those
+// plus 'held:submodule-pr', 'held:land-failed', and the catch block's 'held:workflow-error').
 // 'held:phase-incomplete' is canonical-but-NOT-emitted by the Workflow — the Lead classifies it when a
 // phase notification is non-'completed' (§4.2). The drift-guard in land-decision.test.mjs pins this array
-// behaviorally (Workflow-emitted + decideLand ⊆ this) and across all 4 doc surfaces (SKILL.md ×2, schemas.md ×2 == this).
+// behaviorally (Workflow-emitted + decideLand ⊆ this) and across the doc surfaces (SKILL.md, schemas.md == this);
+// workflow-template.test.mjs's segmented-land no-widening fixture deepEquals a verbatim copy of this array
+// (#1807) — a sanctioned widening updates that pin in the same commit.
 export const KNOWN_LAND_DECISIONS = ['landed', 'held:escalation', 'held:nothing-merged', 'held:land-failed', 'held:phase-incomplete', 'held:workflow-error', 'held:submodule-pr']
 
 // landed:    array of task ids merged onto the integration branch this phase
