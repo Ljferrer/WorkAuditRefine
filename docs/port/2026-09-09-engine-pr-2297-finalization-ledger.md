@@ -34,27 +34,27 @@ refs/heads/war/2026-08-06-red-team-gate-cli/p2-polish d5740b65b0d2384607c5d7053e
 
 ## Audit identity and checkpoints
 
-Installed Snipe: `war-snipe-local/work-audit-refine-snipe`, version `0.21.12+codex.20260908.8fd30f3`. Execute its owned `skills/snipe/assets/snipe-runner.mjs`; request `rawArgs: "4 correctness,simplicity,auto"`, an explicit merge-base target with full base/head SHAs, and no path filters. The active task does not expose exact model/effort metadata. Profile discovery succeeded. User selected `gpt-5.6-sol / high` for every seat. Initial panel is running against the initial full-SHA scope at capacity 3; actual assigned lenses are correctness, simplicity, cascading-impact, test-fidelity. No completed-panel verdict yet. Read-only auditors must retain confinement, coverage, failure, and scope-stability evidence; incomplete is never clean.
+Installed Snipe: `war-snipe-local/work-audit-refine-snipe`, version `0.21.12+codex.20260908.8fd30f3`. Execute its owned `skills/snipe/assets/snipe-runner.mjs`; request `rawArgs: "4 correctness,simplicity,auto"`, an explicit merge-base target with full base/head SHAs, and no path filters. The active task does not expose exact model/effort metadata. Profile discovery succeeded. User selected `gpt-5.6-sol / high` for every seat. Initial panel completed against the initial full-SHA scope at capacity 3; actual assigned lenses are correctness, simplicity, cascading-impact, test-fidelity. All four validated seats requested changes; complete stable coverage. The exact report and execution evidence are stored beside this ledger. Read-only auditors must retain confinement, coverage, failure, and scope-stability evidence; incomplete is never clean.
 
-## Issue dispositions (pending reproduction)
+## Issue dispositions (repair checkpoints)
 
 | Issue | Risk | Status / evidence |
 |---|---|---|
-| #2279 | Conflict routing bypasses a fixable surviving blocker | Pending actual-flow reproduction and D17/D19 ruling |
-| #2280 | Bare scope prose falsely triggers a mandate conflict | Pending reproduction and paired routing analysis |
-| #2196 | Later relaunch counts sibling work as never-started task completion | Pending real-git reproduction |
-| #2154 | Approval transfer accounts seats at null SHA | Pending actual-flow reproduction |
-| #2182 | Baseline-proceed gate evidence can select superseded log | Pending actual-flow reproduction |
+| #2279 | Conflict routing bypasses a fixable surviving blocker | Fixed 5574b3ac; four interactive/AFK false approvals reproduced; user ruling recorded |
+| #2280 | Bare scope prose falsely triggers a mandate conflict | Fixed 5574b3ac; narrow mandate phrases and survivor routing tested together |
+| #2196 | Later relaunch counts sibling work as never-started task completion | Fixed 151b3509; task-owned nonempty commit proof survives rebase/clone |
+| #2154 | Approval transfer accounts seats at null SHA | Fixed 5574b3ac; mandatory transfer evidence. Final checkpoint also corrects producer destination to task tip |
+| #2182 | Baseline-proceed gate evidence can select superseded log | Fixed 8eb7d2c0; unique gate artifacts, explicit continuations, no stale fallback |
 
 ## Completion checklist
 
 - [x] Read handoff; verify live PR identity and isolated source ownership; preserve comparison refs.
-- [ ] Initial four-seat Snipe panel, roster/profile/package, findings and dispositions.
-- [ ] Read relevant plan, doctrine, learnings, and test fixtures; reproduce priority issues.
-- [ ] Record consequential operator ruling if needed; implement verified repairs and synchronized doctrine.
-- [ ] Bounded remaining-follow-on triage for false approval/completion/source/pin/gate evidence.
-- [ ] Targeted regressions red before, green after; class-closure evidence.
-- [ ] Full JS, shell, redaction, release-slot and applicable checks on candidate.
+- [x] Initial four-seat Snipe panel, roster/profile/package, findings and dispositions.
+- [x] Read relevant plan, doctrine, learnings, and test fixtures; reproduce priority issues.
+- [x] Record consequential operator ruling if needed; implement verified repairs and synchronized doctrine.
+- [x] Bounded remaining-follow-on triage for false approval/completion/source/pin/gate evidence.
+- [x] Targeted regressions red before, green after; class-closure evidence.
+- [x] Full JS, shell, redaction, release-slot and applicable checks on candidate (source checkpoint; final SHA evidence goes in PR).
 - [ ] Final complete four-seat Snipe audit; resolve/adjudicate material findings.
 - [ ] Reviewed commits pushed without force; PR description updated; remote head/checks verified.
 - [ ] Exact candidate SHA and merge-ready/held verdict with remaining backstops.
@@ -140,7 +140,7 @@ land only when bounded maintenance cannot prove/recover the state. Never require
 run Git CLI commands; keep auditors read-only. Git remains authoritative, including across
 machines. The operator also authorized a separate stronger refiner recovery tier (Opus for
 judgment-heavy reconciliation; routine refiner remains Sonnet). This supersedes the pending
-hold-versus-reconcile question above. Implementation and alternate-consumer regressions pending.
+hold-versus-reconcile question above. Implemented and tested in cb193836; see checkpoint below.
 
 ## Gate artifact isolation checkpoint (2026-09-09)
 
@@ -200,3 +200,82 @@ same recovery gate to absent/unknown statuses. Full repository validation remain
 plan row are updated. Git remains the source of truth across machines; the snapshots are Git
 identities, not a replacement completion database. Live-refiner adherence and genuinely divergent
 or ambiguous concurrent state remain explicitly bounded: agents investigate; no false completion.
+
+## Final source repair checkpoint (2026-09-09)
+
+- Initial Snipe's two finding-identity concerns are fixed: seeded sweep rows register
+  in queuedKeys at construction; degenerate finding identities use their complete
+  serialized content tuple instead of a lossy 32-bit hash. Actual-flow regressions
+  fail before the fix; the concrete old collision is `finding 1r` / `finding 30`.
+  A disposable seed-registry mutation fails the unexpected re-entry assertion.
+- #2141 was independently reproduced: a stale worker pin erased a blocker at the real
+  task tip. Task audits now require read-only Git reconciliation and a fresh roster
+  before approval. Worker-reported pins may be repaired; later gate/transfer-specific
+  pins cannot silently move. Missing proof/repeated conflict prevents approval; original
+  findings are retained. Real-Git fixtures cover successful repair, surviving blocker
+  and repeated conflict; malformed proof and moved-transfer controls cover refusal.
+  Four disposable mutations (conflict detection, retry bound, full-SHA proof, operation
+  pin equality) fail their assertions. This is implementation of the operator's
+  integrity-first/Git-is-truth direction, not a separately answered design question.
+- #2154 sibling producer defect reproduced with real Git: a clean rebase assigned
+  `rebased_tip` to integration while the task tip differed. Both producer instructions
+  now resolve the task branch; POST still compares integration to task. The original
+  real-Git approval-receipt assertion fails and the corrected producer passes.
+- #2229 reproduced on sweep and terminal paths: no soundness charge preceded citation
+  credit/unpark. Hoisted the existing shared charge to all three completion paths.
+  An unsound citation is rejected by the same panel/blocker contract; the question
+  remains parked. The initial two regressions fail on absent charges; existing positive
+  citation fixtures still require successful execution and the exact threaded row.
+
+Consequence sweep: shared auditRound callers, ace's already-gated pin/transfer receipts,
+full-roster worker/rebuttal rounds, source/prompt/card/schema mirrors and ADR 0024 were
+checked. Post-merge gate-evidence absence remains a separate SOFT rule; no shared mutation
+is licensed by an uncertain task audit. #2229 changes the existing judgment's coverage,
+not the authority of a citation or the operator's ruling.
+
+## Bounded follow-on dispositions
+
+The campaign's recent follow-ons were scanned for false approval/completion, wrong source
+or pin, and misleading gate artifacts. No backlog-wide cleanup or issue closure is implied.
+
+| Issues | Disposition |
+|---|---|
+| #2279, #2280, #2196, #2154, #2182 | Reproduced and repaired; named checkpoints above |
+| #2141 | Reproduced; Git pin repair + re-audit, never mismatch-to-approval |
+| #2181, #2187, #2188; same-tip writer aspect of #2168 | Closed by unique capture and explicit-path consumers in 8eb7d2c0 |
+| #2229 | Reproduced; shared citation-soundness charge now covers sweep and terminal |
+| #2184 | Reported advisory gate_log_status/gateLogStatus machinery absent at initial and current source; no repair needed here |
+| #2294 | Initial 6497e0ce already retries null OR infra-dead audit seats twice; historical issue premise superseded |
+| #2251, #2257 (and #2252 derivation) | Initial source already uses top-level statement boundaries, preserving &&/|| list semantics; executable statement tests validate the later ruling |
+| #2277 | Deferred prospective compound-shell instruction clarification; current top-level qualifier excludes interiors, no live plan check has this shape. No false-green proof claimed |
+| #2189 | Standalone sweep segmentation remains an explicit exclusion; uncertain mutation outcomes now reconcile under D21 before land. Optional continuation tuning is deferred |
+| #2207, #2208 | Deferred provenance-policy forks; current conservative input floor can refuse a launch, not grant false task completion |
+| #2244 | Deferred merged-corroboration drain-cause presentation loss; original primary finding/routing survives, no false approval/completion shown |
+| #2126, #2127 | Deferred prompt-placement/budget refactors outside this integrity pass |
+
+Plan-declared future backstops remain: D17 field-run cost, #2097 later loop-comparison
+measurements, and live-refiner procedure adherence (including already_upstream). Local
+Git fixtures establish mechanics and actual engine routing; they are not a live model
+end-to-end run. Genuine unresolved divergence still holds after bounded agent maintenance.
+
+Final validation and the final four-seat report will be pinned to the committed candidate
+in the PR description. That external evidence avoids changing the candidate after review.
+This ledger records source checkpoints; a pending final review is not a clean verdict.
+
+Final repair validation: **1,823 JavaScript tests passed, 0 failed** with
+`node --test 'skills/**/*.test.mjs'` on the final source changes. The final 12 targeted
+pin/citation tests also passed. Two independent citation-charge deletion mutations fail
+the sweep/terminal assertions. Redaction lint reports `lint: clean`; the actual staged
+workflow is **323,321 bytes**, below the 524,288-byte cap. Runtime is Node v24.17.0.
+Version-slot and prompt-budget checks are included in the full JS run. Only test-comment
+clarification and this evidence ledger were edited after that run; production bytes match.
+
+The shell census correctly flagged the newly added task-integrated.sh as unclassified.
+It now has an explicit exemption naming its Git ancestry/commit-provenance mechanism;
+it performs no gate-file discovery. The census itself remains fail-closed.
+
+All **31 shell test files passed**: 30 passed in the initial sweep; the corrected
+classification census was re-run and passed all 48 assertions. No other shell failure
+occurred. The JavaScript tests affected only by final comment cleanup were re-run and
+passed. Fresh remote check: PR head still 6497e0ce, target master still ba08a77f, PR open
+and CLEAN, initial redaction-lint green. No concurrent source movement was overwritten.

@@ -46,7 +46,7 @@ Dispatched at the merge slot **before** merge-task; own `PinTransfer` return sha
 
 1. **Before the rebase**, in `<taskWorktree>`: `BASE` = `git merge-base <integrationBranch> <taskBranch>`; `N` = `git rev-list --count $BASE..<taskBranch>` (the task's own commit count); `PRE` = `git diff $BASE..<taskBranch>` piped to `git patch-id --stable`, first field — an **empty diff prints nothing**, so `PRE` is then empty; `CHERRY` = `git cherry <integrationBranch> <taskBranch>` (leading `-` = a task commit already upstream by patch, `+` = unmatched; `git cherry` names **task** commits, never upstream equivalents). All three read the **pre-rebase** tip — reading them after the rebase silently disables the guard.
 2. **Rebase** the task branch onto the integration tip in `<taskWorktree>`. On conflict → `status: "conflict"` with `conflict_files`. Never force, never resolve.
-3. `TIP` = `git rev-parse <integrationBranch>`; `POST` = `git diff $TIP..<taskBranch>` piped to `git patch-id --stable`, first field (empty on an empty diff).
+3. `TIP` = `git rev-parse <taskBranch>` (the rebased task tip); `POST` = `git diff <integrationBranch>..$TIP` piped to `git patch-id --stable`, first field (empty on an empty diff).
 
 Then classify the outcome: when you reach step 4, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) (§ Pin-transfer arms) — the four return arms, in order, with the fail-closed rules.
 

@@ -1413,7 +1413,7 @@ const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
 // or a fixer can act on beyond the key tuple — rationale, suggested_fix, and the ask's question
 // (askContentKey / parkAsk derive the question from `ask.question` first; dispositionOf reads a
 // non-empty suggested_fix as a fully specified absorb, and PIN-29 dispatches a fix round on it).
-// BOTH readers consume this list: the empty-key fold below hashes it (plus the line / plan_ref
+// BOTH readers consume this list: the empty-key fold below serializes it (plus the line / plan_ref
 // locators), and normalizeSeat's empty-content demotion tests it — never two field lists.
 const blankText = v => typeof v !== 'string' || !v.trim()
 const contentTextOf = f => [f.rationale, f.suggested_fix, (f.ask && typeof f.ask === 'object') ? f.ask.question : undefined]
@@ -1421,14 +1421,13 @@ const contentTextOf = f => [f.rationale, f.suggested_fix, (f.ask && typeof f.ask
 // the same trim-aware blankText the demotion arm reads, so a whitespace title never keys as a
 // titled finding), the tuple degenerates to task alone and two distinct fileless, titleless
 // findings would share one key — the second is then refused as a re-mint and its rationale, the
-// only content it carries, never files. A content hash of contentTextOf plus the line / plan_ref
+// only content it carries, never files. The serialized tuple of contentTextOf plus the line / plan_ref
 // locators is folded in ONLY on that degenerate arm, so a keyed finding's tuple is byte-identical
 // to before.
-const contentHash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (Math.imul(h, 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(16) }
 const remintKey = f => (f.task ?? '') + '\u0000'
   + (typeof f.file === 'string' ? aceRelPath(f.file) : '') + '\u0000'
   + (f.title ?? '')
-  + (!blankText(f.file) || !blankText(f.title) ? '' : '\u0000' + contentHash(JSON.stringify([...contentTextOf(f).map(v => v ?? ''), f.line ?? null, f.plan_ref ?? ''])))
+  + (!blankText(f.file) || !blankText(f.title) ? '' : '\u0000' + JSON.stringify([...contentTextOf(f).map(v => v ?? ''), f.line ?? null, f.plan_ref ?? '']))
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
@@ -1628,8 +1627,7 @@ const filedKeys = new Set()
 // queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (EVERY
 // phaseCloseQueue entry point — routeToSweep, the round-1 approve arm's direct push, the
 // gate-audit floor pass's routeToSweep calls, and the ruledAsks push loop below (#1875);
-// the seededPhaseClose drain is the seeded exception — it runs at entry, before this registry is
-// declared, so a same-phase re-mint of a seeded row is judged on the other registries alone), for
+// seededPhaseClose rows are registered when this Set is constructed), for
 // budget-bounded re-entry (r.reentryQueue), HELD for the next ace batch (the batch-ace
 // blocker hold onto r.task.pendingAbsorbs), or CARRIED on carriedPhaseClose for the relaunch
 // (carryPhaseClose — a held phase's queue, a discarded sweep's absorbs and the terminal pass's
@@ -1638,7 +1636,7 @@ const filedKeys = new Set()
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
 // aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
 // no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
-const queuedKeys = new Set()
+const queuedKeys = new Set(phaseCloseQueue.map(remintKey))
 // Terminal queue (D3a, #2069): the merged sweep arm's input to the terminal pass — declared beside
 // the registries so corroborateSurvivor can find a queued row; every push stamps queuedKeys.
 const terminalQueue = []
@@ -2579,13 +2577,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // three gate-audit-family seats directly (see their sites below), not only the standing card.
     // Empty/absent adjudications ⇒ '' ⇒ byte-identical to today.
     + intentClause + adjudicationClause + auditorMemClause(task.id, lens)
-  // AUDIT PIN (D2): name the worker's committed tip and require the seat to echo the sha it ACTUALLY
-  // reviewed as audit_sha. A well-formed audit_sha ≠ this pin means the seat judged a different tree —
-  // its findings are demoted (pin-mismatch), never a block (enforced at the auditRound collection site
-  // below). Absent/malformed pin ⇒ NO line (fail-open; prompt stays byte-identical to a pin-less run).
-  // agents/war-auditor.md already lists audit_sha as a dispatched input, so no standing-surface edit rides.
+  // A reported worker pin is checked against read-only Git by the seat. Conflicts require
+  // reconciliation; no mismatched work audit can approve by demoting its findings (#2141).
   if (isSha(pin)) {
-    p += pt`\nAUDIT PIN: the tree under audit is the worker's latest commit ${pin}. Judge the diff AT THAT sha and return the sha you actually reviewed as \`audit_sha\`; if your audit_sha differs from ${pin} your findings are treated as reviewing a different tree — demoted to SOFT, never a block.`
+    p += pt`\nAUDIT PIN: the worker reports commit ${pin}. Independently resolve the task branch tip from read-only Git before judging its diff; never substitute its merge-base. Return the SHA actually reviewed as \`audit_sha\`. A conflict with the reported pin triggers Git reconciliation and a full re-audit before approval; it never turns a blocker into approval.`
   }
   if (workerTests) {
     p += pt`\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
@@ -2611,7 +2606,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
 // is byte-identical. `expected` is the size of the roster ACTUALLY dispatched, so allApprove still means
 // unanimity over the seats that ran; the seats that did not run have their approvals TRANSFERRED to the
 // new sha by the caller, with per-seat provenance (PIN-10).
-async function auditRound(task, peers, workerTests, pin, extra, rosterOverride) {
+async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, reconciliation = {}) {
   // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
   // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
   const roster = (Array.isArray(rosterOverride) && rosterOverride.length) ? rosterOverride : task.roster
@@ -2640,30 +2635,23 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride) 
   // Intake normalization (verdict-integrity D2, PIN-6) at the ONE collection site every auditRound
   // caller shares — roster seats, the rebuttal round and every re-audit pass through here.
   const seats = results.filter(s => s && !deathOf(s)).map(s => normalizeSeat(s, task.id))
-  // Pin-equality demotion (D2), the single collection-site enforcement feeding allApprove/blockingOf/the
-  // escalate check: a seat whose well-formed audit_sha differs from its well-formed dispatched pin reviewed
-  // a DIFFERENT tree than the worker's committed tip — its findings cannot be trusted for the HARD path.
-  // Tag pin-mismatch, drop each finding to a non-blocking Nit (SOFT; original severity preserved so nothing
-  // is silently lost) AND STRIP its routing metadata (disposition — the ask member included — + legacy
-  // autoFixable) so the demoted finding falls to the Nit default disposition (note) and can NEVER enter
-  // aceable / ride --ace (#805). The pinMismatch strip is a NON-dispositionOf disposition sink (#1550, D7
-  // — its own order-census row): a pin-mismatched seat's disposition:'ask' never parks on asks[] — a
-  // question raised against a different tree than the worker's committed tip is not a ruling-worthy fork,
-  // so it falls to note with the rest of the stripped routing metadata. Also,
-  // neutralize the verdict to a non-blocking 'approve' so it can neither escalate nor block a merge, and push
-  // a SOFT absence-note (task, seat, both SHAs) to auditLog. Fail-open: absent or malformed pin OR audit_sha
-  // ⇒ no demotion (today's behavior). The strip is at this single collection site — NO new filter at the
-  // approve-branch routing loop; a wrong-tree seat's convergent unanimity on one audit_sha stays doctrine,
-  // out of D2's slice (plan Notes).
-  for (const s of seats) {
-    if (!pinMismatch(s.audit_sha, pin)) continue
-    auditLog.push({ task: task.id, seat: s.seat, verdict: `pin-mismatch:${s.verdict}`, pinMismatch: true,
-      auditSha: s.audit_sha, expectedPin: pin, findings: [],
-      note: `pin-mismatch: seat reviewed ${s.audit_sha} but the dispatched pin is ${pin} — findings demoted to SOFT, not a land-halt` })
-    s.findings = (s.findings || []).map(({ disposition, autoFixable, ...f }) => ({ ...f, pinMismatch: true, originalSeverity: f.severity, severity: 'Nit' }))
-    s.verdict = 'approve'
+  // A conflicting SHA is an unresolved review, never approval (#2141). Resolve the branch
+  // through read-only Git and run the full roster once at that confirmed tip. A second mismatch
+  // or unusable lookup takes the existing shortfall/hold path; read-only transport death remains soft.
+  if (seats.some(s => pinMismatch(s.audit_sha, pin))) {
+    auditLog.push({ task: task.id, verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin,
+      findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), note: 'Reported worker pin conflicts with an auditor SHA; no approval accounted before Git reconciliation and full re-audit' })
+    if (reconciliation.done) return { seats: [], expected, died, pin }
+    const resolved = await dispatchSite(
+      pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git in ${task.worktree}: resolve branch ${task.branch} with git rev-parse --verify ${task.branch}^{commit}. Return { head_sha: <that full commit SHA> }. Reported pin: ${pin}. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a Git error return {}.`,
+      { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
+        schema: { type: 'object', properties: { head_sha: { type: 'string' } } }, ...spawnRefinerRecovery() })
+    if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }
+    if (!resolved || !fullSha(resolved.head_sha)) return { seats: [], expected, died }
+    if (!reconciliation.repairWorkerPin && pinMismatch(resolved.head_sha, pin)) return { seats: [], expected, died, pin }
+    return auditRound(task, null, workerTests, resolved.head_sha, extra, roster, { ...reconciliation, done: true })
   }
-  return { seats, expected, died }
+  return { seats, expected, died, pin }
 }
 
 log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationBranch}`)
@@ -2940,6 +2928,19 @@ const citationOf = f => {
 // (FIX_ROUND_RULES rule 6: the helper replaces the hand copies). Null when no citation stands, so a
 // spread yields no keys.
 const citationExtra = f => { const c = citationOf(f); return c ? { citation: c } : null }
+// Citation-soundness re-audit charge (D6, PIN-7): appended to the panel prompt whenever the batch
+// under re-audit contains citation-resolved findings — the panel, not the engine, judges the match
+// (A2: standing-row matching is panel judgment, never engine-side NLP).
+// The clause ENUMERATES its subjects (finding title + cited row + match rationale — the same
+// values aceFindingRow renders into the worker prompt/commit message) so the panel judges from
+// its own prompt, never from a commit message it is not directed to read.
+const citationSoundnessClause = batch => {
+  const cited = batch.map(f => ({ f, c: citationOf(f) })).filter(x => x.c)   // one citationOf call per finding
+  return cited.length
+    ? pt`\nCITATION SOUNDNESS (absorb-by-citation): this batch contains citation-resolved findings — verify each cited standing adjudication row covers the finding's NAMED trade-off, not merely its topic; ambiguity is NO-match. An unsound citation is a BLOCKING finding: set \`citationUnsound: true\` and name the mismatch in the rationale — the candidate cannot merge or resolve its parked ask; the existing reject/discard path preserves the question. The citation-resolved findings under judgment:\n`
+      + cited.map(({ f, c }, i) => pt`${i + 1}. "${f.title ?? '(untitled)'}" cites row "${c.row}" — match rationale: ${c.rationale}`).join('\n')
+    : ''
+}
 // citationStamp: the ` [absorb-by-citation: row "…" — …]` prompt-row clause, rendered from ONE
 // citationOf call. The ace-family rows (aceFindingRow), the phase-close sweep row and the terminal-pass
 // row all append it, so the ace, polish and terminal commit messages carry the durable citation stamp
@@ -3068,19 +3069,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
     + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (the cause-then-class-then-fix rule). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (the note-absorb rule).\n`
     + FIX_ROUND_RULES + '\n'
-  // Citation-soundness re-audit charge (D6, PIN-7): appended to the panel prompt whenever the batch
-  // under re-audit contains citation-resolved findings — the panel, not the engine, judges the match
-  // (A2: standing-row matching is panel judgment, never engine-side NLP).
-  // The clause ENUMERATES its subjects (finding title + cited row + match rationale — the same
-  // values aceFindingRow renders into the worker prompt/commit message) so the panel judges from
-  // its own prompt, never from a commit message it is not directed to read.
-  const citationSoundnessClause = batch => {
-    const cited = batch.map(f => ({ f, c: citationOf(f) })).filter(x => x.c)   // one citationOf call per finding
-    return cited.length
-      ? pt`\nCITATION SOUNDNESS (absorb-by-citation): this batch contains citation-resolved findings — verify each cited standing adjudication row covers the finding's NAMED trade-off, not merely its topic; ambiguity is NO-match. An unsound citation is a BLOCKING finding: set \`citationUnsound: true\` and name the mismatch in the rationale — the batch is forward-reverted and the finding demotes naming the mismatch. The citation-resolved findings under judgment:\n`
-        + cited.map(({ f, c }, i) => pt`${i + 1}. "${f.title ?? '(untitled)'}" cites row "${c.row}" — match rationale: ${c.rationale}`).join('\n')
-      : ''
-  }
   // ---- PIN-12: THE GATE RUNS AT THE ACE TIP BEFORE ANY RE-AUDIT OR TRANSFER ----
   // A read-only refiner runs the task gate (and the task's Done when: command) at the ace tip. Only a
   // green gate lets the round proceed to its re-audit, so no approval — re-run or transferred — is ever
@@ -3767,7 +3755,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const blockerKey = f => remintKey({ task: task.id, ...f })
       let lastFixKeys = new Set()
       while (round < roundLimit) {
-        ;({ seats, expected, died } = await auditRound(task, null, workerTests, pin))      // independent — no cross-talk
+        ;({ seats, expected, died, pin } = await auditRound(task, null, workerTests, pin, null, null, { repairWorkerPin: true }))      // independent — no cross-talk
         // Seat death (D21, PIN-25) reads BEFORE the shortfall check: a dead seat classifies env-died
         // SOFT with the site named — never audit-blocked (the seat judged nothing).
         if (died) { verdict = 'env-died'; blocked = died; break }
@@ -3776,7 +3764,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
         if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-          ;({ seats, expected, died } = await auditRound(task, seats, workerTests, pin))
+          ;({ seats, expected, died, pin } = await auditRound(task, seats, workerTests, pin, null, null, { repairWorkerPin: true }))
           if (died) { verdict = 'env-died'; blocked = died; break }       // a dead rebuttal seat: env-died, never audit-blocked
           if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
           if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
@@ -3993,7 +3981,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
-        + pt`  (3) TIP=rev-parse ${ph.integrationBranch} (the integration tip the rebase landed on); POST=diff $TIP..${r.task.branch} piped to git patch-id --stable, first field (empty on an empty diff).\n`
+        + pt`  (3) TIP=rev-parse ${r.task.branch} (the rebased task tip being approved); POST=diff ${ph.integrationBranch}..$TIP piped to git patch-id --stable, first field (empty on an empty diff).\n`
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
@@ -4781,7 +4769,7 @@ if (mergedTasksForGateAudit.length > 0) {
       // floor pass (routeGateAuditRows) that runs after every gate-audit seat and before the sweep —
       // absorbs ride the sweep queue under the exclusion set, a barrierless follow-up reroutes there,
       // an ask still parks (exactly-once via parkAsk, #1550/#1790). A pin-mismatched seat's rows never
-      // route (same doctrine as the pinMismatch strip: a finding raised against a different tree than
+      // route (gate-evidence scope only: a finding raised against a different tree than
       // the judged tip is not routable).
       if (!mismatch) for (const f of findings) {
         if (f.severity === 'Minor' || f.severity === 'Nit') gateAuditRows.push({ ...f, task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', lens: 'execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha) })
@@ -5194,7 +5182,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     // drain-cause stamp below carries it) — never a panel rejection, never a hold.
     let sweepPanelDeath = null
     if (!sweepWhy) {
-      const { seats: pSeats, expected: pExpected, died: pDied } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha)
+      const { seats: pSeats, expected: pExpected, died: pDied } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha, citationSoundnessClause(phaseCloseQueue))
       sweepPanelDeath = pDied
       sweepApproved = !pDied && allApprove(pSeats, pExpected) && blockingOf(pSeats).length === 0
       sweepMinors = minorsOf(pSeats).map(f => ({ task: polishTask.id, ...f }))
@@ -5345,7 +5333,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           log('terminal pass: phase ' + ph.id + ' committed at ' + terminalSha + ' (Ace-Charge ' + terminalCharge + '; polish task absorbRounds now ' + polishTask.absorbRounds + ', telemetry only).')
           // ONE seat re-audits the terminal sha (rosterOverride — the roster's correctness seat or its
           // first seat). The pass is bound at one hop: no fix round, no bisection, no re-entry.
-          const { seats: tSeats, expected: tExpected, died: tDied } = await auditRound(polishTask, null, tw.tests ? tw.tests : null, terminalSha, null, [seat])
+          const { seats: tSeats, expected: tExpected, died: tDied } = await auditRound(polishTask, null, tw.tests ? tw.tests : null, terminalSha, citationSoundnessClause(terminalRows), [seat])
           // A dead terminal seat (D21, PIN-25) takes the no-verdict arm below, naming the site — it
           // judged nothing, so never a regression.
           const tApproved = !tDied && allApprove(tSeats, tExpected) && blockingOf(tSeats).length === 0

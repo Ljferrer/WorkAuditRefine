@@ -117,7 +117,7 @@ A dispatch that spawned and then died under the harness (API/quota/transport) is
 ## PinTransfer — `war-refiner` (merge slot, before merge-task)
 ```jsonc
 { status: "transferred" | "mismatch" | "already_upstream" | "empty-unmatched" | "conflict" | "error",
-  rebased_tip?,                       // the integration tip the rebase landed on
+  rebased_tip?,                       // the actual rebased task branch tip (equal to integration only when already_upstream)
   dispatch_base?,                     // the pre-rebase BASE (`git merge-base <integrationBranch> <taskBranch>`) the probe measured PRE from; returned on every result that carries rebased_tip. OPTIONAL, fail-open: absent ⇒ only the rebased_tip-equals-base refusal leg is disabled (D4, PIN-8, #1973)
   pre_rebase_patch_id?,               // `git patch-id --stable` of the task's own diff, dispatchBase..tip, measured BEFORE the rebase (empty when the diff is empty — patch-id prints nothing)
   post_rebase_patch_id?,              // the same measure after the rebase, integrationTip..tip
@@ -461,3 +461,22 @@ When `landDecision` is a `held:*` value the land was **not** performed in-flow; 
 - **`held:submodule-pr`** — the submodule phase's land chose 2B (PR-and-hold): the refiner pushed the submodule integration branch and opened a PR on the submodule remote. **Set directly** by the Workflow (same pattern as `held:workflow-error` — **not** via `HARD_ESCALATION_REASONS`; DP2). The PR number and remote are captured in the ledger (`pr_number`, `pr_remote`). The run is held until a human merges the PR; resume reads `gh pr view <n> --json state,mergeCommit -R <pr_remote>`, takes `mergeCommit.oid` as `submodule_merge_sha`, writes it to the ledger, and clears the hold. Only arises in non-AFK 2B (an un-owned submodule under `--afk` is refused at launch — DP5).
 
 Pin-transfer success evidence is conditionally required by `PIN_TRANSFER` and checked by its consumer: Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Status error alone retains the ordinary merge fallback.
+
+### Task audit pin conflicts (#2141 finalization amendment)
+
+A task auditor resolves the actual task branch tip using read-only Git. A well-formed
+SHA conflict never becomes approval by demoting findings. The Workflow retains conflict
+evidence, dispatches a read-only refiner on `agents.refiner.recovery`, and re-runs the
+roster once at the confirmed full SHA. Initial/fix worker reports may be repaired this
+way. A repeat conflict or unusable Git result prevents approval through the existing
+shortfall path. A read-only dispatch death keeps its environment classification.
+For a later gate/pin-transfer/ace-specific audit, the confirmed tip must still match
+that operation's promised SHA; a moved tip cannot inherit an earlier gate or receipt.
+Post-merge execution-evidence absence keeps ADR 0024's separate SOFT treatment.
+
+### Citation soundness on every completion path (#2229)
+
+The shared `citationSoundnessClause` accompanies ace, sweep and terminal re-audits.
+A row's mechanical membership is necessary but insufficient to resolve a parked ask.
+The reviewing seat must judge that the row rules the named trade-off; an unsound match
+blocks that candidate, which follows its existing reject/discard path with the ask retained.

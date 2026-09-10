@@ -61,6 +61,7 @@ const NEW_SEAT_DEFAULTS = {
   // refiner returns.
   'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
+  'audit-pin': {},
   'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
   'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
@@ -88,7 +89,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const fn = build(source)
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
-    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile') return answerNewSeat(seats, prompt, opts)
+    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
     return agentImpl(prompt, opts)
   }
   const log = (m) => logs.push(m)
@@ -98,7 +99,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -4512,10 +4513,10 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
 })
 
 // Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
-// call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
-// pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
+// call sites, each carrying an explicit ask arm that PRECEDES its absorb chain.
+// Conflicting task audits remain outside routing until Git proof and re-audit.
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny; conflicting audits never enter routing', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4563,15 +4564,8 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
     assert.ok(chain !== -1, `dispositionOf site @${i}: the absorb chain is locatable (demote/aceable/phaseCloseQueue/reentryQueue/routeToSweep/…)`)
     assert.ok(askIdx < chain && parkIdx < chain, `dispositionOf site @${i}: the ask arm PRECEDES the absorb chain (D7 order)`)
   }
-  // The pinMismatch strip row: a NON-dispositionOf disposition sink — the destructure that drops
-  // routing metadata must exist exactly once and its comment must name the ask member (a
-  // pin-mismatched seat's ask never parks; it falls to the Nit note default with the strip).
-  const strips = src.split("({ disposition, autoFixable, ...f })").length - 1
-  assert.equal(strips, 1, 'exactly ONE pinMismatch strip site (the single collection-site enforcement)')
-  const stripIdx = src.indexOf("({ disposition, autoFixable, ...f })")
-  const stripComment = src.slice(Math.max(0, stripIdx - 2000), stripIdx)
-  assert.ok(/the ask member included/.test(stripComment) && /never parks/.test(stripComment),
-    "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's ninth row)")
+  assert.ok(!src.includes("({ disposition, autoFixable, ...f })"), 'conflicting work audits cannot turn findings into approval by stripping routing metadata')
+
 })
 
 // --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
@@ -6358,7 +6352,6 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.equal((src.match(/const seatRef\s*=/g) || []).length, 0, 'no hand copy `const seatRef =` body exists (default-deny: the alias never returns)')
   const keyBody = windowOf(src, 'const remintKey = f =>', '\n// asks[] parking')
   assert.ok(keyBody.includes('aceRelPath(f.file)'), 'remintKey normalizes file through aceRelPath (the ONE path normalizer)')
-  assert.ok(keyBody.includes('contentHash('), 'remintKey folds the content hash on the empty-key arm')
   const nfBody = windowOf(src, 'const normalizeFinding = f =>', '\nconst askShaped')
   assert.ok(nfBody.includes('const { seats, merged, drainCause, demoteReason, ...rest } = f') && nfBody.includes('aceRelPath(rest.file)'), 'normalizeFinding strips seats/merged/drainCause/demoteReason (never task — see the control below) and normalizes file through aceRelPath')
   assert.deepEqual(registrySlice().normalizeFinding({ severity: 'Nit', file: './skills/a.js', seats: ['forged'], merged: [{ title: 'forged' }], drainCause: { dispatch: 'forged', why: 'forged' }, demoteReason: 'forged' }), { severity: 'Nit', file: 'skills/a.js' },
@@ -6366,7 +6359,7 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   // ONE content definition (#2132): the fold's hash and the demotion predicate both read
   // contentTextOf — neither names a raw content field of its own.
   const nsBody = windowOf(src, 'const normalizeSeat = ', '\nconst mergeSeat')
-  assert.ok(keyBody.includes('contentHash(JSON.stringify([...contentTextOf(f)'), 'the empty-key fold hashes contentTextOf (plus the line / plan_ref locators)')
+  assert.ok(keyBody.includes('JSON.stringify([...contentTextOf(f)'), 'the empty-key fold serializes contentTextOf (plus the line / plan_ref locators)')
   assert.ok(nsBody.includes('contentTextOf(f).every(blankText)'), 'the demotion predicate tests contentTextOf')
   assert.ok(!/f\.(rationale|suggested_fix|ask)\b/.test(nsBody), 'normalizeSeat names no raw content field — contentTextOf / askShaped are the only readers')
   assert.ok(keyBody.includes('!blankText(f.title)'), 'the fold arm is trim-aware, the same blankText the demotion arm reads (#2129)')
@@ -8480,10 +8473,9 @@ test('T1.3 criterion 3 (D2) — gate-audit seat whose audit_sha ≠ the pin is d
   assert.ok(!ctlEntry.pinMismatch, 'the matching-sha entry is NOT tagged pin-mismatch')
 })
 
-test('T1.3 (D2) — work-wave auditRound demotes a pin-mismatched seat: a blocking finding on the wrong tree neither blocks nor spawns a fix-worker; a matching-pin control DOES block', async () => {
-  // The worker commits at 'deadbeef' (the dispatched pin). A seat returning a Major on a DIFFERENT tree
-  // ('cafe1234') is demoted inside auditRound: verdict→approve, finding→non-blocking Nit; the task approves
-  // and lands with no fix-worker. The auditLog carries the SOFT pin-mismatch note.
+test('T1.3 (D2) — work-wave pin conflict holds without Git proof; a matching-pin blocker reaches the fix-worker', async () => {
+  // The worker reports deadbeef and the auditor reports cafe1234. Without Git proof the
+  // engine cannot choose either report as authority; it retains the evidence and holds.
   const workWaveImpl = (auditSha) => (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
@@ -8501,21 +8493,19 @@ test('T1.3 (D2) — work-wave auditRound demotes a pin-mismatched seat: a blocki
     return {}
   }
   const { out: mm, calls: mmCalls } = await runPhase(ONE_TASK(), workWaveImpl('cafe1234'))
-  assert.equal(mm.landDecision, 'landed', 'a pin-mismatched work-wave blocker is demoted — the task approves and lands')
-  assert.ok(!mmCalls.some(isFixWorker), 'NO fix-worker is dispatched for a demoted (wrong-tree) blocking finding')
+  assert.notEqual(mm.landDecision, 'landed', 'a pin conflict with unavailable Git proof cannot approve')
+  assert.ok(!mmCalls.some(isFixWorker), 'no fix-worker acts on an unresolved pin conflict')
   assert.ok((mm.auditLog || []).some(e => e && e.pinMismatch === true && e.task === 't1'),
-    'a SOFT pin-mismatch absence-note is pushed to auditLog for the work-wave seat')
+    'the pin conflict is retained in auditLog')
 
   // Delete-and-trace control: the SAME Major with a MATCHING audit_sha ('deadbeef') is NOT demoted, so it
-  // blocks and a fix-worker IS dispatched (proving the demotion — not some other path — suppressed it above).
+  // blocks and a fix-worker IS dispatched (distinguishing a review from an unresolved pin conflict).
   const { calls: ctlCalls } = await runPhase(ONE_TASK(), workWaveImpl('deadbeef'))
   assert.ok(ctlCalls.some(isFixWorker), 'a matching-pin blocking finding is NOT demoted — a fix-worker is dispatched')
 })
 
-test("#805 (D2) — a pin-mismatched ABSORB finding is STRIPPED of routing metadata: NO ace dispatch, the demoted finding keeps pinMismatch/originalSeverity but drops disposition/autoFixable; a matching-pin control DOES ace", async () => {
-  // A work-wave correctness seat APPROVES with a Minor absorb finding (autoFixable + ace-eligible file) but
-  // reviewed a DIFFERENT tree (audit_sha ≠ the worker pin 'deadbeef'). auditRound demotes it to a Nit AND strips
-  // disposition+autoFixable ⇒ it falls to the Nit default disposition (note), never enters aceable ⇒ no ace worker.
+test("#805/#2141 — a pin-mismatched absorb waits for Git proof; evidence is preserved and a matching-pin control aces", async () => {
+  // A mismatched absorb remains conflict evidence, with no ace execution before proof.
   const absorbImpl = (auditSha) => (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
@@ -8533,18 +8523,16 @@ test("#805 (D2) — a pin-mismatched ABSORB finding is STRIPPED of routing metad
   }
   const ACE_ONE = () => PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] }], run: { ace: true } })
 
-  // MISMATCH: audit_sha 'cafe1234' ≠ pin 'deadbeef' ⇒ demoted + stripped ⇒ never aceable.
+  // MISMATCH: cafe1234 differs from deadbeef; no Git proof permits routing.
   const { out: mm, calls: mmCalls } = await runPhase(ACE_ONE(), absorbImpl('cafe1234'))
   assert.ok(!mmCalls.some(c => /^ace:/.test(c.opts.label || '')),
-    'a pin-mismatched absorb finding is stripped of its disposition ⇒ NO ace worker is dispatched')
+    'the unresolved pin conflict dispatches no ace worker')
   const demotedEntry = (mm.auditLog || []).find(e => e && e.task === 't1' && (e.findings || []).some(f => f.title === 'absorb me'))
-  assert.ok(demotedEntry, 'the demoted finding is recorded in auditLog')
+  assert.ok(demotedEntry, 'the original finding is recorded in auditLog')
   const demoted = demotedEntry.findings.find(f => f.title === 'absorb me')
-  assert.equal(demoted.pinMismatch, true, 'the demoted finding is tagged pinMismatch')
-  assert.equal(demoted.originalSeverity, 'Minor', 'the original severity is preserved (nothing silently lost, ADR 0013)')
-  assert.equal(demoted.severity, 'Nit', 'the finding is demoted to a non-blocking Nit')
-  assert.ok(!('disposition' in demoted), 'the absorb disposition is STRIPPED (cannot route to ace)')
-  assert.ok(!('autoFixable' in demoted), 'the legacy autoFixable is STRIPPED (cannot read back as absorb via the dispositionOf legacy path)')
+  assert.equal(demoted.severity, 'Minor', 'original finding is retained as conflict evidence')
+  assert.equal(demoted.disposition, 'absorb', 'routing metadata is retained as evidence, never executed before proof')
+  assert.notEqual(mm.landDecision, 'landed')
 
   // CONTROL (delete-and-trace): the BYTE-SAME fixture with a MATCHING audit_sha ⇒ no demotion ⇒ the absorb
   // finding stays absorb ⇒ an ace worker IS dispatched. Proves the no-ace assertion above is load-bearing.
@@ -8627,7 +8615,7 @@ test('T1.3 (D2) — auditPrompt carries the AUDIT PIN line naming the worker hea
   assert.ok(wa, 'a work-wave audit seat was dispatched')
   assert.match(wa.prompt, /AUDIT PIN:/, 'the work-wave auditPrompt carries the AUDIT PIN line')
   assert.ok(wa.prompt.includes('deadbeef'), 'the AUDIT PIN line names the worker head_sha (deadbeef)')
-  assert.match(wa.prompt, /return the sha you actually reviewed as `audit_sha`/,
+  assert.match(wa.prompt, /Return the SHA actually reviewed as `audit_sha`/,
     'the AUDIT PIN line requires the seat to echo the reviewed sha as audit_sha')
 
   // Fail-open: a malformed head_sha is not a well-formed SHA ⇒ NO pin threaded ⇒ NO AUDIT PIN line.
@@ -8656,7 +8644,7 @@ test('T1.3 (D2) — auditPrompt carries the AUDIT PIN line naming the worker hea
 const evidenceImpl = (prompt, opts) => {
   const seat = seatOf(opts), label = opts.label || ''
   if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'aaaa1111', tests: { unit: 1 } }
   if (seat === 'war-refiner' && /^evidence:/.test(label)) return {
     perTask: [
       { taskId: 't1', pin_status: 'CONFIRMED', pin_evidence: 'tip == gate-HEAD', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
@@ -11005,8 +10993,6 @@ const LITERAL_REGISTRY = [
   [" --repo ${learningsTarget}` : ''\nconst WORKE"],
   ["baseline gate debt: ${idset.join(', ') || '("],
   ["audit:${task.id}:${seat.lens}${peers ? ':reb"],
-  ["pin-mismatch:${s.verdict}`, pinMismatch: tru"],
-  ["pin-mismatch: seat reviewed ${s.audit_sha} b"],
   ["Phase ${ph.id} \"${ph.title}\": ${tasks.length"],
   [" --owned-file ${ownedFile}` : ''\n  // --recl"],
   ["   provision-worktrees.sh ensure-worktree ${"],
@@ -14227,7 +14213,7 @@ const ptImpl = (first, aceResult, over = {}) => (prompt, opts) => {
     if (/beef0001/.test(prompt)) {
       return { ...seatAt('reaudit:' + opts.label, lens, 'beef0001', []), ...(over.seatOver ? over.seatOver(lens, 'beef0001') : {}) }
     }
-    const sha = /ace00001/.test(prompt) ? 'ace00001' : 'deadbeef'
+    const sha = (prompt.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1] || (/ace00001/.test(prompt) ? 'ace00001' : 'deadbeef')
     const findings = (sha === 'deadbeef' && lens === 'correctness') ? first : []
     return { ...seatAt(opts.label, lens, sha, findings), ...(over.seatOver ? over.seatOver(lens, sha) : {}) }
   }
@@ -18269,5 +18255,129 @@ for (const response of [undefined, {}, { mode: 'merge-task', status: 'unknown' }
     assert.ok(out.landed.includes('t1'))
     assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 1)
     assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:merged'))
+  })
+}
+
+test('Snipe identity repair: formerly colliding empty-key content survives independently', async () => {
+  // These two serialized rationale tuples collide at 0x564141de under the retired 32-bit hash.
+  const a = { severity: 'Minor', rationale: 'finding 1r' }, b = { severity: 'Minor', rationale: 'finding 30' }
+  const absorb = nit({ title: 'absorbed nit', file: 'skills/a.js' })
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [absorb, a]), approveWith('audit:t1:correctness', [b]), approveWith('audit:t1:correctness', [])] }, quietGate(aceBase([absorb, a])))
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  assert.deepEqual(out.minorsFiled.filter(f => !f.file && !f.title).map(f => f.rationale).sort(), [a.rationale, b.rationale].sort())
+})
+
+test('Snipe identity repair: a re-audit remint of a seeded sweep row corroborates once without re-entry', async () => {
+  const seeded = queuedAbsorb(); seeded.task = 't1'; seeded.planSlug = 'wtprov-a'
+  const trigger = nit({ title: 'trigger initial ace', file: 'skills/a.js' })
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [trigger]), approveWith('audit:t1:correctness', [{ ...seeded, phaseClose: false }]), approveWith('audit:t1:correctness', [])] }, quietGate(sweepBase([])))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ seededPhaseClose: [seeded] }), impl)
+  assert.equal(out.landDecision, 'landed')
+  assert.ok(!calls.some(c => /^ace:reentry:/.test(c.opts.label || '')), 'the already queued finding never gets a separate re-entry fix')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('already queued') && l.includes(seeded.title)))
+  assert.equal(out.aced.filter(r => r.finding && r.finding.title === seeded.title).length, 1)
+})
+
+test('audit pin integrity #2141: a stale worker pin cannot turn the real tip blocker into approval', async () => {
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: '1111111' }
+    if (o.label === 'audit:t1:correctness') return { seat: o.label, lens: 'correctness', verdict: 'request_changes', audit_sha: '2222222', findings: [{ severity: 'Major', title: 'real task bug', file: 'src/a.js', rationale: 'the current task tip violates its acceptance condition' }] }
+    return defaultImpl(p, o)
+  })
+  assert.ok(!out.landed.includes('t1'), 'a blocker at the actual task tip cannot be erased by a worker misreporting the base as head_sha')
+})
+
+for (const result of ['approve', 'block', 'repeat-mismatch']) {
+  test('audit pin integrity #2141: real Git confirmation and a fresh full roster: ' + result, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-audit-pin-'))
+    const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    try {
+      git('init', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'a'), 'base'); git('add', '.'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD')
+      writeFileSync(join(dir, 'a'), 'task'); git('commit', '-am', 'task'); const tip = git('rev-parse', 'HEAD')
+      const tasks = [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir, roster: [{ lens: 'correctness' }, { lens: 'security' }] }]
+      let reconciled = false, lookups = 0
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks }), (p, o) => {
+        if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: base }
+        if ((o.label || '').startsWith('audit:t1:')) return { seat: o.label, lens: o.label.split(':')[2],
+          verdict: result === 'block' ? 'request_changes' : 'approve',
+          audit_sha: reconciled && result === 'repeat-mismatch' ? base : tip,
+          findings: result === 'block' ? [{ severity: 'Major', title: 'task bug', file: 'a', rationale: 'actual tip violates acceptance' }] : [] }
+        return defaultImpl(p, o)
+      }, { 'audit-pin': (p, o) => {
+        assert.equal(o.model, 'opus'); assert.equal(o.effort, 'high')
+        assert.match(p, /No edits, checkout, merge, push or rebase/)
+        const command = p.match(/git rev-parse --verify (\S+)\./)[1]
+        reconciled = true; return { head_sha: ++lookups > 1 ? base : git('rev-parse', '--verify', command) }
+      } })
+      assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'bounded read-only reconciliation')
+      assert.equal(calls.filter(c => (c.opts.label || '').startsWith('audit:t1:')).length, 4, 'both seats run anew once')
+      assert.equal(out.landed.includes('t1'), result === 'approve', 'only unanimous review of confirmed Git tip can merge')
+      assert.equal(git('rev-parse', 'HEAD'), tip, 'reconciliation is read-only')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+test('pin-transfer integrity #2154: the producer transfers approval to the real rebased task tip', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-transfer-tip-'))
+  const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); git('add', '.'); git('commit', '-m', 'base')
+    git('checkout', '-b', 'task'); writeFileSync(join(dir, 'own'), 'own'); git('add', '.'); git('commit', '-m', 'own')
+    git('checkout', 'integration'); writeFileSync(join(dir, 'sibling'), 'sibling'); git('add', '.'); git('commit', '-m', 'sibling'); git('checkout', 'task')
+    const { out } = await runPhase(PROVISION_ARGS({
+      phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'working' },
+      tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }],
+    }), defaultImpl, { 'pin-transfer': p => {
+      git('rebase', 'integration')
+      const ref = p.match(/\(3\) TIP=rev-parse (\S+)/)[1]
+      return { status: 'transferred', rebased_tip: git('rev-parse', ref), pre_rebase_patch_id: 'same', post_rebase_patch_id: 'same' }
+    } })
+    const actual = git('rev-parse', 'task'); assert.notEqual(actual, git('rev-parse', 'integration'))
+    assert.equal(out.pinTransfers.find(p => p.kind === 'merge').rebasedTip, actual, 'approval receipt names the reviewed task content, not its integration base')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const head_sha of [undefined, '', '2222222', 'x'.repeat(40)]) {
+  test('audit pin integrity #2141: an unusable Git proof cannot repair the pin: ' + String(head_sha), async () => {
+    let audits = 0
+    const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+      if ((o.label || '').startsWith('audit:t1:')) return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: ++audits === 1 ? '2222222' : head_sha, findings: [] }
+      return defaultImpl(p, o)
+    }, { 'audit-pin': { head_sha } })
+    assert.ok(!out.landed.includes('t1')); assert.equal(audits, 1)
+  })
+}
+
+test('audit pin integrity #2141: a moved transfer tip cannot inherit the earlier pin receipt', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if ((o.label || '').startsWith('audit:t1:')) return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: p.includes('beef0001') ? 'f'.repeat(40) : (p.match(/worker reports commit ([0-9a-f]+)/) || [])[1], findings: [] }
+    return defaultImpl(p, o)
+  }, { 'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001' }, 'audit-pin': { head_sha: 'f'.repeat(40) } })
+  assert.ok(!out.landed.includes('t1')); assert.ok(calls.some(c => c.opts.dispatchKind === 'audit-pin'))
+})
+
+for (const site of ['sweep', 'terminal']) {
+  test('citation integrity #2229: ' + site + ' judges an unsound citation before unpark', async () => {
+    const cite = citationF(); cite.phaseClose = true
+    if (site === 'terminal') cite.file = 'docs/q.md'
+    const base = site === 'sweep' ? sweepBase([askFinding(), cite]) : terminalImpl({
+      queued: [askFinding(), queuedAbsorb(), cite], polishFindings: [],
+      sweepWorker: { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] },
+    })
+    let charged = false, terminalStarted = false
+    const { out } = await runPhase(SWEEP_ARGS({ adjudications: CITED_ADJ, run: { ace: true, afk: true } }), (p, o) => {
+      if ((o.label || '').startsWith('terminal:')) terminalStarted = true
+      if (/^audit:p3-polish:/.test(o.label || '') && terminalStarted === (site === 'terminal') && p.includes('CITATION SOUNDNESS')) {
+        charged = true
+        assert.ok(p.includes(CITED_ADJ[0]) && p.includes(cite.title), 'charge names the actual row and trade-off')
+        return { seat: o.label, lens: 'correctness', verdict: 'request_changes', findings: [{ severity: 'Major', title: 'citation rules a different trade-off', citationUnsound: true, rationale: 'topic overlap is not a ruling' }] }
+      }
+      return base(p, o)
+    })
+    assert.ok(charged, 'the selected re-audit receives the citation soundness charge')
+    assert.ok(!out.aced.some(r => r.citation), 'an unsound citation never receives execution credit')
+    assert.ok(out.asks.length > 0, 'the operator decision remains parked')
   })
 }
