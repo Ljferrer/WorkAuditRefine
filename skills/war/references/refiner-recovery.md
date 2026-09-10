@@ -85,7 +85,7 @@ Trigger: a gate-failure classification requires the base re-run (merge-task or l
 
 The merge slot's pin-transfer probe (see `agents/war-refiner.md` § pin-transfer probe for steps 1-3, which produce `BASE`, `N`, `PRE`, `CHERRY`, `TIP`, `POST`). Return `BASE` as `dispatch_base` on every result that carries `rebased_tip`. Take the arms in this order:
 
-4. **`already_upstream` first.** Post-rebase diff empty **and** `N > 0` **and** every `CHERRY` line starting `-` **and** `PRE` non-empty → `status: "already_upstream"` with `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`), both patch-ids, `already_upstream_commits` (the SHAs `CHERRY` listed). Already upstream: nothing to merge, no panel. The consumer refuses an `already_upstream` whose fields carry the **contradiction signature** — `rebased_tip` equal to `dispatch_base`, a non-empty `POST`, or an empty `already_upstream_commits` each refuse the status; equal non-empty patch-ids then route `transferred`, anything else routes the `mismatch` re-audit (D4, PIN-8, #1973). Never report `already_upstream` to carry a different true result.
+4. **`already_upstream` first.** Post-rebase diff empty **and** `N > 0` **and** every `CHERRY` line starting `-` **and** `PRE` non-empty → `status: "already_upstream"` with `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`), both patch-ids, `already_upstream_commits` (the SHAs `CHERRY` listed). This is a candidate for already-upstream completion. The engine independently compares the complete approved and final Git trees; cherry matches alone do not prove current content. The consumer refuses an `already_upstream` whose fields carry the **contradiction signature** — `rebased_tip` equal to `dispatch_base`, a non-empty `POST`, or an empty `already_upstream_commits` each refuse the status; equal non-empty patch-ids then route `transferred`, anything else routes the `mismatch` re-audit (D4, PIN-8, #1973). Never report `already_upstream` to carry a different true result.
 
 Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. The engine independently verifies the approved content and actual pre/post Git state before accounting a transfer. An error, missing or unknown status retains the ordinary merge fallback only for unchanged approved content or an independently proved equal patch; changed content requires the full re-audit.
 
@@ -163,9 +163,19 @@ approved Git tree to the pre-rebase content (the first parent for a known regres
 forward-reverted), and recompute actual dispatch base, patch IDs and cherry matches. A transfer
 requires actual nonempty equal patches and target ancestry. Completion by `already_upstream`
 also requires actual task/local/origin tip equality, empty post-rebase content, positive task
-count and the complete unique matched task commit set. Check coverage of every distinct reported
-commit; equal lengths alone plus coverage of cherry rows would accept duplicate proof rows. Changed content gets a full audit before
-publication; fabricated identities or unproved content hold. Integration refs must not change
+count and the complete unique matched **non-merge** task commit set that Git lists. Check coverage
+of every distinct reported commit; equal lengths alone plus coverage of cherry rows would accept
+duplicate proof rows. Read `head_tree` from the actual post-rebase task tip. Only equality with
+`approved_tree` permits the no-panel shortcut: cherry omits merge commits and may match a change
+that upstream later reverted. Complete tree equality proves current content without requiring
+cherry to cover merge history. Different, missing or malformed final tree evidence gets the full
+in-lock content re-audit. Every mismatch re-audit compares the original approved task diff and
+changes since approval against the acceptance criteria; the ordinary integration diff alone may
+omit dropped content. A complete fresh approving panel plus an independent re-read proving the
+same published destination permits completion with a `mismatch`/`re-ran` receipt and no empty
+content merge. Rejected, incomplete, dead or pin-invalid panels emit no approval receipt. Unknown
+or moved shared Git refs cannot complete; read-only deaths retain their existing classifications.
+Fabricated identities or unproved content hold. Integration refs must not change
 during this rebase-only operation. Missing reported dispatch bases on transferred/mismatch
 results are filled from Git proof, never left as null provenance.
 

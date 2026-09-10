@@ -54,9 +54,15 @@ replaced with patch equality on the operator's confirmation, because the rebased
 every earlier task's merged changes and so is non-empty for every task after the first.
 
 One arm precedes the equality test. If the post-rebase task diff is empty, the task had at least
-one commit at the pre-rebase tip, and `git cherry` matches every task commit upstream, the task
-records `merged` with an `already_upstream` provenance field naming the matched task commits —
-no panel and no content merge (PIN-16). Its git legs run against the pre-rebase task tip. An
+one commit at the pre-rebase tip, and `git cherry` matches every listed non-merge task commit
+upstream, the engine checks the complete final Git tree against the approved tree. Equal trees
+permit `merged` with `already_upstream` provenance naming those matched commits, no panel and
+no content merge (PIN-16). Cherry omits merge commits and can match later-reverted upstream work;
+it cannot by itself prove current content. Different or unavailable final tree evidence requires
+a full content re-audit comparing the original task and changes since approval. Unanimous fresh
+approval plus unchanged published refs permits completion with a `mismatch` receipt, without an
+empty merge. The canonical procedure is in refiner-recovery.md. The cherry legs run against the
+pre-rebase task tip. An
 empty diff with zero task commits, an unmatched patch, or an empty pre-rebase patch-id fails
 **closed** to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
 empty-equals-empty must never transfer a pin (#1895). The consumer refuses an `already_upstream`

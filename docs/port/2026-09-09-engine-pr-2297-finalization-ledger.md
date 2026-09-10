@@ -580,3 +580,77 @@ pins the named primary/floor/environment/baseline callers, followed by the compl
 rerun. All **17** protected refs remain unchanged. Candidate-6-validation.json records source/log
 hashes and controls. Commit/push and the exact-SHA final review follow; the PR body will carry
 the final report and verdict without changing that candidate. No merge or release is performed.
+
+
+### Candidate 6 final panel: held for current-content proof
+
+The complete, stable, full-scope four-seat panel at **2fb21d096fdb7162d495bc748de1d77627165b8b**
+returned correctness request_changes and three approvals. The exact report and execution identity
+are preserved in candidate-6-snipe.md/.json and the held PR body. Correctness verified that
+`git cherry` omits merge commits: a task's unique merge resolution can disappear during rebase
+while all listed non-merge commits match upstream. A second real-Git graph independently confirms
+that a linear task can also disappear when its matching upstream commit was later reverted;
+that graph has task_count == cherry.length, so a count-only repair would leave the same class open.
+Both probes rebase the task exactly onto integration with different approved and final Git trees.
+
+Repair rule: the no-panel shortcut requires the actual final Git tree to equal the approved tree.
+The cherry collection remains an exact, distinct set of the **non-merge** task commits Git listed;
+it is no longer presented as proof of current content or of merge-commit coverage. Equal trees
+prove complete content even when merge commits are absent from cherry; an extra count comparison
+would be redundant for that proof. When trees differ or the final tree evidence is absent, a full
+panel examines the original task diff and changes since approval, with the plan's acceptance
+criteria, before completion. A successful panel permits already-published work without an empty
+content merge; shared refs are independently re-read before its receipt. Rejected, incomplete,
+dead or pin-invalid panels cannot complete the task. Tests and validation are in progress.
+
+
+### Candidate 7 class closure: historical matches versus present content
+
+- **Cause and rule:** history equivalence cannot establish present content. Two real-Git negative
+  graphs lose approved merge-only or later-reverted linear work while cherry reports only `-`
+  matches and rebase ends at integration. Both fail against the previous committed source. The
+  linear graph also proves equal task/cherry counts would not repair the class. The consumer now
+  requires equality of independently read complete trees for the direct shortcut. Missing or
+  malformed final-tree evidence cannot compare equal to the already validated approved tree.
+- **Sibling/consumer sweep:** all in-lock mismatch routes (explicit mismatch, disproved transfer,
+  error/missing/unknown changed-head fallback and already-upstream with a different tree) now
+  receive the same original-content audit charge through auditRound's existing `extra` seam.
+  Auditors inspect both the original task diff and changes since approval, so an empty or partial
+  integration diff cannot hide dropped work. The full configured roster and independent audit-pin
+  resolution remain mandatory. Existing Minor disposition routing still runs on both outcomes.
+  An admitted already-upstream candidate that receives fresh approval skips the empty content
+  merge, after a second independent proof of its unchanged published destination. Both receipt
+  and completion follow that proof; no new status, seat, permission or Git mutation was added.
+- **Recursive evidence:** five real-Git graphs cover merge loss, linear revert loss, preserved
+  merge content, identical linear content, and valid content beside sibling changes. The preserved
+  merge graph intentionally has three task commits but two cherry rows and equal complete trees:
+  its no-panel acceptance demonstrates why merge-history cardinality is unnecessary for content
+  proof. Thirteen two-seat boundary fixtures cover approval, absent/malformed tree evidence,
+  rejection, approve-with-blocker, missing/dead seats, invalid audit pins, missing/dead final Git
+  reads and moved task/local/origin refs. Read-only deaths leave independent sibling work runnable;
+  unexpected shared mutations hold publication. Three routing mirrors prove the content charge
+  also reaches ordinary mismatch/error/transfer paths; a scoped standing/dispatched prompt test
+  binds the original diff, changes-since-approval and acceptance-criteria obligations.
+- **Guard discrimination:** all **15 new mutations** fail their intended assertions: tree equality,
+  absent-tree bypass, re-audit flag/routing, full content charge and its two pinned diff commands,
+  the final Git read, its death/missing/head-movement branches, empty-merge avoidance, both direct
+  and fresh-panel continuation arms, and actual final-tree reading. Two before-source negatives
+  reproduce false completion at 2fb21d09. Earlier 66 candidate-6 mutation results remain historical
+  evidence at their documented SHA; they are not represented as freshly rerun controls here.
+- **Consequence/residuals:** same-content work keeps the shortcut even with merge history; benign
+  sibling changes spend a fresh read-only panel rather than force a phase hold. Lost work needs
+  renewed acceptance and cannot inherit its old approval. Current Git trees and real history are
+  independently measured in fixtures; auditor judgments and maintenance dispatches remain
+  controlled responses, not a claim of live-model end-to-end execution. Schema/recovery/ADR and
+  standing auditor/refiner prose are synchronized. The holder-diagnostic helper Minor stays
+  deferred under the bounded integrity scope. No merge, release or protected-ref change occurred.
+
+Final validation: **2,052 JS tests passed, 0 failed**, **31 shell files passed, 0 failed**,
+redaction clean and release slots coherent at **0.21.13**. Actual staging is **340,580 /
+524,288 bytes**. The first full run caught the missing census entries for three independently
+validated Git SHAs; the classified entries and the additional standing-charge contract are
+covered by the complete final rerun. Candidate-7-validation.json preserves source/log hashes,
+15 fresh mutation results and the before-source negative results. All 17 protected refs remain
+unchanged. Commit/push and exact-SHA Snipe follow. The PR body will hold the final report and
+verdict without changing the reviewed SHA; the source ledger and manifests remain its durable
+validation baseline. No merge or release is performed.

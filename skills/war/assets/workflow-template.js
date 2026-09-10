@@ -303,7 +303,7 @@ const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
 // hard-escalating wire status (PIN-6). Statuses: 'transferred' (patch-ids equal — the panel pin carries
 // to the rebased tip), 'mismatch' (unequal — that ONE task falls back to the in-lock full-panel
 // re-audit, today's behaviour, PIN-1), 'already_upstream' (empty post-rebase diff whose pre-rebase task
-// commits every cherry-match upstream, PIN-16), 'empty-unmatched' (empty diff with zero task commits,
+// listed non-merge commits cherry-match upstream, with final-tree proof checked separately, PIN-16), 'empty-unmatched' (empty diff with zero task commits,
 // unmatched patches, or an empty pre-rebase patch-id — fails CLOSED to a hard escalation, #1895),
 // 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged). dispatch_base (D4,
 // PIN-8, #1973): the merge-base the probe measured PRE from — returned so the consumer can refuse an
@@ -2135,7 +2135,7 @@ const mergeSnapshot = async (opts, context) => {
 // Recompute pin-transfer evidence independently of the refiner that rebased the task.
 const PIN_GIT_PROOF = { type: 'object', properties: {
   head_sha: { type: 'string' }, local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] },
-  content_sha: { type: 'string' }, source_parent_sha: { type: 'string' }, approved_tree: { type: 'string' }, content_tree: { type: 'string' },
+  content_sha: { type: 'string' }, source_parent_sha: { type: 'string' }, approved_tree: { type: 'string' }, content_tree: { type: 'string' }, head_tree: { type: 'string' },
   dispatch_base: { type: 'string' }, pre_patch_id: { type: 'string' }, post_patch_id: { type: 'string' },
   target_ancestor: { type: 'boolean' }, post_empty: { type: 'boolean' }, task_count: { type: 'integer' },
   pins: { type: 'array', items: { type: ['string', 'null'] } },
@@ -2149,7 +2149,7 @@ const verifyPinTransfer = async (r, before, probe, context) => {
     proof = await dispatchSite(
       pt`PIN TRANSFER GIT VERIFICATION (read-only). Context: ${JSON.stringify(context)}. Immutable BEFORE: ${JSON.stringify(before)}. REPORTED PINS: ${JSON.stringify(reported)}
 CLAIMED RESULT: ${JSON.stringify(probe ?? null)}
-Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and exact origin remote_sha (null ONLY after a successful query proving absence). The integration refs must be unchanged by this rebase-only probe. content_sha is BEFORE.source_sha, except when resolved pin[3] equals that commit: then read its first parent as source_parent_sha and use that as content_sha (the known forward-revert restores the approved content). Read approved_tree from pin[0]^{tree} and content_tree from content_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha content_sha as [{sign, sha}] with full TASK commit SHAs. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Re-read all refs after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge, push or gate.`,
+Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and exact origin remote_sha (null ONLY after a successful query proving absence). The integration refs must be unchanged by this rebase-only probe. content_sha is BEFORE.source_sha, except when resolved pin[3] equals that commit: then read its first parent as source_parent_sha and use that as content_sha (the known forward-revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha content_sha as [{sign, sha}] with full TASK commit SHAs. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Re-read all refs after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge, push or gate.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-confirm', label: 'git-pin:' + r.task.id, schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
     if (deathOf(proof)) continue
     if (!proof || ![proof.head_sha, proof.content_sha, proof.dispatch_base, proof.approved_tree].every(fullSha) ||
@@ -2695,7 +2695,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
 }
 
 // `extra` (D6): an optional pre-built prompt clause appended to every seat's prompt this round —
-// today's sole producer is citationSoundnessClause (a citation-resolved batch's re-audit charge).
+// Producers are citationSoundnessClause and the pin-content re-audit charge.
 // Absent ⇒ '' ⇒ every prompt is byte-identical to a clause-less round (the intentClause pattern).
 // `rosterOverride` (#1913, D3): an optional NON-EMPTY subset of task.roster — the originating seats of a
 // footprint-subset ace diff. Absent/empty/non-array ⇒ the full task.roster, so every pre-existing caller
@@ -4090,7 +4090,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
         + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
         + pt`  (3) TIP=rev-parse ${r.task.branch} (the rebased task tip being approved); POST=diff ${ph.integrationBranch}..$TIP piped to git patch-id --stable, first field (empty on an empty diff).\n`
-        + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
+        + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the engine independently checks the final tree before deciding whether approval transfers or a full content re-audit is required. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
         + pt`Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. An error, missing or unknown status retains the ordinary merge fallback only for independently verified unchanged approved content or an equal patch; changed content gets the full re-audit.\n`
@@ -4153,6 +4153,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         auditLog.push({ task: r.task.id, verdict: 'pin-transfer:empty-unmatched', findings: [], fixRounds: r.task.fixRounds })
         continue
       }
+      let upstreamReaudit = false
       if (probeStatus === 'already_upstream') {
         // Fail-closed already_upstream (D4, PIN-8, #1973): the enum alone never skips a merge. The
         // arm's own fields must agree with it — a rebased_tip equal to the dispatch base (the rebase
@@ -4161,7 +4162,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // contradiction the probe is re-routed by its patch-ids: equal non-empty pre/post →
         // 'transferred' (the #1973 shape — the refiner reported the true result in the fields), anything
         // else → 'mismatch' (the full panel re-audits the rebased tip). The un-contradicted arm is the
-        // PIN-16 read, byte for byte.
+        // PIN-16 evidence path with an independent current-content check.
         const commits = Array.isArray(pinProbe.already_upstream_commits) ? pinProbe.already_upstream_commits : []
         const pre = typeof pinProbe.pre_rebase_patch_id === 'string' ? pinProbe.pre_rebase_patch_id : ''
         const post = typeof pinProbe.post_rebase_patch_id === 'string' ? pinProbe.post_rebase_patch_id : ''
@@ -4192,10 +4193,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified-upstream', findings: [], fixRounds: r.task.fixRounds })
             continue
           }
-          pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
-          log('pin-transfer ' + r.task.id + ': already_upstream — every task commit cherry-matched upstream (' + commits.join(', ') + '); recorded merged at the integration tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' with no panel and no content merge (PIN-16).')
-          landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProbe.rebased_tip })
-          continue
+          // Cherry omits merge commits and can match a subsequently reverted upstream patch.
+          // Only equality of the actual complete trees proves the approved content still exists.
+          // Different trees can also mean harmless sibling work; a fresh panel decides that case.
+          if (pinProof.head_tree === pinProof.approved_tree) {
+            pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
+            log('pin-transfer ' + r.task.id + ': already_upstream — the approved tree equals the published integration tree; matched non-merge task commits: ' + commits.join(', ') + '; no panel and no content merge (PIN-16).')
+            landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha })
+            continue
+          }
+          upstreamReaudit = true
+          probeStatus = 'mismatch'
         }
       }
       if (probeStatus === 'transferred' && (pinProof.target_ancestor !== true || blankText(pinProbe.pre_rebase_patch_id) ||
@@ -4209,7 +4217,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // PIN-1 degrade-to-today: the rebase changed this task's own diff, so the pin cannot transfer.
         // The FULL panel re-audits the rebased tip IN the lock, exactly as the pre-#1913 engine did.
         log('pin-transfer ' + r.task.id + ': patch-id MISMATCH (' + (pinProbe.pre_rebase_patch_id || '(empty)') + ' → ' + (pinProbe.post_rebase_patch_id || '(empty)') + ') — the full panel re-audits the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' in the lock before the merge (PIN-1).')
-        const { seats: rbSeats, expected: rbExpected, died: rbDied } = await auditRound(r.task, null, null, pinProbe.rebased_tip)
+        const contentCharge = pt`\nPIN CONTENT RE-AUDIT: replace the normal integration...task change-set command for this round. That diff can omit task content dropped during rebase and does not prove task completion. Run \`git diff ${pinProof.dispatch_base} ${pinProof.content_sha}\` to inspect the original approved task, then \`git diff ${pinProof.content_sha} ${pinProof.head_sha}\` to inspect changes since approval. Inspect the current files at ${pinProof.head_sha} against the task's acceptance criteria. Cherry matches can omit merge-resolution content or match a subsequently reverted change. Approve only if the task's required behavior remains present; unrelated integrated sibling changes alone do not block. Report audit_sha ${pinProof.head_sha}.\n`
+        const { seats: rbSeats, expected: rbExpected, died: rbDied } = await auditRound(r.task, null, null, pinProbe.rebased_tip, contentCharge)
         if (rbDied) { mergeDied(rbDied); continue }   // D21: a dead in-lock re-audit seat is env-died, never a failed re-audit
         // Route this re-audit's OWN Minor/Nits by disposition, on BOTH exit paths (#1931), exactly
         // as the six wave-side ace re-audit sites do — an ask parks, a follow-up files, a note
@@ -4219,8 +4228,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // instead. Blocking findings stay untouched — the escalate arm below owns them.
         routeReauditMinors(r, rbSeats, { noReentry: 'merge-slot pin-transfer mismatch re-audit — the wave side is over, so re-entry can never dispatch; the sweep is the vehicle' })
         if (allApprove(rbSeats, rbExpected)) {
+          if (upstreamReaudit) {
+            const afterAudit = await verifyPinTransfer(r, pinBefore, pinProbe, pinContext)
+            if (deathOf(afterAudit)) { mergeDied(deathOf(afterAudit)); continue }
+            if (!afterAudit || afterAudit.head_sha !== pinProof.head_sha) {
+              escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'upstream content re-audit has no unchanged Git destination proof' } })
+              continue
+            }
+          }
           pinTransfers.push(probeRow('mismatch', rbSeats))
           r.seats = rbSeats
+          if (upstreamReaudit) {
+            landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha })
+            continue
+          }
         } else {
           escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'the in-lock full-panel re-audit of the rebased tip did not re-approve after a pin-transfer patch-id mismatch', rebased_tip: pinProbe.rebased_tip } })
           auditLog.push({ task: r.task.id, verdict: 'pin-transfer:re-audit-failed', findings: (rbSeats || []).flatMap(s => s.findings || []), fixRounds: r.task.fixRounds })

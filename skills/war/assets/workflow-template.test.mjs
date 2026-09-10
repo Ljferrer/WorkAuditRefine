@@ -81,9 +81,9 @@ const NEW_SEAT_DEFAULTS = {
     const pins = JSON.parse(prompt.match(/REPORTED PINS: ([^\n]+)/)[1]).map(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x) ? x.padEnd(40, '0') : null)
     const probe = JSON.parse(prompt.match(/CLAIMED RESULT: ([^\n]+)/)[1])
     return { head_sha: pins[1] || before.source_sha, local_sha: before.base_sha, remote_sha: before.remote_sha,
-      content_sha: before.source_sha, approved_tree: '3'.repeat(40), content_tree: '3'.repeat(40),
+      content_sha: before.source_sha, approved_tree: '3'.repeat(40), content_tree: '3'.repeat(40), head_tree: '3'.repeat(40),
       dispatch_base: pins[2] || '4'.repeat(40), pre_patch_id: probe?.pre_rebase_patch_id ?? 'fixture-task-patch', post_patch_id: probe?.post_rebase_patch_id ?? 'fixture-task-patch',
-      target_ancestor: true, post_empty: probe?.post_rebase_patch_id === '', task_count: 1, pins,
+      target_ancestor: true, post_empty: probe?.post_rebase_patch_id === '', task_count: Math.max(1, pins.length - 4), pins,
       cherry: pins.slice(4).map(sha => ({ sha, sign: '-' })) }
   },
   'pin-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
@@ -12487,6 +12487,8 @@ const BARE_INTERPOLATION_CENSUS = [
   // NEVER_MOVE_LITERAL (verdict-integrity Task 12.1 ace): the by-literal sentence interpolated at the five
   // ace-family, sweep and terminal builds — a plain-string module const, construction-guaranteed.
   'NEVER_MOVE_LITERAL',
+  // The pin-content comparison runs only after verifyPinTransfer proves these full Git SHAs.
+  'pinProof.content_sha', 'pinProof.dispatch_base', 'pinProof.head_sha',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -18925,7 +18927,7 @@ for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', '
           const ownBase = git('merge-base', before.base_sha, content)
           const lines = git('cherry', before.base_sha, content)
           const result = { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, source_parent_sha: reverts ? content : undefined,
-            approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
+            head_tree: git('rev-parse', 'task^{tree}'), approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
             pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
             post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
             cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
@@ -19318,4 +19320,151 @@ for (const submodule of [true, false]) test('phase Git context carries the seed 
     if (label.startsWith('land:')) { assert.equal(c.repo, submodule ? SUBMOD_RETRY_REPO : args.worktreeRoot + '/' + args.runId + '/_refinery'); assert.equal(c.target, submodule ? 'main' : args.phase.workingBranch) }
     else { assert.equal(c.repo, args.worktreeRoot + '/' + args.runId + '/_refinery'); assert.equal(c.target, args.phase.integrationBranch); assert.equal(c.seed, submodule ? 'main' : args.phase.workingBranch) }
   }
+})
+
+// Real history and final tree contents are independent of both the mutator's enum and cherry.
+for (const kind of ['merge-lost', 'linear-reverted', 'merge-preserved', 'linear-identical', 'linear-sibling']) {
+  test('upstream content proof: real ' + kind, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-upstream-content-'))
+    const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const resolve = value => { if (typeof value !== 'string' || !/^[0-9a-f]{7,40}$/.test(value)) return null; const r = run('rev-parse', '--verify', '--end-of-options', value + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
+    const remote = () => git('ls-remote', 'origin', 'refs/heads/integration').split(/\s/)[0]
+    const patch = (a, b) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', a, b) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+    try {
+      git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('branch', 'working')
+      git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'integration', 'working')
+      git('checkout', '-b', 'task'); writeFileSync(join(dir, 'a'), 'a'); git('add', 'a'); git('commit', '-m', 'task a'); const commits = [git('rev-parse', 'HEAD')]
+      if (kind.startsWith('merge-')) {
+        git('checkout', '-b', 'side', base); writeFileSync(join(dir, 'b'), 'b'); git('add', 'b'); git('commit', '-m', 'task b'); commits.push(git('rev-parse', 'HEAD'))
+        git('checkout', 'task'); git('merge', '--no-ff', '--no-commit', 'side'); writeFileSync(join(dir, 'merge-only'), 'approved resolution'); git('add', 'merge-only'); git('commit', '-m', 'merge result')
+      }
+      const approved = git('rev-parse', 'task'); git('checkout', 'integration')
+      for (const [i, commit] of commits.entries()) { git('cherry-pick', '--no-commit', commit); git('commit', '-m', 'independent equivalent ' + i) }
+      if (kind === 'linear-reverted') git('revert', '--no-edit', 'HEAD')
+      if (kind === 'merge-preserved') { writeFileSync(join(dir, 'merge-only'), 'approved resolution'); git('add', 'merge-only'); git('commit', '-m', 'published resolution') }
+      if (kind === 'linear-sibling') { writeFileSync(join(dir, 'sibling'), 'published sibling'); git('add', 'sibling'); git('commit', '-m', 'published sibling') }
+      git('push', 'origin', 'integration'); const published = remote()
+      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      let audits = 0, proofs = 0, proofPrompt
+      const preserved = !['merge-lost', 'linear-reverted'].includes(kind)
+      const sameTree = ['linear-identical', 'merge-preserved'].includes(kind)
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2 } }), (p, o) => {
+        if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
+        if (o.label === 'audit:t1:correctness') {
+          audits++
+          if (audits > 1) {
+            assert.ok(p.includes('PIN CONTENT RE-AUDIT'), 'an empty integration diff is not the audit basis')
+            assert.ok(p.includes('git diff ' + base + ' ' + approved), 'inspect the original approved task diff')
+            assert.ok(p.includes('git diff ' + approved + ' ' + published), 'inspect content removed or changed since approval')
+          }
+          const present = run('cat-file', '-e', 'task:' + (kind.startsWith('merge-') ? 'merge-only' : 'a')).status === 0
+          return { seat: o.label, lens: 'correctness', verdict: audits === 1 || present ? 'approve' : 'request_changes', audit_sha: git('rev-parse', 'task'), findings: audits > 1 && !present ? [{ severity: 'Major', title: 'approved deliverable is missing', rationale: 'The original task content is absent at the published tip.' }] : [] }
+        }
+        return defaultImpl(p, o)
+      }, { rawTaskAuditPins: true,
+        'audit-pin': p => ({ head_sha: git('rev-parse', 'task'), pins: fixturePinRequest(p).map(resolve) }),
+        'pin-snapshot': snapshot,
+        'pin-transfer': () => {
+          const pre = patch(base, approved); git('checkout', 'task'); git('rebase', 'integration')
+          assert.equal(git('rev-parse', 'task'), published, 'Git drops the cherry-matched history, including merge-only content')
+          return { status: 'already_upstream', rebased_tip: published, dispatch_base: base, pre_rebase_patch_id: pre, post_rebase_patch_id: '', already_upstream_commits: commits }
+        },
+        'pin-confirm': p => {
+          proofs++; proofPrompt = p
+          const before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1]), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve)
+          const ownBase = git('merge-base', before.base_sha, before.source_sha), lines = git('cherry', before.base_sha, before.source_sha)
+          const proof = { head_sha: git('rev-parse', 'task'), head_tree: git('rev-parse', 'task^{tree}'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: before.source_sha,
+            approved_tree: git('rev-parse', pins[0] + '^{tree}'), content_tree: git('rev-parse', before.source_sha + '^{tree}'), dispatch_base: ownBase, pins,
+            pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
+            post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + before.source_sha)), cherry: lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) }
+          assert.equal(proof.cherry.length, commits.length)
+          assert.equal(proof.task_count, kind.startsWith('merge-') ? 3 : 1, 'merge commits are omitted by cherry, linear-reverted is not a count mismatch')
+          assert.equal(proof.head_tree === proof.approved_tree, sameTree)
+          return proof
+        },
+      })
+      assert.equal(out.landed.includes('t1'), preserved, 'completion requires the approved content or a fresh acceptance judgment')
+      assert.equal(audits, sameTree ? 1 : 2)
+      assert.ok(!calls.some(isMergeTask), 'an already published tip never triggers an empty content merge')
+      assert.equal(remote(), published)
+      assert.equal(out.pinTransfers.some(r => r.mode === 'already_upstream'), sameTree)
+      assert.equal(out.pinTransfers.some(r => r.kind === 'merge' && r.mode === 'mismatch'), kind === 'linear-sibling')
+      assert.equal(proofs, kind === 'linear-sibling' ? 2 : 1, 're-read shared Git refs after the fresh panel before completion')
+      assert.ok(proofPrompt.includes('head_tree from head_sha^{tree}'), 'the verifier must read the final tree object from Git')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+for (const scenario of ['approve', 'missing-tree', 'malformed-tree', 'reject', 'blocker', 'missing-seat', 'dead-seat', 'bad-pin', 'proof-missing', 'proof-dead', 'head-moved', 'local-moved', 'remote-moved']) {
+  test('upstream content re-audit completion boundary: ' + scenario, async () => {
+    const tip = 'facade01'.padEnd(40, '0'), rounds = new Map()
+    let proofs = 0
+    const tasks = [{ ...SINGLE_TASK[0], roster: [{ lens: 'correctness' }, { lens: 'simplicity' }] }, { ...SINGLE_TASK[0], id: 't2' }]
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks, run: { roundLimit: 2 } }), (p, o) => {
+      if (o.label?.startsWith('audit:t1:')) {
+        const count = (rounds.get(o.label) || 0) + 1; rounds.set(o.label, count)
+        if (count > 1 && o.label.endsWith(':simplicity')) {
+          if (scenario === 'missing-seat') return null
+          if (scenario === 'dead-seat') throw new Error('529 upstream content audit died')
+          if (scenario === 'bad-pin') return { ...defaultImpl(p, o), audit_sha: undefined }
+          if (scenario === 'reject') return { ...defaultImpl(p, o), verdict: 'request_changes' }
+          if (scenario === 'blocker') return { ...defaultImpl(p, o), findings: [{ severity: 'Major', title: 'missing behavior', rationale: 'The approved work was lost.' }] }
+        }
+      }
+      return defaultImpl(p, o)
+    }, { rawTaskAuditPins: true,
+      'pin-snapshot': (p, o) => o.label.endsWith(':t1') ? { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: tip, remote_sha: tip } : NEW_SEAT_DEFAULTS['pin-snapshot'],
+      'pin-transfer': (p, o) => o.label.endsWith(':t1') ? { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } : NEW_SEAT_DEFAULTS['pin-transfer'],
+      'pin-confirm': (p, o) => {
+        const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p)
+        if (!o.label.endsWith(':t1')) return proof
+        proofs++
+        if (proofs > 1) {
+          if (scenario === 'proof-missing') return {}
+          if (scenario === 'proof-dead') throw new Error('529 final upstream proof died')
+          if (scenario === 'head-moved') return { ...proof, head_sha: '5'.repeat(40) }
+          if (scenario === 'local-moved') return { ...proof, local_sha: '5'.repeat(40) }
+          if (scenario === 'remote-moved') return { ...proof, remote_sha: '5'.repeat(40) }
+        }
+        return { ...proof, head_tree: scenario === 'missing-tree' ? undefined : scenario === 'malformed-tree' ? 'bad' : '6'.repeat(40) }
+      },
+    })
+    const accepted = ['approve', 'missing-tree', 'malformed-tree'].includes(scenario)
+    assert.equal(out.landed.includes('t1'), accepted)
+    assert.equal(out.pinTransfers.some(r => r.task === 't1' && r.kind === 'merge'), accepted, 'the receipt is committed only after unanimous approval and final Git proof')
+    assert.ok(!out.pinTransfers.some(r => r.task === 't1' && r.mode === 'already_upstream'), 'missing or different tree evidence never transfers old approvals')
+    assert.ok(!calls.some(c => isMergeTask(c) && c.opts.label === 'merge:t1'), 'fresh upstream approval skips the empty merge and its floors')
+    const panel = calls.filter(c => c.opts.label?.startsWith('audit:t1:') && c.prompt.includes('PIN CONTENT RE-AUDIT'))
+    assert.deepEqual(new Set(panel.map(c => c.opts.label)), new Set(['audit:t1:correctness', 'audit:t1:simplicity']))
+    if (accepted) {
+      const receipt = out.pinTransfers.find(r => r.task === 't1' && r.kind === 'merge')
+      assert.equal(receipt.mode, 'mismatch'); assert.equal(receipt.seats.length, 2)
+      assert.ok(receipt.seats.every(s => s.outcome === 're-ran' && s.sha === 'facade01' && !s.approvedAt))
+      assert.equal(proofs, 2)
+    }
+    if (['dead-seat', 'proof-dead'].includes(scenario)) { assert.equal(out.escalated.find(e => e.task === 't1')?.reason, 'env-died'); assert.ok(out.landed.includes('t2'), 'independent work continues after read-only deaths') }
+    if (['proof-missing', 'head-moved'].includes(scenario)) assert.equal(out.landDecision, 'held:escalation', 'missing destination evidence is a classified task refusal')
+    if (['local-moved', 'remote-moved'].includes(scenario)) assert.equal(out.landDecision, 'held:workflow-error', 'unexpected shared mutations hold before phase land')
+  })
+}
+
+for (const status of ['mismatch', 'transferred', 'error']) test('pin content re-audit basis survives status routing: ' + status, async () => {
+  const { calls } = await runPhase(PT_ARGS(), ptImpl([], aceOk()), {
+    'pin-transfer': { status, rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2' },
+  })
+  const panel = calls.filter(c => c.opts.label?.startsWith('audit:t1:') && c.prompt.includes('worker reports commit beef0001'))
+  assert.ok(panel.length)
+  assert.ok(panel.every(c => c.prompt.includes('PIN CONTENT RE-AUDIT') && c.prompt.includes('inspect the original approved task') && c.prompt.includes('inspect changes since approval')))
+})
+
+test('pin content re-audit standing charge agrees with the dispatched comparison', async () => {
+  const { calls } = await runPhase(PT_ARGS(), ptImpl([], aceOk()), { 'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001' } })
+  const prompt = calls.find(c => c.prompt.includes('PIN CONTENT RE-AUDIT')).prompt.split('\n').find(l => l.startsWith('PIN CONTENT RE-AUDIT'))
+  const inputs = auditorMd.split('## Inputs (in your spawn prompt)')[1].split('## Read-only git guard contract')[0]
+  const standing = inputs.split('\n').find(l => l.startsWith('- A `PIN CONTENT RE-AUDIT`'))
+  for (const text of [prompt, standing]) for (const fragment of ['original approved task', 'changes since approval', 'acceptance criteria']) assert.ok(text.includes(fragment), fragment)
+  assert.ok(prompt.includes('replace the normal integration...task change-set command'))
+  assert.ok(standing.includes('replaces the normal integration diff'))
 })

@@ -158,4 +158,8 @@ The operative procedure and wire shapes remain in the linked recovery reference 
 The Git context carries an explicit repository-local seed: the phase working branch for ordinary
 work, or targetBase for submodule work. Pin verification and all task/sweep merges watch the
 integration branch; submodule land still targets its base. Cherry-set confirmation covers every
-distinct reported commit, so duplicated independent proof rows cannot stand in for an absent one.
+distinct reported non-merge commit, so duplicated independent proof rows cannot stand in for an
+absent one. The final complete Git tree must equal the approved tree for no-panel completion;
+merge omissions or reverted upstream matches cannot substitute for current-content proof.
+Different/unavailable final trees get the full original-content comparison and fresh approval,
+followed by independent confirmation of the same published destination before completion.
