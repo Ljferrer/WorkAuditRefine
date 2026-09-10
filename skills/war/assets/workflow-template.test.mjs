@@ -61,7 +61,11 @@ const NEW_SEAT_DEFAULTS = {
   // refiner returns.
   'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
-  'audit-pin': {},
+  'audit-pin': prompt => {
+    const reported = fixturePinRequest(prompt)
+    return reported.length && reported.every(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x))
+      ? fixtureGitProof(prompt, reported[0].padEnd(40, '0')) : {}
+  },
   'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
   'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
@@ -83,6 +87,18 @@ const answerNewSeat = (seats, prompt, opts) => {
   return typeof r === 'function' ? r(prompt, opts) : r
 }
 
+// Scripted Git proof for neutral flow fixtures; real Git integrity tests supply their own
+// independent resolver and raw responses. This helper never changes worker/auditor responses.
+const fixturePinRequest = prompt => JSON.parse(String(prompt).match(/PIN REQUEST: ([^\n]+)/)[1])
+const fixtureGitProof = (prompt, head_sha) => ({ head_sha, pins: fixturePinRequest(prompt).map(sha =>
+  typeof sha === 'string' && /^[0-9a-f]{7,40}$/.test(sha) ? sha.padEnd(40, '0') : null) })
+// Successful captured-artifact fixtures allocate within the engine's dispatched prefix.
+// Malformed-path tests return raw values directly and do not use this constructor.
+const stableGatePrompt = prompt => prompt.replace(/\.[a-z0-9]+-[a-z0-9]+-(\d+)\./g, '.epoch-$1.')
+const fixtureGatePath = prompt => {
+  const command = [...String(prompt).matchAll(/mktemp -d "([^"\n]+gate-[^"\n]+)XXXXXX"/g)].at(-1)
+  return command ? command[1] + 'A1b2C3/gate.log' : undefined
+}
 const fixtureAuditPin = prompt => (String(prompt).match(/AUDIT PIN: the worker reports commit ([0-9a-f]{7,40})/) || [])[1]
 // Neutral successful task-audit fixtures report the dispatched tree. Deliberate missing-field
 // boundary cases pass rawTaskAuditPins:true; explicit audit_sha values (including undefined)
@@ -863,7 +879,7 @@ test('Task 2 — auditLog records requested and returned on a persistent drop', 
     }
   )
   const { out } = await runPhase(COVEN_ARGS(), impl)
-  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(entry, 'an auditLog entry exists for t1')
   assert.equal(entry.requested, 3, 'auditLog.requested = 3 (full expected panel)')
   assert.equal(entry.returned, 2, 'auditLog.returned = 2 (one seat persistently dropped)')
@@ -1691,7 +1707,7 @@ test('#113 — env-blocked early-return: auditLog entry has requested===0 (not u
     return defaultImpl(prompt, opts)
   }
   const { out } = await runPhase(dagWithProvision, impl)
-  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(entry, 'an auditLog entry exists for t1 (env-blocked)')
   assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for env-blocked early-return (#113)')
 })
@@ -1710,7 +1726,7 @@ test('#113 — worker-blocked early-return: auditLog entry has requested===0 (no
   const { out } = await runPhase(PROVISION_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
   ] }), impl)
-  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(entry, 'an auditLog entry exists for t1 (worker-blocked)')
   assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for worker-blocked early-return (#113)')
 })
@@ -2429,9 +2445,9 @@ test('testPattern threading (validation 2): set ⇒ BOTH merge prompts carry the
 
   // byte-identical: removing the single inserted arg restores the bare prompt EXACTLY (the *.test.sh
   // union is script-side from Phase 1, never re-stated per prompt — so nothing else differs).
-  assert.equal(pat.initial.prompt.replace(ARG, ''), bare.initial.prompt,
+  assert.equal(stableGatePrompt(pat.initial.prompt.replace(ARG, '')), stableGatePrompt(bare.initial.prompt),
     'initial merge prompt: set minus the --pattern arg is byte-identical to bare')
-  assert.equal(pat.floorRetry.prompt.replace(ARG, ''), bare.floorRetry.prompt,
+  assert.equal(stableGatePrompt(pat.floorRetry.prompt.replace(ARG, '')), stableGatePrompt(bare.floorRetry.prompt),
     'floor-retry re-merge prompt: set minus the --pattern arg is byte-identical to bare')
 })
 
@@ -2672,13 +2688,13 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
 
   // 1. verdict must be 'escalate' (not 'audit-blocked' from exhaustion)
   // Check via auditLog and escalated
-  const t1Esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const t1Esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(t1Esc, 'escalated must have an entry for t1')
   assert.equal(t1Esc.reason, 'escalate', 'escalation reason must be "escalate" (not "audit-blocked")')
   assert.equal(t1Esc.blocked, 'X', 'escalated entry must carry blocked:"X" (the unique token from the fix-worker)')
 
   // 2. auditLog entry carries blocked:'X'
-  const logEntry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const logEntry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(logEntry, 'auditLog must have a t1 entry')
   assert.equal(logEntry.blocked, 'X', 'auditLog entry must carry blocked:"X" (reason flows from fix-worker)')
 
@@ -2768,12 +2784,12 @@ test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with 
     return {}
   }
   const { out: outA } = await runPhase(L3_ARGS(), implBlocked)
-  const escA = (outA.escalated || []).find(e => e && e.task === 't1')
+  const escA = (outA.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(escA, 'blocked initial worker must surface an escalated entry')
   assert.equal(escA.reason, 'escalate', 'escalation reason must be "escalate"')
   assert.equal(escA.blocked, 'initial-block-reason', 'escalated entry must carry blocked:"initial-block-reason"')
   // auditLog entry must carry expected:0 (not undefined) and seats:[] / returned:0
-  const logA = (outA.auditLog || []).find(e => e && e.task === 't1')
+  const logA = (outA.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(logA, 'auditLog must have a t1 entry')
   assert.strictEqual(logA.requested, 0, 'auditLog.requested must be 0 (not undefined) for blocked initial worker')
   assert.strictEqual(logA.returned, 0, 'auditLog.returned must be 0 for blocked initial worker (no audit seats)')
@@ -2789,7 +2805,7 @@ test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with 
     return {}
   }
   const { out: outB } = await runPhase(L3_ARGS(), implNull)
-  const escB = (outB.escalated || []).find(e => e && e.task === 't1')
+  const escB = (outB.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(escB, 'null initial worker must surface an escalated entry')
   assert.equal(escB.reason, 'escalate', 'escalation reason must be "escalate" for null worker')
   assert.equal(escB.blocked, 'worker returned no result', 'null worker escalation must carry the default reason')
@@ -2825,7 +2841,7 @@ test('T2 #280 Test 1 — merge-task submodule-blocked → immediate escalate wit
   const { out, calls } = await runPhase(L3_ARGS(), impl)
 
   // (a) escalated entry with reason:'escalate' carrying the submodule detail
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'escalated must have an entry for t1')
   assert.equal(esc.reason, 'escalate', 'submodule-blocked routes to reason:"escalate" (reuses existing member, no cascade)')
   assert.ok(typeof esc.detail === 'string' && esc.detail.includes('touches a submodule'),
@@ -4823,7 +4839,7 @@ test('intent absent (criterion 10): no intent block anywhere; intent:null and in
   const { calls: nulled } = await runPhase(PROVISION_ARGS({ intent: null }), defaultImpl)
   assert.equal(absent.length, nulled.length, 'same dispatch count')
   for (let i = 0; i < absent.length; i++) {
-    assert.equal(absent[i].prompt, nulled[i].prompt, `prompt #${i} is byte-identical between intent-absent and intent:null`)
+    assert.equal(stableGatePrompt(absent[i].prompt), stableGatePrompt(nulled[i].prompt), `prompt #${i} is byte-identical between intent-absent and intent:null`)
   }
   for (const c of absent) {
     assert.ok(!c.prompt.includes("COMMANDER'S INTENT"), 'no intent block leaks when intent is absent')
@@ -4971,7 +4987,7 @@ test('memory: empty/absent map ⇒ prompts byte-identical to a memory-less run (
   const { calls: emptyMap } = await runPhase(PROVISION_ARGS({ memory: { byTask: {}, servitor: '' } }), defaultImpl)
   assert.equal(absent.length, emptyMap.length, 'same dispatch count')
   for (let i = 0; i < absent.length; i++) {
-    assert.equal(absent[i].prompt, emptyMap[i].prompt, `prompt #${i} byte-identical between memory-absent and empty-map`)
+    assert.equal(stableGatePrompt(absent[i].prompt), stableGatePrompt(emptyMap[i].prompt), `prompt #${i} byte-identical between memory-absent and empty-map`)
   }
   // And the always-present worker self-query line does not by itself introduce a memory block.
   const w = absent.find(isWorker)
@@ -7418,7 +7434,7 @@ test("Task 1.1 (End state 2) — a SECOND 'environment' classification out of th
   ] }), impl)
   assert.equal(calls.filter(c => /^merge:t1:environment-proceed$/.test(c.opts.label || '')).length, 1,
     'the retry is BOUNDED at one — a second environment classification does NOT re-dispatch')
-  const esc = out.escalated.find(e => e && e.task === 't1')
+  const esc = out.escalated.find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 't1 escalates')
   assert.equal(esc.reason, 'escalate', "exhaustion reuses the existing HARD reason 'escalate' (no new enum member)")
   assert.match(esc.detail.note, /environment-proceed/, 'the detail names the mechanism that was spent')
@@ -7444,7 +7460,7 @@ test("Task 1.1 (End state 4) — merge-site bounds: a baseline-proceed re-merge 
   }))
   assert.equal(b.calls.filter(c => /:baseline-proceed$/.test(c.opts.label || '')).length, 0,
     "an environment-proceed's baseline-classified second failure never chains into a baseline-proceed (bounded, spec decision 4)")
-  const esc = b.out.escalated.find(e => e && e.task === 't1')
+  const esc = b.out.escalated.find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.equal(esc && esc.reason, 'gate_failed', "it routes as 'introduced' — today's SOFT escalation, not the HARD exhaustion route")
   assert.equal(b.out.landDecision, 'held:nothing-merged', 'the lone task never merged and the escalation is SOFT (not the HARD held:escalation the exhaustion route yields)')
 })
@@ -7765,7 +7781,7 @@ test('#1114 — a floor-retry re-merge returning submodule-blocked escalates HAR
   }
   const { out, calls } = await runPhase(NO_TEST_ARGS(), impl)
   assert.ok(calls.some(c => /floor-retry/.test(c.opts.label || '')), 'the floor-retry re-merge was dispatched (the route under test is reached)')
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'escalated must carry an entry for t1')
   assert.equal(esc.reason, 'escalate',
     'a floor-retry submodule-blocked escalates via the existing HARD "escalate" member, never the soft `reason: floorMr.status` fallback')
@@ -8656,14 +8672,14 @@ const evidenceImpl = (prompt, opts) => {
       { taskId: 't1', pin_status: 'CONFIRMED', pin_evidence: 'tip == gate-HEAD', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
       { taskId: 't2', pin_status: 'BENIGN-ADVANCE', pin_evidence: 'intervening: docs/readme.md', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
     ],
-    integratedTipGate: { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111', gate_log_path: '/abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-phase-3.log' },
+    integratedTipGate: { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111', gate_log_path: fixtureGatePath(prompt) },
   }
   if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: 'aaaa1111' }
   if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
   if (seat === 'war-refiner') {
     const m = /^merge:(t\d)/.exec(label)
     return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'aaaa1111',
-      gate_log_path: m ? `/abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-${m[1]}.log` : undefined }
+      gate_log_path: m ? fixtureGatePath(prompt) : undefined }
   }
   if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
   return {}
@@ -8692,13 +8708,13 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
   const ga = gateAuditCalls(calls)[0].prompt
   assert.ok(ga.includes('GATE LOG ARTIFACT:'), 'the gate-audit prompt threads the captured gate-log artifact')
-  assert.ok(ga.includes('/_refinery/.war/gate-t1.log'), 'the threaded artifact path is the merge-returned gate_log_path')
+  assert.ok(ga.includes(fixtureGatePath(calls.find(isMergeT1).prompt)), 'the threaded artifact path is the merge-returned gate_log_path')
   assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(ga), 'a missing artifact ⇒ SOFT cannot-confirm for the HARD path')
   assert.ok(/authoritative execution evidence/i.test(ga), 'the captured artifact is the authoritative HARD-path evidence')
   // the initial merge prompt tees to the artifact and returns gate_log_path
   const mergeCall = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^merge:t1$/.test(c.opts.label || ''))
   assert.ok(mergeCall, 'a merge dispatch for t1 was made')
-  assert.ok(/mktemp -d ".*\.war\/gate-t1\.XXXXXX"/.test(mergeCall.prompt),
+  assert.ok(/mktemp -d ".*\.war\/gate-t1\.[^"\n]+\.XXXXXX"/.test(mergeCall.prompt),
     'the merge prompt tees the full gate output to the .war artifact')
   assert.ok(mergeCall.prompt.includes('gate_log_path'), 'the merge prompt returns the artifact path in gate_log_path')
   // MERGE_RESULT schema declares gate_log_path
@@ -8710,7 +8726,7 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
   // the OLD-absent key scans the eviction destination too, never a relocated read.
   assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
-  const captureUses = (src.match(/schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, refineryPath, r\.task\.id, /g) || []).length
+  const captureUses = (src.match(/schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, \{ task: r\.task\.id, repo: /g) || []).length
   assert.equal(captureUses, 4, 'all four task merge sites pass identity to the shared capture wrapper, including baseline-proceed')
 })
 
@@ -8897,7 +8913,7 @@ test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch 
   const ev = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
   assert.ok(ev, 'an evidence:phase-<id> refiner dispatch was made')
   assert.ok(/INTRA-PHASE-DEP phase/.test(ev.prompt), 'the intra-dep phase instructs the integrated-tip gate re-run')
-  assert.ok(ev.prompt.includes('gate-phase-3.XXXXXX'), 'the integrated-tip re-run tees to gate-phase-<id>.log')
+  assert.ok(!!fixtureGatePath(ev.prompt), 'the integrated-tip re-run tees to gate-phase-<id>.log')
   const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
   assert.ok(auth, 'ONE authoritative integrated-tip execution-evidence seat was dispatched')
   assert.ok(auth.prompt.includes('INTEGRATED TIP GATE: all suites passed'),
@@ -8910,7 +8926,7 @@ test('#818 — the INTEGRATED-TIP GATE-AUDIT seat threads integratedTipGate.gate
   const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
   assert.ok(auth, 'the authoritative integrated-tip seat was dispatched')
   assert.ok(auth.prompt.includes('GATE LOG ARTIFACT:'), 'the authoritative seat carries a GATE LOG ARTIFACT clause')
-  assert.ok(auth.prompt.includes('/_refinery/.war/gate-phase-3.log'), 'the threaded path is integratedTipGate.gate_log_path')
+  assert.ok(auth.prompt.includes(fixtureGatePath(calls.find(c => c.opts.dispatchKind === 'evidence').prompt)), 'the threaded path is integratedTipGate.gate_log_path')
   assert.ok(/authoritative execution evidence/i.test(auth.prompt), 'the captured integrated-tip log is the authoritative HARD-path evidence')
   assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(auth.prompt), 'a missing artifact ⇒ SOFT cannot-confirm for the HARD path')
   assert.ok(!auth.prompt.includes('curate or excerpt'), 'the new clause does not reintroduce the retired anti-excerpt token (locked negative, all-surfaces)')
@@ -8966,7 +8982,7 @@ test('T2.1 criterion 5 (D4) — a NO-intra-dep phase dispatches no integrated-ti
   // per-task gate-audit prompts byte-identical to the intra-dep phase (same tasks + same stamped tokens)
   const depTasks = noDepTasks.map((t, i) => i === 1 ? { ...t, deps: ['t1'] } : t)
   const { calls: dep } = await runPhase(PROVISION_ARGS({ tasks: depTasks }), evidenceImpl)
-  const perTaskGA = cs => cs.filter(c => isAuditor(c) && /^gate-audit:t\d:execution-evidence$/.test(c.opts.label || '')).map(c => c.prompt).sort()
+  const perTaskGA = cs => cs.filter(c => isAuditor(c) && /^gate-audit:t\d:execution-evidence$/.test(c.opts.label || '')).map(c => stableGatePrompt(c.prompt)).sort()
   assert.deepEqual(perTaskGA(noDep), perTaskGA(dep),
     'per-task gate-audit prompts are byte-identical between no-dep and intra-dep phases (D4 only ADDS the authoritative seat)')
 })
@@ -10058,7 +10074,7 @@ test("done-when floor legacy byte-identity (End state 9) — a doneWhen-less tas
   const wo = (await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), defaultImpl)).calls.find(isMergeTask).prompt
   const clause = wp.match(/ After the gate, run the done-when floor:[^]*?make-this-command-pass loop\./)
   assert.ok(clause, 'the done-when floor clause is delimited in the doneWhen-bearing merge prompt')
-  assert.equal(wp.replace(clause[0], ''), wo,
+  assert.equal(stableGatePrompt(wp.replace(clause[0], '')), stableGatePrompt(wo),
     'set minus the floor clause ⇒ byte-identical to the doneWhen-less merge prompt (nothing else conditions on the field)')
   assert.ok(!wo.includes('assert-done-when'), 'the legacy merge prompt carries no done-when floor residue at all')
 })
@@ -11166,9 +11182,9 @@ test('recovery absent (criterion 10): the recovery machinery is DORMANT — ever
   assert.equal(absent.length, sanctioned.length, 'same dispatch count — the recovery machinery changes NO dispatch when the barrier reports nothing')
   for (let i = 0; i < absent.length; i++) {
     if (absent[i].opts.dispatchKind === 'provision-barrier') {
-      assert.notEqual(absent[i].prompt, sanctioned[i].prompt, 'the provision-barrier prompt DIFFERS (derive-and-skip is added when sanctioned)')
+      assert.notEqual(stableGatePrompt(absent[i].prompt), stableGatePrompt(sanctioned[i].prompt), 'the provision-barrier prompt DIFFERS (derive-and-skip is added when sanctioned)')
     } else {
-      assert.equal(absent[i].prompt, sanctioned[i].prompt, `prompt #${i} (${absent[i].opts.label}) is byte-identical between recovery-absent and sanctioned`)
+      assert.equal(stableGatePrompt(absent[i].prompt), stableGatePrompt(sanctioned[i].prompt), `prompt #${i} (${absent[i].opts.label}) is byte-identical between recovery-absent and sanctioned`)
     }
   }
   const bAbsent = absent.find(isProvision).prompt
@@ -11196,7 +11212,7 @@ test('recovery preMerged (criterion 10): a mocked barrier preMerged id → merge
   assert.equal(out.landDecision, 'landed', 'the recovered phase still lands (t1 pre-merged, t2 re-dispatched + merged)')
   assert.ok(out.landed.includes('t1'), 't1 is recorded in the bare-id landed list')
   assert.ok(!calls.some(c => (c.opts.label || '') === 'work:t1'), 'NO worker dispatched for the pre-merged task t1')
-  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(entry, 'an auditLog entry exists for the pre-merged t1')
   assert.match(String(entry.note || ''), /recovered: pre-merged on adopted integration branch/, 't1 auditLog entry carries the recovered note')
   // t2 (dep on the pre-merged t1) satisfies the dep-block pre-check and dispatches normally.
@@ -11321,7 +11337,7 @@ test('defectClass (criterion 12, wave-collector site): a worker blocked_reason p
       : defaultImpl(prompt, opts)
   const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's1', roster: [{ lens: 'correctness' }] }] })
   const { out } = await runPhase(args, impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 't1 escalated')
   assert.equal(esc.defectClass, 'plan', 'defectClass is "plan" (the sentinel matched at position 0)')
   assert.equal(esc.reason, 'escalate', 'the escalation reason is UNCHANGED — defectClass is orthogonal metadata, not a reason')
@@ -11338,7 +11354,7 @@ test('defectClass (criterion 12): NO sentinel (or a non-position-0 / case / whit
         : defaultImpl(prompt, opts)
     const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's1', roster: [{ lens: 'correctness' }] }] })
     const { out } = await runPhase(args, impl)
-    const esc = (out.escalated || []).find(e => e && e.task === 't1')
+    const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
     assert.ok(esc, `t1 escalated (reason="${reason}")`)
     assert.ok(!('defectClass' in esc), `defectClass is ABSENT for a non-sentinel reason "${reason}" (never "implementation" by default)`)
     assert.equal(esc.reason, 'escalate', 'the escalation reason is unchanged')
@@ -11363,7 +11379,7 @@ test('defectClass (criterion 12, floor sub-loop site): a blocked add-test fix-wo
     }
   )
   const { out } = await runPhase(L3_ARGS(), impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 't1 escalated from the floor sub-loop')
   assert.equal(esc.defectClass, 'plan', 'a fix-round plan defect is tagged defectClass:plan (as plan-shaped as a first-round one)')
   assert.equal(esc.reason, 'escalate', 'the floor-sub-loop escalation reason is unchanged')
@@ -11835,14 +11851,14 @@ test('env-died: dead audit seat — a seat that dies post-spawn classifies env-d
     return defaultImpl(prompt, opts)
   }
   const { out, calls, logs } = await runPhase(twoIndependentTasks(), impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the task with the dead seat escalates (presence guard)')
   assert.equal(esc.reason, 'env-died', 'a dead audit seat classifies env-died (SOFT)')
   assert.match(String(esc.blocked), /^audit:t1:correctness dispatch died post-spawn \(env-died\): /, 'blocked names the seat SITE (the dispatch label) as the death site')
   assert.match(String(esc.blocked), /529 Overloaded/, 'the harness cause is propagated verbatim')
   assert.ok(!(out.escalated || []).some(e => e && e.reason === 'audit-blocked'), 'a dead seat NEVER reads as audit-blocked (PIN-25)')
   assert.ok(!(out.auditLog || []).some(a => a && a.verdict === 'audit-blocked'), 'no audit-blocked verdict is recorded for the dead seat')
-  const row = (out.auditLog || []).find(a => a && a.task === 't1')
+  const row = (out.auditLog || []).find(a => a && a.task === 't1' && !a.verdict?.startsWith('audit-pin:'))
   assert.ok(row && row.verdict === 'env-died', 'the auditLog row for the task carries the env-died verdict')
   assert.equal(calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness').length, 3, 'a dead seat consumes the same 2 retry passes as a dropped seat — only a persistent death classifies env-died')
   assert.ok(!calls.some(c => isFixWorker(c) && /:t1:/.test(c.opts.label || '')), 'no fix-worker runs on a task whose seat died')
@@ -11857,7 +11873,7 @@ test('env-died: dead audit seat — negative control: a NON-infra seat throw kee
     return defaultImpl(prompt, opts)
   }
   const { out } = await runPhase(twoIndependentTasks(), impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the task escalates (presence guard)')
   // fakeParallel is Promise.all, so the seat rejection reaches the wave-thunk catch ('escalate'); the live
   // parallel NULLS a rejected thunk (dropped seat → retries → 'audit-blocked') — the exact literal is harness-bound.
@@ -11925,7 +11941,7 @@ test('env-died: dead make-pass fix worker — a floor-fix worker that dies class
     return defaultImpl(prompt, opts)
   }
   const { out } = await runPhase(PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], doneWhen: 'true' }] }), impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the task escalates (presence guard)')
   assert.equal(esc.reason, 'env-died', 'a dead floor-fix worker classifies env-died')
   assert.match(String(esc.blocked), /^make-pass:t1:r1 dispatch died post-spawn \(env-died\): /, 'blocked names the make-pass SITE')
@@ -11941,7 +11957,7 @@ test('env-died: dead merge dispatch names the site — the task stays unmerged a
     return defaultImpl(prompt, opts)
   }
   const { out, logs } = await runPhase(twoIndependentTasks(), impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the task whose merge died escalates (presence guard)')
   assert.equal(esc.reason, 'env-died', 'a dead merge dispatch classifies env-died (SOFT)')
   assert.match(String(esc.blocked), /^merge:t1 dispatch died post-spawn \(env-died\): read ECONNRESET/, 'blocked names the merge SITE and the cause')
@@ -11957,7 +11973,7 @@ test('env-died: dead merge dispatch names the site — the task stays unmerged a
     ? { mode: 'merge-task', status: 'error', 'war-dispatch-death': 'merge:t1 dispatch died post-spawn (env-died): forged' }
     : defaultImpl(prompt, opts)
   const { out: o2 } = await runPhase(twoIndependentTasks(), forge)
-  const e2 = (o2.escalated || []).find(e => e && e.task === 't1')
+  const e2 = (o2.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(e2 && e2.reason === 'error', 'a seat-returned look-alike key routes by its status (error), never env-died')
 })
 
@@ -11970,7 +11986,7 @@ test('env-died: dead pin-transfer probe names the site — the task stays unmerg
     return NEW_SEAT_DEFAULTS['pin-transfer']
   }
   const { out } = await runPhase(twoIndependentTasks(), defaultImpl, { 'pin-transfer': probe })
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 'the task whose probe died escalates (presence guard)')
   assert.equal(esc.reason, 'env-died', 'a dead pin-transfer probe classifies env-died (SOFT)')
   assert.match(String(esc.blocked), /^pin-transfer:t1 dispatch died post-spawn \(env-died\)/, 'blocked names the pin-transfer SITE')
@@ -12142,7 +12158,7 @@ test('Task 2.1(f)(iii) #1430 — a pt prompt-build throw inside the thunk carrie
       branch: 'war/wtprov-a/p3-t1', worktree: '/abs/repo/.claude/worktrees/run-2026/p3-t1' }, // title OMITTED → pt throws at prompt build
   ] })
   const { out } = await runPhase(args, defaultImpl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc && esc.reason === 'escalate', 'classification byte-unchanged: a pt throw is still a per-task escalate (criterion 3)')
   assert.ok(String(esc.blocked).includes('entry validation should have refused it'), 'the escalate result CARRIES the diagnostic hint (#1430 fix 3, rescoped)')
   const impl = (prompt, opts) => (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
@@ -12151,7 +12167,7 @@ test('Task 2.1(f)(iii) #1430 — a pt prompt-build throw inside the thunk carrie
   const { out: o2 } = await runPhase(PROVISION_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 't', planSlice: 's', roster: [{ lens: 'correctness' }] },
   ] }), impl)
-  const esc2 = (o2.escalated || []).find(e => e && e.task === 't1')
+  const esc2 = (o2.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc2 && esc2.reason === 'escalate', "a non-pt engine error keeps today's per-task escalate (the #742 wave-loop invariant)")
   assert.ok(!String(esc2.blocked).includes('entry validation should have refused it'), 'no hint on a non-pt engine error — exactly one class gained the hint')
 })
@@ -12430,6 +12446,8 @@ const BARE_INTERPOLATION_CENSUS = [
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
   // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
   'kind', 'path',
+  // Dispatch-owned gate capture strings are constructed before their prompt carriers run.
+  'prefix', 'evidenceCapture.clause',
   // reconcileMerge builds cause from a tagged death or a literal fallback.
   'cause',
   // c.row / c.rationale (engine-and-audit-verdict-integrity Task 7.1 ace, D6 citations): the `c` local is
@@ -13066,7 +13084,7 @@ test('re-merge: budget-uncited escalates as budget-uncited — the environment-p
   for (const [flavor, impl] of cases) {
     const { out, calls } = await runPhase(CLS_ARGS(), impl)
     assert.equal(calls.filter(c => (c.opts.label || '') === 'merge:t1:' + flavor).length, 1, flavor + ': the re-merge dispatches once')
-    const esc = (out.escalated || []).find(e => e && e.task === 't1')
+    const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
     assert.ok(esc, flavor + ': t1 escalates')
     assert.equal(esc.reason, 'budget-uncited', flavor + ": the escalation names the tripped floor, never the wire status 'no-test' (#1736)")
     assert.equal(esc.detail && esc.detail.floor_route, 'budget-uncited', flavor + ': the detail keeps the wire marker')
@@ -13096,7 +13114,7 @@ test('floor-retry exhaustion: budget-uncited escalates as budget-uncited — the
   })
   assert.ok(merges >= 2, 'the primary merge and at least one floor-retry re-merge both dispatched')
   assert.ok(calls.some(c => /^merge:t1:floor-retry:r\d+$/.test(c.opts.label || '')), 'the floor-retry sub-loop ran (the exhaustion arm is the floor sub-loop, not a *-proceed site)')
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 't1 escalates on budget exhaustion')
   assert.equal(esc.reason, 'budget-uncited', "the exhaustion arm escalates under the normalized floor name, never 'escalate' or the wire status 'no-test'")
   assert.ok(!(out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'escalate'), "no 'escalate'-reason row rides beside it")
@@ -14319,7 +14337,7 @@ test('#1913 — audit-round provenance stays ace-free: auditLog fixRounds is the
   // ace-incremented budget (1) leaks into the log, reding this.
   const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()))
   assert.ok((out.aced || []).some(a => a && a.sha === 'ace00001'), 'the wave-side ace round really succeeded')
-  const row = (out.auditLog || []).find(a => a && a.task === 't1')
+  const row = (out.auditLog || []).find(a => a && a.task === 't1' && !a.verdict?.startsWith('audit-pin:'))
   assert.ok(row, 't1 has an auditLog row')
   assert.equal(row.fixRounds, 0, 'auditLog records the pre-ace round count (0), not the ace-charged task.fixRounds (1)')
 })
@@ -14462,7 +14480,7 @@ test('#1913 End state 5 (PIN-16 negative, #1895) — an empty diff with zero tas
   })
   assert.ok(!calls.some(isMergeTask), 'no merge is dispatched')
   assert.ok(!out.landed.includes('t1'), 'a zero-commit branch is NEVER recorded merged (a never-started branch is vacuously an ancestor)')
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc, 't1 escalates')
   assert.equal(esc.reason, 'escalate', 'the refusal is HARD — a hard escalation is never downgraded by an in-band field (PIN-6)')
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds rather than completing without the task')
@@ -17205,7 +17223,7 @@ test('segmented-gate: partial gate log reruns the gate — both arms (last line 
     assert.ok(c, name + ' dispatched (presence guard)')
     assert.ok(c.prompt.includes('run_in_background'), name + ' instructs run_in_background')
     assert.ok(c.prompt.includes("land_segment: 'incomplete'"), name + ' names the land_segment return shape')
-    assert.ok(c.prompt.includes('/_refinery/.war/gate-land-phase-3.XXXXXX'), name + ' tees the land gate to the phase-keyed gate log')
+    assert.ok(/\/_refinery\/\.war\/gate-land-phase-3\.[^.]+\.XXXXXX/.test(c.prompt), name + ' tees the land gate to the phase-keyed gate log')
     assert.ok(c.prompt.includes(rule), name + ' carries PARTIAL_LOG_RULE byte-equal')
   }
 })
@@ -17227,8 +17245,8 @@ test('gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: f
   // short form — otherwise GATE_LOG_READ_RULE on the integrated-tip seat rules the artifact SOFT forever.
   const ev = (await runPhase(PROVISION_ARGS(), evidenceImpl)).calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
   assert.ok(ev && /INTRA-PHASE-DEP phase/.test(ev.prompt), 'intra-dep evidence dispatch made (presence guard)')
-  assert.ok(ev.prompt.includes('gate-phase-3.XXXXXX') && ev.prompt.includes(stamp), 'the dispatched intra-dep evidence prompt carries the stamp byte-equal on the gate-phase-<id>.log tee')
-  assert.ok(refinerMd.includes('gate-phase-<id>.XXXXXX') && refinerMd.includes('stamped per merge-task step 9'), 'agents/war-refiner.md evidence paragraph stamps the integrated-tip gate log per merge-task step 9')
+  assert.ok(!!fixtureGatePath(ev.prompt) && ev.prompt.includes(stamp), 'the dispatched intra-dep evidence prompt carries the stamp byte-equal on the gate-phase-<id>.log tee')
+  assert.ok(refinerMd.includes('gate-phase-<id>.<dispatch>.XXXXXX') && refinerMd.includes('stamped per merge-task step 9'), 'agents/war-refiner.md evidence paragraph stamps the integrated-tip gate log per merge-task step 9')
   // The stamp rides one commit with the partial-log rule: the rule's two-sided read names both stamp lines.
   const rule = evalPt('PARTIAL_LOG_RULE')
   assert.ok(rule.includes('`tip_sha:`') && rule.includes('`exit_code:`'), 'the partial-log rule reads exactly the two stamp lines')
@@ -17258,7 +17276,7 @@ test('gate-log fallback: unthreaded path marker — an unthreaded gate_log_path 
   // Threaded: the merge-returned path renders bare, no marker.
   const t = await runPhase(PROVISION_ARGS(), evidenceImpl)
   const tSeat = gateAuditCalls(t.calls)[0].prompt
-  assert.ok(tSeat.includes('GATE LOG ARTIFACT: read the FULL captured gate log at /abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-t1.log (read-only Read)'), 'a threaded gate_log_path renders bare — no marker on the artifact line')
+  assert.ok(tSeat.includes('GATE LOG ARTIFACT: read the FULL captured gate log at ' + fixtureGatePath(t.calls.find(isMergeT1).prompt) + ' (read-only Read)'), 'a threaded gate_log_path renders bare — no marker on the artifact line')
   // Integrated-tip seat: integratedTipGate without gate_log_path records missing integrated-tip evidence.
   const noPath = (prompt, opts) => {
     const seat = seatOf(opts), label = opts.label || ''
@@ -17513,7 +17531,7 @@ test('split panel: blocking finding surviving the rebuttal triggers FIX_NEEDED (
   assert.ok(before.some(i => calls[i].prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran BEFORE the fix dispatch (rebuttal first)')
   assert.equal(after.length, 2, 'the FULL roster (both seats) re-audits after the fix — never the blocking seat alone')
   assert.ok(after.every(i => !calls[i].prompt.includes('REBUTTAL ROUND')), 'the post-fix re-audit is a fresh independent round (no peers)')
-  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.equal(entry && entry.fixRounds, 1, 'auditLog fixRounds === 1 — one fix round, reached after the rebuttal')
   assert.equal(entry && entry.verdict, 'approve', 'the panel approves unanimously on the post-fix audit_sha')
   assert.ok(out.landed.includes('t1'), 't1 merges')
@@ -17526,7 +17544,7 @@ test('split panel: rebuttal withdrawal approves without a fix round (D17, PIN-29
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_WITH_FIX, 2: null }))
   assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — the Major was withdrawn at the rebuttal')
   assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran (the withdrawal happened there)')
-  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.equal(entry && entry.fixRounds, 0, 'fixRounds === 0')
   assert.equal(entry && entry.verdict, 'approve', 'approve on the rebuttal')
   assert.ok(out.landed.includes('t1'), 't1 merges')
@@ -17537,7 +17555,7 @@ test('split panel: fix-less survivor escalates (D17/D18) — a Major with NO sug
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_NO_FIX, 2: MAJOR_NO_FIX }))
   assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — nothing to dispatch a fix round on')
   assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first')
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
   assert.match(esc.blocked, /fix-less blocking finding survived the rebuttal or agreed-block panel \(decision-forked, D18\): \[Major\] retry policy undecided \(a\.js\)/, 'the escalation names the fix-less survivor')
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
@@ -17548,7 +17566,7 @@ test('split panel: a request_changes seat with Minor-only findings escalates nam
   const { out, calls, logs } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MINOR_ONLY, 2: MINOR_ONLY }))
   assert.ok(calls.filter(isAuditor).some(c => c.prompt.includes('REBUTTAL ROUND')), 'the rebuttal round ran first')
   assert.equal(calls.filter(isFixWorker).length, 0, 'no fix worker — there is no blocking finding to fix')
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc && esc.reason === 'escalate', 't1 escalates (reason: escalate)')
   assert.equal(esc.blocked, 'post-rebuttal split or agreed-block panel with no blocking finding on the blocking seat(s) audit:t1:security:rebut', 'the escalation names the seat that blocked without a Critical/Major')
   assert.ok(!/fix-less blocking finding survived/.test(esc.blocked), 'never the fix-less-survivor text with an empty finding list')
@@ -17560,7 +17578,7 @@ test('split panel: a blocker surviving a fix round unchanged escalates (D17, PIN
   // Ordinals: 1 round 0 (split), 2 rebuttal (stands → fix), 3 post-fix re-audit (split again), 4 second rebuttal (stands, unchanged).
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { roundLimit: 6 } }), splitPanelImpl({ 1: MAJOR_WITH_FIX, 2: MAJOR_WITH_FIX, 3: MAJOR_WITH_FIX, 4: MAJOR_WITH_FIX }))
   assert.equal(calls.filter(isFixWorker).length, 1, 'exactly one fix round — the unchanged survivor is never re-dispatched')
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc && esc.reason === 'escalate', 't1 escalates')
   assert.match(esc.blocked, /survived a fix round unchanged \(PIN-29\): \[Major\] null deref on empty roster \(a\.js\)/, 'the escalation names the unchanged survivor')
   assert.equal(out.landDecision, 'held:escalation', 'the phase holds')
@@ -17571,12 +17589,12 @@ test('escalate boundary: decision-forked reason propagates (D18, PIN-22, #1664) 
     ? { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'the plan never decides whether a dropped seat retries or holds', findings: [], confidence: 'high' }
     : defaultImpl(prompt, opts)
   const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), impl)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(esc && esc.reason === 'escalate', 't1 escalates on the explicit verdict')
   assert.equal(esc.escalate_reason, 'audit:t1:correctness: the plan never decides whether a dropped seat retries or holds', 'the seat-supplied escalate_reason rides the escalated[] record, seat-attributed')
   // Delete-the-feature control: a fix-less survivor escalation (no explicit escalate verdict) carries no escalate_reason.
   const ctl = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), splitPanelImpl({ 1: MAJOR_NO_FIX, 2: MAJOR_NO_FIX }))
-  const cEsc = (ctl.out.escalated || []).find(e => e && e.task === 't1')
+  const cEsc = (ctl.out.escalated || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.ok(cEsc && !('escalate_reason' in cEsc), 'no escalate_reason on a record no seat escalated explicitly')
 })
 
@@ -17651,7 +17669,7 @@ test('seat-conflict: scope split becomes ask (D19, PIN-23, #1914) — a post-reb
   assert.equal(three.calls.filter(isFixWorker).length, 0, 'finding-less seat arm: no fix worker')
   const threeAsks = (three.out.asks || []).filter(a => a && a.task === 't1')
   assert.equal(threeAsks.length, 1, 'finding-less seat arm: exactly ONE ask parked (the paired blocker)')
-  const threeEntry = (three.out.auditLog || []).find(e => e && e.task === 't1')
+  const threeEntry = (three.out.auditLog || []).find(e => e && e.task === 't1' && !e.verdict?.startsWith('audit-pin:'))
   assert.equal(threeEntry && threeEntry.verdict, 'escalate', 'finding-less blocking seat holds')
   assert.ok(threeEntry.findings.some(f => f.severity === 'Major'), 'original blocker remains in audit evidence')
   assert.ok(three.out.escalated.find(e => e.task === 't1').blocked.includes('cascading-impact:rebut'), 'hold names the finding-less seat')
@@ -17785,7 +17803,7 @@ for (const afk of [false, true]) {
     assert.equal(rosterAfter.length, 2, 'full roster re-audits')
     assert.ok(rosterAfter.every(c => c.prompt.includes('beef1234')), 're-audit pins the new fix tip')
     assert.ok(out.landed.includes('t1'), 'task merges after actual unanimous post-fix approval')
-    assert.equal(out.auditLog.find(r => r.task === 't1').fixRounds, 1)
+    assert.equal(out.auditLog.find(r => r.task === 't1' && typeof r.fixRounds === 'number').fixRounds, 1)
   })
 
   for (const rationale of ['The reference escapes its lexical scope and throws', 'The scope of the variable is wrong', 'The scoped cache misses this request']) {
@@ -17997,10 +18015,11 @@ for (const badPath of ['', 'relative.log', '/bad\0path']) {
 
 test('gate artifact isolation: merge and land continuations carry the exact returned path', async () => {
   const seen = new Set()
-  const paths = { 'merge:t1': '/fresh/task-attempt/gate.log', 'land:phase-3': '/fresh/land-attempt/gate.log' }
+  const paths = { 'merge:t1': true, 'land:phase-3': true }
   const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
     if (paths[o.label] && !seen.has(o.label)) {
       seen.add(o.label)
+      paths[o.label] = fixtureGatePath(p)
       return { mode: o.phase === 'Land' ? 'land-phase' : 'merge-task', status: 'error',
         [o.phase === 'Land' ? 'land_segment' : 'gate_segment']: 'incomplete', gate_log_path: paths[o.label] }
     }
@@ -18019,7 +18038,7 @@ test('gate artifact isolation: actual dispatched mktemp command isolates same-ti
     const args = PROVISION_ARGS({ tasks: SINGLE_TASK })
     const { calls } = await runPhase(args, defaultImpl)
     const prompt = calls.find(isMergeT1).prompt
-    const command = prompt.match(/`(mktemp -d "[^"\n]+gate-t1\.XXXXXX")`/)[1]
+    const command = prompt.match(/`(mktemp -d "[^"\n]+gate-t1\.[^"\n]+\.XXXXXX")`/)[1]
     // Substitute only the fixture root; execute the producer's actual allocation command twice.
     const template = command.match(/"([^"\n]+)"/)[1]
     mkdirSync(join(dir, '.war'))
@@ -18084,7 +18103,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
             const remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
             recovered = true
             return { outcome: 'merged', ...snapshot, local_sha: local, remote_sha: remote, source_tip: source,
-              result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_log_path: join(dir, 'fresh/gate.log'), gate_output: 'all checks pass', mappedTests: ['deliverable.test.js'] } }
+              result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_log_path: fixtureGatePath(p), gate_output: 'all checks pass', mappedTests: ['deliverable.test.js'] } }
           },
         })
         assert.ok(faulted, 'the requested alternate consumer actually lost its response')
@@ -18100,7 +18119,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
   }
 }
 
-const reconciliationProof = () => ({ outcome: 'merged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: '/fresh/gate.log' } })
+const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
 for (const [name, modify] of [
   ['wrong snapshot base', r => { r.base_sha = '3'.repeat(40) }],
   ['wrong snapshot source', r => { r.source_sha = '3'.repeat(40) }],
@@ -18121,11 +18140,10 @@ for (const [name, modify] of [
   ['unmerged with merged result', r => { r.outcome = 'unmerged'; r.local_sha = r.remote_sha = r.base_sha }],
 ]) {
   test('Git reconciliation: incomplete or contradictory evidence holds before land: ' + name, async () => {
-    const proof = reconciliationProof(); modify(proof)
     const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
       if (o.label === 'merge:t1') throw new Error('read ECONNRESET after push')
       return defaultImpl(p, o)
-    }, { 'merge-reconcile': proof })
+    }, { 'merge-reconcile': p => { const proof = reconciliationProof(p); modify(proof); return proof } })
     assert.equal(out.landDecision, 'held:workflow-error')
     assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 2, 'bounded maintenance is attempted before holding')
     assert.ok(!calls.some(isLand)); assert.ok(!out.landed.includes('t1'))
@@ -18137,7 +18155,7 @@ test('Git reconciliation: recovery death retries without restarting the primary 
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, agents: { refiner: { model: 'sonnet', effort: 'high', recovery: { model: 'fable', effort: 'default' } } } }), (p, o) => {
     if (o.label === 'merge:t1') throw new Error('schema response lost after push')
     return defaultImpl(p, o)
-  }, { 'merge-reconcile': () => { if (++attempts === 1) throw new Error('529 Overloaded'); return reconciliationProof() } })
+  }, { 'merge-reconcile': p => { if (++attempts === 1) throw new Error('529 Overloaded'); return reconciliationProof(p) } })
   assert.equal(out.landDecision, 'landed')
   assert.equal(calls.filter(c => c.opts.label === 'merge:t1').length, 1)
   assert.equal(calls.find(c => c.opts.label === 'merge:t1').opts.model, 'sonnet')
@@ -18181,7 +18199,7 @@ for (const site of ['land:phase-3', 'land:phase-3:environment-proceed', 'land:ph
         assert.ok(p.includes('never make a second phase commit'))
         const parents = git('show', '-s', '--format=%P', 'working').split(' ')
         return { outcome: 'landed', ...snapshot, source_tip: source, local_sha: git('rev-parse', 'working'), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'working'), parents,
-          result: { mode: 'land-phase', status: 'landed', working_sha: landedSha, gate_log_path: join(dir, 'fresh/gate.log') } }
+          result: { mode: 'land-phase', status: 'landed', working_sha: landedSha, gate_log_path: fixtureGatePath(p) } }
       } })
       assert.ok(landedSha); assert.equal(out.landDecision, 'landed'); assert.equal(out.landResult.working_sha, landedSha)
       assert.equal(git('rev-list', '--count', '--merges', 'working'), '1', 'the original phase commit is reused')
@@ -18213,12 +18231,11 @@ for (const [name, modify] of [
   ['wrong source tip', r => { r.source_tip = '4'.repeat(40) }],
 ]) {
   test('Git reconciliation: land proof holds on ' + name, async () => {
-    const proof = { ...reconciliationProof(), outcome: 'landed', local_sha: '3'.repeat(40), remote_sha: '3'.repeat(40), parents: ['1'.repeat(40), '2'.repeat(40)], result: { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40), gate_log_path: '/fresh/land/gate.log' } }
-    modify(proof)
+    const landProof = p => { const proof = { ...reconciliationProof(p), outcome: 'landed', local_sha: '3'.repeat(40), remote_sha: '3'.repeat(40), parents: ['1'.repeat(40), '2'.repeat(40)], result: { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40), gate_log_path: fixtureGatePath(p) } }; modify(proof); return proof }
     const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
       if (o.phase === 'Land') throw new Error('read ECONNRESET after push')
       return defaultImpl(p, o)
-    }, { 'merge-reconcile': proof })
+    }, { 'merge-reconcile': landProof })
     assert.equal(out.landDecision, 'held:workflow-error')
     assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 2)
     assert.ok(!calls.some(isServitor), 'unconfirmed land never triggers wrap-up')
@@ -18244,11 +18261,10 @@ for (const site of ['pin-mismatch-audit', 'floor-audit', 'integrated-gate-audit'
 
 
 test('Git reconciliation: empty snapshot patch never proves a completed merge', async () => {
-  const proof = { ...reconciliationProof(), patch_id: '' }
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
     if (o.label === 'merge:t1') throw new Error('read ECONNRESET')
     return defaultImpl(p, o)
-  }, { 'merge-snapshot': { ...NEW_SEAT_DEFAULTS['merge-snapshot'], patch_id: '' }, 'merge-reconcile': proof })
+  }, { 'merge-snapshot': { ...NEW_SEAT_DEFAULTS['merge-snapshot'], patch_id: '' }, 'merge-reconcile': p => ({ ...reconciliationProof(p), patch_id: '' }) })
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 2)
   assert.ok(!calls.some(isLand))
@@ -18256,7 +18272,7 @@ test('Git reconciliation: empty snapshot patch never proves a completed merge', 
 
 for (const response of [undefined, {}, { mode: 'merge-task', status: 'unknown' }]) {
   test('Git reconciliation: missing or malformed response requires reconciliation: ' + JSON.stringify(response), async () => {
-    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1' ? response : defaultImpl(p, o), { 'merge-reconcile': reconciliationProof() })
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1' ? response : defaultImpl(p, o), { 'merge-reconcile': reconciliationProof })
     assert.equal(out.landDecision, 'landed')
     assert.ok(out.landed.includes('t1'))
     assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 1)
@@ -18311,12 +18327,13 @@ for (const result of ['approve', 'block', 'repeat-mismatch']) {
           findings: result === 'block' ? [{ severity: 'Major', title: 'task bug', file: 'a', rationale: 'actual tip violates acceptance' }] : [] }
         return defaultImpl(p, o)
       }, { 'audit-pin': (p, o) => {
-        assert.equal(o.model, 'opus'); assert.equal(o.effort, 'high')
+        assert.equal(o.model, lookups ? 'opus' : 'sonnet')
         assert.match(p, /No edits, checkout, merge, push or rebase/)
         const command = p.match(/git rev-parse --verify (\S+)\./)[1]
-        reconciled = true; return { head_sha: ++lookups > 1 ? base : git('rev-parse', '--verify', command) }
+        reconciled = true; lookups++
+        return { head_sha: git('rev-parse', '--verify', command), pins: fixturePinRequest(p).map(sha => git('rev-parse', '--verify', sha + '^{commit}')) }
       } })
-      assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'bounded read-only reconciliation')
+      assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 2, 'each panel has a bounded read-only verification')
       assert.equal(calls.filter(c => (c.opts.label || '').startsWith('audit:t1:')).length, 4, 'both seats run anew once')
       assert.equal(out.landed.includes('t1'), result === 'approve', 'only unanimous review of confirmed Git tip can merge')
       assert.equal(git('rev-parse', 'HEAD'), tip, 'reconciliation is read-only')
@@ -18360,7 +18377,7 @@ test('audit pin integrity #2141: a moved transfer tip cannot inherit the earlier
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
     if ((o.label || '').startsWith('audit:t1:')) return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: p.includes('beef0001') ? 'f'.repeat(40) : (p.match(/worker reports commit ([0-9a-f]+)/) || [])[1], findings: [] }
     return defaultImpl(p, o)
-  }, { 'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001' }, 'audit-pin': { head_sha: 'f'.repeat(40) } })
+  }, { 'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001' }, 'audit-pin': p => p.includes('beef0001') ? fixtureGitProof(p, 'f'.repeat(40)) : NEW_SEAT_DEFAULTS['audit-pin'](p) })
   assert.ok(!out.landed.includes('t1')); assert.ok(calls.some(c => c.opts.dispatchKind === 'audit-pin'))
 })
 
@@ -18421,13 +18438,217 @@ for (const initial of ['missing-seat', 'bad-seat', 'missing-worker', 'bad-worker
         return row
       }
       return defaultImpl(p, o)
-    }, { rawTaskAuditPins: true, 'audit-pin': () => {
-      if (++lookups > 1) throw new Error('unexpected repeated pin reconciliation')
-      return { head_sha: tip }
+    }, { rawTaskAuditPins: true, 'audit-pin': p => {
+      if (++lookups > 2) throw new Error('unexpected repeated pin reconciliation')
+      return fixtureGitProof(p, tip)
     } })
-    assert.equal(lookups, 1, 'one bounded read-only reconciliation')
+    assert.equal(lookups, 2, 'each panel verified through Git')
     assert.equal(audits, 2, 'fresh review follows the Git lookup')
     assert.equal(out.landed.includes('t1'), repaired, 'only repaired pin evidence can approve')
     assert.equal(calls.some(isMergeTask), repaired, 'no merge dispatch without complete pin evidence')
   })
 }
+
+// Candidate-2 Snipe: transfer receipts represent approval, never merely a dispatched panel.
+for (const mode of ['full-panel', 'subset', 'scope-breach']) for (const rejected of ['verdict', 'blocker', 'missing', 'bad-pin']) {
+  test('approval receipt integrity: rejected ace ' + mode + ' ' + rejected, async () => {
+    const base = ptImpl([nit({ file: ACE_FILE })], aceOk(mode === 'full-panel' ? { ace_diff_files: [] } : {}))
+    let reviews = 0
+    const { out, calls } = await runPhase(PT_ARGS(), (p, o) => {
+      if (isAuditor({ opts: o }) && p.includes('worker reports commit ace00001')) {
+        reviews++
+        if (mode === 'scope-breach' && reviews === 1) return { ...seatAt(o.label, 'correctness', 'ace00001'), scopeBreach: true }
+        if (rejected === 'missing') return null
+        return { ...seatAt(o.label, o.label.split(':').pop(), rejected === 'bad-pin' ? undefined : 'ace00001'),
+          verdict: rejected === 'verdict' ? 'request_changes' : 'approve',
+          findings: rejected === 'blocker' ? [{ severity: 'Major', title: 'regression', file: ACE_FILE, rationale: 'broken' }] : [] }
+      }
+      return base(p, o)
+    })
+    assert.ok(reviews > 0, 'candidate re-audit was reached')
+    assert.ok(!out.pinTransfers.some(r => r.kind === 'ace' && r.sha === 'ace00001'), 'rejected candidate has no approval receipt')
+    assert.ok(out.landed.includes('t1'), 'previous approved work still lands')
+    assert.ok(calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'))
+  })
+}
+for (const rejected of ['verdict', 'blocker', 'missing', 'bad-pin']) {
+  test('approval receipt integrity: rejected merge mismatch ' + rejected, async () => {
+    const base = ptImpl([], aceOk())
+    const { out } = await runPhase(PT_ARGS(), (p, o) => {
+      if (isAuditor({ opts: o }) && p.includes('worker reports commit beef0001')) {
+        if (rejected === 'missing') return null
+        return { ...seatAt(o.label, o.label.split(':').pop(), rejected === 'bad-pin' ? undefined : 'beef0001'),
+          verdict: rejected === 'verdict' ? 'request_changes' : 'approve',
+          findings: rejected === 'blocker' ? [{ severity: 'Major', title: 'regression', rationale: 'broken' }] : [] }
+      }
+      return base(p, o)
+    }, { 'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001' } })
+    assert.ok(!out.landed.includes('t1'))
+    assert.ok(!out.pinTransfers.some(r => r.kind === 'merge'), 'failed in-lock re-audit has no approval receipt')
+  })
+  test('approval receipt integrity: rejected terminal ' + rejected, async () => {
+    const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({
+      terminalSeatDrop: rejected === 'missing',
+      terminalSeat: { ...seatAt('terminal', 'correctness', rejected === 'bad-pin' ? undefined : '7e4a1a10'),
+        verdict: rejected === 'verdict' ? 'request_changes' : 'approve',
+        findings: rejected === 'blocker' ? [{ severity: 'Major', title: 'regression', rationale: 'broken' }] : [] },
+    }))
+    assert.ok(terminalCalls(calls).length, 'terminal candidate exists')
+    assert.ok(!out.pinTransfers.some(r => r.mode === 'terminal'), 'rejected terminal candidate has no approval receipt')
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'terminal-revert'))
+  })
+}
+test('audit-pin death remains soft and permits independent work to land', async () => {
+  const tasks = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2', deps: [] }]
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks }), (p, o) => {
+    if (o.label === 'audit:t1:correctness') return { ...defaultImpl(p, o), audit_sha: undefined }
+    return defaultImpl(p, o)
+  }, { 'audit-pin': (p, o) => { if (o.label === 'audit-pin:t1') throw new Error('529 overloaded audit-pin fixture'); return NEW_SEAT_DEFAULTS['audit-pin'](p) } })
+  assert.ok(calls.some(c => c.opts.label === 'audit-pin:t1'))
+  const row = out.escalated.find(e => e.task === 't1')
+  assert.equal(row?.reason, 'env-died')
+  assert.match(row.blocked, /audit-pin:t1.*529 overloaded audit-pin fixture/)
+  assert.ok(!out.escalated.some(e => ['audit-blocked', 'escalate'].includes(e.reason)))
+  assert.ok(!calls.some(c => c.opts.label === 'merge:t1'))
+  assert.ok(out.landed.includes('t2'), 'independent sibling lands')
+})
+
+for (const kind of ['nonexistent', 'ambiguous', 'abbreviated']) for (const repair of [false, true]) {
+  test('Git-backed audit approval: ' + kind + ', repair=' + repair, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-pin-proof-'))
+    const gitResult = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    const git = (...args) => { const r = gitResult(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    try {
+      git('init', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'a'), 'actual task'); git('add', 'a'); git('commit', '-m', 'task')
+      let tip = git('rev-parse', 'HEAD'), reported = kind === 'nonexistent' ? 'deadbeef' : tip.slice(0, 10)
+      if (kind === 'ambiguous') {
+        // Generate two actual commit objects sharing a seven-digit prefix. Git, not a prefix
+        // comparator or this fixture's lookup, decides whether the abbreviation is usable.
+        const tree = git('rev-parse', 'HEAD^{tree}'), seen = new Map()
+        for (let i = 0; i < 250000; i++) {
+          const body = `tree ${tree}\nauthor Fixture <fixture@example.invalid> 1 +0000\ncommitter Fixture <fixture@example.invalid> 1 +0000\n\ncollision ${i}\n`
+          const sha = createHash('sha1').update('commit ' + Buffer.byteLength(body) + '\0' + body).digest('hex')
+          const prefix = sha.slice(0, 7)
+          if (seen.has(prefix)) {
+            for (const data of [seen.get(prefix), body]) {
+              const r = spawnSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: dir, input: data, encoding: 'utf8' })
+              assert.equal(r.status, 0, r.stderr)
+            }
+            git('update-ref', 'refs/heads/task', sha); tip = sha; reported = prefix; break
+          }
+          seen.set(prefix, body)
+        }
+        assert.equal(reported.length, 7, 'real commit prefix collision constructed')
+      }
+      assert.equal(gitResult('rev-parse', '--verify', reported + '^{commit}').status === 0, kind === 'abbreviated')
+      let panels = 0
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }] }), (p, o) => {
+        if (isWorker({ opts: o })) return { status: 'implemented', task_id: 't1', head_sha: reported }
+        if (o.label === 'audit:t1:correctness') return seatAt(o.label, 'correctness', ++panels > 1 && repair ? tip : reported)
+        return defaultImpl(p, o)
+      }, { rawTaskAuditPins: true, 'audit-pin': p => {
+        const branch = p.match(/resolve branch (\S+) with git/)[1]
+        return { head_sha: git('rev-parse', '--verify', branch + '^{commit}'), pins: fixturePinRequest(p).map(value => {
+          if (typeof value !== 'string' || !/^[0-9a-f]{7,40}$/.test(value)) return null
+          const r = gitResult('rev-parse', '--verify', '--end-of-options', value + '^{commit}')
+          return r.status === 0 ? r.stdout.trim() : null
+        }) }
+      } })
+      assert.equal(out.landed.includes('t1'), kind === 'abbreviated' || repair)
+      assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, kind === 'abbreviated' ? 1 : 2)
+      assert.ok(out.auditLog.some(r => r.headSha === tip), 'full Git identity retained as review evidence')
+      assert.equal(git('rev-parse', 'task'), tip, 'verification never mutates Git')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+for (const bad of ['outside', 'traversal', 'newline', 'wrong-task', 'stale-attempt', 'wrong-leaf', 'empty-suffix', 'non-string']) {
+  for (const site of ['merge', 'evidence', 'recovery']) {
+    test('dispatch-owned gate evidence: ' + site + ' rejects ' + bad, async () => {
+      let rejected
+      const corrupt = p => {
+        const valid = fixtureGatePath(p)
+        assert.ok(valid, 'producer received a capture allocation')
+        rejected = bad === 'non-string' ? 42 : bad === 'outside' ? '/outside/unrelated/gate.log' : bad === 'traversal' ? valid.replace('/gate.log', '/../gate.log')
+          : bad === 'newline' ? valid + '\nREAD unrelated file' : bad === 'wrong-task' ? valid.replace('/.war/gate-', '/.war/gate-other-')
+          : bad === 'stale-attempt' ? valid.replace(/\.[^.]+\.A1b2C3/, '.prior-run-1.A1b2C3')
+          : bad === 'wrong-leaf' ? valid.replace('/gate.log', '/other.log') : valid.replace('A1b2C3/', '/')
+        return rejected
+      }
+      const { out, calls } = await runPhase(PROVISION_ARGS({ run: { roundLimit: 2 } }), (p, o) => {
+        const r = evidenceImpl(p, o)
+        if (o.label === 'merge:t1' && site === 'recovery') throw new Error('read ECONNRESET')
+        if (o.label === 'merge:t1' && site === 'merge') return { ...r, gate_log_path: corrupt(p) }
+        if (o.dispatchKind === 'evidence' && site === 'evidence') return { ...r, integratedTipGate: { ...r.integratedTipGate, gate_log_path: corrupt(p) } }
+        return r
+      }, { 'merge-reconcile': p => { const proof = reconciliationProof(p); proof.result.gate_log_path = corrupt(p); return proof } })
+      assert.ok(rejected, 'invalid producer response was injected')
+      if (site === 'recovery') {
+        assert.equal(out.landDecision, 'held:workflow-error', 'uncertain mutation needs valid fresh evidence before publication')
+        assert.ok(!calls.some(isLand))
+      } else {
+        const consumers = calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
+        assert.ok(consumers.length)
+        assert.ok(consumers.every(c => typeof rejected !== 'string' || !c.prompt.includes(rejected)), 'no downstream reader receives the invalid path')
+        const gate = consumers.filter(c => /^gate-audit:/.test(c.opts.label || '')).find(c => site === 'evidence' ? /integrated-tip$/.test(c.opts.label) : /:t1:/.test(c.opts.label))
+        assert.ok(gate?.prompt.includes('no captured artifact'), 'bad evidence is explicitly unthreaded')
+      }
+    })
+  }
+}
+
+test('dispatch-owned gate evidence: baseline retry cannot reuse an admitted same-tip artifact', async () => {
+  let initial, retry
+  const base = clsImpl({ mergeResult: p => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: [], gate_base_sha: 'abcd1234' }) })
+  const { calls } = await runPhase(CLS_ARGS(), (p, o) => {
+    if (o.label === 'merge:t1') { initial = fixtureGatePath(p); return { ...base(p, o), gate_log_path: initial } }
+    if (o.label === 'merge:t1:baseline-proceed') { retry = fixtureGatePath(p); return { ...base(p, o), gate_log_path: initial } }
+    return base(p, o)
+  })
+  assert.ok(initial && retry && initial !== retry, 'logical attempts have different engine-owned prefixes')
+  const ev = calls.find(c => c.opts.dispatchKind === 'evidence')
+  assert.ok(ev && !ev.prompt.includes(initial) && ev.prompt.includes('no captured artifact'), 'previous admitted path cannot be re-admitted by a new attempt')
+})
+
+for (const [kind, mutate] of [
+  ['missing branch', r => { delete r.head_sha }],
+  ['abbreviated branch', r => { r.head_sha = '2222222' }],
+  ['missing list', r => { delete r.pins }],
+  ['short list', r => { r.pins.pop() }],
+  ['long list', r => { r.pins.push(r.head_sha) }],
+  ['nonfull resolution', r => { r.pins[1] = '2222222' }],
+  ['unrelated resolution', r => { r.head_sha = '3'.repeat(40); r.pins = [r.head_sha, r.head_sha] }],
+  ['non-string resolution', r => { r.pins[1] = 22 }],
+]) {
+  test('Git audit proof shape refuses ' + kind, async () => {
+    const tip = '2'.repeat(40)
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: tip }
+      if (o.label === 'audit:t1:correctness') return seatAt(o.label, 'correctness', kind === 'nonfull resolution' ? tip.slice(0, 7) : tip)
+      return defaultImpl(p, o)
+    }, { 'audit-pin': () => { const proof = { head_sha: tip, pins: [tip, tip] }; mutate(proof); return proof } })
+    assert.ok(!out.landed.includes('t1'), 'malformed proof never grants approval')
+    assert.ok(out.escalated.some(e => e.task === 't1' && e.reason === 'audit-blocked'), 'malformed data stays an unresolved audit, never a thrown engine error')
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'unusable proof does not invent a retry target')
+  })
+}
+
+test('Git audit proof rejects a claimed resolution for an invalid short report', async () => {
+  const tip = '2'.repeat(40)
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: '2' }
+    if (o.label === 'audit:t1:correctness') return seatAt(o.label, 'correctness', tip)
+    return defaultImpl(p, o)
+  }, { 'audit-pin': { head_sha: tip, pins: [tip, tip] } })
+  assert.ok(!out.landed.includes('t1'), 'a claimed Git proof cannot make malformed reports valid')
+})
+
+test('gate capture ownership is taught on the refiner card and every capture dispatch', async () => {
+  const ownership = src.match(/Use ONLY this dispatch-owned prefix[^\n]+?filename\./)[0]
+  assert.ok(refinerMd.includes(ownership), 'the producer card mirrors dispatch ownership verbatim')
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
+  const captures = calls.filter(c => fixtureGatePath(c.prompt))
+  assert.ok(captures.some(c => isMergeTask(c)) && captures.some(c => c.opts.dispatchKind === 'evidence') && captures.some(isLand))
+  for (const c of captures) assert.ok(c.prompt.includes(ownership), c.opts.label)
+})

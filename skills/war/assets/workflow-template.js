@@ -2123,7 +2123,8 @@ const reconcileMerge = async (original, opts, context, before, lost) => {
   const mode = context.land ? 'land-phase' : 'merge-task'
   log(opts.label + ': uncertain merge response; reconciling Git in-phase before any land (' + cause + ')')
   for (let attempt = 1; attempt <= roundLimit; attempt++) {
-    const recovered = await dispatchSite(
+    const capture = newGateCapture(context.repo, context.land ? 'land-' + context.task : context.task)
+    const rawRecovered = await dispatchSite(
       pt`GIT MERGE RECONCILIATION for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch Git snapshot: ${JSON.stringify(before)}. Prior response: ${cause}. You are the refiner, with Git write authority; auditors remain read-only. Read refiner-recovery.md section Uncertain merge reconciliation before acting. Establish local and origin target refs and the source branch from Git, never infer no mutation from a lost response, ancestry alone, a local marker, or a log. Recover in this phase without human Git commands.
 `
       + (context.land
@@ -2131,8 +2132,9 @@ const reconcileMerge = async (original, opts, context, before, lost) => {
         : pt`If both target refs are unchanged from the snapshot, retry the full original operation below once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with the source patch-id equal to the snapshot patch_id and no foreign commits. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA.\n`)
       + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha the current source/target/remote SHA, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha and the verified nonempty patch_id. Return unmerged ONLY when local and origin target refs equal their respective pre-dispatch snapshot values after your retry; include its normal non-success result if available. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
 ORIGINAL OPERATION (all requirements still apply):
-` + original + '\n' + gateCaptureClause(context.repo, context.task),
+` + original + '\n' + capture.clause,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-reconcile', label: 'git-reconcile:' + opts.label + ':' + attempt, schema: MERGE_RECONCILIATION, ...spawnRefinerRecovery() })
+    const recovered = rawRecovered && !deathOf(rawRecovered) ? { ...rawRecovered, result: admitGateResult(rawRecovered.result, capture) } : rawRecovered
     if (deathOf(recovered)) continue
     if (!recovered || recovered.base_sha !== before.base_sha || recovered.source_sha !== before.source_sha) continue
     if (recovered.outcome === success && fullSha(recovered.local_sha) && recovered.remote_sha === recovered.local_sha &&
@@ -2154,10 +2156,12 @@ ORIGINAL OPERATION (all requirements still apply):
 }
 const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' || !MERGE_RESULT.properties.status.enum.includes(result.status)
 const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => {
+  const capture = newGateCapture(context.repo, context.land ? 'land-' + context.task : context.task)
+  const body = prompt + '\n' + capture.clause
   const before = await mergeSnapshot(opts, context)
   if (deathOf(before)) return before
   let result, thrown
-  try { result = await invoke(prompt, opts) }
+  try { result = admitGateResult(await invoke(body, opts, capture), capture) }
   catch (err) { thrown = err; result = { mode: context.land ? 'land-phase' : 'merge-task', status: 'error', detail: 'lost merge dispatch: ' + String(err && err.message || err) } }
   const resolved = uncertainMerge(result) ? await reconcileMerge(prompt, opts, context, before, result) : result
   if (thrown && resolved === result) throw thrown
@@ -2413,11 +2417,10 @@ const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task',
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
 // its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
 // A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot.
-const segmentedMerge = async (prompt, opts, refineryP, taskId, context) => {
+const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
-  const body = prompt + '\n' + gateCaptureClause(refineryP, taskId) + segmentedGateClause
-  return reconciledMerge(body, opts, context, async () => {
-    let result = await dispatchSite(body, opts)
+  return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
+    let result = admitGateResult(await dispatchSite(body, opts), capture)
     let segments = 0
     while (isSegment(result) && segments < roundLimit) {
       segments++
@@ -2425,6 +2428,7 @@ const segmentedMerge = async (prompt, opts, refineryP, taskId, context) => {
       result = await dispatchSite(
         pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
         { ...opts, label: opts.label + ':segment-' + (segments + 1) })
+      result = admitGateResult(result, capture)
     }
     if (isSegment(result)) {
       log('Phase ' + ph.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status (error).')
@@ -2434,9 +2438,25 @@ const segmentedMerge = async (prompt, opts, refineryP, taskId, context) => {
 }
 // Every logical gate owns a fresh artifact. Segmented continuations carry the returned path;
 // a missing result never aliases an earlier same-tip log (#2182/#2168).
-const gateCaptureClause = (refineryP, taskId) =>
-  pt`FRESH GATE ARTIFACT: for a fresh logical dispatch, ensure .war/ is git-excluded inside ${refineryP} (append \`.war/\` once to \`git -C ${refineryP} rev-parse --git-path info/exclude\`), create .war/ if needed, then allocate a fresh directory with \`mktemp -d "${refineryP}/.war/gate-${taskId}.XXXXXX"\`. Tee the FULL gate stdout+stderr to gate.log inside THAT directory; return its actual absolute path as gate_log_path, including on an incomplete result. Never substitute a conventional task/phase filename. Keep allocation, writer setup and capture in one shell invocation so no shell variable must survive a later call. Populate gate_output only as NON-AUTHORITATIVE context; the captured file is the AUTHORITATIVE execution evidence. ${GATE_LOG_STAMP} `
-const gateLogPathOf = path => typeof path === 'string' && path.startsWith('/') && !path.includes('\0') ? path : null
+const gateCaptureClause = (refineryP, prefix) =>
+  pt`FRESH GATE ARTIFACT: for a fresh logical dispatch, ensure .war/ is git-excluded inside ${refineryP} (append \`.war/\` once to \`git -C ${refineryP} rev-parse --git-path info/exclude\`), create .war/ if needed, then allocate a fresh directory with \`mktemp -d "${prefix}XXXXXX"\`. Tee the FULL gate stdout+stderr to gate.log inside THAT directory; return its actual absolute path as gate_log_path, including on an incomplete result. Use ONLY this dispatch-owned prefix, including when rerunning at the same tip; never substitute another dispatch’s directory or a conventional task/phase filename. Keep allocation, writer setup and capture in one shell invocation so no shell variable must survive a later call. Populate gate_output only as NON-AUTHORITATIVE context; the captured file is the AUTHORITATIVE execution evidence. ${GATE_LOG_STAMP} `
+// The engine owns the logical-attempt prefix; mktemp owns the final filesystem allocation.
+// The random epoch also changes on cross-machine/restarted runs, so an old same-tip artifact
+// cannot pass merely by matching a task id. Readers only see paths admitted at their producer.
+const gateEpoch = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+let gateAttempt = 0
+const newGateCapture = (repo, task) => {
+  const prefix = repo.replace(/\/$/, '') + '/.war/gate-' + task + '.' + gateEpoch + '-' + (++gateAttempt) + '.'
+  return { prefix, clause: gateCaptureClause(repo, prefix) }
+}
+const admitGateResult = (result, capture) => {
+  if (!result || deathOf(result) || typeof result !== 'object') return result
+  const path = result.gate_log_path
+  const valid = typeof path === 'string' && path.startsWith(capture.prefix) &&
+    /^[A-Za-z0-9]{6}\/gate\.log$/.test(path.slice(capture.prefix.length))
+  return { ...result, gate_log_path: valid ? path : undefined }
+}
+const gateLogPathOf = path => typeof path === 'string' ? path : null
 const gateArtifactLine = (rawPath, kind) => {
   const path = gateLogPathOf(rawPath)
   return path ? pt`GATE LOG ARTIFACT: read the FULL captured ${kind} log at ${path} (read-only Read)`
@@ -2635,20 +2655,26 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // Intake normalization (verdict-integrity D2, PIN-6) at the ONE collection site every auditRound
   // caller shares — roster seats, the rebuttal round and every re-audit pass through here.
   const seats = results.filter(s => s && !deathOf(s)).map(s => normalizeSeat(s, task.id))
-  // A missing, malformed or conflicting SHA is unresolved review, never approval (#2141). Resolve the branch
-  // through read-only Git and run the full roster once at that confirmed tip. A second mismatch
-  // or unusable lookup takes the existing shortfall/hold path; read-only transport death remains soft.
-  if (!isSha(pin) || seats.some(s => !isSha(s.audit_sha) || pinMismatch(s.audit_sha, pin))) {
+  // Every panel resolves its reported object names through independent, read-only Git. Equal
+  // strings alone are not evidence: abbreviations may be ambiguous or name no object at all.
+  // Keep the original reported names for provenance; the proof records their full Git identities.
+  if (died || seats.length < expected) return { seats, expected, died, pin }
+  const reported = [pin ?? null, ...seats.map(s => s.audit_sha ?? null)]
+  const pinEvidence = { task: task.id, verdict: 'audit-pin:unresolved', findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), reported, pinMismatch: true }
+  auditLog.push(pinEvidence)
+  const resolved = await dispatchSite(
+    pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git in ${task.worktree}: resolve branch ${task.branch} with git rev-parse --verify ${task.branch}^{commit}. PIN REQUEST: ${JSON.stringify(reported)}
+For each reported value, resolve it separately with git rev-parse --verify --end-of-options <value>^{commit}, ONLY if it is 7–40 lowercase hexadecimal characters. Missing, malformed, ambiguous or nonexistent values resolve to null; never infer identity from prefixes. Return { head_sha: <full branch commit SHA>, pins: [<full resolved SHA or null per requested value, in the same order>] }. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a branch Git error return {}.`,
+    { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
+      schema: { type: 'object', required: ['head_sha', 'pins'], properties: { head_sha: { type: 'string' }, pins: { type: 'array', items: { type: ['string', 'null'] } } } }, ...(reconciliation.done ? spawnRefinerRecovery() : spawn('refiner')) })
+  if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }
+  if (!resolved || !fullSha(resolved.head_sha) || !Array.isArray(resolved.pins) || resolved.pins.length !== reported.length ||
+      resolved.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i])))) return { seats: [], expected, died }
+  Object.assign(pinEvidence, { verdict: 'audit-pin:resolved', headSha: resolved.head_sha, resolvedPins: resolved.pins, pinMismatch: resolved.pins.some(sha => sha !== resolved.head_sha) })
+  if (resolved.pins.some(sha => sha !== resolved.head_sha)) {
     auditLog.push({ task: task.id, verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin,
-      findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), note: 'Missing, malformed or conflicting task audit pin; no approval accounted before Git reconciliation and full re-audit' })
-    if (reconciliation.done) return { seats: [], expected, died, pin }
-    const resolved = await dispatchSite(
-      pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git in ${task.worktree}: resolve branch ${task.branch} with git rev-parse --verify ${task.branch}^{commit}. Return { head_sha: <that full commit SHA> }. Reported pin: ${String(pin ?? '(unrecorded)')}. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a Git error return {}.`,
-      { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
-        schema: { type: 'object', properties: { head_sha: { type: 'string' } } }, ...spawnRefinerRecovery() })
-    if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }
-    if (!resolved || !fullSha(resolved.head_sha)) return { seats: [], expected, died }
-    if (!reconciliation.repairWorkerPin && (!isSha(pin) || pinMismatch(resolved.head_sha, pin))) return { seats: [], expected, died, pin }
+      findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), note: 'Task audit pins did not all resolve to the Git task tip; no approval accounted before full re-audit' })
+    if (reconciliation.done || (!reconciliation.repairWorkerPin && resolved.pins[0] !== resolved.head_sha)) return { seats: [], expected, died, pin }
     return auditRound(task, null, workerTests, resolved.head_sha, extra, roster, { ...reconciliation, done: true })
   }
   return { seats, expected, died, pin }
@@ -3170,6 +3196,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     ...carried.map(s => ({ seat: s.seat, lens: s.lens, outcome: 'transferred', sha, approvedAt: s.transferredFrom })),
   ]
   const recordAceTransfer = (r, sha, mode, why, ran, carried) => {
+    if (!allApprove([...ran, ...carried], r.task.roster.length)) return
     const seats = aceSeatRows(ran, carried, sha)
     pinTransfers.push({ task: r.task.id, kind: 'ace', mode, why, sha, seats })
     log('ace-scope ' + r.task.id + ' @ ' + sha + ': ' + mode + ' — ' + why + '; seats: ' + (seats.map(x => (x.lens || x.seat) + '=' + x.outcome).join(', ') || '(none)'))
@@ -4069,7 +4096,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log('pin-transfer ' + r.task.id + ': patch-id MISMATCH (' + (pinProbe.pre_rebase_patch_id || '(empty)') + ' → ' + (pinProbe.post_rebase_patch_id || '(empty)') + ') — the full panel re-audits the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' in the lock before the merge (PIN-1).')
         const { seats: rbSeats, expected: rbExpected, died: rbDied } = await auditRound(r.task, null, null, pinProbe.rebased_tip)
         if (rbDied) { mergeDied(rbDied); continue }   // D21: a dead in-lock re-audit seat is env-died, never a failed re-audit
-        pinTransfers.push(probeRow('mismatch', rbSeats))
         // Route this re-audit's OWN Minor/Nits by disposition, on BOTH exit paths (#1931), exactly
         // as the six wave-side ace re-audit sites do — an ask parks, a follow-up files, a note
         // records, an absorb routes. Placed before the approve/escalate branch so no exit path
@@ -4078,6 +4104,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // instead. Blocking findings stay untouched — the escalate arm below owns them.
         routeReauditMinors(r, rbSeats, { noReentry: 'merge-slot pin-transfer mismatch re-audit — the wave side is over, so re-entry can never dispatch; the sweep is the vehicle' })
         if (allApprove(rbSeats, rbExpected)) {
+          pinTransfers.push(probeRow('mismatch', rbSeats))
           r.seats = rbSeats
         } else {
           escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'the in-lock full-panel re-audit of the rebased tip did not re-approve after a pin-transfer patch-id mismatch', rebased_tip: pinProbe.rebased_tip } })
@@ -4113,7 +4140,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
 
       // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
       const mrDeath = deathOf(mr)
@@ -4257,7 +4284,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
           const floorMrDeath = deathOf(floorMr)
           if (floorMrDeath) { mergeDied(floorMrDeath); floorMr = null; reAuditFailed = true; break }   // D21: a dead re-merge is env-died, never a floor status
         }
@@ -4350,7 +4377,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
           const epDeath = deathOf(ep)
           if (epDeath) mergeDied(epDeath)   // D21: a dead environment-proceed re-merge is env-died, site-named
           else if (ep && ep.status === 'merged') landMerged(r.task, ep)
@@ -4385,7 +4412,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, refineryPath, r.task.id, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
           const bpDeath = deathOf(bp)
           if (bpDeath) mergeDied(bpDeath)   // D21: a dead baseline-proceed re-merge is env-died, site-named
           else if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
@@ -4607,6 +4634,7 @@ if (mergedTasksForGateAudit.length > 0) {
     preMergeTip: m.preMergeTip || phaseBaseCmd,
     // Unthreaded paths are evidence absence; never guess a previous dispatch artifact.
     gateLogPath: gateLogPathOf(m.gateLogPath) || GATE_LOG_UNTHREADED }))
+  const evidenceCapture = newGateCapture(refineryPath, 'phase-' + ph.id)
   let evidence = await dispatchSite(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
@@ -4620,13 +4648,14 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — exactly what the task brought in under fast-forward topology), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
     + (intraDep
-      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), ${gateCaptureClause(refineryPath, 'phase-' + ph.id)} Return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: <the actual absolute captured path> } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
+      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), ${evidenceCapture.clause} Return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: <the actual absolute captured path> } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
       : pt`No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
     + pt`  3. PHASE DIFF — run: git -C ${refineryPath} diff --name-only ${phaseBaseCmd}..$(git -C ${refineryPath} rev-parse HEAD) and return its lines as phase_diff_files (one repo-relative path per entry) — the phase's git-derived changed-file list, read by the gate-audit floor pass; absent ⇒ that pass's note arm reads an empty Set and matches nothing.\n`
     + pt`Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], phase_diff_files, integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', label: `evidence:phase-${ph.id}`, dispatchKind: 'evidence', schema: EVIDENCE_RESULT, ...spawn('refiner') })
   // Death arm (D21, PIN-25): a dead evidence dispatch classifies env-died SOFT naming the site; the
   // seats keep today's fail-open SOFT cannot-confirm path (no token stamped, nothing HARD).
+  if (evidence && evidence.integratedTipGate) evidence.integratedTipGate = admitGateResult(evidence.integratedTipGate, evidenceCapture)
   const evidenceDeath = deathOf(evidence)
   if (evidenceDeath) { envDied('phase-' + ph.id + '-evidence', evidenceDeath); evidence = null }   // null, like every sibling death arm — no later read sees the DEAD record
   // phase_diff_files (D15): stamped when the dispatch returned an array; otherwise null + one log line.
@@ -5339,7 +5368,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           const tApproved = allApprove(tSeats, tExpected)
           // Ledger row (PIN-10): the terminal seat re-ran; every other default-roster seat transfers
           // from the polish panel — every rosterOverride site records its transfer, this one included.
-          pinTransfers.push({ task: polishTask.id, kind: 'ace', mode: 'terminal', why: 'one-hop terminal pass — one re-audit seat, the rest transfer from the polish panel', sha: terminalSha,
+          if (tApproved) pinTransfers.push({ task: polishTask.id, kind: 'ace', mode: 'terminal', why: 'one-hop terminal pass — one re-audit seat, the rest transfer from the polish panel', sha: terminalSha,
             seats: defaultRoster.map(s => ({ seat: s.lens, lens: s.lens, outcome: s.lens === seat.lens ? 're-ran' : 'transferred', sha: terminalSha })) })
           auditLog.push({ task: polishTask.id, verdict: tDied ? 'env-died' : tApproved ? 'approve' : 'terminal-rejected', terminal: true, sha: terminalSha, seat: seat.lens, findings: tSeats.flatMap(s => s.findings || []), requested: tExpected, returned: tSeats.length, ...(tDied ? { blocked: tDied } : {}) })
           if (!tApproved) {
@@ -5475,7 +5504,7 @@ if (landDecision === 'landed') {
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
   const segmentedLandClause =
-    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. ${gateCaptureClause(refineryLandPath, 'land-phase-' + ph.id)} `
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
   const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
@@ -5510,8 +5539,8 @@ if (landDecision === 'landed') {
   const segmentedLand = async (prompt, opts) => {
     const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
     const body = prompt + segmentedLandClause
-    return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: submodLandTask && submodLandTask.targetBase || ph.workingBranch, land: true }, async () => {
-      let result = await dispatchSite(body, opts)
+    return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: submodLandTask && submodLandTask.targetBase || ph.workingBranch, land: true }, async (body, opts, capture) => {
+      let result = admitGateResult(await dispatchSite(body, opts), capture)
       let segments = 0
       while (isSegment(result) && segments < roundLimit) {
         segments++
@@ -5519,6 +5548,7 @@ if (landDecision === 'landed') {
         result = await dispatchSite(
           pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
           { ...opts, label: opts.label + ':segment-' + (segments + 1) })
+        result = admitGateResult(result, capture)
       }
       if (isSegment(result)) {
         log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')

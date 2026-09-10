@@ -312,3 +312,58 @@ schema requirement, operation-pin equality) each fail the intended assertion. Re
 lint is clean; the actual staged script is **323,229 bytes**, within the 524,288 cap.
 The final shell sweep and another complete four-seat Snipe review remain pending on
 the new committed candidate. No first-candidate approval is transferred to these bytes.
+
+## Candidate 2 review and final boundary repairs (in progress)
+
+Candidate `3bc79603381c84d952bb40d9ecc9727ff5bc53b0` passed 1,836 JS tests,
+all 31 shell files, redaction lint and GitHub CI; staged workflow 323,229 bytes.
+All 17 preserved refs remained unchanged. Its complete, stable four-seat Snipe panel
+is retained in candidate-2-snipe.md/.json. Simplicity approved; correctness,
+cascading-impact and test-fidelity requested changes. It remains **held**.
+
+The four findings were verified and grouped into three repair classes:
+
+- Approval evidence: ace full/subset/scope-breach, merge mismatch and terminal
+  receipts were appended before unanimous approval. Twenty behavioral rejection
+  regressions failed before repair and pass after moving writes behind allApprove.
+  Existing successful receipt cases retain their provenance; rejected content still
+  follows its existing revert/hold path.
+- Git object identity: syntactically equal reports bypassed actual Git resolution.
+  Every complete task panel now obtains an independent read-only positional Git proof.
+  Full object identities must agree; a bounded re-audit may repair initial worker
+  reports, while operation-specific promises cannot move. Real Git fixtures include
+  two actual commit objects with a shared seven-digit prefix, a nonexistent object,
+  a valid abbreviation and successful repair. The previously untested audit-pin
+  transport-death arm has an independent-sibling acceptance test.
+- Artifact identity: any absolute path previously survived to readers. Every capture
+  producer now owns a new logical-attempt prefix; only its mktemp suffix/gate.log path
+  is admitted before continuations, evidence, recovery or downstream readers. Recovery
+  receives a fresh prefix, segmented continuation retains its current prefix, and a
+  baseline retry cannot reuse an already admitted same-tip file. Per-run randomness
+  prevents deterministic reuse after restart; Git remains the durable source of truth,
+  while gate files remain ephemeral evidence. Content and stamp reading remain the
+  refiner/auditor's responsibility; path validation alone does not prove file contents.
+
+Full validation, guard-removal evidence and the next committed-candidate panel are
+pending. Historical approvals do not cover these changed bytes.
+
+Boundary repair validation complete: **1,898 JS tests passed, 0 failed; all 31 shell
+files passed; redaction lint clean; staged workflow 325,742 bytes / 524,288 cap**.
+Version slots remain coherent and monotonic at 0.21.13. The full JS run caught one
+stale capture-call census after unused positional arguments were removed; the census
+now pins the same four identity-bearing context objects, and the entire suite passed.
+The final schema edit only clarifies that successful re-audits (not transfer-only
+probes) emit re-audit receipts and preserves the required audit_sha sentence.
+
+The final controls comprise 18 failing guard-removal mutations plus two before-source
+runs: six Git identity cases and 22 artifact cases fail before the repair. A malformed
+proof's no-throw classification and a genuinely abbreviated resolution strengthen the
+array/full-resolution controls that initially survived; all final controls fail their
+behavioral assertions. Ace receipt authorization is centralized at recordAceTransfer,
+with full/subset/scope-breach mirrors; mismatch and terminal writers keep their own
+success gates. Task pin proofs use the normal refiner tier, escalating repair verification
+to the recovery tier. No additional permission or human Git maintenance is required.
+
+Exact commands, source/log hashes, controls and all protected ref identities are in
+candidate-3-validation.json. The initial and both reviewed candidates remain traceable.
+The next panel must cover the new committed SHA; the verdict remains held until then.
