@@ -846,3 +846,41 @@ hashes, all 19 mutation controls, the 22 failing before-source cases, and all 17
 protected refs. Remote head/base remained candidate 9 / the pinned baseline before commit.
 The installed Snipe package's 17 files match the recorded hashes. The authorized normal
 commit/push and fresh four-seat full-scope review follow; no merge or release is performed.
+
+### Candidate 10 review and candidate 11 error-oracle closure
+
+The complete, stable four-seat panel on 71a67bd58b1dfb55a0a002279fa2b0180bd6d400
+approved correctness, simplicity and cascading-impact. Test-fidelity requested changes for
+one verified Major: the malformed-branch recovery fixture ran outside a repository and
+asserted only exit 2, allowing the later repository guard to mask a missing branch guard.
+Its exact report/manifest are retained. The two previously adjudicated duplication Minors
+remain deferred under #2126/#2127; there is no new verified production behavior defect.
+
+- **Cause and rule:** an error-path fixture must distinguish its intended guard from adjacent
+  failures, including when both exit 2. Removing branch validation left the actual old test
+  green; candidate11-before-false-green.log records this reproduction.
+- **Sibling/consumer sweep:** all 19 task-integrated.sh die guards were enumerated from source.
+  The argument/branch/missing-repository/ref fixtures now assert their precise diagnostic and
+  absence of completion or NO_TASK_PROOF markers. Malformed names run in an initialized Git
+  repository and cover all three positional branch arguments; too few/many arguments and
+  missing task/integration/working refs have distinct checks. The injected Git-read fixtures
+  now cover repository-root resolution/entry, ancestry, phase-base/history/trailer/commit-diff
+  reads, owned-interval/mixed/net reads, allocation/path/content reads, and final ref re-read.
+  Ref-race fixtures separately require the exact NO_TASK_PROOF marker. This protects the
+  existing recovery consumer's distinction between ordinary missing proof (1) and error (2).
+- **Recursive proof:** all 18 targeted cases pass. All 38 Bash-parseable controls fail assertion
+  oracles: remove each of the 19 guards, then replace each diagnostic with an adjacent-failure
+  message. Exact stderr assertions discriminate status-preserving misrouting, not just crashes.
+  Control scripts and raw logs are retained in the persistent evidence directory.
+- **Consequences/residuals:** this is a test-only repair; helper and engine production bytes,
+  schemas, recovery doctrine and shell tests are unchanged from candidate 10. No new guard,
+  behavior, dispatch, permission, or policy was added. The full JS suite is being rerun;
+  candidate 10's passing 31 shell files, redaction and staging evidence remain applicable to
+  their byte-identical inputs and retain their original validation attribution. The next
+  exact-SHA four-seat audit is pending. No merge or release has been performed.
+
+Candidate-11 final validation: **2,131 JS tests passed, 0 failed**. All 38 guard/diagnostic
+controls fail as intended. The candidate-11 manifest binds the current fixture/source hashes,
+full-suite log, false-green reproduction and control evidence; it explicitly attributes the
+unchanged shell/redaction/staging checks to candidate 10. All 17 protected refs remain unchanged.
+The PR baseline and precommit source did not move. Commit/push and exact-candidate review follow.

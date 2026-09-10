@@ -17994,15 +17994,29 @@ test('recovery integrity #2196: real Git provenance distinguishes sibling, legac
 test('recovery provenance helper refuses invalid inputs and distinguishes missing task from missing integration', () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-task-provenance-errors-'))
   const run = args => spawnSync('bash', [join(here, 'task-integrated.sh'), ...args], { cwd: dir, encoding: 'utf8' })
+  const error = (args, diagnostic) => {
+    const r = run(args)
+    assert.equal(r.status, 2, r.stdout + r.stderr)
+    assert.ok(r.stderr.includes('task-integrated: ' + diagnostic), r.stderr)
+    assert.ok(!r.stdout.includes('TASK_INTEGRATED') && !r.stdout.includes('NO_TASK_PROOF'), 'usage/Git errors are neither completion nor ordinary missing proof')
+  }
   try {
-    assert.equal(run([]).status, 2)
-    assert.equal(run(['bad..branch', 'integration', 'working']).status, 2)
-    assert.equal(run(['task', 'integration', 'working']).status, 2, 'not a repo is an error')
+    error(['task', 'integration', 'working'], 'not a Git repository')
     const git = args => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr) }
     git(['init', '-b', 'working']); git(['config', 'user.name', 'WAR Fixture']); git(['config', 'user.email', 'fixture@example.invalid']); git(['commit', '--allow-empty', '-m', 'base'])
-    assert.equal(run(['task', 'integration', 'working']).status, 1, 'absent task has no skip proof')
+    // Reach argument/branch guards in a real repository, so a later repository failure cannot mask them.
+    for (const args of [[], ['task', 'integration'], ['task', 'integration', 'working', 'extra']]) error(args, 'expected task, integration and working branch names')
+    for (const index of [0, 1, 2]) {
+      const args = ['task', 'integration', 'working']; args[index] = 'bad..branch'
+      error(args, 'invalid branch name')
+    }
+    const missing = run(['task', 'integration', 'working'])
+    assert.equal(missing.status, 1, 'absent task has no skip proof')
+    assert.equal(missing.stdout.trim(), 'NO_TASK_PROOF task absent or unreadable'); assert.equal(missing.stderr, '')
     git(['branch', 'task'])
-    assert.equal(run(['task', 'integration', 'working']).status, 2, 'missing integration cannot prove ancestry')
+    error(['task', 'integration', 'working'], 'cannot resolve integration')
+    git(['branch', 'integration'])
+    error(['task', 'integration', 'missing-working'], 'cannot resolve working branch')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
@@ -19545,7 +19559,7 @@ for (const [submodule, relative] of [[false, false], [true, false], [true, true]
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error', 'owned-history-error', 'mixed-diff-error', 'owned-net-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
+for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error', 'owned-history-error', 'mixed-diff-error', 'owned-net-error', 'root-error', 'enter-root-error', 'ancestry-error', 'phase-base-error', 'history-error', 'trailer-error', 'commit-diff-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-recovery-proof-error-')), bin = join(dir, 'bin'), scratch = join(dir, 'scratch')
   const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
   const git = (...args) => { const r = spawnSync(realGit, args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
@@ -19560,6 +19574,13 @@ for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved
     writeFileSync(join(bin, 'git'), `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process')
 const args = process.argv.slice(2), real = ${JSON.stringify(realGit)}, scenario = ${JSON.stringify(scenario)}
+if (scenario === 'root-error' && args.includes('--show-toplevel')) process.exit(128)
+if (scenario === 'enter-root-error' && args.includes('--show-toplevel')) { console.log(${JSON.stringify(join(dir, 'missing-root'))}); process.exit(0) }
+if (scenario === 'ancestry-error' && args.includes('--is-ancestor')) process.exit(128)
+if (scenario === 'phase-base-error' && args[0] === 'merge-base' && !args.includes('--is-ancestor')) process.exit(128)
+if (scenario === 'history-error' && args[0] === 'rev-list' && args.includes('--no-merges')) process.exit(128)
+if (scenario === 'trailer-error' && args[0] === 'show') process.exit(128)
+if (scenario === 'commit-diff-error' && args.includes('--quiet') && args.includes(${JSON.stringify(firstOwned + '^')})) process.exit(128)
 if (scenario === 'list-error' && args.includes('--name-only')) process.exit(128)
 if (scenario === 'owned-history-error' && args[0] === 'rev-list' && args.length === 2) process.exit(128)
 if (scenario === 'mixed-diff-error' && args.includes('--quiet') && args.includes(${JSON.stringify(taskTip + '^')})) process.exit(128)
@@ -19577,6 +19598,22 @@ process.exit(r.status ?? 128)
     const r = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: dir, encoding: 'utf8', env: { ...process.env, PATH: bin + ':' + process.env.PATH, TMPDIR: scenario === 'temp-error' ? join(dir, 'missing') : scratch } })
     assert.equal(r.status, scenario.endsWith('-moved') ? 1 : 2, r.stdout + r.stderr)
     assert.ok(!r.stdout.includes('TASK_INTEGRATED'))
+    if (scenario.endsWith('-moved')) {
+      assert.equal(r.stdout.trim(), 'NO_TASK_PROOF refs moved during task proof'); assert.equal(r.stderr, '')
+    } else {
+      const diagnostic = {
+        'root-error': 'cannot resolve repository root', 'enter-root-error': 'cannot enter repository root',
+        'ancestry-error': 'ancestry check failed', 'phase-base-error': 'cannot resolve phase base',
+        'history-error': 'cannot read task history', 'trailer-error': 'cannot read task trailer',
+        'commit-diff-error': 'cannot read task commit diff', 'list-error': 'cannot read owned task paths',
+        'compare-error': 'cannot compare current task content', 'refs-error': 'cannot re-read proof refs',
+        'temp-error': 'cannot allocate proof paths', 'owned-history-error': 'cannot read owned interval',
+        'mixed-diff-error': 'cannot read unowned contribution', 'owned-net-error': 'cannot read surviving task-owned diff',
+      }[scenario]
+      assert.ok(diagnostic, 'every injected failure has its own diagnostic oracle')
+      assert.ok(r.stderr.includes('task-integrated: ' + diagnostic), r.stderr)
+      assert.ok(!r.stdout.includes('NO_TASK_PROOF'), 'Git/usage failure cannot masquerade as ordinary missing proof')
+    }
     assert.deepEqual(readdirSync(scratch).filter(name => name.startsWith('war-task-integrated.')), [], 'all temporary proof paths are removed on refusal/error')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
