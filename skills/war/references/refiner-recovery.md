@@ -135,7 +135,9 @@ can substitute for the proof. The normal resume pre-flight still reconciles unex
 ## Uncertain merge reconciliation
 
 A merge or land can push successfully and lose its response. It is still a mutation. The engine
-reads a Git snapshot before dispatch (retrying unavailable reads on the recovery tier) and, on death, missing result or error, dispatches a fresh
+reads a Git snapshot before dispatch (retrying unavailable reads on the recovery tier). After a
+normal reply, a separate read-only `merge-confirm` refiner checks actual Git state before the
+engine routes that reply. Death, missing/error results, or unconfirmed replies dispatch a fresh
 refiner using `agents.refiner.recovery` (defaults/presets are defined in `war-config.mjs`). The
 ordinary refiner tier stays independent. Maintenance is bounded by `run.roundLimit`; auditors
 never acquire Git write permissions. This maintenance does not consume worker fix/absorb rounds.
@@ -146,6 +148,20 @@ is not an absent ref. The snapshot stores Git identities, not a local-state comp
 Check both local and remote state before and after maintenance. Respect a live or unknown writer;
 if its mutation cannot be ruled out or safely completed, return uncertain. Never overwrite
 foreign content, reset a shared ref, force-push, or ask the human to run Git commands.
+
+For normal confirmation, resolve the reported success SHA independently as a Git commit; a
+7–40 digit lowercase hex abbreviation is acceptable only when Git resolves it unambiguously.
+Return full local/remote/source identities and `reported_sha`, never inferred matching strings.
+Task success requires source = local target = origin target, the same patch-id as the snapshot,
+and `base_is_ancestor: true` from `git merge-base --is-ancestor <snapshot base> <local target>`
+(exit 0). A verified task no-op can have an empty patch; uncertain recovery still requires the
+nonempty patch and advancement described below. Land success requires the actual two ordered
+parents [captured remote working base, captured integration source] and an unchanged source tip.
+The captured remote base must be a full commit SHA; an absent branch cannot be a commit parent.
+A normal non-success reply is confirmed only when both target refs equal their respective
+snapshots. Re-read refs after computing evidence; movement or a Git error returns `{}`. A failed
+read after mutation cannot prove absence, even when the mutator reported a known floor failure.
+The engine records confirmation evidence, or invokes recovery before any completion accounting.
 
 For a task/polish/terminal merge, unchanged target refs allow one retry of the full original
 operation in this recovery dispatch. An already-advanced target must be exactly the current
@@ -163,7 +179,8 @@ response. Gate the actual landed commit in a fresh artifact. Divergence/foreign 
 uncertain and requires further agent investigation before publishing more state.
 
 Return the engine's `MERGE_RECONCILIATION` shape: echo snapshot identities, report current local
-and origin target SHAs, current source tip, verified patch-id, and the complete normal MergeResult
+and origin target SHAs, current source tip, verified patch-id, task `base_is_ancestor` from Git,
+and the complete normal MergeResult
 with its captured gate path. A land additionally reports its actual commit parents. `unmerged`
 requires both target refs unchanged from their respective snapshots after the retry; it never
 means “no response.” The workflow validates these fields before accounting success or safe

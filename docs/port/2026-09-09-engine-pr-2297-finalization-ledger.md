@@ -367,3 +367,68 @@ to the recovery tier. No additional permission or human Git maintenance is requi
 Exact commands, source/log hashes, controls and all protected ref identities are in
 candidate-3-validation.json. The initial and both reviewed candidates remain traceable.
 The next panel must cover the new committed SHA; the verdict remains held until then.
+
+## Candidate 3 review: incomplete panel; success accounting repair in progress
+
+Candidate `5db8cce7fac141a759b07432fff5f5e4a21a6b34` is pushed, clean, CI green,
+with all recorded validation hashes matching committed files. Its Snipe scope was
+stable and readable, but the panel is **incomplete**: correctness requested changes,
+simplicity approved with a Minor, and cascading-impact/test-fidelity both failed with
+“Selected model is at capacity.” Their partial transport output is not an audit verdict.
+The exact report and validated peer outcomes are retained in candidate-3-snipe files.
+No model substitution or broader permissions were used.
+
+The new Major is verified: normal success-shaped MergeResults bypass post-dispatch Git
+verification. The repair is extending the existing reconciliation boundary to confirm
+both claimed success and claimed non-success through fresh read-only Git. This also
+prevents a false floor/error report from concealing an advanced target. Task and land
+identity checks are shared with recovery; missing or contradictory proof enters the
+existing bounded maintenance path. Proven absence must never return a lost success enum.
+Regression, consumer migration and validation are in progress; no approval is claimed.
+
+The Minor collision-fixture finding is absorbed: two fixed real Git commit payloads
+share prefix 385b737. Git verifies their full IDs and ambiguity on every run; no dynamic
+collision search remains. The earlier proof-schema error instruction is also made
+schema-conforming (`head_sha: ''`, `pins: []`) while retaining unresolved-audit routing.
+
+### Normal-outcome Git certainty: class closure
+
+- **Cause → rule:** a recognized MergeResult enum bypassed reconciliation. A normal reply now
+  receives a separate read-only Git confirmation before it can account success or absence.
+  Confirmation checks the independently resolved reported SHA, actual local/origin/source refs,
+  task ancestry and captured patch, or the land commit's exact ordered parents. Equal abbreviated
+  proof fields are insufficient. Known failure replies also require unchanged local/origin refs.
+- **Sibling/consumer sweep:** one boundary covers primary/floor/environment/baseline task merges,
+  polish and terminal merges, plus all land sites after segmented continuation. Unconfirmed replies
+  become errors before recovery so a proved-unmerged result cannot return the original success.
+  The shared `mergeGitMatches` predicate serves confirmation and recovery; missing/false ancestry,
+  absent origin parent, changed source/patch and malformed parents cannot bypass either arm.
+  Completion arrays, transfer accounting, evidence threading, current-tip tracking and Wrap-up
+  consume only the confirmed/reconciled result. A verified normal task no-op remains valid;
+  automatic uncertain recovery still needs a nonempty patch and advancement.
+- **Regression/mutation evidence:** ten real-Git task/land cases cover minimal, nonexistent,
+  wrong-tip, valid and falsely failed replies; eight negative cases fail against `5db8cce7`.
+  Valid pushes proceed; concealed successful pushes reconcile in phase; land reuses one actual
+  phase commit. Alternate polish/terminal cases preserve unresolved findings. Mirror cases cover
+  missing proof, failed reads, full identity, claim correspondence, every land-parent condition,
+  false-failure local/remote advancement, foreign mode/status and recovery ancestry. All **22**
+  guard-removal controls fail their intended assertions; no surviving mutation is counted as proof.
+- **Consequences:** normal confirmation uses the configured ordinary refiner; uncertain maintenance
+  uses the independent recovery tier. No auditor gains write permission, no worker round is spent,
+  and recoverable state proceeds without human Git. Source, refiner card, recovery/schema references,
+  D21 and ADR 0051 now state this shared rule. Existing gate/floor obligations and missing-artifact
+  SOFT behavior remain. Legacy success fixtures now supply identities explicitly or through a named
+  fixture constructor; boundary fixtures opt out and use raw replies plus independent Git oracles.
+- **Residuals:** the extra read-only dispatch has a runtime cost, retained under D17's live-cost
+  backstop. The refiner still executes Git/gate/floor procedures under its agent contract; controlled
+  gate/floor replies in real-Git fixtures are not live-model end-to-end proof. Unknown concurrent
+  history holds only after bounded maintenance cannot prove a safe outcome. The collision Minor
+  and schema-conforming audit-pin error response are fixed without new policy.
+
+Fresh full JS validation passed **1,940 tests, 0 failed**, including prompt budgets and version
+coherence at 0.21.13. Staged workflow: **329,210 bytes / 524,288 cap**. Redaction lint is clean;
+all 17 protected refs are unchanged. All **31 shell test files passed, 0 failed**. Commands,
+source/log hashes and controls are preserved in candidate-4-validation.json. The next exact-SHA
+panel is pending.
+The final panel's exact report, execution identity and verdict will be recorded in the PR body
+so recording the review does not silently create another candidate SHA.

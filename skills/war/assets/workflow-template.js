@@ -2103,8 +2103,15 @@ const MERGE_SNAPSHOT = { type: 'object', required: ['base_sha', 'source_sha', 'r
 const MERGE_RECONCILIATION = { type: 'object', required: ['outcome', 'base_sha', 'source_sha', 'local_sha', 'remote_sha'], properties: {
   outcome: { enum: ['merged', 'landed', 'unmerged', 'uncertain'] }, base_sha: { type: 'string' }, source_sha: { type: 'string' },
   local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' },
-  parents: { type: 'array', items: { type: 'string' } }, source_tip: { type: 'string' }, result: MERGE_RESULT, detail: { type: 'string' } } }
+  parents: { type: 'array', items: { type: 'string' } }, source_tip: { type: 'string' }, base_is_ancestor: { type: 'boolean' }, result: MERGE_RESULT, detail: { type: 'string' } } }
 const fullSha = sha => typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha)
+// Shared by normal confirmation and uncertain-response recovery: no success path has a
+// weaker definition of the task fast-forward or the exact two-parent phase commit.
+const mergeGitMatches = (proof, before, land) => fullSha(proof.local_sha) && proof.remote_sha === proof.local_sha &&
+  (land
+    ? fullSha(before.remote_sha) && proof.source_tip === before.source_sha && Array.isArray(proof.parents) && proof.parents.length === 2 &&
+      proof.parents[0] === before.remote_sha && proof.parents[1] === before.source_sha
+    : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true && proof.patch_id === before.patch_id)
 const mergeSnapshot = async (opts, context) => {
   let before
   for (let attempt = 0; attempt < roundLimit; attempt++) {
@@ -2116,6 +2123,31 @@ const mergeSnapshot = async (opts, context) => {
   }
   if (deathOf(before)) return before // no mutating dispatch has started
   throw new Error('Git merge snapshot unavailable before ' + opts.label + '; no merge dispatched')
+}
+// An enum is a report, not Git evidence. Confirm BOTH success and reported non-success
+// after each completed mutation dispatch; a known failure must not hide an advanced target.
+const MERGE_CONFIRMATION = { type: 'object', properties: {
+  local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] }, source_tip: { type: 'string' },
+  reported_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, base_is_ancestor: { type: 'boolean' },
+  parents: { type: 'array', items: { type: 'string' } } } }
+const confirmMerge = async (result, opts, context, before) => {
+  const mode = context.land ? 'land-phase' : 'merge-task'
+  const success = context.land ? 'landed' : 'merged'
+  const claimed = result[context.land ? 'working_sha' : 'integration_sha'] ?? null
+  const proof = await dispatchSite(
+    pt`GIT MERGE CONFIRMATION (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch snapshot: ${JSON.stringify(before)}. Reported result: ${JSON.stringify({ mode: result.mode, status: result.status, claimed })}.
+Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For merge-task also return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target>, and patch_id from git diff <snapshot base_sha>..<current source> | git patch-id --stable (first field). For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
+    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-confirm', label: 'git-confirm:' + opts.label, schema: MERGE_CONFIRMATION, ...spawn('refiner') })
+  const died = deathOf(proof)
+  if (died) {
+    auditLog.push({ task: context.task, verdict: 'git-confirmation:unresolved', findings: [], site: opts.label, blocked: died })
+    return false // a read-only death after a mutation cannot establish Git certainty
+  }
+  const confirmed = !!proof && result.mode === mode && (result.status === success
+    ? mergeGitMatches(proof, before, context.land) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
+    : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && proof.remote_sha === before.remote_sha)
+  auditLog.push({ task: context.task, verdict: confirmed ? 'git-confirmed:' + result.status : 'git-confirmation:unresolved', findings: [], site: opts.label, reported: result, before, after: proof })
+  return confirmed
 }
 const reconcileMerge = async (original, opts, context, before, lost) => {
   const cause = deathOf(lost) || 'missing or error merge response'
@@ -2129,7 +2161,7 @@ const reconcileMerge = async (original, opts, context, before, lost) => {
 `
       + (context.land
         ? pt`LAND RECOVERY: the target is the working branch and the source is the integration branch. Inspect Git for an already-pushed --no-ff phase commit with EXACT parents [snapshot remote_sha, snapshot source_sha]. If it exists, reuse that commit, complete the local compare-and-swap only as the original land contract allows, and never make a second phase commit. Otherwise retry the original push-first CAS only from the unchanged captured target base. Rerun the full gate into a fresh artifact at the actual landed commit, preserving the original classified baseline allowances. Return outcome landed only with parents, source_tip, the verified snapshot patch_id and a normal land-phase MergeResult whose working_sha equals BOTH local and origin target refs. A foreign/diverged target, unknown writer or missing proof means uncertain; preserve all refs.\n`
-        : pt`If both target refs are unchanged from the snapshot, retry the full original operation below once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with the source patch-id equal to the snapshot patch_id and no foreign commits. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA.\n`)
+        : pt`If both target refs are unchanged from the snapshot, retry the full original operation below once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with the source patch-id equal to the snapshot patch_id and no foreign commits. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA and base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0).\n`)
       + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha the current source/target/remote SHA, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha and the verified nonempty patch_id. Return unmerged ONLY when local and origin target refs equal their respective pre-dispatch snapshot values after your retry; include its normal non-success result if available. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
 ORIGINAL OPERATION (all requirements still apply):
 ` + original + '\n' + capture.clause,
@@ -2137,11 +2169,10 @@ ORIGINAL OPERATION (all requirements still apply):
     const recovered = rawRecovered && !deathOf(rawRecovered) ? { ...rawRecovered, result: admitGateResult(rawRecovered.result, capture) } : rawRecovered
     if (deathOf(recovered)) continue
     if (!recovered || recovered.base_sha !== before.base_sha || recovered.source_sha !== before.source_sha) continue
-    if (recovered.outcome === success && fullSha(recovered.local_sha) && recovered.remote_sha === recovered.local_sha &&
+    if (recovered.outcome === success && mergeGitMatches(recovered, before, context.land) &&
         !blankText(before.patch_id) && recovered.patch_id === before.patch_id && recovered.result &&
         recovered.result.mode === mode && recovered.result.status === success && recovered.result[context.land ? 'working_sha' : 'integration_sha'] === recovered.local_sha &&
         gateLogPathOf(recovered.result.gate_log_path) &&
-        (context.land ? recovered.source_tip === before.source_sha && Array.isArray(recovered.parents) && recovered.parents.length === 2 && recovered.parents[0] === before.remote_sha && recovered.parents[1] === before.source_sha : recovered.source_tip === recovered.local_sha) &&
         recovered.local_sha !== before.base_sha) {
       auditLog.push({ task: context.task, verdict: 'git-reconciled:' + success, findings: [], site: opts.label, before, after: recovered })
       return recovered.result
@@ -2161,7 +2192,12 @@ const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => 
   const before = await mergeSnapshot(opts, context)
   if (deathOf(before)) return before
   let result, thrown
-  try { result = admitGateResult(await invoke(body, opts, capture), capture) }
+  try {
+    result = admitGateResult(await invoke(body, opts, capture), capture)
+    if (!uncertainMerge(result) && !await confirmMerge(result, opts, context, before)) {
+      result = { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
+    }
+  }
   catch (err) { thrown = err; result = { mode: context.land ? 'land-phase' : 'merge-task', status: 'error', detail: 'lost merge dispatch: ' + String(err && err.message || err) } }
   const resolved = uncertainMerge(result) ? await reconcileMerge(prompt, opts, context, before, result) : result
   if (thrown && resolved === result) throw thrown
@@ -2664,7 +2700,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   auditLog.push(pinEvidence)
   const resolved = await dispatchSite(
     pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git in ${task.worktree}: resolve branch ${task.branch} with git rev-parse --verify ${task.branch}^{commit}. PIN REQUEST: ${JSON.stringify(reported)}
-For each reported value, resolve it separately with git rev-parse --verify --end-of-options <value>^{commit}, ONLY if it is 7–40 lowercase hexadecimal characters. Missing, malformed, ambiguous or nonexistent values resolve to null; never infer identity from prefixes. Return { head_sha: <full branch commit SHA>, pins: [<full resolved SHA or null per requested value, in the same order>] }. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a branch Git error return {}.`,
+For each reported value, resolve it separately with git rev-parse --verify --end-of-options <value>^{commit}, ONLY if it is 7–40 lowercase hexadecimal characters. Missing, malformed, ambiguous or nonexistent values resolve to null; never infer identity from prefixes. Return { head_sha: <full branch commit SHA>, pins: [<full resolved SHA or null per requested value, in the same order>] }. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a branch Git error return { head_sha: '', pins: [] }.`,
     { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
       schema: { type: 'object', required: ['head_sha', 'pins'], properties: { head_sha: { type: 'string' }, pins: { type: 'array', items: { type: ['string', 'null'] } } } }, ...(reconciliation.done ? spawnRefinerRecovery() : spawn('refiner')) })
   if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }

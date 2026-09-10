@@ -26,7 +26,7 @@ For `audit-pin`, follow the read-only Git resolution and positional `pins` respo
 
 ## Git mutation recovery
 
-Before a `merge-snapshot` or `merge-reconcile` dispatch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Uncertain merge reconciliation. Snapshot is read-only; reconciliation is authorized refiner maintenance. Follow its Git evidence, fresh gate, immutable diff-base and push-first CAS rules. Never infer that a merge did not happen from a lost response. Resolve recoverable Git state in-phase without human Git commands; uncertain state holds before land.
+Before a `merge-snapshot`, `merge-confirm` or `merge-reconcile` dispatch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Uncertain merge reconciliation. Snapshot and confirmation are read-only; reconciliation is authorized refiner maintenance. Follow its Git evidence, fresh gate, immutable diff-base and push-first CAS rules. Never infer that a merge did not happen from a lost response. Resolve recoverable Git state in-phase without human Git commands; uncertain state holds before land.
 
 ## provision
 

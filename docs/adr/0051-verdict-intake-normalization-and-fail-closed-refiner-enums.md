@@ -128,3 +128,21 @@ sites route through `routedMr`, so the reason names the real cause instead of ri
 
 - 2026-09-07 · ADR authored in the living form (a `**Status:**` line, in-place body, this log); records intake normalization, the `already_upstream` refusal arm and the segmented-land helper · issues #1869, #1870, #1973, #1797, #1805
 - 2026-09-07 · section 3 extended to the merge-task twin: `segmentedMerge`, the `gate_segment: 'incomplete'` marker on `status: 'error'` across the four per-task merge-task sites, same pair read and `roundLimit` bound · issue #2156
+
+### 2026-09-09 finalization amendment: Git confirms every mutation result
+
+D21's operator ruling makes Git authoritative for normal replies as well as lost responses.
+`reconciledMerge` snapshots Git before every task, polish, terminal and land mutation; after
+segmented continuation completes, a separate read-only refiner confirms any normal reply.
+The enum is insufficient: success requires independently resolved current local/origin/source
+identities and the task patch/ancestry or exact land-parent proof; failure requires unchanged
+local and origin targets. Missing or contradictory proof enters bounded in-phase refiner
+maintenance on `agents.refiner.recovery`. Shared `mergeGitMatches` checks prevent a weaker
+success arm in confirmation or recovery. Full mechanics and the no-op/recovery distinction
+live in [refiner-recovery.md](../../skills/war/references/refiner-recovery.md#uncertain-merge-reconciliation).
+
+This supersedes the earlier “one dispatch then route by status” descriptions for marker-absent
+errors, exhausted segments and sweep merges: those results first establish Git certainty.
+A proved-unmerged result resumes its ordinary site classification; uncertainty holds before
+land only after bounded agent maintenance. A recovered push reuses existing content/phase
+commits. No enum, gate, floor, auditor permission or human Git requirement is added.

@@ -66,6 +66,14 @@ const NEW_SEAT_DEFAULTS = {
     return reported.length && reported.every(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x))
       ? fixtureGitProof(prompt, reported[0].padEnd(40, '0')) : {}
   },
+  'merge-confirm': prompt => {
+    const before = JSON.parse(prompt.match(/Immutable pre-dispatch snapshot: ([^\n]+?)\. Reported result:/)[1])
+    const result = JSON.parse(prompt.match(/Reported result: ([^\n]+?)\.\n/)[1])
+    const tip = typeof result.claimed === 'string' && /^[0-9a-f]{7,40}$/.test(result.claimed) ? result.claimed.padEnd(40, '0') : null
+    return ['merged', 'landed'].includes(result.status)
+      ? { local_sha: tip, remote_sha: tip, source_tip: result.status === 'landed' ? before.source_sha : tip, reported_sha: tip, patch_id: before.patch_id, base_is_ancestor: true, parents: [before.remote_sha, before.source_sha] }
+      : { local_sha: before.base_sha, remote_sha: before.remote_sha }
+  },
   'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
   'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
@@ -106,14 +114,21 @@ const fixtureAuditPin = prompt => (String(prompt).match(/AUDIT PIN: the worker r
 const completeAuditFixture = (prompt, opts, result) => /^audit:/.test(opts.label || '') && result && typeof result === 'object' && !Object.hasOwn(result, 'audit_sha')
   ? { ...result, audit_sha: fixtureAuditPin(prompt) } : result
 
+const completeMergeFixture = (opts, result) => {
+  if (seatOf(opts) !== 'war-refiner' || !result || typeof result !== 'object' || !['merged', 'landed'].includes(result.status)) return result
+  const field = result.status === 'landed' ? 'working_sha' : 'integration_sha'
+  return Object.hasOwn(result, field) ? result : { ...result, [field]: '2'.repeat(40) }
+}
+
 async function runPhase(args, agentImpl, seats = {}, source = src) {
   const calls = []
   const logs = []
   const fn = build(source)
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
-    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
-    const result = await agentImpl(prompt, opts)
+    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
+    let result = await agentImpl(prompt, opts)
+    if (!seats.rawMergeResults) result = completeMergeFixture(opts, result)
     return seats.rawTaskAuditPins ? result : completeAuditFixture(prompt, opts, result)
   }
   const log = (m) => logs.push(m)
@@ -123,7 +138,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -137,8 +152,8 @@ const defaultImpl = (prompt, opts) => {
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
-      ? { mode: 'land-phase', status: 'landed' }
-      : { mode: 'merge-task', status: 'merged' }
+      ? { mode: 'land-phase', status: 'landed', working_sha: '2'.repeat(40) }
+      : { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40) }
   }
   if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
   return {}
@@ -522,7 +537,7 @@ const isProvisionTopology = (c) =>
 // discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
-const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'merge-snapshot', 'merge-reconcile']
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'merge-confirm', 'merge-snapshot', 'merge-reconcile']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
   !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
@@ -932,8 +947,8 @@ const dagBaseImpl = (prompt, opts) => {
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
-      ? { mode: 'land-phase', status: 'landed' }
-      : { mode: 'merge-task', status: 'merged' }
+      ? { mode: 'land-phase', status: 'landed', working_sha: '2'.repeat(40) }
+      : { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40) }
   }
   if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
   return {}
@@ -1793,7 +1808,7 @@ const gateAuditImpl = (prompt, opts) => {
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
       ? { mode: 'land-phase', status: 'landed' }
-      : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'abcd1234' }
   }
   if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
   return {}
@@ -1875,7 +1890,7 @@ test('#193 T2-5 — hardness preserved: Critical gate-evidence finding still hol
     if (seat === 'war-refiner') {
       return opts.phase === 'Land'
         ? { mode: 'land-phase', status: 'landed' }
-        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'abcd1234' }
     }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
     return {}
@@ -1904,7 +1919,7 @@ test('#193 T2-6 — SOFT-default preserved: Minor gate-evidence finding does not
     if (seat === 'war-refiner') {
       return opts.phase === 'Land'
         ? { mode: 'land-phase', status: 'landed' }
-        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'abcd1234' }
     }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
     return {}
@@ -1954,7 +1969,7 @@ test('#193 T1-1 — sha threading: gate-HEAD sha (integration_sha) reaches the g
 test('#193 T1-2 — defusing directive: SOFT-on-cannot-confirm directive present in gate-audit prompt', async () => {
   // The prompt must include the unique substring 'corresponds to the current integration tip'
   // (verified absent at HEAD before implementing — this test goes RED first).
-  const impl = makeGateAuditImpl({ integration_sha: 'sha-abc123unique' })
+  const impl = makeGateAuditImpl({ integration_sha: 'abcd1234' })
   const { calls } = await runPhase(PROVISION_ARGS(), impl)
   const gateAuditCalls = calls.filter(c =>
     seatOf(c.opts) === 'war-auditor' &&
@@ -1966,21 +1981,11 @@ test('#193 T1-2 — defusing directive: SOFT-on-cannot-confirm directive present
     `gate-audit prompt must include the SOFT-on-cannot-confirm directive; got: "${prompt.slice(0, 600)}"`)
 })
 
-test('#193 T1-3 — sentinel on absent sha: absent integration_sha interpolates sentinel, never "undefined"', async () => {
-  // When the merged MergeResult has no integration_sha, the gate-audit prompt must include
-  // the sentinel string '(integration_sha unrecorded/malformed)' — never the literal string 'undefined'.
-  const impl = makeGateAuditImpl({}) // no integration_sha
-  const { calls } = await runPhase(PROVISION_ARGS(), impl)
-  const gateAuditCalls = calls.filter(c =>
-    seatOf(c.opts) === 'war-auditor' &&
-    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
-  )
-  assert.ok(gateAuditCalls.length > 0, 'at least one gate-audit seat is spawned')
-  const prompt = gateAuditCalls[0].prompt
-  assert.ok(prompt.includes('(integration_sha unrecorded/malformed)'),
-    `absent integration_sha must yield sentinel '(integration_sha unrecorded/malformed)'; got: "${prompt.slice(0, 400)}"`)
-  assert.ok(!prompt.includes('undefined'),
-    `prompt must NEVER contain the literal string 'undefined'; got: "${prompt.slice(0, 400)}"`)
+test('#193 T1-3 — absent merge SHA now requires Git recovery before gate evidence or completion', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS(), makeGateAuditImpl({}), { rawMergeResults: true })
+  assert.ok(!out.landed.includes('t1'), 'missing merge identity cannot become a completed task')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  assert.equal(gateAuditCalls(calls).length, 0, 'unproved merges never become gate-audit inputs')
 })
 
 test('#193 T1-4 — sha rides into the auditLog (gateHeadSha + auditSha)', async () => {
@@ -2034,7 +2039,7 @@ test('#193 T1-5 — hardness preserved: Critical finding WITH integration_sha st
     if (seat === 'war-refiner') {
       return opts.phase === 'Land'
         ? { mode: 'land-phase', status: 'landed' }
-        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'abcd1234' }
     }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
     return {}
@@ -3088,7 +3093,7 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-worker') return { task_id: 'tsub', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
     if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
-    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged', integration_sha: 'int-sha-001' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged', integration_sha: 'ab001001' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 5, target: 'tsub', learnings: [] }
     return {}
@@ -6956,18 +6961,18 @@ test('#990 threaded tip — a landed working_sha renders as the Wrap-up prompt L
   assert.equal(out.handoff.tipSha, 'abc1234def', 'the hoisted computation still feeds handoff.tipSha — one source of truth')
 })
 
-test('#990 threaded tip — working_sha absent falls back to the last pinned gateHeadSha, never the string "undefined"', async () => {
-  const { p, out } = await servitorPromptAtTip({}, { integration_sha: 'beefcafe12' })
-  assert.match(p, /Landed tip: beefcafe12 on dev\/wtprov-a/, 'the documented fallback rung renders the last pinned gate head sha')
-  assert.doesNotMatch(p, /Landed tip: undefined/, 'the pt undefined-guard stays unhit and no raw "undefined" reaches the prompt')
-  assert.equal(out.handoff.tipSha, 'beefcafe12', 'handoff.tipSha takes the same rung — semantics unchanged by the hoist')
+test('#990 threaded tip — missing working SHA holds before Wrap-up if Git recovery cannot prove land', async () => {
+  const { calls, out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tipImpl({}, { integration_sha: 'beefcafe12' }), { rawMergeResults: true })
+  assert.notEqual(out.landDecision, 'landed')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  assert.ok(!calls.some(isServitor), 'no fallback pin substitutes for an unproved land')
 })
 
-test('#990 threaded tip — no working_sha and no SHA-shaped pin renders the NAMED placeholder and the dispatch does not throw', async () => {
-  const { p, out } = await servitorPromptAtTip({}, {})
-  assert.match(p, TIP_PLACEHOLDER, 'the null tip is pre-resolved to the named placeholder BEFORE interpolation (ADR 0034)')
-  assert.doesNotMatch(p, /Landed tip: (undefined|null)\b/, 'never the string "undefined", and never a bare "null" either')
-  assert.equal(out.handoff.tipSha, null, 'handoff.tipSha stays null — the placeholder is a prompt-side resolution only')
+test('#990 threaded tip — missing task and land identities never create a success-shaped handoff', async () => {
+  const { calls, out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), tipImpl({}, {}), { rawMergeResults: true })
+  assert.ok(!out.landed.includes('t1'))
+  assert.ok(!calls.some(isServitor))
+  assert.notEqual(out.landDecision, 'landed')
 })
 
 // ---------------------------------------------------------------------------
@@ -7472,7 +7477,7 @@ test("#598 validation 5+6 — merge 'baseline' → ONE baseline-proceed re-merge
     { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
     { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
   ] }), impl)
-  const bp = calls.filter(c => /:baseline-proceed$/.test(c.opts.label || ''))
+  const bp = calls.filter(c => isMergeTask(c) && /:baseline-proceed$/.test(c.opts.label || ''))
   assert.equal(bp.length, 2, 'one baseline-proceed re-merge dispatched per baseline-classified task (delete the baseline branch ⇒ 0 ⇒ this fails)')
   assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'both baseline tasks merged (baseline-proceed proceeded over the recorded debt)')
   assert.equal(out.landDecision, 'landed', 'the phase lands over the recorded baseline debt')
@@ -9076,13 +9081,12 @@ test("#806 — a requiresTest:false interleave: successor C's preMergeTip is B's
   assert.match(preMergeTipOf(ev, 't1'), /merge-base/, "the FIRST landed task falls back to the phaseBaseCmd merge-base substitution")
 })
 
-test("#806 — a sentinel integration_sha leaves the tracker at the last REAL sha: successor's preMergeTip is that real sha, never the '(integration_sha …)' sentinel", async () => {
-  // t1(real)→t2(gated, NO integration_sha ⇒ sentinel gateHeadSha)→t3(real). The tracker skips the sentinel.
-  const { calls } = await runPhase(THREE(new Set()), skewImpl({ t1: 'aaaa1111', t3: 'cccc3333' }))  // t2 omitted ⇒ sentinel
+test('#806 — an unproved middle merge leaves the tracker at the last confirmed real SHA', async () => {
+  const { out, calls } = await runPhase(THREE(), skewImpl({ t1: 'aaaa1111', t3: 'cccc3333' }), { rawMergeResults: true })
+  assert.ok(!out.landed.includes('t2'), 'the missing middle identity cannot count as merged')
   const ev = evPromptOf(calls)
-  assert.match(gateHeadShaOf(ev, 't2'), /integration_sha/, 'sanity: t2 has the sentinel gateHeadSha (no real integration_sha returned)')
-  assert.equal(preMergeTipOf(ev, 't3'), 'aaaa1111', "C's preMergeTip is the last REAL sha (t1's), retained across the sentinel")
-  assert.ok(!/integration_sha/.test(preMergeTipOf(ev, 't3')), "C's preMergeTip is NEVER the sentinel string (which would poison its diff range into a guaranteed exit-2 ERROR)")
+  assert.ok(ev && !ev.includes('  - t2 ·'), 'unproved task is absent from execution evidence')
+  assert.equal(preMergeTipOf(ev, 't3'), 'aaaa1111', 'C uses the last confirmed predecessor, never an invented sentinel')
 })
 
 test('#806 — no-skip control: all gated, all real shas ⇒ the chain is byte-identical to today (first=phaseBaseCmd, each successor=predecessor gateHeadSha)', async () => {
@@ -16328,7 +16332,7 @@ const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity:
       return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: '7e4a1a10', tests: { unit: 1 } }
     }
     if (seat === 'war-worker' && label.startsWith('polish:') && sweepWorker) return sweepWorker
-    if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: 'term1nal12' }
+    if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: '7e4a1a12' }
     if (seat === 'war-refiner' && label.startsWith('terminal-revert:')) return terminalRevert || { ok: true }
     return base(prompt, opts)
   }
@@ -18076,6 +18080,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
         const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patchId() }
         const label = site === 'initial' ? 'merge:t1' : site === 'floor-retry' ? 'merge:t1:floor-retry:r1' : site === 'polish' || site === 'terminal' ? 'merge:p3-' + site : 'merge:t1:' + site
         let recovered = false, faulted = false
+        const gitResultAncestor = () => spawnSync('git', ['merge-base', '--is-ancestor', base, 'integration'], { cwd: dir }).status === 0
         const merge = () => { git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration') }
         const clean = sweepBase([queuedAbsorb()])
         const args = site === 'polish' || site === 'terminal' ? SWEEP_ARGS() : PROVISION_ARGS({ tasks: SINGLE_TASK })
@@ -18102,7 +18107,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
             const local = git('rev-parse', 'integration')
             const remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
             recovered = true
-            return { outcome: 'merged', ...snapshot, local_sha: local, remote_sha: remote, source_tip: source,
+            return { outcome: 'merged', ...snapshot, local_sha: local, remote_sha: remote, source_tip: source, base_is_ancestor: gitResultAncestor(),
               result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_log_path: fixtureGatePath(p), gate_output: 'all checks pass', mappedTests: ['deliverable.test.js'] } }
           },
         })
@@ -18119,7 +18124,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
   }
 }
 
-const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
+const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_is_ancestor: true, base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
 for (const [name, modify] of [
   ['wrong snapshot base', r => { r.base_sha = '3'.repeat(40) }],
   ['wrong snapshot source', r => { r.source_sha = '3'.repeat(40) }],
@@ -18131,6 +18136,8 @@ for (const [name, modify] of [
   ['wrong result status', r => { r.result.status = 'error' }],
   ['missing gate artifact', r => { delete r.result.gate_log_path }],
   ['wrong source tip', r => { r.source_tip = '3'.repeat(40) }],
+  ['missing ancestry proof', r => { delete r.base_is_ancestor }],
+  ['false ancestry proof', r => { r.base_is_ancestor = false }],
   ['no MergeResult', r => { delete r.result }],
   ['result tip differs', r => { r.result.integration_sha = '3'.repeat(40) }],
   ['unchanged target is not a merge', r => { r.source_tip = r.local_sha = r.remote_sha = r.result.integration_sha = r.base_sha }],
@@ -18523,23 +18530,26 @@ for (const kind of ['nonexistent', 'ambiguous', 'abbreviated']) for (const repai
       writeFileSync(join(dir, 'a'), 'actual task'); git('add', 'a'); git('commit', '-m', 'task')
       let tip = git('rev-parse', 'HEAD'), reported = kind === 'nonexistent' ? 'deadbeef' : tip.slice(0, 10)
       if (kind === 'ambiguous') {
-        // Generate two actual commit objects sharing a seven-digit prefix. Git, not a prefix
-        // comparator or this fixture's lookup, decides whether the abbreviation is usable.
-        const tree = git('rev-parse', 'HEAD^{tree}'), seen = new Map()
-        for (let i = 0; i < 250000; i++) {
-          const body = `tree ${tree}\nauthor Fixture <fixture@example.invalid> 1 +0000\ncommitter Fixture <fixture@example.invalid> 1 +0000\n\ncollision ${i}\n`
-          const sha = createHash('sha1').update('commit ' + Buffer.byteLength(body) + '\0' + body).digest('hex')
-          const prefix = sha.slice(0, 7)
-          if (seen.has(prefix)) {
-            for (const data of [seen.get(prefix), body]) {
-              const r = spawnSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: dir, input: data, encoding: 'utf8' })
-              assert.equal(r.status, 0, r.stderr)
-            }
-            git('update-ref', 'refs/heads/task', sha); tip = sha; reported = prefix; break
-          }
-          seen.set(prefix, body)
+        // Fixed real Git commit objects sharing a seven-digit prefix. Revalidate their
+        // actual IDs in Git; the test never mines a fresh collision at runtime.
+        assert.equal(git('rev-parse', 'HEAD^{tree}'), "b60b822872295187c5f548f6efb1a3d5ef55501c")
+        const objects = [
+        {
+                "body": "tree b60b822872295187c5f548f6efb1a3d5ef55501c\nauthor Fixture <fixture@example.invalid> 1 +0000\ncommitter Fixture <fixture@example.invalid> 1 +0000\n\ncollision 8366\n",
+                "sha": "385b7374ca58a448e5ef8c2bed35827ed7ace683"
+        },
+        {
+                "body": "tree b60b822872295187c5f548f6efb1a3d5ef55501c\nauthor Fixture <fixture@example.invalid> 1 +0000\ncommitter Fixture <fixture@example.invalid> 1 +0000\n\ncollision 12861\n",
+                "sha": "385b7375d0d573234748c255bbae40d176630e62"
         }
-        assert.equal(reported.length, 7, 'real commit prefix collision constructed')
+]
+        for (const object of objects) {
+          const r = spawnSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: dir, input: object.body, encoding: 'utf8' })
+          assert.equal(r.status, 0, r.stderr); assert.equal(r.stdout.trim(), object.sha)
+        }
+        assert.notEqual(objects[0].sha, objects[1].sha)
+        assert.equal(objects[0].sha.slice(0, 7), objects[1].sha.slice(0, 7))
+        tip = objects[1].sha; reported = tip.slice(0, 7); git('update-ref', 'refs/heads/task', tip)
       }
       assert.equal(gitResult('rev-parse', '--verify', reported + '^{commit}').status === 0, kind === 'abbreviated')
       let panels = 0
@@ -18651,4 +18661,176 @@ test('gate capture ownership is taught on the refiner card and every capture dis
   const captures = calls.filter(c => fixtureGatePath(c.prompt))
   assert.ok(captures.some(c => isMergeTask(c)) && captures.some(c => c.opts.dispatchKind === 'evidence') && captures.some(isLand))
   for (const c of captures) assert.ok(c.prompt.includes(ownership), c.opts.label)
+})
+
+// Normal replies must establish Git state just as a lost reply must. These fixtures return raw
+// MergeResults and obtain confirmation from actual local/remote refs, independently of the engine.
+for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexistent', 'wrong-tip', 'valid', 'false-failure']) {
+  test('normal merge Git certainty: real ' + site + ' ' + shape, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-normal-merge-'))
+    const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const target = site === 'land' ? 'working' : 'integration', source = site === 'land' ? 'integration' : 'task'
+    try {
+      git('init', '-b', target); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD')
+      git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', target)
+      git('checkout', '-b', source); writeFileSync(join(dir, 'own.test.js'), 'accepted task'); git('add', 'own.test.js'); git('commit', '-m', 'accepted task'); const tip = git('rev-parse', 'HEAD'); git('checkout', target)
+      const patch = () => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, source) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.split(' ')[0] }
+      const before = { base_sha: base, remote_sha: base, source_sha: tip, patch_id: patch() }
+      const label = site === 'land' ? 'land:phase-3' : 'merge:t1'
+      const merge = () => { git('merge', site === 'land' ? '--no-ff' : '--ff-only', source, '-m', 'merge'); git('push', 'origin', target) }
+      let confirmed = 0, recovered = 0, reported
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+        if (o.label === label) {
+          if (shape === 'valid' || shape === 'false-failure') merge()
+          const head = git('rev-parse', target)
+          reported = { mode: site === 'land' ? 'land-phase' : 'merge-task', status: shape === 'false-failure' ? 'gate_failed' : site === 'land' ? 'landed' : 'merged' }
+          if (shape !== 'minimal') reported[site === 'land' ? 'working_sha' : 'integration_sha'] = shape === 'nonexistent' ? 'deadbeef' : shape === 'wrong-tip' ? tip : head.slice(0, 10)
+          return reported
+        }
+        return defaultImpl(p, o)
+      }, { rawMergeResults: true,
+        'merge-snapshot': (p, o) => o.label === (site === 'land' ? 'git-snapshot:phase-3' : 'git-snapshot:t1') ? before : NEW_SEAT_DEFAULTS['merge-snapshot'],
+        'merge-confirm': (p, o) => {
+          if (o.label !== 'git-confirm:' + label) return NEW_SEAT_DEFAULTS['merge-confirm'](p)
+          confirmed++
+          const claimed = reported[site === 'land' ? 'working_sha' : 'integration_sha']
+          const resolved = typeof claimed === 'string' ? run('rev-parse', '--verify', '--end-of-options', claimed + '^{commit}') : null
+          return { local_sha: git('rev-parse', target), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target), source_tip: git('rev-parse', source), reported_sha: resolved?.status === 0 ? resolved.stdout.trim() : null,
+            base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0, patch_id: patch(), parents: git('show', '-s', '--format=%P', target).split(' ') }
+        },
+        'merge-reconcile': (p, o) => {
+          assert.ok(o.label.startsWith('git-reconcile:' + label), 'only the uncertain target is maintained')
+          recovered++
+          const local = git('rev-parse', target), remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target)
+          if (shape !== 'false-failure') return { outcome: 'unmerged', ...before, local_sha: local, remote_sha: remote }
+          return { outcome: site === 'land' ? 'landed' : 'merged', ...before, local_sha: local, remote_sha: remote, source_tip: git('rev-parse', source), base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0,
+            parents: git('show', '-s', '--format=%P', target).split(' '), result: { mode: site === 'land' ? 'land-phase' : 'merge-task', status: site === 'land' ? 'landed' : 'merged', [site === 'land' ? 'working_sha' : 'integration_sha']: local, gate_log_path: fixtureGatePath(p) } }
+        },
+      })
+      const success = shape === 'valid' || shape === 'false-failure'
+      assert.equal(site === 'land' ? out.landDecision === 'landed' : out.landed.includes('t1'), success, 'completion follows actual Git')
+      assert.equal(confirmed, 1, 'every normal reply gets fresh Git confirmation')
+      assert.equal(recovered, shape === 'valid' ? 0 : 1, 'only unconfirmed reports need maintenance')
+      if (!success) assert.ok(!calls.some(isServitor), 'no completed-phase wrap-up after unproved success')
+      else assert.equal(git('--git-dir=' + join(dir, 'origin.git'), 'show', target + ':own.test.js'), 'accepted task')
+      if (shape === 'false-failure' && site === 'land') assert.equal(git('rev-list', '--count', '--merges', target), '1', 'no duplicate phase commit')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+for (const [name, corrupt] of [
+  ['missing proof', () => null], ['malformed local', p => ({ ...p, local_sha: 'x' })],
+  ['remote absent', p => ({ ...p, remote_sha: null })], ['remote differs', p => ({ ...p, remote_sha: '3'.repeat(40) })],
+  ['wrong claimed resolution', p => ({ ...p, reported_sha: '3'.repeat(40) })],
+  ['missing ancestry', p => ({ ...p, base_is_ancestor: undefined })], ['wrong source', p => ({ ...p, source_tip: '3'.repeat(40) })],
+  ['different patch', p => ({ ...p, patch_id: 'foreign-patch' })],
+  ['confirmation death', () => { throw new Error('529 overloaded confirmation') }],
+]) {
+  test('normal merge confirmation refuses ' + name, async () => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+      'merge-confirm': p => corrupt(NEW_SEAT_DEFAULTS['merge-confirm'](p)),
+    })
+    assert.ok(!out.landed.includes('t1'))
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'uncertain mutation enters maintenance before hold')
+    assert.ok(!calls.some(isLand))
+    if (name !== 'confirmation death') assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'merge:t1'), 'malformed proof is classified without throwing')
+    if (name === 'confirmation death') assert.ok(out.auditLog.some(r => r.blocked?.includes('git-confirm:merge:t1') && r.blocked.includes('529 overloaded confirmation')), 'death retains its site and cause while maintenance owns the uncertain mutation')
+  })
+}
+
+for (const [name, corrupt] of [
+  ['missing parents', p => ({ ...p, parents: undefined })],
+  ['extra parent', p => ({ ...p, parents: [...p.parents, '3'.repeat(40)] })],
+  ['wrong first parent', p => ({ ...p, parents: ['3'.repeat(40), p.parents[1]] })],
+  ['wrong second parent', p => ({ ...p, parents: [p.parents[0], '3'.repeat(40)] })],
+  ['moved source', p => ({ ...p, source_tip: '3'.repeat(40) })],
+]) test('normal land confirmation refuses ' + name, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'merge-confirm': (p, o) => { const proof = NEW_SEAT_DEFAULTS['merge-confirm'](p); return o.label === 'git-confirm:land:phase-3' ? corrupt(proof) : proof },
+  })
+  assert.notEqual(out.landDecision, 'landed'); assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  assert.ok(!calls.some(isServitor))
+  assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'land:phase-3'), 'bad proof is classified, not an accidental exception')
+})
+
+for (const site of ['polish', 'terminal']) for (const malformed of [false, true]) {
+  test('normal merge alternate: ' + site + ' unproved success never accounts findings: ' + malformed, async () => {
+    const base = site === 'terminal' ? terminalImpl() : sweepBase([queuedAbsorb()])
+    const label = 'merge:p3-' + site
+    const { out, calls } = await runPhase(SWEEP_ARGS(), (p, o) => o.label === label
+      ? { mode: 'merge-task', status: 'merged', integration_sha: malformed ? 'bad-sha' : undefined } : base(p, o), {
+      rawMergeResults: true,
+    })
+    assert.ok(calls.some(c => c.opts.label === label))
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile' && c.opts.label.startsWith('git-reconcile:' + label)))
+    if (site === 'polish') assert.notEqual(out.handoff.polish, 'merged')
+    else assert.ok(!out.aced.some(r => r.sha === '7e4a1a10'), 'terminal rows remain unresolved without confirmed publication')
+  })
+}
+for (const claim of ['2', null, '3'.repeat(40)]) {
+  test('normal merge: a malformed or unrelated claim cannot borrow a valid Git proof: ' + claim, async () => {
+    const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1' ? { mode: 'merge-task', status: 'merged', integration_sha: claim } : defaultImpl(p, o), {
+      rawMergeResults: true,
+      'merge-confirm': { local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), reported_sha: '2'.repeat(40), source_tip: '2'.repeat(40), base_is_ancestor: true, patch_id: 'fixture-task-patch' },
+    })
+    assert.ok(!out.landed.includes('t1'))
+  })
+}
+for (const during of ['confirmation', 'recovery']) {
+  test('normal land: an absent origin base cannot be a phase commit parent during ' + during, async () => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+      if (o.phase === 'Land' && during === 'recovery') throw new Error('read ECONNRESET')
+      return defaultImpl(p, o)
+    }, {
+      'merge-snapshot': (p, o) => ({ ...NEW_SEAT_DEFAULTS['merge-snapshot'], ...(o.label === 'git-snapshot:phase-3' ? { remote_sha: null } : {}) }),
+      'merge-reconcile': p => ({ ...reconciliationProof(p), outcome: 'landed', source_tip: '2'.repeat(40), local_sha: '3'.repeat(40), remote_sha: '3'.repeat(40), parents: [null, '2'.repeat(40)], result: { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40), gate_log_path: fixtureGatePath(p) } }),
+    })
+    assert.notEqual(out.landDecision, 'landed'); assert.ok(!calls.some(isServitor))
+  })
+}
+
+for (const reply of [{ mode: 'land-phase', status: 'merged' }, { mode: 'merge-task', status: 'landed' }]) {
+  test('normal merge confirmation refuses foreign mode/status: ' + JSON.stringify(reply), async () => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1'
+      ? { ...reply, integration_sha: '2'.repeat(40) } : defaultImpl(p, o), {
+      rawMergeResults: true,
+      'merge-confirm': p => reply.status === 'landed' ? { local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) } : NEW_SEAT_DEFAULTS['merge-confirm'](p),
+    })
+    assert.ok(!out.landed.includes('t1'))
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+  })
+}
+test('normal merge confirmation refuses equal abbreviated Git proof fields', async () => {
+  const tip = '2222222'
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1'
+    ? { mode: 'merge-task', status: 'merged', integration_sha: tip } : defaultImpl(p, o), {
+    rawMergeResults: true,
+    'merge-confirm': { local_sha: tip, remote_sha: tip, source_tip: tip, reported_sha: tip, base_is_ancestor: true, patch_id: 'fixture-task-patch' },
+  })
+  assert.ok(!out.landed.includes('t1'), 'the Git proof itself must contain full object identities')
+})
+for (const advanced of ['local_sha', 'remote_sha']) test('normal merge failure cannot conceal ' + advanced + ' advancement', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1'
+    ? { mode: 'merge-task', status: 'gate_failed' } : defaultImpl(p, o), {
+    'merge-confirm': { local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40), [advanced]: '2'.repeat(40) },
+  })
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'a failure enum cannot prove absence')
+  assert.ok(!out.landed.includes('t1'))
+})
+test('normal merge confirmation accepts a Git-proved no-op without uncertain recovery', async () => {
+  const tip = '2'.repeat(40)
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? { base_sha: tip, remote_sha: tip, source_sha: tip, patch_id: '' } : NEW_SEAT_DEFAULTS['merge-snapshot'],
+  })
+  assert.ok(out.landed.includes('t1'))
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+})
+test('audit-pin branch Git error has a schema-conforming unresolved response', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, { 'audit-pin': { head_sha: '', pins: [] } })
+  const pin = calls.find(c => c.opts.dispatchKind === 'audit-pin')
+  assert.ok(pin.prompt.includes("On a branch Git error return { head_sha: '', pins: [] }"))
+  assert.deepEqual(pin.opts.schema.required, ['head_sha', 'pins'])
+  assert.ok(!out.landed.includes('t1'))
 })
