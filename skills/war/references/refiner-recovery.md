@@ -127,13 +127,17 @@ ordinary tasks use the main repository and phase workingBranch. Follow the dispa
 PROOFS entries. This is a read-only Git helper, a sibling of
 `provision-worktrees.sh`. Exit 0 (`TASK_INTEGRATED`) proves the local task branch is integrated
 and contains a nonempty commit in the phase with the exact `WAR-Task: <task branch>` trailer.
-It also requires a nonempty final task diff against the phase base and identical task/integration
-content for every changed path, including deletions, renames, Gitlinks and modes. Unrelated
-integration changes are allowed; later changes anywhere in that conservative footprint return
-no proof, even when a fresh audit might accept them. NUL-delimited literal paths prevent filename
-syntax from changing the comparison; input refs are re-read before success. Only that complete
-result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
-and work/audit; it includes sibling-only, zero-commit, empty-tagged, untagged legacy, empty-final-diff and changed-content branches.
+The helper collects the union of paths changed by every qualifying owned commit, preserving
+rename sides, Gitlinks, modes and deletions, including changes that net back to the phase base.
+Final task/integration content must match on every path. The interval from before the first
+owned commit to the task tip must contain surviving net work and no nonempty contribution outside
+those qualifying owned commits. Earlier sibling history and later empty bookkeeping are allowed;
+mixed later history (including nonempty merge commits) returns no proof because attribution is
+uncertain. This deliberately sends even potentially valid mixed work through ordinary work/audit.
+NUL-delimited literal paths preserve filename syntax; input refs are re-read before success.
+Only the complete result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
+and work/audit, including sibling-only, zero-commit, empty-tagged, untagged legacy, cancelled-owned,
+mixed-history or changed-content branches. No new phase hold is introduced for absent proof.
 Exit 2 or any unrecognized failure stops the barrier with the command and stderr recorded.
 Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
 provenance, available after cloning on another machine; no local marker, reflog, label or journal

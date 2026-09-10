@@ -19538,19 +19538,25 @@ for (const submodule of [false, true]) for (const owned of [false, true]) test('
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
+for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error', 'owned-history-error', 'mixed-diff-error', 'owned-net-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-recovery-proof-error-')), bin = join(dir, 'bin'), scratch = join(dir, 'scratch')
   const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
   const git = (...args) => { const r = spawnSync(realGit, args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
   try {
     mkdirSync(bin); mkdirSync(scratch); git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
     writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('checkout', '-b', 'task')
-    writeFileSync(join(dir, 'deliverable'), 'approved'); git('add', 'deliverable'); git('commit', '-m', 'task\n\nWAR-Task: task'); const taskTip = git('rev-parse', 'HEAD'); git('branch', 'integration')
+    writeFileSync(join(dir, 'deliverable'), 'approved'); git('add', 'deliverable'); git('commit', '-m', 'task\n\nWAR-Task: task'); const firstOwned = git('rev-parse', 'HEAD')
+    if (scenario === 'mixed-diff-error') git('commit', '--allow-empty', '-m', 'bookkeeping')
+    if (scenario === 'owned-net-error') { writeFileSync(join(dir, 'deliverable'), 'revised'); git('add', 'deliverable'); git('commit', '-m', 'revision\n\nWAR-Task: task') }
+    const taskTip = git('rev-parse', 'HEAD'); git('branch', 'integration')
     // The wrapper simulates a concurrent writer or a failed Git read; the helper itself stays read-only.
     writeFileSync(join(bin, 'git'), `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process')
 const args = process.argv.slice(2), real = ${JSON.stringify(realGit)}, scenario = ${JSON.stringify(scenario)}
 if (scenario === 'list-error' && args.includes('--name-only')) process.exit(128)
+if (scenario === 'owned-history-error' && args[0] === 'rev-list' && args.length === 2) process.exit(128)
+if (scenario === 'mixed-diff-error' && args.includes('--quiet') && args.includes(${JSON.stringify(taskTip + '^')})) process.exit(128)
+if (scenario === 'owned-net-error' && args.includes('--quiet') && args.includes(${JSON.stringify(firstOwned + '^')}) && args.includes(${JSON.stringify(taskTip)})) process.exit(128)
 if (scenario === 'compare-error' && args.includes('--quiet') && args.at(-1) === 'deliverable') process.exit(128)
 if (scenario === 'refs-error' && JSON.stringify(args) === JSON.stringify(['rev-parse','refs/heads/task^{commit}','refs/heads/integration^{commit}','refs/heads/working^{commit}'])) process.exit(128)
 const r = spawnSync(real, args, { stdio: 'inherit' })
@@ -19575,5 +19581,53 @@ for (const recovery of [undefined, { sanctioned: false }, { sanctioned: 'true' }
     assert.ok(calls.some(c => c.opts.label === 'work:t1'), 'an unsolicited skip cannot bypass work')
     assert.ok(!out.auditLog.some(r => r.verdict === 'recovered:pre-merged'), 'no recovered completion receipt')
     assert.ok(logs.some(l => /preMerged ignored outside sanctioned recovery/.test(l)), 'invalid skip is visible')
+  })
+}
+
+for (const scenario of ['sibling-after-reverted-owner', 'sibling-before-reverted-owner', 'tagged-revert-beside-sibling', 'unowned-overlap', 'owned-revision', 'earlier-owned-path-lost', 'later-owned-path-lost', 'restored-path-lost', 'restored-path-preserved', 'restored-path-only', 'unowned-empty-bookkeeping', 'unowned-late-contribution', 'tagged-merge-only-loss', 'owned-cancelled-beside-earlier-sibling', 'owned-cancelled-alone']) {
+  test('recovery owned footprint: ' + scenario, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-owned-footprint-'))
+    const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const commit = (message, owner = 'task') => { git('add', '-A'); git('commit', '-m', message + (owner ? '\n\nWAR-Task: ' + owner : '')); return git('rev-parse', 'HEAD') }
+    const put = (path, body) => writeFileSync(join(dir, path), body)
+    try {
+      git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      put('base', 'base'); if (scenario === 'unowned-overlap') put('deliverable', 'base\nbase\n'); commit('base', null); git('checkout', '-b', 'integration')
+      if (scenario.startsWith('restored-path')) { put('obsolete', 'sibling file'); commit('sibling addition', 'other-task') }
+      if (['sibling-before-reverted-owner', 'owned-cancelled-beside-earlier-sibling'].includes(scenario)) { put('sibling', 'unrelated'); commit('sibling before task', 'other-task') }
+      git('checkout', '-b', 'task')
+      if (scenario.startsWith('restored-path')) git('rm', 'obsolete')
+      if (scenario !== 'restored-path-only') put('deliverable', 'owned\nbase\n')
+      const first = commit('owned work')
+      if (['sibling-after-reverted-owner', 'tagged-revert-beside-sibling'].includes(scenario)) { put('sibling', 'unrelated'); commit('sibling after task', 'other-task') }
+      if (scenario.includes('reverted-owner') || scenario === 'tagged-revert-beside-sibling' || scenario.startsWith('owned-cancelled-')) {
+        git('revert', '--no-edit', first)
+        if (scenario === 'tagged-revert-beside-sibling' || scenario.startsWith('owned-cancelled-')) git('commit', '--amend', '-m', 'revert owned work\n\nWAR-Task: task')
+      }
+      if (scenario === 'unowned-overlap') {
+        put('deliverable', 'owned\nsibling\n'); commit('unowned overlap', 'other-task')
+        put('deliverable', 'base\nsibling\n'); commit('owned work cancelled beside sibling')
+      }
+      if (scenario === 'owned-revision') { put('deliverable', 'revised owned work'); commit('owned revision') }
+      if (scenario.endsWith('owned-path-lost')) { put('second', 'second owned path'); commit('second owned change') }
+      if (scenario === 'unowned-empty-bookkeeping') git('commit', '--allow-empty', '-m', 'bookkeeping')
+      if (scenario === 'unowned-late-contribution') { put('unowned', 'uncertain contribution'); commit('unowned later work', 'other-task') }
+      if (scenario === 'tagged-merge-only-loss') {
+        git('checkout', '-b', 'side'); put('side-work', 'owned side work'); commit('owned side')
+        git('checkout', 'task'); put('main-work', 'owned main work'); commit('owned main')
+        git('merge', '--no-ff', '--no-commit', 'side'); put('merge-only', 'required resolution'); commit('owned merge')
+      }
+      git('checkout', 'integration'); git('merge', '--ff-only', 'task')
+      if (scenario === 'tagged-merge-only-loss') { git('rm', 'merge-only'); commit('lose merge resolution', 'other-task') }
+      if (scenario === 'earlier-owned-path-lost') { git('rm', 'deliverable'); commit('later loss', 'other-task') }
+      if (scenario === 'later-owned-path-lost') { git('rm', 'second'); commit('later loss', 'other-task') }
+      if (scenario === 'restored-path-lost') { put('obsolete', 'sibling file'); commit('undo task deletion', 'other-task') }
+      const preserved = ['owned-revision', 'restored-path-preserved', 'restored-path-only', 'unowned-empty-bookkeeping'].includes(scenario)
+      const r = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: dir, encoding: 'utf8' })
+      assert.equal(r.status, preserved ? 0 : 1, r.stdout + r.stderr)
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: r.status === 0 ? ['t1'] : [] }))
+      assert.equal(calls.some(c => c.opts.label === 'work:t1'), !preserved)
+      assert.equal(out.auditLog.some(row => row.verdict === 'recovered:pre-merged'), preserved)
+    } finally { rmSync(dir, { recursive: true, force: true }) }
   })
 }

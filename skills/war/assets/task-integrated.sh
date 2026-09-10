@@ -26,8 +26,10 @@ else
   no_proof "$task_branch is not integrated"
 fi
 phase_base=$(git merge-base "$integration_tip" "$working_tip") || die 'cannot resolve phase base'
-commits=$(git rev-list --no-merges "$phase_base..$task_tip") || die 'cannot read task history'
+commits=$(git rev-list --reverse --topo-order --no-merges "$phase_base..$task_tip") || die 'cannot read task history'
 provenance_commit=''
+ownership_base=''
+owned_commits=''
 for commit in $commits; do
   owner=$(git show -s --format='%(trailers:key=WAR-Task,valueonly)' "$commit") || die 'cannot read task trailer'
   [ "$owner" = "$task_branch" ] || continue
@@ -37,17 +39,38 @@ for commit in $commits; do
     result=$?
     [ "$result" -eq 1 ] || die 'cannot read task commit diff'
   fi
+  [ -n "$ownership_base" ] || ownership_base="$commit^"
   provenance_commit="$commit"
-  break
+  owned_commits+=" $commit"
 done
 [ -n "$provenance_commit" ] || no_proof "$task_branch has no nonempty WAR-Task commit in the phase"
-# History can outlive the work it describes. Compare the task's complete final footprint,
-# including both sides of renames, Gitlinks, modes and deletions. NUL framing and literal
-# pathspecs preserve arbitrary filenames; config/external diff cannot hide changes.
+# Do not combine an old owner witness with unrelated surviving work. Once owned work
+# starts, any nonempty unowned/merge contribution makes attribution uncertain. Empty
+# bookkeeping is harmless. Rebased sibling history before ownership_base is preserved.
+owned_history=$(git rev-list "$ownership_base..$task_tip") || die 'cannot read owned interval'
+for commit in $owned_history; do
+  case " $owned_commits " in *" $commit "*) continue ;; esac
+  if proof_diff --quiet "$commit^" "$commit" --; then
+    :
+  else
+    result=$?
+    [ "$result" -eq 1 ] || die 'cannot read unowned contribution'
+    no_proof "$task_branch has mixed history after task-owned work"
+  fi
+done
+if proof_diff --quiet "$ownership_base" "$task_tip" --; then
+  no_proof "$task_branch has no surviving task-owned change"
+else
+  result=$?
+  [ "$result" -eq 1 ] || die 'cannot read surviving task-owned diff'
+fi
+# Union every owned commit's paths, even changes that cancel preceding phase work.
+# Preserve rename sides, Gitlinks, modes and deletions; duplicate paths are harmless.
 proof_paths=$(mktemp "${TMPDIR:-/tmp}/war-task-integrated.XXXXXX") || die 'cannot allocate proof paths'
 trap 'rm -f "$proof_paths"' EXIT
-proof_diff --no-renames --name-only -z "$phase_base" "$task_tip" -- > "$proof_paths" || die 'cannot read final task diff'
-[ -s "$proof_paths" ] || no_proof "$task_branch has an empty final task diff"
+for commit in $owned_commits; do
+  proof_diff --no-renames --name-only -z "$commit^" "$commit" -- >> "$proof_paths" || die 'cannot read owned task paths'
+done
 while IFS= read -r -d '' proof_path; do
   if proof_diff --quiet "$task_tip" "$integration_tip" -- "$proof_path"; then
     :

@@ -723,3 +723,78 @@ and all later external-diff/sanction cases pass in the final complete run. Candi
 preserves source/log hashes and guard evidence. All 17 protected refs and all 17 installed Snipe
 package files remain unchanged. Commit/push and exact-SHA Snipe follow; the final PR body will
 preserve the result and verdict without changing the reviewed SHA. No merge or release performed.
+
+
+### Candidate 8 resumed panel: complete, held for ownership/footprint composition
+
+After the operator resumed, source/remote head remained c27d7426d3417342cec3529da5b39f089b6787de.
+The interrupted panel's temporary raw output had disappeared; its three completed seats and one
+cancelled seat are historical accounting only, with no inferred findings or approvals. A fresh
+full panel completed with stable, complete coverage. Correctness/simplicity approved;
+cascading-impact/test-fidelity requested changes. Exact report/manifest: candidate-8-snipe.md/.json.
+The holder-diagnostic and recovery-prompt duplication Minors remain the existing #2126/#2127
+refactor deferrals. Their instructions/behavior are consistent; no integrity repair depends on them.
+
+The new Majors share one cause: historical ownership and a phase-net changed-file list are
+independent witnesses. Unrelated surviving work can satisfy the latter after owned work is
+cancelled; a task deletion of an earlier sibling's file can disappear from that same list.
+Ten real-Git cases reproduced six failures on candidate 8: four composed ownership losses,
+one omitted-path loss, and one valid deletion-only task incorrectly refused. The new proof uses
+all qualifying owned commits' path union, compares final task/integration content there, and
+requires surviving net work from before ownership began. Nonempty later contributions outside
+those owned commits conservatively return to work/audit; empty bookkeeping and earlier sibling
+history remain admissible. This also protects merge-only changes omitted by non-merge ownership
+enumeration. No phase hold or human Git step is added for missing proof.
+
+Fresh resumed validation on unchanged candidate 8 passed 2,081 JS tests, all 31 shell files,
+redaction and the 341,256-byte staging check. Logs, raw resumed panel and next repair evidence
+are retained under the task's persistent visualization workspace, with final reports mirrored in
+the PR description. Earlier temporary mutation logs/scripts are unavailable; their committed
+result/hash manifests remain historical evidence, not a claim of freshly rerun controls.
+Candidate-9 recursive controls and final validation are in progress.
+
+
+### Candidate 9 class closure: one attributable current-content proof
+
+- **Invariant and consumers:** a recovery skip requires surviving owned work and preservation of
+  every owned path, not independently true ownership/history and unrelated net-diff witnesses.
+  task-integrated.sh remains the sole Git proof producer; its exit continues through the same
+  sanctioned-only preMerged consumer and done/succeeded/landed/audit omissions. No output shape,
+  seat, permission, Git mutation or consumer-routing change is needed.
+- **Repair and sibling sweep:** enumerate all qualifying commits in oldest-first topological order;
+  retain their earliest parent as the ownership base and accumulate the complete owned set.
+  Re-read the entire owned interval, including merges: nonempty contributions outside the qualified
+  set make attribution uncertain, while empty bookkeeping is allowed. Require nonempty net work
+  in that interval. Compare final task/integration trees over the union of every owned commit's
+  changed paths. This includes task changes that restore the phase base and cancelled intermediate
+  owned paths. Existing literal/NUL, rename-side, mode/Gitlink, config-neutral diff, error and stable-ref
+  protections remain. The old final-path-file nonempty check was removed as redundant: the list now
+  comes directly from commits already proved nonempty, rather than a potentially empty net diff.
+- **Recursive evidence:** fifteen real-Git ownership/history graphs cover unowned siblings before
+  and after ownership, tagged and untagged cancellation, overlapping unowned changes, multiple owned
+  revisions, both earlier/later owned-path losses, deletion-only and compound phase-base restoration,
+  harmless empty bookkeeping, mixed late contributions and merge-only resolution loss. The latter
+  specifically protects against the new owned-path union omitting unqualified merge effects. Three
+  new read-error cases cover interval enumeration, unowned contribution and surviving-net reads.
+  Existing current-content, repository-context, sanctioned-consumer, path/config and ref-race cases
+  remain in the full suite. Seven selected cases fail against candidate 8's actual helper; each
+  successful/failed helper result also drives the real Workflow skip-versus-worker branch.
+- **Discriminating controls:** all 29 actual Bash-parseable mutations fail assertion oracles: 15
+  ownership/order/set/interval/footprint guards plus 14 retained path/config/error/ref/cleanup guards.
+  Retaining the earliest base and retaining every qualified owner have distinct controls. The
+  owned cancellation control contains only tagged commits, so a mixed-history refusal cannot mask
+  the nonempty-owned-work guard. Raw controls/scripts/results are retained outside /private/tmp.
+- **Consequences and residuals:** a nonempty mixed contribution after owned work starts may trigger
+  unnecessary ordinary work/audit even if it is benign. This is the existing conservative missing-
+  provenance policy, not a new phase hold; earlier rebased sibling history, owned revisions and
+  valid deletion-only tasks retain the shortcut. Refiner/schema/resume/ADR and the dispatched proof
+  charge are synchronized. Models must execute the authoritative helper; these fixtures establish
+  actual Git mechanics and engine routing, not live-model procedure adherence. The two previously
+  adjudicated duplication Minors remain deferred, with no unimplemented integrity dependency.
+
+Final candidate-9 validation: **2,099 JS tests passed, 0 failed**, **31 shell files passed, 0
+failed**, redaction clean and release slots coherent at **0.21.13**. Actual staging is **341,339 /
+524,288 bytes**. All 29 mutations and seven before-source cases are recorded with retained raw
+logs/script hashes in candidate-9-validation.json. All 17 protected refs remain unchanged; the
+remote source/base had no concurrent movement. Commit/push and the full exact-SHA panel follow;
+its report and verdict will be preserved in the PR description. No merge or release performed.
