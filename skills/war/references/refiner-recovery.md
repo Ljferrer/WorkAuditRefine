@@ -146,8 +146,13 @@ Use the context's repository, source and target branches, including a submodule 
 specified. Resolve full commit SHAs and query origin's exact target ref; a failed remote query
 is not an absent ref. The snapshot stores Git identities, not a local-state completion marker.
 Before pin rebase and task/polish/terminal merges, local target must equal origin target, or a
-fresh integration cut must equal its published origin working seed when origin target is absent.
-On disagreement, `target-reconcile` may safely fast-forward a clean local follower to origin,
+fresh integration cut must equal its published origin seed when origin target is absent.
+Use the explicit context seed: `workingBranch` for an ordinary phase, `task.targetBase` inside a
+submodule repository. Pin preflight/proof and every task merge/retry target the integration branch,
+not the seed/base branch. Polish and terminal merges use the same phase seed; submodule land
+targets `targetBase`. Never query a superproject branch as a submodule seed.
+On disagreement, `target-reconcile` may safely fast-forward a clean local follower to origin
+target, or to the published seed when origin target is absent,
 then an independent snapshot decides readiness even if maintenance lost its reply. Never publish
 unaccounted local-only history or change the current task during this maintenance. Unresolved
 history holds after the bounded attempts; Git remains available for the next agent to reconcile.
@@ -158,7 +163,8 @@ approved Git tree to the pre-rebase content (the first parent for a known regres
 forward-reverted), and recompute actual dispatch base, patch IDs and cherry matches. A transfer
 requires actual nonempty equal patches and target ancestry. Completion by `already_upstream`
 also requires actual task/local/origin tip equality, empty post-rebase content, positive task
-count and the complete unique matched task commit set. Changed content gets a full audit before
+count and the complete unique matched task commit set. Check coverage of every distinct reported
+commit; equal lengths alone plus coverage of cherry rows would accept duplicate proof rows. Changed content gets a full audit before
 publication; fabricated identities or unproved content hold. Integration refs must not change
 during this rebase-only operation. Missing reported dispatch bases on transferred/mismatch
 results are filled from Git proof, never left as null provenance.

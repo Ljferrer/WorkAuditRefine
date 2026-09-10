@@ -8745,8 +8745,10 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
   // the OLD-absent key scans the eviction destination too, never a relocated read.
   assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
-  const captureUses = (src.match(/schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, \{ task: r\.task\.id, repo: /g) || []).length
-  assert.equal(captureUses, 4, 'all four task merge sites pass identity to the shared capture wrapper, including baseline-proceed')
+  const captureUses = [...src.matchAll(/label:\s*`(merge:\$\{r\.task\.id\}[^`]*)`,\s*schema: MERGE_RESULT,\s*\.\.\.spawn\('refiner'\) \},\s*taskMergeContext\)/g)].map(m => m[1]).sort()
+  assert.deepEqual(captureUses, ['merge:${r.task.id}', 'merge:${r.task.id}:floor-retry:r${r.task.fixRounds}',
+    'merge:${r.task.id}:environment-proceed', 'merge:${r.task.id}:baseline-proceed'].sort(),
+  'primary, floor, environment and baseline merges pass their shared task identity to capture')
 })
 
 // #1151 — the classification-site drift guard: the sibling of captureUses above, and the ARBITER the
@@ -18970,7 +18972,7 @@ for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-
         git('push', 'origin', 'integration'); git('checkout', '--detach', base); git('update-ref', 'refs/heads/integration', base, advanced); git('checkout', 'integration')
       }
       const initialRemote = remote('integration')
-      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote('integration'), seed_sha: remote('working'), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      const snapshot = p => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote('integration'), seed_sha: remote(p.match(/also query origin's exact refs\/heads\/([^ ]+) and return seed_sha/)[1]), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
       let maintenance = 0, mergeCalls = 0
       const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'working' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2 } }), (p, o) => {
         if (o.label === 'merge:t1') {
@@ -18987,7 +18989,7 @@ for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-
           }
           return { detail: 'maintenance returned; only the fresh Git read can decide readiness' }
         },
-        'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+        'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot(p) : NEW_SEAT_DEFAULTS['merge-snapshot'],
         'merge-confirm': (p, o) => {
           if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
           const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1])
@@ -19193,4 +19195,127 @@ test('already_upstream contradiction also requires independent patch equality be
   })
   assert.ok(calls.some(c => /^audit:t1:/.test(c.opts.label) && c.prompt.includes('beef0001')))
   assert.ok(out.pinTransfers.some(r => r.kind === 'merge' && r.mode === 'mismatch'))
+})
+
+for (const rows of ['duplicate-first', 'duplicate-second', 'reordered']) test('upstream proof covers each distinct claimed commit: ' + rows, async () => {
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: 'facade01'.padEnd(40, '0'), remote_sha: 'facade01'.padEnd(40, '0') },
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1', 'c0ffee2'] },
+    'pin-confirm': p => { const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p); const [a, b] = proof.cherry; proof.cherry = rows === 'duplicate-first' ? [a, a] : rows === 'duplicate-second' ? [b, b] : [b, a]; return proof },
+  })
+  assert.equal(out.landed.includes('t1'), rows === 'reordered')
+  assert.equal(out.pinTransfers.some(r => r.mode === 'already_upstream'), rows === 'reordered')
+})
+
+for (const scenario of ['normal', 'lost-task', 'lost-land', 'unpublished-seed', 'published-seed-ahead']) test('submodule Git certainty uses its own integration and seed: ' + scenario, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-submodule-proof-')), superRepo = join(dir, 'super'), subRepo = join(superRepo, 'module'), seedRepo = join(dir, 'seed')
+  const run = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' })
+  const gitAt = (cwd, ...args) => { const r = run(cwd, ...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const git = (...args) => gitAt(subRepo, ...args)
+  const remote = ref => git('ls-remote', 'origin', 'refs/heads/' + ref).split(/\s/)[0] || null
+  const patch = (a, b) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', a, b) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+  const resolve = pin => { if (typeof pin !== 'string' || !/^[0-9a-f]{7,40}$/.test(pin)) return null; const r = run(subRepo, 'rev-parse', '--verify', '--end-of-options', pin + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
+  const context = p => JSON.parse(p.match(/Context: (.+?)\. (?:Before any|Immutable|Observed)/)[1])
+  try {
+    mkdirSync(seedRepo); gitAt(seedRepo, 'init', '-b', 'main'); gitAt(seedRepo, 'config', 'user.name', 'Fixture'); gitAt(seedRepo, 'config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(seedRepo, 'base'), 'base'); gitAt(seedRepo, 'add', 'base'); gitAt(seedRepo, 'commit', '-m', 'base'); const base = gitAt(seedRepo, 'rev-parse', 'HEAD')
+    gitAt(dir, 'init', '--bare', '--initial-branch=main', 'origin.git'); gitAt(seedRepo, 'remote', 'add', 'origin', join(dir, 'origin.git')); gitAt(seedRepo, 'push', 'origin', 'main')
+    mkdirSync(superRepo); gitAt(superRepo, 'init', '-b', 'super-only'); gitAt(superRepo, 'config', 'user.name', 'Fixture'); gitAt(superRepo, 'config', 'user.email', 'fixture@example.invalid')
+    gitAt(superRepo, '-c', 'protocol.file.allow=always', 'submodule', 'add', join(dir, 'origin.git'), 'module'); gitAt(superRepo, 'commit', '-m', 'submodule')
+    git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    if (scenario === 'unpublished-seed') { writeFileSync(join(subRepo, 'local-only'), 'not published'); git('add', 'local-only'); git('commit', '-m', 'unpublished base') }
+    git('branch', 'integration')
+    if (scenario === 'published-seed-ahead') { writeFileSync(join(seedRepo, 'published'), 'upstream'); gitAt(seedRepo, 'add', 'published'); gitAt(seedRepo, 'commit', '-m', 'published upstream'); gitAt(seedRepo, 'push', 'origin', 'main') }
+    const tasks = ['t1', 't2'].map((id, i) => {
+      git('checkout', '-b', id, 'integration'); writeFileSync(join(subRepo, id + '.test.js'), id); git('add', id + '.test.js'); git('commit', '-m', id + '\n\nWAR-Task: ' + id)
+      return { ...SINGLE_TASK[0], id, branch: id, worktree: subRepo, taskType: 'submodule', targetRepo: subRepo, targetBase: 'main', deps: i ? ['t1'] : [] }
+    })
+    git('checkout', 'integration'); const snapshots = [], proofs = [], auditCounts = {}; let mergeCalls = 0
+    const snapshot = p => {
+      const c = context(p); snapshots.push(c)
+      // Execute the seed named by the dispatched prompt, including the pre-fix wrong ref.
+      const seed = p.match(/also query origin's exact refs\/heads\/([^ ]+) and return seed_sha/)[1]
+      return { base_sha: git('rev-parse', c.target), source_sha: git('rev-parse', c.source), remote_sha: remote(c.target), seed_sha: remote(seed), patch_id: patch(git('merge-base', c.target, c.source), c.source) }
+    }
+    const proof = (c, before) => ({ local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), source_tip: git('rev-parse', c.source), base_is_ancestor: run(subRepo, 'merge-base', '--is-ancestor', before.base_sha, c.target).status === 0, patch_id: patch(before.base_sha, c.source), parents: git('show', '-s', '--format=%P', c.target).split(' ') })
+    const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'Submodule', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks, run: { ace: false, roundLimit: 2 } }), (p, o) => {
+      const id = o.label?.match(/^(?:work|audit|merge):(t[12])(?:$|:)/)?.[1]
+      if (isWorker({ opts: o })) { const task = tasks.find(t => o.label.includes(t.id)); return { task_id: task.id, status: 'implemented', head_sha: git('rev-parse', task.branch) } }
+      if (id && isAuditor({ opts: o })) { auditCounts[id] = (auditCounts[id] || 0) + 1; return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: git('rev-parse', id), findings: [] } }
+      if (id && /^merge:/.test(o.label)) {
+        mergeCalls++; git('checkout', 'integration'); git('merge', '--ff-only', id); git('push', 'origin', 'integration')
+        if (scenario === 'lost-task' && id === 't1') throw new Error('529 submodule reply lost after push')
+        return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') }
+      }
+      if (o.label === 'land:phase-3') {
+        git('checkout', 'main'); git('fetch', 'origin', 'main'); git('merge', '--ff-only', 'origin/main'); git('merge', '--no-ff', 'integration', '-m', 'phase'); git('push', 'origin', 'main')
+        if (scenario === 'lost-land') throw new Error('529 submodule land reply lost after push')
+        return { mode: 'land-phase', status: 'landed', working_sha: git('rev-parse', 'main') }
+      }
+      return defaultImpl(p, o)
+    }, { rawMergeResults: true, rawTaskAuditPins: true,
+      'audit-pin': p => { const pins = fixturePinRequest(p); return { head_sha: resolve(pins[0]), pins: pins.map(resolve) } },
+      'pin-snapshot': snapshot, 'merge-snapshot': snapshot,
+      'target-reconcile': (p, o) => {
+        if (scenario === 'published-seed-ahead' && p.includes('If origin target is absent, use the published seed as the upstream')) {
+          assert.equal(o.model, 'opus'); git('fetch', 'origin', 'main'); git('checkout', 'integration'); git('merge', '--ff-only', 'origin/main')
+        }
+        return { detail: 'published history may advance safely; unpublished history is preserved' }
+      },
+      'pin-transfer': (p, o) => {
+        const id = o.label.split(':')[1], beforeBase = git('merge-base', 'integration', id), pre = patch(beforeBase, id)
+        git('checkout', id); git('rebase', 'integration')
+        return { status: 'transferred', rebased_tip: git('rev-parse', id), dispatch_base: beforeBase, pre_rebase_patch_id: pre, post_rebase_patch_id: patch('integration', id) }
+      },
+      'pin-confirm': p => {
+        const c = context(p), before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1]), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve); proofs.push(c)
+        const ownBase = git('merge-base', before.base_sha, before.source_sha), cherry = git('cherry', before.base_sha, before.source_sha)
+        return { head_sha: git('rev-parse', c.source), local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), content_sha: before.source_sha,
+          approved_tree: git('rev-parse', pins[0] + '^{tree}'), content_tree: git('rev-parse', before.source_sha + '^{tree}'), dispatch_base: ownBase, pins,
+          pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch(c.target, c.source), target_ancestor: run(subRepo, 'merge-base', '--is-ancestor', c.target, c.source).status === 0,
+          post_empty: run(subRepo, 'diff', '--quiet', c.target, c.source).status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + before.source_sha)), cherry: cherry ? cherry.split('\n').map(s => ({ sign: s[0], sha: s.slice(2) })) : [] }
+      },
+      'merge-confirm': p => {
+        const c = context(p), before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), claim = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
+        return { ...proof(c, before), reported_sha: resolve(claim.claimed) }
+      },
+      'merge-reconcile': p => {
+        const c = context(p), before = JSON.parse(p.match(/Immutable pre-dispatch Git snapshot: (.+?)\. Prior response:/)[1]); const after = proof(c, before)
+        assert.equal(c.repo, subRepo); assert.equal(c.target, c.land ? 'main' : 'integration')
+        return { ...before, ...after, patch_id: before.patch_id, outcome: c.land ? 'landed' : 'merged', result: { mode: c.land ? 'land-phase' : 'merge-task', status: c.land ? 'landed' : 'merged', [c.land ? 'working_sha' : 'integration_sha']: after.local_sha, gate_log_path: fixtureGatePath(p) } }
+      },
+    })
+    assert.equal(remote('super-only'), null, 'the superproject working branch does not exist in the submodule remote')
+    if (scenario === 'unpublished-seed') { assert.equal(mergeCalls, 0); assert.equal(remote('integration'), null); assert.equal(remote('main'), base); assert.ok(!calls.some(c => c.opts.dispatchKind === 'pin-transfer')) }
+    else {
+      assert.deepEqual(out.landed, ['t1', 't2'], JSON.stringify({ workflowError: out.workflowError, escalated: out.escalated })); assert.equal(out.landDecision, 'landed'); assert.equal(mergeCalls, 2); assert.deepEqual(auditCounts, { t1: 1, t2: 1 }, 'first and later task transfer without unnecessary re-audit')
+      assert.equal(remote('integration'), git('rev-parse', 't2')); assert.equal(remote('main'), out.landResult.working_sha)
+      assert.equal(git('rev-list', '--count', '--merges', 'main'), '1')
+      for (const c of [...snapshots, ...proofs]) { assert.equal(c.repo, subRepo); assert.equal(c.target, c.land ? 'main' : 'integration'); if (!c.land) assert.equal(c.seed, 'main') }
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const route of ['floor', 'environment', 'baseline']) test('submodule Git context survives task retry: ' + route, async () => {
+  const tasks = [submodRetryTask()]
+  const args = route === 'floor' ? NO_TEST_ARGS({ tasks }) : CLS_ARGS({ tasks })
+  const result = route === 'floor' ? await runNoTestLoop({ tasks }) : await runPhase(args, clsImpl({ mergeResult: route === 'environment' ? envMergeResult : () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999' }) }))
+  const suffix = route === 'floor' ? 'floor-retry:r' : route + '-proceed'
+  const call = result.calls.find(c => c.opts.dispatchKind === 'merge-snapshot' && c.prompt.includes('for merge:t1:' + suffix))
+  assert.ok(call, 'the retry snapshots Git before mutation')
+  const c = JSON.parse(call.prompt.match(/Context: (.+?)\. Before any/)[1])
+  assert.equal(c.repo, SUBMOD_RETRY_REPO); assert.equal(c.source, result.calls.find(x => x.opts.dispatchKind === 'pin-snapshot').prompt.match(/"source":"([^"]+)"/)[1])
+  assert.equal(c.target, args.phase.integrationBranch); assert.equal(c.seed, 'main')
+})
+for (const submodule of [true, false]) test('phase Git context carries the seed through polish, terminal and land: ' + submodule, async () => {
+  const original = SWEEP_ARGS(), args = submodule ? SWEEP_ARGS({ tasks: original.tasks.map(t => ({ ...t, taskType: 'submodule', targetRepo: SUBMOD_RETRY_REPO, targetBase: 'main' })) }) : original
+  const { out, calls } = await runPhase(args, terminalImpl())
+  assert.equal(out.landDecision, 'landed')
+  for (const label of ['merge:p3-polish', 'merge:p3-terminal', 'land:phase-3']) {
+    const call = calls.find(c => c.opts.dispatchKind === 'merge-snapshot' && c.prompt.includes('for ' + label + '.'))
+    assert.ok(call, label + ' snapshots its own Git context')
+    const c = JSON.parse(call.prompt.match(/Context: (.+?)\. Before any/)[1])
+    if (label.startsWith('land:')) { assert.equal(c.repo, submodule ? SUBMOD_RETRY_REPO : args.worktreeRoot + '/' + args.runId + '/_refinery'); assert.equal(c.target, submodule ? 'main' : args.phase.workingBranch) }
+    else { assert.equal(c.repo, args.worktreeRoot + '/' + args.runId + '/_refinery'); assert.equal(c.target, args.phase.integrationBranch); assert.equal(c.seed, submodule ? 'main' : args.phase.workingBranch) }
+  }
 })

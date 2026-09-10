@@ -2115,7 +2115,7 @@ const mergeGitMatches = (proof, before, land) => fullSha(proof.local_sha) && pro
     : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true && proof.patch_id === before.patch_id)
 const mergeSnapshot = async (opts, context) => {
   let before
-  const seed = context.target === ph.integrationBranch ? ph.workingBranch : context.target
+  const seed = context.seed ?? context.target
   for (let attempt = 0; attempt < roundLimit; attempt++) {
   before = await dispatchSite(
     pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${seed ?? '<target>'} and return seed_sha (its full published tip or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_sha and source HEAD still equals it, the expected patch is instead the source parent's patch: the original merge will forward-revert that known regressed tip. No writes, no checkout, no rebase, no merge, no push. Any unresolved Git error: return no usable snapshot, never invented values.`,
@@ -2124,7 +2124,7 @@ const mergeSnapshot = async (opts, context) => {
     if (context.land || (before.remote_sha === null ? before.seed_sha === before.base_sha : before.remote_sha === before.base_sha)) return before
     auditLog.push({ task: context.task, verdict: 'git-target:unreconciled', findings: [], site: opts.label, before })
     if (attempt + 1 < roundLimit) await dispatchSite(
-      pt`GIT TARGET MAINTENANCE before ${opts.label}. Context: ${JSON.stringify(context)}. Observed snapshot: ${JSON.stringify(before)}. Inspect current local and origin target refs. If local is strictly behind origin, fast-forward the local target to the published origin tip using the existing clean-worktree/compare-and-swap rules. Otherwise preserve all refs and report the unaccounted history. Never publish local-only integration commits, reset or rewind a shared ref, change/rebase the current task, force push, or invent approval for an earlier task. An absent remote is safe only for a fresh cut exactly at origin/${seed ?? '<target>'}; do not publish an unproved seed. The engine re-reads Git independently after this bounded maintenance; your response alone cannot establish readiness.`,
+      pt`GIT TARGET MAINTENANCE before ${opts.label}. Context: ${JSON.stringify(context)}. Observed snapshot: ${JSON.stringify(before)}. Inspect current local and origin target refs. If origin target is absent, use the published seed as the upstream; otherwise use origin target. If local is strictly behind that upstream, fast-forward the local target to its published tip using the existing clean-worktree/compare-and-swap rules. Otherwise preserve all refs and report the unaccounted history. Never publish local-only integration commits, reset or rewind a shared ref, change/rebase the current task, force push, or invent approval for an earlier task. An absent remote is safe only for a fresh cut exactly at origin/${seed ?? '<target>'}; do not publish an unproved seed. The engine re-reads Git independently after this bounded maintenance; your response alone cannot establish readiness.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'target-reconcile', label: 'git-target:' + opts.label, schema: { type: 'object', properties: { detail: { type: 'string' } } }, ...spawnRefinerRecovery() })
   }
   log(opts.label + ': Git snapshot unavailable; retrying read-only on the recovery tier within roundLimit')
@@ -4027,10 +4027,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
-      // Merge-slot death arm (D21, PIN-25): a dead pin-transfer probe, merge dispatch, floor-fix worker
-      // or floor re-audit seat classifies env-died SOFT with the site named (the DEAD record's cause)
-      // — the task stays unmerged, siblings proceed, the phase lands minus this task. Never a hard
-      // reason, never done-unmet, never audit-blocked: the dead dispatch judged nothing.
+      // Merge-slot death arm (D21, PIN-25): snapshot/pin-probe, floor-fix and floor re-audit deaths
+      // stay site-named SOFT env-died. A merge death reaches this arm only after Git reconciliation
+      // proves its target unchanged; uncertainty holds earlier. Unmerged tasks do not block healthy
+      // siblings through a fabricated content verdict.
       const mergeDied = why => envDied(r.task.id, why, { verdict: 'env-died', fixRounds: r.task.fixRounds })
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
       // requiresPackaging (spec §4.2): gates the assert-packaging-in-diff.sh floor, INDEPENDENT of
@@ -4079,7 +4079,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // fails closed to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
       // member, so no hard escalation can be downgraded by an in-band field (PIN-6).
-      const pinContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: isSubmodTask ? r.task.targetBase : ph.integrationBranch, pin: true }
+      const taskMergeContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch,
+        target: ph.integrationBranch, seed: isSubmodTask ? r.task.targetBase : ph.workingBranch, revert_sha: r.aceReverted || null }
+      const pinContext = { ...taskMergeContext, pin: true }
       const pinBefore = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
       if (deathOf(pinBefore)) { mergeDied(deathOf(pinBefore)); continue }
       let pinProbe = await dispatchSite(
@@ -4178,12 +4180,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           }
           const cherry = Array.isArray(pinProof.cherry) ? pinProof.cherry : []
           const matched = pinProof.pins.slice(4)
+          // Equal lengths plus distinct claims and coverage of EVERY claim proves exact set equality;
+          // checking cherry rows in the other direction would accept [A, A] for claimed [A, B].
           if (pinProof.head_sha !== pinProof.local_sha ||
               pinProof.local_sha !== pinProof.remote_sha || pinProof.post_empty !== true || pinProof.post_patch_id !== '' ||
               pinProof.pre_patch_id !== pre || !Number.isInteger(pinProof.task_count) || pinProof.task_count < 1 ||
               !cherry.every(c => c && c.sign === '-') || matched.length !== cherry.length ||
               matched.some(sha => !fullSha(sha)) || new Set(matched).size !== matched.length ||
-              !cherry.every(c => matched.includes(c.sha))) {
+              !matched.every(sha => cherry.some(c => c.sha === sha))) {
             escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'already_upstream is not confirmed by actual integration and cherry evidence', probe: pinProbe } })
             auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified-upstream', findings: [], fixRounds: r.task.fixRounds })
             continue
@@ -4251,7 +4255,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
 
       // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
       const mrDeath = deathOf(mr)
@@ -4395,7 +4399,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const floorMrDeath = deathOf(floorMr)
           if (floorMrDeath) { mergeDied(floorMrDeath); floorMr = null; reAuditFailed = true; break }   // D21: a dead re-merge is env-died, never a floor status
         }
@@ -4488,7 +4492,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const epDeath = deathOf(ep)
           if (epDeath) mergeDied(epDeath)   // D21: a dead environment-proceed re-merge is env-died, site-named
           else if (ep && ep.status === 'merged') landMerged(r.task, ep)
@@ -4523,7 +4527,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: ph.integrationBranch, revert_sha: r.aceReverted || null }))
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const bpDeath = deathOf(bp)
           if (bpDeath) mergeDied(bpDeath)   // D21: a dead baseline-proceed re-merge is env-died, site-named
           else if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
@@ -5156,6 +5160,8 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
   }
 }
 const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
+const submodLandTask = tasks.find(t => t.taskType === 'submodule')
+const phaseGitSeed = submodLandTask ? submodLandTask.targetBase : ph.workingBranch
 
 // ---- PHASE-CLOSE COHERENCE SWEEP (ADR 0012) — after the land decision is computed, before the ----
 // ---- land dispatch. Fail-open: the sweep may only improve the tip — a re-approved polish merges ----
@@ -5344,7 +5350,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS — it is unconditional and consults no task fields; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge — the Workflow fail-open DISCARDS the sweep; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: polishTask.id, repo: refineryLandPath, source: polishBranch, target: ph.integrationBranch })
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: polishTask.id, repo: refineryLandPath, source: polishBranch, target: ph.integrationBranch, seed: phaseGitSeed })
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
       polishStatus = 'merged'
@@ -5516,7 +5522,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
               + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The terminal commit is an ace-shaped absorb commit, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and the pass has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). On gate failure return gate_failed (no classification); the Workflow fail-open leaves the commit unmerged. On conflict return conflict; never force.`
               + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
               + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
-              { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: polishTask.id, repo: refineryLandPath, source: polishBranch, target: ph.integrationBranch })
+              { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-terminal`, schema: MERGE_RESULT, ...spawn('refiner') }, { task: polishTask.id, repo: refineryLandPath, source: polishBranch, target: ph.integrationBranch, seed: phaseGitSeed })
             const tmrWhy = deathOf(tmr) || (tmr && tmr.status) || 'no result'   // a dead terminal merge (D21) names its site here
             if (tmr && tmr.status === 'merged') {
               log('terminal pass: phase ' + ph.id + ' MERGED at ' + terminalSha + ' — the land proceeds on the terminal tip; ' + terminalRows.length + ' absorb(s) recorded aced.')
@@ -5602,7 +5608,6 @@ const relandDiscrimination = (working) =>
 if (landDecision === 'landed') {
   // For a submodule phase: thread targetRepo + targetBase so the refiner knows to perform a
   // submodule-aware land (2A CAS inside the submodule repo, or 2B PR-and-hold on the submodule remote).
-  const submodLandTask = tasks.find(t => t.taskType === 'submodule')
   const submodLandNote = submodLandTask && submodLandTask.targetRepo
     ? pt`\nSUBMODULE PHASE: this phase includes a submodule task. Target repo: ${submodLandTask.targetRepo}. `
       + pt`Submodule base: ${submodLandTask.targetBase || '<targetBase>'}. `

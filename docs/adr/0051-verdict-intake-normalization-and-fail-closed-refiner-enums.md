@@ -154,3 +154,8 @@ Already-upstream completion needs published Git evidence; missing/error/unknown 
 leave changed content trigger a full audit. Normal and recovered land can reuse the exact phase
 commit already published before dispatch, with source-parent and local-base ancestry proof.
 The operative procedure and wire shapes remain in the linked recovery reference and engine.
+
+The Git context carries an explicit repository-local seed: the phase working branch for ordinary
+work, or targetBase for submodule work. Pin verification and all task/sweep merges watch the
+integration branch; submodule land still targets its base. Cherry-set confirmation covers every
+distinct reported commit, so duplicated independent proof rows cannot stand in for an absent one.

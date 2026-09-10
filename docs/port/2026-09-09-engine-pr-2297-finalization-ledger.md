@@ -511,3 +511,72 @@ protected refs are unchanged. Candidate-5-validation.json carries commands, sour
 52 guard controls, eleven before-source negatives and the protected-ref comparison.
 The final exact-SHA Snipe report, execution identity, CI and verdict will be recorded in the
 PR body without changing its candidate. No merge or release is authorized or performed.
+
+## Candidate 5 audit and corrective boundary sweep
+
+Candidate `f53c979c5b5338d9961ad35fd5f05fbf178a587f` has a complete, stable four-seat
+Snipe report, preserved in candidate-5-snipe.md/.json and the held PR description. Simplicity
+approves with a Minor; correctness/cascading-impact identify the same submodule context defect,
+and test-fidelity identifies incomplete cherry-set coverage. The candidate is held.
+
+Both defects are verified. Distinct claims `[A, B]` with duplicate independent cherry rows
+`[A, A]` falsely complete the task; the earlier duplicate fixture changed the claim collection
+instead. The set comparison now requires coverage of each distinct claim, which together with
+equal lengths proves both directions and unique proof rows. The submodule fixture creates an
+actual Git submodule with only origin/main, a local unpublished integration branch, and two task
+branches. The previous candidate fails before the first task merge because it requests the
+superproject seed; its pin context also watches targetBase instead of the integration branch.
+
+Repair in progress: one task Git context feeds pin preflight/proof and all primary/floor/
+environment/baseline task merges. It names integration as target and targetBase as the submodule
+seed (workingBranch for ordinary tasks). Phase sweep/terminal contexts carry the same phase
+seed; land continues to target the submodule base. Real-Git initial/later-task, lost-task-response,
+lost-land-response and unpublished-seed cases pass after correction. Retry/sweep mirrors, mutation
+proof, documentation and final validation are still being completed.
+
+The holder-aware worktree diagnostic Minor is deferred: all three arms are correct, and this
+request's bounded scope excludes optional broad cleanup. Its shared-helper refactor does not
+repair false approval, completion, pin attribution or misleading evidence in this candidate.
+No issue is closed for that deferral.
+
+### Candidate 6 class closure: proof sets and repository-local ref contexts
+
+- **Root cause → rule:** cherry-row coverage did not prove coverage of every claimed task commit.
+  The consumer now checks every distinct claim against the cherry list. Distinct claims plus
+  equal cardinality and full claim coverage also prove the cherry list has no duplicates or extra
+  identities; a second redundant uniqueness/set implementation is unnecessary. Duplicate-first,
+  duplicate-second and reordered-positive fixtures exercise the collection the prior test missed.
+- **Producer/sibling/consumer sweep:** the pin rebase, pin proof and primary/floor/environment/
+  baseline task merge paths now share `taskMergeContext`. The integration target and explicit
+  seed are chosen in the task's repository. `mergeSnapshot` no longer invents a superproject seed.
+  Phase polish and terminal share `phaseGitSeed`; submodule land retains targetBase as its target.
+  Normal and recovery confirmations inherit the same context. Real-Git tests use an actual
+  submodule and bare remote with no superproject working ref, cover the first and later tasks,
+  and verify one phase commit on lost task/land responses. Retry and sweep/terminal mirrors check
+  every caller and both ordinary/submodule seed branches.
+- **Recursive maintenance consequence:** a fresh local integration cut may trail its already
+  published seed. The recovery prompt explicitly permits a safe follower fast-forward to that
+  seed when origin integration is absent, followed by the same independent re-read. A real-Git
+  fixture follows this instruction and succeeds; removing the instruction makes the controlled
+  refiner preserve state and the test fail. This is prompt-procedure evidence, not live-model
+  execution proof. An unpublished local seed still stays held and is never pushed.
+- **Discriminating evidence:** the previous committed candidate fails both duplicate-proof cases
+  and all three successful submodule normal/lost-response cases. All **66** retained mutation
+  controls fail their intended assertions: the earlier 52 boundary/ordering controls, 13 new
+  context/set controls and one published-seed instruction control. Earlier before-source failures
+  remain separately attributed to their original candidates. The real-Git target fixtures now
+  query the seed actually named in the snapshot prompt rather than hard-coding a working ref.
+- **Docs and residuals:** recovery/schema references and ADR 0051 describe the explicit topology
+  and exact-set rule. Runtime source comments distinguish pre-mutation/proved-unmerged soft deaths
+  from unresolved mutations. No config, model, permission, enum, version or release scope changes.
+  Git and gate/floor procedures remain an agent contract; the fixtures do not claim a live Opus
+  run. Mixed-repository orchestration outside the existing submodule-phase contract is not redesigned.
+  The current holder-diagnostic duplication Minor remains a documented nonblocking refactor.
+
+Final validation: **2,030 JS tests passed, 0 failed**, **31 shell files passed, 0 failed**,
+redaction clean, release slots coherent at 0.21.13, and actual staged size **338,778 / 524,288
+bytes**. The first full run exposed a stale inline-context capture census; its correction now
+pins the named primary/floor/environment/baseline callers, followed by the complete successful
+rerun. All **17** protected refs remain unchanged. Candidate-6-validation.json records source/log
+hashes and controls. Commit/push and the exact-SHA final review follow; the PR body will carry
+the final report and verdict without changing that candidate. No merge or release is performed.
