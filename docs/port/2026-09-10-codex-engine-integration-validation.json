@@ -2145,22 +2145,65 @@
     "skills/snipe/references/submodules.md": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
   },
   "rawHashes": {
+    "candidate-3-history-final.log": "6484dbeb2b5efa52d25910c481706dcc761f601cf1848b9bddbdbad9e005fad9",
     "discovered-inventory.json": "f9013de542d0d23c645ec67d4bc799a997f9ea094b77776ea03c4b980d23cd01",
+    "final-snipe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "candidate-3-before.log": "0330a888730ed0f3f6eec6f39e85396dc9cfc8458507bb2ebaa0661101725b4a",
+    "audited-source-identity-2.json": "86f304d5322ece6a5e702d181e54f9c960364c53d748605dbfceeadbeb9973e6",
     "protected-refs-before.txt": "2bb9dec97b9adf60c71ff4bc843a63455aac7e1ec4ff48ad321dde1cc3980f00",
+    "candidate-3-lens-mutation.log": "52431fad948648ebecccdca45d94583b71c7c0ce9d8239141ec96c25edf258be",
+    "package-source-after.log": "e1e36c7a7ea7d35a139e082abce399ce0b4136d5326c044dc0c2ac2855ac3ca8",
     "baseline-merge.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "initial-package-inventory.json": "018b1c7116aff9362505725c58356de2b449ac2c49ea9e32433dedb414ab46de",
+    "baseline-candidate-3.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "audited-source-identity-3.json": "ebfb26bd9c17bcbb8f419872f375d9f347ea6155237b9ae9b648a8408b087788",
+    "candidate-3-targeted-final.log": "703a6071d7a36ceade0ef8b288abb54fc72d7b27e939010c537c88c05aa19a1d",
+    "final-snipe.json": "8eb12412bfb16b8f80c5e67c8a05ddcd44d935fd5c56bfbd610faf35668347a8",
+    "final-snipe-2.md": "085d100da6aa1c4c0e6bdbaefe261bf6a7cba41d3d395ed2d549a1d24c570be1",
+    "snipe-build-2.json": "faf5421e103653f138b2a09d023539c516ba80f554c8e00d5658fd53f74403f4",
     "repair-after.log": "303d4b0a3834c0aff6b17f34f21aac64859209d10380b2071a437a94c269917d",
     "baseline-merge.stdout": "8c24e8f4e11d38d6244a410f3f00bbd0f56c63eae8890992ae1158abbfc6dfd3",
+    "final-snipe-3.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3.stdout": "4246b6a6ce0819a2cae768a5fa59db61677225950ce42d775c34b94703b615e3",
     "initial-snipe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "planning-package-identity-3.json": "ef7ff90a9b8f5c2dabcbbc3afb8dd20612c546e52b0c69e1a5e446fab1d4f110",
+    "package-source-before.log": "c0c6e27873cf364185c040787e91b4890a9b0697246479370f0a7c0851861025",
+    "final-snipe.md": "93d5473d5b009eb5a9a8e2916ca6867818d9adbf062d4306c24de0f212ac2927",
+    "planning-package-identity-2.json": "e029753b9a3ac6b790489687ceb8298f195881c98da84c1ca2f463188f7271a9",
     "repair-mutations.log": "edf072949615358707c3d88adec2cb9d7ecdb471f090b52d3bdf705865000df2",
+    "planning-package-identity.json": "1d46aa6aea499cc330156f30220b2aa587396afc80fb2d8d4226395c1e7a111c",
+    "final-snipe-3.md": "c601e217d107fff0ac182c29de6ba6f0816e2be3800119e72d76106c979740e5",
+    "package-import-smoke.log": "11acddb7744886cef89358eb3bbc0e708ebabae1193d514049f70e1a7aa0598b",
+    "snipe-build-3.json": "7e81bad9604456c037a9d68d54a58cd375daf5df40d85aedf5c4d97534c7c6b4",
     "history-before.log": "e6985a70eb08d969ef486ba086860adb361a0c9fc5cae44e0b22287b1c4e88d2",
+    "protected-refs-after.txt": "2bb9dec97b9adf60c71ff4bc843a63455aac7e1ec4ff48ad321dde1cc3980f00",
+    "snipe-package-identity-3.json": "bcd1fef156139e4f2f4abe2d6d05d916f40dfbe4e4736da8ed7697c0d1502978",
+    "candidate-3-history-mutations.log": "21c88d2a41f9cfb64706a07545461d102508292512210fadca93a3aa4d30f0f8",
+    "final-snipe-2.json": "c8accb3834911fc09a76a79544fba8ac2053cd4ef59f021719f7b5bc6a852b12",
+    "snipe-build.json": "98a35e282e99f66e3e2ea4222d6a55eecc119e6ab76f749f3209ba6213a34a40",
     "verifier-runner-after.log": "0f68c28aac00bf63a668b7f66fc1f2dd1042c9dc497f22bbb38ebe5ce88f050f",
+    "package-source-mutations.log": "bfa75f1db4677c8ce43646041631898cd435e3e1a1717a5bf3ba34e56c15054e",
     "repair-before.log": "332f4d2dfd841f28e5d756c63acf4007f46884c0d5c2a92354b5f14e5973ed62",
+    "audited-source-identity.json": "c82eaa5e2a7c5e911f2f30d29850d1e57575f5b5a87985ef6a8ec9e5f2a2d3e8",
+    "baseline-candidate-2.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "final-snipe-3.json": "188e135a5615dbd5cdaf8db32f2e760263e28ade15b5987d32ee31514ae67e12",
+    "baseline-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "snipe-package-identity-2.json": "a750f7488338a4a9276e9015b1e5e3dad244f62b22fa65851fd166ed588ff808",
+    "discovered-inventory-candidate-2.json": "f9013de542d0d23c645ec67d4bc799a997f9ea094b77776ea03c4b980d23cd01",
+    "baseline-candidate-2.stdout": "d781b4c8a3dd30281774fb75534ad1804c79f06b67a0cfb0620a14d011b91d77",
+    "snipe-package-identity.json": "ae185940ff9cb29a6c3f034932ebadde2520dcc5628aaa463eae93b11258022a",
+    "baseline-candidate.stdout": "d0b4b2a9f7d2a726f740689b993f876ba948a0a5a75b495fc83d3b37c3cbb30b",
+    "final-snipe-2.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "history-final.log": "408284be65edf2b75383cd3f04bf6203d4f69755a728a3734abc706aa126a3ec",
+    "planning-build.json": "38a05be8ac7952d1ce712023639c9b527bb5460a73b2dddfc47cbb91706d5a7c",
     "path-inventory.json": "9128e49ce4f62361dc999fbcee19bc3cc22e6a59f9ce29712173bb624ed35784",
     "initial-snipe.md": "c70421c6dc75b63f8a110b0bccca6fde6a121f4f7fc5175dcf987737958dfed4",
+    "planning-build-2.json": "38a05be8ac7952d1ce712023639c9b527bb5460a73b2dddfc47cbb91706d5a7c",
     "initial-snipe.json": "2c2641d8b36486c91964c1c63ad0af124d7b81ddd7b864ce4bd785a939319413",
+    "planning-build-3.json": "38a05be8ac7952d1ce712023639c9b527bb5460a73b2dddfc47cbb91706d5a7c",
+    "candidate-3-after.log": "17e4852bf751b48ab5a6f40a3b679140ac3cc8e8a78b6da5fa566d167717561d",
     "concurrency-isolation.log": "90af4a87bb9db257d21c91a4458f4b21a3a16a3c158edb698400e9bb9f6b267c",
+    "discovered-inventory-candidate-3.json": "f9013de542d0d23c645ec67d4bc799a997f9ea094b77776ea03c4b980d23cd01",
     "baseline-merge/report.json": "128d7ae47d05661948799409260f9867e0ecac0a52a708e194daf293ec18e729",
     "baseline-merge/61/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "baseline-merge/61/stdout.log": "4d1be54bfff7b55772b04d385c8cd57ef2e3b83cc680fa5746f7e6f5891b7ee6",
@@ -2301,7 +2344,430 @@
     "baseline-merge/22/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "baseline-merge/22/stdout.log": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad",
     "baseline-merge/25/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "baseline-merge/25/stdout.log": "298cf5f8df244d29b1ee5998a08f70c61a7c46314ffc53fff907b4ab687939b6"
+    "baseline-merge/25/stdout.log": "298cf5f8df244d29b1ee5998a08f70c61a7c46314ffc53fff907b4ab687939b6",
+    "baseline-candidate/report.json": "6fb5c6e7473a5376200799d2f0e5088bc763f568695030a0cd6da0d593236e96",
+    "baseline-candidate/61/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/61/stdout.log": "4d1be54bfff7b55772b04d385c8cd57ef2e3b83cc680fa5746f7e6f5891b7ee6",
+    "baseline-candidate/59/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/59/stdout.log": "ec18af8f7c6741895f7ded17d9d64c038dedad788d034780e2947283eb3134ca",
+    "baseline-candidate/66/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/66/stdout.log": "adf2a721b3de04eadb10c06ddb23fc9dee876cdc0849b944937e7e8c3fb3a8c7",
+    "baseline-candidate/50/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/50/stdout.log": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84",
+    "baseline-candidate/68/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/68/stdout.log": "de1d80dc69b183b77df8c7c1ad7a6077a38d368ce913f166e73c6a0960caca4c",
+    "baseline-candidate/57/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/57/stdout.log": "7782ec18f64a9c2ea6a09b3325d63ef7edac25e2ae4d124785fcb62ed5ca9ffe",
+    "baseline-candidate/32/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/32/stdout.log": "a1ec27b672e4298eaf7fefe2068ea493a37bd1f934e6b33e3c57b321f12f8947",
+    "baseline-candidate/35/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/35/stdout.log": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b",
+    "baseline-candidate/69/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/69/stdout.log": "4db804c6a505016214cda358641162ba01277428a508448d2b166eb6d094d97a",
+    "baseline-candidate/56/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/56/stdout.log": "5bc168ab92972fc39e9ee5e7b8e8a008d9912655998f7f5e0c67fbc511f0d6c9",
+    "baseline-candidate/51/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/51/stdout.log": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302",
+    "baseline-candidate/58/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/58/stdout.log": "4c55bd08751711952b9168e8ab502e2124d9af7017397f627ac422fbbcf9a545",
+    "baseline-candidate/67/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/67/stdout.log": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49",
+    "baseline-candidate/60/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/60/stdout.log": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345",
+    "baseline-candidate/34/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/34/stdout.log": "420d28208d8c9fff6e82da025b0fce525adcf29a08292f622d2ca648fdafdf1b",
+    "baseline-candidate/33/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/33/stdout.log": "ca0d789c1561fedec2beff43ab8ca3cddc12d769edf3e9f0fc907bc6802f0b15",
+    "baseline-candidate/20/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/20/stdout.log": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c",
+    "baseline-candidate/18/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/18/stdout.log": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0",
+    "baseline-candidate/27/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/27/stdout.log": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4",
+    "baseline-candidate/9/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/9/stdout.log": "550adc147e974624089a4bff3ca7d8dd5bee65ff0fa9dba5e404784b89efad7f",
+    "baseline-candidate/0/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/0/stdout.log": "01338cb1c77c31afd8fbd906ece1f972fb6e024ce603780d6134835c4fb73087",
+    "baseline-candidate/11/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/11/stdout.log": "e8e4e968819dfb28d1c00de4198d196f38d00c64389b1486f63fc784d59cf3ff",
+    "baseline-candidate/7/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/7/stdout.log": "6c1db85dcab1537dddc8b0fc319bd136d033b89e8c2229bf555be21073acd1df",
+    "baseline-candidate/29/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/29/stdout.log": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e",
+    "baseline-candidate/16/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/16/stdout.log": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3",
+    "baseline-candidate/42/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/42/stdout.log": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18",
+    "baseline-candidate/45/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/45/stdout.log": "975118dd96da035866acf41f7024e8762dc5a1845f53e0b1852a4731052c1cb5",
+    "baseline-candidate/6/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/6/stdout.log": "2548d68b7bb1d6b5349c1411a0b2a4830b580efdf5f973fc1df36cc1040e1289",
+    "baseline-candidate/28/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/28/stdout.log": "d9b602a8c3773a9197b5c59c4408c24cd8ecbb2489cc6f7e481c2719dfdce8f5",
+    "baseline-candidate/17/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/17/stdout.log": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0",
+    "baseline-candidate/1/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/1/stdout.log": "533e1332172d8075f36e6a5d149cc00f6a5b884feddf99ae6a8e8a105493e782",
+    "baseline-candidate/10/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/10/stdout.log": "a446ade53ff429df207fa93da66aec55bf692969a5a1501914dde32a40eb3b8a",
+    "baseline-candidate/19/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/19/stdout.log": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3",
+    "baseline-candidate/26/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/26/stdout.log": "f49b76dded0d08d88ee0eb2f452c448e1bd3cee939685a81af13b2ec01312806",
+    "baseline-candidate/8/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/8/stdout.log": "574f1c164483ff5d93ffe87ed769825302bc65ceaa47899072de9c95e4987c31",
+    "baseline-candidate/21/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/21/stdout.log": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d",
+    "baseline-candidate/44/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/44/stdout.log": "9251639b6580cc9bb31ebfb4925ed88720cc6e86fb3ea6fff43974a6038040d1",
+    "baseline-candidate/43/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/43/stdout.log": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78",
+    "baseline-candidate/38/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/38/stdout.log": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402",
+    "baseline-candidate/36/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/36/stdout.log": "375797e3253eb2159a4ce9121c9b737367404bcb774128029fe01595ea34899b",
+    "baseline-candidate/31/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/31/stdout.log": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd",
+    "baseline-candidate/65/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/65/stdout.log": "0bcf32af680e0b2e512e00cdd6afdb0d8d6030cdee0e3a3ef1bce3bbefa66c89",
+    "baseline-candidate/62/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/62/stdout.log": "fc048a87e759893a2ff247875c41faf72906df567e7a108db2c79c4890ddb90a",
+    "baseline-candidate/54/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/54/stdout.log": "9fdf067198ce3764153d6ac3a0055a41624db5207f51cb14ca05087912381947",
+    "baseline-candidate/53/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/53/stdout.log": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515",
+    "baseline-candidate/30/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/30/stdout.log": "cf709194e314ba5313babd068bd9a90c09f4effc88b9095ead76b790fac465c9",
+    "baseline-candidate/37/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/37/stdout.log": "df1d30b57a831a7e77f347d03f38fd93772a6e2ee7903f21cb96333470c4b02b",
+    "baseline-candidate/39/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/39/stdout.log": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd",
+    "baseline-candidate/52/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/52/stdout.log": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf",
+    "baseline-candidate/55/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/55/stdout.log": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133",
+    "baseline-candidate/63/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/63/stdout.log": "c9bae4f02b4cc99a879cb5f137c03597383d74fb74fdd4ec12703560d5a36569",
+    "baseline-candidate/64/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/64/stdout.log": "44a18c74837ef87ff07d90e85c3cb28c5d0d728611ee7f0fee06283acc90807f",
+    "baseline-candidate/46/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/46/stdout.log": "a98a4ca6e554b8fdf90015cc3d7cd5422bd75d2fb5dd9cf94b57dc217b54da5a",
+    "baseline-candidate/41/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/41/stdout.log": "ba76b75b7cb085b6e25fd2558f0e858600167ac6d12ecca73dc49de58a3fb051",
+    "baseline-candidate/48/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/48/stdout.log": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0",
+    "baseline-candidate/24/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/24/stdout.log": "22f06e74c41b0d749a73fa2b2d540474756972b427897781abdeeea8ce9a3f91",
+    "baseline-candidate/23/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/23/stdout.log": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa",
+    "baseline-candidate/4/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/4/stdout.log": "08ef315c94375b62085ca3c894957ee7500e2c673a6f25223e81b110f53cbfc5",
+    "baseline-candidate/15/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/15/stdout.log": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5",
+    "baseline-candidate/3/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/3/stdout.log": "8e496768c6ade4ffef98b4dd241ca44a61da66babd24649c642ecd4c8b199982",
+    "baseline-candidate/12/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/12/stdout.log": "831c607b9eb8280cbc3449946e98957d270a76abb2e7ad27348f7d08cb3a5d87",
+    "baseline-candidate/49/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/49/stdout.log": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f",
+    "baseline-candidate/40/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/40/stdout.log": "52c7c7775c12b6e661bcfd0ff344ca1040f57d281109039b27c18dbc920f10be",
+    "baseline-candidate/47/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/47/stdout.log": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901",
+    "baseline-candidate/2/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/2/stdout.log": "5379f117e356db58e2a27c0d6a788a3c0e779a7381fd1fa2cc63dd13330ed08f",
+    "baseline-candidate/13/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/13/stdout.log": "c23bfabdbdbe954dcd26dca7e87a04dff570f27c2de7cd368263a8b5f840cd5b",
+    "baseline-candidate/5/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/5/stdout.log": "0c2486c57eb7e3a95158a39d8438e50dbebc1e29eb8eb4044bb8ea278f945028",
+    "baseline-candidate/14/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/14/stdout.log": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b",
+    "baseline-candidate/22/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/22/stdout.log": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad",
+    "baseline-candidate/25/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate/25/stdout.log": "fd3a7b11825d56c1d08a8965f2580d67d991c72aeb38754d778d6c6d977c8d5a",
+    "baseline-candidate-3/report.json": "7c196029fe6e5528617a8357380a0ddc4e9705ed64be18e05584abfb6b811c71",
+    "baseline-candidate-3/61/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/61/stdout.log": "4d1be54bfff7b55772b04d385c8cd57ef2e3b83cc680fa5746f7e6f5891b7ee6",
+    "baseline-candidate-3/59/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/59/stdout.log": "172f55235de7d6b7190513ff1c4d4bf9272dcbb889ce3264a7ed9641779babad",
+    "baseline-candidate-3/66/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/66/stdout.log": "a9ce34a61dfe57454c5f91f7f913bb0024710d9583817afc9c012da887e4f70c",
+    "baseline-candidate-3/50/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/50/stdout.log": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84",
+    "baseline-candidate-3/68/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/68/stdout.log": "b03708770aa469860edd4230c6082972ab633b04da115a31bf996da67f0ee932",
+    "baseline-candidate-3/57/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/57/stdout.log": "7b7e4b3cb07a5399ff700e3a4422082ae418787c74fc2da996c2b8f634c5e80a",
+    "baseline-candidate-3/32/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/32/stdout.log": "59e71d3af07ce061d98960cc5e9b6ad5abb4d4c1948ff457e655f44294c18233",
+    "baseline-candidate-3/35/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/35/stdout.log": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b",
+    "baseline-candidate-3/69/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/69/stdout.log": "243f062e9ec9583d2cf782b69ea912049059c362cd6f9239f5324168aa343823",
+    "baseline-candidate-3/56/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/56/stdout.log": "00242065fbc91b66e1beecdb471805c0a04750c3f121ac7ca9d81b9fa4b6da29",
+    "baseline-candidate-3/51/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/51/stdout.log": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302",
+    "baseline-candidate-3/58/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/58/stdout.log": "d848c13c45c3aef18619c65064ee6da2ed21f49249a2e81dd5426f747f04a142",
+    "baseline-candidate-3/67/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/67/stdout.log": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49",
+    "baseline-candidate-3/60/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/60/stdout.log": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345",
+    "baseline-candidate-3/34/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/34/stdout.log": "f82a0e0cdde9f5dfeb4c3bea81516624c7ae2759769fbdecd255f70ef815e780",
+    "baseline-candidate-3/33/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/33/stdout.log": "0c3f269f59f0c30b294f084721a8009bb22ef066553782df0f693ba03265d914",
+    "baseline-candidate-3/20/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/20/stdout.log": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c",
+    "baseline-candidate-3/18/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/18/stdout.log": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0",
+    "baseline-candidate-3/27/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/27/stdout.log": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4",
+    "baseline-candidate-3/9/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/9/stdout.log": "57b1d50ab199c8f6e2ec965e923b16db6caa7878ccb5110be9d6a7f39b2aa947",
+    "baseline-candidate-3/0/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/0/stdout.log": "d715a57b2a15c114586182ff317764ccb2fa058a8066e86393a6ca356f50c057",
+    "baseline-candidate-3/11/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/11/stdout.log": "557a5b921acf156aef1daad33251b57ac9048966f7992584db1de08a269d6a8d",
+    "baseline-candidate-3/7/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/7/stdout.log": "a8be3ddd1806343ee4b0c63fbbd072ccc59f6d4b2ac2027f512ef484a48b621f",
+    "baseline-candidate-3/29/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/29/stdout.log": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e",
+    "baseline-candidate-3/16/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/16/stdout.log": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3",
+    "baseline-candidate-3/42/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/42/stdout.log": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18",
+    "baseline-candidate-3/45/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/45/stdout.log": "975118dd96da035866acf41f7024e8762dc5a1845f53e0b1852a4731052c1cb5",
+    "baseline-candidate-3/6/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/6/stdout.log": "8803d7dff97a2c0bcabf75d6f714fc51c35b02583d54f62151205a68ac1bbe93",
+    "baseline-candidate-3/28/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/28/stdout.log": "7bc62fea6ae9a695b78fb1c2272df6eadf4ea737bdb476524fc1004889c645b2",
+    "baseline-candidate-3/17/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/17/stdout.log": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0",
+    "baseline-candidate-3/1/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/1/stdout.log": "18d9f51e53f757cd17e59756b9b0c85b019b1caace06364ab073a6243ef16861",
+    "baseline-candidate-3/10/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/10/stdout.log": "b3af8baec4b9d22758cef7325307eff864a4acb4d2df828c699fc1b3c1b96e60",
+    "baseline-candidate-3/19/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/19/stdout.log": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3",
+    "baseline-candidate-3/26/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/26/stdout.log": "6e8e2d086a85ce0794f35b40f534f8e881c9c350d6bbd020df08635e41782655",
+    "baseline-candidate-3/8/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/8/stdout.log": "e2a3e24309c0646cd3040a29323007f1eb5f93d35a64fc2f7b180934c785fb62",
+    "baseline-candidate-3/21/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/21/stdout.log": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d",
+    "baseline-candidate-3/44/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/44/stdout.log": "194f7308f7c2f9ccf697dd7e572b6977d73d584b168241ffa00257ab2413116e",
+    "baseline-candidate-3/43/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/43/stdout.log": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78",
+    "baseline-candidate-3/38/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/38/stdout.log": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402",
+    "baseline-candidate-3/36/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/36/stdout.log": "b427b5dc80cd9f899810a1bcf482b55fb6973d1e8dfae56e4cb7e52aab32711e",
+    "baseline-candidate-3/31/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/31/stdout.log": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd",
+    "baseline-candidate-3/65/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/65/stdout.log": "9da481763685accfb14045d5326c363f5420c4f9c461f4bfe7b40c7e6cbf256c",
+    "baseline-candidate-3/62/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/62/stdout.log": "696961451c6d00f05cfd0f44995d0908122634208b537389bc3ef81f7d2ef999",
+    "baseline-candidate-3/54/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/54/stdout.log": "3f3ac192b80eacab16d2e178a7b0a627d5bf6e6606499ec370e57ce33f68d38c",
+    "baseline-candidate-3/53/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/53/stdout.log": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515",
+    "baseline-candidate-3/30/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/30/stdout.log": "f219473925755a92992e705c341ecf37c2c3aecec5f87dff597723370ba2dfa2",
+    "baseline-candidate-3/37/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/37/stdout.log": "c8347421b07f3964ce59fd36b2146d1fd9e8e349d6f8b34eccdf34ed746bf113",
+    "baseline-candidate-3/39/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/39/stdout.log": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd",
+    "baseline-candidate-3/52/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/52/stdout.log": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf",
+    "baseline-candidate-3/55/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/55/stdout.log": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133",
+    "baseline-candidate-3/63/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/63/stdout.log": "55417e6c1f8c8e557936046d8be813d443bd9a51c36ae7700858e87fb829f60d",
+    "baseline-candidate-3/64/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/64/stdout.log": "1b6d54ea9a7ca8b4cc383e014515a1f0d1631efd67ae92d81f05bcb0751b82e7",
+    "baseline-candidate-3/46/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/46/stdout.log": "32c623c3126d3b362fb70482ad2a0baa1ddf693bbbf6a9a989ed259f24ae4431",
+    "baseline-candidate-3/41/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/41/stdout.log": "33bcd937a1c4403946dbad3e907f32ff1c88e2a415440c860e591db58d8f8f8d",
+    "baseline-candidate-3/48/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/48/stdout.log": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0",
+    "baseline-candidate-3/24/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/24/stdout.log": "cfa9a1e77418e92cbeed8b337bc7d90828b8bd83af88aff64478af974a3c835d",
+    "baseline-candidate-3/23/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/23/stdout.log": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa",
+    "baseline-candidate-3/4/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/4/stdout.log": "18b8053052472c42323c82a661a970826335134ab9c2f5772638169cb54d7053",
+    "baseline-candidate-3/15/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/15/stdout.log": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5",
+    "baseline-candidate-3/3/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/3/stdout.log": "74fe02d77929f7cdb143df323c121056172d4dbbb535b7524cb363d5af977c9c",
+    "baseline-candidate-3/12/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/12/stdout.log": "3e5699407b7bbae0817f11afc77fea95895620a68948fd4cca7575c8048654b5",
+    "baseline-candidate-3/49/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/49/stdout.log": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f",
+    "baseline-candidate-3/40/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/40/stdout.log": "23fd0fbf2af31636130efcd3350642ffd15266392ecf364de03be88d5982596c",
+    "baseline-candidate-3/47/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/47/stdout.log": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901",
+    "baseline-candidate-3/2/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/2/stdout.log": "931234972a60c2214c2ceab68e197536883e583125608d5ade00dfd6258bd45d",
+    "baseline-candidate-3/13/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/13/stdout.log": "e27b2fdff54580ae6a8b34b28e1c08c8fa7d35b0885afb0ac67cc63ebab9c70a",
+    "baseline-candidate-3/5/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/5/stdout.log": "0fbf8b8f065aaef67ffbf80d1313feba60d91fa8fbed0bd1e458d9cbf1c9de7b",
+    "baseline-candidate-3/14/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/14/stdout.log": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b",
+    "baseline-candidate-3/22/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/22/stdout.log": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad",
+    "baseline-candidate-3/25/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-3/25/stdout.log": "c56e146b1ce0115e5234dac5caa48fd02bcad862c96724748aeadc6d83255aa0",
+    "baseline-candidate-2/report.json": "65352b6da54eb5121738291b21bae643fcdcd9b0926dc33127acc9ea2e8e5a16",
+    "baseline-candidate-2/61/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/61/stdout.log": "4d1be54bfff7b55772b04d385c8cd57ef2e3b83cc680fa5746f7e6f5891b7ee6",
+    "baseline-candidate-2/59/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/59/stdout.log": "576966e0398844ec6522b7ae74e4ed1231e4658f7c567db852f4bf4896b16f18",
+    "baseline-candidate-2/66/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/66/stdout.log": "8a55108d4e43f18bc68f69a9d662c63e623667a94ffde12cf603c5a2e01b70bc",
+    "baseline-candidate-2/50/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/50/stdout.log": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84",
+    "baseline-candidate-2/68/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/68/stdout.log": "de03a39352a5dc6e0b2ff8abcc12017d56254b4c2a0ec60ae96572a9af1a8cb6",
+    "baseline-candidate-2/57/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/57/stdout.log": "8b30b20c01dd77c28be8fc45eeceb4ad70d27462954994e5ae2b0ce1dfd3bdcc",
+    "baseline-candidate-2/32/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/32/stdout.log": "eb53abea741f1562d1fcd21e6adc6b8c77cf2cbd35193da40c1627830f8b9c9d",
+    "baseline-candidate-2/35/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/35/stdout.log": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b",
+    "baseline-candidate-2/69/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/69/stdout.log": "6c0630ff841ec85651232e746a0f1eb81999cf723dfe6bbea2694c14aa657831",
+    "baseline-candidate-2/56/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/56/stdout.log": "599521a9636f508cab5a237a5ba9c9f9ac67242b52ba2efcc5e03e30cb9df77a",
+    "baseline-candidate-2/51/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/51/stdout.log": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302",
+    "baseline-candidate-2/58/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/58/stdout.log": "515e0cc3eb6a1fdf358d7d19e68cdc754a94b39e33765fe58caf1ad986b43983",
+    "baseline-candidate-2/67/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/67/stdout.log": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49",
+    "baseline-candidate-2/60/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/60/stdout.log": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345",
+    "baseline-candidate-2/34/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/34/stdout.log": "81bb6f6586c90d42e3be59e4b8425140babc4ad6c5bf9b4000514b694c32d5a7",
+    "baseline-candidate-2/33/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/33/stdout.log": "5b69437621dd41407156d8e46663e61fb8e73de772d5be1345b5a802621a31c8",
+    "baseline-candidate-2/20/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/20/stdout.log": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c",
+    "baseline-candidate-2/18/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/18/stdout.log": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0",
+    "baseline-candidate-2/27/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/27/stdout.log": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4",
+    "baseline-candidate-2/9/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/9/stdout.log": "e382353b1ac54839291259203fb8b382a33e26a9cd8a211f6e9fe4a52a3e4bdf",
+    "baseline-candidate-2/0/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/0/stdout.log": "4f4acb4cbc2d1fb5b73006e87fae74bfb85c899dd2ac61ed3dd6c87d4c49e75a",
+    "baseline-candidate-2/11/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/11/stdout.log": "673875eeb4d52b9a5231108e6f513b392aee0b4749f7e972090b3559ce8c9e93",
+    "baseline-candidate-2/7/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/7/stdout.log": "a9447dff7cda6089f2f0eb8d99d4f8fbb855fe022a7aea6249e12f4537c6b5e6",
+    "baseline-candidate-2/29/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/29/stdout.log": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e",
+    "baseline-candidate-2/16/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/16/stdout.log": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3",
+    "baseline-candidate-2/42/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/42/stdout.log": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18",
+    "baseline-candidate-2/45/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/45/stdout.log": "975118dd96da035866acf41f7024e8762dc5a1845f53e0b1852a4731052c1cb5",
+    "baseline-candidate-2/6/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/6/stdout.log": "afa6d8d9d770902359bb5b8f58f7251116426d3ec4047ebfc3e70f7a732b58b4",
+    "baseline-candidate-2/28/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/28/stdout.log": "a414d6512121eb85f3c8d0b49f3a3dda5332175f38589598b0edd021c07159a7",
+    "baseline-candidate-2/17/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/17/stdout.log": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0",
+    "baseline-candidate-2/1/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/1/stdout.log": "82b44f0e5560080a0c61e4459bd796205c849cb60e20c01c56a15a8ccaaee7a2",
+    "baseline-candidate-2/10/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/10/stdout.log": "0894b1398708d0d7c87ae062f90cca18aa4e9217d882f0351e3a5d0e00e6d369",
+    "baseline-candidate-2/19/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/19/stdout.log": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3",
+    "baseline-candidate-2/26/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/26/stdout.log": "c95d274a43256f63cf691a3c88e5cf93e611ed9b393f93fa4670c097ca836515",
+    "baseline-candidate-2/8/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/8/stdout.log": "e10280e2939a0c719c5cbddbc93f1c768da4e1785461c99bc7bdf9c66c95266f",
+    "baseline-candidate-2/21/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/21/stdout.log": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d",
+    "baseline-candidate-2/44/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/44/stdout.log": "d4f41dda03a136da670c8c263bd409e693d2829fff49cb9e26a6ecbc17bb9318",
+    "baseline-candidate-2/43/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/43/stdout.log": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78",
+    "baseline-candidate-2/38/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/38/stdout.log": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402",
+    "baseline-candidate-2/36/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/36/stdout.log": "2db4ae4e253f4944625018f15079985db4952cfcb1164a15ade778db219d20ee",
+    "baseline-candidate-2/31/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/31/stdout.log": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd",
+    "baseline-candidate-2/65/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/65/stdout.log": "afcc2337cb180677172c333ff79846a382d14421cedb759fff641ea684c36a87",
+    "baseline-candidate-2/62/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/62/stdout.log": "693a50292d741c7c9ac2086bf0f6b23ad3670fddd60f5ebeb12227eb952e9122",
+    "baseline-candidate-2/54/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/54/stdout.log": "aaaf4fc5b0276802b7babd652edbb46b34c1ba292f7edc5a8023a359b5859274",
+    "baseline-candidate-2/53/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/53/stdout.log": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515",
+    "baseline-candidate-2/30/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/30/stdout.log": "48028077f1a0e26732c0915946c6782a943e9892b5fce3367e9cb22f1779680a",
+    "baseline-candidate-2/37/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/37/stdout.log": "0cd7d495a72e6eeb91adad919726ed6cbfe45adf90a53db195216d1bc27563fd",
+    "baseline-candidate-2/39/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/39/stdout.log": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd",
+    "baseline-candidate-2/52/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/52/stdout.log": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf",
+    "baseline-candidate-2/55/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/55/stdout.log": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133",
+    "baseline-candidate-2/63/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/63/stdout.log": "e8e7c56712c34f6842db2554e3bed0dbca123e6dc152f014bce47db8ee0b9d85",
+    "baseline-candidate-2/64/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/64/stdout.log": "edf1bc8aaa57074bc3d70d6bd70de595838dd9fc11204a566adfd1ffdf9e1292",
+    "baseline-candidate-2/46/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/46/stdout.log": "fe2c135d7c561c1622567131b983a7b202cb264bb506c810a0535da1cd866b15",
+    "baseline-candidate-2/41/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/41/stdout.log": "f7f1c496d41a70fa8c05aa93c193c5d6928323bb360048dcc04fc97ae9073cbe",
+    "baseline-candidate-2/48/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/48/stdout.log": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0",
+    "baseline-candidate-2/24/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/24/stdout.log": "efcb2af172dd7349dc576fc67a3da4bea8739d31384b49075632fbcd76b52044",
+    "baseline-candidate-2/23/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/23/stdout.log": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa",
+    "baseline-candidate-2/4/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/4/stdout.log": "f0ccf2d5514b4024ad90173ac6d1995b095364436a1b4df9d22b23e3dce529b7",
+    "baseline-candidate-2/15/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/15/stdout.log": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5",
+    "baseline-candidate-2/3/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/3/stdout.log": "f3104848c38edee3d159329aa324f27546d2e43e3d642fa6a3f823b4e6814fe1",
+    "baseline-candidate-2/12/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/12/stdout.log": "4f717e225be527072a40edd4282388e72fc3d6ad8e1e5dce0072150827cd6eaf",
+    "baseline-candidate-2/49/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/49/stdout.log": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f",
+    "baseline-candidate-2/40/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/40/stdout.log": "3421b647c14c84b883908c78270c55d221d8d28b47fce49e74bd27b3d4e23637",
+    "baseline-candidate-2/47/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/47/stdout.log": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901",
+    "baseline-candidate-2/2/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/2/stdout.log": "aa0dde2017142f965dfe215dd2ac7f8bfe74847ce48b5d58be00b0fe4a93a768",
+    "baseline-candidate-2/13/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/13/stdout.log": "36fa4eec4dd72e314689d65a5755e3045a4f9312c5293e77a89c902f84581311",
+    "baseline-candidate-2/5/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/5/stdout.log": "a8ef88efedc924d6a9452a835d9c251449d605fc1862d11754de6a315f1b3bc0",
+    "baseline-candidate-2/14/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/14/stdout.log": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b",
+    "baseline-candidate-2/22/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/22/stdout.log": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad",
+    "baseline-candidate-2/25/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-candidate-2/25/stdout.log": "9a84258c1b8b4cf8de6c477860596be06edae21695c8cb26d9bb346f3d7a5169"
   },
   "candidate1Baseline": {
     "schemaVersion": 1,
@@ -4721,5 +5187,2194 @@
         }
       }
     ]
-  }
+  },
+  "finalBaseline": {
+    "schemaVersion": 1,
+    "evidenceLevel": "baseline",
+    "sourceSha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+    "before": {
+      "sourceSha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "b2202c7f4cec85bdcfda624c65c6bb095550935414482d569e3cf3f5032e8e8c",
+      "contentDigest": "8f5b5d0a148044c0a58689045e454704249329b7631a5092fe1dd55476ccdcc3"
+    },
+    "after": {
+      "sourceSha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "b2202c7f4cec85bdcfda624c65c6bb095550935414482d569e3cf3f5032e8e8c",
+      "contentDigest": "8f5b5d0a148044c0a58689045e454704249329b7631a5092fe1dd55476ccdcc3"
+    },
+    "stability": "unchanged",
+    "environment": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "osRelease": "25.6.0",
+      "node": "v24.17.0",
+      "git": "git version 2.50.1 (Apple Git-155)",
+      "bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)"
+    },
+    "inventory": [
+      "adapters/codex/package-planning.test.mjs",
+      "adapters/codex/package-snipe.test.mjs",
+      "adapters/codex/planning-actual-host.test.mjs",
+      "adapters/codex/planning-contract.test.mjs",
+      "adapters/codex/planning-host-contract.test.mjs",
+      "adapters/codex/planning-verifier.test.mjs",
+      "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+      "adapters/codex/skills/snipe/assets/snipe-files.test.mjs",
+      "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+      "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+      "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+      "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs",
+      "adapters/codex/skills/snipe/snipe-structure.test.mjs",
+      "adapters/codex/snipe-discovery-host.test.mjs",
+      "hooks/clean-surface-hook-only-confinement.test.sh",
+      "hooks/clean-surface-war-worktree.test.sh",
+      "hooks/guard-conventions.test.sh",
+      "hooks/inject-campaign-state.test.sh",
+      "hooks/reply-standard/gate.test.sh",
+      "hooks/vale-md/vale-md.test.sh",
+      "hooks/validate-auditor-git.test.sh",
+      "hooks/validate-servitor-provenance.test.sh",
+      "hooks/validate-worktree-scope.test.sh",
+      "hooks/warn-bash-write-scope.test.sh",
+      "scripts/ci/check-war-ci.test.mjs",
+      "scripts/ci/collect.test.mjs",
+      "skills/_shared/doc-cli-consistency.test.mjs",
+      "skills/_shared/gh-preflight.test.sh",
+      "skills/_shared/provision.test.mjs",
+      "skills/_shared/war-memory-lint.test.sh",
+      "skills/_shared/war-memory.test.mjs",
+      "skills/lessons-learned/assets/safe-swap.test.sh",
+      "skills/lessons-learned/assets/seed-pack.test.mjs",
+      "skills/lessons-learned/lessons-learned-doc-contract.test.mjs",
+      "skills/lessons-learned/seed-set.test.mjs",
+      "skills/red-team/assets/assert-no-repo-escape.test.sh",
+      "skills/red-team/assets/red-team-gate.test.mjs",
+      "skills/red-team/assets/workflow-scaffold.test.mjs",
+      "skills/red-team/diagnosis-preflight.test.sh",
+      "skills/red-team/manifest-provenance.test.sh",
+      "skills/snipe/assets/snipe-args.test.mjs",
+      "skills/war-campaign/assets/campaign-ledger.test.mjs",
+      "skills/war-campaign/assets/snap-shared-docs.test.sh",
+      "skills/war-machine/war-pipeline-structure.test.sh",
+      "skills/war-strategy/assets/plan-literal-lint.test.mjs",
+      "skills/war-strategy/war-strategy-structure.test.sh",
+      "skills/war/assets/assert-args-complete.test.mjs",
+      "skills/war/assets/assert-budget-raise-cited.test.sh",
+      "skills/war/assets/assert-done-when.test.sh",
+      "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+      "skills/war/assets/assert-issues-filed.test.sh",
+      "skills/war/assets/assert-no-submodule-mutation.test.sh",
+      "skills/war/assets/assert-packaging-in-diff.test.sh",
+      "skills/war/assets/assert-test-in-diff.test.sh",
+      "skills/war/assets/doc-semantics.test.mjs",
+      "skills/war/assets/gate-pin-status.test.sh",
+      "skills/war/assets/land-decision.test.mjs",
+      "skills/war/assets/prompt-surface-budgets.test.mjs",
+      "skills/war/assets/provision-worktrees.test.sh",
+      "skills/war/assets/reference-link-integrity.test.mjs",
+      "skills/war/assets/refinery-surface.test.sh",
+      "skills/war/assets/scout-manifest-surface.test.sh",
+      "skills/war/assets/skill-doc-contracts.test.mjs",
+      "skills/war/assets/stage-workflow.test.mjs",
+      "skills/war/assets/version-slots.test.mjs",
+      "skills/war/assets/war-config.test.mjs",
+      "skills/war/assets/workflow-template.test.mjs",
+      "skills/war/references/schemas-manifest.test.sh",
+      "tests/parity/git-fixture.test.mjs",
+      "tests/parity/oracle.test.mjs"
+    ],
+    "suites": [
+      {
+        "path": "adapters/codex/package-planning.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/package-planning.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/0/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/0/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47061,
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/package-snipe.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/package-snipe.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/1/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/1/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47094,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/planning-actual-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-actual-host.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/2/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/2/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47098,
+        "counts": {
+          "tests": 2,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 1,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [
+          {
+            "line": "ok 2 - actual planning verifier dispatches and host enforcement denies a write # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in paid host evaluation requires WAR_PLANNING_HOST_EVAL=1 and explicit operator authorization; deterministic CI does not establish host enforcement."
+          }
+        ],
+        "status": "allowed-skips"
+      },
+      {
+        "path": "adapters/codex/planning-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-contract.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/3/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/3/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47100,
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/planning-host-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-host-contract.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/4/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/4/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47102,
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/planning-verifier.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-verifier.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/5/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/5/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47104,
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/6/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/6/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47329,
+        "counts": {
+          "tests": 3,
+          "pass": 0,
+          "fail": 0,
+          "skipped": 3,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [
+          {
+            "line": "ok 1 - actual host reviews original pinned blobs despite replacement refs # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          },
+          {
+            "line": "ok 2 - actual host audits prepared submodule blobs without changing the checkout # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          },
+          {
+            "line": "ok 3 - actual host runs one and two independent read-only Snipe seats without target mutation # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          }
+        ],
+        "status": "allowed-skips"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-files.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-files.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/7/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/7/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47343,
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-request.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/8/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/8/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 47358,
+        "counts": {
+          "tests": 31,
+          "pass": 31,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-result.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/9/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/9/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 52776,
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/10/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/10/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 52782,
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/11/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/11/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 64803,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/snipe-structure.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/snipe-structure.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/12/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/12/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 69445,
+        "counts": {
+          "tests": 4,
+          "pass": 4,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "adapters/codex/snipe-discovery-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/snipe-discovery-host.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/13/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/13/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 69461,
+        "counts": {
+          "tests": 1,
+          "pass": 0,
+          "fail": 0,
+          "skipped": 1,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [
+          {
+            "line": "ok 1 - installed plugin resolves packaged default prompts in fresh host sessions without implicit audits # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in installed-host/model check; #2159 T7, not credential-free baseline evidence."
+          }
+        ],
+        "status": "allowed-skips"
+      },
+      {
+        "path": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/clean-surface-hook-only-confinement.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/14/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/14/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 69463,
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/clean-surface-war-worktree.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/clean-surface-war-worktree.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/15/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/15/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 69507,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/guard-conventions.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/guard-conventions.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/16/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/16/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 69515,
+        "counts": {
+          "tests": 20,
+          "pass": 20,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/inject-campaign-state.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/inject-campaign-state.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/17/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/17/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 96478,
+        "counts": {
+          "tests": 54,
+          "pass": 54,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/reply-standard/gate.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/reply-standard/gate.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/18/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/18/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 96897,
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/vale-md/vale-md.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/vale-md/vale-md.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/19/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/19/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 97127,
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/validate-auditor-git.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-auditor-git.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/20/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/20/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 97264,
+        "counts": {
+          "tests": 111,
+          "pass": 111,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/validate-servitor-provenance.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-servitor-provenance.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/21/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/21/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 244,
+        "counts": {
+          "tests": 27,
+          "pass": 27,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/validate-worktree-scope.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-worktree-scope.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/22/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/22/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 1382,
+        "counts": {
+          "tests": 49,
+          "pass": 49,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "hooks/warn-bash-write-scope.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/warn-bash-write-scope.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/23/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/23/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 2517,
+        "counts": {
+          "tests": 37,
+          "pass": 37,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "scripts/ci/check-war-ci.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "scripts/ci/check-war-ci.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/24/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/24/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 4625,
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "scripts/ci/collect.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "scripts/ci/collect.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/25/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/25/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 4751,
+        "counts": {
+          "tests": 24,
+          "pass": 24,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/_shared/doc-cli-consistency.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/doc-cli-consistency.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/26/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/26/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 10143,
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/_shared/gh-preflight.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/_shared/gh-preflight.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/27/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/27/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 10152,
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/_shared/provision.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/provision.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/28/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/28/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 10274,
+        "counts": {
+          "tests": 33,
+          "pass": 33,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/_shared/war-memory-lint.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/_shared/war-memory-lint.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/29/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/29/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 10276,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/_shared/war-memory.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/war-memory.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/30/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/30/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 10281,
+        "counts": {
+          "tests": 116,
+          "pass": 116,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/lessons-learned/assets/safe-swap.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/31/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/31/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 10841,
+        "counts": {
+          "tests": 24,
+          "pass": 24,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/lessons-learned/assets/seed-pack.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/assets/seed-pack.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/32/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/32/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 11617,
+        "counts": {
+          "tests": 20,
+          "pass": 20,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/lessons-learned/lessons-learned-doc-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/lessons-learned-doc-contract.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/33/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/33/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 11929,
+        "counts": {
+          "tests": 35,
+          "pass": 35,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/lessons-learned/seed-set.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/seed-set.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/34/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/34/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 11938,
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/assets/assert-no-repo-escape.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/35/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/35/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 11962,
+        "counts": {
+          "tests": 36,
+          "pass": 36,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/red-team/assets/red-team-gate.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/red-team/assets/red-team-gate.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/36/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/36/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13650,
+        "counts": {
+          "tests": 112,
+          "pass": 112,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/red-team/assets/workflow-scaffold.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/red-team/assets/workflow-scaffold.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/37/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/37/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13727,
+        "counts": {
+          "tests": 79,
+          "pass": 79,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/red-team/diagnosis-preflight.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/diagnosis-preflight.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/38/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/38/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13746,
+        "counts": {
+          "tests": 16,
+          "pass": 16,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/red-team/manifest-provenance.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/manifest-provenance.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/39/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/39/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13768,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-args.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/snipe/assets/snipe-args.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/40/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/40/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13778,
+        "counts": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war-campaign/assets/campaign-ledger.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war-campaign/assets/campaign-ledger.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/41/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/41/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13780,
+        "counts": {
+          "tests": 97,
+          "pass": 97,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-campaign/assets/snap-shared-docs.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/42/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/42/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 13951,
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war-machine/war-pipeline-structure.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-machine/war-pipeline-structure.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/43/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/43/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 14280,
+        "counts": {
+          "tests": 215,
+          "pass": 215,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war-strategy/assets/plan-literal-lint.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war-strategy/assets/plan-literal-lint.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/44/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/44/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 15011,
+        "counts": {
+          "tests": 48,
+          "pass": 48,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war-strategy/war-strategy-structure.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-strategy/war-strategy-structure.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/45/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/45/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 15033,
+        "counts": {
+          "tests": 224,
+          "pass": 224,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-args-complete.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/assert-args-complete.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/46/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/46/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 15374,
+        "counts": {
+          "tests": 31,
+          "pass": 31,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-budget-raise-cited.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/47/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/47/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 15424,
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-done-when.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-done-when.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/48/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/48/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 16945,
+        "counts": {
+          "tests": 22,
+          "pass": 22,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-guard-specificity-in-diff.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/49/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/49/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 18838,
+        "counts": {
+          "tests": 28,
+          "pass": 28,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-issues-filed.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-issues-filed.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/50/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/50/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 21043,
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-no-submodule-mutation.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/51/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/51/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 21717,
+        "counts": {
+          "tests": 15,
+          "pass": 15,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-packaging-in-diff.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/52/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/52/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 24576,
+        "counts": {
+          "tests": 22,
+          "pass": 22,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/assert-test-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-test-in-diff.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/53/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/53/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 26665,
+        "counts": {
+          "tests": 48,
+          "pass": 48,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/doc-semantics.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/doc-semantics.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/54/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/54/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 29468,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/gate-pin-status.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/gate-pin-status.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/55/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/55/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 29472,
+        "counts": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/land-decision.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/land-decision.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/56/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/56/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 30130,
+        "counts": {
+          "tests": 41,
+          "pass": 41,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/prompt-surface-budgets.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/prompt-surface-budgets.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/57/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/57/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 30133,
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/provision-worktrees.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/provision-worktrees.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/58/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/58/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 30141,
+        "counts": {
+          "tests": 459,
+          "pass": 459,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/reference-link-integrity.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/reference-link-integrity.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/59/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/59/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50047,
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/refinery-surface.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/refinery-surface.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/60/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/60/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50090,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/scout-manifest-surface.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/scout-manifest-surface.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/61/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/61/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50140,
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/skill-doc-contracts.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/skill-doc-contracts.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/62/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/62/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50159,
+        "counts": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/stage-workflow.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/stage-workflow.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/63/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/63/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50175,
+        "counts": {
+          "tests": 35,
+          "pass": 35,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/version-slots.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/version-slots.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/64/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/64/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50508,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/war-config.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/war-config.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/65/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/65/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50516,
+        "counts": {
+          "tests": 202,
+          "pass": 202,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/assets/workflow-template.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/workflow-template.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/66/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/66/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 50534,
+        "counts": {
+          "tests": 1231,
+          "pass": 1231,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "skills/war/references/schemas-manifest.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/references/schemas-manifest.test.sh"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/67/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/67/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 24755,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "tests/parity/git-fixture.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "tests/parity/git-fixture.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/68/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/68/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 24769,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      },
+      {
+        "path": "tests/parity/oracle.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "tests/parity/oracle.test.mjs"
+        ],
+        "stdout": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/69/stdout.log",
+        "stderr": "/private/tmp/war-integration-01a08d29/evidence/baseline-candidate-3/69/stderr.log",
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "processGroupId": 36340,
+        "counts": {
+          "tests": 17,
+          "pass": 17,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "status": "passed"
+      }
+    ],
+    "ok": true
+  },
+  "finalPanel": {
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/21ae/WorkAuditRefine",
+      "description": "merge-base 668e4ff990f1c689fcf9710768c3d73c2601920c...56e63e70e30c7b142e71e5d934ddfe460e76b949",
+      "comparison": "merge-base",
+      "baseSha": "668e4ff990f1c689fcf9710768c3d73c2601920c",
+      "headSha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+      "paths": [],
+      "submodules": []
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "complete": true,
+    "stability": {
+      "stable": true,
+      "before": null,
+      "after": null
+    },
+    "coverage": {
+      "complete": true,
+      "unavailablePaths": []
+    },
+    "seats": [
+      {
+        "seat": 1,
+        "lens": "correctness",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 1,
+          "lens": "correctness",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "56e63e70e30c7b142e71e5d934ddfe460e76b949"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "skills/snipe/assets/snipe-args.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/planning-contract.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/skills/snipe/snipe-structure.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 2,
+        "lens": "simplicity",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 2,
+          "lens": "simplicity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "56e63e70e30c7b142e71e5d934ddfe460e76b949"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "skills/snipe/assets/snipe-args.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 3,
+        "lens": "cascading-impact",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 3,
+          "lens": "cascading-impact",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "56e63e70e30c7b142e71e5d934ddfe460e76b949"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "skills/snipe/assets/snipe-args.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 4,
+        "lens": "test-fidelity",
+        "status": "completed",
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 4,
+          "lens": "test-fidelity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "56e63e70e30c7b142e71e5d934ddfe460e76b949"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "skills/snipe/assets/snipe-args.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "scripts/ci/collect.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "finalPackages": {
+    "snipe": {
+      "sourceSha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+      "packageRoot": "/private/tmp/war-integration-01a08d29/snipe-candidate-3",
+      "manifest": {
+        "name": "work-audit-refine-snipe",
+        "version": "0.21.13",
+        "description": "Run an explicit, one-shot, read-only WAR-style audit through independent Codex lenses.",
+        "author": {
+          "name": "Ljferrer",
+          "url": "https://github.com/Ljferrer"
+        },
+        "homepage": "https://github.com/Ljferrer/WorkAuditRefine",
+        "repository": "https://github.com/Ljferrer/WorkAuditRefine",
+        "license": "MIT",
+        "keywords": [
+          "code-review",
+          "audit",
+          "read-only",
+          "snipe"
+        ],
+        "skills": "./skills/",
+        "interface": {
+          "displayName": "WAR Snipe",
+          "shortDescription": "Run independent read-only code audits",
+          "longDescription": "Audit one pinned diff through one to five independent Codex lenses and return an informational report without changing code or external systems.",
+          "developerName": "Ljferrer",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Interactive",
+            "Read"
+          ],
+          "websiteURL": "https://github.com/Ljferrer/WorkAuditRefine",
+          "defaultPrompt": "Run $work-audit-refine-snipe:snipe to audit the current diff through independent read-only lenses."
+        }
+      },
+      "inventoryDigest": "76bd4651f7fca38b5b8f52a6c00264a238279f993afd6cffc9eea8d7ddf90cbb",
+      "digestAlgorithm": "SHA-256 of UTF-8 JSON sorted path-to-SHA256 map, compact separators",
+      "files": {
+        ".codex-plugin/plugin.json": "448ba885e62f59771e042373131f1708203f0e07a920e973bf338da21e23f48a",
+        "skills/snipe/SKILL.md": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e",
+        "skills/snipe/agents/openai.yaml": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3",
+        "skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "skills/snipe/assets/shared/skills/_shared/provision.mjs": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b",
+        "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs": "201e0c2257ade242e908d044d8ffe147e8d95f7346788406d56cc9f0cf2f56e7",
+        "skills/snipe/assets/shared/skills/war/assets/war-config.mjs": "7ca90e42e01444a196ccf868613d7ae6297227c81a2af9a2678f54be6c6b9dfa",
+        "skills/snipe/assets/snipe-files.mjs": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414",
+        "skills/snipe/assets/snipe-git-policy.mjs": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+        "skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "skills/snipe/assets/snipe-request.mjs": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59",
+        "skills/snipe/assets/snipe-result.mjs": "df8a2f7c7df89cc02c951e9d54ae37b509c4812947305c430a7bde9042b80f30",
+        "skills/snipe/assets/snipe-runner.mjs": "166e3e77beb9722d3ddcefd889faa9bff77960c66c011a0b6f443c7d8de4df03",
+        "skills/snipe/assets/snipe-submodules.mjs": "70fd8efa34ee2a6a999e7fade1f94ea99227f07f592d4de132d495ab5759c686",
+        "skills/snipe/references/auditing-fixes.md": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f",
+        "skills/snipe/references/codex-auditor.md": "74a0380b2a9b4b7facf0d60da54c95dba427c7c9126296c0d48abc7df28b9a93",
+        "skills/snipe/references/post-audit-fixes.md": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5",
+        "skills/snipe/references/submodules.md": "076685833bca666d73adf3733c9d48fb467ed7c661c3848db6eed5359fc70bb1"
+      }
+    },
+    "planning": {
+      "sourceSha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+      "packageRoot": "/private/tmp/war-integration-01a08d29/planning-candidate-3",
+      "manifest": {
+        "name": "work-audit-refine-planning",
+        "version": "0.21.13",
+        "description": "Author WAR plans from an interview or existing draft; does not execute plans.",
+        "author": {
+          "name": "Ljferrer"
+        },
+        "license": "MIT",
+        "skills": "./skills/",
+        "interface": {
+          "displayName": "WAR Planning",
+          "shortDescription": "Author and convert WAR plans",
+          "longDescription": "Interview and convert drafts into WAR plans without executing them.",
+          "developerName": "Ljferrer",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Interactive",
+            "Read",
+            "Write"
+          ],
+          "defaultPrompt": [
+            "Use $work-audit-refine-planning:war-strategy to plan a change."
+          ]
+        }
+      },
+      "inventoryDigest": "04ae560d8c90153a742d1dae6f461d0d83cf514876caf2d4c561b98aa9e8c164",
+      "digestAlgorithm": "SHA-256 of UTF-8 JSON sorted path-to-SHA256 map, compact separators",
+      "files": {
+        ".codex-plugin/plugin.json": "6cda346cb9da8b1850572f5dc06fd89a0369f95945e891094f2bd92e9cb36610",
+        "shared/docs/adr/0025-drift-guard-discipline.md": "977adebfe3210cf4e3111b653cc457155ebd4689ba8803c3da56b6f15236379e",
+        "shared/skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "shared/skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "shared/skills/war-strategy/SKILL.md": "fd647facb39336cdf93350d2d0d312ad95f5e6145f7a1ac684777ec0304da4b3",
+        "shared/skills/war-strategy/assets/plan-literal-lint.mjs": "c3a9621f7af9268742cf1a4845db74fb38eb2019d4aad0c790df1f7cc926acad",
+        "shared/skills/war-strategy/assets/strategy-verifier.mjs": "b53be69c10545d3e1cc0fe60a9af915fd23379c35fb729d091fdd69ac5d124f0",
+        "shared/skills/war-strategy/references/host.md": "667b2c3f3150b45c29e46a8b5301d56db54c4dc9bc294b42a993d2b5f77f8fc8",
+        "shared/skills/war-strategy/references/plan-interview.md": "f7dd288618b549445e070aa12c1315f9879597e959eb9634473c2ea62d21288c",
+        "shared/skills/war-strategy/references/strategy-verifier.md": "4caa532bbdf4a49ebbb38a47f12bf1afd60d3e200a99740b63c9979aa58ba3dc",
+        "skills/war-help/SKILL.md": "f582192655cc363e85a4f9036a1279af46ab29343d88d0b35a1a75596e2c300f",
+        "skills/war-help/agents/openai.yaml": "60efb40280702a189fa67a6999b422dbdc94c254df2dde3f8dcb04b7163826d5",
+        "skills/war-strategy/SKILL.md": "5cc89725dd70fa8376acce65a502135fbdd7dcdf5c05315551b81b3d56b4d344",
+        "skills/war-strategy/agents/openai.yaml": "b198fa73d3411c20b0f5d39c7498ac7cf013c9315d56b74055b93f3eb68fa9a9"
+      }
+    }
+  },
+  "auditedSourceIdentity": {
+    "sha": "56e63e70e30c7b142e71e5d934ddfe460e76b949",
+    "nonEvidenceTreeDigest": "cd8c534195e75550b4a3e676dd6b0ce3eb4a19bc1fccb8b2dd63cd5294e76e18",
+    "algorithm": "SHA-256 of git ls-tree -r -z entries excluding docs/port/, preserving Git order and trailing NUL"
+  },
+  "protectedRefsAfter": [
+    "refs/heads/claude/codex-red-team-migration-5ca53a 6a472540f7b9a317436705f3ece2213d930e5395",
+    "refs/heads/codex-port 7271cc3a08db978c71c450def81f49a1816dc20c",
+    "refs/heads/codex/red-team-comparison 9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+    "refs/heads/codex/red-team-implementation 25404070284cce65f68a8d7f16a0526641bf40b5",
+    "refs/heads/codex/red-team-review-claude 6a472540f7b9a317436705f3ece2213d930e5395",
+    "refs/heads/codex/red-team-review-codex 46aef4a25b68874bff7b3b3fed14f9058c270da7",
+    "refs/heads/codex/red-team-review-codex-artifacts 0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+    "refs/heads/master cf9f93e07afc6c07792c3f9f9842e973a4a154b4",
+    "refs/remotes/origin/codex-port 6f4604719ca3bc72fdec67c59a14fb887c84d0c2",
+    "refs/remotes/origin/codex/red-team-comparison 9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+    "refs/remotes/origin/codex/red-team-implementation 25404070284cce65f68a8d7f16a0526641bf40b5",
+    "refs/remotes/origin/codex/red-team-review-claude 6a472540f7b9a317436705f3ece2213d930e5395",
+    "refs/remotes/origin/codex/red-team-review-codex 0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+    "refs/remotes/origin/master 668e4ff990f1c689fcf9710768c3d73c2601920c"
+  ],
+  "protectedRefsUnchanged": true,
+  "installedInitialSnipeUnchanged": true,
+  "verdict": "ready for integration review, bounded source/package acceptance",
+  "publication": "pending PR receipt; final delivery commit is evidence-only relative to auditedSourceIdentity.sha"
 }

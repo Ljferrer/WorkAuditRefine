@@ -1,6 +1,6 @@
 # Codex engine integration ledger
 
-Status: Candidate-3 repairs complete; delivery acceptance pending refreshed baseline and final packaged panel. This top block is the sole current resume authority; sections below are historical evidence. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
+Status: Ready for integration review; final baseline and packaged panel passed. Publication receipt pending. This top block is the sole current resume authority; sections below are historical evidence. Owner: Codex task `01a08d29-9d5a-7d02-8c90-f8a4abee937c`.
 
 ## Pins and isolation
 
@@ -24,12 +24,12 @@ Status: Candidate-3 repairs complete; delivery acceptance pending refreshed base
 - [x] Dependency/path inventory and normal merge of ENGINE_BASE.
 - [x] Reconcile observed compatibility defects with discriminating tests; later findings and disposition recorded below.
 - [x] Census reviewed; candidate-1 and candidate-2 clean-source collectors passed.
-- [ ] Current candidate full baseline and final evidence acceptance.
-- [ ] Fresh moved packages and final packaged panel.
+- [x] Current candidate full baseline and final evidence acceptance.
+- [x] Fresh external packages, moved-package tests and final packaged panel.
 - [ ] Final evidence commit, push and PR into codex-port.
 
 Node v24.17.0; complete prerequisite identities recorded below.
-Next action: run the candidate-3 full baseline from a clean commit, rebuild packages, and obtain the final packaged panel; then record final evidence, push and open PR. Prior baseline/panel runs are complete evidence, not instructions to repeat unchanged work. User authorization covers in-scope repairs outside the report-only audit.
+Next action: publish the candidate to origin and open its PR into codex-port, then record the publication receipt. No further source edits or validation reruns are pending. Prior baseline/panel runs are complete evidence, not instructions to repeat unchanged work. User authorization covers in-scope repairs outside the report-only audit.
 
 ## Backstops
 
@@ -123,3 +123,20 @@ Affected paths before edits: planning verifier/host/test already in repair footp
 - Documented standard-lens reachability: shared catalog now includes usability; Claude and Codex consumers use the same parser. One-seat raw forms and every documented Codex standard lens are checked; a moved package with usability removed fails the independent request oracle. Custom comma lists, reserved lenses and structured targets retain their existing suites. No Codex-specific parser fork.
 - Progress authority: one top status/checklist/next action governs resume. Lower sections retain historical checkpoints with labels. Final evidence-only commit will close the remaining acceptance boxes.
 - Targeted current checks: 54 tests passed (`candidate-3-targeted-final.log`); updated moved-package mutation assertion passed (`candidate-3-lens-mutation.log`). `candidate-3-before.log` retains all three intended failures. Intermediate mutation failures exposed masking by the new unchanged-text guard and a nonunique mutation anchor; fixtures were corrected, not relaxed.
+
+
+## Final acceptance — ready for integration review
+
+- Tested and audited source: `56e63e70e30c7b142e71e5d934ddfe460e76b949`. Final collector `baseline-candidate-3/report.json`: all 70 discovered suites completed, 67 passed and three allowed-skip suites, 3,939 passing records plus five named opt-in skips; no failure, timeout, output limit or cleanup error; clean source unchanged. Workflow suite: 1,231 passed. The collector's credential isolation, Git-local fixtures and bounded lifecycle remained intact.
+- Final audit scope: `668e4ff990f1c689fcf9710768c3d73c2601920c...56e63e70e30c7b142e71e5d934ddfe460e76b949`. Fresh candidate-3 package, configured `gpt-5.6-sol/high`, four validated high-confidence approvals (correctness, simplicity, cascading-impact, test-fidelity), no findings, complete coverage and stable scope. Full [runner report](snipe/2026-09-10-codex-integration-final-snipe.md) retained; original transcripts in raw `final-snipe-3.json` with SHA-256 in validation manifest. Configured model identity is not independently verified backend identity.
+- Fresh Snipe package: version `0.21.13`, 18 files, inventory digest `76bd4651f7fca38b5b8f52a6c00264a238279f993afd6cffc9eea8d7ddf90cbb`.
+- Fresh planning package: version `0.21.13`, 14 files, inventory digest `04ae560d8c90153a742d1dae6f461d0d83cf514876caf2d4c561b98aa9e8c164`.
+- Package roots: `/private/tmp/war-integration-01a08d29/{snipe,planning}-candidate-3`; exact per-file hashes and digest algorithm are in finalPackages in the validation manifest. Both built from the tested/audited source, outside the checkout. The final panel actually executed that Snipe runner. Moved-package/negative-inventory/reference tests passed in the full collector. No old cache or checkout-source runner substituted.
+- Refreshed origin after the panel: all snapshotted local/remote master, codex-port and red-team refs unchanged. Installed initial Snipe package hash inventory unchanged; no plugin installation or modification was performed.
+- Following commits change only `docs/port/` evidence. Verify their non-evidence tree digest against auditedSourceIdentity in the validation manifest; the panel is attributed only to the audited SHA above, not retroactively to publication commits.
+
+### Disclosed residuals and operator boundary
+
+The final panel has no findings. Prior SHA-256 Git object-format support remains explicitly unimplemented (SHA-1-only scope); that compatibility claim is held for separate work. Seat-reported inspection and coordinator-supplied verifier history are not authenticated receipts. Recommendation-text normalization proves represented change only; the interviewer still owes substantive amendment. Package-source preflight assumes no concurrent hostile source mutation. These limits are not hidden skips or claims of runtime parity.
+
+B1 hosted Linux/macOS/CI gate behavior, B2 fresh installed discovery and WP15, B3 full Codex WAR execution/recovery parity, and B4 frozen red-team completion remain deferred exactly as recorded above. The original historical port documents already point to the authoritative integration plan; their dated evidence and status banners were preserved. No release, PR merge, CI activation or full runner was performed. Next operator action after publication: review the integration PR into codex-port; promotion/release remain separate decisions.
