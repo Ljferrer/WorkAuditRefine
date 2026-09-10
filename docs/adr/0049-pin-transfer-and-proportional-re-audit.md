@@ -43,11 +43,12 @@ that duty into the dispatched delta-scaled re-audit prompt
 
 At the merge slot the refiner requires a conflict-free rebase, then compares
 `git patch-id --stable` of the **task's own diff**: dispatchBase→tip before the rebase, and
-integration-tip→tip after. Equal patch-ids mean the rebase carried the approved content
-unchanged, so the whole panel's pin transfers to the rebased tip and no panel re-convenes in the
-lock. A mismatch falls back to the in-lock full-panel re-audit for that one task — today's
+integration-tip→tip after. Stable patch IDs ignore whitespace, so equal IDs alone cannot
+prove content preservation. The independent verifier also compares exact changed-path/blob/mode
+identities using [Exact Git diff identity](../../skills/war/references/refiner-recovery.md#exact-git-diff-identity).
+Only equality of both measures permits the whole panel's pin to transfer without another panel. A mismatch falls back to the in-lock full-panel re-audit for that one task — today's
 behaviour, byte for byte (D2, PIN-1). The record stores `reauditedTip`, `rebasedTip` and both
-patch-ids, so a later audit re-verifies the transfer without replaying the rebase (PIN-14).
+patch-ids plus `preContentId`/`postContentId`, so a later audit re-verifies the transfer without replaying the rebase (PIN-14).
 
 The literal predicate first proposed — a whole-tree `git diff <reauditedTip> <rebasedTip>` — was
 replaced with patch equality on the operator's confirmation, because the rebased tree contains
@@ -106,7 +107,7 @@ run today (PIN-3).
   audit; missing Git proof holds instead of transferring approval. Probe errors use the same
   independent content check before fallback (PR finalization amendment).
 
-Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. A separate read-only Git proof verifies the original approved content, actual refs and patch/cherry evidence. An error, missing or unknown status retains the ordinary fallback only for unchanged approved content or a proved equal patch; changed content requires the full re-audit. See [refiner-recovery.md](../../skills/war/references/refiner-recovery.md#uncertain-merge-reconciliation) for the target preflight and proof procedure.
+Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. A separate read-only Git proof verifies the original approved content, actual refs and patch/cherry evidence. An error, missing or unknown status retains the ordinary fallback only for unchanged approved content or independently equal patch and exact content identities; changed content requires the full re-audit. See [refiner-recovery.md](../../skills/war/references/refiner-recovery.md#uncertain-merge-reconciliation) for the target preflight and proof procedure.
 
 ## Considered options
 

@@ -26,11 +26,11 @@ For `audit-pin`, follow the read-only Git resolution and positional `pins` respo
 
 ## Git mutation recovery
 
-Before a Git snapshot, pin confirmation, merge confirmation or reconciliation dispatch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Uncertain merge reconciliation. Snapshots and confirmations are read-only; target/merge reconciliation is authorized refiner maintenance. Follow its Git evidence, fresh gate, immutable diff-base and push-first CAS rules. Never infer that a merge did not happen from a lost response. Resolve recoverable Git state in-phase without human Git commands; uncertain state holds before land.
+Before a Git snapshot, pin confirmation, merge confirmation or reconciliation dispatch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Uncertain merge reconciliation and § Exact Git diff identity. Stable patch IDs erase whitespace and cannot alone prove preserved content. Snapshots and confirmations are read-only; target/merge reconciliation is authorized refiner maintenance. Follow its Git evidence, fresh gate, immutable diff-base and push-first CAS rules. Never infer that a merge did not happen from a lost response. Resolve recoverable Git state in-phase without human Git commands; uncertain state holds before land.
 
 ## provision
 
-On a sanctioned recovery relaunch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Recovery task provenance. Follow the per-task absolute repository/base entries and the helper's complete current-content proof before reporting preMerged. The engine resolves relative targetRepo inputs against mainCheckout before dispatch; preserve its gate-capture prefix in returned artifact paths.
+On a sanctioned recovery relaunch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Recovery task provenance. Follow the per-task absolute repository/base entries and the helper's complete current-content proof before reporting preMerged.
 
 Provisioning **is** a refiner duty ([ADR 0001](../docs/adr/0001-explicitly-managed-worktrees.md)) — workers never touch shared git state, so the Refinery brings the worktree topology and per-task environment up. A `provision` dispatch is **never** out-of-mode: **do not decline it.** There are three dispatch flavors, each identified by its stable `opts.dispatchKind` discriminator (mocks/handlers/audits key on it, not the label prefix):
 

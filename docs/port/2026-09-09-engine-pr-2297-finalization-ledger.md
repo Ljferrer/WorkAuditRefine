@@ -884,3 +884,65 @@ controls fail as intended. The candidate-11 manifest binds the current fixture/s
 full-suite log, false-green reproduction and control evidence; it explicitly attributes the
 unchanged shell/redaction/staging checks to candidate 10. All 17 protected refs remain unchanged.
 The PR baseline and precommit source did not move. Commit/push and exact-candidate review follow.
+
+### Candidate 11 review and candidate 12 integrity closure in progress
+
+The complete, stable panel on cf04f4c7199ecad10d386cc57d116d60e325f622 approved simplicity
+and cascading-impact. Correctness identified a verified Major: stable patch IDs erase
+significant whitespace, allowing changed content to retain an old approval. Test-fidelity
+identified a second Major: the ordinary non-ancestor recovery fixture was masked by the
+later content comparison. Exact report/manifest are preserved. The two unchanged duplication
+Minors remain the explicit #2126/#2127 deferrals.
+
+- **Exact-content cause and sweep:** patch-ID equality is lossy. Real Git reproduces false
+  completion after changing whitespace inside a JavaScript string literal through pin transfer,
+  normal task confirmation and task recovery. Land's separate captured-source/ordered-parent
+  condition rejects the corresponding source mutation; its fixture needed an expected bounded
+  retry-count correction, not a production repair. Snapshots, pin-confirm, normal confirmation
+  and uncertain task/retry/polish/terminal recovery now share exact changed-path/blob/mode
+  identity in addition to their existing patch/ancestry evidence. A canonical read-only raw-Git
+  recipe in refiner-recovery.md preserves binary/NUL data, Gitlinks, modes and old/new object
+  IDs, neutralizes presentation options, and propagates a failed Git read through the hash pipe.
+  Recipe bytes are executed by real-Git fixtures; their independent oracles assert actual
+  changed content, equal lossy patch IDs, mode/path/Gitlink changes and unchanged sibling files.
+- **Consumers and recursive consequences:** required snapshot identities are validated before
+  any mutation. Pin proof requires full pre/post identities; the shared preservation predicate
+  applies to ordinary transfer, error/missing/unknown fallback and contradictory upstream
+  reports. Changed identity triggers the full existing acceptance re-audit; fresh approval can
+  complete, while dissent cannot. Both normal task confirmation and recovery reject changed or
+  missing exact identity before accounting completion. Receipts retain preContentId/postContentId.
+  All producer schemas expose their fields and point to the canonical recipe; the standing card,
+  schemas, ADR and live plan preserve that obligation without copying the shell recipe.
+- **Ancestry test cause and sweep:** the new real-Git mirror pair uses divergent task/integration
+  commits with exactly equal trees, then an actual fast-forward positive. It requires the
+  specific not-integrated marker and feeds the helper exit through Workflow to observe work and
+  recovered-receipt accounting. Removing ancestry leaves the actual old provenance fixture green;
+  deleting or inverting it makes the new pair fail. The prior 19 error-diagnostic guards remain
+  covered; this adds the distinct ordinary exit-1 arm rather than conflating it with Git errors.
+- **Residuals and narrowing:** exact identities omit unchanged paths, preserving transfer over
+  unrelated sibling files. An upstream change to the same file can conservatively require a
+  full re-audit; this spends a panel rather than weakening content certainty. Empty diff hashes
+  are valid identities, with existing nonempty-patch and already-upstream rules still separate.
+  The raw recipe's explicit color option was removed after a non-discriminating mutation showed
+  raw output already ignores color. The raw format itself is discriminated by an external-diff
+  masking fixture. No new seat, permission, merge/release action or human Git step is introduced.
+  Full validation and the next exact-candidate panel remain pending.
+
+Candidate-12 recursion evidence: **17 parseable guard/recipe mutations** fail assertion oracles.
+Eight cases fail against the actual candidate-11 source; removing ancestry leaves its old
+provenance fixture falsely green. All raw before/control evidence is retained. The first full
+JS run passed 2,168 tests and failed only the two hard surface budgets and the now-expanded
+reference-trigger assertion. The duplicate new explanations were removed from hot prompts
+while retained in the triggered canonical procedure; the named-trigger assertion was updated.
+Current hard-budget checks pass: refiner **36,761 / 36,864 B** and workflow prompt literals
+**137,095 / 137,216 B**. Advisory shrink thresholds remain exceeded and disclosed under the
+existing #2126/#2127 deferral. Final full JS/shell validation is running after these changes.
+
+Candidate-12 final validation: **2,171 JS tests passed, 0 failed**, **31 shell files passed,
+0 failed**, redaction clean and version slots coherent at **0.21.13**. Actual staging is
+**343,422 / 524,288 bytes**; both hard prompt budgets pass. The candidate-12 validation manifest
+binds final source hashes, full-suite logs, 17 discriminating mutations, eight before-source
+failures and the ancestry false-green reproduction. All 17 protected refs and the installed
+Snipe package's 17 files are unchanged. The remote head/base had no concurrent movement.
+Normal commit/push and a fresh four-seat review of that exact candidate follow. No merge or
+release has been performed.

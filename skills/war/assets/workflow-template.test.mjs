@@ -34,6 +34,14 @@ const fileFollowupsMd = readFileSync(join(here, '../references/file-followups.md
 // tier>=2 blocks from the cards into this reference file — every OLD-absent key over the card scans it too.
 const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
+// Execute the canonical read-only recipe; fixtures independently assert the actual Git contents.
+const exactGitDiffRecipe = refinerRecoveryMd.match(/## Exact Git diff identity[^]*?```bash\n([^]*?)```/)[1]
+const fixtureContentId = (repo, base, tip) => {
+  const r = spawnSync('bash', ['-c', exactGitDiffRecipe, 'git-content-id', base, tip], { cwd: repo, encoding: 'utf8' })
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout.trim(), /^[0-9a-f]{40}$/)
+  return r.stdout.trim()
+}
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 // `source` defaults to the live template; a fixture passes a mutated copy for a delete-and-trace control.
 const build = (source = src) => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', source)
@@ -71,7 +79,7 @@ const NEW_SEAT_DEFAULTS = {
     const result = JSON.parse(prompt.match(/Reported result: ([^\n]+?)\.\n/)[1])
     const tip = typeof result.claimed === 'string' && /^[0-9a-f]{7,40}$/.test(result.claimed) ? result.claimed.padEnd(40, '0') : null
     return ['merged', 'landed'].includes(result.status)
-      ? { local_sha: tip, remote_sha: tip, source_tip: result.status === 'landed' ? before.source_sha : tip, reported_sha: tip, patch_id: before.patch_id, base_is_ancestor: true, parents: [before.remote_sha, before.source_sha] }
+      ? { local_sha: tip, remote_sha: tip, source_tip: result.status === 'landed' ? before.source_sha : tip, reported_sha: tip, patch_id: before.patch_id, content_id: before.content_id, base_is_ancestor: true, parents: [before.remote_sha, before.source_sha] }
       : { local_sha: before.base_sha, remote_sha: before.remote_sha }
   },
   // Neutral legacy fixtures describe a coherent synthetic Git world. Raw Git-boundary tests
@@ -82,13 +90,13 @@ const NEW_SEAT_DEFAULTS = {
     const probe = JSON.parse(prompt.match(/CLAIMED RESULT: ([^\n]+)/)[1])
     return { head_sha: pins[1] || before.source_sha, local_sha: before.base_sha, remote_sha: before.remote_sha,
       content_sha: before.source_sha, approved_tree: '3'.repeat(40), content_tree: '3'.repeat(40), head_tree: '3'.repeat(40),
-      dispatch_base: pins[2] || '4'.repeat(40), pre_patch_id: probe?.pre_rebase_patch_id ?? 'fixture-task-patch', post_patch_id: probe?.post_rebase_patch_id ?? 'fixture-task-patch',
+      dispatch_base: pins[2] || '4'.repeat(40), pre_content_id: '5'.repeat(40), post_content_id: '5'.repeat(40), pre_patch_id: probe?.pre_rebase_patch_id ?? 'fixture-task-patch', post_patch_id: probe?.post_rebase_patch_id ?? 'fixture-task-patch',
       target_ancestor: true, post_empty: probe?.post_rebase_patch_id === '', task_count: Math.max(1, pins.length - 4), pins,
       cherry: pins.slice(4).map(sha => ({ sha, sign: '-' })) }
   },
-  'pin-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
+  'pin-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
   'target-reconcile': { detail: 'no safe automatic correction in this fixture' },
-  'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
+  'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
   'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
   // diff-probe (in-band-absorb-default D4): the per-task refiner probe between the worker's green
@@ -8339,7 +8347,7 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   const recoveryTriggers = refinerMd.split('\n').filter(line => line.includes('](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md)'))
     .map(line => line.match(/§ ([^).]+)/)?.[1])
   assert.deepEqual(recoveryTriggers.sort(), [
-    'Submodule-as-repo provisioning', 'Uncertain merge reconciliation', 'Recovery task provenance',
+    'Submodule-as-repo provisioning', 'Uncertain merge reconciliation and § Exact Git diff identity', 'Recovery task provenance',
     'Pin-transfer arms', 'Land-barrier endstate-check steps',
     'Reland discrimination — superproject land-phase step 3', 'Submodule phase — 2A / § Submodule phase — 2B',
   ].sort())
@@ -18115,7 +18123,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
         const source = git('rev-parse', 'HEAD'); git('checkout', 'integration')
         const base = git('rev-parse', 'HEAD')
         const patchId = () => { const diff = git('diff', base, source); const r = spawnSync('git', ['patch-id', '--stable'], { input: diff + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.split(' ')[0] }
-        const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patchId() }
+        const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patchId(), content_id: fixtureContentId(dir, base, source) }
         const label = site === 'initial' ? 'merge:t1' : site === 'floor-retry' ? 'merge:t1:floor-retry:r1' : site === 'polish' || site === 'terminal' ? 'merge:p3-' + site : 'merge:t1:' + site
         let recovered = false, faulted = false
         const gitResultAncestor = () => spawnSync('git', ['merge-base', '--is-ancestor', base, 'integration'], { cwd: dir }).status === 0
@@ -18162,7 +18170,7 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
   }
 }
 
-const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_is_ancestor: true, base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
+const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_is_ancestor: true, base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40), result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
 for (const [name, modify] of [
   ['wrong snapshot base', r => { r.base_sha = '3'.repeat(40) }],
   ['wrong snapshot source', r => { r.source_sha = '3'.repeat(40) }],
@@ -18229,7 +18237,7 @@ for (const site of ['land:phase-3', 'land:phase-3:environment-proceed', 'land:ph
       const source = git('rev-parse', 'HEAD'); git('checkout', 'working')
       const diff = git('diff', base, source)
       const patch = spawnSync('git', ['patch-id', '--stable'], { input: diff + '\n', encoding: 'utf8' }).stdout.split(' ')[0]
-      const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patch }
+      const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patch, content_id: fixtureContentId(dir, base, source) }
       let landedSha
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
         if (o.label === site) {
@@ -18703,7 +18711,7 @@ test('gate capture ownership is taught on the refiner card and every capture dis
 
 // Normal replies must establish Git state just as a lost reply must. These fixtures return raw
 // MergeResults and obtain confirmation from actual local/remote refs, independently of the engine.
-for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexistent', 'wrong-tip', 'valid', 'false-failure']) {
+for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexistent', 'wrong-tip', 'valid', 'false-failure', 'whitespace', 'false-failure-whitespace']) {
   test('normal merge Git certainty: real ' + site + ' ' + shape, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'war-normal-merge-'))
     const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
@@ -18713,17 +18721,18 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
       git('init', '-b', target); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
       writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD')
       git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', target)
-      git('checkout', '-b', source); writeFileSync(join(dir, 'own.test.js'), 'accepted task'); git('add', 'own.test.js'); git('commit', '-m', 'accepted task'); const tip = git('rev-parse', 'HEAD'); git('checkout', target)
+      git('checkout', '-b', source); writeFileSync(join(dir, 'own.test.js'), shape.includes('whitespace') ? 'module.exports = \"accepted task\"' : 'accepted task'); git('add', 'own.test.js'); git('commit', '-m', 'accepted task'); const tip = git('rev-parse', 'HEAD'); git('checkout', target)
       const patch = () => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, source) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.split(' ')[0] }
-      const before = { base_sha: base, remote_sha: base, source_sha: tip, patch_id: patch() }
+      const before = { base_sha: base, remote_sha: base, source_sha: tip, patch_id: patch(), content_id: fixtureContentId(dir, base, source) }
       const label = site === 'land' ? 'land:phase-3' : 'merge:t1'
       const merge = () => { git('merge', site === 'land' ? '--no-ff' : '--ff-only', source, '-m', 'merge'); git('push', 'origin', target) }
       let confirmed = 0, recovered = 0, reported
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
         if (o.label === label) {
-          if (shape === 'valid' || shape === 'false-failure') merge()
+          if (shape.includes('whitespace')) { git('checkout', source); writeFileSync(join(dir, 'own.test.js'), 'module.exports = \"accepted  task\"'); git('add', 'own.test.js'); git('commit', '-m', 'whitespace mutation'); git('checkout', target) }
+          if (shape === 'valid' || shape === 'false-failure' || shape.includes('whitespace')) merge()
           const head = git('rev-parse', target)
-          reported = { mode: site === 'land' ? 'land-phase' : 'merge-task', status: shape === 'false-failure' ? 'gate_failed' : site === 'land' ? 'landed' : 'merged' }
+          reported = { mode: site === 'land' ? 'land-phase' : 'merge-task', status: shape.startsWith('false-failure') ? 'gate_failed' : site === 'land' ? 'landed' : 'merged' }
           if (shape !== 'minimal') reported[site === 'land' ? 'working_sha' : 'integration_sha'] = shape === 'nonexistent' ? 'deadbeef' : shape === 'wrong-tip' ? tip : head.slice(0, 10)
           return reported
         }
@@ -18736,21 +18745,22 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
           const claimed = reported[site === 'land' ? 'working_sha' : 'integration_sha']
           const resolved = typeof claimed === 'string' ? run('rev-parse', '--verify', '--end-of-options', claimed + '^{commit}') : null
           return { local_sha: git('rev-parse', target), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target), source_tip: git('rev-parse', source), reported_sha: resolved?.status === 0 ? resolved.stdout.trim() : null,
-            base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0, patch_id: patch(), parents: git('show', '-s', '--format=%P', target).split(' ') }
+            base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0, patch_id: patch(), content_id: fixtureContentId(dir, base, source), parents: git('show', '-s', '--format=%P', target).split(' ') }
         },
         'merge-reconcile': (p, o) => {
           assert.ok(o.label.startsWith('git-reconcile:' + label), 'only the uncertain target is maintained')
           recovered++
           const local = git('rev-parse', target), remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target)
-          if (shape !== 'false-failure') return { outcome: 'unmerged', ...before, local_sha: local, remote_sha: remote }
-          return { outcome: site === 'land' ? 'landed' : 'merged', ...before, local_sha: local, remote_sha: remote, source_tip: git('rev-parse', source), base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0,
+          if (!shape.startsWith('false-failure')) return { outcome: 'unmerged', ...before, local_sha: local, remote_sha: remote }
+          return { outcome: site === 'land' ? 'landed' : 'merged', ...before, content_id: fixtureContentId(dir, base, source), local_sha: local, remote_sha: remote, source_tip: git('rev-parse', source), base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0,
             parents: git('show', '-s', '--format=%P', target).split(' '), result: { mode: site === 'land' ? 'land-phase' : 'merge-task', status: site === 'land' ? 'landed' : 'merged', [site === 'land' ? 'working_sha' : 'integration_sha']: local, gate_log_path: fixtureGatePath(p) } }
         },
       })
+      if (shape.includes('whitespace')) assert.equal(patch(), before.patch_id, 'stable patch IDs cannot distinguish significant whitespace in a string literal')
       const success = shape === 'valid' || shape === 'false-failure'
       assert.equal(site === 'land' ? out.landDecision === 'landed' : out.landed.includes('t1'), success, 'completion follows actual Git')
       assert.equal(confirmed, 1, 'every normal reply gets fresh Git confirmation')
-      assert.equal(recovered, shape === 'valid' ? 0 : 1, 'only unconfirmed reports need maintenance')
+      assert.equal(recovered, shape === 'valid' ? 0 : shape.includes('whitespace') ? 2 : 1, 'only unconfirmed reports need maintenance')
       if (!success) assert.ok(!calls.some(isServitor), 'no completed-phase wrap-up after unproved success')
       else assert.equal(git('--git-dir=' + join(dir, 'origin.git'), 'show', target + ':own.test.js'), 'accepted task')
       if (shape === 'false-failure' && site === 'land') assert.equal(git('rev-list', '--count', '--merges', target), '1', 'no duplicate phase commit')
@@ -18811,7 +18821,7 @@ for (const claim of ['2', null, '3'.repeat(40)]) {
   test('normal merge: a malformed or unrelated claim cannot borrow a valid Git proof: ' + claim, async () => {
     const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1' ? { mode: 'merge-task', status: 'merged', integration_sha: claim } : defaultImpl(p, o), {
       rawMergeResults: true,
-      'merge-confirm': { local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), reported_sha: '2'.repeat(40), source_tip: '2'.repeat(40), base_is_ancestor: true, patch_id: 'fixture-task-patch' },
+      'merge-confirm': { local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), reported_sha: '2'.repeat(40), source_tip: '2'.repeat(40), base_is_ancestor: true, patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
     })
     assert.ok(!out.landed.includes('t1'))
   })
@@ -18845,7 +18855,7 @@ test('normal merge confirmation refuses equal abbreviated Git proof fields', asy
   const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1'
     ? { mode: 'merge-task', status: 'merged', integration_sha: tip } : defaultImpl(p, o), {
     rawMergeResults: true,
-    'merge-confirm': { local_sha: tip, remote_sha: tip, source_tip: tip, reported_sha: tip, base_is_ancestor: true, patch_id: 'fixture-task-patch' },
+    'merge-confirm': { local_sha: tip, remote_sha: tip, source_tip: tip, reported_sha: tip, base_is_ancestor: true, patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
   })
   assert.ok(!out.landed.includes('t1'), 'the Git proof itself must contain full object identities')
 })
@@ -18860,7 +18870,7 @@ for (const advanced of ['local_sha', 'remote_sha']) test('normal merge failure c
 test('normal merge confirmation accepts a Git-proved no-op without uncertain recovery', async () => {
   const tip = '2'.repeat(40)
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
-    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? { base_sha: tip, remote_sha: tip, source_sha: tip, patch_id: '' } : NEW_SEAT_DEFAULTS['merge-snapshot'],
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? { base_sha: tip, remote_sha: tip, source_sha: tip, patch_id: '', content_id: '5'.repeat(40) } : NEW_SEAT_DEFAULTS['merge-snapshot'],
   })
   assert.ok(out.landed.includes('t1'))
   assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
@@ -18887,7 +18897,7 @@ test('Git reconciliation: exhausted snapshot death stays soft and an independent
 
 // The mutator's claims and the verifier's Git observations are deliberately separate here.
 // These tests do not use the synthetic pin-confirm projection in the legacy fixture harness.
-for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', 'forged-tip', 'forged-upstream', 'forged-cherry', 'error-unchanged', 'error-changed', 'changed-approved', 'changed-target', 'unknown-changed', 'missing-changed', 'known-revert', 'wrong-revert-parent', 'nonfull-revert-content']) {
+for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace-unknown', 'whitespace-missing', 'whitespace-contradiction', 'whitespace-approved', 'upstream', 'forged-patches', 'forged-pre', 'forged-tip', 'forged-upstream', 'forged-cherry', 'error-unchanged', 'error-changed', 'changed-approved', 'changed-target', 'unknown-changed', 'missing-changed', 'known-revert', 'wrong-revert-parent', 'nonfull-revert-content']) {
   test('pin transfer Git boundary: real ' + kind, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'war-pin-boundary-'))
     const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
@@ -18899,15 +18909,15 @@ for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', '
       git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
       writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('branch', 'working')
       git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'integration', 'working')
-      git('checkout', '-b', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), 'approved'); git('add', 'deliverable.test.js'); git('commit', '-m', 'task\n\nWAR-Task: task'); const approved = git('rev-parse', 'HEAD'); git('push', 'origin', 'task')
+      git('checkout', '-b', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), kind.startsWith('whitespace') ? 'module.exports = \"approved\"' : 'approved'); git('add', 'deliverable.test.js'); git('commit', '-m', 'task\n\nWAR-Task: task'); const approved = git('rev-parse', 'HEAD'); git('push', 'origin', 'task')
       git('checkout', 'integration')
       if (kind === 'upstream' || kind === 'forged-cherry') { git('cherry-pick', '--no-commit', approved); git('commit', '-m', 'equivalent published task') }
       else { writeFileSync(join(dir, 'sibling'), 'published sibling'); git('add', 'sibling'); git('commit', '-m', 'published sibling') }
       git('push', 'origin', 'integration'); const targetBefore = git('rev-parse', 'integration')
-      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task'), content_id: fixtureContentId(dir, git('merge-base', 'integration', 'task'), 'task') })
       let audits = 0, rebased = null, failedAce = null
       const reverts = ['known-revert', 'wrong-revert-parent', 'nonfull-revert-content'].includes(kind)
-      const accepted = ['transferred', 'upstream', 'error-unchanged', 'changed-approved', 'known-revert'].includes(kind)
+      const accepted = ['transferred', 'upstream', 'error-unchanged', 'changed-approved', 'whitespace-approved', 'known-revert'].includes(kind)
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2, ace: reverts } }), (p, o) => {
         if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
         if (reverts && seatOf(o) === 'war-worker' && o.phase === 'Audit') {
@@ -18931,8 +18941,13 @@ for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', '
           if (kind === 'forged-upstream') git('rebase', '--onto', 'integration', 'task')
           else git('rebase', 'integration')
           if (['forged-patches', 'forged-pre', 'error-changed', 'changed-approved', 'unknown-changed', 'missing-changed'].includes(kind)) { writeFileSync(join(dir, 'deliverable.test.js'), 'changed after approval'); git('add', 'deliverable.test.js'); git('commit', '-m', 'post-audit change') }
+          if (kind.startsWith('whitespace')) { writeFileSync(join(dir, 'deliverable.test.js'), 'module.exports = \"approved \"'); git('add', 'deliverable.test.js'); git('commit', '-m', 'significant whitespace after approval') }
           rebased = git('rev-parse', 'task')
           if (kind === 'changed-target') { git('checkout', 'integration'); writeFileSync(join(dir, 'rogue'), 'unaccounted target write'); git('add', 'rogue'); git('commit', '-m', 'unaccounted target write'); git('push', 'origin', 'integration'); git('checkout', 'task') }
+          if (kind === 'whitespace-error') return { status: 'error' }
+          if (kind === 'whitespace-unknown') return { status: 'invented-status' }
+          if (kind === 'whitespace-missing') return null
+          if (kind === 'whitespace-contradiction') return { status: 'already_upstream', rebased_tip: rebased, dispatch_base: base, pre_rebase_patch_id: pre, post_rebase_patch_id: pre, already_upstream_commits: [] }
           if (kind === 'unknown-changed') return { status: 'invented-status' }
           if (kind === 'missing-changed') return null
           if (kind.startsWith('error-')) return { status: 'error', detail: 'response failed after rebase' }
@@ -18946,7 +18961,7 @@ for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', '
           const lines = git('cherry', before.base_sha, content)
           const result = { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, source_parent_sha: reverts ? content : undefined,
             head_tree: git('rev-parse', 'task^{tree}'), approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
-            pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
+            pre_content_id: fixtureContentId(dir, ownBase, content), post_content_id: fixtureContentId(dir, 'integration', 'task'), pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
             post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
             cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
           if (kind === 'wrong-revert-parent') result.source_parent_sha = before.source_sha
@@ -18957,9 +18972,11 @@ for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', '
         'merge-confirm': (p, o) => {
           if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
           const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), result = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
-          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task') }
+          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task') }
         },
       })
+      if (kind.startsWith('whitespace')) assert.equal(patch(base, approved), patch(targetBefore, rebased), 'a changed string literal retains the same stable patch ID')
+      if (kind.startsWith('whitespace')) assert.equal(audits, 2, 'every report arm re-audits exact-content drift, even with equal patch IDs')
       assert.equal(out.landed.includes('t1'), accepted, 'completion follows independently measured Git and any required fresh audit')
       assert.ok(rebased, 'the actual probe ran')
       if (['forged-patches', 'forged-pre', 'error-changed', 'changed-approved', 'unknown-changed', 'missing-changed'].includes(kind)) assert.equal(audits, 2, 'changed content receives a full new panel before merge')
@@ -18992,7 +19009,7 @@ for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-
         git('push', 'origin', 'integration'); git('checkout', '--detach', base); git('update-ref', 'refs/heads/integration', base, advanced); git('checkout', 'integration')
       }
       const initialRemote = remote('integration')
-      const snapshot = p => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote('integration'), seed_sha: remote(p.match(/also query origin's exact refs\/heads\/([^ ]+) and return seed_sha/)[1]), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      const snapshot = p => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote('integration'), seed_sha: remote(p.match(/also query origin's exact refs\/heads\/([^ ]+) and return seed_sha/)[1]), patch_id: patch(git('merge-base', 'integration', 'task'), 'task'), content_id: fixtureContentId(dir, git('merge-base', 'integration', 'task'), 'task') })
       let maintenance = 0, mergeCalls = 0
       const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'working' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2 } }), (p, o) => {
         if (o.label === 'merge:t1') {
@@ -19013,7 +19030,7 @@ for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-
         'merge-confirm': (p, o) => {
           if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
           const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1])
-          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote('integration'), source_tip: git('rev-parse', 'task'), reported_sha: git('rev-parse', 'integration'), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task') }
+          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote('integration'), source_tip: git('rev-parse', 'task'), reported_sha: git('rev-parse', 'integration'), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task') }
         },
       })
       const accepted = ['published-seed', 'local-behind', 'maintenance-death-after-ff'].includes(kind)
@@ -19104,7 +19121,7 @@ for (const recovery of [false, true]) test('Git certainty resume: a phase alread
     git('checkout', '-b', 'integration'); writeFileSync(join(dir, 'phase.test.js'), 'phase work'); git('add', 'phase.test.js'); git('commit', '-m', 'phase work'); const source = git('rev-parse', 'HEAD')
     git('checkout', 'working'); git('merge', '--no-ff', 'integration', '-m', 'phase commit'); const phaseCommit = git('rev-parse', 'HEAD')
     git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'working', 'integration')
-    const snapshot = { base_sha: phaseCommit, remote_sha: phaseCommit, source_sha: source, patch_id: '' }
+    const snapshot = { base_sha: phaseCommit, remote_sha: phaseCommit, source_sha: source, patch_id: '', content_id: fixtureContentId(dir, phaseCommit, source) }
     const proof = () => ({ local_sha: git('rev-parse', 'working'), remote_sha: git('ls-remote', 'origin', 'refs/heads/working').split(/\s/)[0], source_tip: git('rev-parse', 'integration'), parents: git('show', '-s', '--format=%P', 'working').split(' '), base_is_ancestor: run('merge-base', '--is-ancestor', snapshot.base_sha, 'working').status === 0 })
     const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
       if (o.label === 'land:phase-3') {
@@ -19178,7 +19195,7 @@ for (const [name, corrupt] of [
     if (o.label === 'land:phase-3') return { mode: 'land-phase', status: recovery ? 'error' : 'landed', working_sha: tip }
     return defaultImpl(p, o)
   }, {
-    'merge-snapshot': (p, o) => o.label === 'git-snapshot:phase-3' ? { base_sha: tip, source_sha: source, remote_sha: tip, patch_id: '' } : NEW_SEAT_DEFAULTS['merge-snapshot'],
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:phase-3' ? { base_sha: tip, source_sha: source, remote_sha: tip, patch_id: '', content_id: '5'.repeat(40) } : NEW_SEAT_DEFAULTS['merge-snapshot'],
     'merge-confirm': (p, o) => o.label === 'git-confirm:land:phase-3' ? proof : NEW_SEAT_DEFAULTS['merge-confirm'](p),
     'merge-reconcile': p => ({ ...proof, base_sha: tip, source_sha: source, patch_id: '', outcome: 'landed', result: { mode: 'land-phase', status: 'landed', working_sha: tip, gate_log_path: fixtureGatePath(p) } }),
   })
@@ -19256,9 +19273,9 @@ for (const relative of [false, true]) for (const scenario of ['normal', 'lost-ta
       const c = context(p); snapshots.push(c)
       // Execute the seed named by the dispatched prompt, including the pre-fix wrong ref.
       const seed = p.match(/also query origin's exact refs\/heads\/([^ ]+) and return seed_sha/)[1]
-      return { base_sha: git('rev-parse', c.target), source_sha: git('rev-parse', c.source), remote_sha: remote(c.target), seed_sha: remote(seed), patch_id: patch(git('merge-base', c.target, c.source), c.source) }
+      return { base_sha: git('rev-parse', c.target), source_sha: git('rev-parse', c.source), remote_sha: remote(c.target), seed_sha: remote(seed), patch_id: patch(git('merge-base', c.target, c.source), c.source), content_id: fixtureContentId(subRepo, git('merge-base', c.target, c.source), c.source) }
     }
-    const proof = (c, before) => ({ local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), source_tip: git('rev-parse', c.source), base_is_ancestor: run(subRepo, 'merge-base', '--is-ancestor', before.base_sha, c.target).status === 0, patch_id: patch(before.base_sha, c.source), parents: git('show', '-s', '--format=%P', c.target).split(' ') })
+    const proof = (c, before) => ({ local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), source_tip: git('rev-parse', c.source), base_is_ancestor: run(subRepo, 'merge-base', '--is-ancestor', before.base_sha, c.target).status === 0, patch_id: patch(before.base_sha, c.source), content_id: fixtureContentId(subRepo, before.base_sha, c.source), parents: git('show', '-s', '--format=%P', c.target).split(' ') })
     const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: superRepo, phase: { id: 3, title: 'Submodule', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks, run: { ace: false, roundLimit: 2 } }), (p, o) => {
       const id = o.label?.match(/^(?:work|audit|merge):(t[12])(?:$|:)/)?.[1]
       if (isWorker({ opts: o })) { const task = tasks.find(t => o.label.includes(t.id)); return { task_id: task.id, status: 'implemented', head_sha: git('rev-parse', task.branch) } }
@@ -19293,7 +19310,7 @@ for (const relative of [false, true]) for (const scenario of ['normal', 'lost-ta
         const ownBase = git('merge-base', before.base_sha, before.source_sha), cherry = git('cherry', before.base_sha, before.source_sha)
         return { head_sha: git('rev-parse', c.source), local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), content_sha: before.source_sha,
           approved_tree: git('rev-parse', pins[0] + '^{tree}'), content_tree: git('rev-parse', before.source_sha + '^{tree}'), dispatch_base: ownBase, pins,
-          pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch(c.target, c.source), target_ancestor: run(subRepo, 'merge-base', '--is-ancestor', c.target, c.source).status === 0,
+          pre_content_id: fixtureContentId(subRepo, ownBase, before.source_sha), post_content_id: fixtureContentId(subRepo, c.target, c.source), pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch(c.target, c.source), target_ancestor: run(subRepo, 'merge-base', '--is-ancestor', c.target, c.source).status === 0,
           post_empty: run(subRepo, 'diff', '--quiet', c.target, c.source).status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + before.source_sha)), cherry: cherry ? cherry.split('\n').map(s => ({ sign: s[0], sha: s.slice(2) })) : [] }
       },
       'merge-confirm': p => {
@@ -19368,7 +19385,7 @@ for (const kind of ['merge-lost', 'linear-reverted', 'merge-preserved', 'linear-
       if (kind === 'merge-preserved') { writeFileSync(join(dir, 'merge-only'), 'approved resolution'); git('add', 'merge-only'); git('commit', '-m', 'published resolution') }
       if (kind === 'linear-sibling') { writeFileSync(join(dir, 'sibling'), 'published sibling'); git('add', 'sibling'); git('commit', '-m', 'published sibling') }
       git('push', 'origin', 'integration'); const published = remote()
-      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task'), content_id: fixtureContentId(dir, git('merge-base', 'integration', 'task'), 'task') })
       let audits = 0, proofs = 0, proofPrompt
       const preserved = !['merge-lost', 'linear-reverted'].includes(kind)
       const sameTree = ['linear-identical', 'merge-preserved'].includes(kind)
@@ -19399,7 +19416,7 @@ for (const kind of ['merge-lost', 'linear-reverted', 'merge-preserved', 'linear-
           const ownBase = git('merge-base', before.base_sha, before.source_sha), lines = git('cherry', before.base_sha, before.source_sha)
           const proof = { head_sha: git('rev-parse', 'task'), head_tree: git('rev-parse', 'task^{tree}'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: before.source_sha,
             approved_tree: git('rev-parse', pins[0] + '^{tree}'), content_tree: git('rev-parse', before.source_sha + '^{tree}'), dispatch_base: ownBase, pins,
-            pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
+            pre_content_id: fixtureContentId(dir, ownBase, before.source_sha), post_content_id: fixtureContentId(dir, 'integration', 'task'), pre_patch_id: patch(ownBase, before.source_sha), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
             post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + before.source_sha)), cherry: lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) }
           assert.equal(proof.cherry.length, commits.length)
           assert.equal(proof.task_count, kind.startsWith('merge-') ? 3 : 1, 'merge commits are omitted by cherry, linear-reverted is not a count mismatch')
@@ -19736,4 +19753,123 @@ for (const repos of [['vendor/lib', '/abs/repo/vendor/lib'], ['/abs/repo/vendor/
   assert.ok(evidence.prompt.includes('INTRA-PHASE-DEP phase'), 'equivalent repo spellings retain the integrated gate obligation')
   const audit = calls.find(c => /:integrated-tip$/.test(c.opts.label || ''))
   assert.ok(audit?.prompt.includes('GATE LOG ARTIFACT: read the FULL captured integrated-tip gate log at ' + fixtureGatePath(evidence.prompt)))
+})
+
+for (const integrated of [false, true]) test('recovery ancestry is independent of matching owned content: ' + integrated, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-recovery-ancestry-'))
+  const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); git('checkout', '-b', 'task')
+    writeFileSync(join(dir, 'owned'), 'same content'); git('add', 'owned'); git('commit', '-m', 'owned task\n\nWAR-Task: task')
+    git('checkout', '-b', 'integration', 'working')
+    if (integrated) git('merge', '--ff-only', 'task')
+    else { writeFileSync(join(dir, 'owned'), 'same content'); git('add', 'owned'); git('commit', '-m', 'independent integration work') }
+    assert.equal(git('rev-parse', 'task^{tree}'), git('rev-parse', 'integration^{tree}'), 'identical paths, blobs and modes cannot substitute for ancestry')
+    const r = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: dir, encoding: 'utf8' })
+    assert.equal(r.status, integrated ? 0 : 1, r.stdout + r.stderr)
+    if (!integrated) assert.equal(r.stdout.trim(), 'NO_TASK_PROOF task is not integrated')
+    assert.equal(r.stderr, '')
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: r.status === 0 ? ['t1'] : [] }))
+    assert.equal(calls.some(c => c.opts.label === 'work:t1'), !integrated)
+    assert.equal(out.auditLog.some(row => row.verdict === 'recovered:pre-merged'), integrated)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const kind of ['pin-snapshot', 'merge-snapshot']) for (const bad of [undefined, 'not-a-git-hash']) test('exact content snapshot refuses ' + kind + ': ' + bad, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), defaultImpl, {
+    [kind]: { ...NEW_SEAT_DEFAULTS[kind], content_id: bad },
+  })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.ok(!calls.some(isMergeTask), 'unavailable exact identity refuses before mutation')
+  if (kind === 'pin-snapshot') assert.ok(!calls.some(c => c.opts.dispatchKind === 'pin-transfer'))
+})
+for (const field of ['pre_content_id', 'post_content_id']) for (const bad of [undefined, 'not-a-git-hash']) test('exact pin content proof refuses ' + field + ': ' + bad, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'pin-confirm': p => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p), [field]: bad }),
+  })
+  assert.ok(!out.landed.includes('t1') && !calls.some(isMergeTask))
+  assert.ok(out.auditLog.some(r => r.verdict === 'pin-transfer:unverified'))
+  assert.ok(!out.pinTransfers.some(r => r.kind === 'merge'), 'unavailable evidence emits no receipt')
+})
+for (const kind of ['merge-confirm', 'merge-reconcile']) for (const bad of [undefined, '6'.repeat(40)]) test('exact merge content refuses ' + kind + ': ' + bad, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+    if (kind === 'merge-reconcile' && o.label === 'merge:t1') throw new Error('529 post-push response lost')
+    return defaultImpl(p, o)
+  }, { [kind]: p => ({ ...(kind === 'merge-confirm' ? NEW_SEAT_DEFAULTS[kind](p) : reconciliationProof(p)), content_id: bad }) })
+  assert.ok(!out.landed.includes('t1') && !calls.some(isLand))
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'uncertainty receives in-phase maintenance before hold')
+})
+
+for (const kind of ['whitespace', 'binary', 'external-diff', 'mode', 'path', 'gitlink', 'unrelated-sibling']) test('exact Git diff identity preserves ' + kind, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-exact-diff-'))
+  const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const commit = message => { git('add', '-A'); git('commit', '-m', message); return git('rev-parse', 'HEAD') }
+  try {
+    git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); const base = commit('base'); git('checkout', '-b', 'task')
+    if (kind === 'external-diff') {
+      const external = join(dir, 'masked-diff.sh'); writeFileSync(external, '#!/bin/sh\nprintf "masked diff\\n"\n', { mode: 0o755 }); git('config', 'diff.external', external)
+    }
+    const file = 'nésted\nfile'
+    if (kind === 'gitlink') git('update-index', '--add', '--cacheinfo', '160000,' + base + ',module')
+    else writeFileSync(join(dir, file), kind === 'binary' ? Buffer.from([0, 1, 2, 3]) : 'module.exports = "a b"\n')
+    if (kind === 'gitlink') git('commit', '-m', 'gitlink'); else commit('task')
+    const first = git('rev-parse', 'HEAD'), before = fixtureContentId(dir, base, first)
+    if (kind === 'gitlink') { git('update-index', '--cacheinfo', '160000,' + first + ',module'); git('commit', '-m', 'different gitlink') }
+    else if (kind === 'mode') { git('update-index', '--chmod=+x', file); git('commit', '-m', 'executable') }
+    else if (kind === 'path') { git('mv', file, file + '-renamed'); git('commit', '-m', 'renamed') }
+    else if (kind === 'unrelated-sibling') {
+      git('checkout', 'working'); writeFileSync(join(dir, 'sibling'), 'unrelated'); commit('sibling'); git('checkout', 'task'); git('rebase', 'working')
+    } else { writeFileSync(join(dir, file), kind === 'binary' ? Buffer.from([0, 1, 2, 4]) : 'module.exports = "a  b"\n'); commit('changed') }
+    const comparisonBase = kind === 'unrelated-sibling' ? 'working' : base
+    const after = fixtureContentId(dir, comparisonBase, 'task')
+    assert.equal(after === before, kind === 'unrelated-sibling', 'identity follows actual owned path/blob/mode changes while ignoring unrelated integrated files')
+    if (kind === 'whitespace') {
+      const patch = tip => spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, tip) + '\n', encoding: 'utf8' }).stdout.split(' ')[0]
+      assert.equal(patch(first), patch('task'), 'the old lossy measure cannot see the changed string literal')
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const setting of ['abbreviation', 'quoted-paths', 'rename', 'gitlink', 'relative', 'color', 'ordering']) test('exact Git diff identity ignores Git presentation setting: ' + setting, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-exact-diff-config-'))
+  const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    mkdirSync(join(dir, 'nested')); writeFileSync(join(dir, 'before'), 'renamed bytes'); writeFileSync(join(dir, 'base'), 'base'); git('add', '-A'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD')
+    git('mv', 'before', 'after'); writeFileSync(join(dir, 'néw\nfile'), 'new bytes'); writeFileSync(join(dir, 'nested', 'inside'), 'inside'); git('add', '-A'); git('update-index', '--add', '--cacheinfo', '160000,' + base + ',module'); git('commit', '-m', 'changes')
+    for (const [key, value] of [['core.abbrev', '40'], ['core.quotepath', 'true'], ['diff.renames', 'true'], ['diff.ignoreSubmodules', 'none'], ['diff.relative', 'false'], ['color.ui', 'never'], ['diff.orderFile', '/dev/null']]) git('config', key, value)
+    const expected = fixtureContentId(dir, base, 'HEAD')
+    const config = { abbreviation: ['core.abbrev', '5'], 'quoted-paths': ['core.quotepath', 'false'], rename: ['diff.renames', 'false'], gitlink: ['diff.ignoreSubmodules', 'all'], relative: ['diff.relative', 'true'], color: ['color.ui', 'always'], ordering: ['diff.orderFile', join(dir, 'order')] }[setting]
+    if (setting === 'ordering') writeFileSync(join(dir, 'order'), 'néw*\nmodule\nafter\n')
+    git('config', ...config)
+    assert.equal(fixtureContentId(setting === 'relative' ? join(dir, 'nested') : dir, base, 'HEAD'), expected, 'same Git objects must yield one identity across machines/configuration')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('exact Git diff identity never accepts a failed Git read as an empty diff', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-exact-diff-error-'))
+  try {
+    const failed = spawnSync('bash', ['-c', exactGitDiffRecipe, 'git-content-id', 'missing-base', 'missing-tip'], { cwd: dir, encoding: 'utf8' })
+    assert.notEqual(failed.status, 0, 'hash-object succeeding on empty input cannot hide the upstream Git failure')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('exact Git identity producers expose their fields and canonical read procedure', async () => {
+  const fields = { 'pin-snapshot': ['content_id'], 'merge-snapshot': ['content_id'], 'pin-confirm': ['pre_content_id', 'post_content_id'], 'merge-confirm': ['content_id'], 'merge-reconcile': ['content_id'] }
+  const seen = new Set()
+  for (const recovery of [false, true]) {
+    const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+      if (recovery && o.label === 'merge:t1') throw new Error('529 lost merge')
+      return defaultImpl(p, o)
+    }, { 'merge-reconcile': reconciliationProof })
+    for (const c of calls.filter(c => fields[c.opts.dispatchKind])) {
+      seen.add(c.opts.dispatchKind)
+      for (const field of fields[c.opts.dispatchKind]) assert.equal(c.opts.schema.properties[field]?.type, 'string', c.opts.dispatchKind + ' exposes ' + field + ' to its producer')
+      assert.ok(c.prompt.includes('Exact Git diff identity'), c.opts.dispatchKind + ' reads the canonical recipe')
+    }
+  }
+  assert.deepEqual([...seen].sort(), Object.keys(fields).sort())
+  assert.ok(refinerMd.includes('§ Exact Git diff identity'), 'the refiner card supplies the resolved reference path')
 })

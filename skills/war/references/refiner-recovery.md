@@ -87,10 +87,10 @@ The merge slot's pin-transfer probe (see `agents/war-refiner.md` § pin-transfer
 
 4. **`already_upstream` first.** Post-rebase diff empty **and** `N > 0` **and** every `CHERRY` line starting `-` **and** `PRE` non-empty → `status: "already_upstream"` with `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`), both patch-ids, `already_upstream_commits` (the SHAs `CHERRY` listed). This is a candidate for already-upstream completion. The engine independently compares the complete approved and final Git trees; cherry matches alone do not prove current content. The consumer refuses an `already_upstream` whose fields carry the **contradiction signature** — `rebased_tip` equal to `dispatch_base`, a non-empty `POST`, or an empty `already_upstream_commits` each refuse the status; equal non-empty patch-ids then route `transferred`, anything else routes the `mismatch` re-audit (D4, PIN-8, #1973). Never report `already_upstream` to carry a different true result.
 
-Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. The engine independently verifies the approved content and actual pre/post Git state before accounting a transfer. An error, missing or unknown status retains the ordinary merge fallback only for unchanged approved content or an independently proved equal patch; changed content requires the full re-audit.
+Success evidence is mandatory: transferred requires a usable rebased tip, non-empty equal patch IDs and independently equal exact content identities; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. The engine independently verifies the approved content and actual pre/post Git state before accounting a transfer. An error, missing or unknown status retains the ordinary merge fallback only for unchanged approved content or independently equal patch and exact content identities; changed content requires the full re-audit.
 
 5. **Fail closed.** Post-rebase diff EMPTY **and** (`N` is 0, **or** any `CHERRY` line starts `+`, **or** `PRE` is empty) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR → `status: "empty-unmatched"`, `detail` naming the failing leg. Never `already_upstream`, never a transfer: empty-equals-empty is not equality, and a zero-commit branch is vacuously an ancestor.
-6. **Otherwise compare patch-ids**, returning `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`) and both ids either way: `PRE` non-empty and `PRE == POST` → `status: "transferred"` (the rebase carried the task's own diff unchanged, so the pin transfers); `PRE != POST` → `status: "mismatch"` (the Workflow re-audits the rebased tip full-panel, in the lock, before the merge).
+6. **Otherwise compare patch-ids**, returning `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`) and both ids either way: `PRE` non-empty and `PRE == POST` → `status: "transferred"` (a provisional claim; independent exact content identity must also match before the pin transfers); `PRE != POST` → `status: "mismatch"` (the Workflow re-audits the rebased tip full-panel, in the lock, before the merge).
 7. Any unclassifiable git/env error → `status: "error"` with `detail`. The engine checks actual post-probe Git state before choosing the ordinary fallback or full re-audit; a partial rebase is never inferred harmless from an error.
 
 ## Diff probe
@@ -174,7 +174,7 @@ The pin-transfer mutator has separate read-only `pin-snapshot` and `pin-confirm`
 Follow the engine's `PIN_GIT_PROOF` prompt to resolve reported pins independently, compare the
 approved Git tree to the pre-rebase content (the first parent for a known regressed tip being
 forward-reverted), and recompute actual dispatch base, patch IDs and cherry matches. A transfer
-requires actual nonempty equal patches and target ancestry. Completion by `already_upstream`
+requires actual nonempty equal patches, equal exact content identities and target ancestry. Completion by `already_upstream`
 also requires actual task/local/origin tip equality, empty post-rebase content, positive task
 count and the complete unique matched **non-merge** task commit set that Git lists. Check coverage
 of every distinct reported commit; equal lengths alone plus coverage of cherry rows would accept
@@ -199,7 +199,7 @@ foreign content, reset a shared ref, force-push, or ask the human to run Git com
 For normal confirmation, resolve the reported success SHA independently as a Git commit; a
 7–40 digit lowercase hex abbreviation is acceptable only when Git resolves it unambiguously.
 Return full local/remote/source identities and `reported_sha`, never inferred matching strings.
-Task success requires source = local target = origin target, the same patch-id as the snapshot,
+Task success requires source = local target = origin target, the same patch-id and exact content_id as the snapshot,
 and `base_is_ancestor: true` from `git merge-base --is-ancestor <snapshot base> <local target>`
 (exit 0). A verified task no-op can have an empty patch; uncertain recovery still requires the
 nonempty patch and advancement described below. Land success requires the actual two ordered
@@ -216,7 +216,7 @@ The engine records confirmation evidence, or invokes recovery before any complet
 For a task/polish/terminal merge, unchanged target refs allow one retry of the full original
 operation in this recovery dispatch. An already-advanced target must be exactly the current
 source tip, fast-forward from the captured base, with no foreign commits and the same nonempty
-patch-id as the captured task diff. Complete an interrupted push without force. Rerun the gate
+patch-id and exact content_id as the captured task diff. Complete an interrupted push without force. Rerun the gate
 into a fresh artifact and run every applicable floor against the **captured base SHA**, never
 against an already-advanced target branch (which would erase the task diff). The original
 baseline/environment exceptions and known forward-revert remain binding; do not change audited
@@ -246,3 +246,32 @@ remote refs, using the recovery provenance helper for task skips. Missing eviden
 work/audit or continue agent reconciliation, never trust a previous machine's local marker or
 reflog as completion. The runtime tests exercise real Git mutations and local remotes; a live
 refiner's faithful execution of this procedure remains part of the agent contract.
+
+## Exact Git diff identity
+
+Read before producing `content_id`, `pre_content_id` or `post_content_id`. Stable patch IDs
+ignore whitespace and are only advisory; they cannot prove that audited behavior survived.
+For the full commit identities named by the dispatch, run this read-only recipe in that
+repository (`$1` is the diff base, `$2` the tip). Preserve the raw NUL-delimited bytes through
+the pipe; do not put them in a shell variable or hash rendered text. A failed command makes
+the proof unavailable, never an empty or invented identity.
+
+```bash
+set -o pipefail
+git diff --raw -z --no-abbrev --no-renames --ignore-submodules=none --no-relative -O/dev/null "$1" "$2" -- | git hash-object --stdin
+```
+
+The identity includes changed paths, old/new blob or Gitlink object IDs, and old/new modes.
+It preserves whitespace and binary contents and disables rename inference and configured
+path ordering. Unchanged paths are omitted, so an unrelated sibling file does not invalidate
+an otherwise unchanged task diff. An upstream change to the same file can conservatively
+require a full re-audit, even when a textual rebase was conflict-free. Empty diffs have the
+Git hash of the empty byte stream; they are not missing evidence. Existing nonempty-patch
+requirements and the already-upstream complete-tree check remain independent obligations.
+
+Snapshots compute the identity for the expected task diff (using the approved parent when
+performing a known forward-revert). Pin confirmation independently computes both pre/post
+identities. Normal task confirmation and task recovery recompute it against the captured
+base and current source, never echo the snapshot. Both equal patch IDs and equal exact
+identities are required before preserving approval or recording task merge completion.
+Land still requires its exact captured source commit and ordered phase-commit parents.
