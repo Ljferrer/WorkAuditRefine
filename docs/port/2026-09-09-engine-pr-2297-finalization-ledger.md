@@ -432,3 +432,82 @@ source/log hashes and controls are preserved in candidate-4-validation.json. The
 panel is pending.
 The final panel's exact report, execution identity and verdict will be recorded in the PR body
 so recording the review does not silently create another candidate SHA.
+
+## Candidate 4 audit and remaining Git boundary repair
+
+Candidate `81b16050fafb6eea5dcad11ef223216b5b378fd0` was committed/pushed with
+1,940 JS tests and 31 shell suites passing, clean redaction/CI and 329,210 staged bytes.
+Its four-seat Snipe panel is complete and stable: correctness and simplicity approve;
+cascading-impact and test-fidelity request changes. Exact report and validated execution
+metadata are preserved in candidate-4-snipe.md/.json. The PR description carries that report
+and a held verdict. All 17 protected refs remain unchanged.
+
+Three Majors are in the same open Git-certainty/classification boundary: pin-transfer rebase
+results need independent pre/post Git evidence (including already_upstream), a pre-existing
+local-only integration commit must not piggyback on the current task's publication, and the
+terminal repeated snapshot-death arm needs a sibling-completion regression. The Minor release
+blurb drift is verified in README/CHANGELOG and is being corrected without a version bump.
+
+Repair in progress: a shared pre-mutation target check now runs before pin rebase as well as
+ordinary task/sweep merges. It accepts an aligned origin target or a fresh cut exactly at its
+published working seed. The recovery tier can fast-forward a local follower safely before an
+independent re-read; it must preserve and report unaccounted local-only history. Pin transfer
+gets a separate read-only proof of the original approved content, actual branch/ref identities,
+pre/post Git patch IDs and actual cherry matches. Changed content re-audits before publication;
+an unverified already_upstream cannot bypass the merge boundary. Repeated snapshot deaths
+retain soft env-died and allow independent siblings to land. Validation and guard-removal
+controls are pending; this dirty successor is not covered by candidate 4's approvals.
+
+### Candidate 5 class closure: Git truth across the pin and resume boundaries
+
+- **Cause → rule:** the pre-merge pin probe could rebase before any snapshot, and its own
+  internally consistent fields could account approval/completion without actual Git evidence.
+  A local-only target commit could also piggyback on the current task's push. The shared snapshot
+  now checks target publication before pin rebase and every task/sweep merge. A separate read-only
+  pin proof independently resolves reported commits, the approved content/tree (including known
+  forward-revert), actual target/source refs, merge base, patch IDs and cherry matches.
+- **Sibling/consumer sweep:** transferred, mismatch, already-upstream, conflict, empty-unmatched,
+  error, missing and unknown status arms were inspected. Contradiction routing still reaches the
+  independent transfer guard. Changed content after an error re-audits; absent reported bases are
+  filled from Git, and fabricated destinations/cherry accounting cannot emit a receipt. Target
+  publication is checked before pin rebase and again before normal task, polish and terminal
+  merges. Safe target maintenance uses the stronger recovery seat and an independent re-read;
+  even a lost maintenance reply can resolve from Git. Unaccounted local-only history is preserved
+  and held after bounded maintenance instead of published. Completion, transfer receipts, current
+  tips and phase land consume only admitted proof.
+- **Resume consequence:** the same sweep found that an exact phase commit already at origin
+  before dispatch was falsely rejected by the previous strict first-parent rule. Normal and
+  uncertain land now reuse that published two-parent commit with the exact integration parent
+  and local-base ancestry proof. This exception permits an empty patch/no advancement only for
+  that already-published land; uncertain task recovery retains its nonempty/advancement bounds.
+- **Regression/mutation evidence:** sixteen real-Git pin cases exercise truthful and forged
+  patch/SHA/cherry claims, partial-error/unknown/missing replies, approving/rejecting fresh panels,
+  target mutation, and valid/invalid forward-revert ancestry. Six real-Git target cases cover
+  published/unpublished seeds, local-only history, safe follower fast-forward, a reply lost after
+  fast-forward, and false maintenance success. Two real-Git already-published phase cases prove
+  normal and lost-response re-entry create no duplicate commit. Eleven cases fail against the
+  exact previous candidate. All **52** retained guard-removal controls fail their intended
+  assertions (47 boundary controls plus five ordering/error-arm controls). Redundant content-tree,
+  upstream-base, cherry-full and cherry-presence checks were removed rather than counted as proof.
+  Malformed proof, missing/false ancestry, absent remote, overclaimed/duplicate/unresolved matches,
+  both retry outcomes and each snapshot/proof exhausted-death classification have mirror cases.
+  A dead snapshot stays site-named soft env-died and the independent sibling lands.
+- **Documentation:** refiner card, recovery procedure, schemas, ADRs 0049/0051 and D21 now describe
+  the same source-of-truth boundary. README/CHANGELOG no longer promise silent scope-conflict
+  approval, guessed gate files or ancestry-only recovery. The legacy harness uses explicitly named
+  synthetic Git replies; the boundary regressions use separate real-Git oracles and raw mutator
+  claims. No release/version change, auditor Git write permission or human Git command is added.
+- **Residuals:** independent refiners execute the Git/gate/floor contracts; the real-Git fixtures
+  use controlled gate/floor responses and do not establish live-model procedural adherence.
+  Additional read-only dispatch cost remains the D17 live-cost backstop. Unknown writers or
+  unaccounted concurrent history hold only after bounded safe maintenance cannot prove an outcome.
+  General concurrency/locking redesign is outside this bounded repair.
+
+Final validation passed **2,017 JS tests, 0 failed**, and **31 shell test files, 0 failed**.
+The final release-blurb-only correction also passed all **95** version-slot, skill-document
+and prompt-budget checks; engine source/tests were unchanged. Redaction is clean, version slots
+remain 0.21.13, the actual staged workflow is **339,151 bytes / 524,288 cap**, and all **17**
+protected refs are unchanged. Candidate-5-validation.json carries commands, source/log hashes,
+52 guard controls, eleven before-source negatives and the protected-ref comparison.
+The final exact-SHA Snipe report, execution identity, CI and verdict will be recorded in the
+PR body without changing its candidate. No merge or release is authorized or performed.

@@ -87,11 +87,11 @@ The merge slot's pin-transfer probe (see `agents/war-refiner.md` § pin-transfer
 
 4. **`already_upstream` first.** Post-rebase diff empty **and** `N > 0` **and** every `CHERRY` line starting `-` **and** `PRE` non-empty → `status: "already_upstream"` with `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`), both patch-ids, `already_upstream_commits` (the SHAs `CHERRY` listed). Already upstream: nothing to merge, no panel. The consumer refuses an `already_upstream` whose fields carry the **contradiction signature** — `rebased_tip` equal to `dispatch_base`, a non-empty `POST`, or an empty `already_upstream_commits` each refuse the status; equal non-empty patch-ids then route `transferred`, anything else routes the `mismatch` re-audit (D4, PIN-8, #1973). Never report `already_upstream` to carry a different true result.
 
-Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Status error alone retains the ordinary merge fallback.
+Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. The engine independently verifies the approved content and actual pre/post Git state before accounting a transfer. An error, missing or unknown status retains the ordinary merge fallback only for unchanged approved content or an independently proved equal patch; changed content requires the full re-audit.
 
 5. **Fail closed.** Post-rebase diff EMPTY **and** (`N` is 0, **or** any `CHERRY` line starts `+`, **or** `PRE` is empty) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR → `status: "empty-unmatched"`, `detail` naming the failing leg. Never `already_upstream`, never a transfer: empty-equals-empty is not equality, and a zero-commit branch is vacuously an ancestor.
 6. **Otherwise compare patch-ids**, returning `rebased_tip`, `dispatch_base` (the pre-rebase `BASE`) and both ids either way: `PRE` non-empty and `PRE == POST` → `status: "transferred"` (the rebase carried the task's own diff unchanged, so the pin transfers); `PRE != POST` → `status: "mismatch"` (the Workflow re-audits the rebased tip full-panel, in the lock, before the merge).
-7. Any unclassifiable git/env error → `status: "error"` with `detail`; merge-task then runs unchanged — the probe is fail-open.
+7. Any unclassifiable git/env error → `status: "error"` with `detail`. The engine checks actual post-probe Git state before choosing the ordinary fallback or full re-audit; a partial rebase is never inferred harmless from an error.
 
 ## Diff probe
 
@@ -145,6 +145,24 @@ never acquire Git write permissions. This maintenance does not consume worker fi
 Use the context's repository, source and target branches, including a submodule repository when
 specified. Resolve full commit SHAs and query origin's exact target ref; a failed remote query
 is not an absent ref. The snapshot stores Git identities, not a local-state completion marker.
+Before pin rebase and task/polish/terminal merges, local target must equal origin target, or a
+fresh integration cut must equal its published origin working seed when origin target is absent.
+On disagreement, `target-reconcile` may safely fast-forward a clean local follower to origin,
+then an independent snapshot decides readiness even if maintenance lost its reply. Never publish
+unaccounted local-only history or change the current task during this maintenance. Unresolved
+history holds after the bounded attempts; Git remains available for the next agent to reconcile.
+
+The pin-transfer mutator has separate read-only `pin-snapshot` and `pin-confirm` dispatches.
+Follow the engine's `PIN_GIT_PROOF` prompt to resolve reported pins independently, compare the
+approved Git tree to the pre-rebase content (the first parent for a known regressed tip being
+forward-reverted), and recompute actual dispatch base, patch IDs and cherry matches. A transfer
+requires actual nonempty equal patches and target ancestry. Completion by `already_upstream`
+also requires actual task/local/origin tip equality, empty post-rebase content, positive task
+count and the complete unique matched task commit set. Changed content gets a full audit before
+publication; fabricated identities or unproved content hold. Integration refs must not change
+during this rebase-only operation. Missing reported dispatch bases on transferred/mismatch
+results are filled from Git proof, never left as null provenance.
+
 Check both local and remote state before and after maintenance. Respect a live or unknown writer;
 if its mutation cannot be ruled out or safely completed, return uncertain. Never overwrite
 foreign content, reset a shared ref, force-push, or ask the human to run Git commands.
@@ -157,6 +175,9 @@ and `base_is_ancestor: true` from `git merge-base --is-ancestor <snapshot base> 
 (exit 0). A verified task no-op can have an empty patch; uncertain recovery still requires the
 nonempty patch and advancement described below. Land success requires the actual two ordered
 parents [captured remote working base, captured integration source] and an unchanged source tip.
+On resume, the exact phase commit may already equal the captured remote tip: accept its full
+first parent and exact captured integration second parent. In both cases the captured local
+base must be an ancestor of the current target, so a foreign local branch cannot be overwritten.
 The captured remote base must be a full commit SHA; an absent branch cannot be a commit parent.
 A normal non-success reply is confirmed only when both target refs equal their respective
 snapshots. Re-read refs after computing evidence; movement or a Git error returns `{}`. A failed
@@ -173,13 +194,16 @@ baseline/environment exceptions and known forward-revert remain binding; do not 
 content or resolve content conflicts. A changed patch needs a ruling and re-audit.
 
 For a land, reuse an already-pushed phase commit only when its two parents are exactly the
-captured remote working base and integration source. Complete the original push-first local CAS,
+captured remote working base and integration source, or reuse that exact two-parent phase commit
+if it was already the captured remote tip before dispatch. This already-published case may have
+an empty snapshot patch and no local advancement; it still requires Git ancestry and source proof.
+Complete the original push-first local CAS,
 respecting checkout/worktree cleanliness. Never create a second phase commit to replace a lost
 response. Gate the actual landed commit in a fresh artifact. Divergence/foreign advance is
 uncertain and requires further agent investigation before publishing more state.
 
 Return the engine's `MERGE_RECONCILIATION` shape: echo snapshot identities, report current local
-and origin target SHAs, current source tip, verified patch-id, task `base_is_ancestor` from Git,
+and origin target SHAs, current source tip, verified patch-id, `base_is_ancestor` from Git in both modes,
 and the complete normal MergeResult
 with its captured gate path. A land additionally reports its actual commit parents. `unmerged`
 requires both target refs unchanged from their respective snapshots after the retry; it never

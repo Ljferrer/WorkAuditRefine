@@ -146,3 +146,11 @@ errors, exhausted segments and sweep merges: those results first establish Git c
 A proved-unmerged result resumes its ordinary site classification; uncertainty holds before
 land only after bounded agent maintenance. A recovered push reuses existing content/phase
 commits. No enum, gate, floor, auditor permission or human Git requirement is added.
+
+Pin-transfer rebase results obey the same independent-evidence rule: a preflight refuses
+unaccounted local-only target history, safe recovery can fast-forward a local follower, and a
+separate read-only proof resolves pins, approved content, actual patch IDs and cherry matches.
+Already-upstream completion needs published Git evidence; missing/error/unknown replies that
+leave changed content trigger a full audit. Normal and recovered land can reuse the exact phase
+commit already published before dispatch, with source-parent and local-base ancestry proof.
+The operative procedure and wire shapes remain in the linked recovery reference and engine.

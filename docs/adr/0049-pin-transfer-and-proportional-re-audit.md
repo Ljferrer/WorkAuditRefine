@@ -96,10 +96,11 @@ run today (PIN-3).
   wire status, and `PIN_TRANSFER` is its own schema rather than a widening of `MERGE_RESULT`, so
   no status enum, `HARD_ESCALATION_REASONS` member, or `KNOWN_LAND_DECISIONS` member moves for it
   (PIN-6).
-- **Degrade-to-today.** Every refusal path — footprint excess, patch-id mismatch, probe error —
-  lands on current behaviour, so the worst case is what the engine already did (PIN-1).
+- **Refusal preserves approval integrity.** Footprint excess and changed patches require a full
+  audit; missing Git proof holds instead of transferring approval. Probe errors use the same
+  independent content check before fallback (PR finalization amendment).
 
-Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Status error alone retains the ordinary merge fallback.
+Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. A separate read-only Git proof verifies the original approved content, actual refs and patch/cherry evidence. An error, missing or unknown status retains the ordinary fallback only for unchanged approved content or a proved equal patch; changed content requires the full re-audit. See [refiner-recovery.md](../../skills/war/references/refiner-recovery.md#uncertain-merge-reconciliation) for the target preflight and proof procedure.
 
 ## Considered options
 

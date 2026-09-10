@@ -2099,7 +2099,7 @@ const dispatchSite = (prompt, opts) => dispatchAgent(prompt, opts).catch(err => 
 // The snapshots are Git object identities, not local worktree markers or a second state authority.
 const MERGE_SNAPSHOT = { type: 'object', required: ['base_sha', 'source_sha', 'remote_sha', 'patch_id'], properties: {
   base_sha: { type: 'string' }, source_sha: { type: 'string' },
-  remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' } } }
+  remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, seed_sha: { type: ['string', 'null'] } } }
 const MERGE_RECONCILIATION = { type: 'object', required: ['outcome', 'base_sha', 'source_sha', 'local_sha', 'remote_sha'], properties: {
   outcome: { enum: ['merged', 'landed', 'unmerged', 'uncertain'] }, base_sha: { type: 'string' }, source_sha: { type: 'string' },
   local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' },
@@ -2109,20 +2109,60 @@ const fullSha = sha => typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha)
 // weaker definition of the task fast-forward or the exact two-parent phase commit.
 const mergeGitMatches = (proof, before, land) => fullSha(proof.local_sha) && proof.remote_sha === proof.local_sha &&
   (land
-    ? fullSha(before.remote_sha) && proof.source_tip === before.source_sha && Array.isArray(proof.parents) && proof.parents.length === 2 &&
-      proof.parents[0] === before.remote_sha && proof.parents[1] === before.source_sha
+    ? fullSha(before.remote_sha) && proof.source_tip === before.source_sha && proof.base_is_ancestor === true &&
+      Array.isArray(proof.parents) && proof.parents.length === 2 && fullSha(proof.parents[0]) &&
+      (proof.parents[0] === before.remote_sha || proof.local_sha === before.remote_sha) && proof.parents[1] === before.source_sha
     : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true && proof.patch_id === before.patch_id)
 const mergeSnapshot = async (opts, context) => {
   let before
+  const seed = context.target === ph.integrationBranch ? ph.workingBranch : context.target
   for (let attempt = 0; attempt < roundLimit; attempt++) {
   before = await dispatchSite(
-    pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_sha and source HEAD still equals it, the expected patch is instead the source parent's patch: the original merge will forward-revert that known regressed tip. No writes, no checkout, no rebase, no merge, no push. Any unresolved Git error: return no usable snapshot, never invented values.`,
-    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-snapshot', label: 'git-snapshot:' + context.task, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
-  if (before && fullSha(before.base_sha) && fullSha(before.source_sha) && (before.remote_sha === null || fullSha(before.remote_sha)) && typeof before.patch_id === 'string') return before
+    pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${seed ?? '<target>'} and return seed_sha (its full published tip or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_sha and source HEAD still equals it, the expected patch is instead the source parent's patch: the original merge will forward-revert that known regressed tip. No writes, no checkout, no rebase, no merge, no push. Any unresolved Git error: return no usable snapshot, never invented values.`,
+    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label: (context.pin ? 'git-pin-snapshot:' : 'git-snapshot:') + context.task, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+  if (before && fullSha(before.base_sha) && fullSha(before.source_sha) && (before.remote_sha === null || fullSha(before.remote_sha)) && typeof before.patch_id === 'string') {
+    if (context.land || (before.remote_sha === null ? before.seed_sha === before.base_sha : before.remote_sha === before.base_sha)) return before
+    auditLog.push({ task: context.task, verdict: 'git-target:unreconciled', findings: [], site: opts.label, before })
+    if (attempt + 1 < roundLimit) await dispatchSite(
+      pt`GIT TARGET MAINTENANCE before ${opts.label}. Context: ${JSON.stringify(context)}. Observed snapshot: ${JSON.stringify(before)}. Inspect current local and origin target refs. If local is strictly behind origin, fast-forward the local target to the published origin tip using the existing clean-worktree/compare-and-swap rules. Otherwise preserve all refs and report the unaccounted history. Never publish local-only integration commits, reset or rewind a shared ref, change/rebase the current task, force push, or invent approval for an earlier task. An absent remote is safe only for a fresh cut exactly at origin/${seed ?? '<target>'}; do not publish an unproved seed. The engine re-reads Git independently after this bounded maintenance; your response alone cannot establish readiness.`,
+      { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'target-reconcile', label: 'git-target:' + opts.label, schema: { type: 'object', properties: { detail: { type: 'string' } } }, ...spawnRefinerRecovery() })
+  }
   log(opts.label + ': Git snapshot unavailable; retrying read-only on the recovery tier within roundLimit')
   }
   if (deathOf(before)) return before // no mutating dispatch has started
   throw new Error('Git merge snapshot unavailable before ' + opts.label + '; no merge dispatched')
+}
+// Recompute pin-transfer evidence independently of the refiner that rebased the task.
+const PIN_GIT_PROOF = { type: 'object', properties: {
+  head_sha: { type: 'string' }, local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] },
+  content_sha: { type: 'string' }, source_parent_sha: { type: 'string' }, approved_tree: { type: 'string' }, content_tree: { type: 'string' },
+  dispatch_base: { type: 'string' }, pre_patch_id: { type: 'string' }, post_patch_id: { type: 'string' },
+  target_ancestor: { type: 'boolean' }, post_empty: { type: 'boolean' }, task_count: { type: 'integer' },
+  pins: { type: 'array', items: { type: ['string', 'null'] } },
+  cherry: { type: 'array', items: { type: 'object', properties: { sha: { type: 'string' }, sign: { enum: ['+', '-'] } } } } } }
+const verifyPinTransfer = async (r, before, probe, context) => {
+  const approved = r.aceSha || (r.seats || []).map(s => s.audit_sha).find(isSha) || null
+  const reported = [approved, probe && probe.rebased_tip || null, probe && probe.dispatch_base || null, r.aceReverted || null,
+    ...(probe && Array.isArray(probe.already_upstream_commits) ? probe.already_upstream_commits : [])]
+  let proof
+  for (let attempt = 0; attempt < roundLimit; attempt++) {
+    proof = await dispatchSite(
+      pt`PIN TRANSFER GIT VERIFICATION (read-only). Context: ${JSON.stringify(context)}. Immutable BEFORE: ${JSON.stringify(before)}. REPORTED PINS: ${JSON.stringify(reported)}
+CLAIMED RESULT: ${JSON.stringify(probe ?? null)}
+Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and exact origin remote_sha (null ONLY after a successful query proving absence). The integration refs must be unchanged by this rebase-only probe. content_sha is BEFORE.source_sha, except when resolved pin[3] equals that commit: then read its first parent as source_parent_sha and use that as content_sha (the known forward-revert restores the approved content). Read approved_tree from pin[0]^{tree} and content_tree from content_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha content_sha as [{sign, sha}] with full TASK commit SHAs. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Re-read all refs after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge, push or gate.`,
+      { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-confirm', label: 'git-pin:' + r.task.id, schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
+    if (deathOf(proof)) continue
+    if (!proof || ![proof.head_sha, proof.content_sha, proof.dispatch_base, proof.approved_tree].every(fullSha) ||
+        !Array.isArray(proof.pins) || proof.pins.length !== reported.length ||
+        proof.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i]))) ||
+        !fullSha(proof.pins[0]) || proof.approved_tree !== proof.content_tree ||
+        proof.content_sha !== (proof.pins[3] === before.source_sha ? proof.source_parent_sha : before.source_sha) ||
+        typeof proof.pre_patch_id !== 'string' || typeof proof.post_patch_id !== 'string') continue
+    if (proof.local_sha !== before.base_sha || proof.remote_sha !== before.remote_sha) throw new Error('Pin transfer changed the integration target; Git reconciliation required before land for ' + r.task.id)
+    auditLog.push({ task: r.task.id, verdict: 'pin-transfer:git-verified', findings: [], before, after: proof, reported: probe })
+    return proof
+  }
+  return deathOf(proof) ? proof : null
 }
 // An enum is a report, not Git evidence. Confirm BOTH success and reported non-success
 // after each completed mutation dispatch; a known failure must not hide an advanced target.
@@ -2136,7 +2176,7 @@ const confirmMerge = async (result, opts, context, before) => {
   const claimed = result[context.land ? 'working_sha' : 'integration_sha'] ?? null
   const proof = await dispatchSite(
     pt`GIT MERGE CONFIRMATION (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch snapshot: ${JSON.stringify(before)}. Reported result: ${JSON.stringify({ mode: result.mode, status: result.status, claimed })}.
-Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For merge-task also return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target>, and patch_id from git diff <snapshot base_sha>..<current source> | git patch-id --stable (first field). For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
+Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0). For merge-task return patch_id from git diff <snapshot base_sha>..<current source> | git patch-id --stable (first field). For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-confirm', label: 'git-confirm:' + opts.label, schema: MERGE_CONFIRMATION, ...spawn('refiner') })
   const died = deathOf(proof)
   if (died) {
@@ -2160,7 +2200,7 @@ const reconcileMerge = async (original, opts, context, before, lost) => {
       pt`GIT MERGE RECONCILIATION for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch Git snapshot: ${JSON.stringify(before)}. Prior response: ${cause}. You are the refiner, with Git write authority; auditors remain read-only. Read refiner-recovery.md section Uncertain merge reconciliation before acting. Establish local and origin target refs and the source branch from Git, never infer no mutation from a lost response, ancestry alone, a local marker, or a log. Recover in this phase without human Git commands.
 `
       + (context.land
-        ? pt`LAND RECOVERY: the target is the working branch and the source is the integration branch. Inspect Git for an already-pushed --no-ff phase commit with EXACT parents [snapshot remote_sha, snapshot source_sha]. If it exists, reuse that commit, complete the local compare-and-swap only as the original land contract allows, and never make a second phase commit. Otherwise retry the original push-first CAS only from the unchanged captured target base. Rerun the full gate into a fresh artifact at the actual landed commit, preserving the original classified baseline allowances. Return outcome landed only with parents, source_tip, the verified snapshot patch_id and a normal land-phase MergeResult whose working_sha equals BOTH local and origin target refs. A foreign/diverged target, unknown writer or missing proof means uncertain; preserve all refs.\n`
+        ? pt`LAND RECOVERY: the target is the working branch and the source is the integration branch. Inspect Git for an already-pushed --no-ff phase commit with EXACT parents [snapshot remote_sha, snapshot source_sha]. Also recognize a phase commit ALREADY at snapshot remote_sha whose second parent is exactly snapshot source_sha and whose first parent is a full Git commit: that phase was published before this dispatch/resume. Return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0), so a local follower may advance to that published commit but foreign local history is never overwritten. If it exists, reuse that commit, complete the local compare-and-swap only as the original land contract allows, and never make a second phase commit. Otherwise retry the original push-first CAS only from the unchanged captured target base. Rerun the full gate into a fresh artifact at the actual landed commit, preserving the original classified baseline allowances. Return outcome landed only with parents, source_tip, the verified snapshot patch_id and a normal land-phase MergeResult whose working_sha equals BOTH local and origin target refs. A foreign/diverged target, unknown writer or missing proof means uncertain; preserve all refs.\n`
         : pt`If both target refs are unchanged from the snapshot, retry the full original operation below once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with the source patch-id equal to the snapshot patch_id and no foreign commits. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA and base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0).\n`)
       + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha the current source/target/remote SHA, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha and the verified nonempty patch_id. Return unmerged ONLY when local and origin target refs equal their respective pre-dispatch snapshot values after your retry; include its normal non-success result if available. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
 ORIGINAL OPERATION (all requirements still apply):
@@ -2170,10 +2210,10 @@ ORIGINAL OPERATION (all requirements still apply):
     if (deathOf(recovered)) continue
     if (!recovered || recovered.base_sha !== before.base_sha || recovered.source_sha !== before.source_sha) continue
     if (recovered.outcome === success && mergeGitMatches(recovered, before, context.land) &&
-        !blankText(before.patch_id) && recovered.patch_id === before.patch_id && recovered.result &&
+        (!blankText(before.patch_id) || context.land && recovered.local_sha === before.remote_sha) && recovered.patch_id === before.patch_id && recovered.result &&
         recovered.result.mode === mode && recovered.result.status === success && recovered.result[context.land ? 'working_sha' : 'integration_sha'] === recovered.local_sha &&
         gateLogPathOf(recovered.result.gate_log_path) &&
-        recovered.local_sha !== before.base_sha) {
+        (recovered.local_sha !== before.base_sha || context.land && recovered.local_sha === before.remote_sha)) {
       auditLog.push({ task: context.task, verdict: 'git-reconciled:' + success, findings: [], site: opts.label, before, after: recovered })
       return recovered.result
     }
@@ -4039,7 +4079,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // fails closed to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
       // member, so no hard escalation can be downgraded by an in-band field (PIN-6).
-      const pinProbe = await dispatchSite(
+      const pinContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch, target: isSubmodTask ? r.task.targetBase : ph.integrationBranch, pin: true }
+      const pinBefore = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
+      if (deathOf(pinBefore)) { mergeDied(deathOf(pinBefore)); continue }
+      let pinProbe = await dispatchSite(
         pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n`
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
@@ -4048,19 +4091,36 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the content is already on the integration branch, nothing to merge. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
         + pt`  (6) Otherwise compare patch-ids, returning rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST either way: PRE non-empty and PRE == POST → status 'transferred' (the rebase carried this task's own diff unchanged, so the audit pin transfers); PRE != POST → status 'mismatch' (the full panel re-audits the rebased tip before the merge).\n`
-        + pt`Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. Status error alone retains the ordinary merge fallback.\n`
-        + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the ordinary merge dispatch then runs unchanged.`,
+        + pt`Success evidence is mandatory: transferred requires a usable rebased tip and non-empty equal patch IDs; otherwise a usable tip is fully re-audited. Every success-bearing status with an absent/malformed destination holds before any receipt or re-audit. An uncontradicted already_upstream also requires a usable dispatch base, non-empty PRE, explicit empty POST and non-empty valid matched commit SHAs; missing evidence holds. An error, missing or unknown status retains the ordinary merge fallback only for independently verified unchanged approved content or an equal patch; changed content gets the full re-audit.\n`
+        + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the engine independently checks actual Git content before fallback or full re-audit.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           label: 'pin-transfer:' + r.task.id, schema: PIN_TRANSFER, ...spawn('refiner') })   // concatenation-built (census-safe)
       const probeDeath = deathOf(pinProbe)
       if (probeDeath) { mergeDied(probeDeath); continue }   // D21: a dead probe never reads as a merge result
-      let probeStatus = (pinProbe && typeof pinProbe.status === 'string') ? pinProbe.status : 'error'
+      let probeStatus = pinProbe && PIN_TRANSFER.properties.status.enum.includes(pinProbe.status) ? pinProbe.status : 'error'
       // A success-bearing probe must name the destination BEFORE any transfer receipt,
       // contradiction routing, re-audit or already-upstream completion (#2154).
       if (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) && !isSha(pinProbe.rebased_tip)) {
         escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer refused: missing or malformed destination SHA', probe: pinProbe } })
         auditLog.push({ task: r.task.id, verdict: 'pin-transfer:invalid-destination', findings: [], fixRounds: r.task.fixRounds })
         continue
+      }
+      const pinProof = await verifyPinTransfer(r, pinBefore, pinProbe, pinContext)
+      if (deathOf(pinProof)) { mergeDied(deathOf(pinProof)); continue }
+      if (!pinProof || (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) &&
+          (pinProof.pins[1] !== pinProof.head_sha || (pinProbe.dispatch_base != null && pinProof.pins[2] !== pinProof.dispatch_base)))) {
+        escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer has no independent Git proof of the approved content and reported destination', probe: pinProbe } })
+        auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified', findings: [], fixRounds: r.task.fixRounds })
+        continue
+      }
+      if (['transferred', 'mismatch'].includes(probeStatus) && pinProbe.dispatch_base == null) pinProbe = { ...pinProbe, dispatch_base: pinProof.dispatch_base }
+      // An error can leave a completed or partial rebase. Only the unchanged approved source or
+      // a proved equal patch may retain the ordinary fallback; changed content gets a full panel.
+      if (probeStatus === 'error' && pinProof.head_sha !== pinBefore.source_sha &&
+          !(pinProof.target_ancestor === true && !blankText(pinProof.pre_patch_id) && pinProof.pre_patch_id === pinProof.post_patch_id)) {
+        probeStatus = 'mismatch'
+        pinProbe = { ...pinProbe, rebased_tip: pinProof.head_sha, dispatch_base: pinProof.dispatch_base,
+          pre_rebase_patch_id: pinProof.pre_patch_id, post_rebase_patch_id: pinProof.post_patch_id }
       }
       // PIN-10 destination convention, mirroring aceSeatRows: a row's `sha` is the sha the approval is
       // now accounted AT — the probe's rebased integration tip, in EVERY mode. It is never the seat's
@@ -4091,10 +4151,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         auditLog.push({ task: r.task.id, verdict: 'pin-transfer:empty-unmatched', findings: [], fixRounds: r.task.fixRounds })
         continue
       }
-      if (probeStatus === 'transferred' && (blankText(pinProbe.pre_rebase_patch_id) || blankText(pinProbe.post_rebase_patch_id) || pinProbe.pre_rebase_patch_id !== pinProbe.post_rebase_patch_id)) {
-        log('pin-transfer ' + r.task.id + ': transferred REFUSED — non-empty equal patch IDs are required; re-auditing the destination.')
-        probeStatus = 'mismatch'
-      }
       if (probeStatus === 'already_upstream') {
         // Fail-closed already_upstream (D4, PIN-8, #1973): the enum alone never skips a merge. The
         // arm's own fields must agree with it — a rebased_tip equal to the dispatch base (the rebase
@@ -4120,11 +4176,30 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             auditLog.push({ task: r.task.id, verdict: 'pin-transfer:incomplete-evidence', findings: [], fixRounds: r.task.fixRounds })
             continue
           }
+          const cherry = Array.isArray(pinProof.cherry) ? pinProof.cherry : []
+          const matched = pinProof.pins.slice(4)
+          if (pinProof.head_sha !== pinProof.local_sha ||
+              pinProof.local_sha !== pinProof.remote_sha || pinProof.post_empty !== true || pinProof.post_patch_id !== '' ||
+              pinProof.pre_patch_id !== pre || !Number.isInteger(pinProof.task_count) || pinProof.task_count < 1 ||
+              !cherry.every(c => c && c.sign === '-') || matched.length !== cherry.length ||
+              matched.some(sha => !fullSha(sha)) || new Set(matched).size !== matched.length ||
+              !cherry.every(c => matched.includes(c.sha))) {
+            escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'already_upstream is not confirmed by actual integration and cherry evidence', probe: pinProbe } })
+            auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified-upstream', findings: [], fixRounds: r.task.fixRounds })
+            continue
+          }
           pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
           log('pin-transfer ' + r.task.id + ': already_upstream — every task commit cherry-matched upstream (' + commits.join(', ') + '); recorded merged at the integration tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' with no panel and no content merge (PIN-16).')
           landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProbe.rebased_tip })
           continue
         }
+      }
+      if (probeStatus === 'transferred' && (pinProof.target_ancestor !== true || blankText(pinProbe.pre_rebase_patch_id) ||
+          pinProbe.pre_rebase_patch_id !== pinProbe.post_rebase_patch_id || pinProbe.pre_rebase_patch_id !== pinProof.pre_patch_id ||
+          pinProbe.post_rebase_patch_id !== pinProof.post_patch_id)) {
+        log('pin-transfer ' + r.task.id + ': transferred REFUSED — independently computed non-empty equal patch IDs are required; re-auditing the destination.')
+        probeStatus = 'mismatch'
+        pinProbe = { ...pinProbe, dispatch_base: pinProof.dispatch_base, pre_rebase_patch_id: pinProof.pre_patch_id, post_rebase_patch_id: pinProof.post_patch_id }
       }
       if (probeStatus === 'mismatch') {
         // PIN-1 degrade-to-today: the rebase changed this task's own diff, so the pin cannot transfer.

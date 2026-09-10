@@ -74,6 +74,20 @@ const NEW_SEAT_DEFAULTS = {
       ? { local_sha: tip, remote_sha: tip, source_tip: result.status === 'landed' ? before.source_sha : tip, reported_sha: tip, patch_id: before.patch_id, base_is_ancestor: true, parents: [before.remote_sha, before.source_sha] }
       : { local_sha: before.base_sha, remote_sha: before.remote_sha }
   },
+  // Neutral legacy fixtures describe a coherent synthetic Git world. Raw Git-boundary tests
+  // replace these seats with independently measured refs/objects and never use this projection.
+  'pin-confirm': prompt => {
+    const before = JSON.parse(prompt.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1])
+    const pins = JSON.parse(prompt.match(/REPORTED PINS: ([^\n]+)/)[1]).map(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x) ? x.padEnd(40, '0') : null)
+    const probe = JSON.parse(prompt.match(/CLAIMED RESULT: ([^\n]+)/)[1])
+    return { head_sha: pins[1] || before.source_sha, local_sha: before.base_sha, remote_sha: before.remote_sha,
+      content_sha: before.source_sha, approved_tree: '3'.repeat(40), content_tree: '3'.repeat(40),
+      dispatch_base: pins[2] || '4'.repeat(40), pre_patch_id: probe?.pre_rebase_patch_id ?? 'fixture-task-patch', post_patch_id: probe?.post_rebase_patch_id ?? 'fixture-task-patch',
+      target_ancestor: true, post_empty: probe?.post_rebase_patch_id === '', task_count: 1, pins,
+      cherry: pins.slice(4).map(sha => ({ sha, sign: '-' })) }
+  },
+  'pin-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
+  'target-reconcile': { detail: 'no safe automatic correction in this fixture' },
   'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
   'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
@@ -126,7 +140,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const fn = build(source)
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
-    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
+    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
     let result = await agentImpl(prompt, opts)
     if (!seats.rawMergeResults) result = completeMergeFixture(opts, result)
     return seats.rawTaskAuditPins ? result : completeAuditFixture(prompt, opts, result)
@@ -138,7 +152,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -537,7 +551,7 @@ const isProvisionTopology = (c) =>
 // discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
-const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'merge-confirm', 'merge-snapshot', 'merge-reconcile']
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
   !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
@@ -14423,6 +14437,7 @@ test('#1913 End state 5 (PIN-1) — a patch-id MISMATCH degrades to the in-lock 
 
 test('#1913 End state 5 (PIN-16 positive) — an empty post-rebase diff whose task commits all cherry-match upstream records already_upstream: no panel, no content merge', async () => {
   const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: 'facade01'.padEnd(40, '0'), remote_sha: 'facade01'.padEnd(40, '0') },
     'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1',
       post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1', 'c0ffee2'] },
   })
@@ -14473,6 +14488,7 @@ test('pin-transfer: already_upstream contradiction legs — rebased_tip at the d
   assert.ok(out.landed.includes('t1'), 't1 lands after the re-audit approves')
   // Un-contradicted arm: unchanged (PIN-16) — dispatch_base present and distinct from rebased_tip.
   const ok = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: 'facade01'.padEnd(40, '0'), remote_sha: 'facade01'.padEnd(40, '0') },
     'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } })
   assert.ok(!ok.calls.some(isMergeTask), 'a genuine already_upstream still skips the content merge')
   assert.ok(ok.out.landed.includes('t1'), 'and records the task merged')
@@ -14499,7 +14515,7 @@ test('#1913 End state 6 (PIN-10, merge slot) — every merge-slot seat row recor
     ['transferred', { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' }],
     ['already_upstream', { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }],
   ]) {
-    const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe })
+    const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), { 'pin-transfer': probe, 'pin-snapshot': mode === 'already_upstream' ? { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: 'facade01'.padEnd(40, '0'), remote_sha: 'facade01'.padEnd(40, '0') } : NEW_SEAT_DEFAULTS['pin-snapshot'] })
     const row = (out.pinTransfers || []).find(p => p && p.kind === 'merge')
     assert.ok(row && row.seats.length, mode + ': the merge-slot row carries seat rows')
     for (const s of row.seats) {
@@ -14827,9 +14843,9 @@ test('#1937 — isMergeTask\'s exclusion list is complete: every Refine-phase re
   // this census guards a repeat of #1937 and nothing wider.
   const code1937 = src.replace(/^\s*\/\/.*$/gm, '')
   const found = new Set()
-  for (const m of code1937.matchAll(/dispatchKind: '([a-z-]+)'/g)) {
+  for (const m of code1937.matchAll(/dispatchKind:\s*([^,\n}]+)/g)) {
     const w = code1937.slice(Math.max(0, m.index - 260), m.index + 120)
-    if (/phase: 'Refine'/.test(w) && /war-refiner/.test(w)) found.add(m[1])
+    if (/phase: 'Refine'/.test(w) && /war-refiner/.test(w)) for (const kind of m[1].matchAll(/'([a-z-]+)'/g)) found.add(kind[1])
   }
   assert.ok(found.size >= 4, 'the scan must find the Refine-phase refiner dispatches (found: ' + [...found].join(', ') + ')')
   assert.ok(found.has('endstate-check'),
@@ -18205,7 +18221,7 @@ for (const site of ['land:phase-3', 'land:phase-3:environment-proceed', 'land:ph
         assert.ok(p.includes('LAND RECOVERY'))
         assert.ok(p.includes('never make a second phase commit'))
         const parents = git('show', '-s', '--format=%P', 'working').split(' ')
-        return { outcome: 'landed', ...snapshot, source_tip: source, local_sha: git('rev-parse', 'working'), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'working'), parents,
+        return { outcome: 'landed', ...snapshot, base_is_ancestor: spawnSync('git', ['merge-base', '--is-ancestor', base, 'working'], { cwd: dir }).status === 0, source_tip: source, local_sha: git('rev-parse', 'working'), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'working'), parents,
           result: { mode: 'land-phase', status: 'landed', working_sha: landedSha, gate_log_path: fixtureGatePath(p) } }
       } })
       assert.ok(landedSha); assert.equal(out.landDecision, 'landed'); assert.equal(out.landResult.working_sha, landedSha)
@@ -18833,4 +18849,348 @@ test('audit-pin branch Git error has a schema-conforming unresolved response', a
   assert.ok(pin.prompt.includes("On a branch Git error return { head_sha: '', pins: [] }"))
   assert.deepEqual(pin.opts.schema.required, ['head_sha', 'pins'])
   assert.ok(!out.landed.includes('t1'))
+})
+
+test('Git reconciliation: exhausted snapshot death stays soft and an independent sibling lands', async () => {
+  const tasks = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2', deps: [] }]
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks, run: { roundLimit: 2 } }), defaultImpl, {
+    'merge-snapshot': (p, o) => { if (o.label === 'git-snapshot:t1') throw new Error('529 exhausted snapshot fixture'); return NEW_SEAT_DEFAULTS['merge-snapshot'] },
+  })
+  assert.equal(calls.filter(c => c.opts.label === 'git-snapshot:t1').length, 2)
+  assert.ok(!calls.some(c => c.opts.label === 'merge:t1'))
+  const row = out.escalated.find(e => e.task === 't1')
+  assert.equal(row?.reason, 'env-died'); assert.match(row.blocked, /git-snapshot:t1.*529 exhausted snapshot fixture/)
+  assert.notEqual(out.landDecision, 'held:workflow-error'); assert.ok(out.landed.includes('t2'))
+})
+
+// The mutator's claims and the verifier's Git observations are deliberately separate here.
+// These tests do not use the synthetic pin-confirm projection in the legacy fixture harness.
+for (const kind of ['transferred', 'upstream', 'forged-patches', 'forged-pre', 'forged-tip', 'forged-upstream', 'forged-cherry', 'error-unchanged', 'error-changed', 'changed-approved', 'changed-target', 'unknown-changed', 'missing-changed', 'known-revert', 'wrong-revert-parent', 'nonfull-revert-content']) {
+  test('pin transfer Git boundary: real ' + kind, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-pin-boundary-'))
+    const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const remote = () => git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
+    const resolve = value => { if (typeof value !== 'string' || !/^[0-9a-f]{7,40}$/.test(value)) return null; const r = run('rev-parse', '--verify', '--end-of-options', value + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
+    const patch = (base, tip) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, tip) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+    try {
+      git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('branch', 'working')
+      git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'integration', 'working')
+      git('checkout', '-b', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), 'approved'); git('add', 'deliverable.test.js'); git('commit', '-m', 'task\n\nWAR-Task: task'); const approved = git('rev-parse', 'HEAD'); git('push', 'origin', 'task')
+      git('checkout', 'integration')
+      if (kind === 'upstream' || kind === 'forged-cherry') { git('cherry-pick', '--no-commit', approved); git('commit', '-m', 'equivalent published task') }
+      else { writeFileSync(join(dir, 'sibling'), 'published sibling'); git('add', 'sibling'); git('commit', '-m', 'published sibling') }
+      git('push', 'origin', 'integration'); const targetBefore = git('rev-parse', 'integration')
+      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      let audits = 0, rebased = null, failedAce = null
+      const reverts = ['known-revert', 'wrong-revert-parent', 'nonfull-revert-content'].includes(kind)
+      const accepted = ['transferred', 'upstream', 'error-unchanged', 'changed-approved', 'known-revert'].includes(kind)
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2, ace: reverts } }), (p, o) => {
+        if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
+        if (reverts && seatOf(o) === 'war-worker' && o.phase === 'Audit') {
+          git('checkout', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), 'regressed ace'); git('add', 'deliverable.test.js'); git('commit', '-m', 'regressed ace'); failedAce = git('rev-parse', 'HEAD')
+          return { task_id: 't1', status: 'implemented', head_sha: failedAce, ace_diff_files: ['deliverable.test.js'], files_changed: ['deliverable.test.js'] }
+        }
+        if (o.label === 'audit:t1:correctness') {
+          audits++; const deny = audits > 1 && !accepted
+          return { seat: o.label, lens: 'correctness', verdict: deny ? 'request_changes' : 'approve', audit_sha: git('rev-parse', 'task'), findings: deny ? [{ severity: 'Major', title: 'unapproved patch', rationale: 'the rebase changed the accepted task' }] : reverts && audits === 1 ? [nit({ file: 'deliverable.test.js' })] : [] }
+        }
+        if (o.label === 'merge:t1') { git('checkout', 'integration'); git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') } }
+        return defaultImpl(p, o)
+      }, { rawMergeResults: true, rawTaskAuditPins: true,
+        'ace-gate': p => reverts ? { gate_green: false, gate_output: 'regressed ace' } : NEW_SEAT_DEFAULTS['ace-gate'](p),
+        'audit-pin': p => ({ head_sha: git('rev-parse', 'task'), pins: fixturePinRequest(p).map(resolve) }),
+        'pin-snapshot': snapshot,
+        'pin-transfer': () => {
+          const pre = patch(base, approved)
+          git('checkout', 'task')
+          if (reverts) { assert.ok(failedAce, 'the gate-red ace exists'); git('revert', '--no-edit', failedAce) }
+          if (kind === 'forged-upstream') git('rebase', '--onto', 'integration', 'task')
+          else git('rebase', 'integration')
+          if (['forged-patches', 'forged-pre', 'error-changed', 'changed-approved', 'unknown-changed', 'missing-changed'].includes(kind)) { writeFileSync(join(dir, 'deliverable.test.js'), 'changed after approval'); git('add', 'deliverable.test.js'); git('commit', '-m', 'post-audit change') }
+          rebased = git('rev-parse', 'task')
+          if (kind === 'changed-target') { git('checkout', 'integration'); writeFileSync(join(dir, 'rogue'), 'unaccounted target write'); git('add', 'rogue'); git('commit', '-m', 'unaccounted target write'); git('push', 'origin', 'integration'); git('checkout', 'task') }
+          if (kind === 'unknown-changed') return { status: 'invented-status' }
+          if (kind === 'missing-changed') return null
+          if (kind.startsWith('error-')) return { status: 'error', detail: 'response failed after rebase' }
+          if (['upstream', 'forged-upstream', 'forged-cherry'].includes(kind)) return { status: 'already_upstream', rebased_tip: rebased, dispatch_base: base, pre_rebase_patch_id: pre, post_rebase_patch_id: '', already_upstream_commits: [kind === 'forged-cherry' ? 'deadbeef' : approved] }
+          return { status: 'transferred', rebased_tip: kind === 'forged-tip' ? 'deadbeef' : rebased, dispatch_base: base, pre_rebase_patch_id: kind === 'forged-pre' ? patch('integration', 'task') : pre, post_rebase_patch_id: kind === 'forged-pre' ? patch('integration', 'task') : pre }
+        },
+        'pin-confirm': p => {
+          const before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1]), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve)
+          const content = pins[3] === before.source_sha ? git('rev-parse', before.source_sha + '^') : before.source_sha
+          const ownBase = git('merge-base', before.base_sha, content)
+          const lines = git('cherry', before.base_sha, content)
+          const result = { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, source_parent_sha: reverts ? content : undefined,
+            approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
+            pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
+            post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
+            cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
+          if (kind === 'wrong-revert-parent') result.source_parent_sha = before.source_sha
+          if (kind === 'nonfull-revert-content') result.source_parent_sha = result.content_sha = 'bad'
+          return result
+        },
+        'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+        'merge-confirm': (p, o) => {
+          if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
+          const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), result = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
+          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task') }
+        },
+      })
+      assert.equal(out.landed.includes('t1'), accepted, 'completion follows independently measured Git and any required fresh audit')
+      assert.ok(rebased, 'the actual probe ran')
+      if (['forged-patches', 'forged-pre', 'error-changed', 'changed-approved', 'unknown-changed', 'missing-changed'].includes(kind)) assert.equal(audits, 2, 'changed content receives a full new panel before merge')
+      if (kind === 'upstream') { assert.ok(!calls.some(isMergeTask)); assert.equal(remote(), targetBefore); assert.equal(out.pinTransfers.find(r => r.mode === 'already_upstream').rebasedTip, targetBefore) }
+      if (!accepted) assert.ok(!out.pinTransfers.some(r => ['transferred', 'already_upstream'].includes(r.mode)), 'no false transfer receipt')
+      if (kind === 'changed-approved') assert.ok(out.pinTransfers.some(r => r.mode === 'mismatch'), 'only the approving new panel produces the receipt')
+      if (accepted && kind !== 'upstream') assert.equal(remote(), rebased)
+      if (kind === 'changed-target') { assert.equal(out.landDecision, 'held:workflow-error', 'an unexpected shared mutation cannot be softened to a task skip'); assert.ok(!calls.some(isMergeTask), 'no current-task merge starts after the target moves unexpectedly') }
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-behind', 'maintenance-death-after-ff', 'maintenance-false-success']) {
+  test('Git target preflight: real ' + kind, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-target-preflight-'))
+    const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    const remote = ref => git('ls-remote', 'origin', 'refs/heads/' + ref).split(/\s/)[0] || null
+    const patch = (base, tip) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, tip) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+    try {
+      git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('branch', 'working')
+      git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'working')
+      if (!kind.endsWith('seed')) git('push', 'origin', 'integration')
+      git('checkout', '-b', 'task'); writeFileSync(join(dir, 'task.test.js'), 'approved task'); git('add', 'task.test.js'); git('commit', '-m', 'current task'); const taskTip = git('rev-parse', 'HEAD')
+      git('checkout', 'integration')
+      if (kind !== 'published-seed') { writeFileSync(join(dir, 'prior'), 'prior target content'); git('add', 'prior'); git('commit', '-m', 'prior target content') }
+      const advanced = git('rev-parse', 'integration')
+      if (['local-behind', 'maintenance-death-after-ff', 'maintenance-false-success'].includes(kind)) {
+        git('push', 'origin', 'integration'); git('checkout', '--detach', base); git('update-ref', 'refs/heads/integration', base, advanced); git('checkout', 'integration')
+      }
+      const initialRemote = remote('integration')
+      const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote('integration'), seed_sha: remote('working'), patch_id: patch(git('merge-base', 'integration', 'task'), 'task') })
+      let maintenance = 0, mergeCalls = 0
+      const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'working' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2 } }), (p, o) => {
+        if (o.label === 'merge:t1') {
+          mergeCalls++; git('checkout', 'task'); git('rebase', 'integration'); git('checkout', 'integration'); git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration')
+          return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') }
+        }
+        return defaultImpl(p, o)
+      }, { 'pin-snapshot': snapshot,
+        'target-reconcile': (p, o) => {
+          maintenance++; assert.equal(o.model, 'opus'); assert.ok(p.includes('Never publish local-only integration commits'))
+          if (kind === 'local-behind' || kind === 'maintenance-death-after-ff') {
+            git('fetch', 'origin', 'integration'); git('merge', '--ff-only', 'origin/integration')
+            if (kind === 'maintenance-death-after-ff') throw new Error('529 response died after local follower fast-forward')
+          }
+          return { detail: 'maintenance returned; only the fresh Git read can decide readiness' }
+        },
+        'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+        'merge-confirm': (p, o) => {
+          if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
+          const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1])
+          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote('integration'), source_tip: git('rev-parse', 'task'), reported_sha: git('rev-parse', 'integration'), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task') }
+        },
+      })
+      const accepted = ['published-seed', 'local-behind', 'maintenance-death-after-ff'].includes(kind)
+      assert.equal(out.landed.includes('t1'), accepted, 'unaccounted local history cannot piggyback on the current task')
+      assert.equal(mergeCalls, accepted ? 1 : 0)
+      if (!accepted) { assert.equal(remote('integration'), initialRemote, 'no unaccounted content is published'); assert.equal(git('rev-parse', 'task'), taskTip, 'refusal precedes the pin-transfer rebase'); assert.ok(!calls.some(c => c.opts.dispatchKind === 'pin-transfer')) }
+      assert.equal(maintenance, kind === 'published-seed' ? 0 : 1, 'bounded maintenance gets a chance before hold')
+      if (kind === 'maintenance-death-after-ff') assert.ok(out.auditLog.every(r => r.verdict !== 'git-target:unreconciled' || r.before.base_sha === base), 'a lost maintenance reply is resolved by re-reading actual Git')
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+for (const [name, corrupt] of [
+  ['missing proof', () => null],
+  ['missing head', p => ({ ...p, head_sha: undefined })],
+  ['missing dispatch base', p => ({ ...p, dispatch_base: '' })],
+  ['missing tree identity', p => ({ ...p, approved_tree: '', content_tree: '' })],
+  ['changed approved tree', p => ({ ...p, approved_tree: '5'.repeat(40) })],
+  ['wrong content commit', p => ({ ...p, content_sha: '5'.repeat(40) })],
+  ['missing pin list', p => ({ ...p, pins: undefined })],
+  ['short pin list', p => ({ ...p, pins: p.pins.slice(0, 3) })],
+  ['bad resolution type', p => ({ ...p, pins: p.pins.map((sha, i) => i === 2 ? 42 : sha) })],
+  ['unrelated resolution', p => ({ ...p, head_sha: '5'.repeat(40), pins: p.pins.map((sha, i) => i === 1 ? '5'.repeat(40) : sha) })],
+  ['missing approved resolution', p => ({ ...p, pins: p.pins.map((sha, i) => i === 0 ? null : sha) })],
+  ['missing pre patch', p => ({ ...p, pre_patch_id: undefined })],
+  ['missing post patch', p => ({ ...p, post_patch_id: undefined })],
+  ['wrong reported base', p => ({ ...p, dispatch_base: '5'.repeat(40) })],
+]) test('pin proof refuses ' + name, async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' },
+    'pin-confirm': p => corrupt(NEW_SEAT_DEFAULTS['pin-confirm'](p)),
+  })
+  assert.ok(!out.landed.includes('t1')); assert.equal(out.landDecision, 'held:escalation', 'malformed evidence is a classified refusal, not an accidental exception')
+  assert.ok(!calls.some(isMergeTask)); assert.ok(!out.pinTransfers.some(r => r.kind === 'merge'))
+})
+test('pin proof refuses a malformed reported base even if a reply claims a full resolution', async () => {
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', dispatch_base: '3', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' },
+    'pin-confirm': p => { const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p); proof.dispatch_base = proof.pins[2] = '3'.repeat(40); return proof },
+  })
+  assert.ok(!out.landed.includes('t1'))
+})
+for (const field of ['local_sha', 'remote_sha']) test('pin proof refuses changed integration ' + field, async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'pin-confirm': p => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p), [field]: '5'.repeat(40) }),
+  })
+  assert.equal(out.landDecision, 'held:workflow-error'); assert.ok(!calls.some(isMergeTask))
+})
+for (const targetAncestor of [false, undefined]) test('pin transfer without ancestry re-audits before merge: ' + targetAncestor, async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' },
+    'pin-confirm': p => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p), target_ancestor: targetAncestor }),
+  })
+  assert.ok(calls.some(c => /^audit:t1:/.test(c.opts.label) && c.prompt.includes('beef0001')))
+  assert.ok(out.pinTransfers.some(r => r.mode === 'mismatch')); assert.ok(!out.pinTransfers.some(r => r.mode === 'transferred' && r.kind === 'merge'))
+})
+for (const [name, corrupt] of [
+  ['different actual base', p => ({ ...p, dispatch_base: '5'.repeat(40) })],
+  ['head differs from integration', p => ({ ...p, head_sha: 'facade012'.padEnd(40, '0'), pins: p.pins.map((s, i) => i === 1 ? 'facade012'.padEnd(40, '0') : s) })],
+  ['tree is not empty', p => ({ ...p, post_empty: false })],
+  ['nonempty actual post patch', p => ({ ...p, post_patch_id: 'p2' })],
+  ['different actual pre patch', p => ({ ...p, pre_patch_id: 'p2' })],
+  ['non-integer count', p => ({ ...p, task_count: 1.5 })],
+  ['zero task count', p => ({ ...p, task_count: 0 })],
+  ['no cherry matches', p => ({ ...p, cherry: [] })],
+  ['unmatched cherry', p => ({ ...p, cherry: p.cherry.map(c => ({ ...c, sign: '+' })) })],
+  ['malformed cherry', p => ({ ...p, cherry: [null] })],
+  ['unclaimed cherry', p => ({ ...p, cherry: [...p.cherry, { sha: '7'.repeat(40), sign: '-' }] })],
+  ['missing commit resolution', p => ({ ...p, pins: p.pins.map((s, i) => i === 4 ? null : s) })],
+  ['different cherry identity', p => ({ ...p, cherry: [{ sign: '-', sha: '7'.repeat(40) }] })],
+]) test('already_upstream proof refuses ' + name, async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: 'facade01'.padEnd(40, '0'), remote_sha: 'facade01'.padEnd(40, '0') },
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] },
+    'pin-confirm': p => corrupt(NEW_SEAT_DEFAULTS['pin-confirm'](p)),
+  })
+  assert.ok(!out.landed.includes('t1')); assert.equal(out.landDecision, 'held:escalation')
+  assert.ok(!out.pinTransfers.some(r => r.mode === 'already_upstream')); assert.ok(!calls.some(isMergeTask))
+})
+
+for (const recovery of [false, true]) test('Git certainty resume: a phase already published before dispatch completes without another merge: ' + recovery, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-already-landed-'))
+  const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+  const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base')
+    git('checkout', '-b', 'integration'); writeFileSync(join(dir, 'phase.test.js'), 'phase work'); git('add', 'phase.test.js'); git('commit', '-m', 'phase work'); const source = git('rev-parse', 'HEAD')
+    git('checkout', 'working'); git('merge', '--no-ff', 'integration', '-m', 'phase commit'); const phaseCommit = git('rev-parse', 'HEAD')
+    git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'working', 'integration')
+    const snapshot = { base_sha: phaseCommit, remote_sha: phaseCommit, source_sha: source, patch_id: '' }
+    const proof = () => ({ local_sha: git('rev-parse', 'working'), remote_sha: git('ls-remote', 'origin', 'refs/heads/working').split(/\s/)[0], source_tip: git('rev-parse', 'integration'), parents: git('show', '-s', '--format=%P', 'working').split(' '), base_is_ancestor: run('merge-base', '--is-ancestor', snapshot.base_sha, 'working').status === 0 })
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+      if (o.label === 'land:phase-3') {
+        git('merge', '--no-ff', 'integration', '-m', 'would be a duplicate phase commit')
+        if (recovery) throw new Error('529 response lost after already-landed check')
+        return { mode: 'land-phase', status: 'landed', working_sha: phaseCommit }
+      }
+      return defaultImpl(p, o)
+    }, {
+      'merge-snapshot': (p, o) => o.label === 'git-snapshot:phase-3' ? snapshot : NEW_SEAT_DEFAULTS['merge-snapshot'],
+      'merge-confirm': (p, o) => o.label === 'git-confirm:land:phase-3' ? { ...proof(), reported_sha: git('rev-parse', phaseCommit) } : NEW_SEAT_DEFAULTS['merge-confirm'](p),
+      'merge-reconcile': p => ({ ...snapshot, ...proof(), outcome: 'landed', result: { mode: 'land-phase', status: 'landed', working_sha: phaseCommit, gate_log_path: fixtureGatePath(p) } }),
+    })
+    assert.equal(out.landDecision, 'landed', 'the exact phase source is already in the published merge commit')
+    assert.equal(out.landResult.working_sha, phaseCommit); assert.equal(git('rev-list', '--count', '--merges', 'working'), '1')
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, recovery ? 1 : 0)
+    assert.ok(calls.some(isServitor))
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const kind of ['pin-snapshot', 'pin-confirm']) test('pin Git boundary: exhausted ' + kind + ' death stays soft for independent siblings', async () => {
+  const tasks = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2', deps: [] }]
+  const label = kind === 'pin-snapshot' ? 'git-pin-snapshot:t1' : 'git-pin:t1'
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks, run: { roundLimit: 2 } }), defaultImpl, {
+    [kind]: (p, o) => { if (o.label === label) throw new Error('529 exhausted pin Git fixture'); const x = NEW_SEAT_DEFAULTS[kind]; return typeof x === 'function' ? x(p) : x },
+  })
+  assert.equal(calls.filter(c => c.opts.label === label).length, 2)
+  assert.ok(!calls.some(c => c.opts.label === 'merge:t1')); assert.ok(out.landed.includes('t2'))
+  assert.notEqual(out.landDecision, 'held:workflow-error')
+  const row = out.escalated.find(e => e.task === 't1'); assert.equal(row?.reason, 'env-died'); assert.ok(row.blocked.includes(label) && row.blocked.includes('529 exhausted pin Git fixture'))
+})
+
+test('pin proof rejects duplicate upstream commit accounting', async () => {
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: 'facade01'.padEnd(40, '0'), remote_sha: 'facade01'.padEnd(40, '0') },
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1', 'c0ffee1'] },
+  })
+  assert.ok(!out.landed.includes('t1'))
+})
+
+for (const [name, probe, corrupt] of [
+  ['head on error', { status: 'error' }, p => ({ ...p, head_sha: undefined })],
+  ['base without report', { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' }, p => ({ ...p, dispatch_base: '' })],
+]) test('pin proof refuses ' + name, async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': probe, 'pin-confirm': p => corrupt(NEW_SEAT_DEFAULTS['pin-confirm'](p)),
+  })
+  assert.equal(out.landDecision, 'held:escalation'); assert.ok(!calls.some(isMergeTask))
+})
+for (const kind of ['remote absent', 'overclaimed matches', 'unresolved matching identity']) test('already_upstream proof refuses ' + kind, async () => {
+  const tip = 'facade01'.padEnd(40, '0')
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: tip, remote_sha: kind === 'remote absent' ? null : tip, seed_sha: tip },
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: kind === 'overclaimed matches' ? ['c0ffee1', 'c0ffee2'] : ['c0ffee1'] },
+    'pin-confirm': p => { const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p)
+      if (kind === 'overclaimed matches') proof.cherry = proof.cherry.slice(0, 1)
+      if (kind === 'unresolved matching identity') { proof.pins[4] = null; proof.cherry[0].sha = null }
+      return proof
+    },
+  })
+  assert.ok(!out.landed.includes('t1')); assert.equal(out.landDecision, 'held:escalation')
+})
+for (const [name, corrupt] of [
+  ['ancestry false', p => ({ ...p, base_is_ancestor: false })],
+  ['ancestry missing', p => ({ ...p, base_is_ancestor: undefined })],
+  ['first parent', p => ({ ...p, parents: ['bad', p.source_tip] })],
+]) for (const recovery of [false, true]) test('resume proof refuses ' + name + ': ' + recovery, async () => {
+  const tip = '9'.repeat(40), source = '2'.repeat(40)
+  const proof = corrupt({ local_sha: tip, remote_sha: tip, source_tip: source, parents: ['3'.repeat(40), source], base_is_ancestor: true, reported_sha: tip })
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (o.label === 'land:phase-3') return { mode: 'land-phase', status: recovery ? 'error' : 'landed', working_sha: tip }
+    return defaultImpl(p, o)
+  }, {
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:phase-3' ? { base_sha: tip, source_sha: source, remote_sha: tip, patch_id: '' } : NEW_SEAT_DEFAULTS['merge-snapshot'],
+    'merge-confirm': (p, o) => o.label === 'git-confirm:land:phase-3' ? proof : NEW_SEAT_DEFAULTS['merge-confirm'](p),
+    'merge-reconcile': p => ({ ...proof, base_sha: tip, source_sha: source, patch_id: '', outcome: 'landed', result: { mode: 'land-phase', status: 'landed', working_sha: tip, gate_log_path: fixtureGatePath(p) } }),
+  })
+  assert.equal(out.landDecision, 'held:workflow-error'); assert.ok(!out.landResult || out.landResult.status !== 'landed')
+})
+for (const first of ['death', 'invalid']) test('pin proof retries on the recovery tier and fills missing base: ' + first, async () => {
+  let count = 0
+  const { out } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'transferred', rebased_tip: 'beef0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' },
+    'pin-confirm': (p, o) => { if (++count === 1) { if (first === 'death') throw new Error('529 lost pin read'); return {} }
+      assert.equal(o.model, 'opus'); return NEW_SEAT_DEFAULTS['pin-confirm'](p)
+    },
+  })
+  assert.equal(count, 2); assert.ok(out.landed.includes('t1'))
+  assert.equal(out.pinTransfers.find(r => r.kind === 'merge').dispatchBase, '4'.repeat(40))
+})
+
+for (const [name, override] of [
+  ['no ancestry', { target_ancestor: false }],
+  ['blank patches', { pre_patch_id: '', post_patch_id: '' }],
+  ['different patches', { post_patch_id: 'changed' }],
+]) test('pin error with changed head requires re-audit: ' + name, async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'error' },
+    'pin-confirm': p => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p), head_sha: '5'.repeat(40), ...override }),
+  })
+  assert.ok(calls.some(c => /^audit:t1:/.test(c.opts.label) && c.prompt.includes('5'.repeat(40))))
+  assert.ok(out.pinTransfers.some(r => r.kind === 'merge' && r.mode === 'mismatch'))
+})
+test('already_upstream contradiction also requires independent patch equality before transfer', async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()), {
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1', already_upstream_commits: [] },
+    'pin-confirm': p => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p), post_patch_id: 'changed' }),
+  })
+  assert.ok(calls.some(c => /^audit:t1:/.test(c.opts.label) && c.prompt.includes('beef0001')))
+  assert.ok(out.pinTransfers.some(r => r.kind === 'merge' && r.mode === 'mismatch'))
 })
