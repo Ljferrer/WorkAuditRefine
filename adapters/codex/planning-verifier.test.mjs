@@ -113,18 +113,46 @@ test('transport failures and cancellation never return a fabricated verifier lin
 test('removing retry, fork, failure-visibility or read-only guards fails the behavioral oracle',async()=>{
   const path=join(output,'shared/skills/war-strategy/assets/strategy-verifier.mjs'),source=readFileSync(path,'utf8')
   const cases=[
+    ...[
+      ['const normalizedRecommendation=value=>value.trim()', 'const normalizedRecommendation=value=>value', `  ${request.recommendation}  `],
+      [".replace(/\\s+/g,' ')", '', request.recommendation.replaceAll(' ','\n  ')],
+    ].map(([from,to,recommendation])=>[from,to,async verify=>{
+      for(const reversed of [false,true]) {
+        const first=await verify({...request,recommendation:reversed?recommendation:request.recommendation},{dispatch:async()=>({...survived,refuted:true})})
+        let calls=0;const result=await verify({...request,recommendation:reversed?request.recommendation:recommendation,history:[first]},{dispatch:async()=>{calls++;return survived}})
+        assert.equal(calls,0);assert.equal(result.next,'operator-fork')
+      }
+    }]),
+    ["history.length && normalizedRecommendation(input.recommendation)===normalizedRecommendation(history[0].recommendation)",'false',async verify=>{
+      const first=await verify(request,{dispatch:async()=>({...survived,refuted:true})})
+      let calls=0;const result=await verify({...request,history:[first]},{dispatch:async()=>{calls++;return survived}})
+      assert.equal(calls,0);assert.equal(result.next,'operator-fork')
+    }],
+    ...[
+      ["prior.status==='refuted'", {...survived,refuted:true}, prior=>({...prior,status:'verified'})],
+      ['prior.attempt===index+1', {...survived,refuted:true}, prior=>({...prior,attempt:2})],
+      ["prior.recommendation.trim()", {...survived,refuted:true}, prior=>({...prior,recommendation:'   '})],
+      ['prior.arms.length>0', {...survived,refuted:true}, prior=>({...prior,arms:[]})],
+      ['prior.arms.every(arm=>[1,2,3,4].includes(arm))', {...survived,refuted:true}, prior=>({...prior,arms:[5]})],
+      ["prior.next===(index===0?'amend-or-fork':'operator-fork')", {...survived,refuted:true}, prior=>({...prior,next:'present'})],
+      ['result.refuted===true', {...survived,refuted:true}, prior=>({...prior,result:{...prior.result,refuted:false}})],
+      ["result.reason.trim()", {...survived,refuted:true}, prior=>({...prior,result:{...prior.result,reason:'   '}})],
+    ].map(([guard,response,corrupt])=>[guard,'true',async verify=>{
+      const dispatch=async()=>response,first=await verify(request,{dispatch})
+      await assert.rejects(()=>verify({...request,arms:[],history:[corrupt(first)]},{dispatch}),/history/)
+    }]),
     ['if(history.length && !input.arms.length)','if(false)',async verify=>{
       const dispatch=async()=>({...survived,refuted:true}),first=await verify(request,{dispatch})
-      assert.equal((await verify({...request,arms:[],history:[first]},{dispatch})).next,'operator-fork')
+      assert.equal((await verify({...request,recommendation:'Amended guard.',arms:[],history:[first]},{dispatch})).next,'operator-fork')
     }],
     ["if(history.length===2)","if(false)",async verify=>{
       let calls=0;const dispatch=async()=>{calls++;return {...survived,refuted:true}}
-      const first=await verify(request,{dispatch}),second=await verify({...request,history:[first]},{dispatch})
-      await verify({...request,history:[first,second]},{dispatch});assert.equal(calls,2)
+      const first=await verify(request,{dispatch}),second=await verify({...request,recommendation:'Amended guard.',history:[first]},{dispatch})
+      await verify({...request,recommendation:'Third different guard.',history:[first,second]},{dispatch});assert.equal(calls,2)
     }],
     ["history.length ? 'operator-fork':'amend-or-fork'","'amend-or-fork'",async verify=>{
       const dispatch=async()=>({...survived,refuted:true}),first=await verify(request,{dispatch})
-      assert.equal((await verify({...request,history:[first]},{dispatch})).next,'operator-fork')
+      assert.equal((await verify({...request,recommendation:'Amended guard.',history:[first]},{dispatch})).next,'operator-fork')
     }],
     ['stamp:`verifier: unavailable (${reason})`','stamp:null',async verify=>{
       const result=await verify(request,{dispatch:async()=>{throw Error('host unavailable')}})
@@ -141,7 +169,7 @@ test('removing retry, fork, failure-visibility or read-only guards fails the beh
     try {
       writeFileSync(path,source.replace(from,to))
       const {verifyRecommendation:mutant}=await import(`${pathToFileURL(path)}?mutation=${index}`)
-      await assert.rejects(()=>oracle(mutant),{name:'AssertionError'})
+      await assert.rejects(()=>oracle(mutant),{name:'AssertionError'},from)
     }finally{writeFileSync(path,source)}
   }
 })
@@ -170,5 +198,34 @@ test('CLI termination cancels its active verifier before returning',async()=>{
     child.kill('SIGKILL')
     if(pid)try{process.kill(process.platform==='win32'?pid:-pid,'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}
     await closed
+  }
+})
+
+test('retry history rejects malformed and reordered records before bypassing dispatch', async () => {
+  const dispatch=async()=>({...survived,refuted:true})
+  const first=await verifyRecommendation(request,{dispatch})
+  const second=await verifyRecommendation({...request,recommendation:'Amended guard.',history:[first]},{dispatch})
+  const malformed=[
+    {status:'refuted'}, {...first,result:{...first.result,refuted:false}},
+    {...first,attempt:2}, {...first,next:'present'}, {...first,recommendation:''},
+    {...first,arms:[]}, {...first,line:'invented evidence'},
+    {...first,result:{...first.result,reason:''}},
+    {...first,result:{...first.result,consequence:'two\nlines'}},
+    {...first,result:{...first.result,caughtBy:''}},
+  ]
+  for (const history of [...malformed.map(row=>[row]),[second,first],[first,first]]) {
+    for (const arms of [[],[4]]) await assert.rejects(()=>verifyRecommendation({...request,arms,history},{dispatch:async()=>{assert.fail('malformed history must not dispatch')}}),/history/)
+  }
+  assert.equal((await verifyRecommendation({...request,recommendation:'Different amended recommendation',arms:[2],history:[first]},{dispatch})).attempt,2,'an amendment may change recommendation and re-arming classification')
+})
+
+test('a genuine refutation cannot be retried unchanged or with only whitespace changes', async () => {
+  const first=await verifyRecommendation(request,{dispatch:async()=>({...survived,refuted:true})})
+  for(const recommendation of [request.recommendation,`  ${request.recommendation}  `,request.recommendation.replaceAll(' ','\n  ')]) {
+    let calls=0
+    const result=await verifyRecommendation({...request,recommendation,history:[first]},{dispatch:async()=>{calls++;return survived}})
+    assert.equal(calls,0,'unchanged refutation must not be sampled again')
+    assert.equal(result.status,'refuted');assert.equal(result.next,'operator-fork')
+    assert.deepEqual(result.history,[first])
   }
 })

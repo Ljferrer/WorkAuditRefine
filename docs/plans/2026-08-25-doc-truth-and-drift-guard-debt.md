@@ -262,270 +262,7 @@ doubles in size]
 - **Cross-plan contention:** see the stacking preamble — this plan launches only after
   plans A and B land.
 - **check: transport:** one command per End-state row; no backticks inside check
-  strings; `grep -F` for `# Doc-truth and drift-guard debt — fix the prose first, then pin it
-
-Source spec: `docs/specs/2026-08-25-doc-truth-and-drift-guard-debt-design.md` (converted by /war-machine drafter, 2026-08-25).
-
-**Stacking position (third in campaign):** this plan stacks after
-`docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md` (plan A) and
-`docs/plans/2026-08-25-authoring-doctrine-and-lint-coherence.md` (plan B), per the spec's
-`dependsOn` header. The contention is real and named honestly:
-
-- Shared with **plan A**: `skills/war/assets/workflow-template.js` (its many engine tasks vs.
-  this plan's `const recovery` comment widening), `skills/war/assets/workflow-template.test.mjs`
-  (its D6/handoff tasks vs. this plan's Phase 2 Task 3), `skills/war/assets/war-config.test.mjs`,
-  `CONTEXT.md`, `skills/war/references/schemas.md`, `docs/adr/0013-…` (plan A amends it; this
-  plan's #1513 guard row pins against its post-amendment shape), `agents/war-refiner.md`,
-  plus `README.md`/`CHANGELOG.md` and the four release slots.
-- Shared with **plan B**: `skills/war-machine/war-pipeline-structure.test.sh` (its Phase 2
-  Task 4 vs. this plan's Phase 2 Task 5), plus `README.md`/`CHANGELOG.md` and the four
-  release slots. Plan B's red-team and war-strategy surfaces are disjoint from this plan.
-
-Plans A and B have landed (0.20.1 and 0.21.8; the campaign also landed
-`2026-08-27-in-run-finding-resolution` as 0.21.0 between them): this plan's branch is cut
-from plan B's tip `a8a9391` (release 0.21.8) and every edit below is authored against
-that tree — pins copy bytes from it, never from issue text or from this plan's own
-literals. Every count and byte figure quoted below was re-measured at `c8c22e5` (the
-2026-09-03 red-team refresh); a figure a task must act on is always re-measured at the
-task's rebased base. Concurrent execution is forbidden (serial merge queue would
-rebase-conflict on every shared file).
-
-Issues addressed (all 72): #1662, #1625, #1622, #1621, #1620, #1618, #1292, #1565, #1545,
-#1537, #1536, #1651, #1522, #1399, #1477, #1474, #1678, #1652, #1653, #1654, #1656, #1521,
-#1525, #1488, #1513, #1587, #1539, #1538, #1535, #1446, #1542, #1673, #1675, #1676, #1677,
-#1683, #1686, #1687, #1689; plus the operator-ratified 2026-08-25 fold batch (see Notes):
-#1695, #1705, #1706, #1707, #1708, #1709; plus the operator-ratified 2026-08-27 fold
-batch 2 (see Notes — 27 doc-truth/comment-lag `war-followup` issues from the
-engine-reliability campaign, prose/comment-only, no behavior change): #1737, #1738,
-#1740, #1741, #1742, #1743, #1744, #1752, #1764, #1765, #1766, #1769, #1771, #1772,
-#1791, #1793, #1800, #1801, #1802, #1804, #1812, #1814, #1817, #1832, #1841, #1842,
-#1843.
-
-## Context — the gap / problem
-
-Two intertwined classes of documentation debt; their coupling dictates the two-movement
-shape (fix prose, then pin the corrected prose — pin-after-fix, always).
-
-**Class 1 — prose that is false or lagging at HEAD.**
-
-- The CHANGELOG `## 0.19.0` entry — locate it by heading, never by position (the 0.20.0
-  release relocated the 0.19.0 blurb out of README, whose `## Status` now carries the
-  live head blurb and no 0.19.0 scope claim) — states an engine-scope absolute ("the run-time engine's only change is
-  the clustered filing prompt's `## Evidence artifacts` emission") that omits
-  `skills/red-team/assets/workflow-scaffold.js`'s dispatched-prompt (executable)
-  change (verified: issue #1662 (2026-08-25); re-verified at 5aeb8b3 — the defect
-  survives ONLY in CHANGELOG; the README half is moot, End state 17 retired). The
-  CHANGELOG preamble's universal "each
-  entry is that release's blurb as last edited before its supersession" does not cover a
-  freshly-authored head entry (verified: issue #1625 (2026-08-25); preamble unchanged at
-  5aeb8b3). Three relocated deictic
-  self-references are false or dangling in CHANGELOG.md — "this paragraph lives in the very
-  section `strip_prose` drops" (the 0.17.4 prose-stripped pin paragraph) and two "this
-  README" (the 0.17.0 spec-posterity bullet, the 0.15.0 entry) (verified: issue #1622
-  (2026-08-25); all three re-located by grep at 5aeb8b3 — the 0.20.0 head entry shifted
-  every line number, and the two non-head homes read 0.17.4/0.17.0, not the 0.18.x/0.19.0
-  homes recorded at authoring). The relocated 0.15.1 entry republishes a release-window scope
-  claim false of its own `90c3b44..46d42be` window (verified: issue #1621 (2026-08-25)).
-- Tour step 10 asserts a classified `gate_failed` cannot merge, omitting the
-  baseline/environment-proceed carve-outs (verified: issue #1618 (2026-08-25)); the tour's
-  scope-hook step anchors the `..`-traversal guard by "(line ≈51)" while the `case`
-  constructs in `hooks/validate-worktree-scope.sh` sit 24–30 lines lower at c8c22e5
-  (verified: issue #1292 (2026-08-25); the "(line ≈51)" literal re-confirmed at c8c22e5 — the 0.20.0 tour
-  retype left it in place; the scope-hook step sits at step 14, the merge-queue step at
-  step 10);
-  README still narrates "a 3-round fix budget" (defaults paragraph) and the retired `--ace`
-  single-attempt/whole-revert semantics (`--ace` argument row), and the tour is absent from
-  `war-config.test.mjs`'s roundLimit watched-surface array (the `surfaces` array inside the
-  `roundLimit default is 6` test) (verified: issue #1565 (2026-08-25)). Beyond the two
-  fixed steps, the tour carries a residual rot family this same campaign's ask phases
-  left behind: two stale roster-count snapshots (step 8's "default-trio fallback", step
-  9's "three independent unanimous seats" — the shipped default is a five-seat roster;
-  the economy preset keeps the historical quartet) and raw pattern-less step-level
-  `"line"` anchors (12 step-level `"line"` keys at c8c22e5; the file's other two
-  `"line"` occurrences are step 17's `selection` range coordinates, a schema-required
-  construct that stays) —
-  the absorb fixing them was forward-reverted at 9ce8d50 and never landed (verified:
-  issue #1709 (2026-08-25)).
-- The D3-fallback resolution line on the five agent cards is correctly plugin-repo-
-  conditioned ("…and the repo under review is the plugin itself…"), but
-  `skills/war/references/worker-servitor-edges.md`'s header residuals bullet, the plan
-  mirror `docs/plans/2026-08-06-references-pointer-integrity.md`, and ADR 0047's framing
-  present it as a general foreign-repo resolution path (verified: issue #1545 (2026-08-25);
-  issue #1678 (2026-08-25) — authority-first fix order). ADR 0047 item 1 declares ADR
-  0042's pointer shape "unchanged" while the same phase anchored the agent-card pointer's
-  path half (verified: issue #1537 (2026-08-25)). CONTEXT.md's _Avoid_ list mixes an
-  anti-pattern with a don't-confuse item without the house "not the …" marker, reading as
-  an inversion of ADR 0047 point 1 (verified: issue #1536 (2026-08-25)).
-- CONTEXT.md measures 124,809 B at 5aeb8b3 (it grew +70 lines at 0.20.0 — the seven
-  ask-disposition glossary terms) against
-  `prompt-surface-budgets.test.mjs`'s `{ hard: 126976, advisory: 111616 }` row
-  (both constants unchanged at 5aeb8b3) — past
-  advisory by ~12.9 KB, only ~2.1 KB from hard; the next comparable glossary addition reds
-  the suite (verified: issue #1651 (2026-08-25); bytes re-measured at 5aeb8b3).
-- ADR 0018's Decision row and the `const recovery` comment in `workflow-template.js` lag
-  the landed conditional branch derivation/refusal arms and the preMerged relaunch prompt
-  delta (verified: issue #1477 (2026-08-25)); ADR 0026 lacks an Addendum for the
-  now-existing dispatched-refiner gh-write class (file-followups) (verified: issue #1474
-  (2026-08-25)); and ADR 0013's 2026-08-20 amendment still attributes the
-  absorb-eligibility blockquotes to "the standing auditor card" — which the 0.20.0
-  eviction emptied into `skills/war/references/disposition-eligibility.md`, leaving only
-  a trigger pointer, so the amendment's attribution (and its
-  standing-surface-reaches-every-seat justification) is false at the tip; the parallel
-  sentence in `touched-doc-accuracy.md` was re-pointed, the ADR sibling was not
-  (verified: issue #1695 (2026-08-25)).
-- `skills/war/SKILL.md`'s ruled-ask filing bullet routes the filing "inside the
-  preflighted per-phase gh-write batch" — but that batch executes under `## Per phase`,
-  before the Checkpoint report, while a *ruled* ask exists only after the operator
-  answers the strike list: temporally unsatisfiable as written, and the new gh-write
-  site names no preflight of its own (the line-79 discipline); the sibling
-  Follow-up-filing-floor phrasing is identically loose (verified: issue #1708
-  (2026-08-25)).
-- Two archived lessons carry unsound recipes:
-  `docs/learnings/archive/prepush-condemnation-check-must-scope-full-unpushed-range-not-head-only.md`
-  (moved to `archive/` by the 2026-08-30 projection-tighten pass, commit 37e2ee0) still
-  prescribes the range probe without the fail-closed `git fetch` refresh (verified:
-  issue #1522 (2026-08-25); re-verified at c8c22e5 — zero `git fetch` hits); the archived awk lesson
-  `docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md` still states the
-  degeneracy backwards in its frontmatter `description` ("every stdin record is new" —
-  the corrected direction is every live ref reported removed); its BODY already carries
-  an appended `## Correction (2026-08-15, #1399)` section fixing the mechanism sentence
-  under the frozen-body convention, so the residual defect is the description alone
-  (verified: issue #1399; re-measured at 5aeb8b3).
-- `skills/war/references/schemas.md`'s ledger `doneWhen` row omits the value-vs-key
-  boundary and backtick-stripping that `skills/war/SKILL.md`'s intake bullet specifies
-  (verified: issue #1675 (2026-08-25); re-verified at 5aeb8b3 — the +11 lines schemas.md
-  gained at 0.20.0 are ask-shape rows; the `doneWhen` field row still carries neither
-  clause, and the SKILL.md intake bullet still states both).
-
-**Class 2 — guards that are missing, mis-scoped, or self-describing falsely.**
-
-- `skills/war/assets/reference-link-integrity.test.mjs`: `SCAN_DIRS = [AGENTS_DIR,
-  REFERENCES_DIR]` excludes README.md's relative links from every mechanical sweep
-  (verified: construct confirmed at 5aeb8b3; issue #1673 (2026-08-25)); the now-nine-entry
-  `QUALIFIED_HEADERS` list (`disposition-eligibility.md` joined at 0.20.0;
-  `budget-raise-floor.md`, `refiner-recovery.md`, `run-manifest.md` joined with plans
-  1–2) omits two live eviction destinations (`setup.md`, `docker-gate.md`) while its
-  coverage comment asserts a universal (verified: issues #1538, #1535, #1446
-  (2026-08-25); nine-entry list confirmed at c8c22e5 — `refiner-recovery.md` is a member
-  whose header carries the qualifier line-wrapped, invisible to a line-scoped grep);
-  the Arm-1 `anchoredProbe` round-trips `PLUGIN_ROOT_PREFIX` instead of asserting its
-  literal bytes — a self-referential positive control (verified: issue #1542 (2026-08-25));
-  `RETIRED_NO_PATH_FORM_CLAIM` scans header regions only, narrower than the whole-file
-  End-state grep it backstops, while sibling `RETIRED_REBASING_CAVEAT` scans whole text
-  (verified: issue #1677 (2026-08-25)); and the D3 fallback sentence on all five agent
-  cards has no standing guard at all (verified: issue #1539 (2026-08-25)).
-- `skills/war/assets/skill-doc-contracts.test.mjs`: the D36 Evidence-artifacts duty row
-  binds only the consumption surface on one generic key while the normative homes (ADR
-  0044, survey-corps SKILL.md, the clustered filing prompt) exist unguarded (verified:
-  issues #1652, #1676 (2026-08-25)); D36 asserts against whole canonical files, weaker
-  than D35's construct-extraction idiom in the same file (verified: issue #1683
-  (2026-08-25)); the D36 header comment miscounts parenthesized-token headers ("two",
-  actually one) (verified: issue #1653 (2026-08-25)); the D35 rationale cites "End states
-  3/10" wrongly (verified: issue #1654 (2026-08-25)); D33's "EVERY file under
-  skills/war/references/" comment overstates its flat `readdirSync` (verified: issue #1525
-  (2026-08-25)); D31's "Two clauses are load-bearing" lead-in omits two landed intake
-  clauses (verified: issue #1488 (2026-08-25)); `D31_INTERACTIVE_ARM`'s `(?!--afk)` gap
-  and two `D22_ORDERED_SPAN` fragments (do-not-push refusal, leading `docs(learnings)`
-  anchor) have no both-ways proof — dead-weight fragments that red nothing on deletion
-  (verified: issues #1521, #1689 (2026-08-25)); and the CONTEXT.md ↔ ADR 0013
-  Intent-ceiling latitude-clause mirror has no drift-guard row (verified: issue #1513
-  (2026-08-25); re-verified at c8c22e5 — the suite now runs through D43 plus D37a; the
-  0.20.0 growth added D37–D42, which bind the seven ask-disposition glossary terms and ADR 0013's 2026-08-25
-  ask amendment/ADR 0012 cross-ref (D38) only; none touches the 2026-08-17
-  latitude-clause amendment or the `**Intent ceiling / plan floor**` glossary entry —
-  every D36/D35/D33/D31/D22 anchor above also re-confirmed present at 5aeb8b3). The
-  0.20.0 D-rows carry their own pin defects, folded in by operator ratification: D37's
-  `Never-filed-unruled`/`Strike-list ruling gate` canonical-side keys
-  (`/consolidation/i`, `/file-followups…dispatch/i`) are satisfied by the sibling
-  Follow-up-filing-floor bullet inside the same `## Checkpoint` region — deleting the
-  ask-ruling-gate bullet's own clause leaves them green — and the row's rationale
-  comment claims an exclusion the code does not achieve (verified: issue #1705
-  (2026-08-25)); D40's `/never filed unruled/i` key matches two independent schemas.md
-  sites (the AuditVerdict `ask?` field comment and the GitHub-conventions bullet it
-  names), so the named clause is not independently pinned (verified: issue #1706
-  (2026-08-25)); and D19a's OLD-absent justification comment cites "the very literal
-  D19's block comment quotes" — a byte-run the same commit removed from D19's comment;
-  the true base carrier was CONTEXT.md's base blob (verified: issue #1707 (2026-08-25)).
-- `skills/war/assets/workflow-template.test.mjs`: the D6 keep-green census is a count-only
-  source pin blind to an occurrence relocating to a fixture-unreachable dispatch site,
-  with a looser regex than the sweep's matcher (verified: issue #1686 (2026-08-25)); no
-  test pins `agents/war-refiner.md`'s file-followups pointer to
-  `references/file-followups.md` nor the destination body to the dispatched prompt
-  literals (verified: issue #1587 (2026-08-25); re-verified at 5aeb8b3 —
-  `workflow-template.test.mjs`'s file-followups tests exercise dispatch behavior only;
-  the 0.20.0 D42 row in `skill-doc-contracts.test.mjs` pins ask-parity SENTENCES in
-  `file-followups.md` and the refiner card, not the pointer/procedure parity #1587 asks).
-- `skills/_shared/doc-cli-consistency.test.mjs`: `posterityCorpus()` does not scan
-  CHANGELOG.md though ADR 0046's ratified extension names it (verified: issue #1620
-  (2026-08-25)); `specCitations()` truncates at the first delimiter before the
-  bare-mention carve-out, silently discarding link-shaped citations with real spec
-  targets (verified: issue #1687 (2026-08-25); order re-confirmed in `specCitations()`
-  at 5aeb8b3 — the `cut` truncation still precedes every carve-out, and
-  `posterityCorpus()` pushes `README.md` but still not CHANGELOG.md).
-- `skills/war-machine/war-pipeline-structure.test.sh`: the war-review three→four
-  ratified-rows flip has a presence pin only, no OLD-absent `lacks_i` twin, and this
-  suite is its only possible host (verified: issue #1656 (2026-08-25); at 5aeb8b3
-  `skills/war-review/SKILL.md` carries the NEW "four ratified rows" phrasing and the
-  suite's WAR_REVIEW block — grown at 0.20.0 with the asks-tally and grind-measurement
-  row pins — still carries no `ratified rows` needle in either direction).
-
-**Why one plan, two movements:** the pin work in Class 2 asserts the exact bytes the
-Class 1 fixes rewrite. Pinning stale prose freezes the defect; fixing prose after its pin
-lands means editing two surfaces per fix. Every guard is authored against the
-movement-1-landed tree (phase edge between the movements). [assumed: pin-after-fix
-ordering doctrine — if wrong: guard suites red on every prose correction and each fix
-doubles in size]
-
-## Pivotal constraints
-
-- **Two movements, phase-ordered:** every prose-truth fix lands (Phase 1) before the
-  guard that pins its surface (Phase 2). Guards copy bytes from the merged Phase-1 tree,
-  never from issue text (§3 rule 7 satisfied by the phase edge, with one sanctioned
-  in-phase exception — the Phase 1 Task 1 → Task 2 README guard pair, split by an
-  explicit deps edge; the only same-task pairs are self-authored, e.g. Phase 2
-  Task 1's "at eviction time" header qualifications pinned by the same task's
-  `QUALIFIED_HEADERS` extension).
-- **Shared-suite serialization:** all Phase-2 edits to `skill-doc-contracts.test.mjs` are
-  one task; likewise `reference-link-integrity.test.mjs`, `workflow-template.test.mjs`,
-  `doc-cli-consistency.test.mjs`, `war-pipeline-structure.test.sh` — one owning task each.
-  Sanctioned exception (the Phase-1 preamble's lock-step rule): Phase 1 Task 8's #1708
-  rewrite moves the D37/D41 pin keys over the same bytes in the SAME commit — a coupling
-  updated lock-step, never a second owner (no Phase-1 sibling touches the suite;
-  Phase 2 Task 2 then reads the Phase-1-landed suite, phase-serial).
-- **Existing-pin safety:** README `## Status` and CHANGELOG head are pinned by
-  `version-slots.test.mjs` (Status token replace-in-place, newest-first head version, the
-  Status-blurb authoring checklist, Releasing prose halves) — the #1662 rescope edits
-  blurb *content* only, never the version token, heading structure, or checklist;
-  README.md is enumerated in `war-config.test.mjs`'s `RETIRED_CLAIM_SURFACES` — the #1565
-  README fix must not reintroduce any retired phrasing; CHANGELOG.md is deliberately
-  outside `war-pipeline-structure.test.sh`'s enumerated absence-scan lists (its header
-  comment says so) — no pin moves needed there. Every Phase-1 task runs the full JS +
-  shell suites locally and treats any red pin as a coupling to update lock-step, never a
-  pin to loosen.
-- **CONTEXT.md eviction discipline (ADR 0042, #1651):** byte-identical move into
-  `skills/war/references/glossary-cold.md` (an existing eviction destination, already in
-  `QUALIFIED_HEADERS`) plus trigger pointers — never a rewrite. Eviction targets are
-  chosen from cold glossary entries NOT covered by live drift-guard keys (D34–D36,
-  war-config.test.mjs's CONTEXT.md rows, and any key plan A added); the Intent-ceiling
-  latitude clause (about to be pinned by #1513 in Phase 2) must stay hot. Per the
-  recorded eviction lesson, evicted-bytes-minus-pointer arithmetic is routinely
-  optimistic — the End state is a **measured** `wc -c` below the advisory line
-  (111,616 B), with a working target of ≤ 110,000 B for real headroom; measure after,
-  not before.
-- **Lesson amendments preserve provenance:** both lessons are archived, so both take
-  the frozen-body convention — #1522 lands as an appended dated `## Correction` section
-  (the awk lesson's own precedent) plus a description touch, #1399 touches the
-  description only; `metadata.provenance` and slugs unchanged; both stay in
-  `archive/`; edits must pass `war-memory lint`.
-- **ADR amendments are addenda, never rewrites of ratified text** (#1474 requests the
-  0013-style Addendum form; #1477 an amendment row; #1537 a scope qualification appended
-  to item 1, not a rewrite of it).
-- **New guards must be both-ways proven** (the #1689 class): every added regex fragment
-  or pin carries a negative reference (fixture or scratch-deletion trace recorded in the
-  done report); no new dead-weight fragments.
-- **Cross-plan contention:** see the stacking preamble — this plan launches only after
-  plans A and B land.
--bearing literals; case-insensitive greps (`-i`) for every
+  strings; `grep -F` for `$`-bearing literals; case-insensitive greps (`-i`) for every
   retirement needle, anchored on a mid-sentence token (the sentence-case false-negative
   class); every "N hits at base" figure below was measured at c8c22e5.
 
@@ -606,7 +343,7 @@ None proposed (spec §6/§7). Existing ADRs amended in place: 0018 (amendment ro
   mirror row; the D6 census made relocation-blind-proof + the file-followups paired
   pins; the `specCitations()` seam fix (the CHANGELOG corpus widening is retired — ADR 0046
   excludes it); the war-review OLD-absent/presence pair. Folded issues with no End-state
-  needle (#1772, #1804 in Task 4; #1801 in Task 5; #1842 in Task 10) are proven by the
+  needle (#1772, #1804 in Task 4; #1842 in Task 10) are proven by the
   owning task's done-report before/after quotes, the same path Task 7's non-literal rows
   take. Phase 3 bumps the four release slots
   directively.
@@ -1013,10 +750,16 @@ commit, never loosened.
   on `held:land-failed` the follow-up filing dispatch still runs, or the handoff
   carries an explicit unfiled-followups block) falsifies the row's stricter claim; the
   `resume-and-recovery.md` sentence is the TRUE side and stays byte-untouched here
-  (verified: issue #1801 (2026-08-26)). (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
+  (verified: issue #1801 (2026-08-26)). (#1801 disjunct — RETIRED at the 2026-09-06
+  engine-and-audit-verdict-integrity Task 1.2 re-adjudication: the handoff emit gate
+  is `landed` + `held:escalation` only, so on `held:land-failed` the stamped issues
+  ride the top-level return's `minorsFiled`; the CONTEXT.md row correction itself
+  stands, no edit here — the row landed at the 2026-09-06 plan's Task 1.2; the issue
+  closes on that record). (#1812, CONTEXT home — RETIRED at the 2026-09-03 re-amendment: plan 2 landed the
   floor-retry-reserve wording in CONTEXT.md's **Ace bisection** row; verified at the
-  plan-4 base `a8a9391`, no edit here). The #1801 edit is byte-additive-neutral or
-  negative — it must not undo this task's eviction arithmetic (re-run wc -c after it).
+  plan-4 base `a8a9391`, no edit here). Moot under the #1801 retirement above: the
+  #1801 edit is byte-additive-neutral or negative — it must not undo this task's
+  eviction arithmetic (re-run wc -c after it).
 - Done when: node --test skills/war/assets/prompt-surface-budgets.test.mjs
 - requiresTest: false
 - requiresPackaging: false
@@ -1479,7 +1222,8 @@ pin ships with a both-ways proof (fixture or scratch-deletion trace in the done 
   append-only (23–26 new, none renumbered); the addressed-issues enumeration grew
   45 → 72. #1812 was a cross-task fold (four prose homes, four owning tasks); plan 2
   (in-run-finding-resolution, 0.21.0) landed all four homes, so its rows were retired
-  at the 2026-09-03 re-amendment and End state 24 became a no-regress floor.
+  at the 2026-09-03 re-amendment and End state 24 became a no-regress floor. #1801 was
+  retired the same way at the 2026-09-06 re-adjudication.
   **Deliberate exclusions from the fold** (recorded so red-team does not re-litigate):
   #1816 and #1803 — verified ALREADY FIXED at the plan-1 landed tip (the phase-7
   absorb commit corrected the census comment; the CONTEXT Budget-Raise appositive was

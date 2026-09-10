@@ -1,9 +1,11 @@
 # Disposition eligibility — the auditor's absorb / ask routing calls
 
-Verbatim eviction from `agents/war-auditor.md` (ask-disposition Task 1.1, ADR 0042; the two
-eligibility blockquotes below were byte-identical to their pre-eviction card text **at eviction
-time** — the `> ` blockquote form kept intact). The card keeps the DISPOSITION RULE sentence (the
-byte-mirror of the dispatched prompt) plus one fixed-shape trigger pointer to this file.
+Verbatim eviction from `agents/war-auditor.md` (ask-disposition Task 1.1, ADR 0042; the
+absorb-disposition and Source-derivable eligibility blockquotes below were byte-identical to their
+pre-eviction card text **at eviction time**; the Release-slot-eligibility blockquote beside them
+is NEW prose (D20, 2026-09-08), never an eviction — the `> ` blockquote form kept intact). The
+card keeps the DISPOSITION RULE sentence (the byte-mirror of the dispatched prompt) plus one
+fixed-shape trigger pointer to this file.
 Positional words inside the moved blocks refer to their original card position — they sat in the
 card's Verdict section, directly under the Cost-claim rule bullet. The Ask eligibility and Barrier
 list sections below are NEW prose (the ask-disposition and in-band-absorb-default channels), not
@@ -13,6 +15,7 @@ evictions.
 
 > **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a fully specified `Minor`/`Nit` — the in-diff and out-of-diff default (Barrier list below); `follow-up` is legal **only** with a `barrier` tag from that list — a scope argument (another task's file, several files, a load-bearing line) is never a barrier — and `note`/`ask` route on their own tests. You read the code, so you own the barrier calls; the orchestrator adds the deterministic release-slot refusal (`plugin.json`/`marketplace.json`, `RELEASE_SLOT_FILES`), the sweep exclusion set (a foreign-owned file demotes naming its owner), and the diff-probe intake floor that applies the same default when `disposition` is omitted. Absorbs are attempted as ONE ace batch commit; on a re-audit regression the engine's bounded ace bisection ladder (`aceBisect` in `workflow-template.js`) salvages what it can — you may be re-convened at batch or subset SHAs; only finally-failing subsets demote to `follow-up`, every demotion logged per subset. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
 > **Source-derivable eligibility.** A doc fact deterministically re-derivable from a machine-readable in-repo source (a JSON field, an exported constant, an enum member) is **mechanical regardless of value count**; the fix's **write footprint** is the doc being corrected — never the source it reads from. Only the accompanying policy question (mirror the value vs point at the source) routes as an `ask`.
+> **Release-slot eligibility by literal (D20, #2000).** Only the `RELEASE_SLOT_FILES` basenames (canonical in `skills/war/assets/land-decision.mjs`) refuse by filename, and the release-slot barrier below names those two files only. A fully specified `Minor`/`Nit` on `CHANGELOG.md` or `README.md` is `absorb`-eligible when its fix moves no version literal, no CHANGELOG head heading and no README `## Status` version token; a fix that moves one is a release change, never a Minor. The merge guard is `version-slots.test.mjs` in the gate (it reds a slot moved out of lock-step) — no engine literal detector exists, and the ace prompt cites that guard on a release task.
 
 ## Disposition widenings (in-run-finding-resolution D3/D4/D5)
 

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync, cpSync, mkdirSync, renameSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { buildSnipePlugin, verifySnipePlugin } from './package-snipe.mjs'
+import { buildPlanningPlugin } from './package-planning.mjs'
 test('Snipe builder executes through a filesystem alias',t=>{
   const root=mkdtempSync(join(tmpdir(),'snipe-builder-alias-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const alias=join(root,'builder.mjs'),output=join(root,'package')
@@ -95,4 +96,41 @@ test('S-A16 rejects a wrong skill component and fails closed when a shared file 
   ], { encoding: 'utf8' })
   assert.notEqual(load.status, 0)
   assert.match(load.stderr, /ERR_MODULE_NOT_FOUND/)
+})
+
+
+test('both builders reject symlinked source roots, ancestors, leaves and version input before output', t => {
+  const root=mkdtempSync(join(tmpdir(),'war-package-source-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const source=join(root,'source');mkdirSync(source)
+  for(const path of ['adapters/codex','skills','.claude-plugin','docs/adr'])cpSync(join(repoRoot,path),join(source,path),{recursive:true})
+  for(const [name,build] of [['snipe',buildSnipePlugin],['planning',buildPlanningPlugin]]) {
+    for(const path of ['', 'adapters', 'skills', '.claude-plugin', '.claude-plugin/plugin.json', 'adapters/codex/skills/snipe/assets/snipe-process.mjs']) {
+      const target=path ? join(source,path) : source,saved=join(root,'saved')
+      renameSync(target,saved);symlinkSync(saved,target)
+      const output=join(root,'output')
+      try {
+        assert.throws(()=>build({repoRoot:source,output}),/source/,`${name}: ${path || 'root'}`)
+        assert.equal(existsSync(output),false,'refusal must precede output creation')
+      } finally {rmSync(target);renameSync(saved,target);rmSync(output,{recursive:true,force:true})}
+    }
+  }
+})
+
+test('shared source root, ancestor and regular-leaf checks fail disposable mutation oracles', async t => {
+  const root=mkdtempSync(join(tmpdir(),'war-source-mutants-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const source=join(root,'source');mkdirSync(join(source,'real'),{recursive:true});writeFileSync(join(source,'real/file'),'fixture')
+  symlinkSync(join(source,'real'),join(source,'alias'));symlinkSync(source,join(root,'root-alias'))
+  const original=readFileSync(new URL('./package-source.mjs',import.meta.url),'utf8')
+  const {regularSource}=await import('./package-source.mjs')
+  for(const [index,from,to,base,path] of [
+    [0,"!lstatSync(root,{throwIfNoEntry:false})?.isDirectory()",'false',join(root,'root-alias'),'real/file'],
+    [1,'!stat || stat.isSymbolicLink()','!stat',source,'alias/file'],
+    [2,'!lstatSync(current).isFile()','false',source,'real'],
+  ]) {
+    assert.ok(original.includes(from))
+    const file=join(root,`${index}.mjs`);writeFileSync(file,original.replace(from,to))
+    const mutant=await import(pathToFileURL(file))
+    const oracle=read=>assert.throws(()=>read(base,path),/source/)
+    oracle(regularSource);assert.throws(()=>oracle(mutant.regularSource),{name:'AssertionError'})
+  }
 })

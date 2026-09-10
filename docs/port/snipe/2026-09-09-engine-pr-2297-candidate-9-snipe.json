@@ -1,0 +1,292 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...fbb9d048f13458aade491c2ceb5124c5ccb5c08f",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "package": {
+    "package": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+    "version": "0.21.12+codex.20260908.8fd30f3",
+    "files": [
+      {
+        "path": ".codex-plugin/plugin.json",
+        "sha256": "d6439680c4077f7c756daec328b32474f06915bb253d3db9da4f6ea3dfc09c11"
+      },
+      {
+        "path": "skills/snipe/SKILL.md",
+        "sha256": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e"
+      },
+      {
+        "path": "skills/snipe/agents/openai.yaml",
+        "sha256": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/_shared/provision.mjs",
+        "sha256": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs",
+        "sha256": "7ca610e53eeaad4a54d0fe37a5d0697a812e3ab607441a462904cc7f852c2fe2"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/war/assets/war-config.mjs",
+        "sha256": "cb13307c39eafc6469514ee547a0c543a7e066873e9c40abe8160c1145df37a2"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-files.mjs",
+        "sha256": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-git-policy.mjs",
+        "sha256": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-process.mjs",
+        "sha256": "248ba9edfcaf2b384bfce0989fe348e09d763ba320058a7e8be7b05d7e66a6a5"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-request.mjs",
+        "sha256": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-result.mjs",
+        "sha256": "f1c17a343ce45b8f427481ace3eaa4e16ef6d8e0c29a15a9875046c62cd9dd5c"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-runner.mjs",
+        "sha256": "8c86b7181a07250177caaf6eccbb38e2aec5ff6777e65e48ef90ddeb81bf6870"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-submodules.mjs",
+        "sha256": "6a243eec24aa9e726fba8f00315b2d29379789aee236f9a0791e23545c11243c"
+      },
+      {
+        "path": "skills/snipe/references/auditing-fixes.md",
+        "sha256": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f"
+      },
+      {
+        "path": "skills/snipe/references/codex-auditor.md",
+        "sha256": "098cdabea5f0160db7957fd897ce8debd0351ddc15b3ca435e4f7b7d600bea7d"
+      },
+      {
+        "path": "skills/snipe/references/post-audit-fixes.md",
+        "sha256": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5"
+      },
+      {
+        "path": "skills/snipe/references/submodules.md",
+        "sha256": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
+      }
+    ],
+    "manifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92"
+  },
+  "resultSha256": "7e1a1cf908f4135ec67c425d24f2bc403368e216e0c3ec8ae517e7ed2be987aa",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f"
+        },
+        "verdict": "approve",
+        "confidence": "medium",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/war-config.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Holder-aware worktree failure handling remains triplicated",
+            "file": "skills/war/assets/provision-worktrees.sh",
+            "locator": "cmd_ensure_publication_worktree add-failure arm; siblings in cmd_ensure_worktree and cmd_ensure_refinery_worktree",
+            "line": 1668,
+            "rationale": "The publication-worktree repair adds a third copy of the same branch_holder_path lookup, fallback-message construction, conditional holder diagnostic, and die sequence already present in the ordinary and refinery worktree arms. The reviewed change itself demonstrates the maintenance cost: the publication copy had drifted by omitting the holder path. All three behavioral cases are independently covered, so one small shared renderer can preserve their command-specific prefixes while removing the repeated mechanism.",
+            "suggested_fix": "Extract one holder-aware add-failure helper parameterized by branch, base message, and holder-present remediation text; call it from all three failed git-worktree-add arms and retain the existing three behavioral assertions.",
+            "disposition": "absorb"
+          },
+          {
+            "severity": "Minor",
+            "title": "The uncertain-merge dispatch duplicates its canonical recovery procedure",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "reconcileMerge recovery prompt",
+            "line": 2202,
+            "rationale": "reconcileMerge tells the refiner to read refiner-recovery.md \u00a7 Uncertain merge reconciliation, then repeats the task-recovery, land-recovery, safety, and result-shape rules inline. The referenced section already owns those obligations, while MERGE_RECONCILIATION and the engine's subsequent checks enforce the returned evidence. Keeping both normative copies enlarges every recovery prompt and creates a drift surface; the inspected prompt test currently pins an inline detail rather than checking the canonical pointer.",
+            "suggested_fix": "Keep the dynamic context, immutable snapshot, prior response, canonical-section pointer, original operation, gate-capture clause, schema, and engine-side validation; remove the duplicated static recovery procedure and adjust the prompt test to require the canonical pointer and dynamic inputs.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Relative submodule roots discard valid absolute gate artifacts",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "newGateCapture/admitGateResult and submodule task/land contexts",
+            "line": 2526,
+            "rationale": "The documented task contract permits `targetRepo` as a superproject-relative path (`skills/war/references/schemas.md`, targetRepo row), while the gate contract requires the refiner to return an absolute `gate_log_path`. For submodule task merges and phase land, the new code passes `task.targetRepo` directly as `context.repo`; `newGateCapture` therefore builds a relative prefix such as `vendor/lib/.war/gate-\u2026`, but `admitGateResult` accepts only paths starting byte-for-byte with that prefix. A compliant absolute result such as `/repo/vendor/lib/.war/gate-\u2026/gate.log` is consequently replaced with `undefined`. The downstream per-task gate-audit receives an unthreaded artifact and is explicitly required to downgrade the missing authoritative evidence to SOFT cannot-confirm, so a submodule task can still land without the hard mapped-test/provably-unrun check the capture boundary is meant to preserve. Segmented continuations also lose the returned path and cannot reconnect to their original writer. Existing submodule Git-certainty tests use absolute synthetic `targetRepo` values, while the relative-path fixture does not assert artifact admission, so this contract combination is uncovered.",
+            "suggested_fix": "Resolve each submodule repository to one canonical absolute path before constructing merge/land contexts and gate-capture prefixes (for example, join a relative targetRepo to the validated main checkout while preserving an already-absolute value). Use that same canonical path across snapshot, reconciliation, capture, and downstream artifact threading. Add a submodule regression with a relative targetRepo whose refiner returns the required absolute gate path, and verify the path reaches both a segmented continuation and the post-merge gate-audit."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/assert-test-in-diff.test.sh",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

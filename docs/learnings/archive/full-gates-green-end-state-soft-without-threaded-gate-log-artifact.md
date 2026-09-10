@@ -5,10 +5,13 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-08-06-verdict-adjudication-integrity@phase-2
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-12
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +18 recurrences (latest 2026-08-25-engine-reliability-and-filing-fidelity/phase-7 task 7.2)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +23 recurrences (latest 2026-09-06-engine-and-audit-verdict-integrity/phase-14 task phase-14-end-state)"
   keywords:
+    - artifact predates tip commits
+    - post-release commits land after gate capture
+    - same plan three phases
     - full gates green
     - gate-log artifact
     - pin_status
@@ -56,6 +59,13 @@ metadata:
     - sentinel integration_sha unrecorded malformed
     - evidence threading gap
     - gate_log_path unthreaded
+    - endStateAttestations
+    - empty findings array
+    - findings vs attestation evidence
+    - GATE_LOG_STAMP
+    - GATE_LOG_READ_RULE
+    - refiner-agent compliance
+    - coded fix still not followed
   tags:
     - audit-pipeline
     - gate-audit
@@ -63,9 +73,9 @@ metadata:
     - release
     - test-strategy
   created: 2026-07-15
-  updated: 2026-08-05
+  updated: 2026-09-08
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-08-26T22:43:52.305Z
+  modified: 2026-09-09T04:38:38.776Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -464,6 +474,54 @@ a shortcut to HARD absent the token itself). Verdict `gate-audit:approve`, `hard
 rule (Recurrence 7) continue to hold at a seventeenth occurrence, tenth-plus campaign; no new
 nuance, recorded for occurrence-count/date freshness only.
 
+## Recurrence 21 (2026-09-07, plan `2026-09-06-engine-and-audit-verdict-integrity`, phase 8
+"Re-entry and the ace ladder", task 8.1 `gate-audit:approve`) — the engine now CODES and TESTS the
+`tip_sha:`/`exit_code:` stamp as a first-class refiner instruction, yet the live capture for the
+very task the instruction landed with still ships unstamped
+
+Twenty-first occurrence, and a sharper instance of the "recommended fix, still unactioned"
+framing (Recurrences 10/12/15/16/18/19/20): this plan's own End state 10 mandated exactly the fix
+this lesson has recommended since Recurrence 12 — "every gate-log artifact opens with `tip_sha:`
+and closes with `exit_code:`" — and an earlier phase of this same plan landed it as a first-class
+prompt instruction, `GATE_LOG_STAMP` (`skills/war/assets/workflow-template.js` line 2192,
+`code-verified` at the landed tip `8884782176ff60a2c93eb249f328aa2751eac060`, read via the
+`_refinery46` worktree, gitdir physical path
+`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`):
+
+```js
+const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the sha the gate ran
+at>\` and its LAST line is \`exit_code: <the gate's exit code>\`, written after the gate exits...`
+```
+
+with a green fixture (`gate-log stamp`) proving the prompt assembly is correct. Yet the gate-audit
+for task 8.1 itself found `.war/gate-8.1.log` — the artifact for the very task whose diff this
+instruction shipped in an earlier phase of — still opens with a bare `node --test` title line and
+closes with `All 10 checks passed`, neither `tip_sha:` nor `exit_code:`. **Code-verified**
+directly: read `.war/gate-8.1.log` at the same `_refinery46` worktree, line 1 is a test-tick line,
+last content line (3438) is `All 10 checks passed`.
+
+**New nuance over Recurrences 1-20:** every prior recurrence's "recommended fix, still unactioned"
+framing was about a fix that was still only a *recommendation* — no engine or prompt code existed
+yet to require the stamp. This occurrence is the first where the fix genuinely IS coded, tested,
+and green (`GATE_LOG_STAMP`, the `gate-log stamp` fixture, the `GATE_LOG_READ_RULE` two-sided
+read), and the live artifact from the very phase implementing it *still* did not comply. The
+gate-audit seat itself reasoned through why this is not a land risk (the engine's own partial-log
+rule reruns an unstamped log from scratch on re-dispatch rather than reading it as partial or
+stale — fail-safe by construction) and stayed HARD-capable via the confirmed pinned `auditSha`
+rather than the artifact's own bytes. **The gap this confirms is refiner-agent compliance, not
+missing instruction:** a correctly-coded, tested prompt directive does not guarantee a live
+refiner agent's captured artifact actually follows it — a future gate-audit or servitor seat
+should not assume a green `gate-log stamp` fixture means the *next* live capture will carry the
+stamp; check the artifact itself.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-20) is unaffected — this occurrence's
+gate-audit stayed `approve`/`hard:false`/`gateEvidence:true`/`disposition:note`/Minor, matching
+the standing rule exactly. The "stamp every gate artifact" engine-level fix (wished for since
+Recurrence 10, partially hand-applied per Recurrences 15/16) has now been fully coded and tested
+as a standing prompt instruction — the recurring gap has moved from "not yet built" to "built,
+tested, and still not always followed by the live agent," which is a narrower and more specific
+residual than any of Recurrences 1-20 named.
+
 Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
 evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
 (how the four release slots were independently re-verified after this servitor's own cwd proved
@@ -672,4 +730,159 @@ enum, not observed live); and the "threading, not production, is the recurring g
 (Recurrences 10/12/15/16) gains its sharpest instance yet — fresh, green, correctly-tip-stamped
 evidence sitting unused for want of a threaded path.
 
+## Recurrence 19 (2026-08-27, plan `2026-08-27-in-run-finding-resolution`, phase 2 "Release", task 2.0
+`gate-audit:approve`) — nineteenth occurrence, same ERROR/sentinel `pin_status` + `gate_log_path`-unthreaded
+shape as Recurrence 18, one phase/campaign later, still unfixed
+
+Nineteenth occurrence, and a near-exact repeat of Recurrence 18's shape (`ERROR`/sentinel
+`pin_status`, `gate_log_path` unthreaded despite a fresh, green, conventionally-pathed artifact
+sitting on disk) in a different plan/campaign the very next phase-2 landed. The gate-audit for task
+2.0 stamped `gateHeadSha: "(integration_sha unrecorded/malformed)"` (the sentinel) and the evidence
+dispatch read `"GATE LOG ARTIFACT: (no gate-log artifact path recorded)"` — yet the conventional
+path `_refinery/.war/gate-2.0.log` held a complete, fresh, fully green capture (node half `pass 1360
+/ fail 0`). The seat correctly downgraded to SOFT/`note`/Minor (`gate-audit:approve`, `hard:false`,
+`gateEvidence:true`) rather than holding, and independently corroborated the artifact's correspondence
+to the observed tip via the same content-at-pin technique Recurrences 13/14/18 use: a node test title
+present in the captured log (`'ruled-ask intake (S3, container level): a present-but-non-array
+args.ruledAsks ... is IGNORED with one loud log line and zero records queue'`) was confirmed, via
+`git show <tip> -- ...test.mjs`, to have been ADDED by the tip commit itself — proving the captured
+gate ran against a tree carrying the tip's own content even though the pin could not be confirmed
+mechanically. A second finding from the same audit round again filed `disposition: follow-up`
+(root cause upstream of the task's own slice, in the merge/land dispatch's `integration_sha`/
+`gate_log_path` capture — not absorbable within this task), again recommending the evidence dispatch
+fall back to probing `_refinery/.war/gate-<taskId>.log` when `gate_log_path` is unthreaded.
+
+**`code-verified`** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery34`
+worktree's `gitdir` physical path is
+`<repo-root>/.claude/war-worktrees/2026-08-27-in-run-finding-resolution-2026-08-27-r3/_refinery/.git`
+(contains the plan slug) and its `HEAD` reads `121da3bdae390583c3c50f04d408605398b54460`, exactly the
+threaded landed tip — a direct Read there is `code-verified`-capable. `_refinery/.war/gate-2.0.log`
+exists at that worktree and contains the cited test title (confirmed via Grep); the underlying
+`integration_sha`/`gate_log_path` threading mechanism in `skills/war/assets/workflow-template.js`
+(the `pinOrSentinel(mr.integration_sha)` call and the `gate_log_path` MergeResult field, both still
+present at this tip) is unchanged from Recurrence 18's description.
+
+**Confirms, does not sharpen:** the SOFT-never-hold family (Recurrences 1-18) is unaffected, and
+Recurrence 18's "threading, not production, is the recurring gap" framing gains a second, back-to-back
+instance one phase later — the recommended fix (evidence-dispatch fallback to the conventional
+`gate-<taskId>.log` path when `gate_log_path` is absent) remains unactioned across two consecutive
+occurrences now spanning two separate plans. A servitor/Lead encountering a bare
+`"(integration_sha unrecorded/malformed)"` sentinel should, per Recurrences 18-19, always check the
+conventional `_refinery/.war/gate-<taskId>.log` path by hand before treating the audit's execution
+evidence as genuinely absent.
+
+## Recurrence 20 (2026-08-30, plan `2026-08-30-engine-concurrency-and-pin-transfer`, phase 3
+"Release", task 3.1 `phase-3-end-state` gate-audit) — twentieth occurrence, same underlying
+artifact gap, but the seat filed ZERO `findings` this time, relying only on the
+`endStateAttestations` evidence field
+
+Twentieth occurrence, and the same underlying artifact shape as Recurrences 1-19: two per-task gate
+logs (`gate-3.0.log`, `gate-3.1.log`) exist, no integrated-tip `gate-phase-3.log` was ever produced,
+and neither log carries a `tip_sha`/`pin_status` stamp on its first line (`code-verified` at the
+landed tip `f994cb0c9a3079a8d577848768d6c45b0842e222`, read via the `_refinery` worktree matching
+that SHA, gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/engine-concurrency-and-pin-transfer-2026-08-30/_refinery/`:
+`.war/gate-3.1.log` line 1 is a bare `✔ ...` test-tick line, no stamp). **What differs from all 19
+prior recurrences:** the gate-audit's `findings` array was completely empty (`[]`) — no
+`disposition:note`/Nit was filed at all documenting the missing-stamp gap. Instead the seat recorded
+its full reasoning inside the newer `endStateAttestations` field (`condition`/`status:"met"`/
+`evidence` triples, an already-existing channel — see
+[[engine-change-landed-this-run-cannot-exercise-itself-same-run]] for its introduction), citing a
+full read of both captured logs (node summary `1422 pass / 0 fail` in each, bash suite reaching its
+final discovered suite cleanly) and cross-checking the two logs are "structurally identical" as its
+`met` justification — a Recurrence-4/13/14-style corroboration, but folded entirely into the
+attestation prose rather than surfaced as a separate SOFT Nit in `findings`.
+
+**New nuance over Recurrences 1-19:** every prior recurrence's `met`/`approve` verdict was paired
+with an explicit `disposition:note` finding naming the gap (missing stamp, no integrated-tip log,
+etc.) — a future reader could always find the SOFT caveat by scanning `findings`. This occurrence
+shows that assumption is not safe: a `gate-audit` verdict can be `hard:false`/`gateEvidence:true`
+with `findings:[]` while the SAME artifact gap this whole lesson describes is still present and
+still the operative reasoning — it has just migrated into `endStateAttestations[].evidence` prose
+instead. **A future servitor or auditor checking "did this pass flag the missing-stamp gap"
+must read `endStateAttestations` evidence text, not just count/scan `findings` — an empty
+`findings` array is no longer proof the gap went unnoticed or unmitigated.**
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-19) and the underlying artifact gap
+(no `tip_sha` stamp, no integrated-tip `gate-phase-<n>.log`) are both unaffected and still open at a
+twentieth occurrence and roughly a dozen separate campaigns; the "stamp every gate artifact" fix
+(Recurrences 10/12/15/16) remains unactioned.
+
 > archived 2026-08-17: resolved — moved to archive
+
+## Recurrence 21 (2026-09-08, plan `2026-09-06-engine-and-audit-verdict-integrity`, phase 12
+"Release-slot eligibility by literal", tasks 12.1 and 12.2 `gate-audit:approve`) — same underlying
+stamp gap, this time on the phase that landed the `tip_sha:`/`exit_code:` stamp as engine doctrine
+
+Twenty-first occurrence, and a sharper instance than most: `_refinery/.war/gate-12.1.log` and
+`_refinery/.war/gate-12.2.log` both open with a bare node-reporter tick line, not `tip_sha:`, and
+both close with `All 10 checks passed`, not `exit_code:` (code-verified — landed tip
+`48a7120616627a35ecf2a05e76e34d15dcf985a3` on `dev/2026-09-06-engine-and-audit-verdict-integrity`,
+read directly at `<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/.war/gate-12.1.log`
+and the sibling `gate-12.2.log`; line 1 of each confirmed a test-tick line, not a stamp). The
+engine-side clause this whole lesson has recommended since Recurrence 12 — "every gate-log artifact
+opens with `tip_sha:` and closes with `exit_code:`" — is not a recommendation on this phase: this
+very phase's own Commander's Intent End state 10 mandated `gateCaptureClause` and the fixture
+`gate-log stamp — gateCaptureClause and the refiner card stamp tip_sha: first and exit_code: last on
+every .war/gate-<taskId>.log`, and both landed and pass at this tip. **The gap is confirmed to be an
+operational/runtime one, not a missing-code one:** the sibling artifact `endstate-12-1.log` in the
+SAME directory, produced by the SAME refiner run, IS correctly stamped (`tip_sha:` line 1,
+`exit_code: 0` closing line), so the refiner's endstate-check dispatch honors
+`GATE_LOG_STAMP`-equivalent discipline while its gate-capture dispatch for the very same task does
+not.
+
+**New nuance over Recurrences 1-20:** every prior recurrence involved a lesson that had NOT yet
+landed the stamp clause as engine doctrine — the gap was "the fix isn't written yet, or isn't
+tested yet." This occurrence is the first where the stamp clause is landed, tested, and green in
+the SAME repo, at the SAME tip, for a SIBLING artifact class (`endstate-*.log`) produced by the
+SAME dispatching agent in the SAME run — and the `gate-*.log` artifact still ships unstamped. This
+sharpens the "threading/capture, not code, is the recurring gap" framing (Recurrences 10/12/15/16):
+the code path that stamps DOES exist and DOES work (proven by the endstate log), so the gap is
+specifically in the gate-capture code path not calling it, or the refiner's live invocation
+short-circuiting before the stamp write.
+
+**Consequence, still soft:** the gate-audit seat downgraded both findings to `Minor`/`note`
+(non-blocking) because the artifact BODY was still readable and green (`gate-12.1.log`: `All 10
+checks passed`; `gate-12.2.log`: `ℹ pass 1707 / ℹ fail 0` plus every `== gate(bash):` suite
+reporting 0 failed) and a SEPARATE, correctly-stamped artifact (`endstate-12-1.log`, `tip_sha:`
+byte-equal to the confirmed tip) corroborated the pin was not stale — the Recurrence 13/14/18-style
+cross-artifact corroboration technique this lesson has documented repeatedly.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-20) is unaffected, and the "fix landed in
+code, gap persists in the live capture" framing gets its cleanest same-run, same-tip, sibling-artifact
+proof yet — do not assume a green `gate-log stamp` fixture means every `.war/gate-<taskId>.log`
+this phase actually landed carries the stamp; check the artifact itself.
+
+## Recurrence 22 (2026-09-07/08, plan `2026-09-06-engine-and-audit-verdict-integrity`, phase 14
+"Release", task `phase-14-end-state` gate-audit) — third occurrence of this same gap within ONE
+plan (after phase 8's and phase 12's entries, both mislabeled "Recurrence 21" above — a pre-existing
+numbering collision in this file, left as-is), now on the plan's own terminal Release phase, plus a
+new "artifact predates the tip" sub-shape
+
+Twenty-second occurrence overall. `_refinery/.war/gate-14.1.log` opens with a bare node-reporter
+tick line and closes mid the `schemas-manifest.test.sh` suite's own `ok`/count lines — neither
+`tip_sha:` nor `exit_code:`, the identical unstamped shape as every prior recurrence. `code-verified`
+at the landed tip `05bb597210df34fa6c88194a921f19a47d2fa538` (worktree lookup rung 2: the
+`_refinery` worktree's gitdir physical path
+`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/.git`
+contains this plan's slug and its `HEAD` reads the exact landed tip): line 1 of `gate-14.1.log` is a
+test-tick line; the tail ends mid the `schemas-manifest` suite output, no `exit_code:` line;
+`gate-phase-14.log` does not exist anywhere under that worktree's `.war/` directory (Glob zero
+matches).
+
+**New sub-shape, layered on the plain missing-stamp gap:** the gate-audit's own rationale (auditSha
+`33a3631ad11d17b87dbdba7ad13ed3be86956cbe`, `gateEvidence:true`) additionally names that several
+commits (`8788bf7d`, `a445cb6e`, `70c1bb22`, `82fa2967`, `33a3631a`) landed on `README.md`/
+`CHANGELOG.md` **after** the release commit `gate-14.1.log` gates — the same "artifact captured
+before later commits land" timing gap Recurrence 11 first named for a phase-close `--ace` polish
+commit, here recurring for a release phase's own post-release ace re-entry commits. The seat stayed
+SOFT/`note`/Minor (`gate-audit:approve`, `hard:false`) rather than holding, per the standing rule.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-21) is unaffected. **New signal:** this is
+the third time this exact unstamped-gate-log gap has surfaced within one single plan/run (phase 8,
+phase 12, phase 14 of `2026-09-06-engine-and-audit-verdict-integrity`) — the `GATE_LOG_STAMP` prompt
+clause landed and is tested green (per the phase-8 entry), yet the live refiner capture still never
+carries it three phases later, including on the plan's own terminal Release phase. A Lead/operator
+should treat this as strong evidence the gap is a refiner-invocation/tooling default, not a
+per-phase fluke — worth escalating out of the recurring-Nit lane per Recurrence 10's original
+recommendation.

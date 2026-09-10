@@ -275,3 +275,11 @@ test('oracle guard mutations fail assertions rather than merely failing to initi
     }
   } finally { rmSync(dir, {recursive:true, force:true}) }
 })
+
+test('P02 uses canonical blocking severity without a Minor-only disposition', () => {
+  const left=observation('P02','claude'),right=observation('P02','codex')
+  assert.deepEqual(left.facts.blockedAudit.findings,[{id:'major-1',severity:'Major'}])
+  assert.doesNotThrow(()=>compareObservations(left,right))
+  for(const record of [left,right])record.facts.blockedAudit.findings[0].disposition='absorb'
+  assert.throws(()=>compareObservations(left,right),/initial Major/)
+})

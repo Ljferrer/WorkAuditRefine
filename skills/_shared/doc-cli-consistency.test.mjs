@@ -172,6 +172,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // byte-identical from agents/war-refiner.md (in-band-absorb-default D12, ADR 0042); its only
   // command prose is git (the base re-run / re-attach idiom) — no scanned-module verb.
   'skills/war/references/gate-failure-classification.md',
+  // fix-round-doctrine.md is the canonical home of the fixer rules (#2097, operator ruling
+  // 2026-09-07); its `## The rules` section is mirrored byte-equal into the fix-applying dispatched
+  // prompts. Its only command prose is a `grep` sibling sweep — no scanned-module verb, and the file
+  // makes no byte-identity claim over an evicted card block, so no QUALIFIED_HEADERS row is owed.
+  'skills/war/references/fix-round-doctrine.md',
   // gate-audit-checklist.md holds the `execution-evidence` gate-audit checklist section evicted
   // byte-identical from agents/war-auditor.md (in-band-absorb-default D16, ADR 0042); its only
   // command prose is read-only git (`cat-file -t` / `rev-parse`) — no scanned-module verb.

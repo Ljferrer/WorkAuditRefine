@@ -56,6 +56,10 @@ test('done-unmet is a hard escalation reason (precision-chain D1: a red Done whe
   assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'done-unmet' }] }), 'held:escalation')
   assert.ok(HARD_ESCALATION_REASONS.includes('done-unmet'))
 })
+test('budget-uncited is a hard escalation reason (D6, ADR 0005: an uncited ceiling raise at any merge-task site holds the land under its own name)', () => {
+  assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'budget-uncited' }] }), 'held:escalation')
+  assert.ok(HARD_ESCALATION_REASONS.includes('budget-uncited'))
+})
 
 // ---- BARRIER_TOKENS (in-band-absorb-default D1, PIN-1/PIN-2) — the seat's structured `barrier` enum ----
 // Exactly four members, in order: three follow-up barriers plus `barrier:trade-off` (an ask route).
@@ -346,8 +350,8 @@ test("ask fence (literal-class): no land-phase prompt emits a status:'ask' liter
 // ---- D8: per-mode HARD_ESCALATION_REASONS reachability drift-guard (#639) ----
 // HARD_ESCALATION_REASONS is ONE array shared by the merge-task AND land-phase modes — canonical in
 // land-decision.mjs, hand-mirrored in workflow-template.js (ADR 0005; never split/narrow — the
-// inline-mirror↔export drift-guard lives in war-config.test.mjs, NOT here). 'no-test'/'unpackaged'/'done-unmet' are
-// emitted only by merge-task floor prompts and are inert in the land-phase
+// inline-mirror↔export drift-guard lives in war-config.test.mjs, NOT here). 'no-test'/'unpackaged'/'done-unmet'/'budget-uncited' are
+// emitted only by merge-task floor prompts (budget-uncited as routedMr's normalized status) and are inert in the land-phase
 // `HARD_ESCALATION_REASONS.includes(landResult.status)` check — historically guarded by a hand-written
 // unreachability COMMENT one prompt-drift away from a silent hard escalation (spec risk #6). These tests
 // pin that per-mode split mechanically; the hand-written comment at the `.includes(landResult.status)`
@@ -355,8 +359,10 @@ test("ask fence (literal-class): no land-phase prompt emits a status:'ask' liter
 
 // The reasons a land-phase prompt must NEVER emit (only merge-task floor prompts do); any one
 // emitted by a land prompt would become a hard escalation reachable via landResult.status.
-// done-unmet joined via precision-chain Task 2.3 (the done-when floor is merge-task-only, like its siblings).
-const MERGE_TASK_FLOOR_ONLY = ['no-test', 'unpackaged', 'done-unmet']
+// done-unmet joined via precision-chain Task 2.3 (the done-when floor is merge-task-only, like its siblings);
+// budget-uncited joined via D6 (the Budget-Raise floor is merge-task-only — its `status: 'budget-uncited'`
+// literal outside the land block is routedMr's normalization, the only place the routed name is written).
+const MERGE_TASK_FLOOR_ONLY = ['no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
 // The land-phase-reachable subset (Task 2.1 / spec §4 D8): every hard reason that can drive
 // held:escalation at land-decision time — carried in `escalated[]` from the work/audit/merge phases
 // (escalate/audit-blocked/conflict/dep-failed/gate-evidence/unrunnable-deps) or emitted by the land
@@ -386,7 +392,7 @@ test('D8: the land phase emits exactly {landed, land_stale, gate_failed, error, 
     'the land-phase-emitted status set drifted — a new land status must be classified for per-mode reachability before this pin is updated')
 })
 
-test('D8: no-test/unpackaged/done-unmet are reachable from merge-task prompts but NOT from any land-phase prompt', () => {
+test('D8: no-test/unpackaged/done-unmet/budget-uncited are reachable from merge-task prompts but NOT from any land-phase prompt', () => {
   const { block, outside } = landDispatchSlice()
   for (const r of MERGE_TASK_FLOOR_ONLY) {
     const lit = new RegExp(`status:\\s*(['"])${r}\\1`)

@@ -563,3 +563,26 @@ test('dirty default includes staged, unstaged, and untracked content and detects
   assert.equal(changed.before, request.scope.fingerprint)
   assert.notEqual(changed.after, request.scope.fingerprint)
 })
+
+test('all documented standard lenses are reachable as one-seat requests', () => {
+  const {root}=fixture()
+  const card=readFileSync(new URL('../references/codex-auditor.md',import.meta.url),'utf8')
+  const lenses=[...card.split('## Lenses')[1].split('## Findings')[0].matchAll(/^- `([a-z-]+)`: /gm)].map(match=>match[1])
+  assert.ok(lenses.includes('usability'))
+  for(const rawArgs of lenses) assert.deepEqual(prepare(root,{rawArgs}).panel,{seats:1,named:[rawArgs],autoCount:0})
+})
+
+test('removing usability from a moved package catalog fails the one-seat oracle', async () => {
+  const {root}=fixture(),output=join(mkdtempSync(join(tmpdir(),'snipe-usability-mutant-')),'package')
+  buildSnipePlugin({repoRoot:fileURLToPath(new URL('../../../../../',import.meta.url)),output})
+  const parser=join(output,'skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs')
+  const source=readFileSync(parser,'utf8');assert.ok(source.includes(", 'usability'"))
+  writeFileSync(parser,source.replace(", 'usability'",''))
+  const mutant=await import(pathToFileURL(join(output,'skills/snipe/assets/snipe-request.mjs')))
+  const oracle=prepare=>{
+    let result
+    assert.doesNotThrow(()=>{result=prepare({cwd:root,rawArgs:'usability',inheritedProfile,supportedProfiles})})
+    assert.deepEqual(result.panel,{seats:1,named:['usability'],autoCount:0})
+  }
+  oracle(prepareSnipeRequest);assert.throws(()=>oracle(mutant.prepareSnipeRequest),{name:'AssertionError'})
+})

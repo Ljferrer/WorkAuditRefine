@@ -1,0 +1,754 @@
+{
+  "candidate": "commit containing the following source hashes",
+  "parentSha": "f53c979c5b5338d9961ad35fd5f05fbf178a587f",
+  "node": "v24.17.0",
+  "javascript": {
+    "command": "node --test 'skills/**/*.test.mjs'",
+    "passed": 2030,
+    "failed": 0,
+    "logSha256": "18337bcb5c4992015f642b62d8257961705ecbbd1de2c1a4034bc32039f62f64",
+    "priorRun": "2029 passed / 1 failed: the capture-site census still expected duplicated inline contexts. Corrected to the named primary/floor/environment/baseline caller set before this complete rerun."
+  },
+  "shell": {
+    "command": "rg --files hooks skills -g '*.test.sh'; bash each discovered file",
+    "passed": 31,
+    "failed": 0,
+    "files": [
+      {
+        "file": "hooks/guard-conventions.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-0.log",
+        "logSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3"
+      },
+      {
+        "file": "hooks/validate-servitor-provenance.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-1.log",
+        "logSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d"
+      },
+      {
+        "file": "hooks/warn-bash-write-scope.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-2.log",
+        "logSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa"
+      },
+      {
+        "file": "hooks/validate-auditor-git.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-3.log",
+        "logSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c"
+      },
+      {
+        "file": "skills/war-machine/war-pipeline-structure.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-4.log",
+        "logSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78"
+      },
+      {
+        "file": "skills/_shared/war-memory-lint.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-5.log",
+        "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+      },
+      {
+        "file": "skills/_shared/gh-preflight.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-6.log",
+        "logSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4"
+      },
+      {
+        "file": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-7.log",
+        "logSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf"
+      },
+      {
+        "file": "skills/war/assets/assert-done-when.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-8.log",
+        "logSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0"
+      },
+      {
+        "file": "skills/war/assets/gate-pin-status.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-9.log",
+        "logSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133"
+      },
+      {
+        "file": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-10.log",
+        "logSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901"
+      },
+      {
+        "file": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-11.log",
+        "logSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302"
+      },
+      {
+        "file": "skills/war/assets/provision-worktrees.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-12.log",
+        "logSha256": "b97ea8562974a2ca3527c712d9acd3c7193e3933809dd8020cb9f9a430483236"
+      },
+      {
+        "file": "skills/war/assets/assert-issues-filed.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-13.log",
+        "logSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84"
+      },
+      {
+        "file": "skills/war/assets/refinery-surface.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-14.log",
+        "logSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345"
+      },
+      {
+        "file": "skills/war/assets/scout-manifest-surface.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-15.log",
+        "logSha256": "da0b5f02d78da293e0750d2044709fe209e6a15a6b5b0b96c37f0f864e07d0aa"
+      },
+      {
+        "file": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-16.log",
+        "logSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f"
+      },
+      {
+        "file": "skills/war/assets/assert-test-in-diff.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-17.log",
+        "logSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515"
+      },
+      {
+        "file": "skills/war/references/schemas-manifest.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-18.log",
+        "logSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49"
+      },
+      {
+        "file": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-19.log",
+        "logSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd"
+      },
+      {
+        "file": "skills/war-strategy/war-strategy-structure.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-20.log",
+        "logSha256": "47bbf1df3b07d8b0a1acd565eb4ce25c7d191fdeb50f625de769451dc631c6bc"
+      },
+      {
+        "file": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-21.log",
+        "logSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18"
+      },
+      {
+        "file": "hooks/clean-surface-war-worktree.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-22.log",
+        "logSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5"
+      },
+      {
+        "file": "hooks/inject-campaign-state.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-23.log",
+        "logSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0"
+      },
+      {
+        "file": "hooks/validate-worktree-scope.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-24.log",
+        "logSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad"
+      },
+      {
+        "file": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-25.log",
+        "logSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b"
+      },
+      {
+        "file": "hooks/vale-md/vale-md.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-26.log",
+        "logSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3"
+      },
+      {
+        "file": "skills/red-team/manifest-provenance.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-27.log",
+        "logSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd"
+      },
+      {
+        "file": "skills/red-team/diagnosis-preflight.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-28.log",
+        "logSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402"
+      },
+      {
+        "file": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-29.log",
+        "logSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b"
+      },
+      {
+        "file": "hooks/reply-standard/gate.test.sh",
+        "exit": 0,
+        "log": "/private/tmp/war-2297-candidate6-shell-30.log",
+        "logSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0"
+      }
+    ]
+  },
+  "redaction": {
+    "command": "node skills/_shared/war-memory.mjs lint docs/learnings/",
+    "result": "lint: clean",
+    "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+  },
+  "staging": {
+    "command": "node skills/war/assets/stage-workflow.mjs skills/war/assets/workflow-template.js <temp-stage> finalization-2297 1",
+    "bytes": 338778,
+    "cap": 524288
+  },
+  "releaseVersion": "0.21.13",
+  "sourceSha256": {
+    "CHANGELOG.md": "2f5947b79bea530d7534c3027ea0d7a670ccb80451dcbf5082f07f8c627b4210",
+    "README.md": "e7f44d366c5b82bdc5f84534b1583214e8a9da65e4e96cc43fbac1e2a147eca8",
+    "agents/war-refiner.md": "2edb829edb6abc54f573f76254e62d46dc257df5d213401b930fddd87859d91b",
+    "docs/adr/0049-pin-transfer-and-proportional-re-audit.md": "85375076c844b411a2f43c7c8968eaf4879150d1321e6c885ecf35e37f67eaae",
+    "docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md": "7f403e7da7e34540b740f2bf60df929bf9f7a61e9859b2119cbfc8f3e0728a7e",
+    "docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md": "9a515be87f17a926f7a59a7721aabfd2c95d094ceaa240d8f3673f3378fd24d8",
+    "skills/war/assets/workflow-template.js": "365064740d84f73f8712c2f89ba948b57c91c7609a42fa902e32a310e896683d",
+    "skills/war/assets/workflow-template.test.mjs": "1ff3677417585ce5fb34aef22ddb7e907104cfd7002957a88966ae2f45ccb2f4",
+    "skills/war/references/refiner-recovery.md": "012c6209ad043c89d3c7f72e17a2693167eded1e7568e36c2e2615798515dfc5",
+    "skills/war/references/schemas.md": "1f1d3e59003d2e388708b5acfaf6fc4e96563d40889049e2bb0696486075d6d9"
+  },
+  "controls": [
+    {
+      "name": "before-pin",
+      "exit": 1,
+      "failed": 7,
+      "tests": 7
+    },
+    {
+      "name": "before-target",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "before-resume",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "snapshot-death",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "target-alignment",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "seed-alignment",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "target-maintenance",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "pin-proof-present",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "full-head",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "full-content",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "full-base",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "full-approved-tree",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "pins-array",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "pins-length",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "reported-shape",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "resolved-full",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "pin-correspondence",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "approved-resolution",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "approved-tree-equal",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "content-source",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "pre-string",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "post-string",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "target-local",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "target-remote",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "destination",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "reported-base",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "error-re-audit",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "status-enum",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-head",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-remote",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-empty",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-post",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-pre",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-count-integer",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "upstream-count-positive",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "cherry-object",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "cherry-sign",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "matched-length",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "matched-full",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "matched-unique",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "matched-coverage",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "transferred-ancestor",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "actual-pre",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "actual-post",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "pin-death",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "land-resume",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "land-ancestry",
+      "exit": 1,
+      "failed": 4,
+      "tests": 4
+    },
+    {
+      "name": "land-first-full",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "land-recovery-empty",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "land-recovery-advance",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "error-ancestry",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "error-nonempty",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "error-equality",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "preflight-before-pin",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "maintenance-reread",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "before-cherry",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "before-submodule",
+      "exit": 1,
+      "failed": 3,
+      "tests": 3
+    },
+    {
+      "name": "cherry-direction",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2
+    },
+    {
+      "name": "seed-reader",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "submodule-task-seed",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "ordinary-task-seed",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "pin-target",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "retry-floor",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "retry-environment",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "retry-baseline",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "submodule-phase-seed",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "ordinary-phase-seed",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "polish-context",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "terminal-context",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "land-target",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    },
+    {
+      "name": "published-seed-maintenance",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1
+    }
+  ],
+  "controlsScriptsSha256": {
+    "inherited-controls": "babe59a7a35f17c5b8158abd612a4037f4b8e32cd20c55fca58103e7e1546064",
+    "arm-controls": "adb1d963c1a812b918af92bcc9896665fb54bd0bcac85b626d177b538691baba",
+    "new-controls": "8e97099547612a752fe7dae5980e5abd7b28e6f9bc6087f8a1b68706879f37e6",
+    "seed-control": "046ea68b2c3f2c889c5ef61b00e9e0a4a2c71c007e1113bd9e0ae2c9fb138882"
+  },
+  "protectedRefs": [
+    {
+      "ref": "refs/heads/claude/codex-red-team-migration-5ca53a",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395"
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-4de4e6",
+      "expected": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "actual": "067b7b538350044c283f2f7e14f5b85c6677d882"
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-726b55",
+      "expected": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "actual": "30c8b7ece4d806e90ac7394f464d387a521410e0"
+    },
+    {
+      "ref": "refs/heads/codex-port",
+      "expected": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "actual": "7271cc3a08db978c71c450def81f49a1816dc20c"
+    },
+    {
+      "ref": "refs/heads/codex/red-team-comparison",
+      "expected": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "actual": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5"
+    },
+    {
+      "ref": "refs/heads/codex/red-team-implementation",
+      "expected": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "actual": "25404070284cce65f68a8d7f16a0526641bf40b5"
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-claude",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395"
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex",
+      "expected": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "actual": "46aef4a25b68874bff7b3b3fed14f9058c270da7"
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+      "expected": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "actual": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0"
+    },
+    {
+      "ref": "refs/heads/dev/2026-08-06-red-team-gate-cli",
+      "expected": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "actual": "1655b98c6c22be7490cc48809b509d3aeaabd16c"
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-1",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63"
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-2",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32"
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.1",
+      "expected": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "actual": "17eb083a63fa94a2a1612622a218385ea1034af4"
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.2",
+      "expected": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "actual": "e0fd31cda193551973d5cbd86c5b42203c8805a2"
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-polish",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63"
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-2.1",
+      "expected": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "actual": "97df02ef26f7f5d6c152c86d786841b227f6594b"
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-polish",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32"
+    }
+  ],
+  "limits": [
+    "Actual submodule checkout, local Git commits/merges/rebases/pushes and bare remotes; controlled gate/floor and maintenance procedure responses, not a live recovery-model end-to-end run.",
+    "66 mutations: 52 earlier boundary/ordering guards, 13 ref-context/set controls and one published-seed maintenance instruction control. Before-source negatives remain attributed to their original candidates.",
+    "Final candidate Snipe report and checks will be recorded in PR #2297 without changing its reviewed SHA."
+  ]
+}
