@@ -15,24 +15,22 @@ falsifier probes + provenance scan against a drafted conversion).
 1. **Static recon** — read the repo tree, `CONTEXT.md`, `docs/adr/`, and the related plans
    under `docs/plans/`.
 2. **The run-history recon lane** — read the four run-history corpus classes:
-   run manifests (`.claude/war/runs/`) · epic phase reports · the war-followup corpus · `docs/learnings/`
+   run manifests (host-resolved location) · epic phase reports · the war-followup corpus · `docs/learnings/`
    — plus the issue-linked evidence artifacts (each cited source issue's
    `## Evidence artifacts` section). What this lane read (or could not) lands in the plan's
    **Evidence consumed** block: one row per linked artifact, read or unread-with-reason —
    placement latitude anywhere in Part 1, never a new required H2.
 3. **Batched memory prefetch** — one batched call, one query per interview area (scope,
-   decomposition, guards, release), mirroring the /war Lead's flag discipline — `--local`
-   always, `--repo` when a repo root resolved, fail-open:
-
-```sh
-node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings
-```
-
-(the `--queries <file>` format is JSONL — one `{"label":…,"text":…}` object per line.)
+   decomposition, guards, release), using the invocation and explicit roots in
+   [the host reference](host.md), fail-open. The host owns discovery and any query-log
+   effects, not a guessed location in the target repository.
 
 Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, or an empty run
-corpus never blocks the interview — proceed without the rows (and without a `--local` root
-the query writes nothing).
+corpus never blocks the interview. Continue without unavailable query hits, but record
+each missing run-history class and source-access failure with its reason in the artifact's
+Evidence consumed block; absence is provenance, not permission to omit its status. Without
+a `--local` root the query writes nothing. Echo back that artifact block at gate 1 rather
+than relying on a transcript-only disclosure.
 
 **Stage 1 — silent rehearsal + pre-mortem.** Mentally execute the plan-to-be, then name **at
 least two landmine falsifiers** from the WAR falsifier list:
@@ -75,10 +73,21 @@ test for a fork: name the two different plans the answer forks between — if yo
 is not a question. Intent material (Purpose / Method / End states) is **never**
 default-and-tagged: it is asked, or it is absent (ADR 0013).
 
+Keep this provisional draft private. If advisory lint needs a file before the
+confirmations, use host temporary storage outside the target working tree and
+remove that scratch file when finished. Do not leave an extra draft beside the
+operator's source or publish the final plan before the closing gates are satisfied.
+
 **Stage 2 — the interview.** Run under the question contract:
 
-- a status line opens every turn: `Locked: <n> · Open forks: <m> · Qk/14` (question budget
-  default 14, visible in the status line, operator-raisable — D8);
+- a status line opens every question turn: `Locked: <n> · Open forks: <m> · Qk · cap <budget>`.
+  The budget defaults to 14 and is operator-raisable (D8): a maximum, not a target or a forecast
+  of how many questions will be asked. `k` counts actual interview questions, including
+  falsifier and checkpoint questions; open forks are the current unresolved decisions,
+  not a promised question total. Never put the cap after a slash as though it were a total.
+  Echo-backs and their confirmations do not consume question slots: label those turns
+  `Echo-back 1` or `Echo-back 2` instead of advancing Q. Other non-question turns do not
+  advance Q either. Stop asking when the completion bar is met, even far below the cap;
 - **one question per turn**, the highest-value open fork first;
 - every question ships `Recommended: <option> — <basis>` with the basis graded (verified /
   prior-lesson / assumption);
@@ -98,8 +107,16 @@ default-and-tagged: it is asked, or it is absent (ADR 0013).
   When a beat arms per the checklist, read
   [references/strategy-verifier.md](strategy-verifier.md).
 
+If the remaining necessary forks are likely to exceed the remaining question budget,
+do targeted recon before spending more questions: resolve evidence-answerable unknowns,
+rehearse the draft again and reapply the fork-necessity test. Research cannot answer for
+the operator's intent or silently ratify a choice. If genuinely operator-owned forks still
+exceed the cap, disclose them and ask whether to raise the budget or stop; do not silently
+exceed it, pad the interview to reach it, or loop on unavailable evidence.
+
 **Stage 3 — mid-budget checkpoint.** Once, near the budget's midpoint: surface the riskiest
-still-live assumption and ask it directly.
+still-live assumption and ask it directly. For a shorter interview, cover it before closing
+if one remains; do not manufacture questions merely to reach the nominal midpoint.
 
 **Stage 4 — coverage sweep + two echo-backs.** Sweep the decisive slots (table below) for
 unfilled rows, run the omittability probe over the drafted End-state enumeration (an

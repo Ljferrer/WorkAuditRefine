@@ -1,0 +1,342 @@
+# Parity foundation T1–T3 execution record
+
+Goal: #2159, through T3 only. Base: `8fd30f30f4b565532269ceb768d4c7427d43089f`.
+No production engine edits, live CI activation or branch-protection changes.
+
+## Audit protocol
+
+Each three-seat Snipe panel consumes one of at most 12 cycles, including an
+incomplete panel. Use the installed #2220 package and the operator-selected
+`gpt-5.6-sol / medium` profile. Audit after each phase and each repair round.
+Stop at 12 panels regardless of findings; disclose unfinished work. Before that
+bound, completion requires T1–T3 evidence and a complete panel with no findings
+above Nit. Zero findings also meets that severity condition.
+
+Auditors remain read-only. The enclosing user request authorizes this coordinator
+to fix verified absorbable findings and file follow-ups. Record each panel's pin,
+seat outcomes, defect classes, dispositions, repairs, regression evidence, and
+recurrences. Apply the full returned repair guidance before edits. Preserve real
+operator decisions; do not turn an ask into an invented ruling.
+
+The #2097 assessment will distinguish observed behavior from causal claims: there
+is no randomized no-guidance control, and changed tasks/models can affect results.
+Measure named-site versus sibling/consumer coverage, new defects in repairs,
+repeated or reversed fixes, false positives, and rounds—not only approvals.
+
+## T1 initial evidence (historical)
+
+- Discovered suites from tracked paths, never recursive worktree traversal.
+- Negative controls: omitted/missing/empty inventory; nonzero shell status with
+  retained output and continued collection; empty JS and unapproved skips.
+- Initial discovery and collection were developed incrementally with observed
+  failures before implementation. Full existing-suite collection is pending.
+
+## Panels
+
+### Cycle 1 — T1 initial collector
+
+- Pin: `5a23f20`, compared with the goal base.
+- Seats: correctness, test-coverage, cascading-impact; all `gpt-5.6-sol / medium`.
+- Full baseline run was explicitly disclosed as pending in the operator concern.
+- Before panel results, baseline execution exposed an independent collector bug:
+  sanitized environment plus inherited PATH selected a home-dependent Node shim.
+  The fix pins the already-running Node directory first; a shim fixture failed
+  before the change and passed afterward, also checking secret non-forwarding.
+- Added CLI nonzero-exit and bounded-output evidence while the panel runs.
+- All seats completed with validated request-changes verdicts: seven Major and
+  two Minor findings, with overlapping reports of shell and revision defects.
+  No follow-up or ask dispositions. Grouped repairs: non-vacuous shell evidence
+  and stderr skips; before/after revision/index/content binding; successful-parent
+  descendant cleanup; a reviewed CLI census; environment/process negative controls.
+- Shell no-op/stderr, moving-HEAD/content, and CLI deletion fixtures were observed
+  failing before repair. The expanded collector suite passes 14 tests, including
+  seven targeted guard removals that each produce assertion failures. A real
+  redirected descendant is checked by heartbeat and process state after its parent
+  exits. The mutation harness initially inherited Node's test context and silently
+  ran no selected cases; the meta-test exposed this, and clearing that context made
+  the mutations execute and fail for their intended assertions.
+- Baseline run 1: 62 suites, 12 failed, with the inspected failures tracing to the
+  Node shim. Run 2 (runtime fix): only the collector's now-fixed output-limit
+  diagnostic and the legacy all-tests-under-skills assertion failed. That assertion
+  already excluded the Codex suites; it now independently checks the reviewed
+  baseline census. Production WAR gate behavior is unchanged.
+- Raw evidence directory: `/private/tmp/war-parity-t1.bSBgQm/` (local, not a durable
+  artifact). Repair verification against the complete baseline remains pending.
+- Early behavioral observation: auditors identified sibling output channels and
+  process completion paths, not just the original test cases. This did not prevent
+  substantial defects in the initial implementation; no convergence claim yet.
+
+### Cycle 2 — T1 class-closure review
+
+- Pin: `56fc1be`, compared with the goal base; same seats and profile as cycle 1.
+- Raw audit and clean-baseline evidence: `/private/tmp/war-parity-cycle2.Y4YJEJ/`.
+- Clean baseline passed all 62 suites: 3,262 passing observed Node cases/shell
+  assertion rows and four explicitly allowed host skips; source/index/content
+  unchanged. Counts combine the reported units, not a claim of unique scenarios.
+- All seats completed: correctness and test-coverage requested changes;
+  cascading-impact approved. Two Major findings and one absorbable Minor; no
+  follow-ups or asks. The repair's unframed content hash permitted redistributed
+  bytes to collide; the prior tests independently proved neither index nor
+  content digests; cleanup-error rejection had no dedicated negative witness.
+- Repaired with per-file digest/length framed records. Added already-dirty tracked
+  and untracked content probes, index-only changes with stable worktree/HEAD/path
+  membership, a cleanup-error fixture, and a two-file framing collision. The first
+  collision fixture accidentally put another file between the pair; that passing
+  fixture was rejected, filenames corrected, and the collision observed red before
+  fixing the hash. This is evidence of validation iteration, not an oscillating
+  operator policy or a new audit round.
+- 18 collector tests pass, including eleven targeted assertion-killed mutations.
+  Four new mutations independently remove index digest, content digest, framing,
+  and cleanup-error rejection. No claim that the first repair was complete merely
+  because its tests passed; this round found new-code defects in the same class.
+- T2's first independent stale-approval oracle and full scenario catalog are in
+  progress, not yet committed or declared complete. T3 has not started.
+
+### Cycle 3 — T1 lifecycle sibling and evidence review
+
+- Pin: `e88c18e`, compared with the goal base; same seats/profile. All completed.
+- Correctness and test-coverage requested changes; cascading-impact approved.
+  Two Major and two absorbable Minor findings; no asks or follow-ups.
+- Runtime defect: a descendant inheriting output pipes prevented `close` from
+  firing, delaying successful-parent cleanup until timeout. The previous fixture
+  redirected those pipes. Cleanup now starts on direct-child `exit`; `close`
+  retains responsibility for final output/descriptor/result accounting. The real
+  inherited-pipe fixture failed before the fix and passes afterward.
+- Coverage gaps: zero-exit failure rows, mode-only drift, and tracked symlink
+  rejection. Added stdout/stderr and FAIL/not-ok mirrors, a permissions-only
+  change with stable bytes/index/path membership, and a symlink-target sentinel.
+  Targeted mutations independently remove their load-bearing guards.
+- This is another one-recursion-too-shallow recurrence in process completion and
+  new evidence fields. It is not policy oscillation: no prior fix was reversed.
+- Raw panel: `/private/tmp/war-parity-cycle3.SZX4Gs/audit-result.json`. Three of
+  12 panels used. T2 work remains separate WIP; T3 has not started.
+
+### Cycle 4 — T1 repaired collector acceptance
+
+- Pin: `b51ff7d075eac4b4f4fcef67329197136d2508cc`, compared with the goal base.
+- Same three lenses and operator-selected profile. All completed, validated,
+  high-confidence approvals; complete coverage and no validated findings.
+- Collector tests: 22 passing, including fourteen assertion-killed mutations.
+  The prior full baseline is pinned to cycle 2; final integrated baseline remains
+  required after T2/T3. No claim of fresh full-suite evidence at this pin.
+- Raw panel: `/private/tmp/war-parity-cycle4.bThjt6/audit-result.json`.
+  Four of 12 panels used. T1 review converged; T2 remains work in progress and
+  T3 is not implemented, so the campaign is not complete.
+
+## T2 initial evidence
+
+- All P01–P26 catalog rows have independently authored positive records. Each
+  selected expected fact is corrupted on both sides in negative controls; every
+  required artifact kind is removed in turn. These are contract simulations,
+  not real adapter/host or artifact-file verification (bindings deferred T5–T7).
+- Candidate identities are supplied by a separate fixture context. A shared
+  wrong-candidate regression failed before that guard. Cross-fixture SHA
+  normalization first failed on differing raw identities, then passed by commit
+  role with exact within-run pins and tree/ordered-ancestry comparison intact.
+- Parallel completion ordering passes without erasing dependency edges. Unknown
+  top-level decisions and extra/missing/cyclic events fail. No arbitrary global
+  text replacement or unknown-decision dropping is used.
+- Eleven oracle tests pass, including six independently assertion-killed guard
+  removals. T2's narrowed contract-simulation evidence is explicit in its README;
+  no production engine function supplies expected decisions.
+
+### Cycle 5 — T2 evidence relationships
+
+- Pin `b32a6d786ec01c60d9049af7ff24da7a1c58fc5f`; all three seats completed with
+  high-confidence request-changes verdicts and complete coverage. Four Major
+  entries overlap in two classes: approval/integration causality and artifact
+  binding/comparison. One Minor note preserves the final-baseline obligation.
+  No follow-up or ask dispositions.
+- Verified shared rejecting audits and divergent valid artifact digests both
+  passed the previous oracle; regression assertions failed before repair.
+  Counts and booleans did not establish evidence relationships. Swept P01/P02
+  together, bound initial Major findings and current audit verdicts, required
+  causal edges through repair/approval/gate/integration, and bound P01/P02/P07 gate
+  command/revision/exit. All artifact kinds now participate in comparison.
+- Fourteen oracle tests pass, with sixteen assertion-killed mutations. Edge
+  mirrors retain counts and summaries while removing each approval/gate/repair
+  predecessor. The new exact-kind check made the old artifact-presence conjunct
+  redundant; its surviving mutation exposed that, so it was replaced with the
+  independently necessary digest guard instead of manufacturing a pass.
+- Consequence: P02 gains gate evidence and blocking-audit identity; synthetic
+  fixtures and comparison consumers move together. These remain contract
+  simulations with production bindings deferred, not real artifact verification.
+- Raw panel: `/private/tmp/war-parity-cycle5.wtes5E/audit-result.json`.
+  Five of twelve panels used. T3 fixture work is separate/uncommitted.
+
+### Cycle 6 — T2 repaired evidence acceptance
+
+- Pin `6ad0c91`; same three lenses/profile. Launched after the cycle-5 repair.
+  The pinned scope excludes the T3 work developed concurrently.
+- Raw result location: `/private/tmp/war-parity-cycle6.lhIt8I/audit-result.json`.
+  Six of twelve panels used. Complete coverage: correctness/cascading-impact
+  approved; test-coverage requested changes for one Major coverage gap, no asks or
+  follow-ups. The commit/gate/integration event-pin conjunct lacked its own
+  negative witness. This was residue of cycle 5's new causal checks, not a runtime
+  defect or an inversion of the chosen contract.
+- Added both-sides stale event pins for each relevant event in P01/P02 while
+  facts, artifacts, counts and edges remain unchanged. Swept neighboring event
+  task/seat/ID/predecessor/count and candidate-order checks. Fifteen oracle tests
+  now pass with 24 assertion-killed mutations. Eight added guard removals prove
+  the reported check and neighboring new branches; no oracle behavior changed.
+
+## T3 initial evidence
+
+- Seven fixture tests pass, including six assertion-killed mutations. A real
+  process is SIGKILLed at after-push/before-record; a new process repairs persisted
+  ledger state from local bare Git. Remote reflog and push-log checks prove no
+  duplicate landing across two restarts. This driver is not the production engine.
+- Loopback fake service persists before withholding a response; a new client
+  recovers by correlation GET, with one POST total and no server-side dedup.
+  Malformed ledger, unknown remote state, and network transport refusal have
+  explicit negative evidence. Malformed ledger initially passed without a read;
+  the regression failed before adding persisted-state validation.
+- Hangs/output limits and inherited-pipe descendants are real processes with
+  owned group cleanup. The descendant signals readiness only after a heartbeat
+  write, avoiding a sleep-based readiness assumption. Temporary state is checked
+  before cleanup; tests make no real GitHub or production remote requests.
+- Mutation witnesses: repeated landing, unknown-tip refusal, ledger read,
+  successful-parent cleanup, output bound, and correlation lookup. Every removed
+  guard causes the selected assertion test to fail, not an initialization error.
+- Consequence: one new reviewed baseline suite; no adapter/engine/hook/workflow
+  changes. Production binding and actual host compatibility remain deferred.
+
+### Cycle 7 — combined T3 acceptance and T2 coverage repair
+
+- Pin `d7bc26f9efc8cd42789544b6e76cb33b1f466eb7`; complete stable coverage.
+  Correctness and cascading-impact approved; test-coverage requested changes for
+  one Major: persisted JSON null shared the absent-ledger sentinel and failed open.
+  No follow-ups or asks. Seven of twelve panels used.
+- The null regression was observed red (exit zero, where refusal was required).
+  File absence is now handled separately from parsing a present ledger. Present
+  values require the exact fixture record keys, a known revision and Git
+  provenance. The negative corpus covers syntax errors, null, scalars, arrays,
+  empty/missing fields, foreign revisions, invalid provenance and unknown fields.
+  Each preserves the invalid file and remote tip and makes no push attempt.
+- Sibling sweep: fixture pins and service configuration are mandatory parsed
+  inputs, not optional-state sentinels; malformed values throw before the operation.
+  Service query results already reject non-arrays before creating an issue. No
+  production reader/engine policy is changed. The ledger's writer and exact-object
+  assertion still agree on the same fixture format.
+- This is a new-phase runtime defect in the fixture driver, not just a missing
+  witness. It repeats the missing-versus-malformed distinction the doctrine
+  explicitly calls out. No prior repair or policy was reversed.
+- Raw panel: `/private/tmp/war-parity-cycle7.axqgkH/audit-result.json`.
+- Seven T3 tests pass, now including nine assertion-killed mutations. The new
+  shape, revision and provenance guards are each removed independently; the
+  selected test fails because the invalid state was accepted, not because the
+  mutated process failed to initialize.
+
+## Integrated baseline checkpoint
+
+Clean checkout at `fedcb81ed20a89804ab4f8b3f00856ae74801155`: all 64 suites
+passed/allowed-skips; 3,291 passing observed Node cases/shell rows, four named
+opt-in host skips, zero failures/cancellations/todos; source/index/content stable.
+Report: `/private/tmp/war-parity-baseline-final.WQ8aIV/report/report.json`.
+This precedes the final coverage and ledger-shape repairs; final handoff requires
+fresh verification, not relabeling this report with a newer revision.
+
+### Cycle 8 — repaired T1–T3 acceptance
+
+- Launched against `4890769` with the same three read-only lenses and explicit
+  profile; eight of twelve panels used. Raw result location:
+  `/private/tmp/war-parity-cycle8.9Xu3q7/audit-result.json`.
+- Final seat outcomes and the fresh integrated-baseline source pin are recorded
+  in this branch's PR and the requested #2097 measurement comment. Those external
+  acceptance records can cite the tested commit without changing its source just
+  to embed its own SHA. This log preserves the implementation/repair history.
+- Outcome: complete stable coverage; correctness requested changes, test-coverage
+  and cascading-impact approved. One Major (ledger-candidate/remote-base silently
+  re-pushes) plus a Minor note retaining the final-baseline obligation. No asks or
+  follow-ups. This is a missing relationship between individually valid inputs,
+  analogous to cycle 5's individually valid summaries and unrelated evidence.
+- The physical candidate/base regression failed before repair. The driver now
+  preserves contradictory evidence and refuses instead of re-landing. The full
+  absent/base/candidate ledger × base/candidate/foreign tip matrix checks both
+  refusal and success, exact remote updates, ledger preservation and push attempts.
+  Matching and Git-ahead re-entry still work. Production P14 policy is not bound
+  or claimed by this small physical fixture driver.
+- Eight T3 tests pass with twelve assertion-killed mutations, including removal
+  of the pair check and each conjunct separately. The expected nine-row table is
+  literal fixture data, not computed by the driver's routing condition.
+
+## Baseline-discovered production follow-up
+
+The next clean baseline at `2c05d2cc0c9ffc8690f716013d0df31c2ecef31c` failed one
+existing Snipe runner case (`catalog errors, malformed output, early exit and
+timeout fail visibly`) with an uncaught `kill EPERM`; the other suites completed
+and source/index/content stayed stable. Raw report:
+`/private/tmp/war-parity-release-baseline.75oUzs/report/report.json`.
+The collector correctly refused a green result; no test was skipped or weakened.
+
+A direct `listSupportedProfiles` probe outside the collector injects one cleanup
+EPERM and reproduces the uncaught callback exception in two consecutive runs.
+The owned disposable child is subsequently cleaned with the original kill call.
+This proves error containment is defective, not why the OS originally denied
+the signal. Filed #2235 (`codex-port`, `bug`) with the complete reproduction and
+discovery/seat/parent-exit sibling sweep. Production runner changes remain outside
+this foundation PR; no installed plugin was touched. A later successful baseline
+does not close or erase this follow-up.
+
+### Cycle 9 — deadline/denial conjunction
+
+- Pin `1e297a36ad57216911b9b9e2b20f5cff3bf22c29`; complete stable coverage.
+  Correctness requested changes for one Major; test-coverage and cascading-impact
+  approved. No asks or follow-ups. Nine of twelve panels used.
+- This panel received a completed clean baseline at its exact SHA: 64 suites,
+  3,293 passing observed cases/rows and four named host skips; zero failures,
+  cancellations or todos, unchanged source/index/content. Report:
+  `/private/tmp/war-parity-acceptance-baseline.hwqfLs/report/report.json`.
+  That ordinary-path pass did not cover the conjunction the panel found.
+- Both foundation process owners still waited exclusively for child close after
+  a denied kill. The previous tests proved denial without inherited pipes and
+  inherited pipes without denial. Combined regressions for collector and fixture
+  each failed their bounded-result assertions before the repair.
+- Both callers now share `scripts/ci/owned-process.mjs`. Denial detaches parent
+  streams and settles failure; a successful signal gets a separate bounded close
+  drain. Unknown termination is explicit with group identity, never claimed as a
+  killed process. Late callbacks cannot write closed collector descriptors. The
+  fixture maps an unconfirmed result to failure, preserves its root and fails
+  teardown even if the test body ignores the result.
+- Swept missing-close, output-capture error, stream error and spawn-error paths,
+  plus both output consumers and the teardown consumer. Retained-root behavior
+  has a real subprocess test. Deliberate injected denials restore actual cleanup
+  only inside their test harness; genuine denial is never retried or waived.
+- All 49 targeted foundation tests pass: T1 24 tests / 19 assertion-killed
+  mutations; T2 15 / 24; T3 10 / 15. New mutations remove denial finalization and
+  drain deadlines for both consumers, error containment in the shared owner and
+  the fixture teardown guard. The complete baseline must be refreshed after this
+  shared-helper repair. Production Snipe still uses its original helper (#2235).
+- Raw panel: `/private/tmp/war-parity-cycle9.sQb59Q/audit-result.json`.
+  This reopens a previously approved T1 lifecycle class at another conjunction;
+  it is not a reversal of an operator policy. The discipline did not prevent it.
+
+### Cycle 10 — optional evidence and overstated lifecycle witnesses
+
+- Pin `573fc9ece3ea14dce29a2cd410a497af587f6037`; complete stable coverage.
+  Correctness requested changes for one Major; test-coverage approved with two
+  absorbable Minor findings; cascading-impact approved. Ten of twelve panels used.
+- Exact-pin clean baseline: 64 suites, 3,297 passing observed cases/rows, four
+  named host skips, no failures/cancellations/todos, unchanged source/index/content.
+  Report: `/private/tmp/war-parity-cycle10-baseline.H7a51u/report/report.json`.
+- Root cause: eventless scenario records accepted generic event graphs without
+  binding their decisions to scenario facts. A shared P07 integration event after
+  the asserted failed gate incorrectly compared equivalent; the regression was
+  observed red before repair. All 22 eventless contracts now reject supplied
+  traces (including empty/malformed values). The independent test crosses all
+  seven supported event kinds, either/both runtime sides, and the absent baseline;
+  P01/P02/P05/P06 continue to require their scenario-specific traces. No additional
+  production event schema is invented. Removing the refusal fails the regression.
+- Lifecycle output sweep: collector and fixture now assert a positive retained
+  group ID exactly matching their intercepted signal target, for denial and
+  missing-close. Each consumer independently kills a field-removal mutation.
+- The previous ignored-result test awaited the promise and ignored only its
+  value. That did not prove teardown waits for an outstanding result. The corrected
+  subprocess truly discards the handle, leaves injected denial/missing-close active
+  through teardown, and rescues only afterward. Removing teardown's wait now
+  fails the retained-evidence assertion; removing its failure guard still fails.
+  The earlier closure claim was stronger than its witness, not a runtime regression.
+- All 50 targeted tests pass: T1 24 / 20 assertion-killed mutations, T2 16 / 25,
+  T3 10 / 17. Complete baseline must be refreshed after this repair. #2235 remains
+  an open production follow-up, not changed or waived here.
+- Raw panel: `/private/tmp/war-parity-cycle10.eF6fO8/audit-result.json`.

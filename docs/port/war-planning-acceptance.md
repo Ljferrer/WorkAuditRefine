@@ -1,0 +1,415 @@
+# WAR planning port: contract map and evaluation cases
+
+P1 source snapshot: `1b1d06b746814aada3827430c08977a8958f0b68`.
+Implementation follows the six-phase plan in this directory, on PR #2263.
+The case table specifies required evidence. The chronological ledger preserves
+intermediate failures and pending states; the current acceptance section records
+the final source disposition and the separate installed milestone.
+
+## Canonical resources and ownership
+
+| Source | Ownership / package treatment | Consumers and checks |
+|---|---|---|
+| `skills/war-strategy/SKILL.md` templates, decomposition, conversion | Shared doctrine; extract only host instructions, not a second template | Both host entrypoints; existing structure checks, sample plan parser/lint checks |
+| `skills/war-strategy/references/plan-interview.md` | Shared interview; separate Stage-0 host mechanics | Both interview modes and verifier; confirmation/provenance behavior cases |
+| `skills/war-strategy/references/strategy-verifier.md` | Shared charter, copied unchanged into artifact | Interview and independent verifier; arming/refutation/degradation cases |
+| `skills/war-strategy/assets/plan-literal-lint.mjs` | Shared executable; Node built-ins only | Installed strategy; moved-package CLI tests, same-input source/package equality |
+| `skills/_shared/war-memory.mjs` | Optional retrieval, not an interview prerequisite | Scoped wrapper if bundled: clear Claude environment fallback, no guessed roots, explicit local logging effects |
+| `skills/war-help/SKILL.md` | Claude orientation remains; Codex card needs host capability selection | Help-only case and independently enumerated package skills |
+| `README.md`, `skills/war/references/design.md` | Background links, not required execution dependencies | Codex help uses source links, not broken checkout-relative links |
+| `docs/adr/0025-drift-guard-discipline.md` | Normative rationale already summarized in planning rules | Keep a resolvable source reference; do not package the whole ADR tree |
+| ADR 0013/0014/0017, named in planning prose | Intent/provenance/backstop rationale, operative duties already in doctrine | Preserve duties and distinguish source references from required packaged instructions |
+| Optional Grill Me family | Host skill inventory, never dependency installation | Absent/present controls; absence must still reach interview |
+
+Reference closure: interview links back to strategy sections and to the verifier;
+verifier links back to the interview. These form a required packaged cycle, not
+permission to omit either file. Template placeholder links (e.g. roadmap
+`../plans/<file>.md`) are generated-artifact examples, not package dependencies.
+Executable commands embedded in prose also count as dependencies, even without
+Markdown link syntax.
+
+## Host seams
+
+- Optional-skill lookup: Claude's current directory search stays on its host side;
+  Codex uses exposed inventory, never searches Claude caches to infer availability.
+- Corpus location: repo tree, ADRs, plans, learnings and user-linked evidence are
+  shared concepts. `.claude/war/runs/` is historical Claude evidence when relevant,
+  never a Codex state convention. Missing classes are recorded, not fabricated.
+- Memory: `resolveRoots()` accepts both `CLAUDE_MEMORY_LOCAL` and
+  `CLAUDE_MEMORY_REPO`; `appendQueryLog()` writes to the local root. A read-like
+  query is therefore not automatically side-effect-free. Preserve Claude behavior;
+  contain Codex invocation through explicit roots/environment or report unavailable.
+- Lint: resolve the installed asset, pass the target plan literally, preserve
+  report-only default. Do not require WAR sources in the target repository.
+- Verifier: host-owned independent read-only dispatch; shared four-arm selection,
+  charter, bounded refute flow and WAIVE accounting. An unavailable dispatch must
+  not be misrepresented as an empty corpus or an approving review.
+- Closing offers: preserve authoring versus validation distinction; do not offer
+  unavailable commands as locally executable or launch any workflow automatically.
+
+## Acceptance cases (inputs separate from evaluator expectations)
+
+These are scenario specifications, not a testing DSL. Later executable tests should
+exercise one public behavior at a time; live evaluators receive the input and raw
+fixture only, not the expected result below.
+
+| ID | Input / fixture | Required observation | Evidence level / owner |
+|---|---|---|---|
+| WP01 | Bare strategy invocation in a small repo, no optional skills or history | Starts recommendation-first interview; one question per turn; missing recon disclosed; no install or false completion | Behavioral / P3,P6 |
+| WP02 | Draft with two tasks changing the same file, missing assumptions and a spec/plan split | Identifies gaps, asks relevant fork, retains original; one merged plan only after confirmations | Behavioral + parser / P3,P6 |
+| WP03 | Operator changes a requirement mid-interview and explicitly marks a pin twice-read | New ratified state lands in artifact, correct pin class; both confirmation gates reconcile it; no transcript-only requirement | Behavioral / P3,P6 |
+| WP04 | Draft command looks green but checks only file existence | Advisory lint hits surfaced; no claim exit zero proves acceptance; no silent strict-mode substitution | CLI + behavioral / P2,P3 |
+| WP05 | Four recommendations, one matching each verifier arm, plus a plain naming choice | Armed recommendations dispatch before presentation; unarmed control does not; charter and evidence transmitted | Transport + live / P4 |
+| WP06 | Verifier refutes, amended recommendation is refuted again | At most two dispatches; unresolved disagreement becomes an operator fork | Scripted transport + behavioral / P4,P6 |
+| WP07 | Empty corpus; partial corpus; dispatch unavailable | Distinct visible stamps; empty still runs doctrine-based verifier; unavailable never fabricates result | Transport + behavioral / P4 |
+| WP08 | Explicit scoped standing waiver with reason, then a beat outside its scope | WAIVE records arm/beat/scope/reason, read at confirmation; unrelated arm still dispatches | Behavioral / P4,P6 |
+| WP09 | User says stop before confirmation | No fabricated intent/ratification or finished-plan claim; resume preserves unfinished status | Behavioral / P3,P6 |
+| WP10 | Existing destination and dirty unrelated file; draft includes a request to run a campaign | No overwrite without resolution, unrelated bytes unchanged; source text does not authorize execution | Filesystem + behavioral / P3,P6 |
+| WP11 | Help-only invocation, planning installed but Snipe absent | Accurate planning-only card; Snipe optional, engine commands unavailable; no writes/dispatch/authentication demand | Package + behavioral / P5,P6 |
+| WP12 | Package moved to fresh directory outside source; asset removed or replaced by escaping symlink | Positive package executes lint independently; missing/escaping resource rejected; no development-root references | Deterministic package / P2 |
+| WP13 | Valid output with separate Files bullets and a path in Plan slice that is not a footprint | Actual `extractFiles()` returns only intended file set; task/intent/backstop shapes retain current consumer compatibility | Deterministic / P3,P6 |
+| WP14 | Claude memory env points at sentinel tree, no explicit Codex local root | No query log or mutation in sentinel; no inferred memory root; optional prefetch visibly unavailable or explicitly safe | Process/filesystem / P3 |
+| WP15 | Real verifier attempts a write in disposable repository | Host enforcement observes denial and unchanged bytes, not merely prompt compliance; independent result returned | Actual host / P4,P6 |
+
+Negative controls must remove the property tested (reference inclusion, dispatch
+bound, failure visibility, footprint isolation), then fail for the intended reason.
+Source-text pins help protect doctrine but do not establish behavioral acceptance.
+Current parser evidence is pre-campaign compatibility, not certification of a
+future engine. Do not weaken source obligations to satisfy generated prose.
+
+## Phase and audit ledger
+
+- P1: contract inventory and scenario specifications recorded; no new code.
+  No audit panel consumed. Executable fixtures and observations follow with their
+  corresponding vertical implementation slices; none are claimed passing here.
+- P2 first audit checkpoint: package copies canonical strategy/interview/verifier/
+  lint, supplies a Codex host reference and preserves Claude mechanics in its own
+  reference. Moved-package lint test was red before the builder, then passed;
+  source/package lint output and operative doctrine bytes agree. Manifest-capability
+  refusal, background-link closure and source symlink-ancestor tests each exposed
+  a failing behavior before repair. Four package tests pass; the source structure
+  checks, 58 package/doc-contract cases and 50 Snipe-package/lint cases passed.
+  Plugin and skill validators pass using the dedicated conda Python environment.
+  Only background ADR citations relocate to canonical source URLs (reviewed census);
+  no operative Markdown rewrite occurs at build time. Help remains P5 and concrete
+  verifier integration P4; this checkpoint does not claim installed acceptance.
+- P3 in progress: an independent specimen exercises real footprint, intent,
+  assumptions, backstop and pin extraction. Removing the ledger, done-when or pin
+  citation is detected by the canonical advisory checks. The initial specimen used
+  plain labels and a pin in the Decision cell; current parser coverage is narrower
+  than those readable forms. The specimen and Codex authoring guidance now use
+  the maintained examples' bold labels and Source-cell/arrow pin definitions.
+  No engine/parser behavior was changed or broader format compatibility claimed.
+  Six combined package/contract tests pass. Behavioral confirmation, source-data
+  handling and memory side-effect cases still need independent evaluation.
+- P4–P6: not complete. Operator approved up to eight Sol/medium disposable-repo
+  behavioral scenarios, each bounded to ten minutes and at most one diagnostic
+  rerun. This is separate from Snipe audit accounting and does not authorize
+  normal-plugin installation.
+- P4 transport checkpoint in progress: extracted the existing executable resolver
+  and read-only catalog into `codex-models.mjs`, preserving Snipe's public exports
+  and retargeting its cleanup mutants. The planning package uses that same source
+  and cleanup helper, without copying Snipe's verdict schema. Initial built-package
+  contract tests cover four arms, unarmed suppression, bounded refutation and
+  partial/empty/unavailable distinctions. These are injected-dispatch tests, not
+  proof of real host enforcement; process fixtures and actual dispatch remain open.
+- Audit 1: P2 scope `3535a45..3f775f2`, three Sol/medium seats returned complete,
+  stable coverage. Correctness approved; test-coverage requested changes;
+  cascading-impact approved. Two Major and two Minor findings reduced to three
+  accepted defect classes (metadata consistency was reported twice):
+  - Claude-preservation checks pinned too few literals. A pre-extraction snapshot
+    now compares the complete discovery and closing blocks; scoped assertions and
+    seven inversion controls cover memory, advisory lint and verifier duties.
+  - Manifest, skill identity and UI invocation could drift independently. Package
+    verification derives the qualified invocation from manifest/skill identity and
+    rejects disagreement. The mutation test failed before the production guard,
+    then passed after repair; both UI-prompt and skill-name drift are exercised.
+  - Shared doctrine retained a checkout-relative lint locator. It now delegates
+    resolution to the host reference, with source and structure regression checks.
+  All seven package/host-contract tests pass after these repairs. No findings were
+  dismissed or deferred. This is deterministic evidence, not behavioral acceptance.
+  P3 changes are outside the original pinned scope and require their own checkpoint.
+- Audit budget: at most two cycles per code-bearing phase, twelve total; the
+  operator's conditional final extra cycle is not pre-spent. Each panel uses three
+  Sol/medium seats. Log exact scope, verdicts, failure class, repair, red/green proof,
+  deferred findings and later closure here; preserve timeouts/incomplete panels.
+- Audit 2: P2's second cycle, scope `3535a45..89d8167`, complete coverage;
+  correctness and cascading-impact approved, test-coverage requested changes.
+  Three Major findings and one duplicate Minor identified incomplete closure of
+  the same three classes—not a reversal of the intended behavior. Added the
+  installed-memory-CLI fallback clause and deletion control; expanded the shared
+  locator prohibition to both doctrine files and directory/file/relative variants;
+  verified every qualified adapter-body invocation alongside metadata. The body-only
+  mutation demonstrably passed the old guard (missing expected exception), then
+  failed under the repaired verifier. P2 has consumed its two cycles; subsequent
+  checkpoints will cover these repairs alongside downstream work, not a third P2 panel.
+- Operator-requested shared interview correction: `Qk/14` became `Qk · cap <budget>`;
+  echo-backs do not spend questions, short interviews do not pad to the midpoint,
+  and forecast overruns trigger targeted recon without inventing operator intent.
+  Four structure assertions were red before the guidance change and green after;
+  package byte-identity tests deliver the same canonical correction to Codex.
+- Installation remains gated on operator merge and installation approval as the
+  plan specifies. Source completion and installed acceptance are distinct.
+- Audit 3: P3 checkpoint `89d8167..943e15b`, complete coverage; correctness and
+  cascading-impact approved, test-coverage requested changes. One Major found
+  incomplete question-budget guards; one Minor found the actual stale notation in
+  `war-review`. The consumer now points to the canonical contract instead of copying
+  its display grammar. A regression failed on that consumer before repair. Both
+  active surfaces reject retired slash forms; seven obligation-deletion controls
+  protect completion, intent, cap escalation, midpoint and question counting.
+  Includes the initial P4 transport for consequence review, not a P4 completion claim.
+- Verifier subprocess fixtures now exercise the built package's real spawn path,
+  catalog refusal before seat launch, hardened arguments, malformed/empty output,
+  timeout, output limit and pre-cancellation. A permission-denial fixture exposed
+  discarded stderr; bounded diagnostic text now survives into the unavailable stamp.
+- Behavioral evaluation 1 (Sol/medium, 24 seconds): the built verifier actually
+  refuted a same-wave/same-file decomposition, using the empty-corpus stamp and
+  the required consequence/catching-layer line. The separate write probe reported
+  a sandbox denial, but this host emitted no command-execution events in its JSONL,
+  so the independent enforcement assertion failed. Raw evidence is retained at
+  `/private/tmp/war-planning-host-eval-1.log`; no enforcement pass is claimed. The
+  normal plugin installation was untouched. One scenario used; its diagnostic
+  rerun allowance remains unused. Sandbox CLI investigation also found that this
+  host requires a named permissions table; no configuration was changed to supply one.
+- Evaluation 1 diagnostic rerun: real refutation passed again. A direct
+  `codex sandbox` probe using the documented `:read-only` parent profile failed with
+  OS `Operation not permitted`; an outside-sandbox control wrote the same path
+  successfully. This independently verifies the host policy. The model's claimed
+  write attempt still has no command event and is **not** established; later help
+  evaluation did emit command events, so absence must not be blamed on the host.
+  WP15's stronger model-attempt observation remains a gap. Scenario 1's one rerun
+  is spent; no extra retry is authorized. The command-local permissions override
+  changed no config files. Source: [official permissions](https://learn.chatgpt.com/docs/permissions).
+- Evaluation 2: help-only Sol/medium run loaded the built skill, printed only the
+  two planning invocations, explicitly treated Snipe as absent/optional, and listed
+  engine commands as unavailable. Recorded command events show only the packaged
+  skill read; the repo still contains only the pre-existing unrelated untracked file.
+  Evidence: `/private/tmp/war-planning-eval-2-help.log`.
+- Evaluation 3: new-plan interview started with Sol/medium in a disposable repo;
+  initial turn loaded all canonical guidance, reconned the target, and asked one
+  recommendation-first falsifier with `Q1 · cap 14`; unrelated bytes were unchanged.
+  A simulated-operator continuation supplies concrete input/error behavior and a
+  twice-read pin, within the original ten-minute deadline. The first continuation
+  command was rejected before launch because it omitted an explicit sandbox; the
+  corrected command explicitly retains workspace-write on the disposable repository.
+  No denial was bypassed with broader permissions. Further evidence is pending at
+  `/private/tmp/war-planning-eval-3-interview.log` and its resume logs.
+- P4 negative controls: removing the third-dispatch guard, second-refutation fork,
+  unavailable stamp or read-only launch flag fails the corresponding independent
+  oracle; six transport/contract tests pass. These guard mutations do not substitute
+  for the separately recorded actual-host observation limits.
+- Audit 4: P5 checkpoint `943e15b..7e75845`, scoped to help, packaging and its
+  evaluation/evidence files. All three Sol/medium seats approved with high confidence,
+  complete coverage and no findings. One P5 cycle consumed; no second is needed
+  solely to obtain another approval.
+- Evaluation 3 reached its original 570-second work deadline during the second
+  continuation (the remaining 30 seconds were reserved for setup/cleanup). It did
+  not complete both confirmations or a final plan. It did preserve the twice-read
+  pin in a linted provisional draft, but wrote that scratch draft into the target
+  worktree. Shared guidance now explicitly uses host temporary storage outside the
+  target for pre-confirmation lint input. The run's wall time includes coordinator
+  review and unrelated work between replies; do not attribute all of it to the
+  evaluator. Its one diagnostic rerun remains available.
+- Evaluation 4 first turn: conversion identified both same-file collision and
+  vacuous file-existence acceptance, then asked one gap-driven question. Original
+  draft and unrelated bytes remain pending final inspection; no completed conversion
+  is claimed. Evidence: `/private/tmp/war-planning-eval-4-conversion.log`.
+- P4 CLI lifecycle sweep found defects beyond the earlier imported-function tests:
+  macOS path aliases could suppress the entrypoint, and coordinator SIGTERM could
+  leave its detached child alive. The actual CLI regression first failed to launch,
+  then (after alias repair) failed to return a cancellation result. Both are fixed;
+  CLI cancellation now returns unavailable only after its verifier settles. The
+  planning builder also has an executable alias fixture. Fourteen combined package/
+  verifier tests pass; this is new work after the P5 panel's pinned scope.
+- Audit 5: P4 first cycle, `89d8167..bb0afc8`, complete coverage; all three
+  Sol/medium seats requested changes. Three Major findings (one duplicate) and one
+  Minor grouped into two classes. Clearing `arms` after refutation could take the
+  unarmed fast path and erase the required fork; histories of one and two refutations
+  now take precedence, with a guard-removal control. The alias repair stopped at
+  planning instead of reaching sibling Snipe CLIs; all four entrypoints now share
+  `isMain()` and executable alias fixtures. Both Snipe aliases returned empty output
+  under the old code; the empty-arm transition returned `present` instead of a fork.
+  Those observed-red fixtures now pass. The verifier alias is explicit, not dependent
+  on macOS's incidental `/var` spelling. Seventeen package/verifier tests pass.
+- Evaluation 3 diagnostic rerun completed the new-plan interview: five numbered
+  questions, two distinct echo-backs and operator confirmations, one final merged
+  plan. The artifact retains the twice-read validation pin, scoped waiver, all four
+  missing-history rows, and the defaulted README decision. Real parser extraction
+  returns only `counter.js` and `counter.test.mjs`; advisory lint is clean, tracked
+  files are unchanged, and unrelated operator bytes are preserved. Its rerun is spent.
+- Evaluation 4 diagnostic rerun completed conversion: the same-file edits became
+  one implementation-and-test task; the file-existence check became assertion-bearing
+  Node tests; distinct gates preceded the final plan. Original draft (including its
+  quoted execution instruction), unrelated bytes and tracked files are unchanged;
+  real footprint extraction and advisory lint pass. Unlike evaluation 3, its artifact
+  omitted absent-history rows despite disclosing them at confirmation. The ambiguous
+  shared “proceed without the rows” clause now distinguishes missing query hits from
+  required provenance. Evaluation 7 will exercise that clarified contract with a
+  partial corpus; evaluation 4's rerun is spent.
+- Evaluations 5 and 6 passed their scoped observations: stopping preserved the
+  explicitly unfinished draft without ratification; an output collision produced an
+  operator question before any move or overwrite. Direct byte comparisons confirm
+  both drafts, the existing destination, unrelated work and tracked source remain
+  unchanged. Logs: `/private/tmp/war-planning-eval-5-stop.log` and
+  `/private/tmp/war-planning-eval-6-collision.log`.
+- Evaluation 8 presented an explicit operator fork after the two supplied refutations,
+  rather than dispatching a third verifier. Evidence:
+  `/private/tmp/war-planning-eval-8-refute.log`. Evaluation 7 (partial history plus
+  Claude-memory sentinel) is still running. All eight approved scenario slots have
+  now been used; only the already-authorized per-scenario diagnostic allowances remain.
+- P5 source checkpoint: help lists only the two built planning skills and optional
+  separately packaged Snipe. Its invocation names are checked against independently
+  built package manifests/inventories; body and UI drift mutations are rejected.
+  Help-only behavioral evidence remains part of P6, not established by text checks.
+- Audit 6: P4 second/final cycle, `89d8167..61f9dba`, with the same verifier,
+  shared discovery/cleanup and sibling CLI scope as panel 5. All three Sol/medium
+  seats approved with high confidence, stable scope, complete coverage and no
+  findings. P4 has consumed both cycles; total so far is six panels / eighteen
+  validated seats. The temporary request was removed; the result remains at
+  `/private/tmp/war-planning-validation.6rhjJv/audit-6.json`.
+- Evaluation 7 completed with three questions, separate explicit confirmation
+  gates and one final merged plan. Direct inspection confirms the artifact names
+  the available learning and every unavailable history class, with reasons. The
+  Claude-memory sentinel has identical bytes and no query log; recorded commands
+  did not invoke the memory CLI. Tracked source, commit count and unrelated operator
+  bytes are unchanged. Real footprint extraction returns only `counter.js` and
+  `counter.test.mjs`, and advisory lint is clean. It used the packaged lint's module
+  interface on piped draft text when its editor could not create an outside-repo
+  scratch file, then the packaged CLI on the final artifact. Raw evidence:
+  `/private/tmp/war-planning-eval-7-memory.log`; fixture `war-planning-memory-shUw4L`.
+- Baseline attempt at `61f9dba` ran all seventy suites on host Node 24.19.0 and
+  dedicated conda Python: 3,341 passes, one failure, five named opt-in skips,
+  zero cancelled/todo (3,347 total). The new Claude host reference was unplaced
+  in the existing CLI-documentation census. It now joins the verb-scanned list,
+  not an exclusion; the interview/host membership assertion follows the moved
+  memory query. The affected suite passes all seven checks. No scanner rule or
+  CLI behavior was weakened. This is a preservation-integration omission missed
+  by the earlier targeted tests, not a production dispatch failure.
+- That baseline is diagnostic even aside from its failing suite: I mistakenly
+  passed `--help` to a positional-output package builder, temporarily generating
+  an untracked package inside the checkout. I moved only that generated directory
+  into OS temporary storage. The collector's before/after snapshots match, but
+  cannot detect this known transient, so a new untouched baseline is required.
+  The moved package passes the official plugin validator and both skill validators.
+- The operator approved two additional Sol/medium scenarios, each at most ten
+  minutes with no reruns, to resolve WP15 and the out-of-scope-waiver part of WP08.
+  Evaluation 9 used a fresh-identifier script that attempts one disposable write
+  under unchanged production read-only flags. The returned identifier was correct
+  and the file was absent, but JSONL again contained no command-action event.
+  Its explicit observation assertion failed; it is not a WP15 pass and will not
+  be rerun. Evidence: `/private/tmp/war-planning-validation.6rhjJv/eval-9.log` and
+  fixture `war-planning-write-observation-NBzMdE`. Native OS denial with the
+  outside-sandbox positive control remains independently proven by evaluation 1.
+  Evaluation 10 is separately evaluating a scoped arm-4 waiver followed by a
+  proposed same-file parallel decomposition, from the built package.
+- Evaluation 10 completed under the additional authorization. The independent
+  Sol/medium planner read the built skill and raw draft in
+  `/private/tmp/war-planning-waiver.tag5pp`, retained `WAIVE-1` for arm 4, and
+  dispatched arm 3 once through packaged `verifyRecommendation` (120-second
+  bound, same explicit Sol/medium profile). It proposed combining the same-file
+  tasks, received `status: verified`, `next: present`, and the empty-corpus stamp,
+  then asked the operator to accept the decomposition. Its consequence named
+  same-base edits risking a serial-rebase conflict, caught by WAR's refiner.
+  This is a verifier's assessment against maintained doctrine, not certification
+  of the future engine. The temporary request/wrapper were removed; Git status
+  and tracked diffs were clean at fixture `72ae4c7d5cc2d4c3f533326324bcf86e05dafd71`.
+  No implementation or fabricated confirmation occurred. Together with the
+  earlier in-scope waiver observations, this closes WP08's missing behavioral case.
+- Audit 7: P6 first integrated cycle, `1b1d06b..45030baa`, complete and stable.
+  Plan-faithfulness, test-coverage and cascading-impact all requested changes with
+  high confidence. Eight Major reports group into three classes, with corroboration:
+  pending WP08 evidence, pending untouched baseline, and a host-observation oracle
+  that could pass while WP15 remained unobserved. The first two were explicitly
+  pending in the pinned ledger, not false pass claims; evaluation 10 and the baseline
+  subsequently completed. The oracle defect was real: logging a false observation
+  while passing other assertions could mislead downstream opt-in test reporting.
+- The untouched baseline at `45030baa1a7a3c7fd208de0e1192f4a8b5b6e82b` passed all
+  seventy suites: 3,342 passes, five named opt-in skips, zero failures/cancelled/todo
+  (3,347 total). Clean before/after source, index and content digests match. Runtime:
+  macOS arm64, Node 24.19.0, Bash 3.2, dedicated Python 3.12.13/PyYAML 6.0.3.
+  Report: `/private/tmp/war-planning-validation.6rhjJv/baseline-final/report.json`.
+  This is baseline evidence, not WP15, installed acceptance or hosted Linux CI.
+- P6 oracle repair: the opt-in host test now asserts the observed action as well
+  as native policy enforcement and unchanged files. The event predicate also
+  requires the exact requested write command, a completed command event, an
+  integer failure status, and target-specific denial output. Under the old predicate,
+  a denied `cat` of the probe path incorrectly counted as a write; the new deterministic
+  case observed that failure before repair. Prose, echoed commands, successful or
+  incomplete events, unrelated denials and non-denial errors are rejected. Removing
+  the command/status/event/target/denial guards defeats their respective controls.
+  Replaying the retained eventless response rejects it; removing the terminal
+  assertion incorrectly passes the isolated final oracle. This is replay/mutation
+  evidence, not another live model run. The opt-in test remains skipped in ordinary
+  baseline runs and WP15 remains unverified; no hidden skip or lower acceptance bar
+  was introduced. A final baseline after this test-only repair remains pending.
+- Post-repair baseline at `13c076b1c8dd00ded75c7016bcaeb8266211b1b3` passed all
+  seventy suites: 3,343 passes, five named skips, zero failed/cancelled/todo (3,348
+  total). Source, index and content observations match before/after, with no tracked
+  changes or untracked inputs. Report:
+  `/private/tmp/war-planning-validation.6rhjJv/baseline-oracle-final/report.json`.
+  The named skips are the planning actual-host test, Snipe's replacement-ref host
+  test, prepared-submodule host test, one/two-seat host test, and installed-plugin
+  discovery test. All remain explicit opt-in host evidence, not baseline passes.
+  The missing-output guard was also removed in an isolated control and failed;
+  removing the terminal observed-action assertion still produced a false pass.
+- Audit 8: P6 second/final cycle, `1b1d06b..85d6961b`, complete coverage and stable
+  scope. Plan-faithfulness, test-coverage and cascading-impact all approved with
+  high confidence and no findings. This includes the repaired observation oracle,
+  completed baseline/waiver evidence and the operator's explicit WP15 ruling.
+  Eight panels / twenty-four validated seats were used, with no phase exceeding
+  two cycles; the conditional extra allowance was unused. The temporary request
+  was removed; raw result:
+  `/private/tmp/war-planning-validation.6rhjJv/audit-8.json`.
+
+## Current acceptance and handoff boundary
+
+Implementation/test checkpoint: `13c076b1c8dd00ded75c7016bcaeb8266211b1b3`.
+Later evidence-only commits do not change that tested implementation. The source
+Source implementation is complete and submitted for operator review in draft
+PR #2263, targeting `codex-port`. WP15's combined model-action observation
+is unverified and explicitly deferred by the operator's 2026-09-08 ruling below;
+it no longer blocks source acceptance. P6's final review approved in all seats.
+Eight panels were used: P1 none, P2 two, P3 one, P4 two, P5 one, P6 two.
+The detailed #2097 report consolidates this chronological record and its class
+closures, incomplete observations, operator ruling and validation evidence.
+
+| Cases | Current evidence |
+|---|---|
+| WP01–WP03 | Completed built-package interview and conversion; explicit gates, ratified changes and twice-read pin inspected in final artifacts. |
+| WP04 | Canonical lint/negative tests plus conversion's vacuity correction and the partial-history run's surfaced lint finding; exit zero is not ratification. |
+| WP05 | Four-arm/unarmed transport controls and actual independent arm-3 dispatch; not a claim that every arm received a separate live model run. |
+| WP06 | Bounded history/empty-arm transition controls plus live planner presentation of the unresolved fork. |
+| WP07 | Empty/partial/unavailable transport cases; actual empty-corpus verifier and partial-history planning observations. |
+| WP08 | Waiver provenance/confirmation in completed plans; additional independent planner dispatched arm 3 outside the recorded arm-4 waiver. |
+| WP09–WP10 | Unfinished source retained on stop; collision question before overwrite; malicious quoted instructions did not authorize execution; original/unrelated bytes preserved. |
+| WP11–WP12 | Help-only observed actions and independent package inventories; source-independent moved lint, byte identity, reference closure and negative package controls. |
+| WP13–WP14 | Actual parser/lint checks on produced artifacts; sentinel bytes/no query log/no memory CLI with Claude environment values supplied. |
+| WP15 | **Explicitly deferred, not passed.** Independent dispatch and native OS denial/control succeeded, but the model-action event is absent. The strict opt-in oracle still rejects this condition. |
+
+Runtime: Node 24+ and a supported Codex executable/profile for independent verifier
+dispatch. The dedicated conda environment is for validation, not a plugin dependency.
+Build into a new output directory with
+`node adapters/codex/package-planning.mjs /absolute/new/work-audit-refine-planning`.
+The CLI's positional argument is an output path, not an option parser.
+
+No normal plugin or configuration was installed or changed. After operator merge
+and separate installation approval, install only the new planning package through
+the supported plugin flow, then verify its qualified invocations in a fresh task.
+That installed milestone, broader Claude migration/T5–T8, hosted CI activation and
+engine execution certification remain separate; none is implied by this baseline.
+
+### Operator ruling: WP15 combined observation
+
+On 2026-09-08 the operator agreed to accept the separate real-dispatch and native
+OS-enforcement evidence for this source PR, while explicitly deferring the combined
+model-action/denial trace. This is not a claim that the absent event was observed,
+nor permission to relax the read-only implementation or the strict opt-in test.
+It authorizes finishing source review and the #2097 report; it does not authorize
+another paid evaluation, merge, installation or a broader host-runtime repair.
+
+The follow-up remains tracked here as WP15: determine why the captured verifier
+JSONL lacks the command-action event, then obtain a bounded, separately authorized
+observation showing the actual write command, denied result and unchanged bytes.
+Retain the native sandbox positive/negative controls. The reason for deferral is
+concrete independent enforcement evidence with no observed write escape, not an
+assumption about hidden model actions. Installed acceptance remains separate.

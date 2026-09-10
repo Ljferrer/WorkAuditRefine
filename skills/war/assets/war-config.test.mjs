@@ -1806,19 +1806,16 @@ test('coverage meta-test: resolveGate discovery clause covers the repo (find + n
 
 // --- Node-test breadth assertion (resolves Open decision #1) ---
 
-test('node-test breadth: all *.test.mjs files in the repo are under skills/ (reachable by skills/**/*.test.mjs glob)', () => {
-  // The declared gate uses `node --test 'skills/**/*.test.mjs'` which only reaches skills/.
-  // Assert that every *.test.mjs file in the repo (excluding pruned paths) is under skills/.
-  // Any file outside skills/ would be silently orphaned by the declared node glob.
+test('node-test breadth: every source suite belongs to the reviewed baseline census', () => {
+  // The production WAR gate still selects skills/. Codex and parity tooling are
+  // additionally executed by the baseline collector, not by that engine gate.
+  // Keep an independent filesystem walk: deleting a census row must fail here.
   const found = walkFiles(REPO_ROOT, name => name.endsWith('.test.mjs'))
-  const outsideSkills = found.filter(p => {
-    const rel = relative(REPO_ROOT, p)
-    return !rel.startsWith('skills/')
-  })
+  const census = JSON.parse(readFileSync(join(REPO_ROOT, 'scripts/ci/test-inventory.json'), 'utf8'))
   assert.deepEqual(
-    outsideSkills,
-    [],
-    `These *.test.mjs files are outside skills/ and would be silently orphaned by 'node --test skills/**/*.test.mjs':\n${outsideSkills.map(p => '  ' + relative(REPO_ROOT, p)).join('\n')}`
+    census.filter(p => p.endsWith('.test.mjs')).sort(),
+    found.map(p => relative(REPO_ROOT, p)).sort(),
+    'Every source JavaScript suite must be explicitly owned by the baseline census; no deleted or orphaned suites'
   )
 })
 

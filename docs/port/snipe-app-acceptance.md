@@ -1,0 +1,180 @@
+# Snipe app launch acceptance
+
+This check supplements the direct `snipe-actual-host.test.mjs` runtime test. A direct host runner cannot establish that a Codex task requests the necessary launch permission.
+
+## Cleanup failure contract (#2235)
+
+Discovery, auditor seats and submodule Git operations share one cleanup observer.
+A denied cleanup signal never escapes a timer/event callback and is never retried.
+A successfully requested signal gets a 250 ms final-close allowance; inherited
+pipes cannot keep the caller waiting indefinitely after that allowance expires.
+Failures retain `cleanupError` (code/message), `processGroupId`, and
+`terminationConfirmed: false`. These are failure evidence, not a claim that the
+process died. The operator may need to clean up the retained group separately.
+
+Discovery rejects with `PROFILE_DISCOVERY_FAILED`, preserving its original reason
+and cleanup diagnostic. Seats retain timeout/output-limit/cancellation statuses;
+otherwise an uncertain cleanup becomes failed, even if a valid verdict was emitted.
+Healthy peers remain reportable. Submodule preparation stops rather than retrying
+another source and retains its review directory on uncertain termination; the
+error names that directory. No audit seats start after such preparation failure.
+
+Deterministic regressions inject denied/missing-close outcomes through the real
+runner, including successful responses, direct-child exit, timeout, output-limit
+and cancellation. The submodule regression checks metadata/init/copy failures and
+retention. These tests do not explain the original intermittent OS denial, and
+source verification is not an installed-plugin update. After review and merge,
+rebuild the package and repeat the installed app smoke test before release.
+
+## Post-land integrity contract (#2160)
+
+Invalid verdicts retain their original raw evidence and leave the panel incomplete;
+only deterministic supported-alias normalization is performed. There is no new
+model response called a schema repair. Historical acceptance records below retain
+the behavior of the versions they tested.
+
+Scope capture has a 30-second aggregate deadline, at most five seconds per Git
+call, 32 MiB per Git output (including the untracked path list), and at most
+64 MiB of untracked content. Regular files are streamed; unsupported file types,
+unreadable files and exceeded limits refuse initial capture. Failed final capture
+preserves completed seat results but marks the panel unstable/incomplete with the
+reason in its report. Synchronous capture is bounded, not instantly cancellable.
+SSH config and working-tree `.gitmodules` use the same bounded regular-file reader
+with a 1 MiB limit. No evidence is silently truncated into a complete result.
+
+Coordinator Git, preparation Git and auditor shell environments share original-object
+and no-lazy-fetch policy. Scope diffs/status force submodules visible regardless of
+ignore preferences. Owned POSIX process groups are killed on completion/failure;
+profile discovery settles only after closure. This does not contain descendants
+that deliberately detach into a different process group.
+
+Validation and finding-class evidence: [self-audit integrity fixes](2026-09-08-snipe-audit-integrity.md).
+
+## Installed skill discovery (#2211)
+
+In a fresh task, use the installed plugin's qualified invocation:
+
+```text
+$work-audit-refine-snipe:snipe correctness,security
+Auditor profile: gpt-5.6-sol / medium
+```
+
+Alternatively, select **Snipe** from **WAR Snipe** in the host's skill picker so the host attaches the skill. The plugin remains explicit-only (`allow_implicit_invocation: false`). Bare `$snipe` text is not a reliable installed-plugin alias on the tested host; the earlier unqualified examples below describe source-selected tests, not a discovery guarantee. Do not work around failed lookup by searching cache directories or launching substitute auditors. Verify the installed plugin is enabled and select its qualified skill; if it still cannot resolve, report the failure and stop.
+
+The host's [App Server skill invocation contract](https://learn.chatgpt.com/docs/app-server#skills) recommends a structured `skill` input attachment and supports discovering its name/path with `skills/list`. Paths belong in host-resolved attachments, not manual user prompts. A skill omitted from the default model catalog can still be installed and explicitly invocable.
+
+Evidence on bundled Codex CLI `0.153.4`, with installed `work-audit-refine-snipe` version `0.21.12+codex.20260908045352`:
+
+- `skills/list` with `forceReload: true` returned enabled `work-audit-refine-snipe:snipe`, plugin ID `work-audit-refine-snipe@war-snipe-local`, and no discovery errors.
+- A fresh ephemeral read-only process given bare `$snipe` reported unavailable. Changing only the marker to `$work-audit-refine-snipe:snipe` loaded the skill and identified its owned runner without a path hint or filesystem search. No install or policy change occurred between those probes.
+- The regression below failed before the prompt correction with `available: false` and null runner/sandbox/approval fields. After correction, both packaged default prompts resolved the skill in separate fresh processes and returned `snipe-runner.mjs`, `read-only`, and `never`. The negative conceptual request performed no commands and produced no audit report.
+
+Run the opt-in discovery regression with the absolute host executable and an explicitly selected supported model/effort:
+
+```sh
+SNIPE_CODEX_BIN=/absolute/path/to/codex \
+SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium \
+node --test adapters/codex/snipe-discovery-host.test.mjs
+```
+
+This test requires the Snipe plugin already installed and enabled. It builds candidate metadata, submits those prompts through the actual bundled host against the installed skill, and launches no audit seats. It proves qualified text discovery, not a Desktop picker click or installation of the candidate package. After merge/reinstall, repeat the qualified invocation in a fresh Desktop task to accept the release. Both shipped default prompts now use that qualified name; the ten-file package inventory, explicit-only policy, runner, and Claude plugin are unchanged.
+
+## Reproduce and verify
+
+### Declared SSH identities for PR targets (#2213)
+
+PR targets now accept SCP-style and `ssh://git@...` origins whose alias has a
+first matching `HostName github.com` in the host user's `~/.ssh/config`. Owner
+and repository matching is unchanged; this resolves identity only and fetches
+no PR objects. Identity comes from the unique literal local origin, without
+includes or `insteadOf` expansion. Explicit SSH ports other than 22 are refused.
+
+The coordinator reads a conservative declarative subset instead of launching
+`ssh -G`: [OpenSSH configuration](https://man.openbsd.org/ssh_config) uses the
+first obtained value and permits `Match exec` to execute commands. The resolver
+supports ordered `Host` patterns, wildcards, negation, and literal `HostName`.
+The user config must be a regular, user-owned file without group/other write
+permission and at most 1 MiB. Symlinks, `Include`, `Match`, canonicalization,
+tokenized names, quoted `Host` patterns, and malformed identity directives are refused. System-only
+aliases are unsupported. Literal `github.com` SSH URLs receive the same config
+checks as aliases, including refusal when remapped elsewhere. This checks the
+user's declaration, not effective SSH configuration, system settings, network
+routing, or server authentication. HTTPS origins likewise establish declared
+repository identity, not the destination of a future rewritten connection.
+
+Custom Git SSH commands/variants are refused for SSH PR origins; repository
+commands and SSH `ProxyCommand`/`LocalCommand` are never executed by identity
+lookup. Active ProxyCommand, ProxyJump, HostKeyAlias and LocalCommand directives
+are refused, as are non-git users and non-22 ports in matching blocks.
+Unverifiable origins retain `PR_REPOSITORY_MISMATCH` with an explicit merge-base
+target as the workaround. No user SSH configuration is rewritten.
+
+Tests cover both remote forms, first-value ordering, wildcard exclusions,
+unmatched/lookalike hosts, malformed and injection-shaped remotes, command
+non-execution, unsafe config permissions, and PR-level owner/repository checks.
+A read-only check against this host's existing alias resolved the reported
+AutoIndex origin to `Sequoia-Port/AutoIndex`. No model calls, SSH connection, or
+plugin installation were needed for that check. Fresh installed-package
+acceptance remains a post-merge release step.
+
+### Pinned submodule preparation (#2212)
+
+The optional request field `submoduleRemotes` maps full parent-relative paths to operator-approved remotes. For example:
+
+```json
+{"submoduleRemotes":{"vendor/utils":"git@github.com:OWNER/UTILS.git"}}
+```
+
+No approval is inferred from `.gitmodules`. Existing local objects need no network approval; the coordinator copies exact commit/tree/blob closures into new bare repositories. A missing object can be fetched only from a matching approved remote, after comparing both relevant pinned `.gitmodules` entries. Added/deleted gitlinks inspect the non-null side. Nested changed gitlinks are enumerated from the prepared trees and need their own path-specific approval. Dirty scope uses the corresponding HEAD/index/working-tree metadata rather than replacing it with the current checkout's URL.
+
+Preparation does not clone or check out files into the target, copy source Git configuration, or run checkout hooks. Git environment routing, global URL rewrites, credential helpers and lazy fetching are disabled for preparation; source scope capture also suppresses fsmonitor and text conversion. [Git documents `GIT_NO_LAZY_FETCH`](https://git-scm.com/docs/git) as preventing automatic retrieval from promisor remotes. Allowed remote transports are HTTPS, Git SSH, and loopback-only HTTP for local servers. Redirects, credential-bearing URLs, local-file and arbitrary helper transports are refused. HTTPS authentication requiring a global credential helper is not supported here; approved SSH URLs can use the host's existing keys/agent. Remote identity changes between base/head fail closed with this single-remote-per-path interface.
+
+Limits are 32 prepared gitlinks, four levels, 120 seconds total preparation, 30 seconds per Git process, and 64 MiB per command output/object pack. These bound processing, not total network bytes downloaded by Git. Cancellation or any unavailable object/limit leaves coverage incomplete while preserving other readable findings. Auditors retain the existing read-only/no-network configuration. Temporary `reviewRepository` paths are normally usable only during the panel and are disposed after readers terminate. If auditor cleanup is uncertain, the panel retains the object stores, exposes `retainedRoot`, and reports operator cleanup required; an unknown worker failure conservatively retains them too. Never delete those stores while an uncontained reader may still use them. Ordinary failed verdicts or nonzero exits with successful cleanup do not retain objects.
+
+Repeatable checks:
+
+- `node --test adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs`: local copies; approved versus unapproved/mismatched/unsafe remote; missing base/head; symlink escape; dirty index metadata; nested approvals. Network fixtures are isolated loopback Git servers, not real remotes.
+- The runner regression verifies both seats can read prepared pins before temporary repositories are removed. The scope regression demonstrates repository-configured fsmonitor/textconv execution before the fix and its suppression afterward.
+- `SNIPE_CODEX_BIN=/absolute/path/to/codex SNIPE_CODEX_MODEL=gpt-5.6-sol SNIPE_CODEX_EFFORT=medium node --test --test-name-pattern='actual host audits prepared' adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs` runs one real auditor against a seeded submodule bug, asserting a parent-relative finding and unchanged parent/submodule checkout snapshots.
+
+The standalone package now includes the preparation module and conditional submodule reference (twelve files). Installation remains a post-review release step; these checks do not update the live plugin.
+
+Actual-host evidence on bundled CLI `0.153.4`, Git `2.50.1`, `gpt-5.6-sol` / `medium`: the prepared-submodule test passed with a `request_changes` finding attributed to `vendor/engine/seat.js`, unchanged parent and nested checkout snapshots, and disposed review objects. An earlier attempt prepared coverage successfully but returned an invalid auditor schema after its one repair; it correctly reported an incomplete panel. The repeat used the same runtime implementation, with failure diagnostics added to the test. This is not a claim that intermittent host result-generation failures are resolved.
+
+Independent review found no blocking standards/spec violations. The local-reuse scope is conservative: it checks initialized submodule repositories and the parent object store, not detached/deinitialized `.git/modules` stores. Such a checkout may still need an approved remote fetch even if another local store contains the objects.
+
+### Coordinator launch and dirty scope
+
+1. In a disposable Git repository, commit a `normalizedScore(value, maximum)` helper that rejects non-finite operands with `Number.isFinite`. Configure `origin/HEAD` to that baseline. Remove only the validation in the working tree; leave ratio clamping. Include no tests so absent-test reporting is exercised.
+2. In a Codex app task with workspace sandboxing, invoke `$snipe correctness,security`, with the operator concern “invalid and non-finite inputs.” When validating a candidate before installation, explicitly select its `SKILL.md` and adjacent runner and record that this is source validation.
+3. Inspect the task's command invocation: it must request `sandbox_permissions: "require_escalated"` for the coordinator's first launch. The child command must retain `--sandbox read-only`, `approval_policy="never"`, and the existing disabled connector/plugin/hook surfaces. A denied launch stops; no broader-permission retry is allowed.
+4. Require runner exit 0, `complete: true`, two completed/validated seats, the actual task profile, and identical before/after scope fingerprints. Require a finding identifying the removed input validation. On this no-tests fixture, require `tests_verified: {exist: false, inspected: []}` without schema repair.
+5. A transport failure, an audit run only from a separate terminal, or manually supplied verdicts fails this app acceptance. Preserve incomplete results as failures.
+
+## Evidence — 2026-09-07
+
+WAR issue #2160 correction: https://github.com/Ljferrer/WorkAuditRefine/issues/2160#issuecomment-5578440805
+
+- Original app task: `01a07edf-5200-7d10-9380-bbde4f8de204` (“Test Snipe Codex plugin”). Both seats failed with `failed to initialize in-process app-server client: Operation not permitted`.
+- Minimal reproduction in the enclosing task sandbox: `codex exec --ephemeral --ignore-user-config --sandbox read-only -c 'approval_policy="never"' 'Reply OK'` exited 1 before inference. The same command with coordinator host permission returned `OK`; child sandbox remained read-only.
+- Candidate source validation in that same app task, turn `01a07ef7-6bbd-7f73-9d34-7ed03691e356`: revised skill read, coordinator launched through the task's shell permission mechanism, runner exit 0; correctness and security completed with `request_changes`; both reported absent tests and neither required repair. The active profile was `gpt-6-astra` / `low`, read from that task's current turn context.
+- Scope fingerprint before and after: `313e8d41443a95bc4beeec3ae22c6d54ef12b51f6be5d9d26b797a5cfb917b97`.
+- This verifies candidate source instructions in an app task. It does not claim that the previously installed package has been updated. Rebuild/reinstall after review and repeat the explicit invocation against the installed skill when accepting the release.
+
+The fix requests host permission only for coordinator initialization. Auditor permissions and the no-retry rule are unchanged. Hosts without an approval mechanism cannot launch this workflow and must report that limitation.
+
+## Missing active-profile acceptance
+
+Fresh tasks may not expose their active model/effort. Test this separately: forbid reading session logs or global settings and invoke `$snipe correctness,security` without an auditor profile. The skill must run `--list-profiles`, show host-returned choices, and ask for a model and effort without launching seats. Then provide an explicit pair (for example, `gpt-5.6-sol` / `medium` if returned by this host). The request must contain `profile`, omit `inheritedProfile` and `supportedProfiles`, and complete both seats through the normal coordinator launch.
+
+The CLI discovers supported profiles via the selected binary's [App Server model/list endpoint](https://learn.chatgpt.com/docs/app-server#list-models-modellist), using only initialize/initialized/model/list. Discovery is bounded to 30 seconds and 1 MiB of output and follows pagination; failures stop before audit dispatch. It neither creates a thread nor starts an inference turn. Programmatic callers can still supply a verified host map. No shared WAR config or persistent defaults are introduced.
+
+Candidate evidence in task `01a07edf-5200-7d10-9380-bbde4f8de204`: turn `01a07f1e-f30f-7ff0-bbb2-1ba074bbdd63` discovered real host profiles and asked for a pair without dispatch. Follow-up turn `01a07f1f-c4ec-7b91-93f0-4129b83a7ce3` received explicit `gpt-5.6-sol` / `medium`, omitted both inherited metadata and the support map, and completed both seats with validated `request_changes`, no repairs, absent tests preserved, and the unchanged fingerprint above. The test explicitly withheld active metadata; no transcript or global-config inference was needed. All 58 deterministic tests passed across the focused suites. Installed-package validation remains a post-review release step.
+
+## Desktop executable acceptance
+
+Restrict the coordinator PATH to `/usr/bin:/bin`, verify `command -v codex` finds nothing, and invoke Node using the absolute host-provided `CODEX_MCP_NODE_PATH`. Preserve that runtime hint but omit both `--codex-path` and `SNIPE_CODEX_BIN`. Require successful `--list-profiles` and a complete two-seat audit against the fixture above. This tests the actual Desktop environment without relying on a developer-installed CLI alias.
+
+Resolution order is explicit absolute `--codex-path`, absolute `SNIPE_CODEX_BIN`, the `codex` sibling of `Contents/Resources/cua_node` identified by the host runtime path, then executable Codex entries in absolute PATH directories. Candidates must be executable files and resolve to absolute paths. The Desktop convention is verified on this macOS host; unfamiliar runtime layouts must use an explicit path rather than guess a global application location. Both profile listing and ordinary requests support `--codex-path`; an invalid override is an actionable failure rather than a fallback to another binary.
+
+Candidate app acceptance: task `01a07edf-5200-7d10-9380-bbde4f8de204`, turn `01a07f4d-3635-7492-abd2-6ff9b6bcb862`. PATH was `/usr/bin:/bin` and `command -v codex` returned nothing. The retained Node runtime hint resolved `/Applications/ChatGPT.app/Contents/Resources/codex`; neither executable override nor inherited profile/support map was supplied. Both real seats completed with validated request_changes, no repairs, absent-test evidence preserved, and unchanged scope fingerprint. Runner exit 0 and complete true. The 22 affected runner/package/structure tests passed, including a synthetic Desktop bundle path containing spaces and profile listing with an explicit path under an empty PATH.
