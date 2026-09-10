@@ -1460,12 +1460,12 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
 // compared. The relation is non-strict, so an equal-rank move stays green by design.
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'servitor', 'redteam', 'snipe']
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe']
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
   const expected = Object.keys(DEFAULTS.agents).flatMap(k =>
-    k === 'worker' ? ['worker', ...Object.keys(DEFAULTS.agents.worker).filter(s => isObj(DEFAULTS.agents.worker[s])).map(s => `worker.${s}`)] : [k])
+    [k, ...Object.keys(DEFAULTS.agents[k]).filter(s => isObj(DEFAULTS.agents[k][s])).map(s => `${k}.${s}`)])
   assert.deepEqual([...TIER_PATHS].sort(), [...expected].sort(), 'TIER_PATHS must cover every DEFAULTS.agents tier exactly once')
   assert.deepEqual(Object.values(BULLET_LABELS).sort(), [...expected].sort(), 'BULLET_LABELS must map onto every DEFAULTS.agents tier exactly once')
 })
@@ -1509,7 +1509,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {
@@ -2851,4 +2851,17 @@ test('meta-guard(F07): sanity — exactly 9 Keep-in-sync/Mirror-of markers exist
     `Expected exactly 9 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
+})
+
+test('refiner recovery tier: defaults, partial overrides and validation are independent of routine refiner', () => {
+  assert.deepEqual(DEFAULTS.agents.refiner.recovery, { model: 'opus', effort: 'high' })
+  const c = fillDefaults({ agents: { refiner: { model: 'sonnet', effort: 'medium', recovery: { model: 'fable', effort: 'default' } } } })
+  assert.equal(c.agents.refiner.model, 'sonnet')
+  assert.deepEqual(c.agents.refiner.recovery, { model: 'fable', effort: 'default' })
+  assert.equal(validate(c).valid, true)
+  for (const recovery of [null, [], { model: 'invalid' }, { effort: 'invalid' }, { surprise: true }]) {
+    const v = validate({ agents: { refiner: { recovery } } })
+    assert.equal(v.valid, false, JSON.stringify(recovery))
+    assert.ok(v.errors.some(e => e.includes('agents.refiner.recovery')))
+  }
 })

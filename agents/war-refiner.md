@@ -22,6 +22,10 @@ When a phase's `target repo` is a submodule (not the superproject), read [refine
 
 If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.
 
+## Git mutation recovery
+
+Before a `merge-snapshot` or `merge-reconcile` dispatch, read [refiner-recovery.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md) § Uncertain merge reconciliation. Snapshot is read-only; reconciliation is authorized refiner maintenance. Follow its Git evidence, fresh gate, immutable diff-base and push-first CAS rules. Never infer that a merge did not happen from a lost response. Resolve recoverable Git state in-phase without human Git commands; uncertain state holds before land.
+
 ## provision
 
 Provisioning **is** a refiner duty ([ADR 0001](../docs/adr/0001-explicitly-managed-worktrees.md)) — workers never touch shared git state, so the Refinery brings the worktree topology and per-task environment up. A `provision` dispatch is **never** out-of-mode: **do not decline it.** There are three dispatch flavors, each identified by its stable `opts.dispatchKind` discriminator (mocks/handlers/audits key on it, not the label prefix):

@@ -162,3 +162,41 @@ replace the current red artifact. Disposable absolute-path, NUL-path and continu
 mutations each fail their behavioral assertion. Workflow + skill-doc-contracts + prompt-budget
 checkpoint: **853 passed, 0 failed**. `git diff --check` passed. The new path allocation is refiner
 executed; the workflow does not pretend to open or independently authenticate log contents.
+
+## Git reconciliation checkpoint (2026-09-09)
+
+Implemented the operator's D21 amendment. Before a task, floor/environment/baseline retry,
+polish, terminal or land dispatch, a read-only refiner snapshots full Git object identities and
+the exact origin target ref. Missing snapshots retry on the stronger tier before any mutation.
+A lost/error/malformed mutation response enters bounded in-phase refiner maintenance. The
+separate `agents.refiner.recovery` tier defaults to Opus/high across presets; routine refinement
+remains independently configured. Config validation, preset display and runtime default/override
+coverage accompany the new tier. No auditor gets Git writes and no human Git CLI step is required.
+
+Recovery accepts merged content only with matching snapshot identities, local/remote/source
+SHAs, nonempty matching patch evidence and a normal result with a captured gate artifact.
+Required floors use the immutable pre-merge base, avoiding an empty diff after an earlier push.
+Land recovery reuses the actual phase commit and checks its parents against the captured remote
+working base and integration source. It never creates a second phase commit. Proved-unmerged
+requires both target refs unchanged; unknown/contradictory state retries up to roundLimit and
+holds before land when still unresolved. Non-infrastructure errors retain their original hard
+path if maintenance proves absence but cannot complete the operation. Read-only deaths keep
+existing classifications.
+
+Evidence: **21 real-Git mutation cases** cover before-merge, after-local-merge and after-push loss
+at all six task/sweep merge routes, plus post-push loss at all three land routes. All pass and
+all **21 fail against 8eb7d2c0** before this repair. The fixtures perform real Git commits,
+merges and local-remote pushes; gate/floor responses remain harness-controlled agent results,
+not a claim that live Opus ran the procedure. Land fixtures prove exactly one phase merge commit.
+Three distinct read-only alternate-consumer fixtures cover pin-mismatch and floor re-audit deaths
+and integrated-tip gate-audit death. **27 disposable guard mutations fail** their behavioral
+assertions, covering snapshot fields, reconciliation identity/patch/result evidence, unchanged-ref
+proof, land parent/source checks and those three read-only death guards.
+
+Checkpoint command: workflow + war-config + skill-doc-contracts + prompt-surface-budgets —
+**1,108 passed, 0 failed**. Three additional malformed-response tests passed after extending the
+same recovery gate to absent/unknown statuses. Full repository validation remains pending.
+`git diff --check` passed. Standing refiner recovery doctrine, schema summary and operative D21
+plan row are updated. Git remains the source of truth across machines; the snapshots are Git
+identities, not a replacement completion database. Live-refiner adherence and genuinely divergent
+or ambiguous concurrent state remain explicitly bounded: agents investigate; no false completion.

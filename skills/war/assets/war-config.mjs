@@ -39,7 +39,7 @@ export const DEFAULTS = {
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
     auditor:  { model: 'opus',   effort: 'high' },
-    refiner:  { model: 'sonnet', effort: 'high' },
+    refiner:  { model: 'sonnet', effort: 'high', recovery: { model: 'opus', effort: 'high' } },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
     // sub-agents. NOT a phase role (never in ROLES/agentMatrix); defaulted here (the balanced value)
@@ -246,6 +246,7 @@ export function validate(input) {
     if (Object.prototype.hasOwnProperty.call(worker, 'docs')) validateAgentTier(worker.docs, 'agents.worker.docs', errors)
     if (Object.prototype.hasOwnProperty.call(worker, 'fix')) validateAgentTier(worker.fix, 'agents.worker.fix', errors)
   }
+  if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
   // agentMatrix stays four roles). Defaulted in DEFAULTS (preset-overridden); a config

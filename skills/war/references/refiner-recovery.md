@@ -131,3 +131,48 @@ Exit 2 or any unrecognized failure stops the barrier with the command and stderr
 Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
 provenance, available after cloning on another machine; no local marker, reflog, label or journal
 can substitute for the proof. The normal resume pre-flight still reconciles unexplained commits.
+
+## Uncertain merge reconciliation
+
+A merge or land can push successfully and lose its response. It is still a mutation. The engine
+reads a Git snapshot before dispatch (retrying unavailable reads on the recovery tier) and, on death, missing result or error, dispatches a fresh
+refiner using `agents.refiner.recovery` (defaults/presets are defined in `war-config.mjs`). The
+ordinary refiner tier stays independent. Maintenance is bounded by `run.roundLimit`; auditors
+never acquire Git write permissions. This maintenance does not consume worker fix/absorb rounds.
+
+Use the context's repository, source and target branches, including a submodule repository when
+specified. Resolve full commit SHAs and query origin's exact target ref; a failed remote query
+is not an absent ref. The snapshot stores Git identities, not a local-state completion marker.
+Check both local and remote state before and after maintenance. Respect a live or unknown writer;
+if its mutation cannot be ruled out or safely completed, return uncertain. Never overwrite
+foreign content, reset a shared ref, force-push, or ask the human to run Git commands.
+
+For a task/polish/terminal merge, unchanged target refs allow one retry of the full original
+operation in this recovery dispatch. An already-advanced target must be exactly the current
+source tip, fast-forward from the captured base, with no foreign commits and the same nonempty
+patch-id as the captured task diff. Complete an interrupted push without force. Rerun the gate
+into a fresh artifact and run every applicable floor against the **captured base SHA**, never
+against an already-advanced target branch (which would erase the task diff). The original
+baseline/environment exceptions and known forward-revert remain binding; do not change audited
+content or resolve content conflicts. A changed patch needs a ruling and re-audit.
+
+For a land, reuse an already-pushed phase commit only when its two parents are exactly the
+captured remote working base and integration source. Complete the original push-first local CAS,
+respecting checkout/worktree cleanliness. Never create a second phase commit to replace a lost
+response. Gate the actual landed commit in a fresh artifact. Divergence/foreign advance is
+uncertain and requires further agent investigation before publishing more state.
+
+Return the engine's `MERGE_RECONCILIATION` shape: echo snapshot identities, report current local
+and origin target SHAs, current source tip, verified patch-id, and the complete normal MergeResult
+with its captured gate path. A land additionally reports its actual commit parents. `unmerged`
+requires both target refs unchanged from their respective snapshots after the retry; it never
+means “no response.” The workflow validates these fields before accounting success or safe
+absence. Exhausted uncertainty holds before land (`held:workflow-error`), preserving all branches
+and the evidence ledger for the next agent. A proved-unmerged infrastructure death retains its
+existing soft classification; a read-only audit/probe death keeps its existing site classification.
+
+Across machines, fetch the named source/target refs and reconstruct from commit history and
+remote refs, using the recovery provenance helper for task skips. Missing evidence means rerun
+work/audit or continue agent reconciliation, never trust a previous machine's local marker or
+reflog as completion. The runtime tests exercise real Git mutations and local remotes; a live
+refiner's faithful execution of this procedure remains part of the agent contract.

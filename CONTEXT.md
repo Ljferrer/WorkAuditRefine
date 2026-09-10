@@ -665,7 +665,7 @@ _Avoid_: reading silence as `met` (the failure mode the status exists to close);
 **Gate-evidence artifact**:
 The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.<unique>/gate.log`; the `execution-evidence`
 seat's source of per-mapped-test PASS evidence (inline `gate_output` is context only). Phase-ephemeral
-(last-write-wins across a task's up-to-four gate runs; destroyed by `_refinery` heal and phase teardown) —
+(fresh directory per logical gate attempt; destroyed by `_refinery` heal and phase teardown) —
 audit input, never a resume/adjudication record.
 _Avoid_: minting a HARD provably-unrun finding from a possibly-curated inline `gate_output` paste (the
 HARD determination is made only against the captured file); treating a missing artifact as a hold (missing

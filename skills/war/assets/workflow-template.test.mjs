@@ -61,6 +61,9 @@ const NEW_SEAT_DEFAULTS = {
   // refiner returns.
   'ace-gate': (prompt) => ({ gate_green: true, head_sha: (String(prompt).match(/at the ace tip ([0-9a-f]{7,40})/) || [])[1] }),
   'pin-transfer': { status: 'error' },
+  'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch' },
+  'merge-reconcile': { outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
+
   // diff-probe (in-band-absorb-default D4): the per-task refiner probe between the worker's green
   // return and the seat convene. The neutral default is an ABSENT probe (no diff_files) — the
   // fail-open arm: dispositionOf keeps the old severity default and the intake floor skips, so
@@ -85,7 +88,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const fn = build(source)
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
-    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe') return answerNewSeat(seats, prompt, opts)
+    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile') return answerNewSeat(seats, prompt, opts)
     return agentImpl(prompt, opts)
   }
   const log = (m) => logs.push(m)
@@ -95,6 +98,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
+  if (opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -493,7 +497,7 @@ const isProvisionTopology = (c) =>
 // discriminator, never a label-prefix regex.
 // #1937: the exclusion list is a completeness claim, so the census test below derives the real set
 // from the template source and fails when a new Refine-phase refiner dispatch is added without it.
-const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert']
+const MERGE_TASK_EXCLUDES = ['pin-transfer', 'polish-worktree', 'evidence', 'endstate-check', 'terminal-revert', 'merge-snapshot', 'merge-reconcile']
 const isMergeTask = (c) =>
   seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine' &&
   !MERGE_TASK_EXCLUDES.includes(c.opts.dispatchKind)
@@ -8303,7 +8307,7 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   // presence-only would stay green if two pointers were dropped, orphaning their evicted sections.
   // Five since engine-and-audit-verdict-integrity Task 5.1 (#2156): the § Land-barrier endstate-check
   // steps eviction added its own pointer (the card's endstate-check section routes there per row).
-  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 5, 'all five plugin-root-anchored trigger pointers to refiner-recovery.md survive (submodule provisioning, pin-transfer arms, land step 3, 2A/2B land arms, endstate-check steps)')
+  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 6, 'all six plugin-root-anchored trigger pointers to refiner-recovery.md survive (including Git reconciliation) (submodule provisioning, pin-transfer arms, land step 3, 2A/2B land arms, endstate-check steps)')
   assert.match(refinerRecoveryMd, /## Land-barrier endstate-check steps/, 'the evicted endstate-check steps section landed at the destination')
   // #2156 a4 headroom eviction (ADR 0042, PIN-3): the card's MergeResult merge-task-only parenthetical
   // (617 B) moved byte-identical under its own `##` heading; the card keeps a bare-path trigger pointer
@@ -8712,7 +8716,7 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
   // the OLD-absent key scans the eviction destination too, never a relocated read.
   assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
-  const captureUses = (src.match(/schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, refineryPath, r\.task\.id\)\)/g) || []).length
+  const captureUses = (src.match(/schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, refineryPath, r\.task\.id, /g) || []).length
   assert.equal(captureUses, 4, 'all four task merge sites pass identity to the shared capture wrapper, including baseline-proceed')
 })
 
@@ -12434,6 +12438,8 @@ const BARE_INTERPOLATION_CENSUS = [
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
   // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
   'kind', 'path',
+  // reconcileMerge builds cause from a tagged death or a literal fallback.
+  'cause',
   // c.row / c.rationale (engine-and-audit-verdict-integrity Task 7.1 ace, D6 citations): the `c` local is
   // citationOf's own return at citationStamp and citationSoundnessClause's map callback, gated truthy
   // before either span renders; `row` is the matched threaded row (non-empty by the membership check)
@@ -18039,3 +18045,229 @@ test('gate artifact isolation: actual dispatched mktemp command isolates same-ti
     assert.equal(readFileSync(fresh, 'utf8'), 'tip_sha: deadbeef\ncurrent run RED\nexit_code: 1\n')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// Real Git fault injection: task/retry/polish/terminal merge dispatches mutate a local remote,
+// then lose their response. The recovery seat reads those refs and the engine must account the
+// recovered result BEFORE land. No assertion relies on a transport exception alone.
+for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed', 'polish', 'terminal']) {
+  for (const timing of ['before-merge', 'after-local-merge', 'after-push']) {
+    test('Git reconciliation: ' + site + ' lost ' + timing + ' recovers in-phase with Git evidence', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'war-git-reconcile-'))
+      const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+      try {
+        git('init', '-b', 'integration'); git('config', 'user.name', 'WAR Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+        writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base')
+        git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'integration')
+        git('checkout', '-b', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), 'accepted task'); git('add', 'deliverable.test.js'); git('commit', '-m', 'task\n\nWAR-Task: task')
+        const source = git('rev-parse', 'HEAD'); git('checkout', 'integration')
+        const base = git('rev-parse', 'HEAD')
+        const patchId = () => { const diff = git('diff', base, source); const r = spawnSync('git', ['patch-id', '--stable'], { input: diff + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.split(' ')[0] }
+        const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patchId() }
+        const label = site === 'initial' ? 'merge:t1' : site === 'floor-retry' ? 'merge:t1:floor-retry:r1' : site === 'polish' || site === 'terminal' ? 'merge:p3-' + site : 'merge:t1:' + site
+        let recovered = false, faulted = false
+        const merge = () => { git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration') }
+        const clean = sweepBase([queuedAbsorb()])
+        const args = site === 'polish' || site === 'terminal' ? SWEEP_ARGS() : PROVISION_ARGS({ tasks: SINGLE_TASK })
+        const { out, calls } = await runPhase(args, (p, o) => {
+          if (o.label === label) {
+            faulted = true
+            if (timing !== 'before-merge') git('merge', '--ff-only', 'task')
+            if (timing === 'after-push') git('push', 'origin', 'integration')
+            throw new Error('read ECONNRESET')
+          }
+          if (o.label === 'merge:t1' && site === 'floor-retry') return { mode: 'merge-task', status: 'no-test' }
+          if (o.label === 'merge:t1' && /-proceed$/.test(site)) return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: site.split('-')[0], gate_failing_ids: ['old-test'], gate_base_sha: base }
+          if (site === 'terminal' && o.label === 'audit:p3-polish:correctness') return { seat: o.label, lens: 'correctness', verdict: 'approve', findings: [nit({ title: 'terminal detail', file: 'docs/y.md', disposition: 'absorb' })] }
+          if (o.phase === 'Land') assert.ok(recovered, 'cannot publish before reconciliation accounts the uncertain merge')
+          return site === 'polish' || site === 'terminal' ? clean(p, o) : defaultImpl(p, o)
+        }, {
+          'merge-snapshot': snapshot,
+          'merge-reconcile': (p, o) => {
+            assert.equal(o.model, 'opus'); assert.equal(o.effort, 'high')
+            assert.ok(p.includes('using immutable base_sha as the diff base'))
+            assert.ok(p.includes('FRESH GATE ARTIFACT'))
+            assert.ok(p.includes('ORIGINAL OPERATION'))
+            merge()
+            const local = git('rev-parse', 'integration')
+            const remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
+            recovered = true
+            return { outcome: 'merged', ...snapshot, local_sha: local, remote_sha: remote, source_tip: source,
+              result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_log_path: join(dir, 'fresh/gate.log'), gate_output: 'all checks pass', mappedTests: ['deliverable.test.js'] } }
+          },
+        })
+        assert.ok(faulted, 'the requested alternate consumer actually lost its response')
+        assert.ok(recovered, 'a fresh recovery refiner ran')
+        assert.equal(out.landDecision, 'landed', JSON.stringify(out.escalated))
+        assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:merged' && r.site === label))
+        assert.equal(git('--git-dir=' + join(dir, 'origin.git'), 'show', 'integration:deliverable.test.js'), 'accepted task')
+        if (site === 'initial' || site.endsWith('proceed') || site === 'floor-retry') assert.ok(out.landed.includes('t1'))
+        else assert.equal(out.handoff.polish, 'merged')
+        assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 1)
+      } finally { rmSync(dir, { recursive: true, force: true }) }
+    })
+  }
+}
+
+const reconciliationProof = () => ({ outcome: 'merged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: '/fresh/gate.log' } })
+for (const [name, modify] of [
+  ['wrong snapshot base', r => { r.base_sha = '3'.repeat(40) }],
+  ['wrong snapshot source', r => { r.source_sha = '3'.repeat(40) }],
+  ['remote differs', r => { r.remote_sha = '3'.repeat(40) }],
+  ['patch differs', r => { r.patch_id = 'different' }],
+  ['malformed current tip', r => { r.source_tip = r.local_sha = r.remote_sha = r.result.integration_sha = 'not-a-sha' }],
+  ['wrong outcome', r => { r.outcome = 'unmerged' }],
+  ['wrong result mode', r => { r.result.mode = 'land-phase' }],
+  ['wrong result status', r => { r.result.status = 'error' }],
+  ['missing gate artifact', r => { delete r.result.gate_log_path }],
+  ['wrong source tip', r => { r.source_tip = '3'.repeat(40) }],
+  ['no MergeResult', r => { delete r.result }],
+  ['result tip differs', r => { r.result.integration_sha = '3'.repeat(40) }],
+  ['unchanged target is not a merge', r => { r.source_tip = r.local_sha = r.remote_sha = r.result.integration_sha = r.base_sha }],
+  ['unmerged but local advanced', r => { r.outcome = 'unmerged'; r.remote_sha = r.base_sha; delete r.result }],
+  ['unmerged but remote advanced', r => { r.outcome = 'unmerged'; r.local_sha = r.base_sha; delete r.result }],
+  ['false unmerged after push', r => { r.outcome = 'unmerged'; delete r.result }],
+  ['unmerged with merged result', r => { r.outcome = 'unmerged'; r.local_sha = r.remote_sha = r.base_sha }],
+]) {
+  test('Git reconciliation: incomplete or contradictory evidence holds before land: ' + name, async () => {
+    const proof = reconciliationProof(); modify(proof)
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+      if (o.label === 'merge:t1') throw new Error('read ECONNRESET after push')
+      return defaultImpl(p, o)
+    }, { 'merge-reconcile': proof })
+    assert.equal(out.landDecision, 'held:workflow-error')
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 2, 'bounded maintenance is attempted before holding')
+    assert.ok(!calls.some(isLand)); assert.ok(!out.landed.includes('t1'))
+  })
+}
+
+test('Git reconciliation: recovery death retries without restarting the primary mutation; configured tier is confined to recovery', async () => {
+  let attempts = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, agents: { refiner: { model: 'sonnet', effort: 'high', recovery: { model: 'fable', effort: 'default' } } } }), (p, o) => {
+    if (o.label === 'merge:t1') throw new Error('schema response lost after push')
+    return defaultImpl(p, o)
+  }, { 'merge-reconcile': () => { if (++attempts === 1) throw new Error('529 Overloaded'); return reconciliationProof() } })
+  assert.equal(out.landDecision, 'landed')
+  assert.equal(calls.filter(c => c.opts.label === 'merge:t1').length, 1)
+  assert.equal(calls.find(c => c.opts.label === 'merge:t1').opts.model, 'sonnet')
+  for (const c of calls.filter(c => c.opts.dispatchKind === 'merge-reconcile')) { assert.equal(c.opts.model, 'fable'); assert.ok(!('effort' in c.opts)) }
+  assert.equal(attempts, 2)
+})
+
+for (const field of ['base_sha', 'source_sha', 'remote_sha', 'patch_id']) {
+  test('Git reconciliation: missing snapshot ' + field + ' prevents the first mutation', async () => {
+    const snapshot = { ...NEW_SEAT_DEFAULTS['merge-snapshot'] }; delete snapshot[field]
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, { 'merge-snapshot': snapshot })
+    assert.equal(out.landDecision, 'held:workflow-error'); assert.ok(!calls.some(isMergeTask)); assert.ok(!calls.some(isLand))
+  })
+}
+
+for (const site of ['land:phase-3', 'land:phase-3:environment-proceed', 'land:phase-3:baseline-proceed']) {
+  test('Git reconciliation: ' + site + ' post-push response loss reuses the actual phase commit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'war-land-reconcile-'))
+    const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+    try {
+      git('init', '-b', 'working'); git('config', 'user.name', 'WAR Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+      writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base')
+      const base = git('rev-parse', 'HEAD')
+      git('init', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', 'origin', 'working')
+      git('checkout', '-b', 'integration'); writeFileSync(join(dir, 'deliverable'), 'phase'); git('add', 'deliverable'); git('commit', '-m', 'phase task')
+      const source = git('rev-parse', 'HEAD'); git('checkout', 'working')
+      const diff = git('diff', base, source)
+      const patch = spawnSync('git', ['patch-id', '--stable'], { input: diff + '\n', encoding: 'utf8' }).stdout.split(' ')[0]
+      const snapshot = { base_sha: base, source_sha: source, remote_sha: base, patch_id: patch }
+      let landedSha
+      const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+        if (o.label === site) {
+          git('merge', '--no-ff', 'integration', '-m', 'land phase'); git('push', 'origin', 'working')
+          landedSha = git('rev-parse', 'working')
+          throw new Error('socket hang up after push')
+        }
+        if (o.label === 'land:phase-3' && site !== o.label) return { mode: 'land-phase', status: 'gate_failed', gate_failure_class: site.includes('environment') ? 'environment' : 'baseline', gate_failing_ids: ['old-test'], gate_base_sha: base }
+        return defaultImpl(p, o)
+      }, { 'merge-snapshot': snapshot, 'merge-reconcile': (p) => {
+        assert.ok(p.includes('LAND RECOVERY'))
+        assert.ok(p.includes('never make a second phase commit'))
+        const parents = git('show', '-s', '--format=%P', 'working').split(' ')
+        return { outcome: 'landed', ...snapshot, source_tip: source, local_sha: git('rev-parse', 'working'), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'working'), parents,
+          result: { mode: 'land-phase', status: 'landed', working_sha: landedSha, gate_log_path: join(dir, 'fresh/gate.log') } }
+      } })
+      assert.ok(landedSha); assert.equal(out.landDecision, 'landed'); assert.equal(out.landResult.working_sha, landedSha)
+      assert.equal(git('rev-list', '--count', '--merges', 'working'), '1', 'the original phase commit is reused')
+      assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:landed' && r.site === site))
+      assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 1)
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+}
+
+test('Git reconciliation: snapshot transport death retries read-only with the stronger tier before any mutation', async () => {
+  let count = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl, {
+    'merge-snapshot': (p, o) => {
+      if (++count === 1) { assert.equal(o.model, 'sonnet'); throw new Error('529 overloaded') }
+      assert.equal(o.model, count === 2 ? 'opus' : 'sonnet')
+      return NEW_SEAT_DEFAULTS['merge-snapshot']
+    },
+  })
+  assert.equal(out.landDecision, 'landed')
+  assert.equal(calls.filter(c => c.opts.label === 'merge:t1').length, 1)
+  assert.ok(calls.findIndex(c => c.opts.label === 'merge:t1') > calls.findIndex(c => c.opts.dispatchKind === 'merge-snapshot' && c.opts.model === 'opus'))
+})
+
+for (const [name, modify] of [
+  ['missing parents', r => { delete r.parents }],
+  ['extra parent', r => { r.parents.push('4'.repeat(40)) }],
+  ['wrong remote base parent', r => { r.parents[0] = '4'.repeat(40) }],
+  ['wrong source parent', r => { r.parents[1] = '4'.repeat(40) }],
+  ['wrong source tip', r => { r.source_tip = '4'.repeat(40) }],
+]) {
+  test('Git reconciliation: land proof holds on ' + name, async () => {
+    const proof = { ...reconciliationProof(), outcome: 'landed', local_sha: '3'.repeat(40), remote_sha: '3'.repeat(40), parents: ['1'.repeat(40), '2'.repeat(40)], result: { mode: 'land-phase', status: 'landed', working_sha: '3'.repeat(40), gate_log_path: '/fresh/land/gate.log' } }
+    modify(proof)
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+      if (o.phase === 'Land') throw new Error('read ECONNRESET after push')
+      return defaultImpl(p, o)
+    }, { 'merge-reconcile': proof })
+    assert.equal(out.landDecision, 'held:workflow-error')
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 2)
+    assert.ok(!calls.some(isServitor), 'unconfirmed land never triggers wrap-up')
+  })
+}
+
+for (const site of ['pin-mismatch-audit', 'floor-audit', 'integrated-gate-audit']) {
+  test('D21 alternate read-only consumer: ' + site + ' death remains an environment event', async () => {
+    let audits = 0, fired = false
+    const { out, calls } = await runPhase(PROVISION_ARGS(), (p, o) => {
+      if (site === 'integrated-gate-audit' && o.label === 'gate-audit:phase-3:integrated-tip') { fired = true; throw new Error('529 overloaded') }
+      if (o.label === 'audit:t1:correctness' && ++audits > 1 && site !== 'integrated-gate-audit') { fired = true; throw new Error('529 overloaded') }
+      if (site === 'floor-audit' && o.label === 'merge:t1') return { mode: 'merge-task', status: 'no-test' }
+      return evidenceImpl(p, o)
+    }, site === 'pin-mismatch-audit' ? { 'pin-transfer': { status: 'mismatch', rebased_tip: 'deadbeef' } } : {})
+    assert.ok(fired, site + ' was reached')
+    assert.notEqual(out.landDecision, 'held:workflow-error')
+    assert.ok(out.escalated.some(e => e.reason === 'env-died'))
+    assert.ok(!out.escalated.some(e => e.reason === 'gate-evidence' || e.reason === 'audit-blocked'))
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 0, 'read-only deaths do not pretend to be uncertain shared mutations')
+  })
+}
+
+
+test('Git reconciliation: empty snapshot patch never proves a completed merge', async () => {
+  const proof = { ...reconciliationProof(), patch_id: '' }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
+    if (o.label === 'merge:t1') throw new Error('read ECONNRESET')
+    return defaultImpl(p, o)
+  }, { 'merge-snapshot': { ...NEW_SEAT_DEFAULTS['merge-snapshot'], patch_id: '' }, 'merge-reconcile': proof })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 2)
+  assert.ok(!calls.some(isLand))
+})
+
+for (const response of [undefined, {}, { mode: 'merge-task', status: 'unknown' }]) {
+  test('Git reconciliation: missing or malformed response requires reconciliation: ' + JSON.stringify(response), async () => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => o.label === 'merge:t1' ? response : defaultImpl(p, o), { 'merge-reconcile': reconciliationProof() })
+    assert.equal(out.landDecision, 'landed')
+    assert.ok(out.landed.includes('t1'))
+    assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 1)
+    assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:merged'))
+  })
+}
