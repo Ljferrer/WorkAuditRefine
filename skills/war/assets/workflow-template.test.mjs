@@ -83,6 +83,13 @@ const answerNewSeat = (seats, prompt, opts) => {
   return typeof r === 'function' ? r(prompt, opts) : r
 }
 
+const fixtureAuditPin = prompt => (String(prompt).match(/AUDIT PIN: the worker reports commit ([0-9a-f]{7,40})/) || [])[1]
+// Neutral successful task-audit fixtures report the dispatched tree. Deliberate missing-field
+// boundary cases pass rawTaskAuditPins:true; explicit audit_sha values (including undefined)
+// always survive untouched. This is fixture construction, never production normalization.
+const completeAuditFixture = (prompt, opts, result) => /^audit:/.test(opts.label || '') && result && typeof result === 'object' && !Object.hasOwn(result, 'audit_sha')
+  ? { ...result, audit_sha: fixtureAuditPin(prompt) } : result
+
 async function runPhase(args, agentImpl, seats = {}, source = src) {
   const calls = []
   const logs = []
@@ -90,7 +97,8 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
     if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
-    return agentImpl(prompt, opts)
+    const result = await agentImpl(prompt, opts)
+    return seats.rawTaskAuditPins ? result : completeAuditFixture(prompt, opts, result)
   }
   const log = (m) => logs.push(m)
   const out = await fn(agent, fakeParallel, async () => [], log, () => {}, args, { total: null })
@@ -110,7 +118,7 @@ const defaultImpl = (prompt, opts) => {
   if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
   if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
-  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
       ? { mode: 'land-phase', status: 'landed' }
@@ -605,8 +613,8 @@ test('Task 5 — land_stale holds the land (hard escalation)', async () => {
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'land_stale' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -621,8 +629,8 @@ test('Task 5 — land step gate_failed → landDecision held:land-failed + escal
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'gate_failed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -640,8 +648,8 @@ test('Task 5 — land step error → landDecision held:land-failed + escalated r
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'error' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -669,8 +677,8 @@ test('Task 1.2 (i) — dead land agent: Land mock returns null → held:land-fai
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return null  // DEAD land agent — the observed transient-API 529 repro (run completed, landResult:null)
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -692,8 +700,8 @@ test('Task 1.2 (ii) — unrouted land status: Land mock returns a bogus status �
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'bogus' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -905,7 +913,7 @@ const dagBaseImpl = (prompt, opts) => {
     }
     return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 3, integration: 1 } }
   }
-  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
       ? { mode: 'land-phase', status: 'landed' }
@@ -963,7 +971,7 @@ test('Task 3 — env-blocked predecessor blocks true dependent (env-blocked is n
     }
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true } // topology barrier: env-outcome
     if (seat === 'war-worker') return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner') {
       return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
     }
@@ -985,7 +993,7 @@ test('Task 3 — success unblocks: t1 merged → t2 runs normally', async () => 
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-worker') return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner') {
       return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
     }
@@ -1718,7 +1726,7 @@ test('#115 — post-loop sweep: task with ghost dep is escalated as unrunnable-d
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner') {
       return opts.phase === 'Land'
         ? { mode: 'land-phase', status: 'landed' }
@@ -2090,8 +2098,8 @@ test('M1 criterion #6 — catch after a mid-phase throw in the serial merge queu
   const throwAtMergeImpl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') { workerRan = true; return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} } }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') { workerRan = true; return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     // merge (phase Refine) runs in the serial merge queue AFTER the wave loop, OUTSIDE the work thunk →
     // its throw reaches the top-level try/catch → held:workflow-error (an inside-thunk throw would escalate).
     if (seat === 'war-refiner' && opts.phase === 'Refine') throw new Error('injected-merge-throw-after-worker')
@@ -2130,7 +2138,8 @@ test('M2 Test 1 — no-test catch: fix-worker dispatched then full audit panel r
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2000', tests: {} }
     if (seat === 'war-auditor') { return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' } }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       mergeCallCount++
@@ -2171,7 +2180,8 @@ test('M2 Test 1b — vacuous added test (re-audit returns blocking finding) does
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2000', tests: {} }
     if (seat === 'war-auditor') {
       // Initial audit: approve. Re-audit (after add-test fix): request_changes with a unique finding.
       const isReAudit = mergeCallCount >= 1
@@ -2215,8 +2225,8 @@ test('M2 Test 2 — shared budget: audit fixes + no-test fixes together <= round
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2000', tests: {} }
     if (seat === 'war-auditor') {
       auditRound2++
       // First audit call: request_changes (causes 1 fix round in audit loop)
@@ -2264,8 +2274,8 @@ test('M2 Test 2b — requiresTest:false task routes straight to merge; no fix-wo
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -2372,8 +2382,9 @@ async function runNoTestLoop(over, firstMerge) {
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       mergeCallCount++
       return mergeCallCount === 1 ? (firstMerge || { mode: 'merge-task', status: 'no-test' }) : { mode: 'merge-task', status: 'merged' }
@@ -2564,8 +2575,8 @@ test('#1046 no-test exhaustion: the LAST diagnostic rides both the escalated ent
     return runPhase(NO_TEST_ARGS({ run: { roundLimit: 1 } }), (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner' && opts.phase === 'Refine') {
         merges++
         return (merges > 1 && diag)
@@ -2636,11 +2647,11 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
     (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
       if (seat === 'war-worker' && opts.phase === 'Audit') {
         fixDispatchCount++
         // If we reach a second fix dispatch the test is wrong (shouldn't happen if implementation is correct)
-        return { task_id: 't1', status: 'implemented', head_sha: 'abc2', tests: {} }
+        return { task_id: 't1', status: 'implemented', head_sha: 'abc2000', tests: {} }
       }
       if (seat === 'war-auditor') {
         // First audit: request_changes with a Major finding to trigger the fix-worker
@@ -2707,8 +2718,8 @@ test('#268 — blocked add-test worker escalates via Site 3 (no-test:add-test-bl
     (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
       if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
       return {}
@@ -2804,8 +2815,8 @@ test('T2 #280 Test 1 — merge-task submodule-blocked → immediate escalate wit
     (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
       if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
       return {}
@@ -2898,8 +2909,8 @@ test('T4 #297 Test 1 — 2B submodule land → held:submodule-pr, PR ref capture
     (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc', tests: { unit: 1 } }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc0000', tests: { unit: 1 } }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
       if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'submodule-pr', pr_number: PR_NUMBER, pr_remote: PR_REMOTE }
       if (seat === 'war-servitor') return { phase: 5, target: 't', learnings: [] }
@@ -2947,8 +2958,8 @@ test('T4 #297 Test 2 — declared gitlink-bump merge-task passes --declared to a
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc', tests: { unit: 1 } }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc0000', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 5, target: 't', learnings: [] }
@@ -2998,8 +3009,8 @@ test('T4 #297 Test 3 — blocked gitlink-bump worker escalates early via blocked
     (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc', tests: { unit: 1 } }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc0000', tests: { unit: 1 } }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
       if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
       if (seat === 'war-servitor') return { phase: 5, target: 't', learnings: [] }
@@ -3059,7 +3070,7 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
     // Capture prompts keyed by label
     capturedPrompts[label] = prompt
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 'tsub', status: 'implemented', head_sha: 'abc123', tests: { unit: 1 } }
+    if (seat === 'war-worker') return { task_id: 'tsub', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
     if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged', integration_sha: 'int-sha-001' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
@@ -3817,7 +3828,7 @@ test('absorb-budget (End state 4, budget-spent bisect ladder): the untested subs
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the subset that failed its own re-audit still demotes (follow-up)')
   assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => !(out.minorsFiled || []).some(m => m && m.title === t)),
     'no still-queued (never re-audited) subset reaches minorsFiled')
-  assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t && a.sha === 'polishsha')),
+  assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t && a.sha === 'b01a5a00')),
     'the still-queued subsets — the split sibling AND the untouched half — ace at the polish sha via the sweep')
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
   assert.ok(pw && ['f2 nit', 'f3 nit', 'f4 nit'].every(t => pw.prompt.includes(t)), 'the sweep dispatch carries every still-queued subset finding')
@@ -4319,7 +4330,7 @@ test('Task 2.1 intake contract (#1410): the dispatched AUDIT_VERDICT carries the
     'escalate_reason stays a declared top-level string property (optional outside the escalate arm)')
   // The same constant rides every dispatch site — the roster seats and the three gate-audit-family
   // seats all pass `schema: AUDIT_VERDICT`, so the conditional reaches all of them.
-  assert.ok((src.match(/schema: AUDIT_VERDICT/g) || []).length >= 4,
+  assert.ok((src.match(/schema: (?:AUDIT_VERDICT|\{ \.\.\.AUDIT_VERDICT)/g) || []).length >= 4,
     'all four AUDIT_VERDICT dispatch sites (roster + three gate-audit-family seats) share the constant')
   assert.match(src, /if: \{ properties: \{ verdict: \{ const: 'escalate' \} \}, required: \['verdict'\] \}/,
     'the conditional lives inside the AUDIT_VERDICT literal (source pin)')
@@ -4426,7 +4437,7 @@ test('#1550 ask parking (approve path): an ask parks on asks[] with question+for
   const a = out.asks[0]
   assert.equal(a.task, 't1', 'the parked ask carries its task')
   assert.equal(a.seat, 'audit:t1:correctness', 'the parked ask carries its raising seat (minorsOf stamp)')
-  assert.equal(a.sha, null, 'no echoed audit_sha ⇒ sha null (absence-tolerant, never a throw)')
+  assert.equal(a.sha, 'deadbeef', 'the successfully reviewed task pin accompanies the ask')
   assert.equal(a.question, 'mirror the value or point at the source?', 'the parked ask carries the question (the decision needed)')
   assert.deepEqual(a.fork, ['mirror the value', 'point at the source'], 'the parked ask carries the fork (the two branches)')
   assert.ok(a.finding && a.finding.title === 'mirror or point', 'the full finding row rides the return-side record')
@@ -4446,7 +4457,7 @@ test('#1550 ask parking (approve path): an ask parks on asks[] with question+for
   // aceBase answers EVERY auditor dispatch with the same findings, so the post-merge gate-audit
   // seat re-mints the ask and the collision merges as a corroborator — the projection now carries
   // that list (#1872).
-  assert.deepEqual(h.asks, [{ task: 't1', seat: 'audit:t1:correctness', sha: null,
+  assert.deepEqual(h.asks, [{ task: 't1', seat: 'audit:t1:correctness', sha: 'deadbeef',
     question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'],
     corroborators: [{ seat: 'gate-audit:t1:execution-evidence', sha: null, file: 'docs/x.md', title: 'mirror or point',
       fork: ['mirror the value', 'point at the source'] }] }],
@@ -4909,7 +4920,7 @@ test('memory: add-test worker prompt carries the worker lesson block — NEW inj
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return ++mergeN === 1
       ? { mode: 'merge-task', status: 'no-test' }
       : { mode: 'merge-task', status: 'merged' }
@@ -5032,7 +5043,7 @@ const sweepBase = (queued) => (prompt, opts) => {
   // The phase-close polish worktree provisioning now returns the env-outcome shape.
   if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
   if (seat === 'war-worker') return { task_id: 't1', status: 'implemented',
-    head_sha: (opts.label || '').startsWith('polish:') ? 'polishsha' : 'deadbeef', tests: { unit: 1 } }
+    head_sha: (opts.label || '').startsWith('polish:') ? 'b01a5a00' : 'deadbeef', tests: { unit: 1 } }
   if (seat === 'war-auditor') {
     const label = opts.label || ''
     const f = label.includes(':t1:') && !label.startsWith('gate-audit:') ? queued : []
@@ -5071,7 +5082,7 @@ test('phase-close sweep (criteria 2+5): phaseClose absorb → queue → sweep on
   assert.ok(landIdx !== -1 && mergeIdx < landIdx, 'the polish merge precedes the single land (land proceeds on the polished tip)')
   // bookkeeping: absorbed at the polish sha; nothing defaults into an issue
   assert.equal(out.handoff.polish, 'merged')
-  assert.ok(out.handoff.absorbed.some(a => a && a.sha === 'polishsha' && (a.findings || []).includes('dangling link')),
+  assert.ok(out.handoff.absorbed.some(a => a && a.sha === 'b01a5a00' && (a.findings || []).includes('dangling link')),
     'the queued finding is absorbed at the polish sha')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the absorbed finding is not filed')
   assert.ok(out.landed.includes('t1'), 't1 landed')
@@ -5127,9 +5138,9 @@ test('sweep-raised finding routing (End state 1, #1377; terminal-pass D3a): a ME
   // handoff observable: followUps derive from minorsFiled.
   assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised follow-up/.test(fu.reason || '')), 'the handoff followUps observable carries the filed follow-up')
   // aced: the queued finding at the polish sha, the sweep-raised absorb at the terminal sha (D3a).
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'dangling link' && a.sha === 'polishsha'), 'the queued finding is absorbed at the polish sha')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'sweep-raised absorb' && a.sha === 'terminalsha' && a.terminal === true), 'the sweep-raised absorb is aced at the terminal sha, terminal-stamped')
-  assert.ok((out.handoff.absorbed || []).some(a => a.sha === 'terminalsha' && (a.findings || []).includes('sweep-raised absorb')), 'the handoff absorbed observable carries the terminal commit')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'dangling link' && a.sha === 'b01a5a00'), 'the queued finding is absorbed at the polish sha')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'sweep-raised absorb' && a.sha === '7e4a1a10' && a.terminal === true), 'the sweep-raised absorb is aced at the terminal sha, terminal-stamped')
+  assert.ok((out.handoff.absorbed || []).some(a => a.sha === '7e4a1a10' && (a.findings || []).includes('sweep-raised absorb')), 'the handoff absorbed observable carries the terminal commit')
 })
 
 test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejected sweep routes its re-audit Minor/Nits through the same ladder with the unmerged-branch reason; the polish-rejected auditLog entry pins verdict + findings payload", async () => {
@@ -6397,7 +6408,7 @@ test('intake normalization: default-deny census (#1871, D26) — exactly one sea
   assert.ok(h.logs.some(l => l.includes('non-array findings container')), 'the dropped container is logged (never silent)')
   // every AUDIT_VERDICT dispatch site has a normalizeSeat call (the definition line reads
   // `const normalizeSeat = ` and never matches the call regex): a fifth ingestion site must normalize
-  const ingest = (src.match(/schema: AUDIT_VERDICT/g) || []).length
+  const ingest = (src.match(/schema: (?:AUDIT_VERDICT|\{ \.\.\.AUDIT_VERDICT)/g) || []).length
   assert.equal(ingest, 4, 'four AUDIT_VERDICT dispatch sites today — auditRound plus the three gate-audit seats')
   assert.equal((src.match(/normalizeSeat\(/g) || []).length, ingest, 'every AUDIT_VERDICT dispatch site has a normalizeSeat call — a new ingestion site must normalize')
   for (const [start, end] of [
@@ -6592,11 +6603,10 @@ test('filing-prompt Evidence-artifacts emission (Task 3.2, PIN-14): the clustere
     "the retired 'no seats rendered ⇒ unrecorded' carve-out is gone — every row renders its seat")
 })
 
-test('filing-prompt Evidence-artifacts emission (fail-open): a never-merged task\'s row renders pinned sha unrecorded — never invented, never a throw', async () => {
+test('filing-prompt Evidence-artifacts emission: a never-merged task retains its reviewed task pin', async () => {
   // A never-approved task files its demoted findings on the held:escalation path: its audit-verdict
   // auditLog entry stamps fixRounds (the audit round IS recorded), but no post-merge gate-audit
-  // entry exists — the pinned-sha lookup takes the 'unrecorded' arm, exactly the vocabulary the
-  // emission clause pins ('`unrecorded` stays `unrecorded`, never invented').
+  // entry exists; the usable reviewed task pin supplies the provenance without a merge.
   const impl = (prompt, opts) => {
     if (seatOf(opts) === 'war-auditor') {
       return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high',
@@ -6608,8 +6618,8 @@ test('filing-prompt Evidence-artifacts emission (fail-open): a never-merged task
   assert.ok((out.escalated || []).some(e => e && e.task === 't1'), 't1 escalated, never merged (presence guard)')
   const filing = calls.find(c => c.opts.dispatchKind === 'file-followups')
   assert.ok(filing, 'the filing dispatch fires on the held:escalation path (presence guard)')
-  assert.match(filing.prompt, /audit round 0 · pinned sha unrecorded/,
-    'the never-merged task\'s row keeps its recorded audit round but renders pinned sha unrecorded (fail-open, never invented)')
+  assert.match(filing.prompt, /audit round 0 · pinned sha deadbeef/,
+    'the never-merged task retains its actual audit round and reviewed pin')
 })
 
 // ---------------------------------------------------------------------------
@@ -6834,9 +6844,9 @@ test('ask-routing (End state 23, #1692): a gate-audit-family seat\'s disposition
     'the ask never enters minorsFiled (parked, not filed unruled)')
 })
 
-test('ask-routing (End state 23, #1693): a ref-expression/free-text audit_sha never reaches asks[].sha verbatim — the audit-sha sentinel renders; and the validator\'s regex cannot drift from isSha (sibling-copy drift row)', async () => {
-  // pinMismatch fails open on a non-sha audit_sha (no strip), but auditShaOrSentinel refuses it:
-  // the operator-facing asks[].sha gets the sentinel, never the raw ref expression.
+test('ask-routing (End state 23, #1693): a malformed task pin holds and the audit-sha sentinel validator\'s regex cannot drift from isSha (sibling-copy drift row)', async () => {
+  // The task pin boundary refuses a non-SHA audit response; the retained evidence does not
+  // acquire an authoritative ask pin. The separate display validator remains tested below.
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-auditor')
@@ -6846,14 +6856,9 @@ test('ask-routing (End state 23, #1693): a ref-expression/free-text audit_sha ne
     return handoffImpl(undefined)(prompt, opts)
   }
   const { out } = await runPhase(HANDOFF_ARGS(), impl)
-  assert.equal(out.landDecision, 'landed', 'presence guard')
-  assert.equal((out.asks || []).length, 1, 'the ask still parks (the sentinel is a value fix, never a drop)')
-  assert.equal(out.asks[0].sha, '(audit_sha unrecorded/malformed)',
-    'a free-text audit_sha renders the sentinel on asks[].sha')
-  assert.equal(out.handoff.asks[0].sha, '(audit_sha unrecorded/malformed)',
-    'the handoff projection carries the sentinel too — HEAD~2 never reaches an operator-facing sha field')
-  assert.ok(!JSON.stringify(out.asks).includes('HEAD~2') && !JSON.stringify(out.handoff.asks).includes('HEAD~2'),
-    'the raw ref expression appears NOWHERE in the ask records (verbatim leak proof)')
+  assert.ok(!out.landed.includes('t1'), 'a malformed task audit pin prevents approval')
+  assert.equal((out.asks || []).length, 0, 'unresolved review findings never acquire authoritative ask pins')
+  assert.ok(out.auditLog.some(r => r.pinMismatch && r.findings.some(f => f.ask)), 'the original question remains conflict evidence')
   // Sibling-copy drift row: auditShaOrSentinel is a sanctioned self-contained copy of the isSha
   // hex test (#393 extract-and-eval convention) — extract both regex literals from the source and
   // pin them equal, so the copy can never silently drift from the canonical shape.
@@ -6912,7 +6917,7 @@ const tipImpl = (land, merge) => (prompt, opts) => {
   if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
   if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
-  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') return opts.phase === 'Land'
     ? { mode: 'land-phase', status: 'landed', ...land }
     : { mode: 'merge-task', status: 'merged', ...merge }
@@ -6993,8 +6998,9 @@ test('pkg §4.2 — unpackaged routes a bounded fix-worker + full re-audit + re-
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       mergeCallCount++
       return mergeCallCount === 1
@@ -7026,8 +7032,8 @@ test('pkg §4.2 — unpackaged budget exhaustion → hard escalation {reason:"un
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') { mergeCount++; return { mode: 'merge-task', status: 'unpackaged' } }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -7051,8 +7057,8 @@ test('pkg §4.2 — requiresPackaging:false skips the floor with a LOGGED (never
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -7080,8 +7086,8 @@ test('pkg §4.2 — BOTH floors tripped: combined sub-loop gives each a bounded 
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     // Count only merge attempts (label merge:…) — NOT the post-merge evidence:phase-<id> refiner dispatch.
     if (seat === 'war-refiner' && opts.phase === 'Refine' && /^merge:/.test(opts.label || '')) {
       mergeCount++
@@ -7113,8 +7119,8 @@ test('pkg §4.2 — both floors tripped but budget too small: the SECOND floor e
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       mergeCount++
       return mergeCount === 1 ? { mode: 'merge-task', status: 'no-test' } : { mode: 'merge-task', status: 'unpackaged' }
@@ -7154,8 +7160,8 @@ test("pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test 
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') { mergeCount++; return mergeCount === 1 ? { mode: 'merge-task', status: 'unpackaged' } : { mode: 'merge-task', status: 'merged' } }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -7197,7 +7203,7 @@ test('pkg §4.2 — polish-merge prompt carries the explicit packaging-floor ski
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
       if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
       if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {} }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
       if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
       return {}
@@ -7242,8 +7248,8 @@ test('pkg #819 — the floor-retry re-merge prompt threads --advise-vacuous for 
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') { mergeCount++; return mergeCount === 1 ? { mode: 'merge-task', status: 'unpackaged' } : { mode: 'merge-task', status: 'merged' } }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -7299,8 +7305,8 @@ test('pkg §4.4 — args.backstops also rides handoff on held:escalation (degrad
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'land_stale' }  // hard → held:escalation
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -7347,7 +7353,7 @@ const clsImpl = ({ mergeResult, landResult, mergeProceed, landProceed } = {}) =>
   const seat = seatOf(opts)
   const label = opts.label || ''
   if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true } // barrier + provision-run: env-outcome
-  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000', tests: {} }
   if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner' && opts.phase === 'Refine') {
     if (/:environment-proceed$/.test(label)) return mergeProceed ? mergeProceed(label) : { mode: 'merge-task', status: 'merged', integration_sha: 'beef1234beef' }
@@ -7584,7 +7590,7 @@ test('#598 validation 6 — gate-audit debt line: a baseline-merged task threads
     const label = opts.label || ''
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000', tests: {} }
     if (seat === 'war-auditor') return { seat: label, lens: label.startsWith('gate-audit:') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       if (/^merge:t1:baseline-proceed$/.test(label)) return { mode: 'merge-task', status: 'merged', integration_sha: 'aaaa1111aaaa' }
@@ -7748,8 +7754,8 @@ test('#1114 — a floor-retry re-merge returning submodule-blocked escalates HAR
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return (++mergeCallCount === 1)
       ? { mode: 'merge-task', status: 'no-test' }
       : { mode: 'merge-task', status: 'submodule-blocked' }
@@ -7849,7 +7855,7 @@ test('t1.8 — precondition-marker reader contract lands on BOTH surfaces (war-r
 // paths pass (positive control); a main-checkout-rooted path is NORMALIZED, not escalated (cases below).
 test('t1.8 — path contract: an absolute files_changed path outside BOTH roots escalates the task → held:escalation (fixture)', async () => {
   const badImpl = (prompt, opts) => {
-    if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
+    if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {},
       files_changed: ['/opt/elsewhere/skills/war/assets/workflow-template.js'] }  // absolute, OUTSIDE the worktree AND the main checkout
     return clsImpl()(prompt, opts)
   }
@@ -7863,7 +7869,7 @@ test('t1.8 — path contract: an absolute files_changed path outside BOTH roots 
 
 test('t1.8 — path contract: in-worktree absolute + relative files_changed paths pass (positive control)', async () => {
   const goodImpl = (prompt, opts) => {
-    if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
+    if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {},
       files_changed: ['/abs/repo/.claude/worktrees/run-cls/p3-t1/skills/x.js', 'agents/war-refiner.md'] }
     return clsImpl()(prompt, opts)
   }
@@ -7878,7 +7884,7 @@ test('t1.8 — path contract: in-worktree absolute + relative files_changed path
 // throws (arm b2), never normalized (grill Q7 — normalizing would fabricate a nonsense relative path).
 test('t1.8 — path contract normalization: a main-checkout-rooted files_changed path is REWRITTEN worktree-relative on the WorkerResult object + a warning names the task and original path; the phase proceeds', async () => {
   // The mock returns a SHARED object reference so the impl.files_changed reassignment is observable post-run.
-  const workerResult = { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
+  const workerResult = { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {},
     files_changed: ['/abs/repo/skills/war/assets/workflow-template.js', 'agents/war-refiner.md'] } // main-rooted + already-relative
   const impl = (prompt, opts) => seatOf(opts) === 'war-worker' ? workerResult : clsImpl()(prompt, opts)
   const { out, logs } = await runPhase(CLS_ARGS(), impl)
@@ -7892,7 +7898,7 @@ test('t1.8 — path contract normalization: a main-checkout-rooted files_changed
 
 test('t1.8 — path contract normalization: mainCheckout UNSET ⇒ a main-checkout-rooted path is NOT normalized — it escalates (arm c disabled, never a guessed root)', async () => {
   const impl = (prompt, opts) => seatOf(opts) === 'war-worker'
-    ? { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/abs/repo/skills/war/assets/workflow-template.js'] }
+    ? { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {}, files_changed: ['/abs/repo/skills/war/assets/workflow-template.js'] }
     : clsImpl()(prompt, opts)
   const { out } = await runPhase(CLS_ARGS({ mainCheckout: undefined }), impl)
   assert.equal(out.landDecision, 'held:escalation', 'with mainCheckout unset the same path escalates (no normalization attempted)')
@@ -7902,7 +7908,7 @@ test('t1.8 — path contract normalization: mainCheckout UNSET ⇒ a main-checko
 
 test('t1.8 — path contract normalization: an absolute path under worktreeRoot but in a SIBLING worktree THROWS → escalates, never normalizes (grill Q7)', async () => {
   const impl = (prompt, opts) => seatOf(opts) === 'war-worker'
-    ? { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/abs/repo/.claude/worktrees/run-cls/p3-sibling/x.js'] }
+    ? { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {}, files_changed: ['/abs/repo/.claude/worktrees/run-cls/p3-sibling/x.js'] }
     : clsImpl()(prompt, opts)
   const { out } = await runPhase(CLS_ARGS(), impl)
   assert.equal(out.landDecision, 'held:escalation', 'a sibling-worktree path escalates (never normalized to a nonsense worktree-relative path)')
@@ -7922,7 +7928,7 @@ test('t1.8 — escalate-not-redispatch (end state 4): a worker mis-reporting an 
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
     return seatOf(opts) === 'war-worker'
-      ? { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/opt/elsewhere/x.js'] } // outside BOTH roots; mainCheckout SET (/abs/repo)
+      ? { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {}, files_changed: ['/opt/elsewhere/x.js'] } // outside BOTH roots; mainCheckout SET (/abs/repo)
       : clsImpl()(prompt, opts)
   }
   const out = await fn(agent, liveParallel, async () => [], () => {}, () => {}, CLS_ARGS(), { total: null })
@@ -8336,8 +8342,8 @@ test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the 
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
     // Simulate the refiner resolving a contender-less transient on the +1 attempt: it returns landed.
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed', working_sha: 'cafef00d', notes: 'resolved a contender-less transient on the +1 attempt (right count 0)' }
@@ -9931,8 +9937,8 @@ function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit, plan, taskOver = { 
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       merges++
       // doneWhenLogPath (Task 1.1): when set, every done-unmet result carries the teed evidence
@@ -11349,8 +11355,8 @@ test('defectClass (criterion 12, floor sub-loop site): a blocked add-test fix-wo
     (prompt, opts) => {
       const seat = seatOf(opts)
       if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
       if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
       if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
       return {}
@@ -11782,7 +11788,7 @@ test('Task 2.1(c) #1411 relaunch — an engine throw whose message contains "quo
   const impl = (prompt, opts) => (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
     // outside BOTH roots (worktreeRoot AND mainCheckout) → normalizeReportedPaths arm (d) throws an
     // ENGINE error with the worker-supplied path — and its infra words — embedded in the message.
-    ? { task_id: 'tQ', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/opt/elsewhere/quota-overloaded.txt'] }
+    ? { task_id: 'tQ', status: 'implemented', head_sha: 'abc0000', tests: {}, files_changed: ['/opt/elsewhere/quota-overloaded.txt'] }
     : defaultImpl(prompt, opts)
   const args = PROVISION_ARGS({ tasks: [
     { id: 'tQ', issue: 1, title: 'reports a path embedding infra words', planSlice: 's', roster: [{ lens: 'correctness' }] },
@@ -13081,8 +13087,8 @@ test('floor-retry exhaustion: budget-uncited escalates as budget-uncited — the
   const { out, calls } = await runPhase(NO_TEST_ARGS({ run: { roundLimit: 1 } }), (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc0000', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner' && opts.phase === 'Refine') { merges++; return uncited }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -13180,7 +13186,7 @@ test('reaudit-sweep (End state 2) / absorb-budget: a re-audit-born mechanical ab
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('budget-blocked')), 'the budget stop is logged')
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
   assert.ok(pw && pw.prompt.includes('reaudit-born nit'), 'the budget-blocked absorb reaches the phase-close sweep dispatch')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'reaudit-born nit' && a.sha === 'polishsha'),
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'reaudit-born nit' && a.sha === 'b01a5a00'),
     'the re-audit-born absorb is ACED at the polish sha (executed in-run via the sweep)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'reaudit-born nit'),
     'the re-audit-born absorb never lands in minorsFiled (the sweep, not the issue tracker, is its vehicle)')
@@ -13607,18 +13613,18 @@ test('sweep aced: citation threaded (D11, #1873): a citation-carrying absorb tha
   const polish = calls.find(c => c && c.opts && typeof c.opts.label === 'string' && c.opts.label.startsWith('polish:'))
   assert.ok(polish && polish.prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '" — '), 'the sweep prompt row carries the citation stamp with the THREADED row, so the polish commit message holds the durable citation')
   const entry = (out.aced || []).find(a => a && a.finding && a.finding.title === 'mirrored value rides docs/x.md')
-  assert.ok(entry && entry.sha === 'polishsha', 'the queued citation absorb is aced at the polish sha')
+  assert.ok(entry && entry.sha === 'b01a5a00', 'the queued citation absorb is aced at the polish sha')
   assert.ok(entry.citation && entry.citation.row === CITED_ADJ[0], 'the sweep-path aced record carries the citation with the THREADED row (PIN-7 record floor holds on this path)')
   assert.ok(entry.citation.rationale.includes('mirror-vs-point'), 'and the match rationale')
   assert.equal((out.asks || []).length, 0, 'the parked ask resolves at the sweep under --afk (the aced record explains the ruling)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('polishsha')), 'the resolution is logged at the polish sha')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('b01a5a00')), 'the resolution is logged at the polish sha')
 })
 
 test('terminal aced: citation threaded (#1873-class sibling): a queued citation absorb the sweep never touched rides the terminal pass — the terminal prompt row carries the citation stamp and the terminal-sha aced record carries the threaded row', async () => {
   // The sweep report touches docs/x.md only, so the citation absorb on docs/q.md is diverted to the
   // terminal queue (the overlap rule at the merged sweep arm) and the terminal commit lands it.
   const cite = citationF(); cite.phaseClose = true; cite.file = 'docs/q.md'
-  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
   const { out, calls, logs } = await runPhase(SWEEP_ARGS({ adjudications: CITED_ADJ, run: { ace: true, afk: true } }),
     terminalImpl({ queued: [askFinding(), queuedAbsorb(), cite], polishFindings: [], sweepWorker }))
   assert.equal(out.handoff.polish, 'merged', 'presence guard: the sweep merged')
@@ -13626,10 +13632,10 @@ test('terminal aced: citation threaded (#1873-class sibling): a queued citation 
   assert.equal(tw.length, 1, 'presence guard: the untouched citation absorb diverted to ONE terminal pass')
   assert.ok(tw[0].prompt.includes('[absorb-by-citation: row "' + CITED_ADJ[0] + '" — '), 'the terminal prompt row carries the citation stamp with the THREADED row, so the terminal commit message holds the durable citation its aced record claims')
   const entry = (out.aced || []).find(a => a && a.finding && a.finding.title === 'mirrored value rides docs/x.md')
-  assert.ok(entry && entry.sha === 'terminalsha' && entry.terminal === true, 'the diverted citation absorb is aced at the terminal sha')
+  assert.ok(entry && entry.sha === '7e4a1a10' && entry.terminal === true, 'the diverted citation absorb is aced at the terminal sha')
   assert.ok(entry.citation && entry.citation.row === CITED_ADJ[0], 'the terminal-path aced record carries the citation with the THREADED row')
   assert.equal((out.asks || []).length, 0, 'the parked ask resolves at the terminal pass under --afk')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('terminalsha')), 'the resolution is logged at the terminal sha')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation (row "' + CITED_ADJ[0] + '")') && l.includes('7e4a1a10')), 'the resolution is logged at the terminal sha')
 })
 
 test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
@@ -14063,7 +14069,7 @@ test('ruled-ask-absorb (End state 12): a threaded ruled ask executes via the pha
   assert.ok(pw && pw.prompt.includes('flip the retention default') && pw.prompt.includes('operator ruling: adopt the 30d default'),
     'the polish dispatch carries the ruled fix AND the ruling verbatim')
   assert.ok(calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness'), 'the full panel re-audits the ruled-ask commit')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.ruledAsk === true && a.sha === 'polishsha'),
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.ruledAsk === true && a.sha === 'b01a5a00'),
     'the executed ruled ask is ACED at the polish sha (in-run execution, no issue filed)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'flip the retention default'), 'nothing files on successful execution')
   // Filing-on-non-execution arm: no default audit.roster ⇒ the sweep cannot convene ⇒ the ruled ask
@@ -15085,7 +15091,7 @@ test('absorb-budget (End state 4, spent budget at the batch): a task whose absor
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('absorb-budget: task t1 has absorbRounds 6 at run.absorbRounds (6)')), 'the budget block is logged naming the counter')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('spent-budget nit') && l.includes('absorb budget spent')), 'the aceable row routes to the sweep (routeToSweep)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'spent-budget nit'), 'never a follow-up')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'spent-budget nit' && a.sha === 'polishsha'), 'the row aces at the polish sha via the sweep')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'spent-budget nit' && a.sha === 'b01a5a00'), 'the row aces at the polish sha via the sweep')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
@@ -15415,7 +15421,7 @@ test('absorb-budget (D5, #2034, never ran a wave — unrunnable-deps): a relaunc
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
     if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
     return {}
   }
@@ -15608,7 +15614,7 @@ const p4Base = ({ queued = [], gate = [], evidence = null, worker = null, seatsO
   if (seat === 'war-worker') {
     const w = worker && worker(label)
     if (w) return w
-    return { task_id: 't1', status: 'implemented', head_sha: label.startsWith('polish:') ? 'polishsha' : 'deadbeef', tests: { unit: 1 } }
+    return { task_id: 't1', status: 'implemented', head_sha: label.startsWith('polish:') ? 'b01a5a00' : 'deadbeef', tests: { unit: 1 } }
   }
   if (seat === 'war-auditor') {
     const custom = seatsOf && seatsOf(label)
@@ -16283,7 +16289,7 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
 // Terminal-pass base: sweepBase with a merged sweep whose POLISH PANEL raises `polishFindings` on its
 // first call (the terminal re-audit — the same seat label, second call — answers `terminalSeat`, an
 // approve with `terminalFindings` by default); the terminal worker returns `terminalWorker`
-// (head_sha 'terminalsha'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
+// (head_sha '7e4a1a10'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
 // overrides the polish worker's result (e.g. a files_changed report).
 const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
   terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
@@ -16301,7 +16307,7 @@ const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity:
     }
     if (seat === 'war-worker' && label.startsWith('terminal:')) {
       if (terminalThrow) throw terminalThrow   // the infra-death arm (INFRA_DEATH_RE) — mirrors the sweepDeath fixture
-      return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: 'terminalsha', tests: { unit: 1 } }
+      return terminalWorker || { task_id: 'p3-polish', status: 'implemented', head_sha: '7e4a1a10', tests: { unit: 1 } }
     }
     if (seat === 'war-worker' && label.startsWith('polish:') && sweepWorker) return sweepWorker
     if (seat === 'war-refiner' && label === 'merge:p3-terminal') return terminalMerge || { mode: 'merge-task', status: 'merged', integration_sha: 'term1nal12' }
@@ -16328,14 +16334,14 @@ test('terminal-pass — a polish-panel absorb reaches the terminal pass: exactly
   assert.equal(polishAudits.length, 2, 'the polish panel (1) + exactly one terminal re-audit seat (1)')
   assert.ok(calls.indexOf(polishAudits[1]) > calls.indexOf(tws[0]), 'the terminal seat convenes AFTER the terminal commit')
   const tEntry = (out.auditLog || []).find(e => e && e.terminal === true)
-  assert.ok(tEntry && tEntry.sha === 'terminalsha' && tEntry.seat === 'correctness' && tEntry.verdict === 'approve' && tEntry.requested === 1, 'the terminal auditLog entry pins the sha, the seat and the one-seat roster')
+  assert.ok(tEntry && tEntry.sha === '7e4a1a10' && tEntry.seat === 'correctness' && tEntry.verdict === 'approve' && tEntry.requested === 1, 'the terminal auditLog entry pins the sha, the seat and the one-seat roster')
   const mergeIdx = calls.findIndex(c => (c.opts.label || '') === 'merge:p3-terminal')
   const landIdx = calls.findIndex(isLand)
   assert.ok(mergeIdx !== -1 && landIdx !== -1 && mergeIdx < landIdx, 'the terminal commit merges through Refine before the single land')
   assert.match(calls[mergeIdx].prompt, /assert-no-submodule-mutation\.sh/, 'the terminal merge runs the unconditional floors like any ace commit')
   assert.match(calls[mergeIdx].prompt, /assert-budget-raise-cited\.sh/, 'the terminal merge runs the budget-raise floor too')
   assert.ok(!tws[0].prompt.includes('ace_diff_files'), 'the terminal prompt never asks for ace_diff_files — no consumer reads it on the terminal arm')
-  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === 'terminalsha'), 'the absorb is aced at the terminal sha')
+  assert.ok((out.aced || []).some(a => a.finding && a.finding.title === 'polish-panel absorb' && a.sha === '7e4a1a10'), 'the absorb is aced at the terminal sha')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('polish task absorbRounds now 1')), 'the polish task counter reads 1 after the pass (telemetry)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('terminal pass') && l.includes('re-audit seat: correctness')), 'the seat choice is logged')
   assert.deepEqual(out.carriedPhaseClose, [], 'nothing carried on a clean pass — the key is present as []')
@@ -16348,7 +16354,7 @@ test('terminal-pass — a roster without `correctness` still convenes the pass: 
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-audit seat: correctness')), 'correctness is preferred when the roster carries it')
   assert.equal(calls.filter(c => /^audit:p3-polish:/.test(c.opts.label || '')).length, 3, 'two panel seats + exactly ONE terminal seat (the [seat] rosterOverride)')
   assert.equal(calls.filter(c => (c.opts.label || '') === 'audit:p3-polish:security').length, 1, 'the security seat runs on the polish panel only — the terminal round convenes ONE seat')
-  const tEntry = out.auditLog.find(e => e.terminal === true && e.sha === 'terminalsha')
+  const tEntry = out.auditLog.find(e => e.terminal === true && e.sha === '7e4a1a10')
   assert.ok(tEntry && tEntry.requested === 1 && tEntry.seat === 'correctness', 'the terminal auditLog entry requested exactly one seat')
   const r2 = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'security' }] } }), terminalImpl())
   assert.equal(terminalCalls(r2.calls).length, 1, 'the pass still convenes without a correctness seat')
@@ -16416,12 +16422,12 @@ test('terminal-pass — a re-audit regression forward-reverts the terminal commi
     findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
   const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected }))
   const rv = nonFinal.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
-  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the forward-revert of the terminal sha is dispatched')
+  assert.ok(rv && /revert --no-edit 7e4a1a10/.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the forward-revert of the terminal sha is dispatched')
   assert.ok(!nonFinal.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'a regressed terminal commit never merges')
   assert.equal(terminalCalls(nonFinal.calls).length, 1, 'never a second pass')
   assert.ok(carriedOf(nonFinal.out, 'polish-panel absorb'), 'non-final: the row carries')
   assert.ok(!demotionOf(nonFinal.out, 'polish-panel absorb'), 'non-final: never demoted')
-  const tRejected = nonFinal.out.auditLog.find(e => e.verdict === 'terminal-rejected' && e.terminal === true && e.sha === 'terminalsha')
+  const tRejected = nonFinal.out.auditLog.find(e => e.verdict === 'terminal-rejected' && e.terminal === true && e.sha === '7e4a1a10')
   assert.ok(tRejected, 'the terminal-rejected auditLog entry records the regression')
   assert.ok((tRejected.findings || []).some(f => f.title === 'terminal broke it'), 'the terminal-rejected entry carries the blocking finding — its only channel')
   assert.equal(nonFinal.out.landDecision, 'landed', 'the land proceeds on the polished tip')
@@ -16435,14 +16441,14 @@ test('terminal-pass — a re-audit regression forward-reverts the terminal commi
 test('terminal-pass — a terminal re-audit seat that returns no verdict (dropped after auditRound\'s retries) still forward-reverts, but demotes demote:terminal-pass with the no-verdict wording, never demote:absorb-regressed', async () => {
   const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatDrop: true }))
   const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
-  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
+  assert.ok(rv && /revert --no-edit 7e4a1a10/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
   assert.ok(!final.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'an unjudged terminal commit never merges')
-  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('the terminal re-audit seat returned no verdict') && l.includes('terminalsha')), 'the no-verdict outcome is logged by name')
-  assert.ok(!final.logs.some(l => typeof l === 'string' && l.includes('REGRESSED on the correctness re-audit at terminalsha')), 'no seat judged a regression, so none is logged')
+  assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('the terminal re-audit seat returned no verdict') && l.includes('7e4a1a10')), 'the no-verdict outcome is logged by name')
+  assert.ok(!final.logs.some(l => typeof l === 'string' && l.includes('REGRESSED on the correctness re-audit at 7e4a1a10')), 'no seat judged a regression, so none is logged')
   const d = demotionOf(final.out, 'polish-panel absorb')
   assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('returned no verdict') && d.demoteReason.includes('forward-reverted'), 'final: demotes demote:terminal-pass naming the missing verdict and the revert')
   assert.ok(!/absorb-regressed/.test(d.demoteReason), 'never demote:absorb-regressed — no seat returned request_changes')
-  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === '7e4a1a10')
   assert.ok(tEntry && tEntry.verdict === 'terminal-rejected' && tEntry.returned === 0 && tEntry.requested === 1, 'the auditLog row records 0 of 1 seats returned')
   const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeatDrop: true }))
   const c = carriedOf(nonFinal.out, 'polish-panel absorb')
@@ -16455,7 +16461,7 @@ test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm,
   // ref differs from the terminal seat's, so the seats-list assertion is not vacuous.
   const q1 = nit({ title: 'landed by the sweep', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
   const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
-  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] }
   const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
     findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/q.md', rationale: 'regressed' },
       { severity: 'Nit', title: 'left unlanded', task: 't1', file: 'docs/q.md', rationale: 'still there', disposition: 'absorb' }] }
@@ -16470,13 +16476,13 @@ test('terminal-pass — a terminal-seat re-mint of a CARRIED row (regressed arm,
 
 test('terminal-pass — a terminal re-audit seat that dies post-spawn records verdict env-died with the cause, never terminal-rejected (D21, PIN-25)', async () => {
   const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatThrow: new Error('API error: 529 Overloaded') }))
-  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === 'terminalsha')
+  const tEntry = (final.out.auditLog || []).find(e => e && e.terminal === true && e.sha === '7e4a1a10')
   assert.ok(tEntry, 'the terminal auditLog row exists (presence guard)')
   assert.equal(tEntry.verdict, 'env-died', 'a dead terminal seat records env-died, never a content verdict')
   assert.match(String(tEntry.blocked), /^audit:p3-polish:correctness dispatch died post-spawn \(env-died\): /, 'the row carries the site-named cause under blocked')
   assert.ok(!(final.out.auditLog || []).some(e => e && e.terminal === true && e.verdict === 'terminal-rejected'), 'no terminal-rejected row is recorded for the dead seat')
   const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
-  assert.ok(rv && /revert --no-edit terminalsha/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the dead-seat path')
+  assert.ok(rv && /revert --no-edit 7e4a1a10/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the dead-seat path')
   const d = demotionOf(final.out, 'polish-panel absorb')
   assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('died'), 'final: demotes demote:terminal-pass naming the death')
 })
@@ -16524,16 +16530,16 @@ test('terminal-pass — a queued absorb the sweep could not land (its file absen
   const q2 = nit({ title: 'left unlanded', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
   // ace_diff_files (git-derived) names docs/x.md only; the self-reported files_changed disagrees and
   // also claims docs/q.md — the git-derived list wins, so the row on docs/q.md still diverts.
-  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'], files_changed: ['docs/x.md', 'docs/q.md'] }
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'], files_changed: ['docs/x.md', 'docs/q.md'] }
   const { out, calls, logs } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
   assert.ok(polishPromptOf(calls).includes('ace_diff_files'), 'the sweep prompt asks for ace_diff_files')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'landed by the sweep' && a.sha === 'polishsha'), 'the touched row is aced at the polish sha')
-  assert.ok(!(out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'polishsha'), 'the untouched row is NOT recorded aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'landed by the sweep' && a.sha === 'b01a5a00'), 'the touched row is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'b01a5a00'), 'the untouched row is NOT recorded aced at the polish sha')
   const tw = terminalCalls(calls)
   assert.equal(tw.length, 1, 'the terminal pass dispatches for it')
   assert.ok(tw[0].prompt.includes('left unlanded'), 'the unlanded row is the terminal input')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('never touched docs/q.md') && l.includes('joins the terminal queue')), 'logged')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === 'terminalsha'), 'and it aces at the terminal sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'left unlanded' && a.sha === '7e4a1a10'), 'and it aces at the terminal sha')
 })
 
 test('terminal-pass — a terminal commit that does not merge, or a terminal worker that makes no commit, carries (non-final) or demotes demote:terminal-pass (final); the counter is charged only by a commit', async () => {
@@ -16546,13 +16552,13 @@ test('terminal-pass — a terminal commit that does not merge, or a terminal wor
   assert.ok(!dead.logs.some(l => typeof l === 'string' && l.includes('absorbRounds now')), 'no commit ⇒ no charge')
   assert.ok(dead.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (boom)')), 'logged')
   assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
-  assert.ok(!dead.calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('terminalsha')), 'no re-audit without a commit')
+  assert.ok(!dead.calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit without a commit')
   const noSha = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }))
   assert.ok(noSha.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal worker returned no usable head_sha)')), 'an implemented result without head_sha takes the no-usable-head_sha arm, logged')
   assert.ok(carriedOf(noSha.out, 'polish-panel absorb'), 'and the row carries')
   const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
   const badRevert = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected, terminalRevert: { ok: false, stderrTail: 'boom' } }))
-  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of terminalsha did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
+  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of 7e4a1a10 did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
   assert.ok(carriedOf(badRevert.out, 'polish-panel absorb'), 'the row still carries')
   assert.equal(terminalCalls(badRevert.calls).length, 1, 'never a second pass')
 })
@@ -16560,20 +16566,20 @@ test('terminal-pass — a terminal commit that does not merge, or a terminal wor
 test('terminal-pass — a present-but-disjoint sweep report (no file in the queue footprint) keeps the re-approval ruling: every queued row is recorded aced at the polish sha and no terminal pass dispatches', async () => {
   const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
   const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
-  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/other.md'] }
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, files_changed: ['docs/other.md'] }
   const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
-  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'b01a5a00'), 'row on x is aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'b01a5a00'), 'row on q is aced at the polish sha')
   assert.equal(terminalCalls(calls).length, 0, 'a disjoint report never diverts rows to the terminal queue')
 })
 
 test('terminal-pass — a sweep report carrying files_changed ONLY (no ace_diff_files) that overlaps the queue footprint is read as the fallback SOURCE: the touched row aces at the polish sha and the untouched row joins the terminal queue', async () => {
   const q1 = nit({ title: 'row on x', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
   const q2 = nit({ title: 'row on q', file: 'docs/q.md', disposition: 'absorb', phaseClose: true })
-  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, files_changed: ['docs/x.md'] }
+  const sweepWorker = { task_id: 't1', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, files_changed: ['docs/x.md'] }
   const { out, calls } = await runPhase(SWEEP_ARGS(), terminalImpl({ queued: [q1, q2], polishFindings: [], sweepWorker }))
-  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'polishsha'), 'row on x is aced at the polish sha')
-  assert.ok(!(out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'polishsha'), 'row on q is NOT aced at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'row on x' && a.sha === 'b01a5a00'), 'row on x is aced at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'row on q' && a.sha === 'b01a5a00'), 'row on q is NOT aced at the polish sha')
   const tw = terminalCalls(calls)
   assert.equal(tw.length, 1, 'the files_changed fallback diverts the untouched row to the terminal pass')
   assert.ok(tw[0].prompt.includes('row on q'), 'the terminal prompt carries the untouched row')
@@ -16632,10 +16638,10 @@ test('terminal-pass — the terminal re-audit records a pinTransfers row (kind a
   // Two-seat roster: the transfer half of the row is only observable when a non-terminal seat exists.
   const { out } = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, { lens: 'security' }] } }), terminalImpl())
   const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.mode === 'terminal')
-  assert.ok(row && row.task === 'p3-polish' && row.sha === 'terminalsha', 'the terminal row pins the polish pseudo-task and the terminal sha')
+  assert.ok(row && row.task === 'p3-polish' && row.sha === '7e4a1a10', 'the terminal row pins the polish pseudo-task and the terminal sha')
   assert.ok(Array.isArray(row.seats), 'the row carries a seats array')
   assert.equal(row.seats.length, 2, 'every default-roster seat appears — both seats')
-  assert.ok(row.seats.every(s => s.sha === 'terminalsha' && (s.outcome === 're-ran' || s.outcome === 'transferred')), 'each seat row carries the sha and an outcome')
+  assert.ok(row.seats.every(s => s.sha === '7e4a1a10' && (s.outcome === 're-ran' || s.outcome === 'transferred')), 'each seat row carries the sha and an outcome')
   assert.equal(row.seats.filter(s => s.outcome === 're-ran').length, 1, 'exactly one seat re-ran')
   assert.equal(row.seats.find(s => s.outcome === 're-ran').lens, 'correctness', 'the re-ran seat is the terminal seat')
   assert.equal(row.seats.filter(s => s.outcome === 'transferred').length, 1, 'exactly one seat transferred')
@@ -16739,7 +16745,7 @@ test('held-carry — a relaunch with args.seededPhaseClose drains the seeded ent
   const { out, calls, logs } = await runPhase(SWEEP_ARGS({ seededPhaseClose: seed }), sweepBase([]))
   assert.ok(polishPromptOf(calls).includes('carried nit'), 'the seeded row reaches the sweep dispatch')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('held-carry (D3b): seeded phase-close row "carried nit"') && l.includes('carried from phase 2')), 'the drain is logged per row')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'carried nit' && a.sha === 'polishsha'), 'and it aces at the polish sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'carried nit' && a.sha === 'b01a5a00'), 'and it aces at the polish sha')
   for (const [bad, msg] of [
     ['nope', 'args.seededPhaseClose must be an array'],
     [['x'], 'args.seededPhaseClose[0] must be a finding row object'],
@@ -17018,7 +17024,7 @@ test('ruled-ask intake (#1875): a ruled ask stamps queuedKeys — a re-audit re-
   assert.equal(calls.filter(isAce).length, 1, 'the round-1 batch ace only — no re-entry batch for the re-mint')
   const acedRuled = (out.aced || []).filter(a => a && a.finding && a.finding.title === 'flip the retention default')
   assert.equal(acedRuled.length, 1, 'exactly one aced record for the ruled finding (the polish sha)')
-  assert.equal(acedRuled[0].sha, 'polishsha', 'it is the sweep\'s record')
+  assert.equal(acedRuled[0].sha, 'b01a5a00', 'it is the sweep\'s record')
   assert.deepEqual(acedRuled[0].finding.seats, ['task t1', 'audit:t1:correctness (task t1)'],
     'the re-raising seat was merged onto the queued ruled row (corroborateSurvivor searched phaseCloseQueue)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'flip the retention default'), 'the re-mint never files a second record')
@@ -18364,7 +18370,7 @@ for (const site of ['sweep', 'terminal']) {
     if (site === 'terminal') cite.file = 'docs/q.md'
     const base = site === 'sweep' ? sweepBase([askFinding(), cite]) : terminalImpl({
       queued: [askFinding(), queuedAbsorb(), cite], polishFindings: [],
-      sweepWorker: { task_id: 't1', status: 'implemented', head_sha: 'polishsha', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] },
+      sweepWorker: { task_id: 't1', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, ace_diff_files: ['docs/x.md'] },
     })
     let charged = false, terminalStarted = false
     const { out } = await runPhase(SWEEP_ARGS({ adjudications: CITED_ADJ, run: { ace: true, afk: true } }), (p, o) => {
@@ -18379,5 +18385,49 @@ for (const site of ['sweep', 'terminal']) {
     assert.ok(charged, 'the selected re-audit receives the citation soundness charge')
     assert.ok(!out.aced.some(r => r.citation), 'an unsound citation never receives execution credit')
     assert.ok(out.asks.length > 0, 'the operator decision remains parked')
+  })
+}
+
+for (const shape of ['absent-seat-pin', 'malformed-seat-pin', 'absent-worker-pin', 'malformed-worker-pin', 'unusable-worker-split-pins']) {
+  test('Snipe missing-pin integrity: ' + shape + ' never approves without Git proof', async () => {
+    const tasks = shape === 'unusable-worker-split-pins' ? [{ ...SINGLE_TASK[0], roster: [{ lens: 'correctness' }, { lens: 'security' }] }] : SINGLE_TASK
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks }), (p, o) => {
+      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: shape.includes('worker') ? (shape === 'malformed-worker-pin' ? 'not-a-sha' : undefined) : 'deadbeef' }
+      if ((o.label || '').startsWith('audit:')) {
+        const row = { seat: o.label, lens: o.label.split(':')[2], verdict: 'approve', findings: [], confidence: 'high' }
+        if (shape !== 'absent-seat-pin') row.audit_sha = shape === 'malformed-seat-pin' ? 'not-a-sha' : o.label.includes('security') ? '2222222' : '1111111'
+        return row
+      }
+      return defaultImpl(p, o)
+    }, { rawTaskAuditPins: true })
+    assert.ok(!out.landed.includes('t1'), 'missing/malformed pin evidence is never an approval')
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'audit-pin'), 'Git reconciliation was attempted')
+  })
+}
+
+for (const initial of ['missing-seat', 'bad-seat', 'missing-worker', 'bad-worker']) for (const repaired of [true, false]) {
+  test('Snipe missing-pin recovery: ' + initial + ', repaired=' + repaired, async () => {
+    const tip = '2'.repeat(40)
+    let audits = 0, lookups = 0
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: initial.endsWith('worker') ? (initial.startsWith('missing') ? undefined : 'not-a-sha') : tip }
+      if ((o.label || '').startsWith('audit:')) {
+        audits++
+        assert.ok(o.schema.required.includes('audit_sha'), 'task-audit producer schema requires the pin')
+        const row = { seat: o.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+        if (audits > 1 && repaired) row.audit_sha = tip
+        else if (initial.endsWith('worker') && audits === 1) row.audit_sha = tip
+        else if (initial.startsWith('bad')) row.audit_sha = 'not-a-sha'
+        return row
+      }
+      return defaultImpl(p, o)
+    }, { rawTaskAuditPins: true, 'audit-pin': () => {
+      if (++lookups > 1) throw new Error('unexpected repeated pin reconciliation')
+      return { head_sha: tip }
+    } })
+    assert.equal(lookups, 1, 'one bounded read-only reconciliation')
+    assert.equal(audits, 2, 'fresh review follows the Git lookup')
+    assert.equal(out.landed.includes('t1'), repaired, 'only repaired pin evidence can approve')
+    assert.equal(calls.some(isMergeTask), repaired, 'no merge dispatch without complete pin evidence')
   })
 }

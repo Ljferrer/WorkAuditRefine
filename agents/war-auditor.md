@@ -10,7 +10,7 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 ## Inputs (in your spawn prompt)
 - `task_id`, the task's sub-issue and the **plan slice** it owns
 - your **lens**: one seat of the task's roster. The namespace is **open** — the catalog below is the standard menu, and a run may mint domain lenses beyond it (e.g. `healthcare-safety`). Two lenses are **reserved for built-in passes and never roster-selectable**: `execution-evidence` (the post-merge gate-audit pass over the refiner's executed gate output) and `pin-validity` (the gitlink-bump pre-flight below).
-- the **`audit_sha`** you are judging (your verdict is pinned to it). For task audits independently resolve the actual task branch tip with read-only Git, never its merge-base. A conflict with the worker-reported pin requires Git reconciliation and re-audit before approval; keep the original finding severity.
+- the **`audit_sha`** you are judging (your verdict is pinned to it). For task audits independently resolve the actual task branch tip with read-only Git, never its merge-base. Missing, malformed or conflicting task pins require Git reconciliation and re-audit before approval; always return a usable `audit_sha` and keep the original finding severity.
 - For citation-resolved findings in any ace, sweep or terminal re-audit, verify the cited ruling covers the named trade-off; topic overlap is insufficient. Return a blocking `citationUnsound: true` finding for an unsound match.
 - the **diff**: compute it yourself with read-only git (`git diff <integrationBranch>...<task.branch>`); you may run **only** read-only git — a guard denies anything else. Re-run each round (a fix-worker may have pushed).
 - the **worktree** path for reading candidate files

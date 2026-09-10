@@ -279,3 +279,36 @@ classification census was re-run and passed all 48 assertions. No other shell fa
 occurred. The JavaScript tests affected only by final comment cleanup were re-run and
 passed. Fresh remote check: PR head still 6497e0ce, target master still ba08a77f, PR open
 and CLEAN, initial redaction-lint green. No concurrent source movement was overwritten.
+
+## Candidate 1 review and pin-class closure
+
+Candidate `1bd9474b7ea813d85976b8639f666df29b26fda3` was pushed normally and passed
+1,823 JS tests and GitHub redaction CI. Four-seat Snipe completed with full stable
+coverage, same package and sol/high profile. Correctness and cascading-impact reported
+the same Major: missing/malformed worker or auditor pins bypassed reconciliation.
+Simplicity and test-fidelity approved; simplicity reported redundant approval conjuncts.
+The exact report and validated execution evidence are retained as candidate-1-snipe files.
+This candidate was **held**, never represented as clean or merged.
+
+Five raw-response regressions reproduced the missing-proof false approvals before repair.
+The shared task-audit boundary now checks worker-pin usability and every seat's pin,
+not only a differing valid pair. It uses the same bounded read-only recovery and fresh
+review, and the task-specific schema requires audit_sha. Post-merge gate-evidence SOFT
+absence is unchanged. Eight positive/negative recovery mirrors cover missing/malformed
+worker/seat evidence: valid second responses continue in-phase; persistent invalid
+responses never merge. A missing worker pin also exposed a strict prompt interpolation
+error; its diagnostic now renders an explicit unrecorded marker so Git lookup can run.
+
+Legacy success fixtures now use commit-shaped worker identities and an explicit task-
+audit fixture builder supplies the dispatched pin. Explicit audit_sha values, including
+undefined, are untouched; rawTaskAuditPins bypasses the builder for missing-field
+regressions. These raw actual-flow cases prove production behavior, not fixture repair.
+The six redundant allApprove/blocker checks were reduced to the central predicate;
+persistent deaths still produce a roster shortfall and cannot approve.
+
+Second-candidate repair validation: **1,836 JS tests passed, 0 failed**. Six disposable
+mutations (worker usability, seat usability, valid-pair equality, retry bound, task
+schema requirement, operation-pin equality) each fail the intended assertion. Redaction
+lint is clean; the actual staged script is **323,229 bytes**, within the 524,288 cap.
+The final shell sweep and another complete four-seat Snipe review remain pending on
+the new committed candidate. No first-candidate approval is transferred to these bytes.

@@ -496,3 +496,8 @@ The same integrity-first direction closes #2229's missing soundness charge: the 
 `citationSoundnessClause` now covers ace, sweep and terminal re-audits. Mechanical
 row membership alone never substitutes for the panel's judgment of the named trade-off.
 No new model-written ruling is introduced; rejection retains the operator question.
+
+The first finalization candidate's Snipe panel exposed the missing-proof direction of
+#2141. The task-audit boundary now also reconciles absent/malformed worker or seat pins;
+no second-pass invalid or conflicting seat can approve. Task dispatch schemas require
+`audit_sha`. Post-merge gate evidence alone retains SOFT missing-pin compatibility.

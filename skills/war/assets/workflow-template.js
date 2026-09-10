@@ -2617,7 +2617,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // caller, which demotes or classifies env-died; never audit-blocked.
   const runSeat = seat => dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
     agentType: NS + 'war-auditor', phase: 'Audit',
-    label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+    label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawn('auditor') })
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
   // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).
   let results = await parallel(roster.map(seat => () => runSeat(seat)))
@@ -2635,20 +2635,20 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // Intake normalization (verdict-integrity D2, PIN-6) at the ONE collection site every auditRound
   // caller shares — roster seats, the rebuttal round and every re-audit pass through here.
   const seats = results.filter(s => s && !deathOf(s)).map(s => normalizeSeat(s, task.id))
-  // A conflicting SHA is an unresolved review, never approval (#2141). Resolve the branch
+  // A missing, malformed or conflicting SHA is unresolved review, never approval (#2141). Resolve the branch
   // through read-only Git and run the full roster once at that confirmed tip. A second mismatch
   // or unusable lookup takes the existing shortfall/hold path; read-only transport death remains soft.
-  if (seats.some(s => pinMismatch(s.audit_sha, pin))) {
+  if (!isSha(pin) || seats.some(s => !isSha(s.audit_sha) || pinMismatch(s.audit_sha, pin))) {
     auditLog.push({ task: task.id, verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin,
-      findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), note: 'Reported worker pin conflicts with an auditor SHA; no approval accounted before Git reconciliation and full re-audit' })
+      findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), note: 'Missing, malformed or conflicting task audit pin; no approval accounted before Git reconciliation and full re-audit' })
     if (reconciliation.done) return { seats: [], expected, died, pin }
     const resolved = await dispatchSite(
-      pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git in ${task.worktree}: resolve branch ${task.branch} with git rev-parse --verify ${task.branch}^{commit}. Return { head_sha: <that full commit SHA> }. Reported pin: ${pin}. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a Git error return {}.`,
+      pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git in ${task.worktree}: resolve branch ${task.branch} with git rev-parse --verify ${task.branch}^{commit}. Return { head_sha: <that full commit SHA> }. Reported pin: ${String(pin ?? '(unrecorded)')}. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a Git error return {}.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
         schema: { type: 'object', properties: { head_sha: { type: 'string' } } }, ...spawnRefinerRecovery() })
     if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }
     if (!resolved || !fullSha(resolved.head_sha)) return { seats: [], expected, died }
-    if (!reconciliation.repairWorkerPin && pinMismatch(resolved.head_sha, pin)) return { seats: [], expected, died, pin }
+    if (!reconciliation.repairWorkerPin && (!isSha(pin) || pinMismatch(resolved.head_sha, pin))) return { seats: [], expected, died, pin }
     return auditRound(task, null, workerTests, resolved.head_sha, extra, roster, { ...reconciliation, done: true })
   }
   return { seats, expected, died, pin }
@@ -3304,7 +3304,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         for (const f of sub.findings) routeToSweep(f, 'failed absorb — the task gate was RED at the subset ace tip, so no re-audit ran and no approval could be accounted there (PIN-12); the subset commit is forward-reverted')
         continue
       }
-      if (allApprove(subSeats, subExpected) && blockingOf(subSeats).length === 0) {
+      if (allApprove(subSeats, subExpected)) {
         r.seats = subSeats                               // merge proceeds on this approved subset tip
         r.aceSha = subSha
         recordAcedTouched(sub.findings, subSha, sw)   // #1944: only what the subset commit touched
@@ -3416,7 +3416,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         for (const f of batch) routeToSweep(f, 'failed absorb — the task gate was RED at the re-entry ace tip, so no re-audit ran and no approval could be accounted there (PIN-12); the re-entry commit is forward-reverted')
         continue
       }
-      if (allApprove(reS, reE) && blockingOf(reS).length === 0) {
+      if (allApprove(reS, reE)) {
         r.seats = reS                                    // merge proceeds on this approved re-entry tip
         r.aceSha = reSha
         recordAcedTouched(batch, reSha, rw)           // #1944: only what the re-entry commit touched
@@ -3588,7 +3588,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             r.aceReverted = aceSha
             aceSha = null
             for (const f of aceable) routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip, so no re-audit ran and no approval could be accounted there (PIN-12); the ace commit is forward-reverted')
-          } else if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
+          } else if (allApprove(reSeats, reExpected)) {
             r.seats = reSeats                          // merge proceeds on the polished tip
             r.aceSha = aceSha
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
@@ -4077,7 +4077,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // never drain r.reentryQueue again; an absorb-eligible finding takes the phase-close sweep
         // instead. Blocking findings stay untouched — the escalate arm below owns them.
         routeReauditMinors(r, rbSeats, { noReentry: 'merge-slot pin-transfer mismatch re-audit — the wave side is over, so re-entry can never dispatch; the sweep is the vehicle' })
-        if (allApprove(rbSeats, rbExpected) && blockingOf(rbSeats).length === 0) {
+        if (allApprove(rbSeats, rbExpected)) {
           r.seats = rbSeats
         } else {
           escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'the in-lock full-panel re-audit of the rebased tip did not re-approve after a pin-transfer patch-id mismatch', rebased_tip: pinProbe.rebased_tip } })
@@ -5184,7 +5184,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     if (!sweepWhy) {
       const { seats: pSeats, expected: pExpected, died: pDied } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha, citationSoundnessClause(phaseCloseQueue))
       sweepPanelDeath = pDied
-      sweepApproved = !pDied && allApprove(pSeats, pExpected) && blockingOf(pSeats).length === 0
+      sweepApproved = allApprove(pSeats, pExpected)
       sweepMinors = minorsOf(pSeats).map(f => ({ task: polishTask.id, ...f }))
       auditLog.push({ task: polishTask.id, verdict: pDied ? 'env-died' : sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length, ...(pDied ? { blocked: pDied } : {}) })
     }
@@ -5336,7 +5336,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           const { seats: tSeats, expected: tExpected, died: tDied } = await auditRound(polishTask, null, tw.tests ? tw.tests : null, terminalSha, citationSoundnessClause(terminalRows), [seat])
           // A dead terminal seat (D21, PIN-25) takes the no-verdict arm below, naming the site — it
           // judged nothing, so never a regression.
-          const tApproved = !tDied && allApprove(tSeats, tExpected) && blockingOf(tSeats).length === 0
+          const tApproved = allApprove(tSeats, tExpected)
           // Ledger row (PIN-10): the terminal seat re-ran; every other default-roster seat transfers
           // from the polish panel — every rosterOverride site records its transfer, this one included.
           pinTransfers.push({ task: polishTask.id, kind: 'ace', mode: 'terminal', why: 'one-hop terminal pass — one re-audit seat, the rest transfer from the polish panel', sha: terminalSha,

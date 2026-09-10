@@ -464,10 +464,11 @@ Pin-transfer success evidence is conditionally required by `PIN_TRANSFER` and ch
 
 ### Task audit pin conflicts (#2141 finalization amendment)
 
-A task auditor resolves the actual task branch tip using read-only Git. A well-formed
-SHA conflict never becomes approval by demoting findings. The Workflow retains conflict
+A task auditor resolves the actual task branch tip using read-only Git. Missing, malformed or conflicting
+worker/seat SHA evidence never becomes approval. Task-audit dispatches require `audit_sha`;
+the consumer independently verifies every seat pin before approval. The Workflow retains conflict
 evidence, dispatches a read-only refiner on `agents.refiner.recovery`, and re-runs the
-roster once at the confirmed full SHA. Initial/fix worker reports may be repaired this
+roster once at the confirmed full SHA. Wave initial/fix worker reports may be repaired this
 way. A repeat conflict or unusable Git result prevents approval through the existing
 shortfall path. A read-only dispatch death keeps its environment classification.
 For a later gate/pin-transfer/ace-specific audit, the confirmed tip must still match
