@@ -534,7 +534,7 @@ test('empty phase returns the augmented shape and the NAMED no-merge hold', asyn
   const parallel = async (thunks) => Promise.all(thunks.map((t) => t()))
   const pipeline = async () => []
   const noop = () => {}
-  const args = {
+  const args = { runId: 'empty-launch',
     phase: { id: 6, title: 'P6', integrationBranch: 'integration/phase-6', workingBranch: 'dev/planA' },
     plan: { file: 'docs/plans/x.md', gate: 'true' },
     tasks: [],
@@ -1448,11 +1448,12 @@ test('#71 — task missing branch/worktree AND derivation args RETURNS held:work
 })
 
 test('#71 — task with explicit branch AND worktree does NOT throw (carry-forward)', async () => {
-  // A task that already has explicit branch + worktree must work fine even without derivation args.
+  // Explicit paths still bypass path derivation; every launch now supplies gate identity (#2300).
   const explicitArgs = {
+    runId: 'explicit-launch',
     phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
     plan: { file: 'docs/plans/x.md', gate: 'true' },
-    // No planSlug, no runId, no worktreeRoot — but the task has explicit paths
+    // No planSlug or worktreeRoot — the task has explicit paths
     tasks: [
       { id: 'tY', issue: 100, title: 'Explicit paths', planSlice: 'slice Y', roster: [{ lens: 'correctness' }],
         branch: 'war/x/p1-tY', worktree: '/abs/repo/.claude/worktrees/run-abc/tY' },
@@ -1460,10 +1461,9 @@ test('#71 — task with explicit branch AND worktree does NOT throw (carry-forwa
     learningsTarget: null,
   }
   // Must not throw — explicit branch/worktree satisfies the assertion.
-  await assert.doesNotReject(
-    () => runPhase(explicitArgs, defaultImpl),
-    'template must NOT throw when the task has explicit branch and worktree'
-  )
+  const { out, calls } = await runPhase(explicitArgs, defaultImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error')
+  assert.ok(calls.some(isWorker), 'explicit paths plus launch identity reach the worker')
 })
 
 test('#71 — task with only planSlug+runId+worktreeRoot (no explicit) does NOT throw (derivation succeeds)', async () => {
@@ -8056,7 +8056,7 @@ test('run-lifecycle §1 entry validation (a): no trio → held:workflow-error na
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.match(out.workflowError.message, /requires top-level \{ planSlug, runId, worktreeRoot \}/)
   for (const k of ['planSlug', 'runId', 'worktreeRoot']) assert.ok(out.workflowError.message.includes(k), `names ${k}`)
-  assert.match(out.workflowError.message, /or supply explicit branch\/worktree per task/)
+  assert.doesNotMatch(out.workflowError.message, /or supply explicit branch\/worktree per task/, 'explicit paths cannot replace missing launch identity')
   assert.equal(agentCalls, 0, 'zero agents dispatched on an entry-validation throw')
 })
 
@@ -8070,8 +8070,8 @@ test('run-lifecycle §1 entry validation (b): only runId missing → missing lis
   assert.equal(agentCalls, 0)
 })
 
-test('run-lifecycle §1 entry validation (c): trio absent but every task carries explicit branch+worktree → no throw, run proceeds', async () => {
-  const args = { phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
+test('run-lifecycle §1 entry validation (c): explicit branch+worktree with launch identity → no throw, run proceeds', async () => {
+  const args = { runId: 'explicit-launch', phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
     plan: { file: 'x', gate: 'true' },
     tasks: [{ id: 'tE', issue: 1, title: 't', planSlice: 's', roster: [{ lens: 'correctness' }],
       branch: 'war/x/p1-tE', worktree: '/abs/repo/.claude/worktrees/run-abc/p1-tE' }],
@@ -8127,13 +8127,13 @@ test('run-lifecycle §1 entry validation (#740): phase nullish → one error nam
   assert.equal(agentCalls, 0)
 })
 
-test('run-lifecycle §1 entry validation (#740, criterion 2): trio absent AND phase.workingBranch absent → ONE aggregated message naming both classes WITH the derivation suffix', async () => {
-  const args = { phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1' }, // workingBranch OMITTED; id+title+integration present
-    plan: { file: 'x', gate: 'true' }, tasks: NEEDS_DERIVATION_TASK, learningsTarget: null } // trio OMITTED → derivation-needing
+test('run-lifecycle §1 entry validation (#740, criterion 2): path-derivation inputs absent AND phase.workingBranch absent → ONE aggregated message naming both classes WITH the derivation suffix', async () => {
+  const args = { runId: 'r', phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1' }, // workingBranch OMITTED; id+title+integration present
+    plan: { file: 'x', gate: 'true' }, tasks: NEEDS_DERIVATION_TASK, learningsTarget: null } // path inputs OMITTED → derivation-needing; launch identity remains present
   const { out, agentCalls } = await runCounting(args)
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.equal(out.workflowError.message,
-    'workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [planSlug, runId, worktreeRoot]; workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [workingBranch] (or supply explicit branch/worktree per task)',
+    'workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [planSlug, worktreeRoot]; workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [workingBranch] (or supply explicit branch/worktree per task)',
     'the two classes aggregate into a single throw; the suffix rides the present derivation-class problem')
   assert.equal(agentCalls, 0)
 })
@@ -11038,7 +11038,7 @@ const LITERAL_REGISTRY = [
   ["workflow-template: requires top-level { plan"],
   ["phase.id is missing (derivation would produc"],
   ["workflow-template: requires phase { title, w"],
-  ["${problems.join('; ')}${derivationProblem ? "],
+  ["${problems.join('; ')}${derivationProblem &&"],
   ["task ${t.id}: cannot derive branch/worktree "],
   ["task ${t.id}: invalid roster — ${rv.errors.j"],
   ["provision-run:${task.id}`, dispatchKind: 'pr"],
@@ -20065,3 +20065,47 @@ for (const reported of [undefined, 'unverified-report', '']) {
     assert.ok(out.landed.includes('t1'))
   })
 }
+
+
+for (const [field, invalid] of [
+  ['runId', [undefined, null, '', ' ', 0, false, [], {}]],
+  ['phase.id', [undefined, null, '', ' ', false, [], {}, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]],
+]) {
+  test('#2300: launch identity rejects invalid ' + field + ' before dispatch, including explicit and empty phases', async () => {
+    for (const tasks of [NEEDS_DERIVATION_TASK, EXPLICIT_TASK, []]) for (const value of invalid) {
+      const args = PROVISION_ARGS({ tasks })
+      if (field === 'runId') args.runId = value
+      else args.phase = { ...args.phase, id: value }
+      const { out, agentCalls } = await runCounting(args)
+      assert.equal(agentCalls, 0, field + '=' + JSON.stringify(value) + ', tasks=' + tasks.length)
+      assert.equal(out.landDecision, 'held:workflow-error')
+      assert.ok(out.workflowError.message.includes(field), out.workflowError.message)
+    }
+  })
+}
+
+test('#2300: explicit submodule worktree cannot reuse a previous launch gate log', async () => {
+  const args = runId => PT_ARGS({ runId,
+    tasks: [{ ...PT_ARGS().tasks[0], branch: 'war/x/p1-t1', worktree: '/abs/shared-task', targetRepo: '/abs/submodule' }] })
+  const first = await runPhase(args('launch-one'), evidenceImpl)
+  const priorPath = fixtureGatePath(first.calls.find(isMergeTask).prompt)
+  assert.ok(priorPath)
+  const second = await runPhase(args('launch-two'), (p, o) => {
+    const result = evidenceImpl(p, o)
+    return isMergeTask({ opts: o }) ? { ...result, gate_log_path: priorPath } : result
+  })
+  const consumers = second.calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
+  assert.ok(consumers.length)
+  assert.ok(consumers.every(c => !c.prompt.includes(priorPath)), 'old launch evidence is never forwarded')
+  assert.ok(consumers.some(c => c.prompt.includes('no captured artifact')), 'stale capture is reported absent')
+})
+
+
+test('#2300: run/phase namespace encoding cannot alias delimiter-shaped identities', async () => {
+  const capture = async (runId, id) => {
+    const { calls } = await runPhase(PROVISION_ARGS({ runId, phase: { ...PROVISION_ARGS().phase, id } }), defaultImpl)
+    const p = fixtureGatePath(calls.find(isMergeTask).prompt)
+    return p.slice(p.lastIndexOf('/.war/') + 6)
+  }
+  assert.notEqual(await capture('run-px', 'y'), await capture('run', 'x-py'))
+})

@@ -402,11 +402,13 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 > If the Lead supplies **neither** a per-task `branch`/`worktree` on the task object **nor** the
 > `planSlug` / `worktreeRoot` + `runId` args, the fallback is `undefined` and JS interpolation bakes
 > the literal string `"undefined"` into the worker/auditor/refiner prompts (an unprovisionable branch
-> name and a bogus path). Always thread `planSlug`, `runId`, and `worktreeRoot` (or set explicit
-> `task.branch`/`task.worktree`).
+> name and a bogus path). Always thread `runId` and `phase.id`; also thread `planSlug` and `worktreeRoot` (or set explicit
+> `task.branch`/`task.worktree` for path derivation).
+> **Launch identity** is unconditional: `runId` must be a nonempty string and `phase.id` a safe integer or nonempty string, even with explicit paths or zero tasks. Mint a new run ID for every fresh launch; retain it only for journal replay. The identity tuple owns gate-artifact prefixes.
+>
 > **Entry validation (H).** The template validates required launch inputs **once at entry** (top of
 > the `try{}` body, before any pt-tagged prompt interpolation and before git is touched) and throws —
-> routed to `held:workflow-error` — naming every absent key. Three categories: a **derivation** category
+> routed to `held:workflow-error` — naming every absent key. Other categories: a **derivation** category
 > consumed only when a task lacks an explicit `branch`/`worktree` (the missing members of
 > `{ planSlug, runId, worktreeRoot }`, plus a missing `phase.id` — the silent `pundefined-` derivation
 > class), an **unconditional phase-field** class — `title`, `workingBranch`, `integrationBranch`
@@ -415,7 +417,7 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 > deep inside prompt construction; #740) — and a **tasks-gated `plan.file`** class (#1430): a launch
 > that carries tasks but no `plan.file` is refused with its own distinct message (`requires plan.file`,
 > zero agent spawns); the ratified plan-less zero-task launch shapes stay legal. The `(or supply explicit
-> branch/worktree per task)` suffix rides a derivation-class problem only, never the other classes.
+> branch/worktree per task)` suffix rides a derivation-class problem only when launch identity is valid, never as a remedy for missing identity.
 > Zero tasks / all-explicit ⇒ the derivation category vacuously adds nothing; the phase-field class
 > still applies. Beside those launch-input categories, a **per-task args-intake belt** (D5 of the
 > 2026-08-25 engine-reliability-and-filing-fidelity plan) validates each staged task at the same entry

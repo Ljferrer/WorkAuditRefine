@@ -836,7 +836,7 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 
 
 // Entry validation (H, widened per operator decision 4 + #740; plan.file class added by #1430).
-// FOUR problem classes — (1) derivation, (2) phase-field, (3) plan-file, (4) task-field, each named
+// Launch identity plus four problem classes — (1) derivation, (2) phase-field, (3) plan-file, (4) task-field, each named
 // below — feed ONE hoisted `problems` aggregation and a SINGLE throw here, at the top
 // of the try{} body — before any pt-tagged interpolation and before git is touched — so a missing
 // input dies at ENTRY with every absent key named (→ held:workflow-error via the catch, git
@@ -858,6 +858,11 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 // problem fired — it is a lie for the phase-field class (an explicit branch/worktree cannot supply a
 // missing ph.title).
 const problems = []
+// Gate evidence needs launch identity even when no worktree paths are derived (#2300).
+const hasRunIdentity = typeof runId === 'string' && runId.trim() !== ''
+const hasPhaseIdentity = Number.isSafeInteger(ph?.id) || (typeof ph?.id === 'string' && ph.id.trim() !== '')
+if (!hasRunIdentity) problems.push('runId is missing or invalid: every launch requires a nonempty string; mint a new ID for each fresh launch, reuse it only for journal replay')
+if (!hasPhaseIdentity) problems.push('phase.id is missing or invalid: every launch requires a safe integer or nonempty string')
 let derivationProblem = false
 if ((tasks || []).some(t => !t.branch || !t.worktree)) {
   const missingTrio = [['planSlug', planSlug], ['runId', runId], ['worktreeRoot', worktreeRoot]]
@@ -971,7 +976,7 @@ for (const [ti, t] of (Array.isArray(A.tasks) ? A.tasks : []).entries()) {
   if (!Array.isArray(t.pendingAbsorbs)) { problems.push('workflow-template: ' + at + ' must be an array of held finding rows or absent (got ' + typeof t.pendingAbsorbs + ') (D5)'); continue }
   pushFindingRowProblems(at, t.pendingAbsorbs, 'D5', ['Minor', 'Nit'])   // a seeded Critical/Major refuses at entry — notes never file (snipe: cascading-impact)
 }
-if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
+if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem && hasRunIdentity && hasPhaseIdentity ? ' (or supply explicit branch/worktree per task)' : ''}`)
 // finalPhase (D3a): absent reads as final. Logged once — the terminal pass and the discard/held carry
 // arms read it; the Lead records the threaded value per phase in the run manifest.
 const finalPhase = A.finalPhase !== false
@@ -2547,7 +2552,7 @@ const gateCaptureClause = (refineryP, prefix) =>
 // The engine owns the logical-attempt prefix; mktemp owns the final filesystem allocation.
 // Workflow replay forbids clock/random reads. The run and phase identify this journal;
 // fresh Recovery launches use a new runId. mktemp still allocates the physical directory.
-const gateEpoch = encodeURIComponent(runId) + '-p' + encodeURIComponent(ph.id)
+const gateEpoch = encodeURIComponent(JSON.stringify([runId, ph.id]))
 let gateAttempt = 0
 const newGateCapture = (repo, task) => {
   const prefix = repo.replace(/\/$/, '') + '/.war/gate-' + task + '.' + gateEpoch + '-' + (++gateAttempt) + '.'
