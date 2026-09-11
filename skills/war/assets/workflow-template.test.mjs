@@ -14992,7 +14992,7 @@ const evalSchema = (schema, v) => {
 }
 // Census scope = the schemas the evaluator evaluates. GROWTH RULE: evaluate a schema before
 // listing it here — a listed-but-unevaluated schema is exactly the regex-only gap #1956 closed.
-const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT', 'MERGE_RESULT']
+const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT', 'MERGE_RESULT', 'PIN_TRANSFER']
 const grabSchema = (name) => {
   const i = src.indexOf('const ' + name + ' = {')
   assert.ok(i >= 0, name + ' schema found in the template source')
@@ -20026,3 +20026,42 @@ test('#2300: deterministic Workflow reaches land; captures separate attempts, ph
     assert.ok(changed.every(p => !original.includes(p)), 'fresh run/phase cannot admit a prior capture')
   }
 })
+
+
+test('#2299: dispatched flat pin-transfer schema retains the wire contract', async () => {
+  const { calls } = await runPhase(PT_ARGS(), ptImpl([], aceOk()))
+  const schema = calls.find(isPinTransfer).opts.schema
+  assert.deepEqual(schema, grabSchema('PIN_TRANSFER'), 'evaluate the schema actually dispatched')
+  for (const status of ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error']) {
+    assert.ok(evalSchema(schema, { status }), status + ' has consumer-validated evidence')
+  }
+  for (const bad of [null, [], '', {}, { status: 'unknown' }, { status: 1 }]) {
+    assert.ok(!evalSchema(schema, bad), 'reject invalid status/object: ' + JSON.stringify(bad))
+  }
+  const evidence = { rebased_tip: 'beef0001', dispatch_base: 'deadbeef', pre_rebase_patch_id: 'pre',
+    post_rebase_patch_id: '', already_upstream_commits: ['cafe0001'], conflict_files: ['a.js'], detail: 'reason' }
+  assert.deepEqual(Object.keys(schema.properties).sort(), ['status', ...Object.keys(evidence)].sort())
+  for (const [field, value] of Object.entries(evidence)) {
+    assert.ok(evalSchema(schema, { status: 'error', [field]: value }), field + ' accepts its wire type')
+    assert.ok(!evalSchema(schema, { status: 'error', [field]: 42 }), field + ' rejects a wrong wire type')
+  }
+})
+
+for (const reported of [undefined, 'unverified-report', '']) {
+  test('#2299: mismatch receipt retains independently measured patch IDs: ' + String(reported), async () => {
+    const measuredPost = reported === '' ? '' : 'measured-post'
+    const probe = { status: 'mismatch', rebased_tip: 'beef0001' }
+    if (reported !== undefined) Object.assign(probe, { pre_rebase_patch_id: reported, post_rebase_patch_id: reported })
+    const { out, calls } = await runPhase(PT_ARGS(), ptImpl([], aceOk()), {
+      'pin-transfer': probe,
+      'pin-confirm': (p, o) => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p, o),
+        pre_patch_id: 'measured-pre', post_patch_id: measuredPost }),
+    })
+    const row = out.pinTransfers.find(p => p.kind === 'merge')
+    assert.equal(row?.mode, 'mismatch', 'a receipt follows the full destination re-audit')
+    assert.equal(calls.filter(c => isAuditor(c) && c.prompt.includes('beef0001')).length, 2)
+    assert.equal(row.prePatchId, 'measured-pre')
+    assert.equal(row.postPatchId, measuredPost, 'an explicitly empty patch ID remains evidence, not null')
+    assert.ok(out.landed.includes('t1'))
+  })
+}

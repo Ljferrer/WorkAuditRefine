@@ -4166,8 +4166,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         rebasedTip: pinProbe && pinProbe.rebased_tip || null,
         dispatchBase: (pinProbe && pinProbe.dispatch_base) || null,
         preContentId: pinProof.pre_content_id, postContentId: pinProof.post_content_id,
-        prePatchId: pinProbe && pinProbe.pre_rebase_patch_id || null,
-        postPatchId: pinProbe && pinProbe.post_rebase_patch_id || null,
+        prePatchId: pinProof.pre_patch_id, postPatchId: pinProof.post_patch_id,
         seats: (seatsSrc || r.seats || []).map(s => mode === 'mismatch'
           ? ({ seat: s.seat, lens: s.lens, outcome: 're-ran', sha: (pinProbe && pinProbe.rebased_tip) || null })
           : ({ seat: s.seat, lens: s.lens, outcome: 'transferred', sha: (pinProbe && pinProbe.rebased_tip) || null, approvedAt: auditShaOrSentinel(s.audit_sha) })) })

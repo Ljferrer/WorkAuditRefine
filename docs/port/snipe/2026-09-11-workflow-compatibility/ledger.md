@@ -9,3 +9,14 @@ Base: `668e4ff990f1c689fcf9710768c3d73c2601920c`. Branch: `codex/workflow-compat
 
 - Mutation evidence: see `mutations.json`. All five substitutions fail their independent assertions. Run/phase checks compare the capture component, not different parent worktree paths; dispatch-counter removal fails the existing same-tip baseline-retry regression.
 - Pre-panel validation: targeted regressions pass; version slots 10/10 and redaction lint pass. Full JS and shell suites are running. The first full run observed a release-history pointer mismatch, corrected by restoring the original pointer and verified by the version suite.
+
+
+## Cycle 1 and verified repairs
+
+Snipe reviewed `ec949bb9dda7d7358a74905e49b6518a671af0fb`: complete, stable, four high-confidence approvals (correctness, cascading-impact, test-fidelity, security), with two Minor findings. Exact report: [cycle-1.md](cycle-1.md); scope/seat manifest: [cycle-1.json](cycle-1.json).
+
+- Receipt evidence: reproduced missing and unverified patch IDs in successful mismatch receipts. The probeRow producer serves transferred, mismatch and already_upstream receipts; all now use independently measured proof values and preserve empty strings. Existing transfer checks still govern approval; no new status or routing policy. Three response-shape regressions failed before and pass after. Reverting either receipt field to probe data fails the regression. Schema reference now names this provenance and the meaningful empty value.
+- Schema contract: strengthened actual-dispatch checks and added PIN_TRANSFER to the existing evaluated-schema census. Legal statuses/minimal error replies remain valid; missing/unknown status, non-object responses and wrong evidence-field types are rejected. Removing object type, required status, enum or an evidence type each fails its assertion. The report's literal whole-schema deletion example is broader than needed: the consumer also reads the enum; the independently reproduced gap is loss of wire-only requirements while the consumer's enum remains.
+- Focused verification after repairs: 50/50 tests passed, including schema, transfer/re-audit, receipt and deterministic Workflow regressions. Six negative mutations: [cycle-2-mutations.json](cycle-2-mutations.json).
+- First full validation: 2,216/2,217 JS tests passed (sole README pointer failure corrected; affected version suite 10/10); all 31 shell suites and redaction lint passed. A fresh full JS run covers the revised receipt candidate. No hosted Workflow run is claimed.
+- PR opened as draft: https://github.com/Ljferrer/WorkAuditRefine/pull/2301. Audit budget: one panel completed; next is cycle 2 of at most 4.
