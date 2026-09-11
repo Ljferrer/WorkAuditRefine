@@ -23,7 +23,7 @@ Field names follow spec §4.A (nesting may be refined; the **MUST-carry** set is
 
 ## Where — runId and untracked-ness (the card's `**Where.**` paragraph tail)
 
-`runId` = `<plan-slug>-<YYYY-MM-DD>`; a same-run resume rewrites the file in place (**latest-wins per runId**). Untracked-ness **rides the existing `.claude/` exclude** the provisioning `ensure-exclude` step writes into the main checkout's git dir — **no `.gitignore` change**.
+`runId` is minted by [launch-identity.md](launch-identity.md), persisted before dispatch and changed for a fresh run/Recovery relaunch; a same-journal resume rewrites the file in place (**latest-wins per runId**). Untracked-ness **rides the existing `.claude/` exclude** the provisioning `ensure-exclude` step writes into the main checkout's git dir — **no `.gitignore` change**.
 
 ## Relaunch — a died attempt is archived, never overwritten silently (D22, #1916)
 

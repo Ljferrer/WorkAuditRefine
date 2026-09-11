@@ -1,0 +1,57 @@
+[
+  {
+    "mutation": "phase-provision-grammar",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=\" \", tasks=1"
+  },
+  {
+    "mutation": "phase-safe-number",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=9007199254740992, tasks=1"
+  },
+  {
+    "mutation": "phase-string-type",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=[1], tasks=1"
+  },
+  {
+    "mutation": "phase-number-arm",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: {\"phase\":3,\"landed\":[],\"escalated\":[],\"minorsFiled\":[],\"asks\":[],\"aced\":[],\"notes\":[],\"pinTransfers\":[],\"landResult\":null,\"servitorResult\":null,\"aud"
+  },
+  {
+    "mutation": "phase-string-arm",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+  },
+  {
+    "mutation": "repeating-run-producer",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: Expected \"actual\" to be strictly unequal to:"
+  },
+  {
+    "mutation": "launch-procedure-pointer:skills/war/SKILL.md",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: ../SKILL.md points to the canonical mint/persist/replay procedure"
+  },
+  {
+    "mutation": "launch-procedure-pointer:skills/war/references/run-manifest.md",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: ../references/run-manifest.md points to the canonical mint/persist/replay procedure"
+  },
+  {
+    "mutation": "launch-procedure-pointer:skills/war/references/staged-script.md",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: ../references/staged-script.md points to the canonical mint/persist/replay procedure"
+  },
+  {
+    "mutation": "launch-procedure-pointer:skills/war/references/resume-and-recovery.md",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: ../references/resume-and-recovery.md points to the canonical mint/persist/replay procedure"
+  },
+  {
+    "mutation": "launch-procedure-pointer:skills/war/references/schemas.md",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: ../references/schemas.md points to the canonical mint/persist/replay procedure"
+  }
+]

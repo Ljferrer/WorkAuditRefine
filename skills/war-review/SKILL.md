@@ -32,7 +32,7 @@ run from it (ADR 0008 ordering is git > issues > ledger, untouched here).
 ```
 
 - **bare** — review the **newest** manifest in `.claude/war/runs/`.
-- **`--run <runId>`** — pin a specific run by its `runId` (`<plan-slug>-<YYYY-MM-DD>`).
+- **`--run <runId>`** — pin a specific run by its persisted `runId` (new runs use a UUID; legacy date-based IDs remain readable).
 - **`--scavenge [<plan-slug>]`** — reconstruct a **pre-manifest** run best-effort from transcript
   artifacts (no manifest exists); output is labeled *scavenged* throughout.
 
@@ -46,8 +46,7 @@ MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 RUNS="$MAIN/.claude/war/runs"        # manifests: $RUNS/<runId>.json ; reviews: $RUNS/<runId>-review.md
 ```
 
-- **default (bare)**: pick the newest `$RUNS/<runId>.json` (by file mtime; ties broken by the
-  `runId` date). None found → report **"no run manifest to review"** and stop (offer `--scavenge`).
+- **default (bare)**: pick the newest `$RUNS/<runId>.json` (by file mtime; ties broken by ascending ASCII filename order). None found → report **"no run manifest to review"** and stop (offer `--scavenge`).
 - **`--run <runId>`**: read `$RUNS/<runId>.json`. Missing → say so and list the runIds that do exist.
 - **`--scavenge [<plan-slug>]`**: read [`references/scavenge.md`](references/scavenge.md).
 

@@ -155,6 +155,11 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   }
   const log = (m) => logs.push(m)
   const out = await fn(agent, fakeParallel, async () => [], log, () => {}, args, { total: null })
+  // The Workflow API rejects top-level combinators before the agent can run (#2299).
+  // Check outside the engine catch so failure-path fixtures cannot swallow incompatibility.
+  for (const { opts } of calls) for (const keyword of ['allOf', 'anyOf', 'oneOf']) {
+    assert.ok(!Object.hasOwn(opts.schema || {}, keyword), `${opts.label}: unsupported top-level ${keyword}`)
+  }
   return { out, calls, logs }
 }
 
@@ -529,7 +534,7 @@ test('empty phase returns the augmented shape and the NAMED no-merge hold', asyn
   const parallel = async (thunks) => Promise.all(thunks.map((t) => t()))
   const pipeline = async () => []
   const noop = () => {}
-  const args = {
+  const args = { runId: 'empty-launch',
     phase: { id: 6, title: 'P6', integrationBranch: 'integration/phase-6', workingBranch: 'dev/planA' },
     plan: { file: 'docs/plans/x.md', gate: 'true' },
     tasks: [],
@@ -1443,11 +1448,12 @@ test('#71 — task missing branch/worktree AND derivation args RETURNS held:work
 })
 
 test('#71 — task with explicit branch AND worktree does NOT throw (carry-forward)', async () => {
-  // A task that already has explicit branch + worktree must work fine even without derivation args.
+  // Explicit paths still bypass path derivation; every launch now supplies gate identity (#2300).
   const explicitArgs = {
+    runId: 'explicit-launch',
     phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
     plan: { file: 'docs/plans/x.md', gate: 'true' },
-    // No planSlug, no runId, no worktreeRoot — but the task has explicit paths
+    // No planSlug or worktreeRoot — the task has explicit paths
     tasks: [
       { id: 'tY', issue: 100, title: 'Explicit paths', planSlice: 'slice Y', roster: [{ lens: 'correctness' }],
         branch: 'war/x/p1-tY', worktree: '/abs/repo/.claude/worktrees/run-abc/tY' },
@@ -1455,10 +1461,9 @@ test('#71 — task with explicit branch AND worktree does NOT throw (carry-forwa
     learningsTarget: null,
   }
   // Must not throw — explicit branch/worktree satisfies the assertion.
-  await assert.doesNotReject(
-    () => runPhase(explicitArgs, defaultImpl),
-    'template must NOT throw when the task has explicit branch and worktree'
-  )
+  const { out, calls } = await runPhase(explicitArgs, defaultImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error')
+  assert.ok(calls.some(isWorker), 'explicit paths plus launch identity reach the worker')
 })
 
 test('#71 — task with only planSlug+runId+worktreeRoot (no explicit) does NOT throw (derivation succeeds)', async () => {
@@ -8051,7 +8056,7 @@ test('run-lifecycle §1 entry validation (a): no trio → held:workflow-error na
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.match(out.workflowError.message, /requires top-level \{ planSlug, runId, worktreeRoot \}/)
   for (const k of ['planSlug', 'runId', 'worktreeRoot']) assert.ok(out.workflowError.message.includes(k), `names ${k}`)
-  assert.match(out.workflowError.message, /or supply explicit branch\/worktree per task/)
+  assert.doesNotMatch(out.workflowError.message, /or supply explicit branch\/worktree per task/, 'explicit paths cannot replace missing launch identity')
   assert.equal(agentCalls, 0, 'zero agents dispatched on an entry-validation throw')
 })
 
@@ -8065,8 +8070,8 @@ test('run-lifecycle §1 entry validation (b): only runId missing → missing lis
   assert.equal(agentCalls, 0)
 })
 
-test('run-lifecycle §1 entry validation (c): trio absent but every task carries explicit branch+worktree → no throw, run proceeds', async () => {
-  const args = { phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
+test('run-lifecycle §1 entry validation (c): explicit branch+worktree with launch identity → no throw, run proceeds', async () => {
+  const args = { runId: 'explicit-launch', phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
     plan: { file: 'x', gate: 'true' },
     tasks: [{ id: 'tE', issue: 1, title: 't', planSlice: 's', roster: [{ lens: 'correctness' }],
       branch: 'war/x/p1-tE', worktree: '/abs/repo/.claude/worktrees/run-abc/p1-tE' }],
@@ -8122,13 +8127,13 @@ test('run-lifecycle §1 entry validation (#740): phase nullish → one error nam
   assert.equal(agentCalls, 0)
 })
 
-test('run-lifecycle §1 entry validation (#740, criterion 2): trio absent AND phase.workingBranch absent → ONE aggregated message naming both classes WITH the derivation suffix', async () => {
-  const args = { phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1' }, // workingBranch OMITTED; id+title+integration present
-    plan: { file: 'x', gate: 'true' }, tasks: NEEDS_DERIVATION_TASK, learningsTarget: null } // trio OMITTED → derivation-needing
+test('run-lifecycle §1 entry validation (#740, criterion 2): path-derivation inputs absent AND phase.workingBranch absent → ONE aggregated message naming both classes WITH the derivation suffix', async () => {
+  const args = { runId: 'r', phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1' }, // workingBranch OMITTED; id+title+integration present
+    plan: { file: 'x', gate: 'true' }, tasks: NEEDS_DERIVATION_TASK, learningsTarget: null } // path inputs OMITTED → derivation-needing; launch identity remains present
   const { out, agentCalls } = await runCounting(args)
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.equal(out.workflowError.message,
-    'workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [planSlug, runId, worktreeRoot]; workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [workingBranch] (or supply explicit branch/worktree per task)',
+    'workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [planSlug, worktreeRoot]; workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [workingBranch] (or supply explicit branch/worktree per task)',
     'the two classes aggregate into a single throw; the suffix rides the present derivation-class problem')
   assert.equal(agentCalls, 0)
 })
@@ -11033,7 +11038,7 @@ const LITERAL_REGISTRY = [
   ["workflow-template: requires top-level { plan"],
   ["phase.id is missing (derivation would produc"],
   ["workflow-template: requires phase { title, w"],
-  ["${problems.join('; ')}${derivationProblem ? "],
+  ["${problems.join('; ')}${derivationProblem &&"],
   ["task ${t.id}: cannot derive branch/worktree "],
   ["task ${t.id}: invalid roster — ${rv.errors.j"],
   ["provision-run:${task.id}`, dispatchKind: 'pr"],
@@ -14987,7 +14992,7 @@ const evalSchema = (schema, v) => {
 }
 // Census scope = the schemas the evaluator evaluates. GROWTH RULE: evaluate a schema before
 // listing it here — a listed-but-unevaluated schema is exactly the regex-only gap #1956 closed.
-const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT', 'MERGE_RESULT']
+const EVALUATED_SCHEMAS = ['GATE_CHECK', 'AUDIT_VERDICT', 'MERGE_RESULT', 'PIN_TRANSFER']
 const grabSchema = (name) => {
   const i = src.indexOf('const ' + name + ' = {')
   assert.ok(i >= 0, name + ' schema found in the template source')
@@ -19987,3 +19992,158 @@ for (const field of ['source_tip', 'patch_id', 'content_id']) for (const lost of
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.ok(!calls.some(c => c.opts.label === 'merge:t1:environment-proceed'))
 })
+
+
+// Workflow disallows nondeterministic globals even before the first dispatch (#2300).
+// Shadow only the template's globals, leaving the test runner and agents untouched.
+const deterministicWorkflow = `
+const Date = new Proxy(globalThis.Date, {
+  construct() { throw new Error('Workflow refuses new Date()') },
+  apply() { throw new Error('Workflow refuses Date()') },
+  get(target, key) { if (key === 'now') return () => { throw new Error('Workflow refuses Date.now()') }; return target[key] }
+})
+const Math = new Proxy(globalThis.Math, {
+  get(target, key) { if (key === 'random') return () => { throw new Error('Workflow refuses Math.random()') }; return target[key] }
+})
+` + src
+
+test('#2300: deterministic Workflow reaches land; captures separate attempts, phases and fresh runs', async () => {
+  const execute = async (over = {}) => {
+    const { out, calls } = await runPhase(PROVISION_ARGS(over), defaultImpl, {}, deterministicWorkflow)
+    assert.deepEqual(out.landed, ['t1', 't2'], JSON.stringify(out))
+    const paths = calls.map(c => fixtureGatePath(c.prompt)).filter(Boolean).map(p => p.slice(p.lastIndexOf('/.war/') + 6))
+    assert.ok(paths.length >= 3, 'merge and land captures were exercised')
+    assert.equal(new Set(paths).size, paths.length, 'every dispatch owns a different prefix')
+    return paths
+  }
+  const original = await execute()
+  assert.deepEqual(await execute(), original, 'journal replay with identical args is deterministic')
+  for (const over of [
+    { runId: 'run-2026-relaunch' },
+    { phase: { ...PROVISION_ARGS().phase, id: 4 } },
+  ]) {
+    const changed = await execute(over)
+    assert.ok(changed.every(p => !original.includes(p)), 'fresh run/phase cannot admit a prior capture')
+  }
+})
+
+
+test('#2299: dispatched flat pin-transfer schema retains the wire contract', async () => {
+  const { calls } = await runPhase(PT_ARGS(), ptImpl([], aceOk()))
+  const schema = calls.find(isPinTransfer).opts.schema
+  assert.deepEqual(schema, grabSchema('PIN_TRANSFER'), 'evaluate the schema actually dispatched')
+  for (const status of ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error']) {
+    assert.ok(evalSchema(schema, { status }), status + ' has consumer-validated evidence')
+  }
+  for (const bad of [null, [], '', {}, { status: 'unknown' }, { status: 1 }]) {
+    assert.ok(!evalSchema(schema, bad), 'reject invalid status/object: ' + JSON.stringify(bad))
+  }
+  const evidence = { rebased_tip: 'beef0001', dispatch_base: 'deadbeef', pre_rebase_patch_id: 'pre',
+    post_rebase_patch_id: '', already_upstream_commits: ['cafe0001'], conflict_files: ['a.js'], detail: 'reason' }
+  assert.deepEqual(Object.keys(schema.properties).sort(), ['status', ...Object.keys(evidence)].sort())
+  for (const [field, value] of Object.entries(evidence)) {
+    assert.ok(evalSchema(schema, { status: 'error', [field]: value }), field + ' accepts its wire type')
+    assert.ok(!evalSchema(schema, { status: 'error', [field]: 42 }), field + ' rejects a wrong wire type')
+  }
+})
+
+for (const reported of [undefined, 'unverified-report', '']) {
+  test('#2299: mismatch receipt retains independently measured patch IDs: ' + String(reported), async () => {
+    const measuredPost = reported === '' ? '' : 'measured-post'
+    const probe = { status: 'mismatch', rebased_tip: 'beef0001' }
+    if (reported !== undefined) Object.assign(probe, { pre_rebase_patch_id: reported, post_rebase_patch_id: reported })
+    const { out, calls } = await runPhase(PT_ARGS(), ptImpl([], aceOk()), {
+      'pin-transfer': probe,
+      'pin-confirm': (p, o) => ({ ...NEW_SEAT_DEFAULTS['pin-confirm'](p, o),
+        pre_patch_id: 'measured-pre', post_patch_id: measuredPost }),
+    })
+    const row = out.pinTransfers.find(p => p.kind === 'merge')
+    assert.equal(row?.mode, 'mismatch', 'a receipt follows the full destination re-audit')
+    assert.equal(calls.filter(c => isAuditor(c) && c.prompt.includes('beef0001')).length, 2)
+    assert.equal(row.prePatchId, 'measured-pre')
+    assert.equal(row.postPatchId, measuredPost, 'an explicitly empty patch ID remains evidence, not null')
+    assert.ok(out.landed.includes('t1'))
+  })
+}
+
+
+for (const [field, invalid] of [
+  ['runId', [undefined, null, '', ' ', 0, false, [], {}]],
+  ['phase.id', [undefined, null, '', ' ', false, [], [1], {}, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, -1, '4b', 'y', '-1', '1.5', ' 1']],
+]) {
+  test('#2300: launch identity rejects invalid ' + field + ' before dispatch, including explicit and empty phases', async () => {
+    for (const tasks of [NEEDS_DERIVATION_TASK, EXPLICIT_TASK, []]) for (const value of invalid) {
+      const args = PROVISION_ARGS({ tasks })
+      if (field === 'runId') args.runId = value
+      else args.phase = { ...args.phase, id: value }
+      const { out, agentCalls } = await runCounting(args)
+      assert.equal(agentCalls, 0, field + '=' + JSON.stringify(value) + ', tasks=' + tasks.length)
+      assert.equal(out.landDecision, 'held:workflow-error')
+      assert.ok(out.workflowError.message.includes(field), out.workflowError.message)
+    }
+  })
+}
+
+test('#2300: explicit submodule worktree cannot reuse a previous launch gate log', async () => {
+  const args = runId => PT_ARGS({ runId,
+    tasks: [{ ...PT_ARGS().tasks[0], branch: 'war/x/p1-t1', worktree: '/abs/shared-task', targetRepo: '/abs/submodule' }] })
+  const first = await runPhase(args('launch-one'), evidenceImpl)
+  const priorPath = fixtureGatePath(first.calls.find(isMergeTask).prompt)
+  assert.ok(priorPath)
+  const second = await runPhase(args('launch-two'), (p, o) => {
+    const result = evidenceImpl(p, o)
+    return isMergeTask({ opts: o }) ? { ...result, gate_log_path: priorPath } : result
+  })
+  const consumers = second.calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
+  assert.ok(consumers.length)
+  assert.ok(consumers.every(c => !c.prompt.includes(priorPath)), 'old launch evidence is never forwarded')
+  assert.ok(consumers.some(c => c.prompt.includes('no captured artifact')), 'stale capture is reported absent')
+})
+
+
+test('#2300: canonical fresh-run producer separates same-day same-phase submodule attempts', async () => {
+  const mint = () => {
+    const r = spawnSync(process.execPath, [join(here, 'new-run-id.mjs')], { encoding: 'utf8' })
+    assert.equal(r.status, 0, r.stderr)
+    const id = r.stdout.trim()
+    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    return id
+  }
+  // Same logical plan/day/phase and shared Git paths; IDs come from the actual Lead command.
+  const firstId = mint(), secondId = mint()
+  assert.notEqual(firstId, secondId)
+  const args = runId => PT_ARGS({ runId,
+    tasks: [{ ...PT_ARGS().tasks[0], branch: 'war/x/p1-t1', worktree: '/abs/shared-task', targetRepo: '/abs/submodule' }] })
+  const dir = mkdtempSync(join(tmpdir(), 'war-fresh-launch-'))
+  try {
+    const stage = id => {
+      const runDir = join(dir, id)
+      mkdirSync(runDir)
+      const payload = join(runDir, 'args.json')
+      writeFileSync(payload, JSON.stringify(args(id)))
+      const r = spawnSync(process.execPath, [join(here, 'stage-workflow.mjs'), join(here, 'workflow-template.js'),
+        runDir, 'wtprov-a', '3', '--args', payload], { encoding: 'utf8' })
+      assert.equal(r.status, 0, r.stderr)
+      return readFileSync(r.stdout.trim(), 'utf8').replace(/^export const meta/m, 'const meta')
+    }
+    const firstSource = stage(firstId), secondSource = stage(secondId)
+    const first = await runPhase(undefined, evidenceImpl, {}, firstSource)
+    const replay = await runPhase(undefined, evidenceImpl, {}, firstSource)
+    const priorPath = fixtureGatePath(first.calls.find(isMergeTask).prompt)
+    assert.equal(fixtureGatePath(replay.calls.find(isMergeTask).prompt), priorPath, 'same-journal identity stays deterministic')
+    const second = await runPhase(undefined, (p, o) => {
+      const r = evidenceImpl(p, o)
+      return isMergeTask({ opts: o }) ? { ...r, gate_log_path: priorPath } : r
+    }, {}, secondSource)
+    const consumers = second.calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
+    assert.ok(consumers.length && consumers.every(c => !c.prompt.includes(priorPath)), 'a fresh same-phase attempt rejects the prior gate artifact')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const id of [0, 1, '0', '01', '42']) {
+  test('#2300: provisioning-compatible phase identity ' + JSON.stringify(id), async () => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { ...PROVISION_ARGS().phase, id } }), defaultImpl)
+    assert.deepEqual(out.landed, ['t1', 't2'])
+    assert.ok(calls.some(isWorker))
+  })
+}

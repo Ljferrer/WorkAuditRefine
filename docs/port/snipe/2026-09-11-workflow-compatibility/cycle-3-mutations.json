@@ -1,0 +1,67 @@
+[
+  {
+    "mutation": "run-guard",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: runId=\" \", tasks=1"
+  },
+  {
+    "mutation": "phase-guard",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=\" \", tasks=1"
+  },
+  {
+    "mutation": "run-blank",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: runId=\" \", tasks=1"
+  },
+  {
+    "mutation": "phase-blank",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=\" \", tasks=1"
+  },
+  {
+    "mutation": "phase-integer",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=1.5, tasks=1"
+  },
+  {
+    "mutation": "tuple-encoding",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: Expected \"actual\" to be strictly unequal to:"
+  },
+  {
+    "mutation": "run-namespace",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: fresh run/phase cannot admit a prior capture"
+  },
+  {
+    "mutation": "phase-namespace",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: fresh run/phase cannot admit a prior capture"
+  },
+  {
+    "mutation": "run-type",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: Cannot read properties of undefined (reading 'trim')"
+  },
+  {
+    "mutation": "phase-string-type",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: Cannot read properties of undefined (reading 'trim')"
+  },
+  {
+    "mutation": "phase-safe-integer",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: phase.id=9007199254740992, tasks=1"
+  },
+  {
+    "mutation": "phase-number-arm",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: {\"phase\":3,\"landed\":[],\"escalated\":[],\"minorsFiled\":[],\"asks\":[],\"aced\":[],\"notes\":[],\"pinTransfers\":[],\"landResult\":null,\"servitorResult\":null,\"auditLog\":[],\"landDecis"
+  },
+  {
+    "mutation": "phase-string-arm",
+    "exit": 1,
+    "assertion": ""
+  }
+]
