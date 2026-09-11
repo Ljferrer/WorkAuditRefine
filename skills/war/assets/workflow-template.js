@@ -308,16 +308,11 @@ const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
 // 'conflict', and 'error' (fail-open: the ordinary merge dispatch runs unchanged). dispatch_base (D4,
 // PIN-8, #1973): the merge-base the probe measured PRE from — returned so the consumer can refuse an
 // already_upstream whose rebased_tip is that base (the contradiction signature). Success evidence
-// is required conditionally by schema and independently checked before the consumer records it.
+// is checked by the consumer before recording it; the API rejects top-level schema combinators.
 const PIN_TRANSFER = { type: 'object', required: ['status'], properties: {
   status: { enum: ['transferred', 'mismatch', 'already_upstream', 'empty-unmatched', 'conflict', 'error'] },
   rebased_tip: { type: 'string' }, dispatch_base: { type: 'string' }, pre_rebase_patch_id: { type: 'string' }, post_rebase_patch_id: { type: 'string' },
-  already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } }, allOf: [
-  { if: { properties: { status: { enum: ['transferred', 'mismatch', 'already_upstream'] } }, required: ['status'] },
-    then: { required: ['rebased_tip', 'pre_rebase_patch_id', 'post_rebase_patch_id'], properties: { rebased_tip: { pattern: '^[0-9a-f]{7,40}$' } } } },
-  { if: { properties: { status: { const: 'already_upstream' } }, required: ['status'] },
-    then: { required: ['dispatch_base', 'already_upstream_commits'], properties: { dispatch_base: { pattern: '^[0-9a-f]{7,40}$' }, already_upstream_commits: { minItems: 1, items: { type: 'string', pattern: '^[0-9a-f]{7,40}$' } } } } }
-] }
+  already_upstream_commits: { type: 'array' }, conflict_files: { type: 'array' }, detail: { type: 'string' } } }
 
 // DIFF_PROBE_RESULT (in-band-absorb-default D4, PIN-6): the per-task refiner `diff-probe` dispatch's
 // return — `diff_files`, the GIT-derived changed-file list of the task branch
@@ -2550,9 +2545,9 @@ const segmentedMerge = async (prompt, opts, context) => {
 const gateCaptureClause = (refineryP, prefix) =>
   pt`FRESH GATE ARTIFACT: for a fresh logical dispatch, ensure .war/ is git-excluded inside ${refineryP} (append \`.war/\` once to \`git -C ${refineryP} rev-parse --git-path info/exclude\`), create .war/ if needed, then allocate a fresh directory with \`mktemp -d "${prefix}XXXXXX"\`. Tee the FULL gate stdout+stderr to gate.log inside THAT directory; return its actual absolute path as gate_log_path, including on an incomplete result. Use ONLY this dispatch-owned prefix, including when rerunning at the same tip; never substitute another dispatch’s directory or a conventional task/phase filename. Keep allocation, writer setup and capture in one shell invocation so no shell variable must survive a later call. Populate gate_output only as NON-AUTHORITATIVE context; the captured file is the AUTHORITATIVE execution evidence. ${GATE_LOG_STAMP} `
 // The engine owns the logical-attempt prefix; mktemp owns the final filesystem allocation.
-// The random epoch also changes on cross-machine/restarted runs, so an old same-tip artifact
-// cannot pass merely by matching a task id. Readers only see paths admitted at their producer.
-const gateEpoch = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+// Workflow replay forbids clock/random reads. The run and phase identify this journal;
+// fresh Recovery launches use a new runId. mktemp still allocates the physical directory.
+const gateEpoch = encodeURIComponent(runId) + '-p' + encodeURIComponent(ph.id)
 let gateAttempt = 0
 const newGateCapture = (repo, task) => {
   const prefix = repo.replace(/\/$/, '') + '/.war/gate-' + task + '.' + gateEpoch + '-' + (++gateAttempt) + '.'

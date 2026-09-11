@@ -155,6 +155,11 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   }
   const log = (m) => logs.push(m)
   const out = await fn(agent, fakeParallel, async () => [], log, () => {}, args, { total: null })
+  // The Workflow API rejects top-level combinators before the agent can run (#2299).
+  // Check outside the engine catch so failure-path fixtures cannot swallow incompatibility.
+  for (const { opts } of calls) for (const keyword of ['allOf', 'anyOf', 'oneOf']) {
+    assert.ok(!Object.hasOwn(opts.schema || {}, keyword), `${opts.label}: unsupported top-level ${keyword}`)
+  }
   return { out, calls, logs }
 }
 
@@ -19986,4 +19991,38 @@ for (const field of ['source_tip', 'patch_id', 'content_id']) for (const lost of
   })
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.ok(!calls.some(c => c.opts.label === 'merge:t1:environment-proceed'))
+})
+
+
+// Workflow disallows nondeterministic globals even before the first dispatch (#2300).
+// Shadow only the template's globals, leaving the test runner and agents untouched.
+const deterministicWorkflow = `
+const Date = new Proxy(globalThis.Date, {
+  construct() { throw new Error('Workflow refuses new Date()') },
+  apply() { throw new Error('Workflow refuses Date()') },
+  get(target, key) { if (key === 'now') return () => { throw new Error('Workflow refuses Date.now()') }; return target[key] }
+})
+const Math = new Proxy(globalThis.Math, {
+  get(target, key) { if (key === 'random') return () => { throw new Error('Workflow refuses Math.random()') }; return target[key] }
+})
+` + src
+
+test('#2300: deterministic Workflow reaches land; captures separate attempts, phases and fresh runs', async () => {
+  const execute = async (over = {}) => {
+    const { out, calls } = await runPhase(PROVISION_ARGS(over), defaultImpl, {}, deterministicWorkflow)
+    assert.deepEqual(out.landed, ['t1', 't2'], JSON.stringify(out))
+    const paths = calls.map(c => fixtureGatePath(c.prompt)).filter(Boolean).map(p => p.slice(p.lastIndexOf('/.war/') + 6))
+    assert.ok(paths.length >= 3, 'merge and land captures were exercised')
+    assert.equal(new Set(paths).size, paths.length, 'every dispatch owns a different prefix')
+    return paths
+  }
+  const original = await execute()
+  assert.deepEqual(await execute(), original, 'journal replay with identical args is deterministic')
+  for (const over of [
+    { runId: 'run-2026-relaunch' },
+    { phase: { ...PROVISION_ARGS().phase, id: 4 } },
+  ]) {
+    const changed = await execute(over)
+    assert.ok(changed.every(p => !original.includes(p)), 'fresh run/phase cannot admit a prior capture')
+  }
 })

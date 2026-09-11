@@ -1,0 +1,11 @@
+# Workflow compatibility: #2299 / #2300
+
+Base: `668e4ff990f1c689fcf9710768c3d73c2601920c`. Branch: `codex/workflow-compatibility-2299-2300`. Patch: 0.21.14. Snipe budget: four audit/fix cycles; none launched yet. Requested profile retained: gpt-5.6-sol / high, `4 auto`.
+
+- #2299: the API refuses PIN_TRANSFER's top-level allOf before the refiner starts. Removed the combinators; kept the flat properties and consumer guards. Sweep: every schema dispatched by the behavioral harness is checked for allOf/anyOf/oneOf at the root. Nested finding conditionals remain supported. The consumer still checks destination, independent Git proof, patch/content equality, upstream membership and fresh re-audit where required. Schema documentation updated.
+- #2300: gateEpoch eagerly reads Date.now and Math.random, forbidden by the Workflow sandbox. Derive from encoded runId and phase plus the existing per-dispatch counter; mktemp retains physical allocation. Replay uses the same prefix; fresh Recovery runId, phase and dispatch separate captures. Existing return-path admission and same-tip retry rejection remain unchanged.
+- Before-fix proof: targeted test run failed both tests: `pin-transfer:t1: unsupported top-level allOf` and `Workflow refuses Date.now()`, zero tasks landed. After-fix: same two tests pass; sandbox fixture reaches land, repeats identical captures under identical args and distinguishes fresh runs and phases.
+- Consequences: no new config/seat, no weakening of audit/Git proof authority, no release or merge. Live hosted Workflow execution is not available in this Codex harness; tests model the two API constraints reported by the operator.
+
+- Mutation evidence: see `mutations.json`. All five substitutions fail their independent assertions. Run/phase checks compare the capture component, not different parent worktree paths; dispatch-counter removal fails the existing same-tip baseline-retry regression.
+- Pre-panel validation: targeted regressions pass; version slots 10/10 and redaction lint pass. Full JS and shell suites are running. The first full run observed a release-history pointer mismatch, corrected by restoring the original pointer and verified by the version suite.
