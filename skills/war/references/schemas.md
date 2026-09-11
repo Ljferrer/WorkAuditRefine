@@ -202,10 +202,10 @@ The task gate (and the task's `Done when:` command) run at an ace-family commit 
 ## Run manifest — `.claude/war/runs/<runId>.json` (telemetry, not resume state)
 Fail-open per-run **telemetry** the `/war` Lead accumulates at phase boundaries and `/war-review` consumes. **Distinct from the `ledger.json` above:** the ledger is run **state** — the git-authoritative correctness record ([ADR-0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md)) at `.claude/teams/<run-id>/`; the manifest is a cost/effort record at `.claude/war/runs/` that **no code reads back**. It is Lead-side bookkeeping in `/war` prose, not an engine structure.
 
-- **Location:** `.claude/war/runs/<runId>.json` under the **main checkout** (anchored via `git rev-parse --path-format=absolute --git-common-dir`, never the invoking worktree's `.claude/`). `runId` = `<plan-slug>-<YYYY-MM-DD>`. Untracked — rides the existing `.claude/` exclude the provisioning `ensure-exclude` step maintains (no `.gitignore` change). A same-run resume updates the file in place (latest-wins per `runId`).
+- **Location:** `.claude/war/runs/<runId>.json` under the **main checkout** (anchored via `git rev-parse --path-format=absolute --git-common-dir`, never the invoking worktree's `.claude/`). `runId` follows [launch-identity.md](launch-identity.md) (`new-run-id.mjs`, persisted UUID). Untracked — rides the existing `.claude/` exclude the provisioning `ensure-exclude` step maintains (no `.gitignore` change). A same-run resume updates the file in place (latest-wins per `runId`).
 
 ```jsonc
-{ runId: "<plan-slug>-<YYYY-MM-DD>",                     // MUST
+{ runId: "<minted UUID>",                     // MUST
   planPath: "docs/plans/….md",                          // MUST
   configProfile: "balanced|thorough|economy|<custom>",  // MUST
   startedAt: "<ISO 8601>",                              // MUST — run launch; a real clock read captured at the stamped boundary (e.g. `date -u +%Y-%m-%dT%H:%M:%SZ` at stamp time), never a placeholder or copied literal
@@ -388,7 +388,7 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 | field | meaning |
 |---|---|
 | `planSlug` | plan-slug for the **plan-namespaced** branch names ([ADR 0003](../../../docs/adr/0003-plan-namespaced-branches.md)). The template derives each task's branch as `war/<planSlug>/p<phase>-<task>`. |
-| `runId` | run id segment in the worktree **path** (`<worktreeRoot>/<runId>/p<phase>-<task>` — phase-scoped, mirroring the branch shape); keeps concurrent runs' directories collision-free even when branch names share a slug, and a same-run cross-phase relaunch never collides on a stale sibling worktree. |
+| `runId` | run id segment in the worktree **path** (`<worktreeRoot>/<runId>/p<phase>-<task>` — phase-scoped, mirroring the branch shape); keeps concurrent runs' directories collision-free even when branch names share a slug, and normal phase progression never collides on a stale sibling worktree. Minting/persistence follow [launch-identity.md](launch-identity.md). |
 | `worktreeRoot` | absolute dir that holds the per-run worktrees (e.g. `<repo>/.claude/worktrees`). |
 | `mainCheckout` | absolute path of the parent checkout; required before dispatch when a task supplies a relative `targetRepo` — the cwd the barrier runs `ensure-exclude` from (probe E2: the `.claude/` exclude must be written in the **main** checkout, not a task worktree). |
 | `ownedFile` | path to the run's owned-refs ledger, threaded to `ensure-integration --owned-file`; a `integration/<slug>/phase-N` that exists but is **not** in this ledger is a foreign collision → the script exits non-zero (fail-loud), distinguishing a resume from a cross-plan clash. |
@@ -404,7 +404,7 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 > the literal string `"undefined"` into the worker/auditor/refiner prompts (an unprovisionable branch
 > name and a bogus path). Always thread `runId` and `phase.id`; also thread `planSlug` and `worktreeRoot` (or set explicit
 > `task.branch`/`task.worktree` for path derivation).
-> **Launch identity** is unconditional: `runId` must be a nonempty string and `phase.id` a safe integer or nonempty string, even with explicit paths or zero tasks. Mint a new run ID for every fresh launch; retain it only for journal replay. The identity tuple owns gate-artifact prefixes.
+> **Launch identity** is unconditional: `runId` must be a nonempty string and `phase.id` a nonnegative safe integer or digit-only string, even with explicit paths or zero tasks. Mint run IDs via [launch-identity.md](launch-identity.md); fresh runs/Recovery relaunches never reuse an ID. Normal phase progression and journal replay retain it. The identity tuple owns gate-artifact prefixes.
 >
 > **Entry validation (H).** The template validates required launch inputs **once at entry** (top of
 > the `try{}` body, before any pt-tagged prompt interpolation and before git is touched) and throws —

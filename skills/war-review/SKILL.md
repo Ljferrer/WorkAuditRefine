@@ -32,7 +32,7 @@ run from it (ADR 0008 ordering is git > issues > ledger, untouched here).
 ```
 
 - **bare** — review the **newest** manifest in `.claude/war/runs/`.
-- **`--run <runId>`** — pin a specific run by its `runId` (`<plan-slug>-<YYYY-MM-DD>`).
+- **`--run <runId>`** — pin a specific run by its persisted `runId` (new runs use a UUID; legacy date-based IDs remain readable).
 - **`--scavenge [<plan-slug>]`** — reconstruct a **pre-manifest** run best-effort from transcript
   artifacts (no manifest exists); output is labeled *scavenged* throughout.
 

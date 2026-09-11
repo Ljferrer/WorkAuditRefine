@@ -4421,3 +4421,21 @@ test('D20 — release-slot eligibility by literal: eligibility absorb block, CON
   assert.ok(!/or a release-slot filename routes to the/.test(norm(skillMd)), "skills/war/SKILL.md's `--ace` bullet must no longer route by release-slot filename (OLD-absent; D20)")
   assert.match(skillMd, /`phaseClose:true` routes to the \*\*phase-close queue\*\* instead/, "the `--ace` bullet keeps the `phaseClose:true` routing sentence without the filename arm")
 })
+
+
+test('#2300: canonical launch surfaces use the fresh-ID producer and never waive identity for explicit paths', () => {
+  const skill = readFileSync(join(HERE, '../SKILL.md'), 'utf8')
+  const identity = readFileSync(join(HERE, '../references/launch-identity.md'), 'utf8')
+  assert.match(skill, /node \$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/assets\/new-run-id\.mjs/)
+  assert.match(identity, /new-run-id\.mjs/)
+  assert.match(identity, /same-journal.*retains both ID and staged bytes/)
+  assert.match(skill, /Explicit `branch`\+`worktree` waives only path derivation.*never `runId` or numeric `phase.id`/)
+  assert.doesNotMatch(skill, /unless every task carries an explicit/)
+  for (const file of ['../SKILL.md', '../references/run-manifest.md', '../references/staged-script.md',
+    '../references/resume-and-recovery.md', '../references/schemas.md']) {
+    const text = readFileSync(join(HERE, file), 'utf8')
+    assert.match(text, /launch-identity\.md/, file + ' points to the canonical mint/persist/replay procedure')
+    assert.doesNotMatch(text, /runId` = `<plan-slug>-<YYYY-MM-DD>/, file + ' cannot define a repeating fresh ID')
+  }
+  assert.match(adr0037, /Amendment \(2026-09-11, #2300\): fresh execution identity[\s\S]*supersedes decision 3/)
+})

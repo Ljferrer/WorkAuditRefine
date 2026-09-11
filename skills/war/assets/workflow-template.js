@@ -860,9 +860,9 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 const problems = []
 // Gate evidence needs launch identity even when no worktree paths are derived (#2300).
 const hasRunIdentity = typeof runId === 'string' && runId.trim() !== ''
-const hasPhaseIdentity = Number.isSafeInteger(ph?.id) || (typeof ph?.id === 'string' && ph.id.trim() !== '')
+const hasPhaseIdentity = (Number.isSafeInteger(ph?.id) || typeof ph?.id === 'string') && /^[0-9]+$/.test(String(ph.id))
 if (!hasRunIdentity) problems.push('runId is missing or invalid: every launch requires a nonempty string; mint a new ID for each fresh launch, reuse it only for journal replay')
-if (!hasPhaseIdentity) problems.push('phase.id is missing or invalid: every launch requires a safe integer or nonempty string')
+if (!hasPhaseIdentity) problems.push('phase.id is missing or invalid: every launch requires a nonnegative safe integer or digit-only string')
 let derivationProblem = false
 if ((tasks || []).some(t => !t.branch || !t.worktree)) {
   const missingTrio = [['planSlug', planSlug], ['runId', runId], ['worktreeRoot', worktreeRoot]]

@@ -1391,10 +1391,10 @@ crossed it at 0.21.11; a staged copy still over the cap after the strip exits no
 sizes and writes nothing, and a pre-existing staged file over the cap is refused with an error naming
 `--force` rather than reused. Full doctrine: `skills/war/references/staged-script.md`.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
-(approved stage injections and journal-replay identity survive a resume or a same-day recovery
-relaunch) — unless the existing file is over the `scriptPath` cap, which the stager refuses (the
+(approved stage injections and journal-replay identity survive the same-journal resume) — unless the existing file is over the `scriptPath` cap, which the stager refuses (the
 #2099 entry above); a deliberate `--force` overwrites it with a fresh, comment-stripped substitution
-from the shipped template.
+from the shipped template. A fresh run or Recovery relaunch mints a new `runId` and stages
+into its own directory per `skills/war/references/launch-identity.md`, including same-day retries.
 Retention is **manifest-equivalent** — kept, never reaped, doubling as dispatch provenance for
 `/war-review`. The **sole sanctioned home** for approved stage injection (superseding an edit to the
 shipped template directly); `Workflow({ scriptPath, resumeFromRunId })` resume dispatches the **same**

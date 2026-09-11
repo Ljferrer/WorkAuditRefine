@@ -20069,7 +20069,7 @@ for (const reported of [undefined, 'unverified-report', '']) {
 
 for (const [field, invalid] of [
   ['runId', [undefined, null, '', ' ', 0, false, [], {}]],
-  ['phase.id', [undefined, null, '', ' ', false, [], {}, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]],
+  ['phase.id', [undefined, null, '', ' ', false, [], [1], {}, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, -1, '4b', 'y', '-1', '1.5', ' 1']],
 ]) {
   test('#2300: launch identity rejects invalid ' + field + ' before dispatch, including explicit and empty phases', async () => {
     for (const tasks of [NEEDS_DERIVATION_TASK, EXPLICIT_TASK, []]) for (const value of invalid) {
@@ -20101,11 +20101,49 @@ test('#2300: explicit submodule worktree cannot reuse a previous launch gate log
 })
 
 
-test('#2300: run/phase namespace encoding cannot alias delimiter-shaped identities', async () => {
-  const capture = async (runId, id) => {
-    const { calls } = await runPhase(PROVISION_ARGS({ runId, phase: { ...PROVISION_ARGS().phase, id } }), defaultImpl)
-    const p = fixtureGatePath(calls.find(isMergeTask).prompt)
-    return p.slice(p.lastIndexOf('/.war/') + 6)
+test('#2300: canonical fresh-run producer separates same-day same-phase submodule attempts', async () => {
+  const mint = () => {
+    const r = spawnSync(process.execPath, [join(here, 'new-run-id.mjs')], { encoding: 'utf8' })
+    assert.equal(r.status, 0, r.stderr)
+    const id = r.stdout.trim()
+    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    return id
   }
-  assert.notEqual(await capture('run-px', 'y'), await capture('run', 'x-py'))
+  // Same logical plan/day/phase and shared Git paths; IDs come from the actual Lead command.
+  const firstId = mint(), secondId = mint()
+  assert.notEqual(firstId, secondId)
+  const args = runId => PT_ARGS({ runId,
+    tasks: [{ ...PT_ARGS().tasks[0], branch: 'war/x/p1-t1', worktree: '/abs/shared-task', targetRepo: '/abs/submodule' }] })
+  const dir = mkdtempSync(join(tmpdir(), 'war-fresh-launch-'))
+  try {
+    const stage = id => {
+      const runDir = join(dir, id)
+      mkdirSync(runDir)
+      const payload = join(runDir, 'args.json')
+      writeFileSync(payload, JSON.stringify(args(id)))
+      const r = spawnSync(process.execPath, [join(here, 'stage-workflow.mjs'), join(here, 'workflow-template.js'),
+        runDir, 'wtprov-a', '3', '--args', payload], { encoding: 'utf8' })
+      assert.equal(r.status, 0, r.stderr)
+      return readFileSync(r.stdout.trim(), 'utf8').replace(/^export const meta/m, 'const meta')
+    }
+    const firstSource = stage(firstId), secondSource = stage(secondId)
+    const first = await runPhase(undefined, evidenceImpl, {}, firstSource)
+    const replay = await runPhase(undefined, evidenceImpl, {}, firstSource)
+    const priorPath = fixtureGatePath(first.calls.find(isMergeTask).prompt)
+    assert.equal(fixtureGatePath(replay.calls.find(isMergeTask).prompt), priorPath, 'same-journal identity stays deterministic')
+    const second = await runPhase(undefined, (p, o) => {
+      const r = evidenceImpl(p, o)
+      return isMergeTask({ opts: o }) ? { ...r, gate_log_path: priorPath } : r
+    }, {}, secondSource)
+    const consumers = second.calls.filter(c => /^gate-audit:|^evidence:|^endstate-check:/.test(c.opts.label || ''))
+    assert.ok(consumers.length && consumers.every(c => !c.prompt.includes(priorPath)), 'a fresh same-phase attempt rejects the prior gate artifact')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+for (const id of [0, 1, '0', '01', '42']) {
+  test('#2300: provisioning-compatible phase identity ' + JSON.stringify(id), async () => {
+    const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { ...PROVISION_ARGS().phase, id } }), defaultImpl)
+    assert.deepEqual(out.landed, ['t1', 't2'])
+    assert.ok(calls.some(isWorker))
+  })
+}
