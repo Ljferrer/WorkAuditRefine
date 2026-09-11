@@ -46,8 +46,7 @@ MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 RUNS="$MAIN/.claude/war/runs"        # manifests: $RUNS/<runId>.json ; reviews: $RUNS/<runId>-review.md
 ```
 
-- **default (bare)**: pick the newest `$RUNS/<runId>.json` (by file mtime; ties broken by the
-  `runId` date). None found → report **"no run manifest to review"** and stop (offer `--scavenge`).
+- **default (bare)**: pick the newest `$RUNS/<runId>.json` (by file mtime; ties broken by ascending ASCII filename order). None found → report **"no run manifest to review"** and stop (offer `--scavenge`).
 - **`--run <runId>`**: read `$RUNS/<runId>.json`. Missing → say so and list the runIds that do exist.
 - **`--scavenge [<plan-slug>]`**: read [`references/scavenge.md`](references/scavenge.md).
 

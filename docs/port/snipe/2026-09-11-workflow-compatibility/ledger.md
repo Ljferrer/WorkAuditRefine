@@ -1,6 +1,6 @@
 # Workflow compatibility: #2299 / #2300
 
-Base: `668e4ff990f1c689fcf9710768c3d73c2601920c`. Branch: `codex/workflow-compatibility-2299-2300`. Patch: 0.21.14. Snipe budget: four audit/fix cycles; none launched yet. Requested profile retained: gpt-5.6-sol / high, `4 auto`.
+Base: `668e4ff990f1c689fcf9710768c3d73c2601920c`. Branch: `codex/workflow-compatibility-2299-2300`. Patch: 0.21.14. Snipe budget: four audit/fix cycles; all four completed (chronological entries below). Requested profile retained: gpt-5.6-sol / high, `4 auto`.
 
 - #2299: the API refuses PIN_TRANSFER's top-level allOf before the refiner starts. Removed the combinators; kept the flat properties and consumer guards. Sweep: every schema dispatched by the behavioral harness is checked for allOf/anyOf/oneOf at the root. Nested finding conditionals remain supported. The consumer still checks destination, independent Git proof, patch/content equality, upstream membership and fresh re-audit where required. Schema documentation updated.
 - #2300: gateEpoch eagerly reads Date.now and Math.random, forbidden by the Workflow sandbox. Derive from encoded runId and phase plus the existing per-dispatch counter; mktemp retains physical allocation. Replay uses the same prefix; fresh Recovery runId, phase and dispatch separate captures. Existing return-path admission and same-tip retry rejection remain unchanged.
@@ -44,3 +44,14 @@ Snipe reviewed `a874bd6b366166b4eb6da99564347dc7909ac9ac`: complete and stable; 
 - Provisioning consumer: entry accepts nonnegative safe integers or digit-only strings, matching ensure-integration/teardown-phase's numeric grammar. Negative/nonnumeric/fractional/non-scalar/unsafe-number cases refuse before dispatch; zero and digit strings retain their existing shell acceptance. The live provisioning CLI independently rejected -1, 4b, y, 1.5 and a space-prefixed digit before Git access. Removed the prior mocked-success string-phase fixture; five legitimate scalar fixtures replace it.
 - Eleven final-repair mutations fail their assertions: [cycle-4-mutations.json](cycle-4-mutations.json). Includes numeric grammar, scalar type/arms, safe number, repeating UUID producer, and each of five canonical procedure pointers. Documentation-contract, link, CLI and prompt-budget suites pass. Added the new reference to the default-deny placement registry after its full-suite failure, then verified the affected suites green.
 - Budget: three panels completed. The next is the fourth and final permitted panel. No fifth panel will be launched.
+
+
+## Final panel and disposition
+
+Cycle 4 reviewed `3d1f218ba86f91d899c7800227c2ed061d892117`: complete coverage, stable scope, all four seats approve with high confidence. Exact report: [cycle-4.md](cycle-4.md); manifest: [cycle-4.json](cycle-4.json). All four permitted panels are consumed; no fifth panel.
+
+- The two Minor findings share one verified class: bare war-review still used a date parsed from opaque run IDs to break equal-mtime ties. Swept the review selector, explicit selector, scavenge and launch/recovery references. Only the bare selector needs ordering; explicit selection bypasses it and scavenge retains historical reconstructed names. Changed ties to ascending ASCII filename order, valid for both UUID and legacy manifests without introducing optional timestamp parsing. New documentation regression failed against the old rule, then passed after replacement; 75 documentation/CLI tests pass. Restoring the old selector is the observed negative control.
+- Consequence: only equal-mtime default review selection changes; explicit review, runtime, Git recovery, producer and staged payload are unchanged after the audited SHA. The small prose/test repair has not received a fifth independent audit.
+- Validation on audited SHA: 2,231/2,231 JavaScript tests, all 31 shell suites, redaction lint and diff checks passed. Final prose/test repair: 75/75 affected tests passed. [Validation receipt](validation.json). Hosted Claude Workflow was not executed; reported API constraints are modeled by regression fixtures.
+- #2299 and #2300: fixed in PR #2301 with closing references; pending merge, no release. Verdict: merge-ready with the explicit hosted-validation and post-panel prose-repair limitations above.
+- Report layout verified: all Snipe reports and validation receipts live below `docs/port/snipe/`; only the original finalization ledger remains at `docs/port/`. Frozen comparison branches and codex-port were not changed.

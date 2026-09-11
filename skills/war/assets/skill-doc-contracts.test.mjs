@@ -4439,3 +4439,10 @@ test('#2300: canonical launch surfaces use the fresh-ID producer and never waive
   }
   assert.match(adr0037, /Amendment \(2026-09-11, #2300\): fresh execution identity[\s\S]*supersedes decision 3/)
 })
+
+
+test('#2300: review selection treats legacy and UUID run IDs as opaque', () => {
+  const review = readFileSync(join(HERE, '../../war-review/SKILL.md'), 'utf8')
+  assert.doesNotMatch(review, /`runId` date/)
+  assert.match(review, /ties broken by ascending ASCII filename order/)
+})
