@@ -100,7 +100,7 @@ Closure: The suite asserts the consumed field, and a mutation of it goes red.
 Source: external (private), abstracted
 Roles: fixer, auditor
 **An arm with no fixture that goes red on its deletion is not covered, however green the suite.**
-A round's fix added seven scrubbed lines and two retry loops. The next round's test-fidelity seat deleted each arm in turn: six stayed green. The earlier fixer had tested one layer below the handlers and stopped short. The earliest unmet link was the mutation census the fixer never ran.
+A round's fix added seven scrubbed lines and two retry loops. A later mutation census deleted each arm in turn: six stayed green. The earlier fixer had tested one layer below the handlers and stopped short. The earliest unmet link was the mutation census the fixer never ran.
 Questions to ask: For each arm I added, which test fails if I delete it? Did I run that deletion?
 Closure: One fixture per arm, each proven red by deletion, named in the commit body.
 

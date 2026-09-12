@@ -216,7 +216,8 @@ const VERB_SCAN_EXCLUSIONS = [
   // no byte-identity claim over an evicted card block, so no QUALIFIED_HEADERS row is owed.
   'skills/war/references/backward-chain-fix.md',
   // backward-chain-audit.md is the auditor's backward-chain doctrine (same plan, Task 1.1); its only
-  // command prose is read-only git (`git diff --name-only`) — no scanned-module verb.
+  // command prose is read-only git (`git diff --name-only`) plus a `check:` / `Done when:` command the
+  // seat reads but never executes (`## Round 5 and later`) — no scanned-module verb.
   'skills/war/references/backward-chain-audit.md',
   // backward-chain-worker.md is the worker's backward-chain doctrine (same plan, Task 1.1); its only
   // command prose is the `Critical path:` chunk shape — no scanned-module verb.
