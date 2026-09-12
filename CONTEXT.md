@@ -780,8 +780,9 @@ The roster seat's one-word classification, from corrective round 2, of how a new
 to the last fix, written as `relation: <tag>` on the LAST line of a blocking finding's `rationale`
 after its `upstream link:` line. The closed tag set is canonical in
 `skills/war/references/backward-chain-audit.md` `## The rules` and bound to the fixer's Round 2
-table, the examples bank's H2 list and the engine regex by one guard; it selects the fixer's first
-move and the examples section it reads.
+table and the examples bank's H2 list by the skeleton guard `backward-chain.test.mjs`, and to the
+engine regex by a `workflow-template.test.mjs` fixture; it selects the fixer's first move and the
+examples section it reads.
 _Avoid_: a fifth restatement of the tag set; a second tag line; a tag at round 1 (no fix to relate
 to); a schema field (the tag rides `rationale`).
 

@@ -8,8 +8,9 @@ study issue #2302)
 A fix worker patched the one site a seat named. The next round blocked on a sibling site, a
 residue of the fix, or the cause one link upstream. Across 17 recorded sequences the next blocker
 was a sibling 19 times, fix residue 17, a test oracle 12, a consumer 9, an upstream cause 8, a
-premise 4, a regression 3 (issue #2097 and the Snipe audit records). One dedup lookup took eight
-rounds, and every intermediate step was a correct local fix to the named site (#2097, thread B).
+premise 4, a regression 3 (issue #2097, the Snipe audit records and an abstracted external alert
+audit). One dedup lookup took eight rounds, and every intermediate step was a correct local fix to
+the named site (#2097, thread B).
 Unanimity came every time the fix was stated as one shared predicate, helper or proof with a
 proven-red control. It never came from a seat's `fix:` line as written. `fixRounds` hid the
 oscillation: it was 0 on 12 of 14 phases of the 2026-09-06 run, while the ace ladder spent all six
@@ -40,10 +41,12 @@ reference file, its home under ADR 0042's hot/cold law:
 [backward-chain-examples.md](../../skills/war/references/backward-chain-examples.md), is the
 examples bank: one H2 per relation tag plus `## convergence`, each entry abstracted (D12, PIN-9:
 an external private source lands as `Source: external (private), abstracted`, with no repo name,
-number or infrastructure detail). Only each file's `## The rules` block rides the dispatched
-prompt, byte-equal, pinned by a fixture in `workflow-template.test.mjs`. Every other section is
-read by pointer. The five skeletons (headings, rule lists, tables, seed entries) are the ones
-ratified at the interview (D14, PIN-1 ‡): no rule dropped, none added. The fixer file composes with
+number or infrastructure detail). Only the worker, audit and fixer files carry a `## The rules`
+block. Each block rides its dispatched prompt byte-equal, pinned by a fixture in
+`workflow-template.test.mjs`. The plan-author file rides no prompt and is read by pointer at its
+two sites. The examples bank and every other section are read by pointer. The five skeletons
+(headings, rule lists, tables, seed entries) are the ones ratified at the interview (D14, PIN-1
+‡): no rule dropped, none added. The fixer file composes with
 `fix-round-doctrine.md` by pointer: the chain first, then that file's ten rules over the diff. The
 ten rules are not restated.
 
@@ -66,9 +69,11 @@ sweep, the terminal pass, the floor family (add-test, make-pass, cite-budget, pa
 pin-content re-audit are round 1 by definition: they carry no threaded findings and no relation
 tag. The arithmetic is a floor, because the round-5 exit below keys on it.
 
-The fixer and audit files carry depth sections keyed on that round: `## Round 1`, `## Round 2`,
-`## Round 3 and later`, `## Round 5 and later`. The dispatched prompt names the section for the
-round it dispatches. Round 1 carries the seat findings and nothing older. From round 2 the engine
+The fixer and audit files carry depth sections keyed on that round. The fixer file carries
+`## Round 1`, `## Round 2`, `## Round 3 and later` and `## Round 5 and later`. The audit file
+carries the same tiers from `## Round 2`, because a round-1 audit prompt carries no backward-chain
+clause (PIN-10). The dispatched prompt names the section for the round it dispatches. Round 1
+carries the seat findings and nothing older. From round 2 the engine
 threads a **history digest** (D11, PIN-8): per prior round, each blocker's title, file, severity,
 relation tag and `upstream link:` line; the fix worker's `Fix:` and `Ignore for now:` lines, read
 from its result `notes`; one line for the task under fix with its relation-tag sequence by round;
@@ -89,9 +94,11 @@ the last line of every blocking finding's `rationale`, preceded by an `upstream 
 the link on its own chain the new blocker descends from. The tag is one of a closed set. That set
 is canonical in the audit file's `## The rules` and equal, byte for byte, across four surfaces
 (D15): the audit rules block, the fixer file's Round 2 first-move table, the examples bank's H2
-list (plus `## convergence`) and the engine's `relation:` regex in `workflow-template.js`. One
-guard binds the four. This record does not restate the list, so it owes no guard. The tag selects
-the fixer's first move and the examples section it reads. No tag means the fixer reads the bank's
+list (plus `## convergence`) and the engine's `relation:` regex in `workflow-template.js`. Two
+guards bind the four: the skeleton guard `backward-chain.test.mjs` binds the three file surfaces,
+and a fixture in `workflow-template.test.mjs` binds the engine regex to them. This record does not
+restate the list, so it owes no guard. The tag selects the fixer's first move and the examples
+section it reads. No tag means the fixer reads the bank's
 index and self-selects (D16). The seat is also the oracle (D10e): it runs its own chain from the
 cited End state and diffs it against the fixer's commit-body chain. The markers are self-reports,
 never evidence (the principle ADR 0049 states for the ace footprint). Peer count is not evidence
