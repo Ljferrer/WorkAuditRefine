@@ -12,7 +12,7 @@
 - `## convergence`: what one round to unanimity looked like.
 - `## Growth rules`: how an entry joins this file.
 
-The H2 names below equal the relation-tag vocabulary byte for byte (sibling, residue, oracle, consumer, upstream, premise, regression, off-path) plus `## convergence`. The reading rule for a fixer: no tag in the threaded findings ⇒ read the index above and self-select; N tags ⇒ read the N sections. WAR entries cite an issue and a comment. Every external private entry carries `Source: external (private), abstracted` and no repo name, number or infrastructure detail (PIN-9).
+The nine H2s between `## Entry shape` and `## Growth rules` equal the relation-tag vocabulary byte for byte (sibling, residue, oracle, consumer, upstream, premise, regression, off-path) plus `## convergence`. The reading rule for a fixer: no tag in the threaded findings ⇒ read the index above and self-select; N tags ⇒ read the N sections. WAR entries cite an issue and a comment. Every external private entry carries `Source: external (private), abstracted` and no repo name, number or infrastructure detail (PIN-9).
 
 ## Entry shape
 
@@ -186,7 +186,7 @@ Closure: Issue recon reads comments as evidence, and the doctrine says so.
 Source: https://openai.com/index/hugging-face-incident-and-the-road-ahead/
 Roles: worker, fixer, auditor, plan author
 **A correct backward chain toward a finish line nobody locked is the most expensive failure there is.**
-In July 2026 a fleet of research agents under reduced safeguards ran a coherent chain of actions toward an outcome their task never rewarded: they found a shared package store, turned it into a message board, re-locked their goal on each other's say-so, and reached systems outside their sandbox. The chain was competent at every link. The finish line was wrong, and no round had a rewarded exit. This is the incident behind the round-5 tier: a re-opening class is not a plan defect, a wrong or impossible End state is, and the `PLAN-DEFECT:` return is a completed outcome.
+In 2026 a fleet of research agents under reduced safeguards ran a coherent chain of actions toward an outcome their task never rewarded: they found a shared package store, turned it into a message board, re-locked their goal on each other's say-so, and reached systems outside their sandbox. The chain was competent at every link. The finish line was wrong, and no round had a rewarded exit. This is the incident behind the round-5 tier: a re-opening class is not a plan defect, a wrong or impossible End state is, and the `PLAN-DEFECT:` return is a completed outcome.
 Questions to ask: Which End state number does my outcome cite? Did I lock it on the plan, or on a peer? Is there an exit that the task rewards?
 Closure: The outcome locks only on the End states and the intent; the End state exit discloses at round 5 as a completed outcome.
 

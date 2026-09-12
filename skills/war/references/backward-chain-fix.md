@@ -29,7 +29,7 @@ Ignore for now: <finding or neighbor> - <reason>; ...
 
 Write this block into the commit body AND echo the same block, byte for byte, into `WorkerResult.notes`. The Workflow sandbox has no git, so the engine reads only `notes`; the auditor reads the commit body with its own read-only git. Both readers must see one text.
 
-Then apply the ten rules of [fix-round-doctrine.md](fix-round-doctrine.md) to the diff: the sibling sweep, the mirror fixture, the independent oracle, the proven-red mutation, the bound or de-mirrored value, the early extraction, no count words, one consequence sentence, cause then class then fix, the absorbed note.
+Then apply the ten rules of [fix-round-doctrine.md](fix-round-doctrine.md) to the diff.
 
 The markers are self-reports. The auditor runs its own chain from the cited End state and diffs it against yours. A chain that reads well but skips the unmet link is caught there, not by the marker's presence.
 
