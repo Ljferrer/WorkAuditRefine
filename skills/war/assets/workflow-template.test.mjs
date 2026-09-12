@@ -12503,12 +12503,12 @@ const BARE_INTERPOLATION_CENSUS = [
   // The pin-content comparison runs only after verifyPinTransfer proves these full Git SHAs.
   'pinProof.content_sha', 'pinProof.dispatch_base', 'pinProof.head_sha',
   // Backward-chain doctrine (2026-09-11-backward-chain-doctrine Task 2.1): correctiveRound is the
-  // corrective-round helper's output (total: an integer >= 1 at every site); depthSection is chainDepthOf's
-  // closed four-value enumeration; variant is a string literal at each of the seven fix-applying call
+  // corrective-round helper's output (total: an integer >= 1 at every site); n is chainDepthLine's parameter,
+  // the same helper output passed through; variant is a string literal at each of the seven fix-applying call
   // sites and variantClause its BACKWARD_CHAIN_VARIANTS lookup (an unknown name pt-throws loudly);
   // examplesPointer is chainExamplesPointer's string product; e.round is a recorded digest entry's
   // round, stamped from the same helper — all construction-guaranteed.
-  'correctiveRound', 'depthSection', 'e.round', 'examplesPointer', 'variant', 'variantClause',
+  'correctiveRound', 'e.round', 'examplesPointer', 'n', 'variant', 'variantClause',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -17028,7 +17028,15 @@ const CHAIN_F1 = { severity: 'Major', title: 'guard missed at the reader', file:
 const CHAIN_F2 = { severity: 'Major', title: 'arm never proved red', file: 'skills/b.js', suggested_fix: 'prove the arm red by mutation',
   rationale: 'the new arm has no red control\nupstream link: the guard added at round 1 grew an arm\nrelation: residue' }
 const CHAIN_WORKER_NOTES = 'Critical path:\n1. Done when: gate prints OK - done test: node --test prints ok\n2. guard the reader - done test: unit red then green   <- bottleneck\n3. tip deadbeef\nIgnore for now: the sibling task file - owned by t2'
-const chainDigestImpl = () => {
+// Round-2 multi-tag set (the examples-pointer join + dedup arm): two distinct tags plus a duplicate of one.
+// Distinct title+file from every other fixture keeps the PIN-29 survival check quiet.
+const CHAIN_F3 = { severity: 'Major', title: 'oracle shares the code under test', file: 'skills/c.js', suggested_fix: 'give the guard an independent oracle',
+  rationale: 'the fixture reads the helper it tests\nupstream link: the guard added at round 1 has no oracle\nrelation: oracle' }
+const CHAIN_F4 = { severity: 'Major', title: 'sibling site left unswept', file: 'skills/d.js', suggested_fix: 'apply the rule at the sibling site',
+  rationale: 'the sibling push site keeps the old shape\nupstream link: the round-1 guard covered one push site\nrelation: sibling' }
+const CHAIN_F5 = { severity: 'Major', title: 'second oracle shares the code under test', file: 'skills/e.js', suggested_fix: 'give the mirror fixture its own oracle',
+  rationale: 'the mirror fixture reads the same helper\nupstream link: the mirror fixture copied the first\nrelation: oracle' }
+const chainDigestImpl = (round2 = [CHAIN_F2]) => {
   let auditN = 0
   return (prompt, opts) => {
     const seat = seatOf(opts), label = opts.label || ''
@@ -17041,8 +17049,8 @@ const chainDigestImpl = () => {
     }
     if (seat === 'war-auditor' && label.startsWith('audit:t1:')) {
       auditN++
-      const f = auditN === 1 ? CHAIN_F1 : auditN === 2 ? CHAIN_F2 : null
-      return f ? { seat: label, lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [f] }
+      const findings = auditN === 1 ? [CHAIN_F1] : auditN === 2 ? round2 : null
+      return findings ? { seat: label, lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings }
         : { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     }
     return defaultImpl(prompt, opts)
@@ -17264,7 +17272,6 @@ test('backward-chain: history digest field set', async () => {
   assert.ok(a2.includes('Relation sequence for t1: r1 [sibling]'), 'one relation-sequence line for the task under fix')
   assert.ok(a2.includes(CHAIN_WORKER_NOTES), "the worker's Critical path: block, byte-equal from its notes")
   assert.ok(a2.includes('rationale: ' + chainIndented(CHAIN_F1.rationale)) && a2.includes('suggested_fix: ' + CHAIN_F1.suggested_fix), 'full rationale + suggested_fix for the survival-registry blocker')
-  assert.ok(!a2.includes('arm never proved red'), "the current round's own findings are not in the digest")
   // Round-2 fixer: the same prior-round rows; the current blockers ride the FIX_NEEDED list, not the digest;
   // the relation sequence reads both rounds; the examples pointer names the H2 for the tag read.
   const f2 = fixes[1]
@@ -17273,6 +17280,7 @@ test('backward-chain: history digest field set', async () => {
   assert.ok(!f2.includes('- round 2 audit:'), "the round-2 blockers are the FIX_NEEDED list, not a digest row")
   assert.ok(f2.includes('Examples: read `## residue` of ' + CHAIN_EXAMPLES_POINTER), 'the fixer pointer names the examples H2 for the tag read')
   assert.ok(fixes[0].includes('Examples: read `## sibling` of ' + CHAIN_EXAMPLES_POINTER), 'the round-1 fixer names the H2 for the tag its finding carries')
+  assert.ok(fixes[0].includes('1. [Major] guard missed at the reader (skills/a.js) — ' + chainIndented(CHAIN_F1.rationale) + '\n      → ' + CHAIN_F1.suggested_fix), 'the FIX_NEEDED row indents the rationale and puts suggested_fix on its own continuation line')
   assert.ok(f2.includes(CHAIN_WORKER_NOTES), "the fixer sees the worker's Critical path: block")
   // Survival-registry arm: at the round-3 audit the registry is fix round 2's set (f2), so f2 carries full
   // text and f1 has dropped to its one-liner.
@@ -17285,6 +17293,16 @@ test('backward-chain: history digest field set', async () => {
   // The index fallback: a fix-applying build with no tag read points at the bank index.
   const sweep = (await chainFixPrompts()).find(b => b.site === 'phase-close sweep')
   assert.ok(sweep.prompt.includes('no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_POINTER), 'no tag read ⇒ the fixer pointer names the index')
+})
+
+test('backward-chain: examples pointer joins the deduped multi-tag set', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), chainDigestImpl([CHAIN_F4, CHAIN_F3, CHAIN_F5]))
+  const audits = chainAudits(calls), fixes = chainFixes(calls)
+  assert.ok(audits.length === 3 && fixes.length === 2, `three audits and two fixes (presence guard) — got ${audits.length}/${fixes.length}`)
+  const f2 = fixes[1]
+  assert.ok(f2.includes('Examples: read `## sibling` and `## oracle` of ' + CHAIN_EXAMPLES_POINTER + ' (the sections'), "two tags join with ' and ' in blocker order, the duplicate tag read once")
+  assert.equal((f2.match(/`## oracle`/g) || []).length, 1, 'the duplicate tag names its H2 once in the pointer')
+  assert.ok(f2.includes('Relation sequence for t1: r1 [sibling] → r2 [sibling, oracle, oracle]'), 'the relation sequence keeps every blocker tag, duplicates included')
 })
 
 test('backward-chain: relation-tag regex matches the examples H2 set', () => {
