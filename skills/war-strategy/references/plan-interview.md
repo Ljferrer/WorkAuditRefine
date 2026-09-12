@@ -64,7 +64,7 @@ least two landmine falsifiers** from the WAR falsifier list:
   omittability catches an outcome with no check at all;
 - **the flush-ceiling smell** — an intent whose ceiling sits flush on the slice floor (no
   mechanism latitude beyond the slices) routes every forced mechanism substitution out-of-band
-  as a follow-up issue; the interviewer names it as a plan smell and asks the latitude beat.
+  as a follow-up issue; the interviewer names it as a plan smell and asks the latitude beat;
 - **the reachability probe** — an End state whose check no task on its chain can make print
   its token through its `Files:` and the gate's tools; the probe body lives only in
   [references/backward-chain-plan.md](backward-chain-plan.md) `## The reachability probe`,
