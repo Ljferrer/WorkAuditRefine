@@ -65,6 +65,10 @@ least two landmine falsifiers** from the WAR falsifier list:
 - **the flush-ceiling smell** — an intent whose ceiling sits flush on the slice floor (no
   mechanism latitude beyond the slices) routes every forced mechanism substitution out-of-band
   as a follow-up issue; the interviewer names it as a plan smell and asks the latitude beat.
+- **the reachability probe** — an End state whose check no task on its chain can make print
+  its token through its `Files:` and the gate's tools; the probe body lives only in
+  [references/backward-chain-plan.md](backward-chain-plan.md) `## The reachability probe`,
+  never restated here.
 
 **Stage 1b — private full-template draft.** Before Q1, draft the entire merged template
 privately, every slot filled and tagged (evidence tags, D4). Bin every unknown:
@@ -74,6 +78,8 @@ serves the intent) · **default-and-tag** (pick a default, tag it
 test for a fork: name the two different plans the answer forks between — if you cannot, it
 is not a question. Intent material (Purpose / Method / End states) is **never**
 default-and-tagged: it is asked, or it is absent (ADR 0013).
+When the End states are drafted, read [references/backward-chain-plan.md](backward-chain-plan.md):
+the chain from each one orders Part 2, and the file boundary carves it.
 
 **Stage 2 — the interview.** Run under the question contract:
 
