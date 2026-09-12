@@ -17080,7 +17080,8 @@ test('backward-chain: fixer rules byte-equal on all seven builds', async () => {
     const clause = variants.find(v => v[0] === b.variant)[1]
     assert.ok(b.prompt.includes(rules), `${b.site}: carries the fixer rule section byte-equal`)
     assert.ok(b.prompt.includes('BACKWARD-CHAIN FIX (corrective round ') && b.prompt.includes(CHAIN_FIX_POINTER), `${b.site}: names the block and the reference by its plugin-root-anchored path`)
-    assert.ok(CHAIN_DEPTHS.some(d => b.prompt.includes('read the `' + d + '` section')), `${b.site}: names a depth section for its corrective round`)
+    const n = Number(b.prompt.match(/BACKWARD-CHAIN FIX \(corrective round (\d+);/)[1])
+    assert.ok(b.prompt.includes('read the `' + CHAIN_DEPTHS[n >= 5 ? 3 : n >= 3 ? 2 : n >= 2 ? 1 : 0] + '` section'), `${b.site}: names the depth section for corrective round ${n}`)
     assert.ok(b.prompt.includes('Build variant, ' + b.variant + ': ' + clause), `${b.site}: carries its own ## Build variants clause byte-equal`)
     assert.ok(b.prompt.includes(CHAIN_EXAMPLES_POINTER), `${b.site}: points at the examples bank`)
     assert.ok(!b.prompt.includes(workerRules) && !b.prompt.includes('BACKWARD-CHAIN WORK'), `${b.site}: carries no worker block (no site carries both)`)
@@ -17179,6 +17180,11 @@ test('backward-chain: audit rules gated on corrective round', async () => {
     if (rosterBase.length > 1) assert.notEqual(rosterBase[1], rosterCtrl[1], 'control: the roster round-2 prompt DOES change under the same blanking (the pin is not vacuous)')
   }
   assert.deepEqual([...seen].sort(), ['gate-audit:end-state', 'gate-audit:execution-evidence', 'gate-audit:integrated-tip'], 'all three gate-audit-family seats were reached')
+  // The in-lock pin-content re-audit (corrective round 1 by definition, PIN-5): reached through the
+  // pin-transfer patch-id-mismatch path, its seat prompts carry no clause and no audit rules.
+  const pinContent = (await runPhase(PT_ARGS(), ptImpl([], aceOk()), { 'pin-transfer': { status: 'mismatch', rebased_tip: 'beef0001' } })).calls.filter(c => c.prompt.includes('PIN CONTENT RE-AUDIT'))
+  assert.ok(pinContent.length >= 2, `the pin-content re-audit panel was reached (presence guard) — got ${pinContent.length}`)
+  for (const c of pinContent) assert.ok(!c.prompt.includes('BACKWARD-CHAIN') && !c.prompt.includes(rules), `${c.opts.label}: the pin-content re-audit prompt carries no backward-chain clause`)
   // The auditor card: the trigger pointer in the ratified link form, never a rule body.
   assert.match(auditorMd, /When your prompt carries a BACKWARD-CHAIN AUDIT block[^\n]*corrective round[^\n]*, read \[backward-chain-audit\.md\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/backward-chain-audit\.md\)/, 'the auditor card carries the when <trigger>, read pointer to backward-chain-audit.md')
   assert.ok(!auditorMd.includes(rules), 'the auditor card carries no audit rule body')
@@ -17266,7 +17272,7 @@ test('backward-chain: history digest field set', async () => {
   assert.ok(f2.includes('Relation sequence for t1: r1 [sibling] → r2 [residue]'), 'the relation sequence reads the tags by round')
   assert.ok(!f2.includes('- round 2 audit:'), "the round-2 blockers are the FIX_NEEDED list, not a digest row")
   assert.ok(f2.includes('Examples: read `## residue` of ' + CHAIN_EXAMPLES_POINTER), 'the fixer pointer names the examples H2 for the tag read')
-  assert.ok(fixes[0].includes('no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_POINTER) === false || fixes[0].includes('Examples: read `## sibling` of ' + CHAIN_EXAMPLES_POINTER), 'the round-1 fixer names the H2 for the tag its finding carries')
+  assert.ok(fixes[0].includes('Examples: read `## sibling` of ' + CHAIN_EXAMPLES_POINTER), 'the round-1 fixer names the H2 for the tag its finding carries')
   assert.ok(f2.includes(CHAIN_WORKER_NOTES), "the fixer sees the worker's Critical path: block")
   // Survival-registry arm: at the round-3 audit the registry is fix round 2's set (f2), so f2 carries full
   // text and f1 has dropped to its one-liner.
@@ -17301,6 +17307,7 @@ test('backward-chain: relation-tag regex matches the examples H2 set', () => {
     assert.ok(('relation: ' + t + '\n').match(re), 'a trailing newline still reads as the last line')
     assert.ok(!('relation: ' + t + '\nmore text').match(re), `relation: ${t} followed by another line is NOT read (last line only)`)
   }
+  assert.equal(('- the claim\n  upstream link: one link earlier\n  relation: oracle').match(re)?.[1], 'oracle', 'an indented relation: line (a bullet-list rationale) is read, mirroring upstreamLinkOf')
   assert.ok(!'relation: convergence'.match(re), 'convergence is a bank section, never a relation tag')
   assert.ok(!'relation: Sibling'.match(re) && !'Relation: sibling'.match(re), 'the line is lowercase and exact')
   assert.ok(!'no tag here'.match(re), 'a rationale without the line reads no tag')
