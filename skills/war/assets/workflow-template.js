@@ -2599,7 +2599,179 @@ const pinMismatch = (auditSha, pin) => {
 const FINDING_PATH_FORM_CLAUSE = pt`\nFINDING-PATH FORM: report every finding's \`file\` as a repo-relative path — never absolute, never \`./\`-prefixed; these values feed exact-string routing compares downstream.`
 const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue; a note that names a fix in a touched file is applied), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). A fully specified Minor/Nit defaults to absorb when its file is in the task diff, and to absorb + phaseClose:true when its file is outside the task diff — set that disposition yourself; the engine's diff-probe floor applies the same default when you omit it. On such a finding, follow-up is legal only with a barrier cited in the structured \`barrier\` field, one of ${BARRIER_TOKENS.join(', ')} (barrier:trade-off routes ask, never follow-up); a scope argument is never a barrier, and the why-not-absorbable prose stays free text. Omitted disposition defaults: a fully specified Minor/Nit becomes absorb, otherwise Minor becomes follow-up and Nit becomes note; ask is never a default.`
 
-function auditPrompt(task, lens, depth, peers, workerTests, pin) {
+// ---- BACKWARD-CHAIN DOCTRINE (plan 2026-09-11-backward-chain-doctrine, D1–D16, PIN-1..PIN-11) ----
+// Three `## The rules` blocks ride the dispatched prompts BYTE-EQUAL from their canonical homes under
+// skills/war/references/ (backward-chain-worker.md, backward-chain-fix.md, backward-chain-audit.md); the
+// depth sections (`## Round 1` … `## Round 5 and later`) are read by POINTER, named for the corrective
+// round the prompt dispatches. Reach (D5/D6, PIN-6/PIN-10):
+//   - BACKWARD_CHAIN_WORKER_RULES: the work: build ONLY (BACKWARD_CHAIN_WORK_CLAUSE).
+//   - BACKWARD_CHAIN_FIX_RULES: every fix-applying build and nothing else — FIX_NEEDED, ace subset, ace
+//     re-entry, ace advisory polish, the floor family (add-test / make-pass / cite-budget / package-it:
+//     ONE prompt-build site emitting four labels), the phase-close sweep (it spawns a worker agent too,
+//     spawn('worker'), non-tiered) and the terminal pass — each through chainFixClause. No build carries
+//     both the worker block and the fixer block.
+//   - BACKWARD_CHAIN_AUDIT_RULES: the roster-seat auditPrompt at corrective round >= 2 ONLY
+//     (chainAuditClause); round 1 emits '' so a round-1 audit prompt stays byte-identical to a
+//     round-omitted build (PIN-10). The three gate-audit-family seats (per-task, integrated-tip,
+//     end-state) sit outside auditPrompt and carry no clause: they judge executed gate evidence, never
+//     a fix, and have no corrective round.
+// The workflow-template.test.mjs `backward-chain: …` fixtures pin each block byte-equal to its reference
+// section, so an edit lands in the reference first and here second. Pointer paths use the agent-resolved
+// '${CLAUDE_PLUGIN_ROOT}' literal idiom (plain strings, never pt interpolations). The bounded round count
+// is a safety precaution and never an obstacle (PIN-2): the round-5 tier is a completed outcome.
+const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the prompt carries \`DEPS ALREADY MERGED\`, the rebase is still the first act, and the chain ends at the rebased tip.
+2. Chain backward from the finish line to the tip. Each link is a condition that must hold for the next link to hold. Number the links; the last link is the tip you were cut from.
+3. The bottleneck is the earliest unmet link. Work it first. A later link worked first is a site patch that the bottleneck can invalidate.
+4. Chunk every link with a done test: the command or assertion that proves the link true, and the token it prints. The printed-token duty is scoped to the \`Done when:\` command and the tests the task ships; nothing else needs a token.
+5. Write \`Critical path:\` then \`Ignore for now:\` into \`notes\`: the numbered chain with the bottleneck marked and each link's done test, then the neighbors and findings you saw and chose not to touch, each with one reason.
+6. The bottleneck link's test first, red before green. A test written after the code passes is not proof the link was ever false.
+7. The outcome locks only on the End states and the Commander's Intent. Never on a peer's finding, a lesson, a prior task's notes, or your own inference about what the plan meant.
+8. A link you cannot make true with the task's tools and files is a \`blocked\` return quoting the diagnostic, never a workaround: no budget raise, no test-pattern edit, no installed tool, no weakened test.`
+const BACKWARD_CHAIN_FIX_RULES = pt`1. Lock the outcome first. Write one \`Outcome:\` line that cites the End state number or the \`Done when:\` command the finding chains from. A fix with no cited outcome is a site patch.
+2. Chain backward from the outcome to the tip. Each link is a condition that must hold for the next link to hold, ending at the pinned sha. Number the links.
+3. Place the finding on the chain and find the earliest unmet link. The finding's site is usually a later link; the fix goes at the earliest link that is false, and the class at that link is what you fix.
+4. Ask the Focusing Question over all open findings together: what is the one change such that, by making it, the other findings become unnecessary or easier? Fix that one change first.
+5. Verify the finding's premise before you act on it, and state what the seat's \`fix:\` does to the thing it does not mention: the neighbor state, the other caller, the queued job, the reader of the value.
+6. Write \`Ignore for now:\` in the commit body: the open findings and neighbors you saw and chose not to touch this round, each with one reason.`
+const BACKWARD_CHAIN_AUDIT_RULES = pt`1. Chain from the cited End state to the tip YOURSELF first. Then read the fix commit body (\`Outcome:\` \`Chain:\` \`Bottleneck:\` \`Fix:\` \`Ignore for now:\`). Then diff the two chains: a link in yours that the fixer's chain skips is the finding.
+2. Check the outcome citation. A \`fix:\` that cites no End state number or \`Done when:\`, or cites one the diff does not serve, is a finding whose severity follows its consequence: Major when the diff serves nothing on any chain, Minor when the citation is wrong and the diff still serves a chain.
+3. Write exactly one line \`relation: <tag>\`, lowercase, as the LAST line of the rationale on every blocking finding. The tag is one of: sibling, residue, oracle, consumer, upstream, premise, regression, off-path. No other value, no second tag line.
+4. Name the bottleneck. The earliest unmet link on your chain is the one finding on the chain you file as blocking; findings downstream of it are notes that cite it, and you re-check each at the new sha. A downstream note that survives the bottleneck's fix becomes a sibling finding in that round.
+5. Thin evidence lowers certainty and severity together. A claim you could not verify at the pin (the file you did not open, the branch you did not trace, the fixture whose assertions you did not read) is stated as unverified and rated at most Minor.
+6. Off the chain lowers no Critical. A defect that breaks a landed behavior stays Critical wherever it sits. An off-chain Minor or Nit never holds a task: dispose it absorb or note, never request_changes.
+7. Audit the \`Ignore for now:\` list with severity by consequence. An ignored item that is a link on your chain is a finding at that link's severity; an ignored item that is off every chain is a note.
+8. State what your own \`fix:\` does to the thing it does not mention: the neighbor state, the other caller, the reader of the value. A \`fix:\` that widens what a consumer receives names that consumer.`
+// Per-build variant clauses, mirrored by NAME from `## Build variants` of backward-chain-fix.md: the
+// key is the numbered entry's name, the value its clause text byte-equal. The fixer fixture asserts the
+// key set equals the engine's fix-applying site set and that each build renders its own clause.
+const BACKWARD_CHAIN_VARIANTS = {
+  'FIX_NEEDED': pt`the outcome is the End state the blocking finding cites; the chain ends at the audit pin; every surviving blocker has a \`suggested_fix\`, and the fix commit closes all of them at the earliest unmet link.`,
+  'ace subset': pt`the outcome is unchanged; the chain covers only the subset's findings; a subset that regresses the re-audit is excised, never re-argued.`,
+  'ace re-entry': pt`the outcome is unchanged; the batch is the absorbs the last re-audit minted; the sibling sweep runs over the whole batch before one commit.`,
+  'ace advisory polish': pt`the outcome is the surface's byte budget and the advisory findings; prose that no longer fits the byte budget moves to a \`references/\` file with a \`when <trigger>, read\` pointer, never a reword loop.`,
+  'floor family (add-test, make-pass, cite-budget, package-it)': pt`the outcome is the floor's own check; chain from that check to the tip; the corrective round is 1 by definition, because no audit finding is threaded.`,
+  'phase-close sweep': pt`the outcome is the queued absorb rows for this phase; one chain per row's file; the corrective round is 1 by definition.`,
+  'terminal pass': pt`the outcome is the final polish rows on the integrated tip; the corrective round is 1 by definition; a row that needs a new link on any task's chain is a follow-up, never a sweep edit.`,
+}
+// Corrective round (D4, PIN-5, G9): fix rounds + ace charges SPENT, 1-based, read per SITE — never the bare
+// `absorbRounds` const (the run budget, run.absorbRounds ?? 6, is never an input).
+//   'fix' / 'audit' — FIX_NEEDED and the roster-seat audit inside the audit loop: the loop's 0-based
+//     in-loop `round` + 1 + task.absorbRounds (the first audit and the first fix dispatch are corrective
+//     round 1; the first post-fix re-audit is round 2).
+//   'ace' — the three ace sites (subset, re-entry, advisory polish) AND their re-audits:
+//     task.fixRounds + task.absorbRounds, never r.round (undefined on a resume; the wave thunk seeds
+//     task.fixRounds from the audit-loop round BEFORE the ace ladder runs, so the ace-time value is the
+//     spent fix-round count and survives a relaunch). A re-audit reads one more than the fixer it judges, because
+//     the ace commit charged absorbRounds in between — except at a zero sum, where the 1-based floor makes both read 1.
+//   every other site — the phase-close sweep, the terminal pass, the floor family and the pin-content
+//     re-audit: 1 by definition (no threaded audit findings, no relation tag).
+// A missing or malformed counter reads 0, so the helper is total: never NaN, never undefined.
+const spentOf = n => (Number.isInteger(n) && n > 0) ? n : 0
+const correctiveRoundOf = (site, task, round) =>
+  (site === 'fix' || site === 'audit') ? spentOf(round) + 1 + spentOf(task && task.absorbRounds)
+  : site === 'ace' ? Math.max(1, spentOf(task && task.fixRounds) + spentOf(task && task.absorbRounds))
+  : 1
+// Depth pointer (PIN-3): total over every input — undefined, NaN, 0 and 1 name `## Round 1`; the
+// `## Round 5 and later` tier is named ONLY at a corrective round >= 5 (the End-state exit discloses
+// there and never earlier).
+const chainDepthOf = n => !(n >= 2) ? '## Round 1' : n >= 5 ? '## Round 5 and later' : n >= 3 ? '## Round 3 and later' : '## Round 2'
+// The depth sentence the fixer and the audit blocks share (one copy, interpolated at both builders);
+// `file` is the caller's own reference pointer, so the section named resolves to the file that carries it.
+const chainDepthLine = (correctiveRound, file) => pt`Depth: this is corrective round ${correctiveRound} — read the \`${chainDepthOf(correctiveRound)}\` section of ${file} (every tier above it still applies first).`
+// Generic marker-line reader: the first capture group of `re` in `text`, trimmed; null when absent.
+const noteLineOf = (text, re) => { const m = typeof text === 'string' ? text.match(re) : null; return m ? m[1].trim() : null }
+// Relation tag (D2, D15 — the fourth vocabulary surface): reads the `relation: <tag>` LAST line of a
+// finding's rationale; the closed alternation equals the examples bank's H2 set minus convergence (the
+// `backward-chain: relation-tag regex matches the examples H2 set` fixture extracts it from this source
+// text). Leading whitespace is tolerated, mirroring upstreamLinkOf beside it (an indented rationale reads
+// both lines or neither). A module const, never an export — the template exports only meta.
+const RELATION_TAG_RE = /(?:^|\n)[ \t]*relation: (sibling|residue|oracle|consumer|upstream|premise|regression|off-path)\s*$/
+const relationTagOf = f => noteLineOf(f && f.rationale, RELATION_TAG_RE)
+const upstreamLinkOf = f => noteLineOf(f && f.rationale, /(?:^|\n)[ \t]*(upstream link:[^\n]*)/)
+// History digest (D11, PIN-8, A4): threaded to the fixer and the auditor from corrective round 2 — the
+// audit log is in-memory until phase return, so this is the fixer's only view of history. Per prior
+// round: each blocker's title, file, severity, relation tag and upstream link line, and the fix worker's
+// Fix: / Ignore for now: lines read from its result `notes` (never a commit body — the Workflow sandbox
+// has no git); one relation-sequence line for the task under fix (never a line per phase task); the
+// worker's round-1 Critical path: block (from the work result's `notes`); full rationale + suggested_fix
+// ONLY for the survival-registry blockers (lastFixKeys, PIN-29). Entries are recorded in dispatch order
+// on a side Map keyed by task id (the diffFilesByTask precedent), so the ace ladder reads what the audit
+// loop wrote. Formatting is Mechanism latitude.
+const chainByTask = new Map()
+const chainOf = id => { if (!chainByTask.has(id)) chainByTask.set(id, { criticalPath: null, entries: [], survivors: new Set() }); return chainByTask.get(id) }
+const fixLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Fix:[^\n]*)/)
+const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[^\n]*)/)
+const criticalPathOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Critical path:[\s\S]*?(?:\n[ \t]*Ignore for now:[^\n]*|$))/)
+const indentLines = s => String(s).split('\n').join('\n      ')   // continuation lines of a multi-line rationale keep the row's indent
+const chainBlockerRow = task => f => ({ key: remintKey({ task: task.id, ...f }), title: f.title ?? null, file: f.file ?? null, severity: f.severity ?? null,
+  tag: relationTagOf(f), upstream: upstreamLinkOf(f), rationale: f.rationale ?? null, suggested_fix: f.suggested_fix ?? null })
+const chainRecordAudit = (task, round, seats) => chainOf(task.id).entries.push({ kind: 'audit', round, blockers: blockingOf(seats || []).map(chainBlockerRow(task)) })
+// site: 'ace' at the three ace sites, so the digest row names the ace fixer apart from the in-loop
+// fixer that shares its round number (the ace arm reads fixRounds + absorbRounds, the number the loop
+// stamped on its last audit + fix pair); absent at FIX_NEEDED.
+const chainRecordFix = (task, round, w, site) => chainOf(task.id).entries.push({ kind: 'fix', site: site ?? null, round, fix: fixLineOf(w && w.notes), ignore: ignoreLineOf(w && w.notes) })
+// throughRound: the last entry round the rows carry. The default (correctiveRound - 1) fits the
+// FIX_NEEDED fixer and the roster audit, where the current round's blockers already ride the prompt in
+// full. The three ace fixer sites pass correctiveRound itself: their threaded rows are absorbs, never the
+// blockers, and the audit loop stamps its last audit + fix pair with the same number the ace arm reads
+// (fixRounds + absorbRounds), so the default would drop that pair.
+const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) => {
+  if (!(correctiveRound >= 2)) return ''
+  const c = chainOf(task.id)
+  // Rows: every entry through throughRound. The relation sequence reads every recorded audit entry, the
+  // current one included.
+  const digestRows = c.entries.filter(e => e.round <= throughRound).map(e => e.kind === 'audit'
+    ? pt`- round ${e.round} audit:\n` + (e.blockers.map(f => pt`  - [${f.severity ?? '?'}] ${f.title ?? ''} (${f.file ?? ''}) — relation: ${f.tag ?? '(none)'}; ${f.upstream ?? 'upstream link: (none)'}`
+        + (c.survivors.has(f.key) ? pt`\n    rationale: ${indentLines(f.rationale ?? '')}\n    suggested_fix: ${f.suggested_fix ?? ''}` : '')).join('\n') || '  - (no blocking finding)')
+    : pt`- round ${e.round} ${e.site === 'ace' ? 'ace fix' : 'fix'}: ${e.fix ?? 'Fix: (none reported in notes)'} | ${e.ignore ?? 'Ignore for now: (none reported in notes)'}`).join('\n')
+  const relationSequence = c.entries.filter(e => e.kind === 'audit').map(e => 'r' + e.round + ' [' + (e.blockers.map(f => f.tag).filter(Boolean).join(', ') || 'no tag') + ']').join(' → ')
+  return pt`\nHISTORY DIGEST for task ${task.id} (the recorded corrective rounds):\n${digestRows || '- (no prior round recorded in this process)'}\nRelation sequence for ${task.id}: ${relationSequence || '(none)'}\n${c.criticalPath ?? 'Critical path: (the worker reported none)'}\n`
+}
+// Examples pointer (D16): the fixer reads the bank section for each relation tag read on the threaded
+// findings, or the bank's index and self-selects when no tag was read.
+const CHAIN_EXAMPLES_MD = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-examples.md'
+const chainExamplesPointer = tags => {
+  const read = [...new Set((tags || []).filter(Boolean))]
+  return read.length
+    ? 'read ' + read.map(t => '`## ' + t + '`').join(' and ') + ' of ' + CHAIN_EXAMPLES_MD + ' (the sections the threaded relation tags name)'
+    : 'no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_MD + ' and self-select'
+}
+// The fixer block: the seven fix-applying builds interpolate this and nothing else of the doctrine.
+// The ace variants thread absorb rows, never the blockers, so their digest runs through the current round.
+const CHAIN_ACE_VARIANTS = new Set(['ace subset', 'ace re-entry', 'ace advisory polish'])
+const CHAIN_FIX_MD = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
+const chainFixClause = (task, correctiveRound, variant, tags) => {
+  const variantClause = BACKWARD_CHAIN_VARIANTS[variant]
+  const examplesPointer = chainExamplesPointer(tags)
+  const throughRound = CHAIN_ACE_VARIANTS.has(variant) ? correctiveRound : correctiveRound - 1
+  return pt`\nBACKWARD-CHAIN FIX (corrective round ${correctiveRound}; canonical home: `
+    + CHAIN_FIX_MD
+    + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of `
+    + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
+    + pt`, which then apply to the diff.\n`
+    + BACKWARD_CHAIN_FIX_RULES + '\n'
+    + chainDepthLine(correctiveRound, CHAIN_FIX_MD) + pt` Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
+    + chainDigest(task, correctiveRound, throughRound)
+}
+// The audit block: the roster-seat auditPrompt at corrective round >= 2; '' at round 1 (PIN-10).
+const CHAIN_AUDIT_MD = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-audit.md'
+const chainAuditClause = (task, correctiveRound) => {
+  if (!(correctiveRound >= 2)) return ''
+  return pt`\nBACKWARD-CHAIN AUDIT (corrective round ${correctiveRound}; canonical home: `
+    + CHAIN_AUDIT_MD
+    + pt`): this round judges a fix, so you are the classifier and the oracle — chain from the cited End state to the tip yourself before you read the fix commit body.\n`
+    + BACKWARD_CHAIN_AUDIT_RULES + '\n'
+    + chainDepthLine(correctiveRound, CHAIN_AUDIT_MD) + '\n'
+    + chainDigest(task, correctiveRound)
+}
+// The worker block: the work: build only.
+const BACKWARD_CHAIN_WORK_CLAUSE = pt`\nBACKWARD-CHAIN WORK (canonical home: `
+  + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-worker.md'
+  + pt`): lock the finish line and chain backward from it before your first edit; write the \`Critical path:\` block, then \`Ignore for now:\`, into notes (a fix-applying dispatch carries the fixer's block instead, never this one).\n`
+  + BACKWARD_CHAIN_WORKER_RULES + '\n'
+
+
+function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound) {
   let p = pt`Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth): the entry-validation plan.file
     // class makes an undefined here unreachable on a tasks-bearing launch; the guard matches the
@@ -2706,6 +2878,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // three gate-audit-family seats directly (see their sites below), not only the standing card.
     // Empty/absent adjudications ⇒ '' ⇒ byte-identical to today.
     + intentClause + adjudicationClause + auditorMemClause(task.id, lens)
+    // BACKWARD-CHAIN AUDIT (D6, PIN-10): the caller threads the corrective round; absent or 1 ⇒ '' ⇒ the
+    // prompt is byte-identical to a round-omitted build. Roster seats only — never the gate-audit family.
+    + chainAuditClause(task, correctiveRound)
   // A reported worker pin is checked against read-only Git by the seat. Conflicts require
   // reconciliation; no mismatched work audit can approve by demoting its findings (#2141).
   if (isSha(pin)) {
@@ -2735,7 +2910,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
 // is byte-identical. `expected` is the size of the roster ACTUALLY dispatched, so allApprove still means
 // unanimity over the seats that ran; the seats that did not run have their approvals TRANSFERRED to the
 // new sha by the caller, with per-seat provenance (PIN-10).
-async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, reconciliation = {}) {
+// `correctiveRound` (backward-chain D4/PIN-10): the site's corrective round, threaded to auditPrompt;
+// absent or 1 ⇒ no backward-chain clause, so every round-1-by-definition caller stays byte-identical.
+async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, reconciliation = {}, correctiveRound) {
   // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
   // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
   const roster = (Array.isArray(rosterOverride) && rosterOverride.length) ? rosterOverride : task.roster
@@ -2744,7 +2921,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // a NULLed thunk). A dead seat is retried below exactly like a dropped seat (the same 2 passes); only
   // a death that PERSISTS past the retries reaches `died`, which carries the site-named cause to the
   // caller, which demotes or classifies env-died; never audit-blocked.
-  const runSeat = seat => dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
+  const runSeat = seat => dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin, correctiveRound) + (extra || ''), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawn('auditor') })
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
@@ -3324,14 +3501,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (!gate.green) return { red: true, died: null, seats: [], expected: 0 }
     const prior = (r.seats || []).slice()
     const scope = aceScope(r, w, findings)
+    // Corrective round (D4, PIN-5): an ace re-audit reads task.fixRounds + task.absorbRounds (the ace commit
+    // just charged absorbRounds, so it reads one more than the fixer it judges), never r.round.
+    const chainRound = correctiveRoundOf('ace', r.task)
     const { seats, expected, died } = await auditRound(r.task, null, null, sha,
-      citationSoundnessClause(findings) + aceScopeClause(scope, w, r, sha), scope.roster)
+      citationSoundnessClause(findings) + aceScopeClause(scope, w, r, sha), scope.roster, {}, chainRound)
     if (died) return { red: false, died, seats: [], expected }
-    if (!scope.roster) { recordAceTransfer(r, sha, 'full-panel', scope.why, seats, []); return { red: false, died: null, seats, expected } }
+    if (!scope.roster) { chainRecordAudit(r.task, chainRound, seats); recordAceTransfer(r, sha, 'full-panel', scope.why, seats, []); return { red: false, died: null, seats, expected } }
     if (seats.some(s => s && (s.scopeBreach === true || (s.findings || []).some(f => f && f.scopeBreach === true)))) {
       log('ace-scope ' + r.task.id + ': a re-audit seat detected a file outside the claimed ace_diff_files set — the subset transfer is REFUSED and the FULL panel re-runs at ' + sha + ' (PIN-18).')
-      const { seats: fSeats, expected: fExpected, died: fDied } = await auditRound(r.task, null, null, sha, citationSoundnessClause(findings))
+      const { seats: fSeats, expected: fExpected, died: fDied } = await auditRound(r.task, null, null, sha, citationSoundnessClause(findings), undefined, {}, chainRound)
       if (fDied) return { red: false, died: fDied, seats: [], expected: fExpected }
+      chainRecordAudit(r.task, chainRound, fSeats)
       recordAceTransfer(r, sha, 'full-panel', 'seat-detected file outside the claimed ace_diff_files set (PIN-18)', fSeats, [])
       return { red: false, died: null, seats: fSeats, expected: fExpected }
     }
@@ -3340,6 +3521,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // pre-ace collection, and re-minting them here would only be refused by the content-key registries.
     const carried = prior.filter(s => s && !ran.has(s.lens) && s.verdict === 'approve')
       .map(s => ({ ...s, findings: [], audit_sha: sha, pinTransferred: true, transferredFrom: auditShaOrSentinel(s.audit_sha) }))
+    chainRecordAudit(r.task, chainRound, seats)
     recordAceTransfer(r, sha, 'subset', scope.why, seats, carried)
     return { red: false, died: null, seats: [...seats, ...carried], expected: (r.task.roster || []).length }
   }
@@ -3397,6 +3579,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => aceRelPath(f.file)))].sort().join(',')
       const aceCharge = aceChargeOf(r)                   // `Ace-Charge: <task>:<n>` — n = absorbRounds after this commit's charge
       const revertStep = aceRevertStep(r.task.worktree, pendingRevert)
+      const chainRound = correctiveRoundOf('ace', r.task)   // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
       const sw = await dispatchSite(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
@@ -3407,6 +3590,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // guaranteed (sub.findings ⊆ aceable); the shared aceFindingRow builder is absence-tolerant.
         + sub.findings.map(aceFindingRow).join('\n') + '\n'
         + FIX_ROUND_DOCTRINE_CLAUSE
+        + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -3423,6 +3607,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         break
       }
       r.task.absorbRounds++                              // each subset COMMIT charges one absorb slot (D4/D5) — never fixRounds
+      chainRecordFix(r.task, chainRound, sw, 'ace')   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const subSha = sw.head_sha
       // Gate at the subset tip FIRST (PIN-12), then the delta-scaled panel (D3/PIN-10). A red gate is
@@ -3513,6 +3698,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const trailer = r.task.id + ':reentry:a' + (r.task.absorbRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
       const aceCharge = aceChargeOf(r)
       const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
+      const chainRound = correctiveRoundOf('ace', r.task)   // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
       const rw = await dispatchSite(
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + aceRevertStep(r.task.worktree, pendingRevert)
@@ -3521,6 +3707,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer lines \`Ace-Subset: ${trailer}\` and \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line (the panel re-audits the new sha; a regression is forward-reverted):\n`
         + batch.map(aceFindingRow).join('\n') + '\n'
         + FIX_ROUND_DOCTRINE_CLAUSE
+        + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -3535,6 +3722,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         break
       }
       r.task.absorbRounds++                              // each re-entry COMMIT charges one absorb slot (D5) — never fixRounds
+      chainRecordFix(r.task, chainRound, rw, 'ace')   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const reSha = rw.head_sha
       const { red: reRed, died: reDied, seats: reS, expected: reE } = await aceReaudit(r, reSha, batch, rw)
@@ -3686,6 +3874,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const openBlockers = blockingOf(r.seats).length
       if (openBlockers === 0 && aceable.length && r.task.absorbRounds < absorbRounds) {
         const aceCharge = aceChargeOf(r)
+        const chainRound = correctiveRoundOf('ace', r.task)   // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
         const ace = await dispatchSite(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
@@ -3697,6 +3886,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // (and renders a citation-resolved row's row-id + match rationale, D6).
           + aceable.map(aceFindingRow).join('\n') + '\n'
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits it at the new sha; on regression it is forward-reverted). Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
+          + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('fix') })
         const aceWhy = deathOf(ace) || blockedReason(ace)   // an ace worker death (D21) takes the existing failed-attempt arm, site-named
@@ -3706,6 +3896,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // never-blocks-a-land invariant. A blocked/head_sha-less ace falls through to the plain merge.
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
           r.task.absorbRounds++                          // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
+          chainRecordFix(r.task, chainRound, ace, 'ace')      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
           aceSha = ace.head_sha /* the batch ace commit */
           r.reentryBase = ace.head_sha                 // re-entry preflight range anchor (PIN-15)
           // Gate at the ace tip first (PIN-12), then the delta-scaled panel with per-seat transfer
@@ -3839,10 +4030,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // registered member of the remaining-bare-interpolation census.
         + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice ?? '<unset>'}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
         + taskProvenanceClause(task) + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
-        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
+        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE
+        // BACKWARD-CHAIN WORK (D1/D5): the worker `## The rules` block rides the work: build ONLY.
+        + BACKWARD_CHAIN_WORK_CLAUSE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
       const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
+      // Backward chain (D2/D11): the worker's Critical path: block rides its result notes; the history
+      // digest threads it to the fixer and the auditor from corrective round 2.
+      chainOf(task.id).criticalPath = criticalPathOf(impl.notes)
       impl.files_changed = normalizeReportedPaths(impl.files_changed, task.worktree, task.id)   // path contract (this spec): normalize main-rooted, escalate any other absolute
       // A1 (Task 3.2): stamp the worker's claimed End-state ids (acceptance_criteria_covered — the
       // A1 redefinition) on the task; landMerged threads them into the gate-audit entry, where the
@@ -3893,7 +4089,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const blockerKey = f => remintKey({ task: task.id, ...f })
       let lastFixKeys = new Set()
       while (round < roundLimit) {
-        ;({ seats, expected, died, pin } = await auditRound(task, null, workerTests, pin, null, null, { repairWorkerPin: true }))      // independent — no cross-talk
+        // Corrective round (D4, PIN-5): the roster-seat audit reads the in-loop 0-based `round` — round 1 at
+        // the first audit (no backward-chain clause, PIN-10), round 2 at the first post-fix re-audit.
+        ;({ seats, expected, died, pin } = await auditRound(task, null, workerTests, pin, null, null, { repairWorkerPin: true }, correctiveRoundOf('audit', task, round)))      // independent — no cross-talk
         // Seat death (D21, PIN-25) reads BEFORE the shortfall check: a dead seat classifies env-died
         // SOFT with the site named — never audit-blocked (the seat judged nothing).
         if (died) { verdict = 'env-died'; blocked = died; break }
@@ -3902,7 +4100,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
         if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-          ;({ seats, expected, died, pin } = await auditRound(task, seats, workerTests, pin, null, null, { repairWorkerPin: true }))
+          ;({ seats, expected, died, pin } = await auditRound(task, seats, workerTests, pin, null, null, { repairWorkerPin: true }, correctiveRoundOf('audit', task, round)))   // the rebuttal is the same corrective round
           if (died) { verdict = 'env-died'; blocked = died; break }       // a dead rebuttal seat: env-died, never audit-blocked
           if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
           if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
@@ -3954,6 +4152,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
 
         const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
+        // Corrective round (D4, PIN-5): the fix dispatch reads the same in-loop `round` as the audit it
+        // answers; this round's blockers join the history digest before the fixer prompt is built.
+        const chainRound = correctiveRoundOf('fix', task, round)
+        chainRecordAudit(task, chainRound, seats)
         const fix = await dispatchAgent(
           pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
@@ -3962,12 +4164,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
           // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
-          + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+          // A multi-line rationale (its `relation: <tag>` last line) rides through indentLines, and suggested_fix
+          // takes its own continuation line, so the relation line stays the rationale's own last line, never
+          // merged into the suggested_fix line.
+          + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${indentLines(f.rationale ?? '')}${f.suggested_fix ? pt`\n      → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + FIX_ROUND_DOCTRINE_CLAUSE
+          + chainFixClause(task, chainRound, 'FIX_NEEDED', b.map(relationTagOf))
           + taskProvenanceClause(task) + workerMemClause(task.id) + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
         lastFixKeys = new Set(b.map(blockerKey))   // PIN-29: what this fix round was dispatched on
+        chainRecordFix(task, chainRound, fix)      // the fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+        chainOf(task.id).survivors = lastFixKeys   // the digest carries full text for the survival registry only (D11)
         pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
         round++
       }
@@ -4254,6 +4462,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // The FULL panel re-audits the rebased tip IN the lock, exactly as the pre-#1913 engine did.
         log('pin-transfer ' + r.task.id + ': patch-id MISMATCH (' + (pinProbe.pre_rebase_patch_id || '(empty)') + ' → ' + (pinProbe.post_rebase_patch_id || '(empty)') + ') — the full panel re-audits the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' in the lock before the merge (PIN-1).')
         const contentCharge = pt`\nPIN CONTENT RE-AUDIT: replace the normal integration...task change-set command for this round. That diff can omit task content dropped during rebase and does not prove task completion. Run \`git diff ${pinProof.dispatch_base} ${pinProof.content_sha}\` to inspect the original approved task, then \`git diff ${pinProof.content_sha} ${pinProof.head_sha}\` to inspect changes since approval. Inspect the current files at ${pinProof.head_sha} against the task's acceptance criteria. Cherry matches can omit merge-resolution content or match a subsequently reverted change. Approve only if the task's required behavior remains present; unrelated integrated sibling changes alone do not block. Report audit_sha ${pinProof.head_sha}.\n`
+        // Corrective round 1 by definition (PIN-5): the pin-content re-audit threads no findings and no relation
+        // tag, so no round is passed and auditPrompt emits no backward-chain clause.
         const { seats: rbSeats, expected: rbExpected, died: rbDied } = await auditRound(r.task, null, null, pinProbe.rebased_tip, contentCharge)
         if (rbDied) { mergeDied(rbDied); continue }   // D21: a dead in-lock re-audit seat is env-died, never a failed re-audit
         // Route this re-audit's OWN Minor/Nits by disposition, on BOTH exit paths (#1931), exactly
@@ -4390,7 +4600,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await dispatchSite(
-            fixPrompt + workerMemClause(r.task.id) + provisionClause,
+            fixPrompt
+            // Backward chain (PIN-6): the floor family carries the fixer block at corrective round 1 by
+            // definition (a floor correction threads no audit finding and no relation tag) — ONE
+            // prompt-build site emitting the four labels below.
+            + chainFixClause(r.task, correctiveRoundOf('floor', r.task), 'floor family (add-test, make-pass, cite-budget, package-it)', [])
+            + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
             { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -4418,6 +4633,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop). The floor
           // cannot judge whether dockerignoring the file (or the added test) was RIGHT; the panel can.
           let reSeats, reExpected, reDied
+          // Corrective round 1 by definition (PIN-5): no round is threaded, so auditPrompt emits no backward-chain clause.
           ;({ seats: reSeats, expected: reExpected, died: reDied } = await auditRound(r.task, null, null, floorFix && floorFix.head_sha))
           if (reDied) { mergeDied(reDied); floorMr = null; reAuditFailed = true; break }   // D21: a dead floor re-audit seat is env-died, never audit-blocked
           const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
@@ -4918,6 +5134,8 @@ if (mergedTasksForGateAudit.length > 0) {
       + DISPOSITION_RULE_CLAUSE
       + FINDING_PATH_FORM_CLAUSE
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
+      // No backward-chain clause on this seat (D6, PIN-10): it sits outside auditPrompt, judges executed gate
+      // evidence — never a fix — and has no corrective round; chainAuditClause is never appended here.
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
@@ -5037,6 +5255,8 @@ if (mergedTasksForGateAudit.length > 0) {
       + DISPOSITION_RULE_CLAUSE
       + FINDING_PATH_FORM_CLAUSE
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
+      // No backward-chain clause on this seat (D6, PIN-10): it sits outside auditPrompt, judges executed gate
+      // evidence — never a fix — and has no corrective round; chainAuditClause is never appended here.
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:phase-${ph.id}:integrated-tip`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // Death arm (D21, PIN-25): a dead integrated-tip seat is env-died SOFT, site-named — never gate-evidence.
@@ -5082,6 +5302,8 @@ if (mergedTasksForGateAudit.length > 0) {
     // DISPOSITION RULE (D15, PIN-17) rides this seat directly — same reason as the two seats above.
     + DISPOSITION_RULE_CLAUSE
     + FINDING_PATH_FORM_CLAUSE,
+    // No backward-chain clause on this seat (D6, PIN-10): it sits outside auditPrompt, judges executed gate
+    // evidence — never a fix — and has no corrective round; chainAuditClause is never appended here.
     { agentType: NS + 'war-auditor', phase: 'Audit',
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Death arm (D21, PIN-25): a dead end-state seat is env-died SOFT, site-named — never gate-evidence,
@@ -5355,6 +5577,9 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       + phaseCloseQueue.map(queuedFindingRow).join('\n') + pt`\n`
       + pt`Also return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` after your ONE commit (the git-derived list decides which queued rows the sweep landed; files_changed is read only as a fallback source when ace_diff_files is absent or empty).\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
+      // Backward chain (PIN-6): the sweep is a fix-applying build — it spawns a worker agent (spawn('worker'),
+      // non-tiered) — and carries the fixer block at corrective round 1 by definition.
+      + chainFixClause(polishTask, correctiveRoundOf('sweep', polishTask), 'phase-close sweep', [])
       + provisionClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
@@ -5385,6 +5610,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     // drain-cause stamp below carries it) — never a panel rejection, never a hold.
     let sweepPanelDeath = null
     if (!sweepWhy) {
+      // Corrective round 1 by definition (PIN-5): the sweep panel threads no round, so no seat carries a backward-chain clause.
       const { seats: pSeats, expected: pExpected, died: pDied } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha, citationSoundnessClause(phaseCloseQueue))
       sweepPanelDeath = pDied
       sweepApproved = allApprove(pSeats, pExpected)
@@ -5514,6 +5740,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // No ace_diff_files clause here: the terminal arm has no consumer for it (the merged arm
           // records every terminalRow aced on the one seat's re-approval; the sweep arm's sweepTouched
           // is the only landed-row check) — a prompt never asks for a field nothing reads.
+          // Backward chain (PIN-6): the terminal pass carries the fixer block at corrective round 1 by definition.
+          + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
           + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('fix') })
         } catch (err) {
@@ -5536,6 +5764,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           log('terminal pass: phase ' + ph.id + ' committed at ' + terminalSha + ' (Ace-Charge ' + terminalCharge + '; polish task absorbRounds now ' + polishTask.absorbRounds + ', telemetry only).')
           // ONE seat re-audits the terminal sha (rosterOverride — the roster's correctness seat or its
           // first seat). The pass is bound at one hop: no fix round, no bisection, no re-entry.
+          // Corrective round 1 by definition (PIN-5): no round is threaded, so the seat carries no backward-chain clause.
           const { seats: tSeats, expected: tExpected, died: tDied } = await auditRound(polishTask, null, tw.tests ? tw.tests : null, terminalSha, citationSoundnessClause(terminalRows), [seat])
           // A dead terminal seat (D21, PIN-25) takes the no-verdict arm below, naming the site — it
           // judged nothing, so never a regression.

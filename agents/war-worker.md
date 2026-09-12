@@ -35,6 +35,9 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), with the exact `WAR-Task: <task branch>` trailer, then `git push` the branch. Never create an empty commit for recovery credit; read `head_sha` from `git rev-parse HEAD` after committing.
 
+## Backward chain (the finish line first)
+When your prompt carries a `BACKWARD-CHAIN WORK` block (the WORK dispatch), read [backward-chain-worker.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-worker.md) — lock the finish line, chain backward from it to the tip, and write `Critical path:` then `Ignore for now:` into `notes`. When it carries a `BACKWARD-CHAIN FIX` block (every fix-applying dispatch: a fix round, an ace commit, a floor correction, the phase-close sweep — which spawns a worker agent too — and the terminal pass), read [backward-chain-fix.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md) — the rules ride the dispatched prompt, and the prompt names the depth section for its corrective round.
+
 ## Comment hygiene (before commit)
 Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior. (Mirrored in the dispatched worker prompt; the auditor's cascading-impact lens holds the standing review duty. ADR 0025.)
 When dispatched for a fix round or an ace commit, read [fix-round-doctrine.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md) — the rules ride the dispatched prompt too; the card carries only this pointer.
