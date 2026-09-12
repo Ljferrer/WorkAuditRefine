@@ -174,12 +174,12 @@ over all of them), the sibling re-block rate (corrective round N+1 blockers that
 consequence of round N's fix, over all corrective rounds, read from the ace ladder rows and the
 audit log, never `fixRounds` alone), and corrective rounds per task by the helper's definition.
 In-run baseline: the 2026-09-06 run, where 14 of 26 tasks spent all six ace charges and 22 of 26
-passed unanimously at round 0. Decision rule: adherence below the floor, or a marker with an empty
-or unparseable body, promotes the convention to schema fields (`critical_path` on `WorkerResult`,
-`upstream_link` on findings); high adherence with a flat re-block rate means the schema is not the
-fix and the doctrine is revised. The same issue holds the examples-bank size watch and the
-classifier-subagent decision. The reachability probe joining the `/red-team` spine is a separate
-`war-followup` issue filed at the plan's land Checkpoint.
+passed unanimously at round 0. Decision rule: adherence below the floor #2302 sets, or a marker
+with an empty or unparseable body, promotes the convention to schema fields (`critical_path` on
+`WorkerResult`, `upstream_link` on findings); high adherence with a flat re-block rate means the
+schema is not the fix and the doctrine is revised. The same issue holds the examples-bank size
+watch and the classifier-subagent decision. The reachability probe joining the `/red-team` spine
+is a separate `war-followup` issue filed at the plan's land Checkpoint.
 
 ## Considered options
 
