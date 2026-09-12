@@ -220,8 +220,9 @@ export function checkArgs (fields, args) {
         if (!present(t && t[k])) missing.push(`tasks[${(t && t.id) ?? '?'}].${k} is missing`)
       }
     } else if (!present(a[field])) {
-      // Top-level derivation inputs (planSlug/runId/worktreeRoot) are only consumed when a task
-      // lacks the explicit path — mirror the template's derivation-class gating. DEFENSIVE for the
+      // For path derivation, these inputs are consumed only when a task lacks the explicit path.
+      // This interpolation floor does not validate gate identity; the engine entry guard requires
+      // runId and phase.id on every launch independently of the extracted pt fields. DEFENSIVE for the
       // shipped template: it never interpolates the trio bare into a pt span today, so this gate
       // fires only if a future template edit adds such a site (covered by a synthetic-template
       // fixture in assert-args-complete.test.mjs, not by the real-template census).

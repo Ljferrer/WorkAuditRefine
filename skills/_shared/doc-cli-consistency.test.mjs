@@ -117,6 +117,8 @@ function claimedVerbs(skillText, moduleName) {
 // legitimately name module EXPORTS beside module filenames — see VERB_SCAN_EXCLUSIONS); the
 // placement census test below (D2) default-denies every unplaced references file.
 const EVICTION_DESTINATIONS = [
+  // Operative Lead command/persistence guidance; keep future CLI claims under the verb scan.
+  'skills/war/references/launch-identity.md',
   'skills/war/references/setup.md',
   'skills/war/references/docker-gate.md',
   'skills/war/references/submodule-flows.md',

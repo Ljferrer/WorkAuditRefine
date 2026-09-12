@@ -190,6 +190,10 @@ sanctioned surface for both display identity and approved stage injection.**
     restating the tail — and this note keeps the same discipline. Append-only per this bullet's
     amendment channel: the Amendment's bytes stay intact and this note is its correction.
 
+## Amendment (2026-09-11, #2300): fresh execution identity
+
+This amendment supersedes decision 3's date-based runId format and same-day recurrence for fresh executions, including the linked historical plan/spec's recurrence assumption. A new WAR run, plain rerun, or Recovery relaunch mints a UUID with `skills/war/assets/new-run-id.mjs` in the Lead shell and persists it per `skills/war/references/launch-identity.md`. Normal progression to another phase retains the ID; same-journal replay retains ID and staged bytes. A fresh attempt of a previously launched phase never reuses its prior ID or embedded args. Each fresh run therefore stages into a new run-scoped directory; write-if-absent still preserves a journal's existing script. The basename/display-name contract is unchanged. Run identity is opaque; plan/date remain separate manifest metadata. Old manifests and stage directories remain readable evidence. The phase coordinate follows provisioning's digit-only grammar, not arbitrary string labels.
+
 ## References
 
 - Design spec: [`docs/specs/2026-07-16-land-failure-recovery-design.md`](../specs/2026-07-16-land-failure-recovery-design.md)
