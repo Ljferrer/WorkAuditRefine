@@ -18,7 +18,7 @@ The H2 names below equal the relation-tag vocabulary byte for byte (sibling, res
 
 ```
 ### <slug>
-Source: <issue #n, comment or section> | external (private), abstracted | <public URL>
+Source: <issue #n, comment or section> | external (private), abstracted | <public URL> | run history
 Roles: <worker | auditor | fixer | plan author, one or more>
 **<one lesson sentence, bold>**
 <three to five sentences that abstract the instance: what was fixed, what re-opened, where the earliest unmet link was>
@@ -222,7 +222,7 @@ Closure: The FIX_NEEDED boundary moved; an off-chain Minor or Nit never holds a 
 Source: #1664, the two field-corroboration comments (2026-08-27, 2026-08-30)
 Roles: auditor, fixer
 **An escalation at round zero on a Major with a named fix spends a Lead triage where a fix round was cheaper.**
-Three consecutive panel escalations at zero fix rounds on mechanically specified Majors, each fixed by the next relaunch worker without exhausting any budget, each costing a full triage and a sanctioned recovery relaunch. The findings were on the chain; the escalate verdict was off it.
+Three consecutive panel escalations at zero fix rounds on mechanically specified Majors, each fixed by the next relaunch worker without exhausting any budget, each costing a full triage and a sanctioned recovery relaunch. The findings were on the chain; the escalate verdict was off it. The earliest unmet link was the split-resolution gate: a survivor with a named fix should route to a fix round, never to escalate.
 Questions to ask: Does every surviving blocker carry a `suggested_fix`? Then why is this an escalate and not a request_changes?
 Closure: Rebuttal first, then a fix round when every survivor has a fix; escalate only for a fix-less survivor.
 
@@ -264,7 +264,7 @@ Closure: One root, one change, one round.
 Source: #2097, the PR #2297 finalization comment; the plan's Context (research digest of candidates 1 to 13)
 Roles: fixer, auditor
 **Unanimity came every time the fix was stated as one shared predicate, helper or proof with a proven-red control, and never from a seat's `fix:` line as written.**
-Across thirteen candidates, the rounds that ended in unanimous approval were the ones where the fixer extracted the shared thing: a merge context, a tree-equality predicate, a content charge routed through one seam. Rounds that patched the site the seat named produced a new finding one link away.
+Across thirteen candidates, the rounds that ended in unanimous approval were the ones where the fixer extracted the shared thing: a merge context, a tree-equality predicate, a content charge routed through one seam. Rounds that patched the site the seat named produced a new finding one link away. The earliest unmet link was the fixer's extraction step before the first commit: the shared thing was never named.
 Questions to ask: What is the shared thing all of these sites call? Have I extracted it, or copied it?
 Closure: Extract on the second hand copy; prove the extraction red; name the proof.
 

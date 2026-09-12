@@ -48,7 +48,7 @@ Re-run the chain from the outcome before you read the new findings. Do not start
 | upstream | Move the fix one link earlier on the chain: the cause the last fix patched around is the bottleneck now. |
 | premise | Test the finding's claim at the pinned sha before any edit; a premise that fails is a note back to the auditor, not a fix. |
 | regression | Excise the one change that undid the earlier link; never revert the whole last commit. |
-| off-path | Verify the finding is off the chain, then absorb it only if the same commit already edits that surface; otherwise name it under `Ignore for now:`. |
+| off-path | Verify the finding is off the chain, then absorb it only if the same commit already edits that surface; otherwise name it under `Ignore for now:`. A blocking off-path finding (Critical or Major) is still closed this round; only a note or absorb row goes under `Ignore for now:`. |
 
 The `## Worked examples` section below points at the examples bank by the same tags. Read the section the tag names; with no tag, read the bank's index and self-select.
 

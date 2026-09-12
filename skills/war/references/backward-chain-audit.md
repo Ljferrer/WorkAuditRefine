@@ -46,7 +46,7 @@ Never file that finding before this tier: at rounds 2 to 4 a class that keeps re
 
 The lone-dissenter splits live here, never in the rules. Read [backward-chain-examples.md](backward-chain-examples.md); the entries whose `Roles:` line names the auditor are the ones for this file. Every external private entry is abstracted: no repo name, number or infrastructure detail (PIN-9).
 
-- A lone Major held a task through a rebuttal round while three peers approved, and the Major was right: `## off-path`, `one-sentence-nit-held-a-phase` and `round-zero-escalations-on-specified-majors`. The split was a claim to verify, not a vote to count.
+- One seat blocked on an off-chain doc sentence while three approved, and the split rule, not the severity, escalated the phase: `## off-path`, `one-sentence-nit-held-a-phase` and `round-zero-escalations-on-specified-majors`. The split was a claim to verify, not a vote to count.
 - A seat's count-only repair was refuted by a second graph with equal counts: `## oracle`, `count-equal-counterexample-forced-tree-equality`.
 - A recommendation cited an issue and contradicted its own comments: `## premise`, `recommendation-cited-the-issue-and-contradicted-its-comments`.
-- Three seats agreed on a Minor and were wrong about the producer: `## upstream`, `round-four-rule-undid-the-round-one-clock`.
+- Two seats agreed on a Major the field-keyed rule missed, and the producer was the unnamed link: `## upstream`, `round-four-rule-undid-the-round-one-clock`.
