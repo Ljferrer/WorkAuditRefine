@@ -4633,6 +4633,7 @@ test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff de
   // (BACKWARD_CHAIN_WORKER_RULES, rule 1) name `DEPS ALREADY MERGED` as prose on EVERY work prompt.
   assert.ok(!w1.prompt.includes('DEPS ALREADY MERGED: this task declares deps'), 'a dep-less task carries NO rebase-first clause (frozen phase base stands)')
   assert.ok(w2.prompt.startsWith('DEPS ALREADY MERGED'), 'the deps-bearing task PREPENDS the clause')
+  assert.ok(w2.prompt.includes('DEPS ALREADY MERGED: this task declares deps'), 'the clause-form literal the negatives key on is the clause\'s own opening')
   assert.ok(w2.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t2 rebase integration/wtprov-a/phase-3'),
     'the clause names the concrete rebase-first command')
   assert.match(w2.prompt, /status:"blocked"/, 'conflict → status:blocked')
@@ -12508,7 +12509,7 @@ const BARE_INTERPOLATION_CENSUS = [
   // sites and variantClause its BACKWARD_CHAIN_VARIANTS lookup (an unknown name pt-throws loudly);
   // examplesPointer is chainExamplesPointer's string product; e.round is a recorded digest entry's
   // round, stamped from the same helper — all construction-guaranteed.
-  'correctiveRound', 'e.round', 'examplesPointer', 'n', 'variant', 'variantClause',
+  'correctiveRound', 'e.round', 'examplesPointer', 'variant', 'variantClause',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -17082,7 +17083,8 @@ test('backward-chain: fixer rules byte-equal on all seven builds', async () => {
   assert.deepEqual(keys, variants.map(v => v[0]), 'BACKWARD_CHAIN_VARIANTS keys equal the ## Build variants names, in order')
   assert.match(src, /label: `\$\{isNoTest \? 'add-test' : isDoneUnmet \? 'make-pass' : isBudgetUncited \? 'cite-budget' : 'package-it'\}:\$\{r\.task\.id\}/, 'the floor family is one site emitting the four labels')
   // PIN-2: no new prompt text names the round budget as an obstacle.
-  const blockSrc = chainCode().slice(chainCode().indexOf('const BACKWARD_CHAIN_WORKER_RULES'), chainCode().indexOf('function auditPrompt('))
+  const code = chainCode()
+  const blockSrc = code.slice(code.indexOf('const BACKWARD_CHAIN_WORKER_RULES'), code.indexOf('function auditPrompt('))
   assert.ok(!/run\.roundLimit|run\.absorbRounds/.test(blockSrc), 'the doctrine block names neither run.roundLimit nor run.absorbRounds')
   for (const b of await chainFixPrompts()) {
     const clause = variants.find(v => v[0] === b.variant)[1]
@@ -17115,6 +17117,7 @@ test('backward-chain: worker rules byte-equal on the work build only', async () 
   assert.equal((src.match(/\n[ ]*\+ BACKWARD_CHAIN_WORK_CLAUSE,\n/g) || []).length, 1, 'BACKWARD_CHAIN_WORK_CLAUSE is interpolated at exactly one site')
   assert.match(src, /\+ BACKWARD_CHAIN_WORK_CLAUSE,\n[ ]*\{ agentType: NS \+ 'war-worker', phase: 'Work', label: `work:\$\{task\.id\}`/, 'that site is the work: build')
   assert.equal((chainCode().match(/BACKWARD_CHAIN_WORKER_RULES/g) || []).length, 2, 'BACKWARD_CHAIN_WORKER_RULES: its definition and the one clause that reads it')
+  assert.equal((chainCode().match(/BACKWARD_CHAIN_WORK_CLAUSE/g) || []).length, 2, 'BACKWARD_CHAIN_WORK_CLAUSE: its definition and the one site that interpolates it')
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const w1 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t1')
   assert.ok(w1 && w1.prompt, 'the work: build dispatched (presence guard)')
