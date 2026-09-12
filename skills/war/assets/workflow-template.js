@@ -2661,7 +2661,7 @@ const BACKWARD_CHAIN_VARIANTS = {
 //   'ace' — the three ace sites (subset, re-entry, advisory polish) AND their re-audits:
 //     task.fixRounds + task.absorbRounds, never r.round (undefined on a resume; the wave thunk seeds
 //     task.fixRounds from the audit-loop round BEFORE the ace ladder runs, so the ace-time value is the
-//     audit count and survives a relaunch). A re-audit reads one more than the fixer it judges, because
+//     spent fix-round count and survives a relaunch). A re-audit reads one more than the fixer it judges, because
 //     the ace commit charged absorbRounds in between — except at a zero sum, where the 1-based floor makes both read 1.
 //   every other site — the phase-close sweep, the terminal pass, the floor family and the pin-content
 //     re-audit: 1 by definition (no threaded audit findings, no relation tag).
@@ -2675,8 +2675,9 @@ const correctiveRoundOf = (site, task, round) =>
 // `## Round 5 and later` tier is named ONLY at a corrective round >= 5 (the End-state exit discloses
 // there and never earlier).
 const chainDepthOf = n => !(n >= 2) ? '## Round 1' : n >= 5 ? '## Round 5 and later' : n >= 3 ? '## Round 3 and later' : '## Round 2'
-// The depth sentence the fixer and the audit blocks share (one copy, interpolated at both builders).
-const chainDepthLine = correctiveRound => pt`Depth: this is corrective round ${correctiveRound} — read the \`${chainDepthOf(correctiveRound)}\` section of that file (every tier above it still applies first).`
+// The depth sentence the fixer and the audit blocks share (one copy, interpolated at both builders);
+// `file` is the caller's own reference pointer, so the section named resolves to the file that carries it.
+const chainDepthLine = (correctiveRound, file) => pt`Depth: this is corrective round ${correctiveRound} — read the \`${chainDepthOf(correctiveRound)}\` section of ${file} (every tier above it still applies first).`
 // Generic marker-line reader: the first capture group of `re` in `text`, trimmed; null when absent.
 const noteLineOf = (text, re) => { const m = typeof text === 'string' ? text.match(re) : null; return m ? m[1].trim() : null }
 // Relation tag (D2, D15 — the fourth vocabulary surface): reads the `relation: <tag>` LAST line of a
@@ -2705,7 +2706,10 @@ const indentLines = s => String(s).split('\n').join('\n      ')   // continuatio
 const chainBlockerRow = task => f => ({ key: remintKey({ task: task.id, ...f }), title: f.title ?? null, file: f.file ?? null, severity: f.severity ?? null,
   tag: relationTagOf(f), upstream: upstreamLinkOf(f), rationale: f.rationale ?? null, suggested_fix: f.suggested_fix ?? null })
 const chainRecordAudit = (task, round, seats) => chainOf(task.id).entries.push({ kind: 'audit', round, blockers: blockingOf(seats || []).map(chainBlockerRow(task)) })
-const chainRecordFix = (task, round, w) => chainOf(task.id).entries.push({ kind: 'fix', round, fix: fixLineOf(w && w.notes), ignore: ignoreLineOf(w && w.notes) })
+// site: 'ace' at the three ace sites, so the digest row names the ace fixer apart from the in-loop
+// fixer that shares its round number (the ace arm reads fixRounds + absorbRounds, the number the loop
+// stamped on its last audit + fix pair); absent at FIX_NEEDED.
+const chainRecordFix = (task, round, w, site) => chainOf(task.id).entries.push({ kind: 'fix', site: site ?? null, round, fix: fixLineOf(w && w.notes), ignore: ignoreLineOf(w && w.notes) })
 // throughRound: the last entry round the rows carry. The default (correctiveRound - 1) fits the
 // FIX_NEEDED fixer and the roster audit, where the current round's blockers already ride the prompt in
 // full. The three ace fixer sites pass correctiveRound itself: their threaded rows are absorbs, never the
@@ -2719,7 +2723,7 @@ const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) 
   const digestRows = c.entries.filter(e => e.round <= throughRound).map(e => e.kind === 'audit'
     ? pt`- round ${e.round} audit:\n` + (e.blockers.map(f => pt`  - [${f.severity ?? '?'}] ${f.title ?? ''} (${f.file ?? ''}) — relation: ${f.tag ?? '(none)'}; ${f.upstream ?? 'upstream link: (none)'}`
         + (c.survivors.has(f.key) ? pt`\n    rationale: ${indentLines(f.rationale ?? '')}\n    suggested_fix: ${f.suggested_fix ?? ''}` : '')).join('\n') || '  - (no blocking finding)')
-    : pt`- round ${e.round} fix: ${e.fix ?? 'Fix: (none reported in notes)'} | ${e.ignore ?? 'Ignore for now: (none reported in notes)'}`).join('\n')
+    : pt`- round ${e.round} ${e.site === 'ace' ? 'ace fix' : 'fix'}: ${e.fix ?? 'Fix: (none reported in notes)'} | ${e.ignore ?? 'Ignore for now: (none reported in notes)'}`).join('\n')
   const relationSequence = c.entries.filter(e => e.kind === 'audit').map(e => 'r' + e.round + ' [' + (e.blockers.map(f => f.tag).filter(Boolean).join(', ') || 'no tag') + ']').join(' → ')
   return pt`\nHISTORY DIGEST for task ${task.id} (the recorded corrective rounds):\n${digestRows || '- (no prior round recorded in this process)'}\nRelation sequence for ${task.id}: ${relationSequence || '(none)'}\n${c.criticalPath ?? 'Critical path: (the worker reported none)'}\n`
 }
@@ -2735,27 +2739,29 @@ const chainExamplesPointer = tags => {
 // The fixer block: the seven fix-applying builds interpolate this and nothing else of the doctrine.
 // The ace variants thread absorb rows, never the blockers, so their digest runs through the current round.
 const CHAIN_ACE_VARIANTS = new Set(['ace subset', 'ace re-entry', 'ace advisory polish'])
+const CHAIN_FIX_MD = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
 const chainFixClause = (task, correctiveRound, variant, tags) => {
   const variantClause = BACKWARD_CHAIN_VARIANTS[variant]
   const examplesPointer = chainExamplesPointer(tags)
   const throughRound = CHAIN_ACE_VARIANTS.has(variant) ? correctiveRound : correctiveRound - 1
   return pt`\nBACKWARD-CHAIN FIX (corrective round ${correctiveRound}; canonical home: `
-    + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
+    + CHAIN_FIX_MD
     + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
     + pt`, which then apply to the diff.\n`
     + BACKWARD_CHAIN_FIX_RULES + '\n'
-    + chainDepthLine(correctiveRound) + pt` Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
+    + chainDepthLine(correctiveRound, CHAIN_FIX_MD) + pt` Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
     + chainDigest(task, correctiveRound, throughRound)
 }
 // The audit block: the roster-seat auditPrompt at corrective round >= 2; '' at round 1 (PIN-10).
+const CHAIN_AUDIT_MD = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-audit.md'
 const chainAuditClause = (task, correctiveRound) => {
   if (!(correctiveRound >= 2)) return ''
   return pt`\nBACKWARD-CHAIN AUDIT (corrective round ${correctiveRound}; canonical home: `
-    + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-audit.md'
+    + CHAIN_AUDIT_MD
     + pt`): this round judges a fix, so you are the classifier and the oracle — chain from the cited End state to the tip yourself before you read the fix commit body.\n`
     + BACKWARD_CHAIN_AUDIT_RULES + '\n'
-    + chainDepthLine(correctiveRound) + '\n'
+    + chainDepthLine(correctiveRound, CHAIN_AUDIT_MD) + '\n'
     + chainDigest(task, correctiveRound)
 }
 // The worker block: the work: build only.
@@ -2899,13 +2905,13 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
 // `extra` (D6): an optional pre-built prompt clause appended to every seat's prompt this round —
 // Producers are citationSoundnessClause and the pin-content re-audit charge.
 // Absent ⇒ '' ⇒ every prompt is byte-identical to a clause-less round (the intentClause pattern).
-// `correctiveRound` (backward-chain D4/PIN-10): the site's corrective round, threaded to auditPrompt;
-// absent or 1 ⇒ no backward-chain clause, so every round-1-by-definition caller stays byte-identical.
 // `rosterOverride` (#1913, D3): an optional NON-EMPTY subset of task.roster — the originating seats of a
 // footprint-subset ace diff. Absent/empty/non-array ⇒ the full task.roster, so every pre-existing caller
 // is byte-identical. `expected` is the size of the roster ACTUALLY dispatched, so allApprove still means
 // unanimity over the seats that ran; the seats that did not run have their approvals TRANSFERRED to the
 // new sha by the caller, with per-seat provenance (PIN-10).
+// `correctiveRound` (backward-chain D4/PIN-10): the site's corrective round, threaded to auditPrompt;
+// absent or 1 ⇒ no backward-chain clause, so every round-1-by-definition caller stays byte-identical.
 async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, reconciliation = {}, correctiveRound) {
   // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
   // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
@@ -3601,7 +3607,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         break
       }
       r.task.absorbRounds++                              // each subset COMMIT charges one absorb slot (D4/D5) — never fixRounds
-      chainRecordFix(r.task, chainRound, sw)   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+      chainRecordFix(r.task, chainRound, sw, 'ace')   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const subSha = sw.head_sha
       // Gate at the subset tip FIRST (PIN-12), then the delta-scaled panel (D3/PIN-10). A red gate is
@@ -3716,7 +3722,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         break
       }
       r.task.absorbRounds++                              // each re-entry COMMIT charges one absorb slot (D5) — never fixRounds
-      chainRecordFix(r.task, chainRound, rw)   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+      chainRecordFix(r.task, chainRound, rw, 'ace')   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const reSha = rw.head_sha
       const { red: reRed, died: reDied, seats: reS, expected: reE } = await aceReaudit(r, reSha, batch, rw)
@@ -3890,7 +3896,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // never-blocks-a-land invariant. A blocked/head_sha-less ace falls through to the plain merge.
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
           r.task.absorbRounds++                          // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
-          chainRecordFix(r.task, chainRound, ace)      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+          chainRecordFix(r.task, chainRound, ace, 'ace')      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
           aceSha = ace.head_sha /* the batch ace commit */
           r.reentryBase = ace.head_sha                 // re-entry preflight range anchor (PIN-15)
           // Gate at the ace tip first (PIN-12), then the delta-scaled panel with per-seat transfer

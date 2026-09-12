@@ -12507,8 +12507,9 @@ const BARE_INTERPOLATION_CENSUS = [
   // corrective-round helper's output (total: an integer >= 1 at every site); variant is a string literal at each of the seven fix-applying call
   // sites and variantClause its BACKWARD_CHAIN_VARIANTS lookup (an unknown name pt-throws loudly);
   // examplesPointer is chainExamplesPointer's string product; e.round is a recorded digest entry's
-  // round, stamped from the same helper — all construction-guaranteed.
-  'correctiveRound', 'e.round', 'examplesPointer', 'variant', 'variantClause',
+  // round, stamped from the same helper; file is chainDepthLine's reference pointer, a module-const
+  // string at both callers (CHAIN_FIX_MD, CHAIN_AUDIT_MD) — all construction-guaranteed.
+  'correctiveRound', 'e.round', 'examplesPointer', 'file', 'variant', 'variantClause',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -17048,6 +17049,8 @@ const chainDigestImpl = (round2 = [CHAIN_F2], round3 = []) => {
       return { task_id: 't1', status: 'implemented', head_sha: 'c0ffee' + n, tests: { unit: 1 },   // a hex sha, so the next round's pin repair passes
         notes: 'Outcome: End state 2\nChain: 2 <- reader <- tip\nBottleneck: the reader\nFix: round ' + n + ' guarded the reader and its sibling\nIgnore for now: the doc sentence - off every chain' }
     }
+    if (seat === 'war-worker' && /^ace:polish:t1:/.test(label))
+      return { task_id: 't1', status: 'implemented', head_sha: 'ace00002', tests: { unit: 1 }, notes: 'Fix: the ace absorbed the import nit\nIgnore for now: nothing - the absorb was the whole chain' }
     if (seat === 'war-auditor' && label.startsWith('audit:t1:')) {
       auditN++
       const findings = auditN === 1 ? [CHAIN_F1] : auditN === 2 ? round2 : null
@@ -17086,12 +17089,27 @@ test('backward-chain: fixer rules byte-equal on all seven builds', async () => {
   const code = chainCode()
   const blockSrc = code.slice(code.indexOf('const BACKWARD_CHAIN_WORKER_RULES'), code.indexOf('function auditPrompt('))
   assert.ok(!/run\.roundLimit|run\.absorbRounds/.test(blockSrc), 'the doctrine block names neither run.roundLimit nor run.absorbRounds')
+  // REFERENCE census (default-deny, the work-clause precedent): the rules constant is read by its one
+  // clause builder only, and the builder by its seven sites — a raw interpolation of either bypasses
+  // the site anchor above, so both counts are pinned on comment-stripped code.
+  assert.equal((code.match(/BACKWARD_CHAIN_FIX_RULES/g) || []).length, 2, 'BACKWARD_CHAIN_FIX_RULES: its definition and the one clause that reads it')
+  assert.equal((code.match(/chainFixClause/g) || []).length, 8, 'chainFixClause: its definition and the seven sites')
+  // CHAIN_ACE_VARIANTS (the digest-boundary set) is pinned to the fixer file: its members equal the
+  // `## Build variants` names that start with 'ace ', and each is a BACKWARD_CHAIN_VARIANTS key.
+  const setHead = 'const CHAIN_ACE_VARIANTS = new Set(['
+  const setAt = src.indexOf(setHead)
+  assert.ok(setAt >= 0, 'CHAIN_ACE_VARIANTS present')
+  const aceMembers = [...src.slice(setAt + setHead.length, src.indexOf('])', setAt)).matchAll(/'([^']+)'/g)].map(m => m[1])
+  const aceNames = variants.map(v => v[0]).filter(n => n.startsWith('ace '))
+  assert.equal(aceNames.length, 3, 'the fixer file names three ace builds (non-vacuity)')
+  assert.deepEqual(aceMembers, aceNames, "CHAIN_ACE_VARIANTS members equal the fixer file's ace build names, in order")
+  for (const m of aceMembers) assert.ok(keys.includes(m), `CHAIN_ACE_VARIANTS member is a BACKWARD_CHAIN_VARIANTS key: ${m}`)
   for (const b of await chainFixPrompts()) {
     const clause = variants.find(v => v[0] === b.variant)[1]
     assert.ok(b.prompt.includes(rules), `${b.site}: carries the fixer rule section byte-equal`)
     assert.ok(b.prompt.includes('BACKWARD-CHAIN FIX (corrective round ') && b.prompt.includes(CHAIN_FIX_POINTER), `${b.site}: names the block and the reference by its plugin-root-anchored path`)
     const n = Number(b.prompt.match(/BACKWARD-CHAIN FIX \(corrective round (\d+);/)[1])
-    assert.ok(b.prompt.includes('read the `' + CHAIN_DEPTHS[n >= 5 ? 3 : n >= 3 ? 2 : n >= 2 ? 1 : 0] + '` section'), `${b.site}: names the depth section for corrective round ${n}`)
+    assert.ok(b.prompt.includes('read the `' + CHAIN_DEPTHS[n >= 5 ? 3 : n >= 3 ? 2 : n >= 2 ? 1 : 0] + '` section of ' + CHAIN_FIX_POINTER + ' (every tier'), `${b.site}: names the depth section for corrective round ${n} and resolves it to backward-chain-fix.md on the same line`)
     assert.ok(b.prompt.includes('Build variant, ' + b.variant + ': ' + clause), `${b.site}: carries its own ## Build variants clause byte-equal`)
     assert.ok(b.prompt.includes(CHAIN_EXAMPLES_POINTER), `${b.site}: points at the examples bank`)
     assert.ok(!b.prompt.includes(workerRules) && !b.prompt.includes('BACKWARD-CHAIN WORK'), `${b.site}: carries no worker block (no site carries both)`)
@@ -17157,7 +17175,12 @@ test('backward-chain: audit rules gated on corrective round', async () => {
   // Round 2 and 3: the audit rules byte-equal, the block header, the pointer, the depth section.
   assert.ok(audits[1].includes(rules), 'the round-2 audit prompt carries the audit rule section byte-equal')
   assert.ok(audits[1].includes('BACKWARD-CHAIN AUDIT (corrective round 2; canonical home: ' + CHAIN_AUDIT_POINTER + ')'), 'the round-2 prompt names the block, the round and the reference')
-  assert.ok(audits[1].includes('read the `## Round 2` section'), 'the round-2 prompt names ## Round 2')
+  assert.ok(audits[1].includes('read the `## Round 2` section of ' + CHAIN_AUDIT_POINTER + ' (every tier'), 'the round-2 prompt names ## Round 2 and resolves it to backward-chain-audit.md on the same line')
+  // REFERENCE census (default-deny, mirroring the fixer block): the rules constant is read by its one
+  // clause builder only, and the builder by auditPrompt only.
+  const auditCode = chainCode()
+  assert.equal((auditCode.match(/BACKWARD_CHAIN_AUDIT_RULES/g) || []).length, 2, 'BACKWARD_CHAIN_AUDIT_RULES: its definition and the one clause that reads it')
+  assert.equal((auditCode.match(/chainAuditClause/g) || []).length, 2, 'chainAuditClause: its definition and the one auditPrompt site')
   assert.ok(audits[2].includes(rules) && audits[2].includes('corrective round 3') && audits[2].includes('read the `## Round 3 and later` section'), 'the round-3 prompt carries the rules and names ## Round 3 and later')
   const workerRules = chainRulesSection(chainRefMd('backward-chain-worker.md'), 'backward-chain-worker.md')
   const fixRules = chainRulesSection(chainRefMd('backward-chain-fix.md'), 'backward-chain-fix.md')
@@ -17309,6 +17332,14 @@ test('backward-chain: history digest field set', async () => {
   assert.ok(ace.prompt.includes('- round 2 audit:') && ace.prompt.includes('[Major] arm never proved red (skills/b.js) — relation: residue; upstream link: the guard added at round 1 grew an arm'), 'the ace fixer digest carries the round-2 audit row')
   assert.ok(ace.prompt.includes('- round 2 fix: Fix: round 2 guarded the reader and its sibling'), "the ace fixer digest carries the round-2 fix worker's lines")
   assert.ok(ace.prompt.includes('- round 1 audit:') && ace.prompt.includes('- round 1 fix: Fix: round 1 guarded'), 'and the round-1 rows')
+  // The ace re-audit: the in-loop round-2 fixer and the ace fixer share round 2, so the digest names the
+  // ace row apart (`ace fix:`) — the reading seat can tell which fix produced which line.
+  const aceAudits = chainAudits(aceRun.calls)
+  assert.ok(aceAudits.length === 4 && aceAudits[3].includes('corrective round 3;'), `the ace re-audit ran at corrective round 3 (presence guard) — got ${aceAudits.length}`)
+  assert.ok(aceAudits[3].includes('- round 2 fix: Fix: round 2 guarded the reader and its sibling'), 'the re-audit digest carries the in-loop round-2 fix row')
+  assert.ok(aceAudits[3].includes('- round 2 ace fix: Fix: the ace absorbed the import nit | Ignore for now: nothing - the absorb was the whole chain'), "the re-audit digest carries the ace fixer's row under its own `ace fix:` label")
+  assert.equal((aceAudits[3].match(/^- round 2 fix: /gm) || []).length, 1, 'exactly one plain round-2 fix row: the ace row never renders under the in-loop label')
+  assert.ok(!ace.prompt.includes(' ace fix:') && !fixes[1].includes(' ace fix:'), 'no ace row before an ace commit is recorded (the label is the ace record only)')
   // The index fallback: a fix-applying build with no tag read points at the bank index.
   const sweep = (await chainFixPrompts()).find(b => b.site === 'phase-close sweep')
   assert.ok(sweep.prompt.includes('no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_POINTER), 'no tag read ⇒ the fixer pointer names the index')
