@@ -2662,7 +2662,7 @@ const BACKWARD_CHAIN_VARIANTS = {
 //     task.fixRounds + task.absorbRounds, never r.round (undefined on a resume; the wave thunk seeds
 //     task.fixRounds from the audit-loop round BEFORE the ace ladder runs, so the ace-time value is the
 //     audit count and survives a relaunch). A re-audit reads one more than the fixer it judges, because
-//     the ace commit charged absorbRounds in between. A zero sum reads 1 (the 1-based floor).
+//     the ace commit charged absorbRounds in between — except at a zero sum, where the 1-based floor makes both read 1.
 //   every other site — the phase-close sweep, the terminal pass, the floor family and the pin-content
 //     re-audit: 1 by definition (no threaded audit findings, no relation tag).
 // A missing or malformed counter reads 0, so the helper is total: never NaN, never undefined.
@@ -2676,7 +2676,7 @@ const correctiveRoundOf = (site, task, round) =>
 // there and never earlier).
 const chainDepthOf = n => !(n >= 2) ? '## Round 1' : n >= 5 ? '## Round 5 and later' : n >= 3 ? '## Round 3 and later' : '## Round 2'
 // The depth sentence the fixer and the audit blocks share (one copy, interpolated at both builders).
-const chainDepthLine = n => pt`Depth: this is corrective round ${n} — read the \`${chainDepthOf(n)}\` section of that file (every tier above it still applies first).`
+const chainDepthLine = correctiveRound => pt`Depth: this is corrective round ${correctiveRound} — read the \`${chainDepthOf(correctiveRound)}\` section of that file (every tier above it still applies first).`
 // Generic marker-line reader: the first capture group of `re` in `text`, trimmed; null when absent.
 const noteLineOf = (text, re) => { const m = typeof text === 'string' ? text.match(re) : null; return m ? m[1].trim() : null }
 // Relation tag (D2, D15 — the fourth vocabulary surface): reads the `relation: <tag>` LAST line of a
@@ -2733,7 +2733,9 @@ const chainFixClause = (task, correctiveRound, variant, tags) => {
   const examplesPointer = chainExamplesPointer(tags)
   return pt`\nBACKWARD-CHAIN FIX (corrective round ${correctiveRound}; canonical home: `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
-    + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of fix-round-doctrine.md, which then apply to the diff.\n`
+    + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of `
+    + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
+    + pt`, which then apply to the diff.\n`
     + BACKWARD_CHAIN_FIX_RULES + '\n'
     + chainDepthLine(correctiveRound) + pt` Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
     + chainDigest(task, correctiveRound)
