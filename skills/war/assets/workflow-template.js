@@ -2678,8 +2678,9 @@ const chainDepthOf = n => !(n >= 2) ? '## Round 1' : n >= 5 ? '## Round 5 and la
 // Relation tag (D2, D15 — the fourth vocabulary surface): reads the `relation: <tag>` LAST line of a
 // finding's rationale; the closed alternation equals the examples bank's H2 set minus convergence (the
 // `backward-chain: relation-tag regex matches the examples H2 set` fixture extracts it from this source
-// text). A module const, never an export — the template exports only meta.
-const RELATION_TAG_RE = /(?:^|\n)relation: (sibling|residue|oracle|consumer|upstream|premise|regression|off-path)\s*$/
+// text). Leading whitespace is tolerated, mirroring upstreamLinkOf beside it (an indented rationale reads
+// both lines or neither). A module const, never an export — the template exports only meta.
+const RELATION_TAG_RE = /(?:^|\n)[ \t]*relation: (sibling|residue|oracle|consumer|upstream|premise|regression|off-path)\s*$/
 const relationTagOf = f => { const m = f && typeof f.rationale === 'string' ? f.rationale.match(RELATION_TAG_RE) : null; return m ? m[1] : null }
 const upstreamLinkOf = f => { const m = f && typeof f.rationale === 'string' ? f.rationale.match(/(?:^|\n)[ \t]*(upstream link:[^\n]*)/) : null; return m ? m[1].trim() : null }
 // History digest (D11, PIN-8, A4): threaded to the fixer and the auditor from corrective round 2 — the
@@ -2731,7 +2732,7 @@ const chainFixClause = (task, correctiveRound, variant, tags) => {
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
     + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of fix-round-doctrine.md, which then apply to the diff.\n`
     + BACKWARD_CHAIN_FIX_RULES + '\n'
-    + pt`Depth: this is corrective round ${correctiveRound} — read the \`${depthSection}\` section of that file (every tier above it still applies first). Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\n`
+    + pt`Depth: this is corrective round ${correctiveRound} — read the \`${depthSection}\` section of that file (every tier above it still applies first). Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
     + chainDigest(task, correctiveRound)
 }
 // The audit block: the roster-seat auditPrompt at corrective round >= 2; '' at round 1 (PIN-10).
@@ -4145,7 +4146,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
           // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
-          + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+          // A multi-line rationale (its `relation: <tag>` last line) rides through indentLines, and suggested_fix
+          // takes its own continuation line, so the relation line stays terminal in the row the fixer reads.
+          + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${indentLines(f.rationale ?? '')}${f.suggested_fix ? pt`\n      → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + FIX_ROUND_DOCTRINE_CLAUSE
           + chainFixClause(task, chainRound, 'FIX_NEEDED', b.map(relationTagOf))
           + taskProvenanceClause(task) + workerMemClause(task.id) + provisionClause,
