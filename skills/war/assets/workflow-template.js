@@ -2675,14 +2675,18 @@ const correctiveRoundOf = (site, task, round) =>
 // `## Round 5 and later` tier is named ONLY at a corrective round >= 5 (the End-state exit discloses
 // there and never earlier).
 const chainDepthOf = n => !(n >= 2) ? '## Round 1' : n >= 5 ? '## Round 5 and later' : n >= 3 ? '## Round 3 and later' : '## Round 2'
+// The depth sentence the fixer and the audit blocks share (one copy, interpolated at both builders).
+const chainDepthLine = n => pt`Depth: this is corrective round ${n} — read the \`${chainDepthOf(n)}\` section of that file (every tier above it still applies first).`
+// Generic marker-line reader: the first capture group of `re` in `text`, trimmed; null when absent.
+const noteLineOf = (text, re) => { const m = typeof text === 'string' ? text.match(re) : null; return m ? m[1].trim() : null }
 // Relation tag (D2, D15 — the fourth vocabulary surface): reads the `relation: <tag>` LAST line of a
 // finding's rationale; the closed alternation equals the examples bank's H2 set minus convergence (the
 // `backward-chain: relation-tag regex matches the examples H2 set` fixture extracts it from this source
 // text). Leading whitespace is tolerated, mirroring upstreamLinkOf beside it (an indented rationale reads
 // both lines or neither). A module const, never an export — the template exports only meta.
 const RELATION_TAG_RE = /(?:^|\n)[ \t]*relation: (sibling|residue|oracle|consumer|upstream|premise|regression|off-path)\s*$/
-const relationTagOf = f => { const m = f && typeof f.rationale === 'string' ? f.rationale.match(RELATION_TAG_RE) : null; return m ? m[1] : null }
-const upstreamLinkOf = f => { const m = f && typeof f.rationale === 'string' ? f.rationale.match(/(?:^|\n)[ \t]*(upstream link:[^\n]*)/) : null; return m ? m[1].trim() : null }
+const relationTagOf = f => noteLineOf(f && f.rationale, RELATION_TAG_RE)
+const upstreamLinkOf = f => noteLineOf(f && f.rationale, /(?:^|\n)[ \t]*(upstream link:[^\n]*)/)
 // History digest (D11, PIN-8, A4): threaded to the fixer and the auditor from corrective round 2 — the
 // audit log is in-memory until phase return, so this is the fixer's only view of history. Per prior
 // round: each blocker's title, file, severity, relation tag and upstream link line, and the fix worker's
@@ -2694,7 +2698,6 @@ const upstreamLinkOf = f => { const m = f && typeof f.rationale === 'string' ? f
 // loop wrote. Formatting is Mechanism latitude.
 const chainByTask = new Map()
 const chainOf = id => { if (!chainByTask.has(id)) chainByTask.set(id, { criticalPath: null, entries: [], survivors: new Set() }); return chainByTask.get(id) }
-const noteLineOf = (notes, re) => { const m = typeof notes === 'string' ? notes.match(re) : null; return m ? m[1].trim() : null }
 const fixLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Fix:[^\n]*)/)
 const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[^\n]*)/)
 const criticalPathOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Critical path:[\s\S]*?(?:\n[ \t]*Ignore for now:[^\n]*|$))/)
@@ -2717,33 +2720,32 @@ const chainDigest = (task, correctiveRound) => {
 }
 // Examples pointer (D16): the fixer reads the bank section for each relation tag read on the threaded
 // findings, or the bank's index and self-selects when no tag was read.
+const CHAIN_EXAMPLES_MD = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-examples.md'
 const chainExamplesPointer = tags => {
   const read = [...new Set((tags || []).filter(Boolean))]
   return read.length
-    ? 'read ' + read.map(t => '`## ' + t + '`').join(' and ') + ' of ' + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-examples.md' + ' (the sections the threaded relation tags name)'
-    : 'no relation tag was read on the threaded findings — read the index at the top of ' + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-examples.md' + ' and self-select'
+    ? 'read ' + read.map(t => '`## ' + t + '`').join(' and ') + ' of ' + CHAIN_EXAMPLES_MD + ' (the sections the threaded relation tags name)'
+    : 'no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_MD + ' and self-select'
 }
 // The fixer block: the seven fix-applying builds interpolate this and nothing else of the doctrine.
 const chainFixClause = (task, correctiveRound, variant, tags) => {
-  const depthSection = chainDepthOf(correctiveRound)
   const variantClause = BACKWARD_CHAIN_VARIANTS[variant]
   const examplesPointer = chainExamplesPointer(tags)
   return pt`\nBACKWARD-CHAIN FIX (corrective round ${correctiveRound}; canonical home: `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
     + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of fix-round-doctrine.md, which then apply to the diff.\n`
     + BACKWARD_CHAIN_FIX_RULES + '\n'
-    + pt`Depth: this is corrective round ${correctiveRound} — read the \`${depthSection}\` section of that file (every tier above it still applies first). Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
+    + chainDepthLine(correctiveRound) + pt` Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
     + chainDigest(task, correctiveRound)
 }
 // The audit block: the roster-seat auditPrompt at corrective round >= 2; '' at round 1 (PIN-10).
 const chainAuditClause = (task, correctiveRound) => {
   if (!(correctiveRound >= 2)) return ''
-  const depthSection = chainDepthOf(correctiveRound)
   return pt`\nBACKWARD-CHAIN AUDIT (corrective round ${correctiveRound}; canonical home: `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-audit.md'
     + pt`): this round judges a fix, so you are the classifier and the oracle — chain from the cited End state to the tip yourself before you read the fix commit body.\n`
     + BACKWARD_CHAIN_AUDIT_RULES + '\n'
-    + pt`Depth: this is corrective round ${correctiveRound} — read the \`${depthSection}\` section of that file (every tier above it still applies first).\n`
+    + chainDepthLine(correctiveRound) + '\n'
     + chainDigest(task, correctiveRound)
 }
 // The worker block: the work: build only.
@@ -4147,7 +4149,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
           // A multi-line rationale (its `relation: <tag>` last line) rides through indentLines, and suggested_fix
-          // takes its own continuation line, so the relation line stays terminal in the row the fixer reads.
+          // takes its own continuation line, so the relation line stays the rationale's own last line, never
+          // merged into the suggested_fix line.
           + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${indentLines(f.rationale ?? '')}${f.suggested_fix ? pt`\n      → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + FIX_ROUND_DOCTRINE_CLAUSE
           + chainFixClause(task, chainRound, 'FIX_NEEDED', b.map(relationTagOf))
