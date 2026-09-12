@@ -763,6 +763,50 @@ _Avoid_: `Promise.all` (the live `parallel` NULLS a rejected thunk — the #742 
 wall-clock pacing guarantee (the ceiling bounds concurrency, nothing more); a per-site cap (nested
 sites multiply — issue #1897, the reason there is one counter).
 
+### Backward-chain doctrine (ADR 0052)
+
+**Corrective round**:
+Any round that changes code after an audit: a FIX_NEEDED fix round or an ace charge, counted
+1-based per site (fix rounds + ace charges spent; the first audit and the first fix dispatch are
+round 1, the first post-fix re-audit is round 2). The phase-close sweep, the terminal pass, the
+floor family and the pin-content re-audit are round 1 by definition (no threaded findings). It keys
+the depth section each role reads and the round-5 End-state exit
+([ADR 0052](docs/adr/0052-backward-chain-doctrine-and-corrective-round-disclosure.md)).
+_Avoid_: `fixRounds` alone (it misses the ace ladder); reading `r.round` at an ace site (undefined
+on a resume); the run budgets `run.roundLimit` / `run.absorbRounds` as an input (a safety bound).
+
+**Relation tag**:
+The roster seat's one-word classification, from corrective round 2, of how a new blocker relates
+to the last fix, written as `relation: <tag>` on the LAST line of a blocking finding's `rationale`
+after its `upstream link:` line. The closed tag set is canonical in
+`skills/war/references/backward-chain-audit.md` `## The rules` and bound to the fixer's Round 2
+table, the examples bank's H2 list and the engine regex by one guard; it selects the fixer's first
+move and the examples section it reads.
+_Avoid_: a fifth restatement of the tag set; a second tag line; a tag at round 1 (no fix to relate
+to); a schema field (the tag rides `rationale`).
+
+**Critical path block**:
+The worker's or the plan's numbered backward chain from the finish line to the tip: each link a
+condition with a done test, exactly one link marked as the bottleneck (the earliest unmet link).
+The worker writes `Critical path:` then `Ignore for now:` into `WorkerResult.notes` (shape:
+`backward-chain-worker.md` `## Chunk shape`); the plan author writes one line per End state in Part
+1 (placement latitude, never under `## Build order`; `backward-chain-plan.md`). The fixer's
+counterpart is the commit-body block `Outcome:` `Chain:` `Bottleneck:` `Fix:` `Ignore for now:`,
+echoed into `notes`.
+_Avoid_: a new schema field or plan H2; a link without a done test (a guess, not a link); reading
+the block as evidence (the seat runs its own chain and diffs the two).
+
+**History digest**:
+The compact per-round record the engine builds from the in-memory audit log and threads to the
+fixer and the roster seat from corrective round 2: per prior round, each blocker's title, file,
+severity, relation tag and `upstream link:` line; the fix worker's `Fix:` and `Ignore for now:`
+lines from its result `notes`; one line for the task under fix with its relation-tag sequence by
+round; the worker's round-1 `Critical path:` block; full `rationale` + `suggested_fix` for the
+survival-registry blockers only. The audit log is in memory until phase return, so the digest is
+the fixer's only view of history. Formatting is latitude.
+_Avoid_: a line per phase task; reading a commit body (the Workflow sandbox has no git); threading
+it at round 1 (round-1 prompts stay byte-identical, PIN-10).
+
 ### Diagnosis discipline
 
 **self-confound gate**:
