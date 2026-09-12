@@ -35,7 +35,7 @@ The markers are self-reports. The auditor runs its own chain from the cited End 
 
 ## Round 2
 
-The prompt carries the threaded prior round: the history digest (each prior blocker's title, file, severity, `relation:` tag and `upstream link:` line; your own prior `Fix:` and `Ignore for now:` lines; the task's relation-tag sequence; the worker's `Critical path:` block) and the full text of the survival-registry blockers.
+Everything above still applies first. The prompt carries the threaded prior round: the history digest (each prior blocker's title, file, severity, `relation:` tag and `upstream link:` line; your own prior `Fix:` and `Ignore for now:` lines; the task's relation-tag sequence; the worker's `Critical path:` block) and the full text of the survival-registry blockers.
 
 Re-run the chain from the outcome before you read the new findings. Do not start from the prior fix. Then read each new finding's `relation:` tag, the auditor's classification of how the new blocker relates to your last fix, and take the first move for that tag:
 
@@ -54,7 +54,7 @@ The `## Worked examples` section below points at the examples bank by the same t
 
 ## Round 3 and later
 
-The prompt carries the threaded history: every prior round's digest lines and the relation-tag sequence for this task, in order.
+Everything above still applies first. The prompt carries the threaded history: every prior round's digest lines and the relation-tag sequence for this task, in order.
 
 A class that re-opens one hop per round (sibling, then residue, then consumer, on the same construct) is a shape signal. It says the fix has been landing at the named site and the chain's earliest unmet link is still open. It is never an escalation (PIN-11). Three moves, in order:
 
