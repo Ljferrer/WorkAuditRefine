@@ -12,7 +12,7 @@
 - `## convergence`: what one round to unanimity looked like.
 - `## Growth rules`: how an entry joins this file.
 
-The nine H2s between `## Entry shape` and `## Growth rules` equal the relation-tag vocabulary byte for byte (sibling, residue, oracle, consumer, upstream, premise, regression, off-path) plus `## convergence`. The reading rule for a fixer: no tag in the threaded findings ⇒ read the index above and self-select; N tags ⇒ read the N sections. WAR entries cite an issue and a comment. Every external private entry carries `Source: external (private), abstracted` and no repo name, number or infrastructure detail (PIN-9).
+The nine H2s between `## Entry shape` and `## Growth rules` equal the relation-tag vocabulary byte for byte (sibling, residue, oracle, consumer, upstream, premise, regression, off-path) plus `## convergence`. The reading rule for a fixer: no tag in the threaded findings ⇒ read the index above and self-select; N tags ⇒ read the N sections. WAR entries cite an issue and its comment or section. Every external private entry carries `Source: external (private), abstracted` and no repo name, number or infrastructure detail (PIN-9).
 
 ## Entry shape
 
@@ -279,7 +279,7 @@ Closure: The doctrine in the prompt before the first fix round, not in the retro
 ## Growth rules
 
 - An entry joins this file by a reviewed PR, or by the Lead's Gate-2 commit when `memory.commitLearnings` is on. The servitor never writes this file (PIN-7); a lesson the servitor records lives in `docs/learnings/` and may be promoted here by a person.
-- Every new entry gets a manual redaction check before it lands: no repo name, number, path, hostname or infrastructure detail from a private source; WAR entries keep their issue and comment.
+- Every new entry gets a manual redaction check before it lands: no repo name, number, path, hostname or infrastructure detail from a private source; WAR entries keep their issue and its comment or section.
 - An entry carries every field in `## Entry shape`; a slug never encodes a private source.
 - One H2 per relation tag plus `## convergence`; a new tag is an engine change, never a file edit alone.
 - #2302 is the size watch: when a section outgrows a one-section read, the classifier subagent question reopens there.

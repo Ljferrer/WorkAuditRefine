@@ -90,7 +90,7 @@ The seven fix-applying builds, each with its own variant clause on top of the ru
 
 ## Worked examples
 
-Read [backward-chain-examples.md](backward-chain-examples.md) by tag. Every entry there is abstracted: WAR entries cite an issue and comment, external private entries carry no repo name, number or infrastructure detail (PIN-9).
+Read [backward-chain-examples.md](backward-chain-examples.md) by tag. Every entry there is abstracted: WAR entries cite an issue and its comment or section, external private entries carry no repo name, number or infrastructure detail (PIN-9).
 
 - sibling: `## sibling` — the eight-round dedup lookup, the four-of-five warning sweep.
 - residue: `## residue` — the three rewords against a byte budget, the fixture that never rejected.
