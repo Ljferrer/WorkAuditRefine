@@ -39,9 +39,10 @@ reference file, its home under ADR 0042's hot/cold law:
 [backward-chain-audit.md](../../skills/war/references/backward-chain-audit.md),
 [backward-chain-fix.md](../../skills/war/references/backward-chain-fix.md). The fifth file,
 [backward-chain-examples.md](../../skills/war/references/backward-chain-examples.md), is the
-examples bank: one H2 per relation tag plus `## convergence`, each entry abstracted (D12, PIN-9:
-an external private source lands as `Source: external (private), abstracted`, with no repo name,
-number or infrastructure detail). Only the worker, audit and fixer files carry a `## The rules`
+examples bank: tag H2s (the nine between `## Entry shape` and `## Growth rules`, the eight tags
+plus `## convergence`), each entry abstracted (D12, PIN-9: an external private source lands as
+`Source: external (private), abstracted`, with no repo name, number or infrastructure detail).
+Only the worker, audit and fixer files carry a `## The rules`
 block. Each block rides its dispatched prompt byte-equal, pinned by a fixture in
 `workflow-template.test.mjs`. The plan-author file rides no prompt and is read by pointer at its
 two sites. The examples bank and every other section are read by pointer. The five skeletons
@@ -93,8 +94,9 @@ From corrective round 2 the roster seat writes exactly one line `relation: <tag>
 the last line of every blocking finding's `rationale`, preceded by an `upstream link:` line naming
 the link on its own chain the new blocker descends from. The tag is one of a closed set. That set
 is canonical in the audit file's `## The rules` and equal, byte for byte, across four surfaces
-(D15): the audit rules block, the fixer file's Round 2 first-move table, the examples bank's H2
-list (plus `## convergence`) and the engine's `relation:` regex in `workflow-template.js`. Two
+(D15): the audit rules block, the fixer file's Round 2 first-move table, the examples bank's tag
+H2s (the nine between `## Entry shape` and `## Growth rules`, the eight tags plus `## convergence`)
+and the engine's `relation:` regex in `workflow-template.js`. Two
 guards bind the four: the skeleton guard `backward-chain.test.mjs` binds the three file surfaces,
 and a fixture in `workflow-template.test.mjs` binds the engine regex to them. This record does not
 restate the list, so it owes no guard. The tag selects the fixer's first move and the examples
