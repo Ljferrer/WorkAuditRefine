@@ -2676,9 +2676,8 @@ const correctiveRoundOf = (site, task, round) =>
 // there and never earlier).
 const chainDepthOf = n => !(n >= 2) ? '## Round 1' : n >= 5 ? '## Round 5 and later' : n >= 3 ? '## Round 3 and later' : '## Round 2'
 // The depth sentence the fixer and the audit blocks share (one copy, interpolated at both builders);
-// `refMd` is the caller's own reference pointer, so the section named resolves to the file that carries it
-// (named refMd, not the bare generic `file`, so the bare-interpolation census default-deny list never admits a span keyed on the generic name).
-const chainDepthLine = (correctiveRound, refMd) => pt`Depth: this is corrective round ${correctiveRound} — read the \`${chainDepthOf(correctiveRound)}\` section of ${refMd} (every tier above it still applies first).`
+// `file` is the caller's own reference pointer, so the section named resolves to the file that carries it.
+const chainDepthLine = (correctiveRound, file) => pt`Depth: this is corrective round ${correctiveRound} — read the \`${chainDepthOf(correctiveRound)}\` section of ${file} (every tier above it still applies first).`
 // Generic marker-line reader: the first capture group of `re` in `text`, trimmed; null when absent.
 const noteLineOf = (text, re) => { const m = typeof text === 'string' ? text.match(re) : null; return m ? m[1].trim() : null }
 // Relation tag (D2, D15 — the fourth vocabulary surface): reads the `relation: <tag>` LAST line of a
@@ -3502,10 +3501,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (!gate.green) return { red: true, died: null, seats: [], expected: 0 }
     const prior = (r.seats || []).slice()
     const scope = aceScope(r, w, findings)
-    // Corrective round (D4, PIN-5): an ace re-audit reads task.fixRounds + task.absorbRounds, never r.round —
-    // the same expression as the fixer it judges, one higher whenever the sum is non-zero because the ace
-    // commit charged absorbRounds in between (at a zero sum the 1-based floor makes both read 1; see
-    // correctiveRoundOf).
+    // Corrective round (D4, PIN-5): an ace re-audit reads task.fixRounds + task.absorbRounds (the ace commit
+    // just charged absorbRounds, so it reads one more than the fixer it judges), never r.round.
     const chainRound = correctiveRoundOf('ace', r.task)
     const { seats, expected, died } = await auditRound(r.task, null, null, sha,
       citationSoundnessClause(findings) + aceScopeClause(scope, w, r, sha), scope.roster, {}, chainRound)

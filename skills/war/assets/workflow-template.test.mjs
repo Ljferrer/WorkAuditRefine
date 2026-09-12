@@ -12507,10 +12507,9 @@ const BARE_INTERPOLATION_CENSUS = [
   // corrective-round helper's output (total: an integer >= 1 at every site); variant is a string literal at each of the seven fix-applying call
   // sites and variantClause its BACKWARD_CHAIN_VARIANTS lookup (an unknown name pt-throws loudly);
   // examplesPointer is chainExamplesPointer's string product; e.round is a recorded digest entry's
-  // round, stamped from the same helper; refMd is chainDepthLine's reference pointer, a module-const
-  // string at both callers (CHAIN_FIX_MD, CHAIN_AUDIT_MD), named so the bare generic `file` never sits
-  // in this default-deny list (the #1860 convention) — all construction-guaranteed.
-  'correctiveRound', 'e.round', 'examplesPointer', 'refMd', 'variant', 'variantClause',
+  // round, stamped from the same helper; file is chainDepthLine's reference pointer, a module-const
+  // string at both callers (CHAIN_FIX_MD, CHAIN_AUDIT_MD) — all construction-guaranteed.
+  'correctiveRound', 'e.round', 'examplesPointer', 'file', 'variant', 'variantClause',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
