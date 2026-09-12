@@ -19987,3 +19987,12 @@ for (const field of ['source_tip', 'patch_id', 'content_id']) for (const lost of
   assert.equal(out.landDecision, 'held:workflow-error')
   assert.ok(!calls.some(c => c.opts.label === 'merge:t1:environment-proceed'))
 })
+
+// Hotfix (2026-09-11, run a4511fb9 phase 1): the PIN TRANSFER GIT VERIFICATION prompt named "exact origin
+// remote_sha" without naming the ref; on a first merge with no origin integration ref the refiner returned
+// the TASK branch's pushed tip, and verifyPinTransfer's remote_sha equality threw a false hard halt.
+test('pin-confirm prompt names the integration branch origin ref for remote_sha, never the task tip', () => {
+  const src = readFileSync(new URL('./workflow-template.js', import.meta.url), 'utf8')
+  assert.ok(src.includes('the exact origin refs/heads/<integration branch> remote_sha (the integration branch\'s own origin ref, NEVER the task branch\'s pushed tip'), 'the pin-confirm prompt must name refs/heads/<integration branch> as the remote_sha source')
+  assert.ok(!src.includes('and exact origin remote_sha (null ONLY'), 'the ref-ambiguous phrase must not return')
+})
