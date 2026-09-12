@@ -12504,8 +12504,7 @@ const BARE_INTERPOLATION_CENSUS = [
   // The pin-content comparison runs only after verifyPinTransfer proves these full Git SHAs.
   'pinProof.content_sha', 'pinProof.dispatch_base', 'pinProof.head_sha',
   // Backward-chain doctrine (2026-09-11-backward-chain-doctrine Task 2.1): correctiveRound is the
-  // corrective-round helper's output (total: an integer >= 1 at every site); n is chainDepthLine's parameter,
-  // the same helper output passed through; variant is a string literal at each of the seven fix-applying call
+  // corrective-round helper's output (total: an integer >= 1 at every site); variant is a string literal at each of the seven fix-applying call
   // sites and variantClause its BACKWARD_CHAIN_VARIANTS lookup (an unknown name pt-throws loudly);
   // examplesPointer is chainExamplesPointer's string product; e.round is a recorded digest entry's
   // round, stamped from the same helper — all construction-guaranteed.
@@ -17037,7 +17036,8 @@ const CHAIN_F4 = { severity: 'Major', title: 'sibling site left unswept', file: 
   rationale: 'the sibling push site keeps the old shape\nupstream link: the round-1 guard covered one push site\nrelation: sibling' }
 const CHAIN_F5 = { severity: 'Major', title: 'second oracle shares the code under test', file: 'skills/e.js', suggested_fix: 'give the mirror fixture its own oracle',
   rationale: 'the mirror fixture reads the same helper\nupstream link: the mirror fixture copied the first\nrelation: oracle' }
-const chainDigestImpl = (round2 = [CHAIN_F2]) => {
+// round3: the third audit's APPROVING findings (absorbs; [] ⇒ a clean approve) — an absorb here reaches the batch ace fixer.
+const chainDigestImpl = (round2 = [CHAIN_F2], round3 = []) => {
   let auditN = 0
   return (prompt, opts) => {
     const seat = seatOf(opts), label = opts.label || ''
@@ -17052,7 +17052,7 @@ const chainDigestImpl = (round2 = [CHAIN_F2]) => {
       auditN++
       const findings = auditN === 1 ? [CHAIN_F1] : auditN === 2 ? round2 : null
       return findings ? { seat: label, lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings }
-        : { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+        : { seat: label, lens: 'correctness', verdict: 'approve', findings: auditN === 3 ? round3 : [], confidence: 'high' }
     }
     return defaultImpl(prompt, opts)
   }
@@ -17116,8 +17116,9 @@ test('backward-chain: worker rules byte-equal on the work build only', async () 
   // the rules constant is read by that clause alone (definition + one reference in comment-stripped code).
   assert.equal((src.match(/\n[ ]*\+ BACKWARD_CHAIN_WORK_CLAUSE,\n/g) || []).length, 1, 'BACKWARD_CHAIN_WORK_CLAUSE is interpolated at exactly one site')
   assert.match(src, /\+ BACKWARD_CHAIN_WORK_CLAUSE,\n[ ]*\{ agentType: NS \+ 'war-worker', phase: 'Work', label: `work:\$\{task\.id\}`/, 'that site is the work: build')
-  assert.equal((chainCode().match(/BACKWARD_CHAIN_WORKER_RULES/g) || []).length, 2, 'BACKWARD_CHAIN_WORKER_RULES: its definition and the one clause that reads it')
-  assert.equal((chainCode().match(/BACKWARD_CHAIN_WORK_CLAUSE/g) || []).length, 2, 'BACKWARD_CHAIN_WORK_CLAUSE: its definition and the one site that interpolates it')
+  const code = chainCode()
+  assert.equal((code.match(/BACKWARD_CHAIN_WORKER_RULES/g) || []).length, 2, 'BACKWARD_CHAIN_WORKER_RULES: its definition and the one clause that reads it')
+  assert.equal((code.match(/BACKWARD_CHAIN_WORK_CLAUSE/g) || []).length, 2, 'BACKWARD_CHAIN_WORK_CLAUSE: its definition and the one site that interpolates it')
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const w1 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t1')
   assert.ok(w1 && w1.prompt, 'the work: build dispatched (presence guard)')
@@ -17256,6 +17257,12 @@ test('backward-chain: corrective-round helper and round-5 gate', async () => {
   const ace5 = seed5.calls.find(c => /^ace:polish:t1:/.test(c.opts.label || ''))
   assert.ok(ace5 && ace5.prompt.includes('corrective round 5;') && ace5.prompt.includes('read the `## Round 5 and later` section'), 'the fixer pointer names ## Round 5 and later at corrective round 5')
   assert.ok(!ace4.prompt.includes('## Round 5 and later'), 'and not at corrective round 4 (iff)')
+  // The ace subset and the ace re-entry sites: seed 3, the batch ace charges one more, so each reads 4 and
+  // names ## Round 3 and later (a value assertion, never the prompt's own header read back).
+  const sub4 = (await runPhase(ACE_ARGS(), withBarrier({ ok: true, absorbCharges: { t1: 3 } }, bisectSubsetImpl()))).calls.find(c => /^ace:subset:t1:/.test(c.opts.label || ''))
+  assert.ok(sub4 && sub4.prompt.includes('corrective round 4;') && sub4.prompt.includes('read the `## Round 3 and later` section'), 'the ace subset on a seeded task reads fixRounds 0 + absorbRounds 4 (seed 3 + the batch charge)')
+  const re4b = (await runPhase(ACE_ARGS(), withBarrier({ ok: true, absorbCharges: { t1: 3 } }, reentryImpl()))).calls.find(c => /^ace:reentry:t1:/.test(c.opts.label || ''))
+  assert.ok(re4b && re4b.prompt.includes('corrective round 4;') && re4b.prompt.includes('read the `## Round 3 and later` section'), 'the ace re-entry on a seeded task reads fixRounds 0 + absorbRounds 4 (seed 3 + the batch charge)')
 })
 
 test('backward-chain: history digest field set', async () => {
@@ -17293,6 +17300,15 @@ test('backward-chain: history digest field set', async () => {
   assert.ok(!a3.includes('rationale: ' + chainIndented(CHAIN_F1.rationale)) && !a3.includes('suggested_fix: ' + CHAIN_F1.suggested_fix), 'the round-1 blocker has left the registry: one-liner only')
   assert.ok(a3.includes('- round 2 fix: Fix: round 2 guarded the reader and its sibling'), "the round-2 fix worker's lines")
   assert.ok(a3.includes('Relation sequence for t1: r1 [sibling] → r2 [residue]'), 'the sequence at round 3')
+  // Ace arm: two fix rounds then an absorb at the third audit. The ace fixer reads corrective round 2
+  // (fixRounds 2 + absorbRounds 0), the same number the loop stamped on its last audit + fix pair, so
+  // its digest runs THROUGH round 2: the round-2 audit and fix rows ride, never dropped as "current".
+  const aceRun = await runPhase(ACE_ARGS(), chainDigestImpl([CHAIN_F2], [nit()]))
+  const ace = aceRun.calls.find(c => /^ace:polish:t1:/.test(c.opts.label || ''))
+  assert.ok(ace && ace.prompt.includes('corrective round 2;'), 'the batch ace after two fix rounds reads corrective round 2 (presence guard)')
+  assert.ok(ace.prompt.includes('- round 2 audit:') && ace.prompt.includes('[Major] arm never proved red (skills/b.js) — relation: residue; upstream link: the guard added at round 1 grew an arm'), 'the ace fixer digest carries the round-2 audit row')
+  assert.ok(ace.prompt.includes('- round 2 fix: Fix: round 2 guarded the reader and its sibling'), "the ace fixer digest carries the round-2 fix worker's lines")
+  assert.ok(ace.prompt.includes('- round 1 audit:') && ace.prompt.includes('- round 1 fix: Fix: round 1 guarded'), 'and the round-1 rows')
   // The index fallback: a fix-applying build with no tag read points at the bank index.
   const sweep = (await chainFixPrompts()).find(b => b.site === 'phase-close sweep')
   assert.ok(sweep.prompt.includes('no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_POINTER), 'no tag read ⇒ the fixer pointer names the index')
