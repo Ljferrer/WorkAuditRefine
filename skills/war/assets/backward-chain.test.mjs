@@ -20,9 +20,10 @@
 //   * the round-5 disclosure sentence on both depth files (PIN-3), and the PIN-2 absence of
 //     `run.roundLimit` / `run.absorbRounds` from every file.
 //
-// Every check carries positive controls: the five files are copied into a temp dir, ONE file is
-// mutated, and the same check must go red on the copy with the message the control names. A
-// no-op mutation is itself red, and a census pins that every check has at least one control.
+// Every assertion carries a positive control: the five files are copied into a temp dir, ONE file
+// is mutated, and the same check must go red on the copy with the message the control names. A
+// no-op mutation is itself red, and a census pins that every assertion in CHECKS is reached by at
+// least one control (ASSERTIONS below lists the message stems, count-locked to the assert sites).
 //
 // Growth (D16): a seed entry joins the bank by reviewed PR (or the Lead's Gate-2 commit), and
 // the same change updates SEEDS below — the bank and its guard stay one reviewed change.
@@ -328,7 +329,6 @@ const CHECKS = {
     const bank = h2s(c.examples)
     const between = bank.slice(bank.indexOf('Entry shape') + 1, bank.indexOf('Growth rules'))
     assert.deepEqual(between, BANK_H2S, `${FILES.examples}: the H2s between Entry shape and Growth rules equal the vocabulary plus convergence`)
-    assert.deepEqual(between.filter((h) => h !== 'convergence'), TAGS, `${FILES.examples}: the H2 set minus convergence equals the vocabulary`)
     // In-file mirrors: the bank's preamble enumeration and the fixer's Worked-examples pointer list.
     const preamble = unfenced(sections(c.examples)[0]).join('\n')
     const m2 = preamble.match(/vocabulary byte for byte \(([a-z, -]+)\) plus `## convergence`/)
@@ -398,17 +398,26 @@ const CONTROLS = [
   { check: 'examples index: one line per H2, in H2 order, opening the file', file: 'examples', name: 'examples index: swap two lines', mutate: (t) => swap(t, '\n- `## sibling`:', '\n- `## residue`:'), red: /the index names every H2, one line each, in H2 order/ },
   { check: 'examples index: one line per H2, in H2 order, opening the file', file: 'examples', name: 'examples index: a paragraph before the index', mutate: (t) => t.replace('\n\n- `## Entry shape`:', '\n\nA preamble paragraph before the index.\n\n- `## Entry shape`:'), red: /opens with the index/ },
   { check: 'examples index: one line per H2, in H2 order, opening the file', file: 'examples', name: 'examples index: a line for an H2 that does not exist', mutate: (t) => t.replace('\n- `## Growth rules`:', '\n- `## Retired`: nothing here.\n- `## Growth rules`:'), red: /the index names every H2, one line each, in H2 order/ },
+  { check: 'examples index: one line per H2, in H2 order, opening the file', file: 'examples', name: 'examples index: the H1 is deleted', mutate: (t) => t.replace('# Backward-chain examples bank\n\n', ''), red: /backward-chain-examples\.md: H1 present/ },
+  { check: 'examples index: one line per H2, in H2 order, opening the file', file: 'examples', name: 'examples index: the oracle line separator is " - ", not ": "', mutate: (t) => t.replace('\n- `## oracle`: a test', '\n- `## oracle` - a test'), red: /backward-chain-examples\.md: index line has the shape/ },
   // entry shape
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: the template drops Closure:', mutate: (t) => t.replace('\nClosure: <the change that closed the class, in one sentence>\n', '\n'), red: /## Entry shape: the template carries the recorded fields in order/ },
-  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: an entry drops Closure:', mutate: (t) => t.replace('\nClosure: One shared lookup in the absorb tail, both sinks, before any push, `phaseClose:true` wins.\n', '\n'), red: /entry eight-rounds-to-one-lookup: carries the template fields in template order/ },
-  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: Roles above Source', mutate: (t) => t.replace('Source: #2097, §2 Thread B (the post-land loop on PR #2065)\nRoles: fixer, auditor\n', 'Roles: fixer, auditor\nSource: #2097, §2 Thread B (the post-land loop on PR #2065)\n'), red: /entry eight-rounds-to-one-lookup: carries the template fields in template order/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: a second fenced block under ## Entry shape', mutate: (t) => t.replace('Closure: <the change that closed the class, in one sentence>\n```\n', 'Closure: <the change that closed the class, in one sentence>\n```\n\n```\nA second template.\n```\n'), red: /## Entry shape: exactly one fenced template/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: the template opens with "### slug", no angle brackets', mutate: (t) => t.replace('```\n### <slug>\n', '```\n### slug\n'), red: /## Entry shape: the template opens with "### <slug>"/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: the template carries two placeholder lines', mutate: (t) => t.replace('<three to five sentences that abstract the instance: what was fixed, what re-opened, where the earliest unmet link was>\n', '<three to five sentences that abstract the instance: what was fixed, what re-opened, where the earliest unmet link was>\n<a second placeholder line>\n'), red: /## Entry shape: one abstracting-sentences placeholder between the lesson and the questions/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: the placeholder names two to four sentences', mutate: (t) => t.replace('<three to five sentences that abstract', '<two to four sentences that abstract'), red: /## Entry shape: the placeholder names three to five sentences/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: an entry drops Closure: (red at the fields-in-order assert)', mutate: (t) => t.replace('\nClosure: One shared lookup in the absorb tail, both sinks, before any push, `phaseClose:true` wins.\n', '\n'), red: /entry eight-rounds-to-one-lookup: carries the template fields in template order/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: Roles above Source (red at the fields-in-order assert)', mutate: (t) => t.replace('Source: #2097, §2 Thread B (the post-land loop on PR #2065)\nRoles: fixer, auditor\n', 'Roles: fixer, auditor\nSource: #2097, §2 Thread B (the post-land loop on PR #2065)\n'), red: /entry eight-rounds-to-one-lookup: carries the template fields in template order/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: a stray line between Source and Roles', mutate: (t) => t.replace('Source: #2097, §2 Thread B (the post-land loop on PR #2065)\nRoles: fixer, auditor\n', 'Source: #2097, §2 Thread B (the post-land loop on PR #2065)\nA stray line.\nRoles: fixer, auditor\n'), red: /entry eight-rounds-to-one-lookup: Source, Roles and the bold lesson are the first three lines/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: a stray line after Closure', mutate: (t) => t.replace('\nClosure: One shared lookup in the absorb tail, both sinks, before any push, `phaseClose:true` wins.\n', '\nClosure: One shared lookup in the absorb tail, both sinks, before any push, `phaseClose:true` wins.\nA stray line.\n'), red: /entry eight-rounds-to-one-lookup: Questions to ask and Closure are the last two lines/ },
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: an unknown role', mutate: (t) => t.replace('\nRoles: fixer, auditor\n**A dedup rule', '\nRoles: fixer, operator\n**A dedup rule'), red: /entry eight-rounds-to-one-lookup: Roles names one or more of/ },
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: an external entry leaks an issue number (PIN-9)', mutate: (t) => t.replace('The seat named four warnings; the fixer scrubbed exactly those four.', 'The seat (#4242) named four warnings; the fixer scrubbed exactly those four.'), red: /entry swept-the-four-warnings-the-function-had-five: an external private entry carries no issue number, PR number or URL \(PIN-9\)/ },
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: an external Source loses ", abstracted"', mutate: (t) => t.replace('### too-few-sibling-branches\nSource: external (private), abstracted\n', '### too-few-sibling-branches\nSource: external (private)\n'), red: /entry too-few-sibling-branches: Source is a WAR issue or PR/ },
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: a two-sentence abstract', mutate: (t) => t.replace("A parser fix touched one module and its test file. The fixer stated the class, swept the module's own branches, and shipped eight regression fixtures, five of them red before the repair. Two rounds were budgeted; the second found only Nits. The chain had one link and the file boundary matched it.", 'A parser fix touched one module and its test file. The chain had one link and the file boundary matched it.'), red: /entry one-round-one-file: three to five abstracting sentences \(counted 2\)/ },
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: a slug that is not kebab-case', mutate: (t) => t.replace('### one-round-one-file', '### One_Round_One_File'), red: /entry One_Round_One_File: slug is kebab-case/ },
   { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: a duplicate slug', mutate: (t) => t.replace('### eight-file-disjoint-tasks', '### one-round-one-file'), red: /## convergence entry one-round-one-file: slug is unique across the bank/ },
-  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: the lesson line is not bold', mutate: (t) => t.replace('**A change confined to one file, with its fixtures beside it, converged in one round.**', 'A change confined to one file, with its fixtures beside it, converged in one round.'), red: /entry one-round-one-file: carries the template fields in template order/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: the lesson line carries text after the bold sentence', mutate: (t) => t.replace('**A change confined to one file, with its fixtures beside it, converged in one round.**', '**A change confined to one file, with its fixtures beside it, converged in one round.** Extra.'), red: /entry one-round-one-file: the lesson is one bold sentence/ },
+  { check: 'entry shape: template fields, every entry against them, PIN-9 redaction', file: 'examples', name: 'entry shape: an entry with no abstracting sentences', mutate: (t) => t.replace("A parser fix touched one module and its test file. The fixer stated the class, swept the module's own branches, and shipped eight regression fixtures, five of them red before the repair. Two rounds were budgeted; the second found only Nits. The chain had one link and the file boundary matched it.\n", ''), red: /entry one-round-one-file: abstracting sentences present between the lesson and the questions/ },
   // seed slugs
   { check: 'seed-entry slugs per section, exact and ordered', file: 'examples', name: 'seeds: rename a slug', mutate: (t) => t.replace('### too-few-sibling-branches', '### too-few-branches'), red: /## sibling: exactly the recorded seed slugs, in order/ },
   { check: 'seed-entry slugs per section, exact and ordered', file: 'examples', name: 'seeds: drop an entry', mutate: (t) => t.replace(/\n### the-seats-ranking-assumption\n[^]*?\nClosure:[^\n]*\n/, '\n'), red: /## premise: exactly the recorded seed slugs, in order/ },
@@ -421,15 +430,75 @@ const CONTROLS = [
   { check: 'relation-tag vocabulary equal across the file surfaces', file: 'examples', name: 'tags: examples H2 off-path renamed', mutate: (t) => t.replace('\n## off-path\n', '\n## offpath\n'), red: /backward-chain-examples\.md: the H2s between Entry shape and Growth rules equal the vocabulary plus convergence/ },
   { check: 'relation-tag vocabulary equal across the file surfaces', file: 'examples', name: 'tags: examples preamble enumeration drops premise', mutate: (t) => t.replace('upstream, premise, regression, off-path) plus', 'upstream, regression, off-path) plus'), red: /backward-chain-examples\.md preamble: enumeration equals the vocabulary, in order/ },
   { check: 'relation-tag vocabulary equal across the file surfaces', file: 'fix', name: 'tags: fixer Worked examples drops the upstream pointer', mutate: (t) => t.replace(/\n- upstream: `## upstream`[^\n]*\n/, '\n'), red: /backward-chain-fix\.md ## Worked examples: bullet tags equal the vocabulary plus convergence, in order/ },
+  { check: 'relation-tag vocabulary equal across the file surfaces', file: 'audit', name: 'tags: audit rule 3 loses the "The tag is one of:" opener', mutate: (t) => t.replace('The tag is one of: sibling', 'The tag is among: sibling'), red: /backward-chain-audit\.md ## The rules item 3: enumerates the closed tag set as/ },
+  { check: 'relation-tag vocabulary equal across the file surfaces', file: 'fix', name: 'tags: fixer Round 2 separator row is |:--|:--|', mutate: (t) => t.replace('\n|---|---|\n', '\n|:--|:--|\n'), red: /backward-chain-fix\.md ## Round 2: the table has a separator row/ },
+  { check: 'relation-tag vocabulary equal across the file surfaces', file: 'fix', name: 'tags: fixer Round 2 residue row has an empty first move', mutate: (t) => t.replace(/^\| residue \|[^\n]*$/m, '| residue |  |'), red: /backward-chain-fix\.md ## Round 2 row residue: carries a first move/ },
+  { check: 'relation-tag vocabulary equal across the file surfaces', file: 'examples', name: 'tags: examples preamble loses the "byte for byte (" opener', mutate: (t) => t.replace('vocabulary byte for byte (sibling', 'vocabulary byte-for-byte (sibling'), red: /backward-chain-examples\.md preamble: enumerates the vocabulary as/ },
+  { check: 'relation-tag vocabulary equal across the file surfaces', file: 'fix', name: 'tags: fixer Worked examples sibling bullet loses its ": `## " shape', mutate: (t) => t.replace('\n- sibling: `## sibling` — ', '\n- sibling → `## sibling` — '), red: /backward-chain-fix\.md ## Worked examples: every bullet has the shape/ },
+  { check: 'relation-tag vocabulary equal across the file surfaces', file: 'fix', name: 'tags: fixer Worked examples upstream bullet points at ## consumer', mutate: (t) => t.replace('\n- upstream: `## upstream` — ', '\n- upstream: `## consumer` — '), red: /backward-chain-fix\.md ## Worked examples: bullet pointers name the bank H2s, in order/ },
   // bank pointers
   { check: 'bank pointers resolve: every Worked-examples H2 and slug reference exists in the bank', file: 'audit', name: 'pointers: audit cites a section the bank lacks', mutate: (t) => t.replace('`## oracle`, `count-equal-counterexample-forced-tree-equality`', '`## sideways`, `count-equal-counterexample-forced-tree-equality`'), red: /backward-chain-audit\.md ## Worked examples: `## sideways` names a bank section/ },
   { check: 'bank pointers resolve: every Worked-examples H2 and slug reference exists in the bank', file: 'worker', name: 'pointers: worker cites an entry the bank lacks', mutate: (t) => t.replace('`test-asserted-metadata-not-the-return`', '`test-asserted-the-label`'), red: /backward-chain-worker\.md ## Worked examples: `test-asserted-the-label` names a bank entry/ },
   // PIN-3
   { check: 'round-5 tier disclosed only at corrective round 5 or later (PIN-3)', file: 'audit', name: 'PIN-3: audit Round 5 loses the disclosure sentence', mutate: (t) => t.replace('\n## Round 5 and later\n\nDisclosed only at corrective round 5 or later (PIN-3). ', '\n## Round 5 and later\n\n'), red: /backward-chain-audit\.md ## Round 5 and later: opens with the PIN-3 disclosure sentence/ },
+  { check: 'round-5 tier disclosed only at corrective round 5 or later (PIN-3)', file: 'audit', name: 'PIN-3: audit ## Round 5 and later renamed (the section is missing)', mutate: (t) => t.replace('\n## Round 5 and later\n', '\n## Round five and later\n'), red: /backward-chain-audit\.md: section ## Round 5 and later present/ },
   { check: 'round-5 tier disclosed only at corrective round 5 or later (PIN-3)', file: 'fix', name: 'PIN-3: fixer Round 5 discloses at round 3', mutate: (t) => t.replace('\n## Round 5 and later\n\nDisclosed only at corrective round 5 or later (PIN-3).', '\n## Round 5 and later\n\nDisclosed only at corrective round 3 or later (PIN-3).'), red: /backward-chain-fix\.md ## Round 5 and later: opens with the PIN-3 disclosure sentence/ },
   // PIN-2
   { check: 'no file names the round bound as an obstacle (PIN-2)', file: 'fix', name: 'PIN-2: the fixer names run.roundLimit', mutate: (t) => t.replace('The bounded round count is a safety precaution', 'run.roundLimit is an obstacle'), red: /backward-chain-fix\.md: never names run\.roundLimit or run\.absorbRounds/ },
   { check: 'no file names the round bound as an obstacle (PIN-2)', file: 'plan', name: 'PIN-2: the plan file names run.absorbRounds', mutate: (t) => t + '\nRaise run.absorbRounds when a chain needs more rounds.\n', red: /backward-chain-plan\.md: never names run\.roundLimit or run\.absorbRounds/ },
+]
+
+// ---------------------------------------------------------------------------------------------
+// The assertion census: one regex per distinct assertion message in CHECKS (plus the `section`
+// helper's), the dynamic label prefix stripped. The census test runs every control, reads the
+// message it goes red with, and requires each stem here to be hit by at least one control. The
+// count guard pins this list to the assert call sites in the source, so a new assert cannot join
+// unlisted, and each control must hit exactly one stem, so the stems stay distinguishing.
+// ---------------------------------------------------------------------------------------------
+
+const ASSERTIONS = [
+  /: section ## .+ present$/,
+  /: exact ordered H2 set$/,
+  / items, numbered 1\.\.\d+ contiguous \(no rule dropped, no rule added\)$/,
+  /: carries the record's construct key \//,
+  /: names the byte budget, never a floor or a cap$/,
+  /: H1 present$/,
+  /: opens with the index \(the first line after the H1 is an index line\)$/,
+  /: index line has the shape "- `## <H2>`: <one line>": /,
+  /: the index names every H2, one line each, in H2 order$/,
+  /## Entry shape: exactly one fenced template$/,
+  /## Entry shape: the template opens with "### <slug>"$/,
+  /## Entry shape: the template carries the recorded fields in order$/,
+  /## Entry shape: one abstracting-sentences placeholder between the lesson and the questions$/,
+  /## Entry shape: the placeholder names three to five sentences$/,
+  /: slug is kebab-case$/,
+  /: slug is unique across the bank$/,
+  /: carries the template fields in template order$/,
+  /: Source, Roles and the bold lesson are the first three lines$/,
+  /: Questions to ask and Closure are the last two lines$/,
+  /: the lesson is one bold sentence$/,
+  /: abstracting sentences present between the lesson and the questions$/,
+  /: three to five abstracting sentences \(counted \d+\)$/,
+  /: Roles names one or more of /,
+  /: Source is a WAR issue or PR \(#n\), /,
+  /: an external private entry carries no issue number, PR number or URL \(PIN-9\)$/,
+  /: exactly the recorded seed slugs, in order \(a growth PR updates SEEDS in the same change\)$/,
+  /## The rules item 3: enumerates the closed tag set as "The tag is one of: <a, b, \.\.\.>\."$/,
+  /## The rules item 3: tag list equals the vocabulary, in order$/,
+  /## Round 2: the table header is \| relation \| first move \|$/,
+  /## Round 2: the table has a separator row$/,
+  /## Round 2: table rows equal the vocabulary, one row per tag, in order$/,
+  /## Round 2 row .+: carries a first move$/,
+  /: the H2s between Entry shape and Growth rules equal the vocabulary plus convergence$/,
+  / preamble: enumerates the vocabulary as "\(a, b, \.\.\.\) plus `## convergence`"$/,
+  / preamble: enumeration equals the vocabulary, in order$/,
+  /## Worked examples: every bullet has the shape "<tag>: `## <tag>` — \.\.\."$/,
+  /## Worked examples: bullet tags equal the vocabulary plus convergence, in order$/,
+  /## Worked examples: bullet pointers name the bank H2s, in order$/,
+  /## Worked examples: `## .+` names a bank section$/,
+  /## Worked examples: `.+` names a bank entry$/,
+  /## Round 5 and later: opens with the PIN-3 disclosure sentence$/,
+  /: never names run\.roundLimit or run\.absorbRounds$/,
 ]
 
 const live = readCorpus(repoRoot)
@@ -451,6 +520,13 @@ function withMutatedCopy(file, mutate, fn) {
     rmSync(dir, { recursive: true, force: true })
   }
 }
+
+// The message a control goes red with on its mutated copy (null when the copy stays green). Only
+// the first line: a deepEqual failure appends its diff below the message.
+const reachedBy = (ctl) => withMutatedCopy(ctl.file, ctl.mutate, (copy) => {
+  try { CHECKS[ctl.check](copy) } catch (e) { return e.message.split('\n')[0] }
+  return null
+})
 
 for (const [name, check] of Object.entries(CHECKS)) {
   test(`backward-chain skeleton: ${name}`, () => check(live))
@@ -479,9 +555,16 @@ for (const ctl of CONTROLS) {
   })
 }
 
-test('backward-chain skeleton: every check has at least one positive control (census)', () => {
-  const covered = [...new Set(CONTROLS.map((c) => c.check))].sort()
-  assert.deepEqual(covered, Object.keys(CHECKS).sort(), 'the set of checks with a control equals the set of checks')
+test('backward-chain skeleton: every assertion has at least one positive control (census)', () => {
+  const sites = [...Object.values(CHECKS), section].map(String).join('\n').match(/\bassert\.\w+\(/g) ?? []
+  assert.equal(ASSERTIONS.length, sites.length, `ASSERTIONS lists one stem per assert call site in CHECKS and section() (${sites.length} sites)`)
+  const reached = CONTROLS.map((ctl) => ({ ctl, message: reachedBy(ctl) }))
+  for (const { ctl, message } of reached) {
+    const hits = ASSERTIONS.filter((re) => message !== null && re.test(message))
+    assert.equal(hits.length, 1, `control "${ctl.name}" reaches exactly one listed assertion (got ${JSON.stringify(message)})`)
+  }
+  const unreached = ASSERTIONS.filter((re) => !reached.some(({ message }) => message !== null && re.test(message)))
+  assert.deepEqual(unreached.map(String), [], 'every assertion in CHECKS is reached by at least one control')
   const files = new Set(CONTROLS.map((c) => c.file))
   assert.deepEqual([...files].sort(), Object.keys(FILES).sort(), 'every one of the five files is mutated by at least one control')
 })
