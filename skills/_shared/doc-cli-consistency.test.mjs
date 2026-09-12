@@ -210,6 +210,25 @@ const VERB_SCAN_EXCLUSIONS = [
   // evicted Gate-contract block, `war-config.mjs --resolve-gate`), but the following token
   // is a flag, so no verb is claimed for any scanned module.
   'skills/war/references/budget-raise-floor.md',
+  // backward-chain-fix.md is the fixer's backward-chain doctrine (2026-09-11-backward-chain-doctrine
+  // Task 1.1); its `## The rules` section is mirrored byte-equal into the fix-applying prompts. Its only
+  // command prose is the commit-body block shape and a `grep` sibling sweep — no scanned-module verb, and
+  // no byte-identity claim over an evicted card block, so no QUALIFIED_HEADERS row is owed.
+  'skills/war/references/backward-chain-fix.md',
+  // backward-chain-audit.md is the auditor's backward-chain doctrine (same plan, Task 1.1); its only
+  // command prose is read-only git (`git diff --name-only`) plus a `check:` / `Done when:` command the
+  // seat reads but never executes (`## Round 5 and later`) — no scanned-module verb.
+  'skills/war/references/backward-chain-audit.md',
+  // backward-chain-worker.md is the worker's backward-chain doctrine (same plan, Task 1.1); its only
+  // command prose is the `Critical path:` chunk shape — no scanned-module verb.
+  'skills/war/references/backward-chain-worker.md',
+  // backward-chain-examples.md is the relation-tagged examples bank (same plan, Task 1.1); it cites
+  // issues, snipe reports and one public URL, and phrases no CLI command for any scanned module.
+  'skills/war/references/backward-chain-examples.md',
+  // backward-chain-plan.md is the plan author's backward-chain method and reachability probe (same
+  // plan, Task 1.1); its only command prose names `check:` / `Done when:` commands abstractly — no
+  // scanned-module verb.
+  'skills/war-strategy/references/backward-chain-plan.md',
 ]
 
 function skillDocs() {
