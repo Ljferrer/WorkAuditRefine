@@ -85,7 +85,7 @@ The seven fix-applying builds, each with its own variant clause on top of the ru
 3. ace re-entry: the outcome is unchanged; the batch is the absorbs the last re-audit minted; the sibling sweep runs over the whole batch before one commit.
 4. ace advisory polish: the outcome is the surface's byte budget and the advisory findings; prose that no longer fits the byte budget moves to a `references/` file with a `when <trigger>, read` pointer, never a reword loop.
 5. floor family (add-test, make-pass, cite-budget, package-it): the outcome is the floor's own check; chain from that check to the tip; the corrective round is 1 by definition, because no audit finding is threaded.
-6. phase-close sweep: the outcome is the queued absorb rows outside the task diffs; one chain per row's file; the corrective round is 1 by definition.
+6. phase-close sweep: the outcome is the queued absorb rows for this phase; one chain per row's file; the corrective round is 1 by definition.
 7. terminal pass: the outcome is the final polish rows on the integrated tip; the corrective round is 1 by definition; a row that needs a new link on any task's chain is a follow-up, never a sweep edit.
 
 ## Worked examples
@@ -100,4 +100,4 @@ Read [backward-chain-examples.md](backward-chain-examples.md) by tag. Every entr
 - premise: `## premise` — the smaller poll budget, the correct chain toward a rule that did not exist.
 - regression: `## regression` — excise the culprit, never revert the batch.
 - off-path: `## off-path` — the one-sentence nit that held a phase, the round-zero escalations.
-- convergence: `## convergence` — what one round to unanimity looked like, five times.
+- convergence: `## convergence` — what one round to unanimity looked like.
