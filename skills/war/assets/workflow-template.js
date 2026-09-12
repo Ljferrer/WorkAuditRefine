@@ -2706,17 +2706,22 @@ const chainBlockerRow = task => f => ({ key: remintKey({ task: task.id, ...f }),
   tag: relationTagOf(f), upstream: upstreamLinkOf(f), rationale: f.rationale ?? null, suggested_fix: f.suggested_fix ?? null })
 const chainRecordAudit = (task, round, seats) => chainOf(task.id).entries.push({ kind: 'audit', round, blockers: blockingOf(seats || []).map(chainBlockerRow(task)) })
 const chainRecordFix = (task, round, w) => chainOf(task.id).entries.push({ kind: 'fix', round, fix: fixLineOf(w && w.notes), ignore: ignoreLineOf(w && w.notes) })
-const chainDigest = (task, correctiveRound) => {
+// throughRound: the last entry round the rows carry. The default (correctiveRound - 1) fits the
+// FIX_NEEDED fixer and the roster audit, where the current round's blockers already ride the prompt in
+// full. The three ace fixer sites pass correctiveRound itself: their threaded rows are absorbs, never the
+// blockers, and the audit loop stamps its last audit + fix pair with the same number the ace arm reads
+// (fixRounds + absorbRounds), so the default would drop that pair.
+const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) => {
   if (!(correctiveRound >= 2)) return ''
   const c = chainOf(task.id)
-  // Rows: every entry BEFORE this corrective round (the current round's blockers already ride the prompt
-  // in full). The relation sequence reads every recorded audit entry, the current one included.
-  const digestRows = c.entries.filter(e => e.round < correctiveRound).map(e => e.kind === 'audit'
+  // Rows: every entry through throughRound. The relation sequence reads every recorded audit entry, the
+  // current one included.
+  const digestRows = c.entries.filter(e => e.round <= throughRound).map(e => e.kind === 'audit'
     ? pt`- round ${e.round} audit:\n` + (e.blockers.map(f => pt`  - [${f.severity ?? '?'}] ${f.title ?? ''} (${f.file ?? ''}) — relation: ${f.tag ?? '(none)'}; ${f.upstream ?? 'upstream link: (none)'}`
         + (c.survivors.has(f.key) ? pt`\n    rationale: ${indentLines(f.rationale ?? '')}\n    suggested_fix: ${f.suggested_fix ?? ''}` : '')).join('\n') || '  - (no blocking finding)')
     : pt`- round ${e.round} fix: ${e.fix ?? 'Fix: (none reported in notes)'} | ${e.ignore ?? 'Ignore for now: (none reported in notes)'}`).join('\n')
   const relationSequence = c.entries.filter(e => e.kind === 'audit').map(e => 'r' + e.round + ' [' + (e.blockers.map(f => f.tag).filter(Boolean).join(', ') || 'no tag') + ']').join(' → ')
-  return pt`\nHISTORY DIGEST for task ${task.id} (the corrective rounds before this one):\n${digestRows || '- (no prior round recorded in this process)'}\nRelation sequence for ${task.id}: ${relationSequence || '(none)'}\n${c.criticalPath ?? 'Critical path: (the worker reported none)'}\n`
+  return pt`\nHISTORY DIGEST for task ${task.id} (the recorded corrective rounds):\n${digestRows || '- (no prior round recorded in this process)'}\nRelation sequence for ${task.id}: ${relationSequence || '(none)'}\n${c.criticalPath ?? 'Critical path: (the worker reported none)'}\n`
 }
 // Examples pointer (D16): the fixer reads the bank section for each relation tag read on the threaded
 // findings, or the bank's index and self-selects when no tag was read.
@@ -2728,9 +2733,12 @@ const chainExamplesPointer = tags => {
     : 'no relation tag was read on the threaded findings — read the index at the top of ' + CHAIN_EXAMPLES_MD + ' and self-select'
 }
 // The fixer block: the seven fix-applying builds interpolate this and nothing else of the doctrine.
+// The ace variants thread absorb rows, never the blockers, so their digest runs through the current round.
+const CHAIN_ACE_VARIANTS = new Set(['ace subset', 'ace re-entry', 'ace advisory polish'])
 const chainFixClause = (task, correctiveRound, variant, tags) => {
   const variantClause = BACKWARD_CHAIN_VARIANTS[variant]
   const examplesPointer = chainExamplesPointer(tags)
+  const throughRound = CHAIN_ACE_VARIANTS.has(variant) ? correctiveRound : correctiveRound - 1
   return pt`\nBACKWARD-CHAIN FIX (corrective round ${correctiveRound}; canonical home: `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-fix.md'
     + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of `
@@ -2738,7 +2746,7 @@ const chainFixClause = (task, correctiveRound, variant, tags) => {
     + pt`, which then apply to the diff.\n`
     + BACKWARD_CHAIN_FIX_RULES + '\n'
     + chainDepthLine(correctiveRound) + pt` Build variant, ${variant}: ${variantClause}\nExamples: ${examplesPointer}.\nCommit body: the chain block goes ABOVE any trailer paragraph (Ace-Subset:/Ace-Charge:), which stays the message's own final block.\n`
-    + chainDigest(task, correctiveRound)
+    + chainDigest(task, correctiveRound, throughRound)
 }
 // The audit block: the roster-seat auditPrompt at corrective round >= 2; '' at round 1 (PIN-10).
 const chainAuditClause = (task, correctiveRound) => {
