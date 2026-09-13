@@ -107,7 +107,7 @@ Closure: One fixture per arm, each proven red by deletion, named in the commit b
 ## consumer
 
 ### recovery-skip-reader-missed
-Source: PR #2297, candidates 6 to 7 (the finalization ledger's candidate 7 closure and `2026-09-09-engine-pr-2297-candidate-7-snipe.md`)
+Source: PR #2297, candidates 6 to 7 (the finalization ledger's candidate 7 closure and `docs/port/snipe/2026-09-09-engine-pr-2297-candidate-7-snipe.md`)
 Roles: fixer, auditor
 **A class sweep that stops at the producer misses the consumer that skips on the same evidence.**
 Candidate 6 fixed the already-upstream shortcut to require tree equality. Candidate 7 found the recovery-skip path still accepted historical ancestry plus a trailer as proof of present content, marked the task done, and omitted its audit. The reader used the same history evidence the producer had just stopped trusting. The earliest unmet link was the consumer sweep.

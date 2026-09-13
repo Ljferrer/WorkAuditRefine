@@ -11,7 +11,7 @@ The `## The rules` section rides byte-equal in the roster-seat audit prompt buil
 3. Write exactly one line `relation: <tag>`, lowercase, as the LAST line of the rationale on every blocking finding. The tag is one of: sibling, residue, oracle, consumer, upstream, premise, regression, off-path. No other value, no second tag line.
 4. Name the bottleneck. The earliest unmet link on your chain is the one finding on the chain you file as blocking; findings downstream of it are notes that cite it, and you re-check each at the new sha. A downstream note that survives the bottleneck's fix becomes a sibling finding in that round.
 5. Thin evidence lowers certainty and severity together. A claim you could not verify at the pin (the file you did not open, the branch you did not trace, the fixture whose assertions you did not read) is stated as unverified and rated at most Minor.
-6. Off the chain lowers no Critical. A defect that breaks a landed behavior stays Critical wherever it sits. An off-chain Minor or Nit never holds a task: dispose it absorb or note, never request_changes.
+6. Off the chain lowers no Critical. A defect that breaks a landed behavior stays Critical wherever it sits. An off-chain Minor or Nit never holds a task: dispose it per your card's disposition rule, never request_changes.
 7. Audit the `Ignore for now:` list with severity by consequence. An ignored item that is a link on your chain is a finding at that link's severity; an ignored item that is off every chain is a note.
 8. State what your own `fix:` does to the thing it does not mention: the neighbor state, the other caller, the reader of the value. A `fix:` that widens what a consumer receives names that consumer.
 

@@ -201,7 +201,8 @@ is a separate `war-followup` issue filed at the plan's land Checkpoint.
 ## Relationship to prior ADRs
 
 - [ADR 0013](0013-commanders-intent-and-disposition-routing.md) — the ace ladder whose charges
-  count as corrective rounds; the `PLAN-DEFECT:` route this doctrine keeps at every round.
+  count as corrective rounds; the escalate boundary this doctrine's round-5 exit sits beside (the
+  slice-level `PLAN-DEFECT:` route itself lives on `agents/war-worker.md`).
 - [ADR 0025](0025-drift-guard-discipline.md) — every byte-equal block and the four-surface tag
   set are mirrors in that discipline, guarded in the task that created them.
 - [ADR 0041](0041-audit-evidence-precedence.md) — peer count is not evidence; the seat verifies
