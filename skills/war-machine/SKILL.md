@@ -79,7 +79,9 @@ file footprints of the plans already authored (honest contention).
 
 1. **Spawn in parallel:** a **drafter** agent (authors the merged-shape plan from the spec +
    codebase, per the `/war-strategy` §2 merged plan template and code-boundary decomposition
-   rule; when the spec cites source issues, reads each cited issue's `## Evidence artifacts`
+   rule; when spawned, read [`backward-chain-plan.md`](../war-strategy/references/backward-chain-plan.md)
+   before drafting a slice, so every task is chained backward from an End state; when the spec
+   cites source issues, reads each cited issue's `## Evidence artifacts`
    section — the recon inputs the issue author staged — before drafting. Split degraded arms:
    a cited issue whose `## Evidence artifacts` section is absent ⇒ the read is **vacuously
    satisfied** for that issue (nothing to read is a pass, not a gap); a cited issue that is

@@ -2,12 +2,12 @@
 name: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
 description: "A Minor/Nit finding disposed absorb + autoFixable:true, inside the task's own Files diff, can still ship unfixed once the task's verdict reaches approve"
 metadata: 
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-11
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-12
   node_type: memory
   type: project
   provenance: code-verified
   slug: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
-  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +4 recurrences (phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99; phase-11 task 11.1, landed 8927103891fdc7902f15a498203f7eaeedd74823; phase-12 task 12.2, landed 48a7120616627a35ecf2a05e76e34d15dcf985a3, all on dev/2026-09-06-engine-and-audit-verdict-integrity)"
+  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +5 recurrences (phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99; phase-11 task 11.1, landed 8927103891fdc7902f15a498203f7eaeedd74823; phase-12 task 12.2, landed 48a7120616627a35ecf2a05e76e34d15dcf985a3, all on dev/2026-09-06-engine-and-audit-verdict-integrity; 2026-09-11-backward-chain-doctrine/phase-3 task p3-polish, landed b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b on dev/2026-09-11-backward-chain-doctrine, 2026-09-12 — sharpest form: a real fix round moved the pinned sha twice, yet one finding of the batch shipped unfixed)"
   keywords: 
     - absorb disposition
     - autoFixable
@@ -38,6 +38,12 @@ metadata:
     - disposition-eligibility.md
     - CONTEXT.md Disposition entry
     - phaseClose true unfixed
+    - chainRecordFix
+    - absorbRounds charge order
+    - throughRound comment
+    - ace fixer row stamped one round lower
+    - moving pinned sha not proof of per-finding fix
+    - correctiveRoundOf
   tags: 
     - war
     - audit-findings
@@ -45,7 +51,7 @@ metadata:
     - workflow-template
   created: 2026-09-07
   originSessionId: a2a576b1-d8af-4c79-ad1a-af3d3e5c5c91
-  modified: 2026-09-08T23:56:39.783Z
+  modified: 2026-09-13T02:55:01.687Z
 ---
 
 # An in-diff `absorb`/`autoFixable:true` finding can ship unfixed even after a real fix round ran
@@ -212,6 +218,32 @@ present or not, keeps shipping unfixed. The post-merge gate-audit that ran after
 (`gateEvidence:true`, `auditSha: b2c92b1292d179251c6b29fe7332347cf75556f4`) re-surfaced none of
 these four — a gate-audit does not re-check a prior task-round's in-diff absorb `suggested_fix`
 unless its own lens happens to trip on the same construct.
+
+**Recurrence 6 (code-verified — landed tip `b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b` on
+`dev/2026-09-11-backward-chain-doctrine`, phase 3 "Release", task `p3-polish` (phase-close
+coherence sweep), read via the run-scoped `_refinery` worktree whose `HEAD` equals this tip:
+`<repo-root>/.claude/war-worktrees/16a5695b-f2d2-46ae-801b-2fe413d9f12c/_refinery/` — a
+run-UUID-keyed root, see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] Recurrence
+21).** The sharpest form yet: unlike Recurrences 1-5 (all `fixRounds: 0`, no round ran at all),
+this task's audit log shows TWO real fix-and-reaudit cycles actually ran (`audit-pin:resolved` at
+`ea6757c9` → new pinned sha `d3f131bd`, then `approve`/`terminal:true` at `d3f131bd`) — the pinned
+sha visibly moved twice, proving real commits landed. One of the two findings resolved in that
+second cycle, "throughRound comment's causal reason inverts the statement order at all three ace
+sites" (Minor, `disposition: absorb`, `autoFixable: true`), quoted the exact wrong sentence: "the
+ace fixer's row was already stamped one round lower, because `chainRecordFix` runs before the
+`absorbRounds` charge the re-audit reads" — and gave a concrete corrected wording naming the
+`chainRound` capture instead of `chainRecordFix`. At the landed tip,
+`skills/war/assets/workflow-template.js` (search "the ace fixer's row was already stamped one
+round lower") still reads the ORIGINAL, flagged-wrong sentence verbatim, byte-for-byte identical
+to what the finding quoted as false. The code itself confirms the finding's diagnosis: at every
+ace site (e.g. lines ~3613-3614) `r.task.absorbRounds++` runs, THEN `chainRecordFix(...)` runs —
+the charge precedes the record call, the opposite of what the comment claims.
+
+**Sharpens the pattern:** a moving pinned sha (proof some diff in the round happened) is not proof
+THIS finding's diff happened — the round may have fixed the OTHER finding in the same batch (here,
+a sibling "Worker rule 1" finding in the identical audit-pin:resolved entry) and let this one ride
+through to `approve` unfixed. Never infer per-finding completion from the batch's `verdict` or
+`headSha` transition; re-Read each named construct individually.
 
 **Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
 much larger, heavily-recurring instance of this same root fact for **terminal/polish** tasks
