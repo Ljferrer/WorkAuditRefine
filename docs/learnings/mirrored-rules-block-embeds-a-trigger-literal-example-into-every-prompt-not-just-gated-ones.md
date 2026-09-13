@@ -2,6 +2,7 @@
 name: mirrored-rules-block-embeds-a-trigger-literal-example-into-every-prompt-not-just-gated-ones
 description: "A standing rules block quoting a conditional trigger phrase as prose makes that literal ride every prompt, not only the gated ones"
 metadata: 
+  promoted: dev/2026-09-11-backward-chain-doctrine@phase-2
   node_type: memory
   type: project
   keywords: 
@@ -13,9 +14,13 @@ metadata:
     - presence check
     - literal token leak
     - backward-chain
+    - self-satisfying trigger
+    - discriminator not unique
+    - quoted literal ambiguity
+    - narrowing symptom not shape
   provenance: code-verified
   slug: mirrored-rules-block-embeds-a-trigger-literal-example-into-every-prompt-not-just-gated-ones
-  phase: 2026-09-11-backward-chain-doctrine/phase-2 (task 2.1)
+  phase: "2026-09-11-backward-chain-doctrine/phase-2 (task 2.1) +1 recurrence (phase-3 task p3-polish, landed b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b, 2026-09-12 — two more fix attempts narrowed the quoted trigger wording without closing the gap)"
   tags: 
     - engine
     - prompt-surface
@@ -23,7 +28,7 @@ metadata:
     - drift
   created: 2026-09-12
   originSessionId: 5a652d85-60d8-4ec9-9cbf-3333802c7056
-  modified: 2026-09-12T23:41:03.451Z
+  modified: 2026-09-13T02:55:48.333Z
 ---
 
 `agents/war-worker.md`'s dep-wave rebase carve-out keys on the literal presence of the string
@@ -48,3 +53,32 @@ that prompt family.
 Locate-cue: verify still present before acting — `BACKWARD_CHAIN_WORKER_RULES` rule 1 and the
 `depClause()` helper, both in `skills/war/assets/workflow-template.js`; the dep-wave rebase carve-out
 prose lives at `agents/war-worker.md`.
+
+## Recurrence (2026-09-11-backward-chain-doctrine/phase-3 "Release", task `p3-polish`, landed
+`b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b` on `dev/2026-09-11-backward-chain-doctrine`,
+2026-09-12) — two more fix attempts on the same gap; the literal still rides every WORK prompt
+
+`code-verified` at the landed tip, read via the run-scoped `_refinery` worktree whose `HEAD` equals
+this SHA (`<repo-root>/.claude/war-worktrees/16a5695b-f2d2-46ae-801b-2fe413d9f12c/_refinery/`, a
+run-UUID-keyed root — see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
+Recurrence 21). Phase 3's phase-close polish took two more passes at this exact gap: round 1
+narrowed rule 1's prose to quote `DEPS ALREADY MERGED:` (colon added, the "prepended dispatch
+clause" wording); a later re-audit judged even that narrower quote self-satisfying ("the quoted
+literal matches the rules block's own mention, so only the prose words discriminate") and asked
+for the fuller phrase `DEPS ALREADY MERGED: this task declares deps` to be quoted instead. At the
+landed tip, `skills/war/references/backward-chain-worker.md` rule 1 and its byte-equal mirror
+`BACKWARD_CHAIN_WORKER_RULES` (`skills/war/assets/workflow-template.js`) both still read only
+"...the prepended `DEPS ALREADY MERGED:` dispatch clause..." — round 1's narrower quote landed,
+round 2's fuller-quote suggestion did not. The literal substring `DEPS ALREADY MERGED` (still,
+now, always followed by a colon) continues to ride every WORK prompt, dep-less tasks included,
+exactly as this lesson's original instance described — three separate fix attempts across two
+phases have narrowed the wording without closing the underlying "the mirrored rules block quotes
+its own trigger token" shape. Any construct string-matching for the literal token, rather than the
+full `depClause()` output, still cannot distinguish "this task has deps" from "this rules block
+merely describes the concept."
+
+**Sharper form of the Rule:** narrowing HOW MUCH of a shared trigger literal a mirrored rules
+block quotes (adding a colon, adding one more word) treats the symptom, not the shape — the fix
+that actually closes this class is paraphrasing the trigger away entirely (never quoting the
+literal token verbatim inside descriptive prose), which is what the original entry already
+recommended and what two subsequent fix rounds still did not do.
