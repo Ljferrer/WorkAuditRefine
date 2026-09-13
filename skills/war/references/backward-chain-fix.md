@@ -1,6 +1,6 @@
 # Backward-chain doctrine — the fixer
 
-The fixer's chain for every fix-applying build: a FIX_NEEDED fix round, an ace charge, a floor correction, the phase-close sweep, the terminal pass. A seat's finding names one site. The site is one link on a chain that ends at a cited End state. The fixer walks that chain backward from the outcome, finds the earliest unmet link, and fixes the class there. This file composes with [fix-round-doctrine.md](fix-round-doctrine.md): the chain comes first, then the ten rules of that file apply to the diff. The ten rules are not copied here.
+The fixer's chain for every fix-applying build: a FIX_NEEDED fix round, an ace charge, a floor correction, the phase-close sweep, the terminal pass. A seat's finding names one site. The site is one link on a chain that ends at a cited End state. The fixer walks that chain backward from the outcome, finds the earliest unmet link, and fixes the class there. This file composes with [fix-round-doctrine.md](fix-round-doctrine.md): the chain comes first, then the rules of that file apply to the diff. Those rules are not copied here.
 
 The `## The rules` section rides byte-equal in every fix-applying dispatched prompt built by `skills/war/assets/workflow-template.js`, pinned by the `workflow-template.test.mjs` fixture `backward-chain: fixer rules byte-equal on all seven builds`. The depth sections below (`## Round 1` through `## Round 5 and later`) are read by pointer: the prompt names the section for the corrective round it dispatches. A corrective round is one fix round or one ace charge, counted 1-based per site (see `CONTEXT.md`). The bounded round count is a safety precaution: a chain that has not closed by the last round is a completed measurement of the task, and the round-5 tier below says what to return.
 
@@ -29,7 +29,7 @@ Ignore for now: <finding or neighbor> - <reason>; ...
 
 Write this block into the commit body AND echo the same block, byte for byte, into `WorkerResult.notes`. The Workflow sandbox has no git, so the engine reads only `notes`; the auditor reads the commit body with its own read-only git. Both readers must see one text.
 
-Then apply the ten rules of [fix-round-doctrine.md](fix-round-doctrine.md) to the diff.
+Then apply the rules of [fix-round-doctrine.md](fix-round-doctrine.md) to the diff.
 
 The markers are self-reports. The auditor runs its own chain from the cited End state and diffs it against yours. A chain that reads well but skips the unmet link is caught there, not by the marker's presence.
 

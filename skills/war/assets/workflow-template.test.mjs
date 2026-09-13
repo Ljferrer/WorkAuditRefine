@@ -17346,8 +17346,9 @@ test('backward-chain: history digest field set', async () => {
   // Default-deny call-site census over the two digest recorders (comment-stripped source): a dropped or
   // duplicated recorder site would silently change the threaded digest, and only the FIX_NEEDED path and
   // the ace-polish path run end to end here.
-  assert.equal((chainCode().match(/chainRecordAudit/g) || []).length, 5, 'chainRecordAudit: its definition plus four sites (the three mutually exclusive aceReaudit arms and the FIX_NEEDED loop)')
-  assert.equal((chainCode().match(/chainRecordFix/g) || []).length, 5, 'chainRecordFix: its definition plus four sites (the three ace sites and the FIX_NEEDED loop)')
+  const chainSrc = chainCode()
+  assert.equal((chainSrc.match(/chainRecordAudit/g) || []).length, 5, 'chainRecordAudit: its definition plus four sites (the three mutually exclusive aceReaudit arms and the FIX_NEEDED loop)')
+  assert.equal((chainSrc.match(/chainRecordFix/g) || []).length, 5, 'chainRecordFix: its definition plus four sites (the three ace sites and the FIX_NEEDED loop)')
   assert.equal((aceAudits[3].match(/^- round 2 fix: /gm) || []).length, 1, 'exactly one plain round-2 fix row: the ace row never renders under the in-loop label')
   assert.ok(!ace.prompt.includes(' ace fix:') && !fixes[1].includes(' ace fix:'), 'no ace row before an ace commit is recorded (the label is the ace record only)')
   // The index fallback: a fix-applying build with no tag read points at the bank index.
