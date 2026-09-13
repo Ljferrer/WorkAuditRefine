@@ -4,7 +4,7 @@ The worker's chain for the first pass on a task. The task's finish line is a che
 
 ## The rules
 
-1. Lock the finish line in this order: the task's `Done when:` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level `PLAN-DEFECT:` route: return `blocked` with that prefix. Two equivalent readings of the finish line: lock one and state it in `notes`. Two non-equivalent readings: return `blocked` naming both. When the prompt carries `DEPS ALREADY MERGED`, the rebase is still the first act, and the chain ends at the rebased tip.
+1. Lock the finish line in this order: the task's `Done when:` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level `PLAN-DEFECT:` route: return `blocked` with that prefix. Two equivalent readings of the finish line: lock one and state it in `notes`. Two non-equivalent readings: return `blocked` naming both. When the prompt carries the prepended `DEPS ALREADY MERGED:` dispatch clause, the rebase is still the first act, and the chain ends at the rebased tip.
 2. Chain backward from the finish line to the tip. Each link is a condition that must hold for the next link to hold. Number the links; the last link is the tip you were cut from.
 3. The bottleneck is the earliest unmet link. Work it first. A later link worked first is a site patch that the bottleneck can invalidate.
 4. Chunk every link with a done test: the command or assertion that proves the link true, and the token it prints. The printed-token duty is scoped to the `Done when:` command and the tests the task ships; nothing else needs a token.

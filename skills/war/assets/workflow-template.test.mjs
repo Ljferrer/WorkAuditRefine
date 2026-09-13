@@ -17343,6 +17343,12 @@ test('backward-chain: history digest field set', async () => {
   assert.ok(aceAudits.length === 4 && aceAudits[3].includes('corrective round 3;'), `the ace re-audit ran at corrective round 3 (presence guard) — got ${aceAudits.length}`)
   assert.ok(aceAudits[3].includes('- round 2 fix: Fix: round 2 guarded the reader and its sibling'), 'the re-audit digest carries the in-loop round-2 fix row')
   assert.ok(aceAudits[3].includes('- round 2 ace fix: Fix: the ace absorbed the import nit | Ignore for now: nothing - the absorb was the whole chain'), "the re-audit digest carries the ace fixer's row under its own `ace fix:` label")
+  // Default-deny call-site census over the two digest recorders (comment-stripped source): a dropped or
+  // duplicated recorder site would silently change the threaded digest, and only the FIX_NEEDED path and
+  // the ace-polish path run end to end here.
+  const chainSrc = chainCode()
+  assert.equal((chainSrc.match(/chainRecordAudit/g) || []).length, 5, 'chainRecordAudit: its definition plus four sites (the three mutually exclusive aceReaudit arms and the FIX_NEEDED loop)')
+  assert.equal((chainSrc.match(/chainRecordFix/g) || []).length, 5, 'chainRecordFix: its definition plus four sites (the three ace sites and the FIX_NEEDED loop)')
   assert.equal((aceAudits[3].match(/^- round 2 fix: /gm) || []).length, 1, 'exactly one plain round-2 fix row: the ace row never renders under the in-loop label')
   assert.ok(!ace.prompt.includes(' ace fix:') && !fixes[1].includes(' ace fix:'), 'no ace row before an ace commit is recorded (the label is the ace record only)')
   // The index fallback: a fix-applying build with no tag read points at the bank index.

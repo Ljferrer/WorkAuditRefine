@@ -2619,7 +2619,7 @@ const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding c
 // section, so an edit lands in the reference first and here second. Pointer paths use the agent-resolved
 // '${CLAUDE_PLUGIN_ROOT}' literal idiom (plain strings, never pt interpolations). The bounded round count
 // is a safety precaution and never an obstacle (PIN-2): the round-5 tier is a completed outcome.
-const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the prompt carries \`DEPS ALREADY MERGED\`, the rebase is still the first act, and the chain ends at the rebased tip.
+const BACKWARD_CHAIN_WORKER_RULES = pt`1. Lock the finish line in this order: the task's \`Done when:\` command; else the End state numbers the slice serves; else the gate plus the slice's named deliverable. All three absent is the slice-level \`PLAN-DEFECT:\` route: return \`blocked\` with that prefix. Two equivalent readings of the finish line: lock one and state it in \`notes\`. Two non-equivalent readings: return \`blocked\` naming both. When the prompt carries the prepended \`DEPS ALREADY MERGED:\` dispatch clause, the rebase is still the first act, and the chain ends at the rebased tip.
 2. Chain backward from the finish line to the tip. Each link is a condition that must hold for the next link to hold. Number the links; the last link is the tip you were cut from.
 3. The bottleneck is the earliest unmet link. Work it first. A later link worked first is a site patch that the bottleneck can invalidate.
 4. Chunk every link with a done test: the command or assertion that proves the link true, and the token it prints. The printed-token duty is scoped to the \`Done when:\` command and the tests the task ships; nothing else needs a token.
@@ -2638,7 +2638,7 @@ const BACKWARD_CHAIN_AUDIT_RULES = pt`1. Chain from the cited End state to the t
 3. Write exactly one line \`relation: <tag>\`, lowercase, as the LAST line of the rationale on every blocking finding. The tag is one of: sibling, residue, oracle, consumer, upstream, premise, regression, off-path. No other value, no second tag line.
 4. Name the bottleneck. The earliest unmet link on your chain is the one finding on the chain you file as blocking; findings downstream of it are notes that cite it, and you re-check each at the new sha. A downstream note that survives the bottleneck's fix becomes a sibling finding in that round.
 5. Thin evidence lowers certainty and severity together. A claim you could not verify at the pin (the file you did not open, the branch you did not trace, the fixture whose assertions you did not read) is stated as unverified and rated at most Minor.
-6. Off the chain lowers no Critical. A defect that breaks a landed behavior stays Critical wherever it sits. An off-chain Minor or Nit never holds a task: dispose it absorb or note, never request_changes.
+6. Off the chain lowers no Critical. A defect that breaks a landed behavior stays Critical wherever it sits. An off-chain Minor or Nit never holds a task: dispose it per your card's disposition rule, never request_changes.
 7. Audit the \`Ignore for now:\` list with severity by consequence. An ignored item that is a link on your chain is a finding at that link's severity; an ignored item that is off every chain is a note.
 8. State what your own \`fix:\` does to the thing it does not mention: the neighbor state, the other caller, the reader of the value. A \`fix:\` that widens what a consumer receives names that consumer.`
 // Per-build variant clauses, mirrored by NAME from `## Build variants` of backward-chain-fix.md: the
@@ -2703,7 +2703,8 @@ const fixLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Fix:[^\n]*)/)
 const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[^\n]*)/)
 const criticalPathOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Critical path:[\s\S]*?(?:\n[ \t]*Ignore for now:[^\n]*|$))/)
 const indentLines = s => String(s).split('\n').join('\n      ')   // continuation lines of a multi-line rationale keep the row's indent
-const chainBlockerRow = task => f => ({ key: remintKey({ task: task.id, ...f }), title: f.title ?? null, file: f.file ?? null, severity: f.severity ?? null,
+const taskBlockerKey = (taskId, f) => remintKey({ task: taskId, ...f })   // one derivation for the digest rows and the audit loop's survival registry
+const chainBlockerRow = task => f => ({ key: taskBlockerKey(task.id, f), title: f.title ?? null, file: f.file ?? null, severity: f.severity ?? null,
   tag: relationTagOf(f), upstream: upstreamLinkOf(f), rationale: f.rationale ?? null, suggested_fix: f.suggested_fix ?? null })
 const chainRecordAudit = (task, round, seats) => chainOf(task.id).entries.push({ kind: 'audit', round, blockers: blockingOf(seats || []).map(chainBlockerRow(task)) })
 // site: 'ace' at the three ace sites, so the digest row names the ace fixer apart from the in-loop
@@ -2711,10 +2712,13 @@ const chainRecordAudit = (task, round, seats) => chainOf(task.id).entries.push({
 // stamped on its last audit + fix pair); absent at FIX_NEEDED.
 const chainRecordFix = (task, round, w, site) => chainOf(task.id).entries.push({ kind: 'fix', site: site ?? null, round, fix: fixLineOf(w && w.notes), ignore: ignoreLineOf(w && w.notes) })
 // throughRound: the last entry round the rows carry. The default (correctiveRound - 1) fits the
-// FIX_NEEDED fixer and the roster audit, where the current round's blockers already ride the prompt in
-// full. The three ace fixer sites pass correctiveRound itself: their threaded rows are absorbs, never the
-// blockers, and the audit loop stamps its last audit + fix pair with the same number the ace arm reads
-// (fixRounds + absorbRounds), so the default would drop that pair.
+// FIX_NEEDED fixer, where the current round's blockers already ride the prompt in full, and the roster
+// audit, where chainRecordAudit has not yet stamped the current round (it runs after the audit
+// returns). The ace re-audit (chainAuditClause from aceReaudit) takes the default too: the ace fixer's
+// row was already stamped one round lower, because chainRecordFix runs before the absorbRounds charge
+// the re-audit reads. The three ace fixer sites pass correctiveRound itself: their threaded rows are
+// absorbs, never the blockers, and the audit loop stamps its last audit + fix pair with the same number
+// the ace arm reads (fixRounds + absorbRounds), so the default would drop that pair.
 const chainDigest = (task, correctiveRound, throughRound = correctiveRound - 1) => {
   if (!(correctiveRound >= 2)) return ''
   const c = chainOf(task.id)
@@ -2746,7 +2750,7 @@ const chainFixClause = (task, correctiveRound, variant, tags) => {
   const throughRound = CHAIN_ACE_VARIANTS.has(variant) ? correctiveRound : correctiveRound - 1
   return pt`\nBACKWARD-CHAIN FIX (corrective round ${correctiveRound}; canonical home: `
     + CHAIN_FIX_MD
-    + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the ten rules of `
+    + pt`): before you touch the diff, chain backward from the cited End state — these rules apply before the rules of `
     + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
     + pt`, which then apply to the diff.\n`
     + BACKWARD_CHAIN_FIX_RULES + '\n'
@@ -4086,7 +4090,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // PIN-29 survival registry: the remintKey of every blocking finding the LAST fix round was
       // dispatched on. A blocker still standing after a fix round + full-roster re-audit + rebuttal
       // survived that fix round unchanged — hold in split and agreed-block panels alike.
-      const blockerKey = f => remintKey({ task: task.id, ...f })
+      const blockerKey = f => taskBlockerKey(task.id, f)
       let lastFixKeys = new Set()
       while (round < roundLimit) {
         // Corrective round (D4, PIN-5): the roster-seat audit reads the in-loop 0-based `round` — round 1 at
