@@ -1,0 +1,86 @@
+✖ rejected oversized linked artifact leaves room for later small evidence (14.704417ms)
+✖ confirmation projection contains no live checkout anchor and saved identity is runner-owned (780.815666ms)
+✖ coordinator inspection cannot run a target fsmonitor or clean filter (1064.776125ms)
+✖ runner archives raw pages even when duplicated archive is larger than role projection (590.803709ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2506.49575
+
+✖ failing tests:
+
+test at adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:207:1
+✖ rejected oversized linked artifact leaves room for later small evidence (14.704417ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'unread' !== 'read'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs:209:80)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unread',
+    expected: 'read',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:206:1
+✖ confirmation projection contains no live checkout anchor and saved identity is runner-owned (780.815666ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'INCOMPLETE'
+  - 'BLOCKED'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:212:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'INCOMPLETE',
+    expected: 'BLOCKED',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:215:1
+✖ coordinator inspection cannot run a target fsmonitor or clean filter (1064.776125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:225:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:235:1
+✖ runner archives raw pages even when duplicated archive is larger than role projection (590.803709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'INCOMPLETE'
+  - 'CLEARED'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:240:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'INCOMPLETE',
+    expected: 'CLEARED',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

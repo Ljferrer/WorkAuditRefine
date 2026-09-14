@@ -1,0 +1,68 @@
+✖ offline relocated diagnostic entrypoint: tamper (4206.204666ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4261.043625
+
+✖ failing tests:
+
+test at adapters/codex/red-team-actual-host.test.mjs:41:188
+✖ offline relocated diagnostic entrypoint: tamper (4206.204666ms)
+  AssertionError [ERR_ASSERTION]: 
+  {
+    "status": "OBSERVED",
+    "configuredProfile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "independentlyObservedModelIdentity": null,
+    "observations": [
+      {
+        "kind": "clean",
+        "status": "OBSERVED",
+        "gaps": [],
+        "runFile": "clean-run/run.json",
+        "verdict": "CLEARED",
+        "fixture": {
+          "revision": "8839c3ffe126690d3c805bd4f4d8db1476a2af6e",
+          "source": "RED_TEAM_SOURCE:233a6d0b-07eb-47bd-aa14-aaf5c1b3cf07:4",
+          "proof": "RED_TEAM_PROOF:69b83112-927d-4d95-a1af-b1d62ad660d5:4",
+          "expectedExit": 0
+        }
+      },
+      {
+        "kind": "seeded",
+        "status": "OBSERVED",
+        "gaps": [],
+        "runFile": "seeded-run/run.json",
+        "verdict": "BLOCKED",
+        "fixture": {
+          "revision": "131ad3554b6db68f6826072e8081deda96044479",
+          "source": "RED_TEAM_SOURCE:66be1869-ec1b-4dcc-bb83-7becf6eb3fb3:5",
+          "proof": "RED_TEAM_PROOF:53a7ae13-30aa-43da-a636-dab8b192f2cf:5",
+          "expectedExit": 1
+        }
+      }
+    ],
+    "evidenceDir": "/private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-host-fixture-DLlk66/evidence"
+  }
+  
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-tamper-repro-l3izesuj/adapters/codex/red-team-actual-host.test.mjs:48:46)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

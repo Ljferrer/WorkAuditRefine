@@ -1,0 +1,34 @@
+✔ H2 preserves body sketch and superseding operator comment with explicit precedence (16.627791ms)
+✔ unchanged-body control never invents an operator ruling or body amendment (1.288ms)
+✔ all comment pages are retained and operator identity is never inferred from association (0.864958ms)
+✔ inaccessible and silently truncated comment sets cannot certify completeness (0.859458ms)
+✔ unlisted linked artifact creates an explicit unread gap, including comment-only relative evidence (0.950625ms)
+✔ read links need preserved bytes and identity; unavailable links stay visible (0.788958ms)
+✔ finite pagination refuses cycles, limits, and cross-origin credential forwarding (0.764792ms)
+✔ identity mismatch, malformed comments, repeated IDs, and advertised truncation fail closed (0.429084ms)
+✔ source byte limit and deadline retain incomplete outcomes (5.638166ms)
+✔ shorthand issue and relative Markdown references are accounted for without fetching (0.197583ms)
+✔ a transport that ignores cancellation cannot append evidence after timeout (5.429875ms)
+✔ pre-cancelled external signal prevents all issue transport calls (0.239458ms)
+✔ external cancellation returns without waiting for a transport that ignores its signal (0.585917ms)
+✔ streaming byte limit cancels input as soon as the limit is crossed (0.706625ms)
+✔ external cancellation interrupts a stalled streaming read and preserves prior issue evidence (0.393167ms)
+✔ known operator measurement and suggestion remain unclassified evidence, never rulings (0.276167ms)
+✔ total intake bound spans individually valid response pages (0.419ms)
+✔ rejected oversized linked artifact leaves room for later small evidence (0.218208ms)
+✔ explicit invocation and every packaged reference resolve locally (0.777417ms)
+✔ H1 scenario has a real omitted sibling and legitimate different control (0.932541ms)
+✔ H3 scenario exposes stale enforcement and a paraphrased obligation (1.559083ms)
+✔ H4 routing identifies role-specific references and load triggers (0.300625ms)
+✔ H4 full guidance reaches initial and independent confirmation launches (1775.161125ms)
+✔ evidence and repair guidance preserve initial attempts and coverage authority (0.152167ms)
+✔ host guidance does not conflate fixtures, installation, or independent review (0.08175ms)
+✔ host request options exclude unsupported capacity (0.105ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1876.067375

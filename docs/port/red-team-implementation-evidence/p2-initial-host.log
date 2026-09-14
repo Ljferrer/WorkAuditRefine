@@ -1,0 +1,13 @@
+✔ offline relocated diagnostic entrypoint: success (4621.373209ms)
+✔ offline relocated diagnostic entrypoint: missing (3978.0625ms)
+✔ offline relocated diagnostic entrypoint: unusable (4118.088333ms)
+✔ offline relocated diagnostic entrypoint: vacuous (4551.068916ms)
+﹣ actual host diagnostic (explicit opt-in; skipped is unavailable evidence) (0.088125ms) # SKIP
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 17337.033166

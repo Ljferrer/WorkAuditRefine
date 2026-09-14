@@ -1,0 +1,10 @@
+✔ offline relocated diagnostic entrypoint: directory (5982.193458ms)
+✔ offline relocated diagnostic entrypoint: success (6467.135792ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12504.744125

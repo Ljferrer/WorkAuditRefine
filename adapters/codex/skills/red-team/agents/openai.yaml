@@ -1,0 +1,7 @@
+interface:
+  display_name: "Red Team"
+  short_description: "Adversarial plan review with preserved evidence"
+  default_prompt: "Use $work-audit-refine-red-team:red-team to review the selected plan and preserve the initial findings before repairs."
+
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/Users/ljf/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py", line 14, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
