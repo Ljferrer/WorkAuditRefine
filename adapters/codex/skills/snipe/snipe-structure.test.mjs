@@ -29,6 +29,16 @@ test('Codex auditor role carries review doctrine but excludes phase authority an
   }
 })
 
+test('standalone repair guidance chains from supplied outcomes without phase prerequisites',()=>{
+  const audit=readFileSync(new URL('references/auditing-fixes.md',import.meta.url),'utf8')
+  const fix=readFileSync(new URL('references/post-audit-fixes.md',import.meta.url),'utf8')
+  assert.match(audit,/derive your own chain from the supplied outcome/)
+  assert.match(audit,/Missing phase End state numbers or corrective-round history are not findings/)
+  assert.match(fix,/chain backward from the authorized outcome/)
+  assert.match(fix,/Do not import WAR's phase counters, WorkerResult markers/)
+  for(const prose of [audit,fix])assert.doesNotMatch(prose,/read .*backward-chain-(?:audit|fix)\.md/i)
+})
+
 test('canonical Snipe vocabulary distinguishes Claude and Codex profile resolution', () => {
   assert.match(context, /Claude seats spawn at the\nconfig tier ladder/)
   assert.match(context, /Codex seats instead\ninherit the invoking session's exact model\/effort/)

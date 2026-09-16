@@ -62,6 +62,12 @@ approval or red-team validation. No issue filing, commit, install, ADR creation 
 campaign launch follows automatically. Preserve original drafts and unrelated files;
 resolve output collisions with the operator before overwriting.
 
+Shared WAR execution references are background for authoring when reached from
+the backward-chain planning doctrine. Read the linked rules and examples to check
+the plan's reachability; do not launch workers, audits, fix rounds or recovery,
+emit WorkerResult records, or adopt corrective-round thresholds in this planning
+session. Existing interview/verifier gates and operator authority still govern.
+
 ## Authoring and conversion handoff
 
 Use the maintained examples' bold intent labels (`**Binding guardrails:**`,

@@ -53,6 +53,7 @@
   "skills/war/assets/assert-no-submodule-mutation.test.sh",
   "skills/war/assets/assert-packaging-in-diff.test.sh",
   "skills/war/assets/assert-test-in-diff.test.sh",
+  "skills/war/assets/backward-chain.test.mjs",
   "skills/war/assets/doc-semantics.test.mjs",
   "skills/war/assets/gate-pin-status.test.sh",
   "skills/war/assets/land-decision.test.mjs",

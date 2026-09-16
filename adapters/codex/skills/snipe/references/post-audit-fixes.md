@@ -30,6 +30,15 @@ the class is closed.
 
 Before each repair commit:
 
+First chain backward from the authorized outcome to the current implementation.
+Name the earliest unmet condition across the verified findings and repair that
+cause; record the outcome, reasoning, affected consumers and deliberate deferrals
+in the existing work log. When history shows sibling, residue or consumer defects
+recurring, recheck their common cause rather than patching only the newest site.
+Do not import WAR's phase counters, WorkerResult markers or round-gated exits into
+this standalone workflow. A demonstrated impossible or unauthorized requirement is
+an operator decision immediately; it is not permission to move the finish line.
+
 1. **Establish the cause and the rule.** Verify the finding against the pinned
    evidence and current code. Group findings by the violated invariant, not by
    seat or severity. Treat the auditor's fix text as a floor, not a scope ceiling;

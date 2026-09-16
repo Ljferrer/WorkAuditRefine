@@ -25,7 +25,8 @@ const files=[
   ...['codex-models.mjs','snipe-process.mjs'].map(path=>[`adapters/codex/skills/snipe/assets/${path}`,`shared/skills/snipe/assets/${path}`]),
   ['adapters/codex/skills/war-strategy/SKILL.md','skills/war-strategy/SKILL.md'],
   ['adapters/codex/skills/war-strategy/agents/openai.yaml','skills/war-strategy/agents/openai.yaml'],
-  ...['SKILL.md','references/plan-interview.md','references/strategy-verifier.md','assets/plan-literal-lint.mjs'].map(path=>[`skills/war-strategy/${path}`,`shared/skills/war-strategy/${path}`]),
+  ...['SKILL.md','references/plan-interview.md','references/backward-chain-plan.md','references/strategy-verifier.md','assets/plan-literal-lint.mjs'].map(path=>[`skills/war-strategy/${path}`,`shared/skills/war-strategy/${path}`]),
+  ...['backward-chain-fix.md','backward-chain-examples.md','fix-round-doctrine.md'].map(path=>[`skills/war/references/${path}`,`shared/skills/war/references/${path}`]),
   ['adapters/codex/skills/war-strategy/references/host.md','shared/skills/war-strategy/references/host.md'],
   ['docs/adr/0025-drift-guard-discipline.md','shared/docs/adr/0025-drift-guard-discipline.md'],
 ]

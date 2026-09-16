@@ -17,13 +17,13 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - [x] Verified PR merge, fetched refs, read original plan/completed ledger, created isolated branch.
 - [x] Merged pinned master without conflicts; inspected automatic resolutions and shared dependency changes.
 - [x] Reproduced missing planning resource using the existing package link test (`planning-before.log`).
-- [ ] Repair required reference closure and assess standalone Snipe doctrine.
-- [ ] Review census; prove targeted regressions/negative controls.
+- [x] Repair required reference closure and assess standalone Snipe doctrine.
+- [x] Review census; prove targeted regressions/negative controls.
 - [ ] Commit stable candidate, run complete collector and build/validate packages.
 - [ ] Run candidate panel(s) within budget; resolve verified in-scope findings.
 - [ ] Commit final evidence, verify protected state, push and open PR into codex-port.
 
-Next action: repair package closure, with moved-package byte-identity and omission controls; assess Snipe's maintained instructions against the new doctrine before editing them.
+Next action: commit the repaired candidate; run the complete collector on that stable SHA, build fresh packages, then use the candidate Snipe runner for panel 1. Audit scope is pinned master `287405fc56ee54c3a46f94f0449a83c30008a8bf...CANDIDATE_SHA`, with no path filter, matching the original final integration scope. Upstream imports are also inspected against the port parent and covered by the full baseline.
 
 ## Dependency and boundary assessment
 
@@ -35,6 +35,20 @@ Next action: repair package closure, with moved-package byte-identity and omissi
 ## Evidence and repair records
 
 Baseline regression: existing `package resource links stay resolvable without pulling the development checkout into the archive` fails at `shared/skills/war-strategy/references/plan-interview.md` → `backward-chain-plan.md`. This is an observed assertion failure, not an inferred defect.
+
+### Planning reference closure
+
+Root cause: the explicit package allowlist predated the new interview dependency. Outcome: relocated authoring must retain every required link. Swept all packaged Markdown references; added the four missing resources byte-for-byte through the existing list. The host keeps shared execution doctrine as authoring background with no new execution authority.
+
+Before evidence: `planning-before.log` reproduces the existing unresolved-link failure; `new-regressions-before.log` observes the new independent reference and Snipe-guidance assertions fail before production edits. After evidence: `targeted-after.log`, 51 passed, zero failed/skipped (planning and Snipe packaging, planning host contract, Snipe structure and runner). In a disposable source snapshot, omitting each of the four resources independently causes the named required-resource assertion to fail; four killed mutations are recorded in `package-mutations.json` and individual logs. Moved-package tests also remove each packaged file and require verification to reject it.
+
+Consequences: the planning package now carries additional shared WAR reference text; its host boundary explicitly prevents this from becoming phase execution authority. No verifier/runner schema or engine semantics changed. Snipe's auditor and main-task references adopt independent outcome-to-cause reasoning while retaining existing finding, ask, repair and authority contracts. Actual prompt injection and packaged byte-identity remain covered by existing runner/package tests; prose assertions do not establish live reasoning quality.
+
+### Census and environment
+
+Reviewed discovery adds only `skills/war/assets/backward-chain.test.mjs`: 70 → 71 suites, no removals or changed skip policy (`discovered-inventory.json`). No CI activation. Environment: macOS arm64; Node v24.17.0; Git 2.54.0 (Apple Git-157); system Bash 3.2.57; jq 1.7.1-apple; dedicated `codex-snipe-port` Python 3.12.13 / PyYAML 6.0.3. Collector receives this Python through PATH, preserving its child credential isolation.
+
+The normal merge commit is `3dc9ff84`. Its imported upstream reports/lessons contain pre-existing whitespace warnings (`upstream-whitespace.txt`); those artifacts remain byte-preserved. The sync's own edits pass `git diff --check`. A scratch mutation setup first failed because system Python lacks the tar extraction filter argument; the corrected run used the dedicated Python environment, before any mutation evidence was collected.
 
 ## Remaining backstops
 
