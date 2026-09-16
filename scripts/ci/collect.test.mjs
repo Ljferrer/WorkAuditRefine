@@ -298,14 +298,31 @@ test('shared process owner contains output capture, stream and spawn errors', t 
 })
 
 test('zero-exit shell failure rows on either channel still fail', async t => {
+  for (const indent of ['', '  ', '\t']) {
   for (const row of ['FAIL - assertion failed', 'not ok 1 - assertion failed']) {
     for (const channel of ['', '>&2']) {
-      const root = fixture(t, { 'hooks/fail.test.sh': `echo '${row}' ${channel}; exit 0` })
+      // Include a real passing row so an ignored failure cannot hide behind the empty-suite guard.
+      const root = fixture(t, { 'hooks/fail.test.sh': `echo 'ok - passed'; echo '${indent}${row}' ${channel}; exit 0` })
       const report = await collect({ root, output: join(root, 'report') })
       assert.equal(report.suites[0].exitCode, 0)
+      assert.equal(report.ok, false, JSON.stringify({ indent, row, channel, status: report.suites[0].status }))
+      assert.equal(report.suites[0].counts.pass, 1)
       assert.equal(report.suites[0].counts.fail, 1)
       assert.equal(report.suites[0].status, 'failed')
       assert.equal(report.ok, false)
+    }
+  }
+  }
+})
+
+test('indented shell assertion rows count on either channel without counting diagnostic mentions', async t => {
+  for (const indent of ['  ', '\t']) {
+    for (const channel of ['', '>&2']) {
+      const root = fixture(t, { 'hooks/pass.test.sh': `echo '${indent}ok 1 - passed' ${channel}; echo 'diagnostic: not ok and FAIL are examples'; exit 0` })
+      const report = await collect({ root, output: join(root, 'report') })
+      assert.equal(report.suites[0].counts.pass, 1)
+      assert.equal(report.suites[0].counts.fail, 0)
+      assert.equal(report.ok, true)
     }
   }
 })
@@ -344,6 +361,8 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['cleanup-error', '!execution.cleanupError && ', '', 'cleanup error'],
     ['framing', "hash.update(JSON.stringify([path, stat?.mode ?? null, bytes.length, digest]) + '\\n')", "hash.update(JSON.stringify([path, stat?.mode ?? null])); hash.update(bytes)", 'metadata-shaped'],
     ['failure-row', 'counts.fail > 0', 'false', 'zero-exit shell failure'],
+    ['failure-indent', '^\\s*(?:not ok|FAIL)', '^(?:not ok|FAIL)', 'zero-exit shell failure'],
+    ['pass-indent', '^\\s*ok(?: \\d+)? -', '^ok(?: \\d+)? -', 'indented shell assertion'],
     ['mode', '[path, stat?.mode ?? null, bytes.length, digest]', '[path, null, bytes.length, digest]', 'mode-only'],
     ['regular-file', "lstatSync(join(root, path), { throwIfNoEntry: false })?.isFile()", "lstatSync(join(root, path), { throwIfNoEntry: false })", 'symlinked tracked'],
     ['denial-finalization', '        finish()\n        return', '        return', 'cleanup denial', 'owned-process.mjs'],

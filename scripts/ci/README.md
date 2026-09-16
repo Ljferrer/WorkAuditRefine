@@ -26,7 +26,8 @@ the collector does not install dependencies or activate GitHub workflows.
 Each suite has a distinct log directory and recorded literal command, exit code,
 signal and timeout/output-limit classification. Collection continues after suite
 failure. Node TAP summary counts and skip lines are recorded. Shell suites must
-emit nonzero assertion evidence (`ok [number] - description` / failure rows); the
+emit nonzero assertion evidence (`ok [number] - description` / failure rows, with
+optional leading whitespace on either output channel); the
 existing redaction-lint wrapper instead has its named `lint: clean` assertion.
 Shell counts reflect observed rows, not comments or arbitrary summary claims.
 Empty/no-op suites fail. Skip evidence is checked on stdout and stderr.

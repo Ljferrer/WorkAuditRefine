@@ -66,9 +66,9 @@ export async function collect({ root, output, inventory, timeoutMs = 600000 }) {
       const name = line.match(/^ok \d+ - (.*?) # SKIP(?:\s|$)/)?.[1]
       return { line, channel, reason: channel === 'stdout' ? baselineSkips[path]?.[name] ?? null : null }
     })
-    const passed = lines.filter(({ line }) => /^ok(?: \d+)? - \S/.test(line)).length
+    const passed = lines.filter(({ line }) => /^\s*ok(?: \d+)? - \S/.test(line)).length
       + (path === 'skills/_shared/war-memory-lint.test.sh' && /^lint: clean\s*$/m.test(text) ? 1 : 0)
-    const failed = lines.filter(({ line }) => /^(?:not ok|FAIL)(?:\s|$)/.test(line)).length
+    const failed = lines.filter(({ line }) => /^\s*(?:not ok|FAIL)(?:\s|$)/.test(line)).length
     const counts = path.endsWith('.mjs') ? Object.fromEntries(['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo'].map(key => [key, Number(text.match(new RegExp(`^# ${key} (\\d+)$`, 'm'))?.[1] ?? NaN)]))
       : { tests: passed + failed, pass: passed, fail: failed, skipped: skips.length, cancelled: 0, todo: 0 }
     const invalidCounts = Object.values(counts).some(n => !Number.isSafeInteger(n)) || counts.tests < 1 || counts.fail > 0 || counts.cancelled > 0 || counts.todo > 0 || counts.skipped !== skips.length || text.includes(`# Subtest: ${path}\n`)

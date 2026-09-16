@@ -10,7 +10,7 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - Branch: `codex/sync-master-0.21.15`, isolated task-owned worktree. The provided f866 worktree contains unrelated modifications; untouched.
 - Raw evidence root: `/private/tmp/war-sync-02115-20260916/evidence`; worktree sibling `repo`.
 - Protected refs and installed Snipe/planning hashes recorded in `protected-refs-before.txt` and `installed-before.json`. No installed files or frozen comparison refs are editable scope.
-- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Panels used: 2; fix rounds used: 2; reserve unused.
+- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Regular panels used: 3; ordinary fix rounds used: 2; reserve repair verified, reserve panel pending for the material collector finding from panel 3.
 
 ## Progress
 
@@ -23,7 +23,7 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - [ ] Run candidate panel(s) within budget; resolve verified in-scope findings.
 - [ ] Commit final evidence, verify protected state, push and open PR into codex-port.
 
-Next action: commit the version-boundary and cleanup-coverage repairs; run the complete collector on candidate 3, rebuild both packages, and run panel 3 through that freshly built Snipe package. No ordinary fix round remains; the single reserve requires a material panel-three finding and its verified repair. Audit scope is pinned master `287405fc56ee54c3a46f94f0449a83c30008a8bf...CANDIDATE_SHA`, with no path filter, matching the original final integration scope. Upstream imports are also inspected against the port parent and covered by the full baseline.
+Next action: commit the collector repair, run the complete baseline on candidate 4, rebuild packages and execute the single reserve panel. No further panels are authorized. After that report ready-for-review or held, preserve evidence and publish the PR into codex-port. Audit scope is pinned master `287405fc56ee54c3a46f94f0449a83c30008a8bf...CANDIDATE_SHA`, with no path filter, matching the original final integration scope. Upstream imports are also inspected against the port parent and covered by the full baseline.
 
 ## Dependency and boundary assessment
 
@@ -85,6 +85,20 @@ Version rule checked against [SemVer 2.0.0 clauses 9–10](https://semver.org/#s
 For cleanup, representative completed, failed and invalid runner results now assert absence of the obsolete property; the report rejects a repair-status claim even if a historical diagnostic object carries that field. The existing one-attempt tests remain intact. A broader `seat.repair`/repair-property search found and removed the stale actual-host diagnostic projection; the live test itself stays explicitly skipped in the baseline. Restoring the field independently on each of the three runner return branches, or restoring its rendering, fails the new oracle. Eight final mutations are killed (`round-2-mutations.json`); targeted cleanup assertions pass (`round-2-cleanup-final.log`).
 
 Consequences: malformed package versions are now rejected consistently; valid generated packages retain identical bytes. The tests and dormant host diagnostic change without changing the verdict schema or launching a live-host evaluation. Candidate 2's full collector completed before these repairs entered the integration worktree. Its approvals remain attributed only to its source SHA.
+
+## Candidate 3 baseline and reserve trigger
+
+Candidate `1eac9ac857a737fb5a095ed78c360c2529026fbd`: complete 71-suite collector passed, 4045 passing records and five named host skips, clean source unchanged. Both packages have the same bytes as candidate 2 but were freshly built for candidate 3. [Panel 3 report](snipe/2026-09-16-codex-master-sync-panel-3.md): stable/complete, four validated high-confidence approvals; test-fidelity reports one Minor collector false-green finding.
+
+The reserve condition is satisfied by consequence, not severity label: the collector can report passed even when a shell test emits a real assertion failure. A disposable before-source regression proves `report.ok === true` for one passing row followed by an indented `FAIL` and exit zero (`collector-indent-before.log`). That compromises the test-evidence boundary being delivered, so it is a concrete material finding within this integration's scope. No additional ordinary panel or fix round is being authorized or inferred.
+
+### Reserve repair: shell assertion indentation
+
+Root cause: skip parsing allowed indentation, but shell assertion counters required column zero. Changed only the pass/failure row prefixes to accept leading whitespace. Swept both stdout/stderr and the pass/fail classification paths. Twelve failure combinations cover unindented/spaces/tabs × FAIL/not-ok × stdout/stderr; every fixture includes a passing row, preventing the empty-suite guard from hiding a missed failure. Four positive combinations cover spaces/tabs × both channels, with a diagnostic mention that must not count as a result. Skip policy, child exit/cleanup handling, Node TAP summary counts and inventory discovery remain unchanged.
+
+The complete collector self-suite passes 25 tests, including the existing mutation harness extended with independent pass- and failure-indentation removals (`collector-indent-after.log`). Before-source failure and positive-indentation regressions both failed as expected. Related lessons read: compound TAP label/count discrimination and archived column-zero extraction limits. A scan of all shell stdout/stderr from candidates 1–3 finds no hidden indented failure rows (`prior-indented-failure-scan.json`); their recorded passes are not contradicted by this finding.
+
+Consequences: inherited shell output is classified consistently regardless of indentation, and a swallowed nonzero exit can no longer hide these recognized failure rows. This remains the documented assertion-row classifier, not a parser for arbitrary colored/proprietary test output. CI remains inactive. Candidate 3's baseline finished before the repair entered the integration worktree. The reserve audit will cover the new SHA; earlier approvals do not transfer.
 
 ## Remaining backstops
 
