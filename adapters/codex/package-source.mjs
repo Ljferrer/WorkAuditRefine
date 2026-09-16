@@ -1,5 +1,10 @@
 import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
+import assert from 'node:assert/strict'
+
+export function assertPackageVersion(version) {
+  assert.match(version,/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,'invalid plugin manifest version')
+}
 
 export function regularSource(root,path) {
   if(!lstatSync(root,{throwIfNoEntry:false})?.isDirectory())throw new Error('source root must be a real directory')
@@ -12,4 +17,3 @@ export function regularSource(root,path) {
   if(!lstatSync(current).isFile())throw new Error(`missing regular source: ${path}`)
   return current
 }
-

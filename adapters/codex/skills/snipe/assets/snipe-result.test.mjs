@@ -187,7 +187,7 @@ test('informational report orders scope, outcomes, attributed findings, limitati
     complete: false,
     stability: { stable: false, before: fingerprint, after: 'e'.repeat(64), error: 'large: file capture byte limit exceeded' },
     seats: [
-      { seat: 1, lens: 'correctness', status: 'completed', validation: { status: 'valid' }, repair: { attempted: false }, verdict: {
+      { seat: 1, lens: 'correctness', status: 'completed', validation: { status: 'valid' }, verdict: {
         verdict: 'request_changes', confidence: 'high', widen: ['security'],
         findings: [sharedFinding, {
           severity: 'Minor', title: 'Choose compatibility policy', rationale: 'Two policies are viable.',
@@ -198,11 +198,11 @@ test('informational report orders scope, outcomes, attributed findings, limitati
           severity: 'Nit', title: 'Document the later migration', rationale: 'The migration is outside this change.', disposition: 'follow-up', barrier: 'barrier:release-slot',
         }],
       } },
-      { seat: 2, lens: 'security', status: 'completed', validation: { status: 'valid' }, repair: { attempted: true, succeeded: true }, verdict: {
+      { seat: 2, lens: 'security', status: 'completed', validation: { status: 'valid' }, verdict: {
         verdict: 'request_changes', confidence: 'medium', findings: [sharedFinding],
       } },
-      { seat: 3, lens: 'test-fidelity', status: 'invalid_result', validation: { status: 'invalid', error: 'wrong revision' }, repair: { attempted: true, succeeded: false }, verdict: null },
-      { seat: 4, lens: 'usability', status: 'completed', validation: { status: 'valid' }, repair: { attempted: false }, verdict: {
+      { seat: 3, lens: 'test-fidelity', status: 'invalid_result', validation: { status: 'invalid', error: 'wrong revision' }, verdict: null },
+      { seat: 4, lens: 'usability', status: 'completed', validation: { status: 'valid' }, verdict: {
         verdict: 'escalate', confidence: 'low', findings: [], escalate_reason: 'The operator must choose the public compatibility policy.',
       } },
     ],

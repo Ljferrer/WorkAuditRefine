@@ -1,7 +1,8 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { regularSource } from './package-source.mjs'
+import assert from 'node:assert/strict'
+import { regularSource, assertPackageVersion } from './package-source.mjs'
 import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 const FILES = [
@@ -30,6 +31,7 @@ const IMPORT_REWRITES = new Map([
 ])
 
 function manifest(version) {
+  assertPackageVersion(version)
   return {
     name: 'work-audit-refine-snipe',
     version,
@@ -70,8 +72,7 @@ export function verifySnipePlugin(root) {
   const manifestPath = join(packageRoot, '.codex-plugin/plugin.json')
   if (!existsSync(manifestPath)) throw new Error('missing required package file: .codex-plugin/plugin.json')
   const config = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  if (config.skills !== './skills/') throw new Error("plugin skills must be './skills/'")
-  if ('hooks' in config) throw new Error('Snipe plugin must not select hooks')
+  assert.deepEqual(config, manifest(config?.version), 'invalid Snipe manifest')
   for (const path of requiredPaths()) {
     const absolute = join(packageRoot, path)
     if (!existsSync(absolute) || !lstatSync(absolute).isFile()) throw new Error(`missing required package file: ${path}`)
@@ -90,8 +91,9 @@ export function buildSnipePlugin({ repoRoot, output }) {
     regularSource(sourceRoot, source)
   }
   const sourceVersion = JSON.parse(readFileSync(regularSource(sourceRoot, '.claude-plugin/plugin.json'), 'utf8')).version
+  const config = manifest(sourceVersion)
   mkdirSync(join(packageRoot, '.codex-plugin'), { recursive: true })
-  writeFileSync(join(packageRoot, '.codex-plugin/plugin.json'), `${JSON.stringify(manifest(sourceVersion), null, 2)}\n`)
+  writeFileSync(join(packageRoot, '.codex-plugin/plugin.json'), `${JSON.stringify(config, null, 2)}\n`)
 
   for (const [source, target] of FILES) {
     const sourcePath = join(sourceRoot, source)

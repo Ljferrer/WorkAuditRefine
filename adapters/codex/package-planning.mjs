@@ -2,11 +2,11 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSy
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { regularSource } from './package-source.mjs'
+import { regularSource, assertPackageVersion } from './package-source.mjs'
 import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 function manifest(version) {
-  assert.match(version,/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,'invalid planning manifest version')
+  assertPackageVersion(version)
   return {
     name:'work-audit-refine-planning',version,
     description:'Author WAR plans from an interview or existing draft; does not execute plans.',

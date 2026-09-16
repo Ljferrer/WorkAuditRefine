@@ -200,9 +200,8 @@ export function renderSnipeReport(panel) {
   lines.push('', '## Seat outcomes', '')
   for (const seat of panel.seats) {
     const validation = seat.validation?.status === 'valid' ? 'validated' : inline(seat.validation?.error ?? 'no validated result')
-    const repair = seat.repair?.attempted ? `; repair ${seat.repair.succeeded ? 'succeeded' : 'failed'}` : ''
     const judgment = seat.verdict ? `; verdict ${seat.verdict.verdict}; confidence ${seat.verdict.confidence}` : ''
-    lines.push(`- Seat ${seat.seat} · ${inline(seat.lens)}: ${seat.status} — ${validation}${repair}${judgment}`)
+    lines.push(`- Seat ${seat.seat} · ${inline(seat.lens)}: ${seat.status} — ${validation}${judgment}`)
     if (seat.verdict?.tests_verified) {
       const tests = seat.verdict.tests_verified
       lines.push(`  Seat-reported tests: ${tests.inspected.length ? tests.inspected.map(inline).join(', ') : tests.exist ? 'tests exist; none inspected' : 'no tests reported'}.`)
