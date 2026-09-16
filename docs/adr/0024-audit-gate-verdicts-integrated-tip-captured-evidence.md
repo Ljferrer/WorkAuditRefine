@@ -59,16 +59,18 @@ mapped-diff recipe:
   provably-unrun HARD path this doctrine exists to protect. The `execution-evidence` seat consumes the
   stamped `pin_status` token + cited diff; it may spot-verify with a single allowlisted read-only verb,
   but never reconstructs the proof.
-- **The pin-equality gate** (pure Node, in the Workflow body) verifies each seat judged the tree it was
-  dispatched to review: a seat whose returned `audit_sha` is well-formed and ≠ its dispatched pin (for
-  the gate-audit seat, the observed `_refinery` tip; for work-wave seats, the worker/fix-worker
-  `head_sha`) has its findings tagged **`pin-mismatch`** and **excluded from the HARD path** — they
-  cannot enter `escalated` or block a merge; a SOFT absence-note (task, seat, both SHAs) is recorded.
-  Demotion fires only on a well-formed differing pair — an absent or malformed pin on either side is
-  today's behavior (fail-open). The two checks are orthogonal: `pin_status` classifies the
-  `gateHeadSha`↔`observedHead` relationship, while pin-equality checks seat-vs-observed-tip, so under a
-  `BENIGN-ADVANCE` the seat legitimately returns the advanced tip as its `audit_sha` and is **not**
-  demoted.
+- **The pin-equality gate** distinguishes task approval from post-merge evidence absence.
+  Finalization amendment (2026-09-09, #2141): missing, malformed or conflicting task-audit SHA evidence is unresolved
+  review, never approval. A read-only recovery refiner resolves the branch and the roster
+  re-runs once. A worker-reported pin can be repaired from Git; a later operation's
+  already-gated/transfer pin must still match. Unusable proof or repeat conflict takes
+  the existing shortfall path, with original findings retained in the audit log. This
+  implements the operator's Git-is-truth direction; it supersedes work-wave demotion.
+  Post-merge gate-audit mismatches still exclude wrong-tree findings from the HARD path
+  and record SOFT evidence absence. Only that post-merge evidence family retains
+  absent/malformed-pin compatibility; task audits require usable, agreeing pins. `pin_status` still classifies gate-HEAD versus observed tip; a BENIGN-ADVANCE
+  seat matching that observed tip is not mismatched.
+
 
 The `pin-mismatch` tag is a **findings tag**, not a memory-provenance tier: it does **not** ride the
 `agent-unverified < code-verified < user-confirmed` ladder of
@@ -81,8 +83,11 @@ The `pin-mismatch` tag is a **findings tag**, not a memory-provenance tier: it d
 (defence-in-depth — a finding-less `escalate` no longer lands silently, matching the general WAR rule
 that any `escalate` halts). This **does not weaken** the default: `gate-evidence` is still SOFT unless a
 mapped test is *provably unrun* (the HARD unrun determination is made only against the captured
-**gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.log`,
-never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold). The
+**gate-evidence artifact** — the tee'd full gate stdout+stderr under `_refinery/.war/gate-<taskId>.<unique>/gate.log`,
+never a possibly-curated inline paste; a missing artifact ⇒ SOFT cannot-confirm, never a hold; an
+artifact is HARD-path evidence only when stamped `tip_sha:` first for the gated sha and
+`exit_code:` last, so a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm too; ADR 0041
+ranks this rule as `execution` rung 1). The
 SOFT-by-default rule still governs Minor/Nit findings, and a `STALE-MISMATCH`/`ERROR`/cannot-confirm
 case keeps `verdict` at `approve`/`request_changes` with a SOFT note — never `escalate` (which stays
 reserved for plan-wrong/underspecified), so the preserved stale-tip SOFT-defusing rule never flips into
@@ -150,3 +155,9 @@ a HARD hold via this trigger.
 - Memory: [[gate-audit-pin-bracket-test-blocked-by-git-guard]], [[audit-worktree-pre-impl-tip-stale-verdict]],
   [[within-phase-dep-gate-must-rerun-on-integrated-tip]], [[gate-output-curated-excerpt-obscures-mapped-test-evidence]],
   [[gate-evidence-severity-not-verdict-gates-hard-path]] — the originating friction cluster.
+
+## Decision log
+
+- 2026-09-07 · §(C) gains the gate-log completeness qualifier (`tip_sha:` first for the gated sha, `exit_code:` last, else SOFT cannot-confirm), mirrored from `agents/war-auditor.md` and ranked as ADR 0041 `execution` rung 1 · issue #2156
+
+- 2026-09-09 · PR #2297 finalization: every task panel gets independent full Git object resolution, including equal abbreviated reports. Only confirmed unanimity emits approval-transfer receipts. Gate capture uses an engine-owned logical-attempt prefix plus a filesystem-allocated suffix; producer-boundary validation rejects other attempts before readers. Artifact absence remains SOFT; uncertain Git mutations still require successful recovery proof before land. See the finalization ledger and schemas.md's task audit pin amendment.

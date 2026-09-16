@@ -1,0 +1,168 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...5db8cce7fac141a759b07432fff5f5e4a21a6b34",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "5db8cce7fac141a759b07432fff5f5e4a21a6b34",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": false,
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "packageManifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92",
+  "rawResultSha256": "a8eb91700db1bf40d7b7b02ceacd7ac3ba79637b0173f355fe1bca22e09ce38b",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "5db8cce7fac141a759b07432fff5f5e4a21a6b34"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Success-shaped merge replies bypass Git reconciliation",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "MERGE_RESULT, uncertainMerge, and reconciledMerge",
+            "plan_ref": "D21 / PIN-25",
+            "line": 2157,
+            "rationale": "MERGE_RESULT requires only mode and status, while uncertainMerge treats every recognized non-error status as certain. Consequently, `{ mode: 'merge-task', status: 'merged' }` and `{ mode: 'land-phase', status: 'landed' }` bypass reconcileMerge without an integration_sha/working_sha or any check that the local and remote target refs changed as claimed. landMerged immediately records such a task in landed/succeeded, and the land consumer records the phase as landed. The pinned test harness's defaultImpl returns exactly these minimal success shapes, confirming they are accepted rather than rejected by schema validation. A terse, mistaken, or corrupted success response can therefore create false task or phase completion even though the new pre-dispatch snapshot exists, violating D21's requirement to account success only with matching Git evidence.",
+            "suggested_fix": "Validate normal success responses against Git before accounting them: for merged, require a full integration_sha and a fresh read proving the local target, origin target, and post-rebase source resolve to it; for landed, require a full working_sha matching both target refs and the expected phase-commit parents. Treat missing or contradictory success evidence as uncertain and route it through the existing bounded reconciliation/hold path. Add negative fixtures for minimal and mismatched merged/landed responses."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "5db8cce7fac141a759b07432fff5f5e4a21a6b34"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "The ambiguity fixture mines SHA collisions dynamically",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "Git-backed audit approval test matrix, kind === 'ambiguous' fixture",
+            "line": 18525,
+            "rationale": "The `Git-backed audit approval: ambiguous` cases generate up to 250,000 commit bodies, hash each one, and retain them in a Map until two share a seven-hex prefix. Because the enclosing repair loop runs the ambiguous case for both `repair` values, this nondeterministic fixture-generation machinery executes twice. The behavior under test is Git's rejection of an actually ambiguous abbreviation, which does not require discovering a new collision during every test run. Two fixed commit-object payloads with a precomputed shared prefix would preserve the real-Git oracle while removing the search loop, unbounded-looking fixture state, and variable runtime.",
+            "suggested_fix": "Replace the collision-search loop with two fixed serialized commit objects whose known SHA-1 object IDs share a seven-character prefix; write both using `git hash-object -t commit -w --stdin`, verify the shared prefix in the fixture, and reuse that deterministic setup for both repair cases.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "failed",
+      "exitCode": 1,
+      "signal": null,
+      "validation": {
+        "status": "unavailable",
+        "error": "transport status: failed"
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "failed",
+      "exitCode": 1,
+      "signal": null,
+      "validation": {
+        "status": "unavailable",
+        "error": "transport status: failed"
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    }
+  ],
+  "failureCause": "Seats 3 and 4: Selected model is at capacity. No permission broadening or model substitution."
+}

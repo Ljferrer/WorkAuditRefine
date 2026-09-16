@@ -62,6 +62,10 @@ case. Before each commit of a review-driven fix, run this checklist:
 8. **One consequence line per commit.** State what else the change touches and why that is
    unaffected. It forces the sweep the fixer otherwise skips.
 
+The canonical home of these rules is `skills/war/references/fix-round-doctrine.md` (operator ruling
+2026-09-07, #2097), which carries the full set mirrored into the fix-applying dispatched prompts;
+this file is the instance record.
+
 The reviewer's fix scopes the site. The rule scopes the diff.
 
 ## Instance

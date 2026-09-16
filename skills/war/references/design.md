@@ -2,7 +2,7 @@
 
 **Status:** Active. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads. The shipped version lives in [`.claude-plugin/plugin.json`](../../../.claude-plugin/plugin.json).
 
-This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js).
+This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js). It is also an ADR 0042 eviction destination: the §4 step 3 default-roster sentence was byte-identical to its pre-eviction `SKILL.md` text through `on flagged code` **at eviction time** (2026-09-08; the bullet's trailing `;` became a period).
 
 ## 1. Topology
 `Human ↔ Lead (main session = Mayor) ↔ Workflow → { war-worker, war-auditor, war-refiner }`. The Lead orchestrates, gates, and talks to the human; it **never edits code**. There is no separate orchestrator agent and no standalone Witness agent — those functions live in the Workflow's control flow and lifecycle hooks.
@@ -10,7 +10,7 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 ## 2. Substrate — hybrid
 - **Workflow spine, one run per phase.** Holds the phase loop and *is* the serial merge queue (one merge at a time, by construction). The script has no shell/fs access — every git/test action is performed by a spawned agent.
 - **Workers** = worktree-isolated `Agent`s (per-role model from `war-config.mjs` DEFAULTS, never restated here), one fresh per task.
-- **Auditors** = read-only `Agent`s (per-role model from `war-config.mjs` DEFAULTS); independent by default, with **one rebuttal round** on a split (realized inside the Workflow by re-spawning each seat with its peers' findings — a portable stand-in for live peer messaging).
+- **Auditors** = read-only `Agent`s (per-role model from `war-config.mjs` DEFAULTS); independent by default, with **one rebuttal round** on a split (realized inside the Workflow by re-spawning each seat with its peers' findings — a portable stand-in for live peer messaging). Split resolution is **rebuttal first, then fix round when all surviving blockers have a suggested_fix**: a panel whose surviving blockers ALL carry a concrete in-file `suggested_fix` dispatches one fix worker plus a full-roster re-audit at the new SHA (bounded by `run.roundLimit`, approval unanimous on the post-fix `audit_sha`); a fix-less survivor is decision-forked and escalates with its `escalate_reason` (ADR 0013, Decision log 2026-09-08).
 - **Witness dissolved** into the Workflow + hooks + Lead.
 
 ### Why a Workflow, not the Agent Teams feature
@@ -34,7 +34,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 | 9 | Witness | Dissolved into Workflow + hooks + Lead |
 | 10 | State/resume | One authority (git) + two advisory records (GitHub issues + JSON ledger(+md)); Workflow resume journal is off-ladder |
 | 11 | Stage graph | Wave-by-wave with barriers; serial merges = the queue; explicit named worktrees |
-| 12 | Audit independence | Independent parallel + one rebuttal round on splits → approve / FIX_NEEDED / escalate |
+| 12 | Audit independence | Independent parallel + one rebuttal round on splits → approve / FIX_NEEDED / escalate — rebuttal first, then fix round when all surviving blockers have a suggested_fix; a fix-less survivor escalates |
 | 13 | Worker bar | Acceptance-criteria-driven, tests included, anti-cheat test-existence check |
 | 14 | Ledger format | JSON authoritative + derived markdown |
 | 15 | Workflow gen | Fixed parameterized template + per-phase patches reviewed at the gate |
@@ -45,7 +45,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 ## 4. Per-phase flow
 1. **Cut** `integration/phase-N` off the working branch.
 2. **Work (waves):** topologically sort the phase's tasks into dependency waves (usually one). Per wave, fan out one `war-worker` per task into a named mutable worktree branched off the integration tip; the worker implements, writes/extends the plan's mapped tests, runs the gate green, commits, pushes. **Frozen-base scope note (ADR 0012):** the frozen phase base is HARD **for same-wave parallel tasks only** — a same-repo task with declared `deps` rebases its worktree onto the integration branch as its worker's first action (dep-wave visibility; a first-dispatch rebase is a pure fast-forward, a resume-with-commits conflict returns `blocked`). `gitlink-bump` tasks are excluded (their dep merged in the submodule repo).
-3. **Audit (per task):** independent read-only seats review the pinned `audit_sha` — one seat per entry in the task's **roster** (1–5 distinct lenses, per-seat depth; default: the 5-seat roster at `deep`). A lone seat hitting a Critical or low confidence union-widens (`autoEscalate`) — toward its own `widen` nomination when valid (those lenses at `deep`), else the default roster's lenses (the byte-identical default-roster-union fallback). Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / still-split-escalate.
+3. **Audit (per task):** independent read-only seats review the pinned `audit_sha` — one seat per entry in the task's **roster** (1–5 distinct lenses, per-seat depth). A lone seat hitting a Critical or low confidence union-widens (`autoEscalate`) — toward its own `widen` nomination when valid (those lenses at `deep`), else the default roster's lenses (the byte-identical default-roster-union fallback). Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / a surviving blocker with a `suggested_fix` → `FIX_NEEDED` (step 4) / a fix-less survivor → escalate; a seat conflict (same locus, severities split across the blocking line, a mandate-shaped or adjudication-match rationale on one side) preserves an operator `ask` while held; no conflict bypasses the fix, fix-less, unchanged-survivor or finding-less-seat checks. The default roster is five seats (correctness / cascading-impact / plan-faithfulness / simplicity / performance) at `deep`; swap or add a domain lens (e.g. security, healthcare-safety) on flagged code.
 4. **Fix loop:** a block routes a batched `FIX_NEEDED` to a fresh fix-worker on the *same* worktree; re-audit against the new SHA; ≤ `round_limit=6` then `audit-blocked`.
 5. **Refine (serial):** `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, merges — one at a time. This sequencing *is* the merge queue.
 6. **Land:** `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit), pushes working. Held if a hard escalation is open.

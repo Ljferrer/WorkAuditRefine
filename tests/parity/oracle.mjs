@@ -178,7 +178,7 @@ export function assertScenario(record, fixture) {
     }
   }
   if (scenario.id==='P02') {
-    assert.deepEqual(record.facts.blockedAudit,{seat:1,lens:'correctness',revision:record.facts.previousRevision,verdict:'request_changes',findings:[{id:'major-1',severity:'Major',disposition:'absorb'}]},`${label}: initial Major finding must be preserved`)
+    assert.deepEqual(record.facts.blockedAudit,{seat:1,lens:'correctness',revision:record.facts.previousRevision,verdict:'request_changes',findings:[{id:'major-1',severity:'Major'}]},`${label}: initial Major finding must be preserved`)
   }
   if (additional.includes('gateRevision')) assert.equal(record.facts.gateRevision, record.facts.expectedRevision, `${label}: gate pin mismatch`)
   if (scenario.id === 'P02') assert.notEqual(record.facts.previousRevision, record.facts.expectedRevision, `${label}: repair must change revision`)

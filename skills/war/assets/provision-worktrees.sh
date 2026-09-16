@@ -1568,9 +1568,10 @@ cmd_ensure_refinery_worktree() {
 #
 # Ensure+re-attach for the Gate-2 learnings-publication worktree (p<N>-publication).
 # Structurally mirrors cmd_ensure_refinery_worktree's six behaviors, with the
-# WORKING branch in place of the integration branch, and with THREE landed
-# divergences. This list is the full set: mirror a change between the two verbs
-# only after reading it.
+# WORKING branch in place of the integration branch, and with two landed
+# divergences (the reuse hygiene arm and the dirty-reuse refusal), plus one
+# closed under #2087. This list is the full set: mirror a change between the two
+# verbs only after reading it.
 #   1. Reuse arms (b) and (c). The refinery verb runs the reuse_hygiene submodule
 #      arm and emits its WORKTREE_HYGIENE markers (#1476 gap 4). This verb runs
 #      neither, because a publication worktree commits docs only, never submodule
@@ -1579,12 +1580,10 @@ cmd_ensure_refinery_worktree() {
 #      counterpart deliberately keeps today's six behaviors — extending the
 #      refusal there interacts with the serial merge queue's legitimate in-flight
 #      state and is a recorded non-goal.
-#   3. The worktree-add failure die. The refinery twin names the branch holder
-#      (`checked out at <path>`, #1712 fix 1); this die does not. That is
-#      unfilled #1712 scope, not a decision — the adjudicated row scoped fix 1 to
-#      the two dies the test-file header names. The practical exposure is small:
-#      resolve-working-branch guarantees the working branch is checked out
-#      nowhere, and path (e) prunes a stale registration before the add.
+#   3. (Closed by #2087.) The worktree-add failure die names the branch holder
+#      (`checked out at <path>`) via branch_holder_path exactly as the refinery
+#      twin does — #1712 fix 1 had scoped the holder clause to the ensure-worktree
+#      and ensure-refinery-worktree dies only. The two dies now share one shape.
 #
 # The Lead checks out the working branch here to commit
 # `docs(learnings): phase N` before pushing via ensure-origin's CAS. It checks the
@@ -1597,7 +1596,7 @@ cmd_ensure_refinery_worktree() {
 # A dirty tree (tracked-file modifications) always FAILS LOUD — never reset, never
 # destroy work. Untracked files (e.g. the .war-task marker) do not count as dirty.
 #
-# Behaviors (mirror ensure-refinery-worktree, less divergences 1-3 above; (b)
+# Behaviors (mirror ensure-refinery-worktree, less divergences 1-2 above; (b)
 # diverges by the dirty refusal, (b) and (c) both by the missing hygiene arm):
 #   (a) Not registered / empty dir  -> git worktree add <path> <working-branch>
 #                                       + .war-task marker.
@@ -1666,8 +1665,13 @@ cmd_ensure_publication_worktree() {
 
   # (a) or (e): Create (or recreate after prune) the publication worktree, checking
   # out the working branch as-is at its local tip (no new branch created).
-  git worktree add "$wt_path" "$work_branch" >/dev/null 2>&1 \
-    || die "ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch'"
+  if ! git worktree add "$wt_path" "$work_branch" >/dev/null 2>&1; then
+    # #2087: name the holder (see ensure-refinery-worktree's twin die).
+    pw_holder="$(branch_holder_path "$work_branch" || true)"
+    pw_msg="ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch'"
+    [ -z "$pw_holder" ] || pw_msg="ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch' — the branch is checked out at $pw_holder; free or tear down that worktree first."
+    die "$pw_msg"
+  fi
 
   write_marker "$wt_path" "$work_branch"
   printf '%s\n' "$wt_path"

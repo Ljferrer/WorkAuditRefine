@@ -1,0 +1,266 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...6497e0cefaff7cdd3f4d52006111500e793dbc10",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "6497e0cefaff7cdd3f4d52006111500e793dbc10",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "complete": true,
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "6497e0cefaff7cdd3f4d52006111500e793dbc10"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "A post-push merge-dispatch death can silently land content recorded as unmerged",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "mergeDied/deathOf handling for task, polish, and terminal merge dispatches",
+            "plan_ref": "D21 / PIN-25",
+            "line": 4092,
+            "rationale": "Each merge prompt instructs the refiner to merge and push the integration branch before returning. If the dispatch dies after that push, deathOf() routes directly to envDied or the polish/terminal discard arm without inspecting the integration ref. With another task already recorded landed, env-died remains soft and the phase land subsequently publishes the advanced integration branch, including the supposedly unmerged task. The ordinary task is omitted from landed and from its gate-audit bookkeeping; polish and terminal findings can be demoted or carried as if their approved commit never merged even though it lands. The new tests at workflow-template.test.mjs:11956 and :17522 only throw before simulating any integration-ref mutation, so their assertions that the task stayed unmerged or the polish was discarded cannot reject this post-push failure mode.",
+            "suggested_fix": "Before classifying a merge-site dispatch death, reconcile the serialized integration ref against the task, polish, or terminal branch. If the branch is already an ancestor of the integration tip, route through the corresponding successful-merge bookkeeping; if it is not, retain env-died/discard handling. If the state cannot be determined reliably, hold rather than soft-land an ambiguous integration tip."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "6497e0cefaff7cdd3f4d52006111500e793dbc10"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "The segmented wrapper does not own the gate-log contract it tells every prompt to read",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "baseline-proceed re-merge prompt passed to segmentedMerge",
+            "plan_ref": "D7/D8, PIN-11/PIN-12",
+            "line": 4344,
+            "rationale": "`segmentedMerge` appends `PARTIAL_LOG_RULE` to every merge dispatch, and that rule directs the continuation to read the stamped gate log \"named above.\" Initial, floor-retry, and environment-proceed prompts supply that antecedent through `gateCaptureClause`; the baseline-proceed prompt at the named locator does not supply any gate-log path or stamp instruction before entering `segmentedMerge`. Consequently, a baseline-proceed gate that returns `gate_segment:'incomplete'` has no deterministic artifact from which its continuation can resume and can repeatedly rerun or exhaust `roundLimit` instead of completing. The existing build-loop test inspects the baseline-proceed prompt but asserts only `run_in_background`, the marker, and the generic read rule; the stamp test checks only the initial merge prompt. This is a demonstrated drift caused by distributing one protocol across duplicated prompt fragments. It would block in a phase because a supported baseline route does not satisfy the new timeout-survival contract.",
+            "suggested_fix": "Give the segmented-merge abstraction one shared gate-log path/stamp clause used by every segmented merge site, while keeping fully-green post-merge capture semantics separate. Extend the existing merge-build loop to require the deterministic `.war/gate-<task>.log` path and `GATE_LOG_STAMP` on baseline-proceed as well."
+          },
+          {
+            "severity": "Minor",
+            "title": "The empty-key identity adds a lossy custom hash where the serialized content is already the key",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "contentHash and remintKey",
+            "plan_ref": "D2, PIN-6",
+            "line": 1415,
+            "rationale": "`remintKey` feeds an internal-only set key, yet it passes the distinguishing tuple through a hand-written 32-bit `contentHash`. This adds an algorithm and permits distinct fileless/titleless findings to collide and be treated as a re-mint, contrary to the stated content-distinct identity property. Appending the existing `JSON.stringify` result directly is shorter and collision-free for the represented tuple. The test already checks the behavioral equality and inequality properties, but additionally pins the `contentHash(` implementation, preventing that simpler representation.",
+            "suggested_fix": "Remove `contentHash` and append the serialized `contentTextOf`/locator tuple directly on the degenerate arm. Retain the behavioral key tests and remove assertions requiring the hash implementation.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "6497e0cefaff7cdd3f4d52006111500e793dbc10"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Pin-transfer success modes are trusted without their required evidence",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "PIN_TRANSFER schema and merge-slot probeStatus routing",
+            "plan_ref": "PIN-8, PIN-16",
+            "line": 312,
+            "rationale": "PIN_TRANSFER requires only `status`; every evidence field is optional. The `transferred` consumer accepts the status without proving that both patch IDs are non-empty and equal or that `rebased_tip` is usable, thereby skipping the in-lock full-panel re-audit. The `already_upstream` consumer checks only positive contradictions, so omitted `dispatch_base`, `rebased_tip`, or pre-rebase patch evidence does not cause refusal; it can call `landMerged` and skip the merge-task dispatch entirely. The pinned test at lines 14489-14503 even accepts an `already_upstream` result with no `dispatch_base`. A terse or incomplete refiner result can therefore record unmerged work as merged or transfer approval across an unverified rebase.",
+            "suggested_fix": "Conditionally require and validate the evidence for each success status at both schema and consumer boundaries. Accept `transferred` only with a usable rebased tip and non-empty equal patch IDs; accept `already_upstream` only with usable distinct rebased/base SHAs, a non-empty pre-patch ID, empty post-patch ID, and non-empty matched commits. Route missing or inconsistent evidence to a full re-audit or the existing fail-closed outcome."
+          },
+          {
+            "severity": "Major",
+            "title": "One valid seat conflict neutralizes unrelated finding-less blocking seats",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "seatConflictsOf and post-rebuttal neutralization loop",
+            "plan_ref": "D19, PIN-23",
+            "line": 1984,
+            "rationale": "`seatConflictsOf` verifies each Critical/Major finding it encounters but never requires every `request_changes` seat to contribute a paired blocker. Once any other seat supplies a valid conflict pair, the loop at the post-rebuttal consumer changes every request_changes verdict to approve, including unrelated seats with no Critical/Major finding. The pinned test at lines 17720-17745 explicitly demonstrates a three-seat panel where a finding-less cascading-impact seat still dissents, yet the task is recorded approved, merged, and landed. This lets one conflict erase independent unresolved dissent and breaks the declared unanimous-approval boundary.",
+            "suggested_fix": "Require every request_changes seat to have at least one blocking finding and require every such finding to be paired before classifying the panel as a seat conflict. Alternatively neutralize only participating seats and leave any unpaired or finding-less blocking seat on the existing escalation path."
+          },
+          {
+            "severity": "Minor",
+            "title": "Seeded phase-close rows bypass the queue registry and can be fixed twice",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "seededPhaseClose drain and queuedKeys initialization",
+            "plan_ref": "queued finding registry invariant",
+            "line": 1199,
+            "rationale": "The seededPhaseClose loop pushes rows into phaseCloseQueue before queuedKeys is declared, and the later registry deliberately leaves those rows unstamped. If a re-audit re-raises a seeded finding, `routeReauditMinors` cannot see that it is already queued and may enqueue it for ace re-entry or file it. After a successful re-entry fix, the original seeded row still reaches the phase-close sweep, which can apply and record the same finding again. The direct initial-routing duplicate check does not cover this later re-audit path.",
+            "suggested_fix": "Register every pre-existing phaseCloseQueue row in queuedKeys immediately when the registry is created, or move registry initialization before the seeded drain. Add a fixture where a seeded row is re-raised by an ace re-audit and confirm it is corroborated onto the single queued survivor.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "6497e0cefaff7cdd3f4d52006111500e793dbc10"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "D21 acceptance tests leave distinct dispatch-death consumers unexercised",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "Verdict-integrity D21 / PIN-25 env-died fixtures and `auditRound census`",
+            "line": 11836,
+            "rationale": "The pinned D21 fixtures exercise initial merge and land dispatches, selected gate-audit sites, and a generic source census, but they never inject an infrastructure death into the pin-mismatch in-lock re-audit, floor re-audit/re-merge, environment/baseline re-merge or re-land, integrated-tip gate-audit, or sweep/terminal merge consumers. The `auditRound census` only checks that `died` appears in each destructuring. Deleting the `if (rbDied)` branch after the pin-mismatch audit, for example, preserves that token and leaves the census green while converting the dead seat into a hard re-audit escalation; deleting the corresponding floor-re-audit branch similarly permits an infrastructure failure to be reported as a content failure. The suite therefore cannot reject violations of the declared \u201cevery dispatch is classified\u201d invariant at these alternate paths.",
+            "suggested_fix": "Add table-driven `runPhase` cases for each semantically distinct untested death consumer. Inject an `INFRA_DEATH_RE`-matching throw at the in-lock and floor re-audits, floor/environment/baseline re-merges, both re-lands, integrated-tip gate audit, and phase-close merge paths; assert the exact site-named soft or held classification and explicitly reject `audit-blocked`, `done-unmet`, or generic hard escalation outcomes."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/war/assets/reference-link-integrity.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs",
+            "skills/war/assets/version-slots.test.mjs",
+            "skills/war/assets/prompt-surface-budgets.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ],
+  "rawResultSha256": "904f8e08b2766986cb08bc699b4815a66b1b79d6bd57e2224bc7c84bcab1eaee"
+}

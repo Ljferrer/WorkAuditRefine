@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { regularSource } from './package-source.mjs'
 import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 const FILES = [
@@ -86,10 +87,9 @@ export function buildSnipePlugin({ repoRoot, output }) {
   const packageRoot = resolve(output)
   if (existsSync(packageRoot)) throw new Error(`output already exists: ${packageRoot}`)
   for (const [source] of FILES) {
-    const sourcePath = join(sourceRoot, source)
-    if (!existsSync(sourcePath) || !lstatSync(sourcePath).isFile()) throw new Error(`missing source component: ${source}`)
+    regularSource(sourceRoot, source)
   }
-  const sourceVersion = JSON.parse(readFileSync(join(sourceRoot, '.claude-plugin/plugin.json'), 'utf8')).version
+  const sourceVersion = JSON.parse(readFileSync(regularSource(sourceRoot, '.claude-plugin/plugin.json'), 'utf8')).version
   mkdirSync(join(packageRoot, '.codex-plugin'), { recursive: true })
   writeFileSync(join(packageRoot, '.codex-plugin/plugin.json'), `${JSON.stringify(manifest(sourceVersion), null, 2)}\n`)
 

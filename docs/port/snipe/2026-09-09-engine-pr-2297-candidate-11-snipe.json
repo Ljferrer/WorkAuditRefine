@@ -1,0 +1,310 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...cf04f4c7199ecad10d386cc57d116d60e325f622",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "cf04f4c7199ecad10d386cc57d116d60e325f622",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "package": {
+    "package": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+    "version": "0.21.12+codex.20260908.8fd30f3",
+    "files": [
+      {
+        "path": ".codex-plugin/plugin.json",
+        "sha256": "d6439680c4077f7c756daec328b32474f06915bb253d3db9da4f6ea3dfc09c11"
+      },
+      {
+        "path": "skills/snipe/SKILL.md",
+        "sha256": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e"
+      },
+      {
+        "path": "skills/snipe/agents/openai.yaml",
+        "sha256": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/_shared/provision.mjs",
+        "sha256": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs",
+        "sha256": "7ca610e53eeaad4a54d0fe37a5d0697a812e3ab607441a462904cc7f852c2fe2"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/war/assets/war-config.mjs",
+        "sha256": "cb13307c39eafc6469514ee547a0c543a7e066873e9c40abe8160c1145df37a2"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-files.mjs",
+        "sha256": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-git-policy.mjs",
+        "sha256": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-process.mjs",
+        "sha256": "248ba9edfcaf2b384bfce0989fe348e09d763ba320058a7e8be7b05d7e66a6a5"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-request.mjs",
+        "sha256": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-result.mjs",
+        "sha256": "f1c17a343ce45b8f427481ace3eaa4e16ef6d8e0c29a15a9875046c62cd9dd5c"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-runner.mjs",
+        "sha256": "8c86b7181a07250177caaf6eccbb38e2aec5ff6777e65e48ef90ddeb81bf6870"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-submodules.mjs",
+        "sha256": "6a243eec24aa9e726fba8f00315b2d29379789aee236f9a0791e23545c11243c"
+      },
+      {
+        "path": "skills/snipe/references/auditing-fixes.md",
+        "sha256": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f"
+      },
+      {
+        "path": "skills/snipe/references/codex-auditor.md",
+        "sha256": "098cdabea5f0160db7957fd897ce8debd0351ddc15b3ca435e4f7b7d600bea7d"
+      },
+      {
+        "path": "skills/snipe/references/post-audit-fixes.md",
+        "sha256": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5"
+      },
+      {
+        "path": "skills/snipe/references/submodules.md",
+        "sha256": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
+      }
+    ],
+    "manifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92"
+  },
+  "resultSha256": "da0c3ccb176e79d182aded788b7e5f032787c67b9e0b6bfbbadcf5bd3616ea25",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "cf04f4c7199ecad10d386cc57d116d60e325f622"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Stable patch IDs can certify an unaudited source tree",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "mergeGitMatches, verifyPinTransfer, and the transferred pin arm",
+            "line": 2128,
+            "rationale": "The new Git-verification boundary treats equality of `git patch-id --stable` values as exact preservation of task content. Git patch IDs intentionally ignore whitespace, so two different trees can share one patch ID; whitespace is behaviorally significant in inputs such as template literals, YAML, Makefiles, and indentation-sensitive source. `verifyPinTransfer` reads `head_tree` but validates only `approved_tree === content_tree`, and the transferred arm checks only equal non-empty patch IDs. `mergeGitMatches` likewise confirms a task merge from ancestry, ref equality, and patch-ID equality without comparing the current source tree to a whitespace-sensitive expected identity. A rebase or refiner mutation that changes only significant whitespace can therefore transfer the old panel approvals, pass merge confirmation, and record the different tree as completed. The inspected real-Git tests reject a deliberately different patch ID but contain no equal-patch-ID/different-tree negative case.",
+            "suggested_fix": "Use a whitespace-sensitive Git identity for preservation checks, such as an exact binary/full-index diff digest or an independently derived expected tree, and validate the post-rebase/current source against it in both pin transfer and merge confirmation. Add a real-Git regression where the source tree changes in significant whitespace while `git patch-id --stable` remains equal; it must trigger full re-audit or hold rather than transfer approval."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/assert-test-in-diff.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "cf04f4c7199ecad10d386cc57d116d60e325f622"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Holder-aware worktree failure handling remains triplicated",
+            "file": "skills/war/assets/provision-worktrees.sh",
+            "locator": "worktree-add failure arms in cmd_ensure_worktree, cmd_ensure_refinery_worktree, and cmd_ensure_publication_worktree",
+            "line": 1668,
+            "rationale": "The publication-worktree repair adds a third hand-copy of the branch_holder_path lookup, fallback-message construction, conditional holder diagnostic, and die sequence already present in the ordinary and refinery arms. The reviewed change demonstrates the maintenance cost: the publication copy required repair because it alone omitted the holder path. All three behavioral cases are independently tested, so separate implementations add drift surface without distinct behavior.",
+            "suggested_fix": "Extract one small holder-aware worktree-add failure helper parameterized by branch and diagnostic wording, call it from all three failed-add arms, retain the three behavioral assertions, and remove the commentary tracking the now-closed divergence.",
+            "disposition": "absorb"
+          },
+          {
+            "severity": "Minor",
+            "title": "The uncertain-merge prompt duplicates its canonical recovery procedure",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "reconcileMerge recovery dispatch",
+            "line": 2220,
+            "rationale": "The dispatch tells the refiner to read refiner-recovery.md section Uncertain merge reconciliation, then repeats that section's task recovery, land recovery, safety, and result-shape obligations inline. agents/war-refiner.md already provides the resolvable canonical pointer, while MERGE_RECONCILIATION and the engine checks enforce the response evidence. Maintaining both normative copies enlarges every recovery prompt and creates avoidable drift; the mapped prompt assertions currently pin duplicated inline details.",
+            "suggested_fix": "Keep the dynamic context, immutable snapshot, prior-response cause, canonical-section pointer, original operation, gate-capture clause, schema, and engine validation; remove the duplicated static recovery procedure and retarget prompt assertions to the canonical pointer and dynamic inputs.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "cf04f4c7199ecad10d386cc57d116d60e325f622"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "cf04f4c7199ecad10d386cc57d116d60e325f622"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Non-ancestor recovery fixture can pass without the ancestry guard",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "`recovery integrity #2196` \u2014 `own work not integrated` case",
+            "plan_ref": "D9 / PIN-13",
+            "line": 17955,
+            "rationale": "D9/PIN-13 requires integration ancestry before a recovery skip, enforced by task-integrated.sh's `merge-base --is-ancestor` block. The behavioral case labelled `own work not integrated` creates a task-only `deliverable`; if that ancestry block is deleted, the later task-vs-integration path comparison still detects the missing deliverable and returns exit 1, so the test remains green. The separate `ancestry-error` fixture covers only Git returning an error, not the ordinary non-ancestor result. With the guard absent, parallel task and integration commits producing identical content on every owned path would satisfy all remaining checks and emit `TASK_INTEGRATED`, causing a false recovery completion that the current suite does not reject.",
+            "suggested_fix": "Add a real-Git negative fixture where task and integration diverge from a common base, the task has a nonempty correctly owned commit, and an independent integration commit produces identical content and modes on every owned path. Assert exit 1 with `NO_TASK_PROOF ... is not integrated`, then feed it through Workflow and assert `work:t1` is dispatched and no recovered-completion receipt is emitted. Deleting or inverting the ancestry check must make this fixture fail."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs",
+            "skills/war/assets/assert-test-in-diff.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

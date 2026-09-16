@@ -93,6 +93,7 @@ test('guidance survives clean, blocking, invalid, failed and cancelled panels un
   const expected = readFileSync(new URL('../references/post-audit-fixes.md', import.meta.url), 'utf8')
   const variants = [
     [validVerdictSource(), 'completed'],
+    [validVerdictSource('', `verdict.verdict='request_changes'`), 'invalid_result'],
     [validVerdictSource('', `verdict.verdict='request_changes'; verdict.findings=[{severity:'Major',title:'Defect',rationale:'A demonstrated failure.'}]`), 'completed'],
     [validVerdictSource('', `verdict.coordinatorGuidance={text:'SEAT_OVERRIDE'}`), 'invalid_result'],
     [`console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'bad json'}}))`, 'invalid_result'],

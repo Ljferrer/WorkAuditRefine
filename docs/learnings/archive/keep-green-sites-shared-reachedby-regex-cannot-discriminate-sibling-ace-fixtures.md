@@ -2,6 +2,7 @@
 name: keep-green-sites-shared-reachedby-regex-cannot-discriminate-sibling-ace-fixtures
 description: "A fixture-reachability floor's reachedBy regex shared by three sibling dispatch sites cannot tell which one actually ran"
 metadata: 
+  promoted: dev/2026-08-25-doc-truth-and-drift-guard-debt@phase-2
   node_type: memory
   type: project
   provenance: code-verified
@@ -18,6 +19,12 @@ metadata:
     - workflow-template.test.mjs
     - dispatch label
     - relocation guard
+    - aceLabel
+    - per-site discriminator
+    - RESOLVED
+    - ace:polish:
+    - ace:subset:
+    - ace:reentry:
   tags: 
     - war
     - test-coverage
@@ -25,7 +32,7 @@ metadata:
     - drift-guard
   created: 2026-09-03
   originSessionId: ffad230a-d9ac-4d86-8988-75714445b989
-  modified: 2026-09-03T19:12:45.746Z
+  modified: 2026-09-08T10:52:08.957Z
 ---
 
 # A shared `reachedBy` regex across sibling dispatch sites cannot prove which one ran
@@ -69,8 +76,43 @@ weaker floor and rely on the static membership check for precision instead.
 three `reachedBy: /^ace:/` entries at lines 9085-9087, versus the real dispatch label
 `'ace:' + r.task.id + ':r' + r.task.fixRounds`-shaped construction in `workflow-template.js`.
 
+## RESOLVED (2026-09-07, plan `2026-09-06-engine-and-audit-verdict-integrity`, phase 8 "Re-entry
+and the ace ladder", task 8.1, landed `dev/2026-09-06-engine-and-audit-verdict-integrity` @
+`8884782176ff60a2c93eb249f328aa2751eac060`) — the exact fix this lesson's durable rule recommended
+landed verbatim
+
+**Code-verified** — landed-tip grounding reached rung 2 (worktree lookup): the `_refinery46`
+worktree's `gitdir` physical path is
+`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/.git`
+(contains this plan's slug) and its `HEAD` reads `8884782176ff60a2c93eb249f328aa2751eac060`,
+exactly the threaded landed tip — a direct Read there is `code-verified`-capable.
+
+`skills/war/assets/workflow-template.js` now defines (line 2838):
+
+```js
+const aceLabel = (r, site) => 'ace:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
+```
+
+called at the three previously-colliding sites with `site` = `'polish'` | `'subset'` | `'reentry'`
+— exactly the per-site discriminator this lesson's durable rule named as the fix
+(`ace:subset:`, `ace:reentry:`, `ace:polish:`). `skills/war/assets/workflow-template.test.mjs`'s
+`KEEP_GREEN_SITES` array no longer carries any `reachedBy: /^ace:/` entry — the phase's own End
+state 14 pins this negatively: `test "$(grep -c 'reachedBy: /^ace:/'
+skills/war/assets/workflow-template.test.mjs)" -eq 0`, i.e. deleting the per-site split reds the
+suite. The fixture-reachability floor can now discriminate which of the three ace sites actually
+ran, closing the exact gap this lesson recorded.
+
+**Confirms:** a recorded "no fix in scope this phase, here's the fix if one is ever done" lesson
+can be fully retired by a later, unrelated phase picking up its own-recommended fix — worth
+checking a lesson's "durable rule" fix suggestion against current code before treating it as still
+open.
+
 ## Related
 
 [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] — the
 production-code `aceBisect` fragilities; this file's gap is in the *test* fixture-reachability
 floor, a distinct and additional weak point in the same feature area.
+
+> archived 2026-09-03: resolved — moved to archive. Underlying weakness fully fixed
+> 2026-09-07 (see RESOLVED note above) — left in archive/ per servitor doctrine (never move
+> hot/cold, only `war-memory` retempers).

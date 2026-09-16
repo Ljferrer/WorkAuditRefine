@@ -1,0 +1,319 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...c86a771e070817f9961253805a89d842ceaa7c46",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "c86a771e070817f9961253805a89d842ceaa7c46",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "package": {
+    "package": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+    "version": "0.21.12+codex.20260908.8fd30f3",
+    "files": [
+      {
+        "path": ".codex-plugin/plugin.json",
+        "sha256": "d6439680c4077f7c756daec328b32474f06915bb253d3db9da4f6ea3dfc09c11"
+      },
+      {
+        "path": "skills/snipe/SKILL.md",
+        "sha256": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e"
+      },
+      {
+        "path": "skills/snipe/agents/openai.yaml",
+        "sha256": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/_shared/provision.mjs",
+        "sha256": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs",
+        "sha256": "7ca610e53eeaad4a54d0fe37a5d0697a812e3ab607441a462904cc7f852c2fe2"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/war/assets/war-config.mjs",
+        "sha256": "cb13307c39eafc6469514ee547a0c543a7e066873e9c40abe8160c1145df37a2"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-files.mjs",
+        "sha256": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-git-policy.mjs",
+        "sha256": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-process.mjs",
+        "sha256": "248ba9edfcaf2b384bfce0989fe348e09d763ba320058a7e8be7b05d7e66a6a5"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-request.mjs",
+        "sha256": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-result.mjs",
+        "sha256": "f1c17a343ce45b8f427481ace3eaa4e16ef6d8e0c29a15a9875046c62cd9dd5c"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-runner.mjs",
+        "sha256": "8c86b7181a07250177caaf6eccbb38e2aec5ff6777e65e48ef90ddeb81bf6870"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-submodules.mjs",
+        "sha256": "6a243eec24aa9e726fba8f00315b2d29379789aee236f9a0791e23545c11243c"
+      },
+      {
+        "path": "skills/snipe/references/auditing-fixes.md",
+        "sha256": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f"
+      },
+      {
+        "path": "skills/snipe/references/codex-auditor.md",
+        "sha256": "098cdabea5f0160db7957fd897ce8debd0351ddc15b3ca435e4f7b7d600bea7d"
+      },
+      {
+        "path": "skills/snipe/references/post-audit-fixes.md",
+        "sha256": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5"
+      },
+      {
+        "path": "skills/snipe/references/submodules.md",
+        "sha256": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
+      }
+    ],
+    "manifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92"
+  },
+  "resultSha256": "9ade421c978f34828ab6a53ab46bbcd088c8fb35bf9f77739707af6a8ee6cd79",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c86a771e070817f9961253805a89d842ceaa7c46"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c86a771e070817f9961253805a89d842ceaa7c46"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Holder-aware worktree failure handling remains triplicated",
+            "file": "skills/war/assets/provision-worktrees.sh",
+            "locator": "worktree-add failure arms in cmd_ensure_worktree, cmd_ensure_refinery_worktree, and cmd_ensure_publication_worktree",
+            "rationale": "The publication repair adds a third hand-copy of the branch_holder_path lookup, fallback-message construction, conditional holder diagnostic, and die sequence already present in the ordinary and refinery arms. The base-to-head change demonstrates the maintenance cost: the publication copy required repair because it alone omitted the holder path. All three behaviors are independently tested, so separate implementations preserve the demonstrated drift source without providing distinct behavior.",
+            "suggested_fix": "Extract one small holder-aware add-failure helper parameterized by branch and diagnostic wording, call it from all three failed-add arms, retain the existing behavioral assertions, and remove the commentary tracking the now-closed divergence.",
+            "disposition": "absorb"
+          },
+          {
+            "severity": "Minor",
+            "title": "The uncertain-merge dispatch duplicates its canonical recovery procedure",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "reconcileMerge recovery prompt",
+            "rationale": "The dispatch directs the refiner to read refiner-recovery.md section Uncertain merge reconciliation, then repeats that section's task-recovery, land-recovery, safety, and result-shape obligations inline. agents/war-refiner.md already supplies the resolvable canonical pointer, while MERGE_RECONCILIATION and the engine validation enforce the returned evidence. Maintaining both normative copies enlarges every recovery prompt and creates avoidable drift; the inspected tests currently pin inline details such as LAND RECOVERY and the second-phase-commit prohibition.",
+            "suggested_fix": "Keep the dynamic context, immutable snapshot, prior-response cause, canonical-section pointer, original operation, gate-capture clause, schema, and engine validation; remove the duplicated static recovery procedure and retarget prompt assertions to the canonical pointer and dynamic inputs.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c86a771e070817f9961253805a89d842ceaa7c46"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Relative submodule paths can escape into the wrong Git repository",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "task targetRepo entry normalization",
+            "line": 914,
+            "rationale": "The new normalizer accepts every nonempty relative targetRepo and collapses `..` by popping path components without enforcing containment beneath mainCheckout. Consequently `targetRepo: \".\"` becomes the superproject itself, while `targetRepo: \"../sibling\"` becomes a sibling path. The normalized value then feeds the recovery proof repository, worker context, task merge snapshots/reconciliation, gate-artifact allocation, and phase land. An accepted configuration can therefore make refiners rebase, gate, push, or land the superproject or an unrelated repository instead of the declared submodule. This contradicts the documented contract that a relative targetRepo is a submodule checkout path relative to mainCheckout and defeats the entry-validation promise that invalid path context refuses before any dispatch. The inspected tests cover internal dot-segment normalization and malformed types/NULs, but not equality with or escape from mainCheckout.",
+            "suggested_fix": "For relative targetRepo values, normalize mainCheckout and the resolved path, then require the result to be a strict path-segment descendant of mainCheckout. Refuse `.` and any `..` traversal that resolves equal to or outside it before dispatch. Add zero-dispatch regression cases for `.` and `../sibling`, while retaining the existing internal `./vendor/../vendor/lib` alias case."
+          },
+          {
+            "severity": "Minor",
+            "title": "The documented pinTransfers shape omits the new exact-content fields",
+            "file": "skills/war/references/schemas.md",
+            "locator": "per-phase return JSONC pinTransfers declaration",
+            "plan_ref": "PIN-14",
+            "line": 444,
+            "rationale": "The runtime's merge receipt now emits `preContentId` and `postContentId`, and the following schema commentary plus ADR 0049 describe those fields as the evidence used to re-verify approval transfer. However, the actual JSONC shape declaration still lists only `prePatchId` and `postPatchId`. Downstream readers using the declared shape therefore receive an incomplete interface contract despite the adjacent prose describing a wider object.",
+            "suggested_fix": "Add optional `preContentId` and `postContentId` members beside the patch-ID fields in the pinTransfers JSONC declaration, and bind that declaration to the runtime receipt fields in the existing schema-contract coverage.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/land-decision.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c86a771e070817f9961253805a89d842ceaa7c46"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Normal failure tests miss source-only mutation before a trusted retry",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "`normal merge Git certainty` matrix",
+            "line": 18714,
+            "rationale": "The matrix exercises whitespace drift when the merge target has already advanced, but not when the merge dispatch rebases or otherwise changes the task source, leaves the target unchanged, and returns a known non-success such as baseline/environment `gate_failed`. In `workflow-template.js`, `confirmMerge` accepts every known non-success solely when the target refs equal the snapshot; it does not require `source_tip`, `patch_id`, or `content_id` to remain consistent with that snapshot. The workflow can therefore accept the failure, enter baseline-proceed or environment-proceed, snapshot the already-modified source as its new expected content, and merge it under the original audit approval. The existing `wrong source` confirmation case starts from a reported successful merge, while `false-failure-whitespace` advances the target, so both remain green if this source-only approval bypass survives.",
+            "suggested_fix": "Add a real-Git regression where the initial normal merge rebases the task into a whitespace-sensitive exact-content change, leaves local and remote integration unchanged, and reports baseline or environment `gate_failed`. Assert that no proceed retry can merge under the old approval. Make non-success confirmation require independently recomputed source patch/content evidence to match the pre-dispatch snapshot, or otherwise enter reconciliation and hold/re-audit."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/assert-test-in-diff.test.sh",
+            "skills/war/assets/reference-link-integrity.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

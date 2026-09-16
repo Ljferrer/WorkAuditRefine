@@ -34,13 +34,21 @@ becomes a land or escalation enum member.**
    fully-landed branch. (§4.1)
 
 2. **The merged-set is derived from git ancestry — never labels or the ledger — and is derived by the
-   provision-barrier refiner, not the engine.** A task whose branch tip is already an ancestor of the
-   adopted integration tip is recorded `merged` (terminal, task-level status — never `landed`, which is
-   phase-level) and never re-dispatched; only non-ancestor or absent-branch tasks run. The ancestry checks
-   are shell, and the Workflow sandbox has no shell or filesystem — so the **existing** provision-barrier
-   refiner dispatch runs them and returns the merged set (a `preMerged` list on its env-outcome); the engine
-   only routes that result. Git is the source of truth (ADR 0008); issue labels and `ledger.json` are
-   reconciled toward the derived answer by the Lead, never the reverse. (§4.2)
+   provision-barrier refiner, not the engine.** A task branch that is an ancestor of the adopted
+   integration tip AND carries at least one commit above the phase integration base — the integration
+   branch's fork point off the working branch, `git merge-base <adopted tip> <working branch>`, not the
+   adopted tip of item 1 — (`merge-base --is-ancestor` and
+   `rev-list --count <phase-integration-base>..<branch>` > 0) is recorded `merged` (terminal, task-level
+   status — never `landed`, which is phase-level) and never re-dispatched; a zero-commit ancestor is never
+   reported `merged` — it is vacuously an ancestor and takes the ordinary dispatch path (#1895, #2006); a
+   zero-commit branch cut at a LATER relaunch's adopted tip counts its siblings' commits and is not caught
+   here — it is a recorded residual whose manual `rev-list --count` check rides
+   [[zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged]];
+   only non-ancestor, zero-commit, or absent-branch tasks run. The ancestry checks are shell, and the
+   Workflow sandbox has no shell or filesystem — so the **existing** provision-barrier refiner dispatch runs
+   them and returns the merged set (a `preMerged` list on its env-outcome); the engine only routes that
+   result. Git is the source of truth (ADR 0008); issue labels and `ledger.json` are reconciled toward the
+   derived answer by the Lead, never the reverse. (§4.2)
 
 3. **Only the unfinished task is re-dispatched, and it earns the same evidence as a first run.** The
    re-dispatched task gets the full Work+Audit loop, the serial Refine merge, and the post-merge gate-audit
@@ -69,7 +77,9 @@ becomes a land or escalation enum member.**
    negative drift-guard in `land-decision.test.mjs` pins non-membership against **both** the canonical
    exports and the hand-mirrored inline copies in `workflow-template.js` (ADR 0005). Absence is not
    `'implementation'` — the field is only ever set to `'plan'`, keeping prior-run records shape-compatible.
-   (§4.3)
+   The recovery runbook (`resume-and-recovery.md` step 1) also enters the plan-shaped route when the
+   escalation record carries a seat's `escalate_reason` (ADR 0013, Decision log 2026-09-08) — likewise
+   escalation-record metadata, likewise never a land or escalation enum member. (§4.3)
 
 6. **No amendment to ADR 0005 or ADR 0008 is needed — this doctrine operates strictly inside both.** Nothing
    here adds a `HARD_ESCALATION_REASONS` / `KNOWN_LAND_DECISIONS` member or a new task/phase status (ADR 0005:
@@ -139,6 +149,9 @@ becomes a land or escalation enum member.**
 - [ADR-0021 — run-lifecycle provision contract](0021-run-lifecycle-provision-contract.md) — recovery
   relaunches are fresh runs over reused git state; its all-or-nothing topology barrier the stale-remote
   per-task classification leaves intact.
+- [ADR-0013 — Commander's intent and disposition routing](0013-commanders-intent-and-disposition-routing.md) —
+  its 2026-09-08 Decision log entry is the two-sided blocking boundary item 5's `escalate_reason` route
+  reads.
 - [ADR-0008 — git is the resume source of truth](0008-git-is-the-resume-source-of-truth.md) — the
   repair-toward-git, never-destroy-work rule every proof and every reconciliation honors.
 - [ADR-0005 — a dead phase halts the DAG](0005-dead-phase-halts-the-dag.md) — the `HARD_ESCALATION_REASONS`

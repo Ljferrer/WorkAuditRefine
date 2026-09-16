@@ -54,3 +54,14 @@ the one that moves, land it in the same commit as the matching drift-guard row. 
 `resume-and-recovery.md`; the **Clean handoff** glossary entry in `CONTEXT.md`.
 
 > archived 2026-09-04: resolved — moved to archive
+
+## Correction (2026-09-07, #1801)
+
+The #1983 widening recorded above was superseded. Task 1.2 of plan
+`2026-09-06-engine-and-audit-verdict-integrity` (phase 1) re-adjudicated the same contradiction
+the other way: `CONTEXT.md`'s Clean handoff row now names the engine's emit gate as `landed` and
+`held:escalation` only, and names `held:land-failed` for the filing pass alone. The filing pass is
+the wider gate. On `held:land-failed` the stamped issues ride the top-level return's `minorsFiled`,
+never a `handoff` block. `resume-and-recovery.md` dropped its unfiled-followups disjunct rather
+than `CONTEXT.md` widening. The Rule, How-to-apply and Locate-cue sections above stand as landed —
+only the "Fixed in #1983" paragraph's three-member emit set is retired.

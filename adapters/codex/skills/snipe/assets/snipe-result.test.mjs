@@ -227,3 +227,49 @@ test('informational report orders scope, outcomes, attributed findings, limitati
   assert.match(report, /nested content uncaptured/)
   assert.match(report, /No fixes, issue filing, PR comments, extra seats, or follow-up actions were performed\./)
 })
+
+test('blocking verdict and severity agree in both directions', () => {
+  for (const severity of ['Critical', 'Major', 'Minor', 'Nit', null]) {
+    const findings = severity ? [{severity, title:'Witness', rationale:'Independent witness', ...(['Minor','Nit'].includes(severity) ? {disposition:'note'} : {})}] : []
+    for (const verdict of ['approve','request_changes','escalate']) {
+      const value = valid({verdict, findings, ...(verdict === 'escalate' ? {escalate_reason:'Operator policy required'} : {})})
+      const blocking = ['Critical','Major'].includes(severity)
+      if ((verdict === 'request_changes') !== blocking) assert.throws(() => validateSnipeVerdict(value,expected), error => error.code === 'INCONSISTENT_VERDICT')
+      else assert.equal(validateSnipeVerdict(value,expected).verdict,verdict)
+    }
+  }
+})
+
+test('report preserves seat-reported test evidence without claiming independent verification', () => {
+  for (const [tests_verified, text] of [
+    [{exist:true,inspected:['tests/example.test.mjs']},'tests/example.test.mjs'],
+    [{exist:true,inspected:[]},'tests exist; none inspected'],
+    [{exist:false,inspected:[]},'no tests reported'],
+  ]) {
+    const report=renderSnipeReport({request:{scope:{kind:'committed',description:'fixture',headSha:'a'.repeat(40),baseSha:'b'.repeat(40)},profile:{model:'fixture',effort:'high'}},complete:true,stability:{stable:true},seats:[{seat:1,lens:'correctness',status:'completed',validation:{status:'valid'},verdict:valid({tests_verified})}]})
+    assert.ok(report.includes('Seat-reported tests:'))
+    assert.ok(report.includes(text))
+  }
+})
+
+test('verdict consistency and test projection fail independent disposable mutation oracles', async () => {
+  const source=readFileSync(new URL('./snipe-result.mjs',import.meta.url),'utf8').replace("import { RESERVED_LENSES } from '../../../../../skills/war/assets/war-config.mjs'",'const RESERVED_LENSES=[]')
+  const root=mkdtempSync(join(tmpdir(),'snipe-integration-mutants-'))
+  for(const [index,from,to,witness] of [
+    [0,"(value.verdict === 'request_changes') !== findings.some(finding => ['Critical', 'Major'].includes(finding.severity))",'false',()=>valid({verdict:'request_changes'})],
+    [1,"(value.verdict === 'request_changes') !== findings.some(finding => ['Critical', 'Major'].includes(finding.severity))",'false',()=>valid({verdict:'escalate',escalate_reason:'Choose policy',findings:[{severity:'Major',title:'Blocker',rationale:'Evidence'}]})],
+  ]) {
+    assert.ok(source.includes(from))
+    const path=join(root,`${index}.mjs`);writeFileSync(path,source.replace(from,to))
+    const mutant=await import(pathToFileURL(path))
+    const oracle=validate=>assert.throws(()=>validate(witness(),expected),error=>error.code==='INCONSISTENT_VERDICT')
+    oracle(validateSnipeVerdict)
+    assert.throws(()=>oracle(mutant.validateSnipeVerdict),{name:'AssertionError'})
+  }
+  const path=join(root,'projection.mjs')
+  writeFileSync(path,source.replace('if (seat.verdict?.tests_verified) {','if (false) {'))
+  const mutant=await import(pathToFileURL(path))
+  const panel={request:{scope:{kind:'committed',description:'fixture',headSha:'a'.repeat(40),baseSha:'b'.repeat(40)},profile:{model:'fixture',effort:'high'}},complete:true,stability:{stable:true},seats:[{seat:1,lens:'correctness',status:'completed',validation:{status:'valid'},verdict:valid()}]}
+  const oracle=render=>assert.match(render(panel),/Seat-reported tests: test\/review.test.mjs/)
+  oracle(renderSnipeReport);assert.throws(()=>oracle(mutant.renderSnipeReport),{name:'AssertionError'})
+})

@@ -1,0 +1,655 @@
+{
+  "candidate": "commit containing these source hashes",
+  "parentSha": "cf04f4c7199ecad10d386cc57d116d60e325f622",
+  "baselineSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+  "node": "v24.17.0",
+  "javascript": {
+    "command": "node --test 'skills/**/*.test.mjs'",
+    "passed": 2171,
+    "failed": 0,
+    "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-js-final.log",
+    "logSha256": "452c46b79f1a4a59df1a7fdc56fa59196af1c5d2e2316cd5c5a5e442789525a1"
+  },
+  "shell": {
+    "passed": 31,
+    "failed": 0,
+    "files": [
+      {
+        "file": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-0.log",
+        "logSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b"
+      },
+      {
+        "file": "hooks/clean-surface-war-worktree.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-1.log",
+        "logSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5"
+      },
+      {
+        "file": "hooks/guard-conventions.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-2.log",
+        "logSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3"
+      },
+      {
+        "file": "hooks/inject-campaign-state.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-3.log",
+        "logSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0"
+      },
+      {
+        "file": "hooks/reply-standard/gate.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-4.log",
+        "logSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0"
+      },
+      {
+        "file": "hooks/vale-md/vale-md.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-5.log",
+        "logSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3"
+      },
+      {
+        "file": "hooks/validate-auditor-git.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-6.log",
+        "logSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c"
+      },
+      {
+        "file": "hooks/validate-servitor-provenance.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-7.log",
+        "logSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d"
+      },
+      {
+        "file": "hooks/validate-worktree-scope.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-8.log",
+        "logSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad"
+      },
+      {
+        "file": "hooks/warn-bash-write-scope.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-9.log",
+        "logSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa"
+      },
+      {
+        "file": "skills/_shared/gh-preflight.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-10.log",
+        "logSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4"
+      },
+      {
+        "file": "skills/_shared/war-memory-lint.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-11.log",
+        "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+      },
+      {
+        "file": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-12.log",
+        "logSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd"
+      },
+      {
+        "file": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-13.log",
+        "logSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b"
+      },
+      {
+        "file": "skills/red-team/diagnosis-preflight.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-14.log",
+        "logSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402"
+      },
+      {
+        "file": "skills/red-team/manifest-provenance.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-15.log",
+        "logSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd"
+      },
+      {
+        "file": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-16.log",
+        "logSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18"
+      },
+      {
+        "file": "skills/war-machine/war-pipeline-structure.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-17.log",
+        "logSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78"
+      },
+      {
+        "file": "skills/war-strategy/war-strategy-structure.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-18.log",
+        "logSha256": "47bbf1df3b07d8b0a1acd565eb4ce25c7d191fdeb50f625de769451dc631c6bc"
+      },
+      {
+        "file": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-19.log",
+        "logSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901"
+      },
+      {
+        "file": "skills/war/assets/assert-done-when.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-20.log",
+        "logSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0"
+      },
+      {
+        "file": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-21.log",
+        "logSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f"
+      },
+      {
+        "file": "skills/war/assets/assert-issues-filed.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-22.log",
+        "logSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84"
+      },
+      {
+        "file": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-23.log",
+        "logSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302"
+      },
+      {
+        "file": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-24.log",
+        "logSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf"
+      },
+      {
+        "file": "skills/war/assets/assert-test-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-25.log",
+        "logSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515"
+      },
+      {
+        "file": "skills/war/assets/gate-pin-status.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-26.log",
+        "logSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133"
+      },
+      {
+        "file": "skills/war/assets/provision-worktrees.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-27.log",
+        "logSha256": "8bbbf1c06ca0e7d23b834ec08066f538260defce20934bc7b70c23575883b03d"
+      },
+      {
+        "file": "skills/war/assets/refinery-surface.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-28.log",
+        "logSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345"
+      },
+      {
+        "file": "skills/war/assets/scout-manifest-surface.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-29.log",
+        "logSha256": "da0b5f02d78da293e0750d2044709fe209e6a15a6b5b0b96c37f0f864e07d0aa"
+      },
+      {
+        "file": "skills/war/references/schemas-manifest.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-shell-30.log",
+        "logSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49"
+      }
+    ]
+  },
+  "redaction": {
+    "result": "lint: clean",
+    "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-redaction.log",
+    "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+  },
+  "staging": {
+    "bytes": 343422,
+    "cap": 524288,
+    "path": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-stage/war-engine-pr-2297-p3.js",
+    "sha256": "d151e1255cfbb395e90f1468004bf87027dfef6890cf59f9f2bf0e6ea2977a21"
+  },
+  "releaseVersion": "0.21.13",
+  "sourceSha256": {
+    "CHANGELOG.md": "2f5947b79bea530d7534c3027ea0d7a670ccb80451dcbf5082f07f8c627b4210",
+    "README.md": "e7f44d366c5b82bdc5f84534b1583214e8a9da65e4e96cc43fbac1e2a147eca8",
+    "agents/war-auditor.md": "326d39d18f17b455891ce6e7201b52f5659003dfd2f35b8015beec72df23bfaa",
+    "agents/war-refiner.md": "c8d9eb876b455ba3d89c2b424fa0d2e16b04db8b0d99408ae9d20b0a44c1d505",
+    "docs/adr/0008-git-is-the-resume-source-of-truth.md": "86ebd63567decd51bc531654d800edc40b214a1424c786d94ada7a39274bf9af",
+    "docs/adr/0049-pin-transfer-and-proportional-re-audit.md": "6d266614e75646dc3284b87784c4c55f59f56651bb60e475d4006410cc138296",
+    "docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md": "b84de388975a7a91a2bbe9d1b3c4bd42cd1c3041e87f0902126ed0aa38d770e9",
+    "docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md": "b3bcff368ba2fc635de01b2c8e2e2d39fb982f625c49d1d85a110b12f119eab7",
+    "skills/war/assets/task-integrated.sh": "9567d0befa9c8a31caa3f6bce5eabb34467b670f4e2ac2c9a821b27beebeb0ba",
+    "skills/war/assets/workflow-template.js": "93bcd20ba58046a8872411d797f00a3e2d1488bde6b75d7c25dcda27428e2a8d",
+    "skills/war/assets/workflow-template.test.mjs": "c62b31189208bb9ebc6a195855fdf39b135b6a0154e9b244d9aad706e8fa8074",
+    "skills/war/references/refiner-recovery.md": "0f76d7a93a02b986d845f595f1d6e26ef17a989b046aced3ad2eaf2e802efdab",
+    "skills/war/references/resume-and-recovery.md": "c4e27d5463c89ee40f00c5383251bde57b70bb3cd09077c381ead73c83a8af79",
+    "skills/war/references/schemas.md": "4f86795eae9795fa1dbff2da4935149aea0bbc7d3767cb50950d2f36cb353db0"
+  },
+  "controls": [
+    {
+      "name": "snapshot-content-guard",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 4,
+      "tests": 4,
+      "assertionFailure": true,
+      "pattern": "exact content snapshot refuses",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-snapshot-content-guard.js",
+      "sourceSha256": "c2c697b7e8f7ab9ba2a000ace96416c276705272e8fa4d95062ce23ae1625cef",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-snapshot-content-guard.log",
+      "logSha256": "c46a9b44eb1e4e508d179dcb73aff906a5565dd7b42aba68db1d602337c409db"
+    },
+    {
+      "name": "pin-pre-content-type",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "tests": 2,
+      "assertionFailure": true,
+      "pattern": "exact pin content proof refuses pre_content_id",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-pin-pre-content-type.js",
+      "sourceSha256": "02db35b72099302dca74814b56a44cefcb705d19dc2eb8a5b3b70580c2ee991f",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-pin-pre-content-type.log",
+      "logSha256": "b3a92d3b3c31e5117c7f2cc809e7f8c7e2d22c8284cffc5f034ab4b84e9b7560"
+    },
+    {
+      "name": "pin-post-content-type",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "tests": 2,
+      "assertionFailure": true,
+      "pattern": "exact pin content proof refuses post_content_id",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-pin-post-content-type.js",
+      "sourceSha256": "ee55426dee6765ff3bc6679c18506c9f9545ec21af4687022860fd4d6a20d479",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-pin-post-content-type.log",
+      "logSha256": "79dd0260608a48d3cc856f8fd1938f5a34860586bb9b964eb861f6adaf899474"
+    },
+    {
+      "name": "pin-exact-equality",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 6,
+      "tests": 6,
+      "assertionFailure": true,
+      "pattern": "pin transfer Git boundary: real .*whitespace",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-pin-exact-equality.js",
+      "sourceSha256": "738d50fa91e64f6b737005d58f11c2a6f9a9f9ca7d718a83144ce4668e59f6c6",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-pin-exact-equality.log",
+      "logSha256": "3c9136830f18b4e5447464b7b214494c0ed06787e9deb19628f2a704942cf286"
+    },
+    {
+      "name": "merge-exact-equality",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 6,
+      "tests": 6,
+      "assertionFailure": true,
+      "pattern": "normal merge Git certainty: real task .*whitespace|exact merge content refuses",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-merge-exact-equality.js",
+      "sourceSha256": "6a73f4176b2d9ffd5a203b449ba448e7d4c48e9762e6b84c0b7b368ab6874ae3",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-merge-exact-equality.log",
+      "logSha256": "c22144c9913aa52bdc449023e777aff0bed1bf2e5a33293a6993958b4e57578d"
+    },
+    {
+      "name": "error-route-content",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 3,
+      "tests": 3,
+      "assertionFailure": true,
+      "pattern": "pin transfer Git boundary: real whitespace-(error|unknown|missing)$",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-error-route-content.js",
+      "sourceSha256": "91b1f75d4172c4da96c55397d2954db4c8ffdd039b949f4be8d3a3948c8f9202",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-error-route-content.log",
+      "logSha256": "80de64620f59b24bfe84c0f8071077563d45e9a33ea9fe4a40654025d0135800"
+    },
+    {
+      "name": "transferred-route-content",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "tests": 2,
+      "assertionFailure": true,
+      "pattern": "pin transfer Git boundary: real whitespace(-contradiction)?$",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-transferred-route-content.js",
+      "sourceSha256": "ffaf6793c3547f5642425ec6649a99a48afb3a336294f7caeb2e6f61a2c6ea63",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-transferred-route-content.log",
+      "logSha256": "30667a8c61ab106bcc5c4b7775dd26ad5154528021dde391482cc1b3dec39e34"
+    },
+    {
+      "name": "ancestry-delete",
+      "kind": "sh",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 2,
+      "assertionFailure": true,
+      "pattern": "recovery ancestry is independent",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-ancestry-delete.sh",
+      "sourceSha256": "9088948d1aea5e39ee34f6c01e52a34fd795ffcdaf31f4d6244f1ef1c1e5eeaa",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-ancestry-delete.log",
+      "logSha256": "c4ec06402851f8ea6b16d8a932553e72a3b5bfd2fde919491f2177eea22beb90"
+    },
+    {
+      "name": "ancestry-invert",
+      "kind": "sh",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "tests": 2,
+      "assertionFailure": true,
+      "pattern": "recovery ancestry is independent",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-ancestry-invert.sh",
+      "sourceSha256": "82f26763fb235432acf4d74c783375b4df70dbcaba30f3a74a40407fdcc25d28",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-ancestry-invert.log",
+      "logSha256": "1c76053d3cead1d77f08a0fdcc62f9416c0f6045c40f949ec57a06b377cd0fde"
+    },
+    {
+      "name": "ancestry-old-false-green",
+      "kind": "sh",
+      "expectedExit": 0,
+      "parseExit": 0,
+      "exit": 0,
+      "failedTests": 0,
+      "tests": 1,
+      "assertionFailure": false,
+      "pattern": "recovery integrity #2196: real Git provenance",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-ancestry-old-false-green.sh",
+      "sourceSha256": "9088948d1aea5e39ee34f6c01e52a34fd795ffcdaf31f4d6244f1ef1c1e5eeaa",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-ancestry-old-false-green.log",
+      "logSha256": "b9c4a7f582d6f1bdb519b6eb72ba0702b8039bee5ec45750a2ae8261d0bcb354"
+    },
+    {
+      "name": "recipe-raw",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity preserves external-diff",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-raw.sh",
+      "sourceSha256": "48feafc09ec6166bae5429dff48b0ed08be99bf7101c25ae9a9c81b3c0931bb9",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-raw.log",
+      "logSha256": "d94e508bc76291dcd3d22524610a161f304d4e1a03fa534fa76885e3ebb75fef"
+    },
+    {
+      "name": "recipe-nul",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity ignores Git presentation setting: quoted-paths",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-nul.sh",
+      "sourceSha256": "de1c4f79d08c0f586adfa1309d3c8fb41b12e60fc08f7eb60f3e6994458cac88",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-nul.log",
+      "logSha256": "352acdffdcd8adecea540aef959e4faa722f939a263cb6e0c75190058e0cfca6"
+    },
+    {
+      "name": "recipe-full-objects",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity ignores Git presentation setting: abbreviation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-full-objects.sh",
+      "sourceSha256": "158026c128d6f2423dd65fea451785cd7232bad5c77b64d1c060245339f24aeb",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-full-objects.log",
+      "logSha256": "c28a96aa961a6ba1999e3e8eb9648176d33ae6f557dfd15588a464667e8e6d59"
+    },
+    {
+      "name": "recipe-rename",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity ignores Git presentation setting: rename",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-rename.sh",
+      "sourceSha256": "ae473a5f69c332c3ba494880bd784ef259570eb1bea903501537f5341e3ede30",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-rename.log",
+      "logSha256": "a642382368fbef9c915ba0d328a1df9c8118ae46983bd0388cfc18ceb76ac5a0"
+    },
+    {
+      "name": "recipe-gitlink",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity ignores Git presentation setting: gitlink",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-gitlink.sh",
+      "sourceSha256": "316bfe738a5e84d3bccc855ef5f9addf351d100684b9e2c26dfb08a11e5f3dda",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-gitlink.log",
+      "logSha256": "0c2cbb0bb09fe6d15c100534105eb1c2904c5886de1393ac8cec957d4b17cfc6"
+    },
+    {
+      "name": "recipe-relative",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity ignores Git presentation setting: relative",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-relative.sh",
+      "sourceSha256": "bf02a45a6e581ae5fb77fa3f708adc76ee7a8c27cd0023104f8113d6128a68c2",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-relative.log",
+      "logSha256": "726b473356d31a925874127a93f6c0f7eefcd87bdefe05e9460303efd09ed3b6"
+    },
+    {
+      "name": "recipe-ordering",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity ignores Git presentation setting: ordering",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-ordering.sh",
+      "sourceSha256": "2b52dc7fdd4d4f6816d412671e4caa9e164659f09932071b69088708fc1f55ee",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-ordering.log",
+      "logSha256": "8b11de8b5fbea663c46554ee5191c483a406adbb16efc784606a921e0f68b028"
+    },
+    {
+      "name": "recipe-pipefail",
+      "kind": "recipe",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "pattern": "exact Git diff identity never accepts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-pipefail.sh",
+      "sourceSha256": "af5cb98bed53a0b8832edd36944128a9bae6057801d8eb29b6021e48ef461de2",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-recipe-pipefail.log",
+      "logSha256": "6e32d31da1a770567d0794604efb7a1147c26b16f77efcbe89571c6994aa70da"
+    },
+    {
+      "name": "whitespace-before-source",
+      "kind": "js",
+      "expectedExit": 1,
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 8,
+      "tests": 10,
+      "assertionFailure": true,
+      "pattern": "pin transfer Git boundary: real .*whitespace|normal merge Git certainty: real .*whitespace",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-whitespace-before-source.js",
+      "sourceSha256": "8956af55eda34a8e15841ec015f8f082adecc47e9a6e3b94f1f9d1403f732483",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control12-whitespace-before-source.log",
+      "logSha256": "5bddce80ee35167af0f0c3466593cab68c1ade0f45039cafef107168d57fd020"
+    }
+  ],
+  "controlSummary": "17 parseable guard/recipe mutations fail assertion oracles; eight whitespace cases fail against the actual previous source; removing ancestry leaves the original provenance fixture falsely green. Prior controls retain their original manifest attribution.",
+  "controlScript": {
+    "path": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate12-controls.py",
+    "sha256": "d6d83220876a327137a268f24adc65b6aeb2cb9df7000386d76891e46d926e8c"
+  },
+  "protectedRefs": [
+    {
+      "ref": "refs/heads/claude/codex-red-team-migration-5ca53a",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-4de4e6",
+      "expected": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "actual": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-726b55",
+      "expected": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "actual": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex-port",
+      "expected": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "actual": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-comparison",
+      "expected": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "actual": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-implementation",
+      "expected": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "actual": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-claude",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex",
+      "expected": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "actual": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+      "expected": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "actual": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/dev/2026-08-06-red-team-gate-cli",
+      "expected": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "actual": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-1",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-2",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.1",
+      "expected": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "actual": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.2",
+      "expected": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "actual": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-polish",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-2.1",
+      "expected": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "actual": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-polish",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    }
+  ],
+  "remoteAtValidation": {
+    "baseRefOid": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+    "headRefOid": "cf04f4c7199ecad10d386cc57d116d60e325f622",
+    "mergeStateStatus": "CLEAN",
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-10T18:01:10Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Ljferrer/WorkAuditRefine/actions/runs/34511725360/job/102987226001",
+        "name": "redaction-lint",
+        "startedAt": "2026-09-10T18:01:04Z",
+        "status": "COMPLETED",
+        "workflowName": "memory-audit"
+      }
+    ]
+  },
+  "promptBudgets": {
+    "refinerBytes": 36761,
+    "refinerHard": 36864,
+    "workflowPromptBytes": 137095,
+    "workflowPromptHard": 137216,
+    "advisoryExceeded": true,
+    "disposition": "Hard caps pass; optional prompt placement refactors remain deferred under #2126/#2127. Conditional explanation remains in its referenced procedure."
+  }
+}

@@ -1,0 +1,602 @@
+{
+  "candidate": "commit containing these source hashes",
+  "parentSha": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f",
+  "baselineSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+  "node": "v24.17.0",
+  "javascript": {
+    "command": "node --test 'skills/**/*.test.mjs'",
+    "passed": 2124,
+    "failed": 0,
+    "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-js.log",
+    "logSha256": "13de2cb50e96ed332509c4fe5c3d77f5fd64da06075dac0927077c5d30d5bfc4"
+  },
+  "shell": {
+    "passed": 31,
+    "failed": 0,
+    "files": [
+      {
+        "file": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-0.log",
+        "logSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b"
+      },
+      {
+        "file": "hooks/clean-surface-war-worktree.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-1.log",
+        "logSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5"
+      },
+      {
+        "file": "hooks/guard-conventions.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-2.log",
+        "logSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3"
+      },
+      {
+        "file": "hooks/inject-campaign-state.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-3.log",
+        "logSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0"
+      },
+      {
+        "file": "hooks/reply-standard/gate.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-4.log",
+        "logSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0"
+      },
+      {
+        "file": "hooks/vale-md/vale-md.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-5.log",
+        "logSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3"
+      },
+      {
+        "file": "hooks/validate-auditor-git.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-6.log",
+        "logSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c"
+      },
+      {
+        "file": "hooks/validate-servitor-provenance.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-7.log",
+        "logSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d"
+      },
+      {
+        "file": "hooks/validate-worktree-scope.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-8.log",
+        "logSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad"
+      },
+      {
+        "file": "hooks/warn-bash-write-scope.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-9.log",
+        "logSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa"
+      },
+      {
+        "file": "skills/_shared/gh-preflight.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-10.log",
+        "logSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4"
+      },
+      {
+        "file": "skills/_shared/war-memory-lint.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-11.log",
+        "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+      },
+      {
+        "file": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-12.log",
+        "logSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd"
+      },
+      {
+        "file": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-13.log",
+        "logSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b"
+      },
+      {
+        "file": "skills/red-team/diagnosis-preflight.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-14.log",
+        "logSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402"
+      },
+      {
+        "file": "skills/red-team/manifest-provenance.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-15.log",
+        "logSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd"
+      },
+      {
+        "file": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-16.log",
+        "logSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18"
+      },
+      {
+        "file": "skills/war-machine/war-pipeline-structure.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-17.log",
+        "logSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78"
+      },
+      {
+        "file": "skills/war-strategy/war-strategy-structure.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-18.log",
+        "logSha256": "47bbf1df3b07d8b0a1acd565eb4ce25c7d191fdeb50f625de769451dc631c6bc"
+      },
+      {
+        "file": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-19.log",
+        "logSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901"
+      },
+      {
+        "file": "skills/war/assets/assert-done-when.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-20.log",
+        "logSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0"
+      },
+      {
+        "file": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-21.log",
+        "logSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f"
+      },
+      {
+        "file": "skills/war/assets/assert-issues-filed.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-22.log",
+        "logSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84"
+      },
+      {
+        "file": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-23.log",
+        "logSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302"
+      },
+      {
+        "file": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-24.log",
+        "logSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf"
+      },
+      {
+        "file": "skills/war/assets/assert-test-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-25.log",
+        "logSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515"
+      },
+      {
+        "file": "skills/war/assets/gate-pin-status.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-26.log",
+        "logSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133"
+      },
+      {
+        "file": "skills/war/assets/provision-worktrees.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-27.log",
+        "logSha256": "bde55b137244d42aba01afaec8de12b2719e51508893e46d78432139c0b93934"
+      },
+      {
+        "file": "skills/war/assets/refinery-surface.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-28.log",
+        "logSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345"
+      },
+      {
+        "file": "skills/war/assets/scout-manifest-surface.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-29.log",
+        "logSha256": "da0b5f02d78da293e0750d2044709fe209e6a15a6b5b0b96c37f0f864e07d0aa"
+      },
+      {
+        "file": "skills/war/references/schemas-manifest.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-shell-30.log",
+        "logSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49"
+      }
+    ]
+  },
+  "redaction": {
+    "result": "lint: clean",
+    "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-redaction.log",
+    "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+  },
+  "staging": {
+    "bytes": 342273,
+    "cap": 524288,
+    "path": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-stage/war-engine-pr-2297-p3.js",
+    "sha256": "4adc503e424e96c5a5194adb7363eaa80be3e8fd7b0f5186e512559ea4d5fec6"
+  },
+  "releaseVersion": "0.21.13",
+  "sourceSha256": {
+    "CHANGELOG.md": "2f5947b79bea530d7534c3027ea0d7a670ccb80451dcbf5082f07f8c627b4210",
+    "README.md": "e7f44d366c5b82bdc5f84534b1583214e8a9da65e4e96cc43fbac1e2a147eca8",
+    "agents/war-auditor.md": "326d39d18f17b455891ce6e7201b52f5659003dfd2f35b8015beec72df23bfaa",
+    "agents/war-refiner.md": "13a4aa25f56ffbbb2012eb0c2a07767718f4a0b809799ff03e1d99a2c583a319",
+    "docs/adr/0008-git-is-the-resume-source-of-truth.md": "86ebd63567decd51bc531654d800edc40b214a1424c786d94ada7a39274bf9af",
+    "docs/adr/0049-pin-transfer-and-proportional-re-audit.md": "987528d3d7bb26f2a287e23f76fb7d06c1b9e92f4527ea4923903de18e5f60cf",
+    "docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md": "b84de388975a7a91a2bbe9d1b3c4bd42cd1c3041e87f0902126ed0aa38d770e9",
+    "docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md": "9a515be87f17a926f7a59a7721aabfd2c95d094ceaa240d8f3673f3378fd24d8",
+    "skills/war/assets/task-integrated.sh": "9567d0befa9c8a31caa3f6bce5eabb34467b670f4e2ac2c9a821b27beebeb0ba",
+    "skills/war/assets/workflow-template.js": "8956af55eda34a8e15841ec015f8f082adecc47e9a6e3b94f1f9d1403f732483",
+    "skills/war/assets/workflow-template.test.mjs": "e8861e58e501d6b40dcbebfbeda211a71d88f67a691b198078fe158cc9f7de39",
+    "skills/war/references/refiner-recovery.md": "fa10a37a89b9409e7c631fdc983b6a4b6e95865adcc9aaf3eae042e57bac5bbb",
+    "skills/war/references/resume-and-recovery.md": "c4e27d5463c89ee40f00c5383251bde57b70bb3cd09077c381ead73c83a8af79",
+    "skills/war/references/schemas.md": "1134f15905f983a79649667ef931457ddd86d50b840a13b7286298af19743766"
+  },
+  "controls": [
+    {
+      "name": "submodule-selector",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 3,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-submodule-selector.js",
+      "sourceSha256": "c500fd6560b6db3115de415d921d399d682d1978f18e98e72a5c8a9439b215e8",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-submodule-selector.log",
+      "logSha256": "2f79a8d4067bd8d748442a0a79025ea4701e5d80d89ac1e8c787139e5535c526"
+    },
+    {
+      "name": "paired-selector",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "dep-wave visibility: a gitlink-bump task",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-paired-selector.js",
+      "sourceSha256": "fbf1f4e441eeacd3a13eb5514e81947a7f1872f83e6a55c460c5ce8adc39408a",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-paired-selector.log",
+      "logSha256": "48e08c9e6a511da9711d6d9f0e003574faf350e7ddd3399e250f7ec7750fd34b"
+    },
+    {
+      "name": "optional-paired",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "dep-wave visibility: a gitlink-bump task",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-optional-paired.js",
+      "sourceSha256": "c995018f6a8b41518e02ce70b5109779ad9758e67492272ed284c920b2a1a58c",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-optional-paired.log",
+      "logSha256": "4599d897d22035e66052a3d3e4b557170a19e3e282db5d26e7c986d7c23fff13"
+    },
+    {
+      "name": "ordinary-selector",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 4,
+      "assertionFailure": true,
+      "pattern": "recovery preMerged requires explicit sanction",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-ordinary-selector.js",
+      "sourceSha256": "b587aefd1b3bb748b01196cb6df9f4e3af02a5200f5e62b74c6ac85a8908558e",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-ordinary-selector.log",
+      "logSha256": "0a8f1b26fc3bafc217e9ef5149a6c1be3de506fbc0af38516e5765d3be44d438"
+    },
+    {
+      "name": "target-type",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "assertionFailure": true,
+      "pattern": "submodule repo validation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-target-type.js",
+      "sourceSha256": "4b392910d6f1ce03d313f5328927095f8de9836c7445d391c9b9fa6ba856ee27",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-target-type.log",
+      "logSha256": "1bc27c97348246cd3aae52168988ae9da7480f321aff0f547137ed96d9bab573"
+    },
+    {
+      "name": "target-empty",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "submodule repo validation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-target-empty.js",
+      "sourceSha256": "5adcbd083ec8cac69934da4e92edfc400ccf242906cae18a55f8630e8c873ac1",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-target-empty.log",
+      "logSha256": "0fff48028c75fb11c83ddd50552329c494d5569f1eba2cfbf3c1b797630990d4"
+    },
+    {
+      "name": "target-nul",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "submodule repo validation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-target-nul.js",
+      "sourceSha256": "f21abbe532df5730c03b871d672a8631b700e28c8e3c2216bfc15fb144a79660",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-target-nul.log",
+      "logSha256": "99e1c38450b90b96b7f64e20e919804af440441910f5f2ec9d47d6801d4732e9"
+    },
+    {
+      "name": "main-type",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 3,
+      "assertionFailure": true,
+      "pattern": "submodule repo validation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-main-type.js",
+      "sourceSha256": "90ab8799227e3618892ece746361c00dd60863a8fedd095b5bd6e2e42c6e9b3d",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-main-type.log",
+      "logSha256": "37601d3c7bd523361d41286201f14468bf670a569b12553518d0ddbe6b552a0a"
+    },
+    {
+      "name": "main-absolute",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "submodule repo validation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-main-absolute.js",
+      "sourceSha256": "b232276d454a8bd7dba1854f4b0eb28b4ac641f89f14192160ab73f657e014b7",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-main-absolute.log",
+      "logSha256": "f19bdb60b17ec5f8c2d58d4af162f3790b175e4de37c944aab8a845929779734"
+    },
+    {
+      "name": "main-nul",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "submodule repo validation",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-main-nul.js",
+      "sourceSha256": "7c2eca3d0b5077124e0087b272e1963d9c1d3b00ab2e468685ad01cd02c7a261",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-main-nul.log",
+      "logSha256": "5363e2145917e11d4c409573537a578db69dbf6f25e51a1761ee45be51dba438"
+    },
+    {
+      "name": "absolute-bypass",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 1,
+      "assertionFailure": true,
+      "pattern": "absolute submodule repo does not require",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-absolute-bypass.js",
+      "sourceSha256": "661da3180346bad71d3b87692038f519756790db773243d554e5288cd7e8a5dc",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-absolute-bypass.log",
+      "logSha256": "4885769f4552f0e86bac3c0596e272433e8e0fc1357bc5aa4e9c1a48c26402e0"
+    },
+    {
+      "name": "absolute-join",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-absolute-join.js",
+      "sourceSha256": "2c6324395d66b20c72cc6a765bf479687bc0db488371136fc8dfd0792d25a9c3",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-absolute-join.log",
+      "logSha256": "d9158422de93c05c9243cf765150b4616051981080c137c65d7367cedcf32113"
+    },
+    {
+      "name": "relative-anchor",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-relative-anchor.js",
+      "sourceSha256": "e5ccb8413aab268a301400cf066f424f982d7ba40fea7f22d79cd4a1c5f3b6eb",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-relative-anchor.log",
+      "logSha256": "51f8c724639e0574a58268b5d12ffe8d1d030c00c0d61873303cfae9a47ac7f6"
+    },
+    {
+      "name": "empty-component",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 4,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-empty-component.js",
+      "sourceSha256": "23a8dfba9008f9006c3f8187f5ae5ee5103dd40493d626086f415967ae0dda91",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-empty-component.log",
+      "logSha256": "33721c9174ee79a3a7e5ba72646b0bd97dcae5163c1eee774b33d807f2493d49"
+    },
+    {
+      "name": "dot-component",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-dot-component.js",
+      "sourceSha256": "e1e54b9a3e409327c815f4c2393b66dc61e0ec0f0e7162d25279064b3054789b",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-dot-component.log",
+      "logSha256": "895e1396822ac6701a88d66d0f417b1719b5375780411202042ca396dbac650f"
+    },
+    {
+      "name": "parent-component",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 2,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-parent-component.js",
+      "sourceSha256": "57e34c404b021b092263e41c699788ee447fe12a8b6846151dbcacebb37d9a00",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-parent-component.log",
+      "logSha256": "3dd8f9c703d51bd615c6a155990c54c44ece2d285d2e64271b516ac5420536e7"
+    },
+    {
+      "name": "normal-component",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 4,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-normal-component.js",
+      "sourceSha256": "d71e024f5f9c29f5d5e15da9b7d98b1ca30b8d170838d572cfd0c1d61a68b115",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-normal-component.log",
+      "logSha256": "799856ed5ed433aab74b5f9b20f821ade1fe794cfe7c6aa6bb509d33052a20e1"
+    },
+    {
+      "name": "leading-root",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 4,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-leading-root.js",
+      "sourceSha256": "4a977b0dd85d68a2f6f0252db155c21aa0a7a7e57487911a411488ad2f45d7d5",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-leading-root.log",
+      "logSha256": "9fab65fc0f0100f790141a4e2072d2ee0feeb30aa2fb0852bc880c4b9a7f030f"
+    },
+    {
+      "name": "normalized-assignment",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 3,
+      "assertionFailure": true,
+      "pattern": "submodule absolute gate artifacts",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-normalized-assignment.js",
+      "sourceSha256": "a1f988f32dee413743de6af5bb8eef802967dfc822d8fab6d493abc13a258836",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-normalized-assignment.log",
+      "logSha256": "ce3fa9a2d74d1cf0f29a2b402baa85cb7ebb9e869a14568cc7f4eb1421480fcb"
+    },
+    {
+      "name": "before-source",
+      "parseExit": 0,
+      "exit": 1,
+      "failedTests": 22,
+      "assertionFailure": true,
+      "pattern": "submodule Git certainty uses its own integration and seed: .*relative=true|recovery.*relative=true|submodule absolute gate artifacts|submodule repo validation|submodule path aliases",
+      "source": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-before-source.js",
+      "sourceSha256": "5fb87946e50012f164078382f5d2d92daa52ab209dd5efd83ee153ef321ae6b9",
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control10-before-source.log",
+      "logSha256": "71c7cce0d5281d51f987b73dea1381ab0086d81d8aec4fc793900651e3fd0ba7"
+    }
+  ],
+  "controlScript": {
+    "path": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate10-controls.py",
+    "sha256": "ad907ef67a0da2119e65f19d5e017277a12a0af6bed48cb0a014f4950c05e67a"
+  },
+  "protectedRefs": [
+    {
+      "ref": "refs/heads/claude/codex-red-team-migration-5ca53a",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-4de4e6",
+      "expected": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "actual": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-726b55",
+      "expected": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "actual": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex-port",
+      "expected": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "actual": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-comparison",
+      "expected": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "actual": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-implementation",
+      "expected": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "actual": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-claude",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex",
+      "expected": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "actual": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+      "expected": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "actual": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/dev/2026-08-06-red-team-gate-cli",
+      "expected": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "actual": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-1",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-2",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.1",
+      "expected": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "actual": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.2",
+      "expected": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "actual": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-polish",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-2.1",
+      "expected": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "actual": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-polish",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    }
+  ],
+  "remoteAtValidation": {
+    "baseRefOid": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+    "headRefOid": "fbb9d048f13458aade491c2ceb5124c5ccb5c08f",
+    "mergeStateStatus": "CLEAN",
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-10T17:03:23Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/Ljferrer/WorkAuditRefine/actions/runs/34505837568/job/102967688351",
+        "name": "redaction-lint",
+        "startedAt": "2026-09-10T17:03:16Z",
+        "status": "COMPLETED",
+        "workflowName": "memory-audit"
+      }
+    ]
+  },
+  "historicalControls": "Candidate-9 ownership controls remain attributed to their committed manifest; they were not rerun as mutations in this path repair. The full JS suite reruns their regression fixtures."
+}

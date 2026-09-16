@@ -1,0 +1,303 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...81b16050fafb6eea5dcad11ef223216b5b378fd0",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "81b16050fafb6eea5dcad11ef223216b5b378fd0",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "package": {
+    "package": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+    "version": "0.21.12+codex.20260908.8fd30f3",
+    "files": [
+      {
+        "path": ".codex-plugin/plugin.json",
+        "sha256": "d6439680c4077f7c756daec328b32474f06915bb253d3db9da4f6ea3dfc09c11"
+      },
+      {
+        "path": "skills/snipe/SKILL.md",
+        "sha256": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e"
+      },
+      {
+        "path": "skills/snipe/agents/openai.yaml",
+        "sha256": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/_shared/provision.mjs",
+        "sha256": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs",
+        "sha256": "7ca610e53eeaad4a54d0fe37a5d0697a812e3ab607441a462904cc7f852c2fe2"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/war/assets/war-config.mjs",
+        "sha256": "cb13307c39eafc6469514ee547a0c543a7e066873e9c40abe8160c1145df37a2"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-files.mjs",
+        "sha256": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-git-policy.mjs",
+        "sha256": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-process.mjs",
+        "sha256": "248ba9edfcaf2b384bfce0989fe348e09d763ba320058a7e8be7b05d7e66a6a5"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-request.mjs",
+        "sha256": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-result.mjs",
+        "sha256": "f1c17a343ce45b8f427481ace3eaa4e16ef6d8e0c29a15a9875046c62cd9dd5c"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-runner.mjs",
+        "sha256": "8c86b7181a07250177caaf6eccbb38e2aec5ff6777e65e48ef90ddeb81bf6870"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-submodules.mjs",
+        "sha256": "6a243eec24aa9e726fba8f00315b2d29379789aee236f9a0791e23545c11243c"
+      },
+      {
+        "path": "skills/snipe/references/auditing-fixes.md",
+        "sha256": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f"
+      },
+      {
+        "path": "skills/snipe/references/codex-auditor.md",
+        "sha256": "098cdabea5f0160db7957fd897ce8debd0351ddc15b3ca435e4f7b7d600bea7d"
+      },
+      {
+        "path": "skills/snipe/references/post-audit-fixes.md",
+        "sha256": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5"
+      },
+      {
+        "path": "skills/snipe/references/submodules.md",
+        "sha256": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
+      }
+    ],
+    "manifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92"
+  },
+  "resultSha256": "9220e3048314bfca314e6301aebea0f33b76dbd06be10a846e2b9fbcb313e948",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "81b16050fafb6eea5dcad11ef223216b5b378fd0"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Release blurb still describes three superseded behaviors",
+            "file": "README.md",
+            "locator": "0.21.13 Status blurb and byte-identical CHANGELOG lead entry",
+            "line": 436,
+            "rationale": "The release blurb says a scope-split panel leaves the phase unheld, an unthreaded gate path renders a conventional path, and recovery skipping requires ancestry plus a nonzero commit count. The pinned implementation and tests establish the opposite/current contracts: `seatConflictsOf` preserves the ask while setting `verdict = 'escalate'`, with the scope-conflict fixture asserting `held:escalation`; `gateArtifactLine` emits an unthreaded marker and explicitly forbids guessing a conventional path; and `task-integrated.sh` additionally requires a nonempty commit carrying the exact `WAR-Task` trailer. The same stale paragraph is duplicated in `CHANGELOG.md` by the release-twin contract. `version-slots.test.mjs` checks byte equality and version placement, so it preserves these incorrect claims rather than detecting them.",
+            "suggested_fix": "Update the README Status paragraph and its byte-identical CHANGELOG lead entry to say scope conflicts hold pending ruling and re-audit, missing gate paths never fall back to conventional paths, and recovery skips require the task-owned nonempty `WAR-Task` commit proof.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/version-slots.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "81b16050fafb6eea5dcad11ef223216b5b378fd0"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs",
+            "skills/war/assets/reference-link-integrity.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "81b16050fafb6eea5dcad11ef223216b5b378fd0"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Pin-transfer mutations still bypass independent Git verification",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "pinProbe success routing and probeRow/landMerged consumers",
+            "rationale": "The pin-transfer dispatch rebases the task before reconciledMerge takes its snapshot. Its success consumers then trust internally consistent agent-supplied fields: transferred accepts equal reported patch IDs without recomputing either side, while already_upstream accepts syntactically valid SHAs and immediately calls landMerged. The later merge confirmation sees only the post-rebase branch, so it cannot detect that a false transferred report suppressed the required re-audit; already_upstream bypasses the merge/confirmation path entirely. The inspected positive test demonstrates this acceptance boundary with fabricated values (rebased_tip facade01, patch p1, commits c0ffee1/c0ffee2) and asserts that the task lands without a merge dispatch. Downstream, an erroneous but plausible probe can therefore merge rebased content no auditor approved, emit a false approval-transfer receipt, or record a task merged when its claimed Git objects do not exist. This also contradicts the finalization amendment's claim that Git confirms every mutation result.",
+            "suggested_fix": "Put the pin-transfer rebase behind an equivalent pre/post Git evidence boundary. Independently resolve the approved source tip, dispatch base, rebased branch tip, and patch identities from Git before accepting transferred; independently verify the integration tip and cherry/upstream evidence before already_upstream can call landMerged. Add real-Git negative cases where plausible returned fields are fabricated or disagree with the actual rebase."
+          },
+          {
+            "severity": "Major",
+            "title": "Task confirmation can publish pre-existing local-only integration commits",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "mergeSnapshot validation and mergeGitMatches task arm",
+            "rationale": "mergeSnapshot accepts a task snapshot when base_sha and remote_sha are different, and the task arm of mergeGitMatches never relates those two pre-dispatch targets. If the owned local integration branch is ahead of origin with an unaccounted commit, the pin-transfer rebase places that commit beneath the task, the task merge pushes the combined history, and confirmation passes: post local, remote, and source are equal; base_sha is an ancestor; and the task patch from base_sha is unchanged. The downstream landMerged path consequently attributes success to the current task while also publishing content that was neither part of its audited patch nor reconciled as a prior mutation. This state is reachable on an owned integration-branch reuse because provisioning does not re-cut or synchronize that branch. The inspected confirmation tests keep base_sha equal to remote_sha and do not exercise this pre-existing divergence.",
+            "suggested_fix": "Before a task mutation, require the local integration target to equal its remote snapshot, or explicitly reconcile and attribute any local-only history before rebasing the current task. Do not let the current task's success proof absorb a pre-snapshot target divergence. Add a real-Git regression with origin at I0, local integration at I1, and the task based on I0, asserting that I1 cannot piggyback through the task confirmation."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "81b16050fafb6eea5dcad11ef223216b5b378fd0"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Exhausted merge-snapshot death classification is untested",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "Git reconciliation: snapshot transport death retries read-only with the stronger tier before any mutation",
+            "plan_ref": "End state 19 / D21 / PIN-25",
+            "rationale": "The only snapshot-death fixture makes the first `merge-snapshot` dispatch throw and the recovery-tier attempt succeed. It therefore never reaches `mergeSnapshot`'s terminal `if (deathOf(before)) return before` branch. Removing that branch would leave the inspected tests green while changing repeated infrastructure deaths from a site-named, soft `env-died` result into the generic `Git merge snapshot unavailable` exception and `held:workflow-error`. That violates the declared every-dispatch classification invariant and can prevent an independent sibling task from landing even though no mutation began.",
+            "suggested_fix": "Add a behavioral case in which every bounded `merge-snapshot` attempt throws an infrastructure-death error. Assert that no merge for the affected task is dispatched, the escalation is soft `env-died` and names `git-snapshot:<task>` with the original cause, the result is not `held:workflow-error`, and an independent sibling task still lands."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,309 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...c27d7426d3417342cec3529da5b39f089b6787de",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "c27d7426d3417342cec3529da5b39f089b6787de",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "package": {
+    "package": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+    "version": "0.21.12+codex.20260908.8fd30f3",
+    "files": [
+      {
+        "path": ".codex-plugin/plugin.json",
+        "sha256": "d6439680c4077f7c756daec328b32474f06915bb253d3db9da4f6ea3dfc09c11"
+      },
+      {
+        "path": "skills/snipe/SKILL.md",
+        "sha256": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e"
+      },
+      {
+        "path": "skills/snipe/agents/openai.yaml",
+        "sha256": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/_shared/provision.mjs",
+        "sha256": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs",
+        "sha256": "7ca610e53eeaad4a54d0fe37a5d0697a812e3ab607441a462904cc7f852c2fe2"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/war/assets/war-config.mjs",
+        "sha256": "cb13307c39eafc6469514ee547a0c543a7e066873e9c40abe8160c1145df37a2"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-files.mjs",
+        "sha256": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-git-policy.mjs",
+        "sha256": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-process.mjs",
+        "sha256": "248ba9edfcaf2b384bfce0989fe348e09d763ba320058a7e8be7b05d7e66a6a5"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-request.mjs",
+        "sha256": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-result.mjs",
+        "sha256": "f1c17a343ce45b8f427481ace3eaa4e16ef6d8e0c29a15a9875046c62cd9dd5c"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-runner.mjs",
+        "sha256": "8c86b7181a07250177caaf6eccbb38e2aec5ff6777e65e48ef90ddeb81bf6870"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-submodules.mjs",
+        "sha256": "6a243eec24aa9e726fba8f00315b2d29379789aee236f9a0791e23545c11243c"
+      },
+      {
+        "path": "skills/snipe/references/auditing-fixes.md",
+        "sha256": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f"
+      },
+      {
+        "path": "skills/snipe/references/codex-auditor.md",
+        "sha256": "098cdabea5f0160db7957fd897ce8debd0351ddc15b3ca435e4f7b7d600bea7d"
+      },
+      {
+        "path": "skills/snipe/references/post-audit-fixes.md",
+        "sha256": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5"
+      },
+      {
+        "path": "skills/snipe/references/submodules.md",
+        "sha256": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
+      }
+    ],
+    "manifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92"
+  },
+  "resultSha256": "fd5b55f909b058cc0b585a8f7fa2a5aadbe5420db11b55c674994bb6f187fa4c",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c27d7426d3417342cec3529da5b39f089b6787de"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/land-decision.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c27d7426d3417342cec3529da5b39f089b6787de"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Recovery prompt duplicates its canonical procedure",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "reconcileMerge recovery prompt",
+            "line": 2202,
+            "rationale": "The prompt instructs the refiner to read refiner-recovery.md \u00a7 Uncertain merge reconciliation, then restates the task-recovery, land-recovery, safety, and return-shape rules inline. The referenced section already contains those obligations, while MERGE_RECONCILIATION and the subsequent validation enforce the response shape. Maintaining both normative copies enlarges every recovery dispatch and creates a drift surface without adding behavior.",
+            "suggested_fix": "Keep the dynamic context, immutable snapshot, prior response, canonical-section pointer, original operation, schema, and engine-side validation; remove the duplicated static recovery procedure from the prompt.",
+            "disposition": "absorb"
+          },
+          {
+            "severity": "Minor",
+            "title": "Holder-aware worktree failure handling remains triplicated",
+            "file": "skills/war/assets/provision-worktrees.sh",
+            "locator": "worktree-add failure arms in cmd_ensure_worktree, cmd_ensure_refinery_worktree, and cmd_ensure_publication_worktree",
+            "line": 1668,
+            "rationale": "The publication repair adds a third hand-copy of the branch_holder_path lookup, fallback-message construction, conditional holder message, and die sequence already present in the ordinary and refinery worktree arms. The base-to-head change itself demonstrates the maintenance risk: the publication copy had drifted by omitting the holder diagnostic. The head restores behavior but preserves the cause and adds commentary tracking a now-closed divergence.",
+            "suggested_fix": "Extract one small holder-aware add-failure renderer used after each failed git worktree add, parameterized by the command-specific prefix and remediation wording. Retain the existing behavioral assertions for all three commands and remove the closed divergence commentary.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c27d7426d3417342cec3529da5b39f089b6787de"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Recovery proof omits task-owned changes that net back to the phase base",
+            "file": "skills/war/assets/task-integrated.sh",
+            "locator": "proof_paths construction and workflow-template preMerged consumer",
+            "plan_ref": "Finalization recovery current-content amendment (#2196)",
+            "line": 49,
+            "rationale": "The helper derives its comparison footprint from `git diff --name-only \"$phase_base\" \"$task_tip\"`, not from the task-owned commits. After a task is rebased over an earlier sibling, one of its required changes can restore a path to its phase-base state\u2014for example, deleting a file introduced by that sibling\u2014so that path disappears from this net diff. If the task changes another path, the final-diff nonempty guard still passes. A later integration commit can then reintroduce or alter the omitted path while every listed path remains identical to `task_tip`, causing `TASK_INTEGRATED` to be emitted despite missing current task behavior. The downstream `preMerged` consumer in `workflow-template.js` consequently marks the task done, succeeded, and landed, dispatches no worker or audit, and excludes it from per-task gate audit. The inspected `removed` regression only removes a task-added path, which remains visible in the phase-base-to-task-tip diff; it does not exercise a task-owned change that cancels preceding phase work.",
+            "suggested_fix": "Build the conservative footprint from the union of paths touched by every qualifying `WAR-Task: <task branch>` commit, preserving both sides of renames, Gitlinks, modes, and deletions, then compare the final task and integration trees across that union. Add a real-Git regression where a rebased task restores one sibling-touched path to the phase base while changing another path, and a later commit alters the restored path; the helper must return no proof and the workflow must dispatch ordinary work/audit."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "c27d7426d3417342cec3529da5b39f089b6787de"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Compound recovery history lets unrelated content satisfy the final-diff oracle",
+            "file": "skills/war/assets/task-integrated.sh",
+            "locator": "independent provenance_commit and proof_paths checks",
+            "plan_ref": "ADR 0008 recovery auto-skip decision (#2196)",
+            "line": 31,
+            "rationale": "The helper proves two independent facts: lines 31-43 accept any historical nonempty commit with the task's WAR-Task trailer, while lines 49-59 accept any nonempty final branch diff whose paths match integration. Those witnesses need not represent the same work. If task-owned commit A is later reverted while an unowned sibling or legacy change B remains on the task branch, A satisfies provenance and B keeps proof_paths nonempty and identical at integration, so the helper emits TASK_INTEGRATED even though none of the task-owned content survives. The Workflow then records preMerged and skips worker/audit. The real-Git tests do not reject this composition: the provenance sequence tests sibling/legacy content only before a nonempty owned commit exists, and the current-content matrix tests empty-final only where no unrelated final change remains. Thus the suite can stay green while violating ADR 0008's requirement that sibling-only or historically reverted work cannot establish completion.",
+            "suggested_fix": "Add a real-Git regression that creates task-owned change A, adds unrelated or differently owned change B, reverts A, integrates the branch, and asserts helper exit 1, worker dispatch, and no recovered:pre-merged receipt. Change the proof so the surviving nonempty footprint is demonstrably attributable to the matching-trailer task work; when that ownership cannot be established, conservatively return NO_TASK_PROOF rather than combining independent provenance and final-diff witnesses."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/war/assets/reference-link-integrity.test.mjs",
+            "skills/war/assets/assert-test-in-diff.test.sh",
+            "skills/_shared/doc-cli-consistency.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

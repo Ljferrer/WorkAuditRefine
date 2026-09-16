@@ -34,7 +34,7 @@ When reviewing repair-driven changes, read `references/auditing-fixes.md`; the c
 
 ## Findings and verdict
 
-Use `Critical`, `Major`, `Minor`, or `Nit`. Critical/Major findings mean `request_changes`; in a Snipe report they are described as “would block in a phase,” but they do not trigger a gate. Minor/Nit findings carry one disposition:
+Use `Critical`, `Major`, `Minor`, or `Nit`. `request_changes` requires at least one Critical/Major finding, and those findings require `request_changes`; in a Snipe report they are described as “would block in a phase,” but they do not trigger a gate. Minor/Nit findings carry one disposition:
 
 - `absorb`: a fully specified, mechanical, intent-consistent correction in the reviewed change;
 - `follow-up`: substantive work outside this review's scope, with the blocking reason stated;

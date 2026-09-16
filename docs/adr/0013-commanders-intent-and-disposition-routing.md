@@ -27,7 +27,11 @@ defaulted `absorb` routes `phaseClose:true` to the phase-close sweep, and every 
 demotion carries a `DEMOTE_REASONS` prefix; see the amendment below; amended 2026-09-04
 (Phase 4, note reroute) — an in-diff `note` that names a fix reroutes to `absorb`, and
 gate-audit-family rows route like any seat's, so Decision 4's "never an issue" for `note` is bounded;
-see the amendment below)
+see the amendment below; edited in place 2026-09-08 (the living-ADR ruling) — Decision 4 carries the
+two-sided blocking boundary: rebuttal first, then fix round when a `suggested_fix` survives, a fix-less
+survivor escalates, a seat conflict preserves an `ask` while held; see the Decision log; edited in place 2026-09-08 —
+Decision 5 states release-slot eligibility by literal: `README.md`/`CHANGELOG.md` absorbs ride the
+per-task ace when no version literal moves, `version-slots.test.mjs` is the merge guard; see the Decision log)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -70,17 +74,32 @@ findings route once judgment is licensed. Full mechanics:
    intent-consistent → ace or phase-close sweep; `phaseClose:true` when the fix needs the integrated tip or
    a shared file), `follow-up` (substantive work beyond the phase — must state why it is not absorbable;
    files the issue), `note` (report + servitor feed, never an issue). Defaults when omitted: Minor →
-   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched. *(Coupled —
+   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched. Its
+   boundary is two-sided: on a split the one rebuttal round runs first; a panel whose surviving
+   blockers ALL carry a concrete in-file `suggested_fix` dispatches a fix round plus a full-roster
+   re-audit at the new SHA (bounded by `run.roundLimit`, approval unanimous on the post-fix
+   `audit_sha`). ANY fix-less blocker, unchanged survivor after a fix round, or blocking seat
+   without a blocking finding holds. A decision-forked blocker escalates with an `escalate_reason`
+   naming the missing decision. A **seat conflict** pairs severities across the blocking line at
+   one locus with mandate-shaped or adjudication-match rationale; its operator `ask` preserves
+   the fix-now / follow-up-and-merge fork while held. It never erases blockers or grants approval;
+   a ruling and re-audit precede approval in interactive and unattended runs (#2279/#2280).
+   Explicit escalation and budget exhaustion still hold. *(Coupled —
    [ADR-0032](0032-red-team-grades-by-artifact-kind.md) refines *what counts as a finding at all* when
    `/red-team` grades a plan against a not-yet-mutated repo: a `deliverableAbsence`-flagged finding is a
    non-defect the red-team gate never blocks on. The red-team spec's friction D7 pins that gate's pass-only
    demotion set with a drift-guard — a guarded-invariant addition to the finding-severity model here, no new
    ADR. This routing/severity model is otherwise unchanged.)*
 5. **The ace string backstop narrows to the two pure version-slot JSONs** (`plugin.json`,
-   `marketplace.json`) — the only files where a filename alone is sufficient evidence for a sandbox that
-   cannot read code. README and other shared files route to the phase-close sweep instead of being refused.
-   Version-number literals stay protected by the prompt prohibition + mandatory re-audit + forward-revert/
-   discard on every polish path.
+   `marketplace.json` — canonical as `RELEASE_SLOT_FILES` in `skills/war/assets/land-decision.mjs`) —
+   the only files where a filename alone is sufficient evidence
+   for a sandbox that cannot read code. Release-slot eligibility is otherwise by literal, not by file
+   (edited in place 2026-09-08, D20 of the 2026-09-06 verdict-integrity plan; #2000): a `README.md` or
+   `CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version
+   token rides the per-task ace like any other absorb, and a fix that moves one is a release change, never a
+   Minor. The merge guard is `version-slots.test.mjs` in the gate (a slot moved out of lock-step reds there;
+   no engine literal detector), beside the prompt prohibition (`never move a version literal`) + mandatory
+   re-audit + forward-revert/discard on every polish path.
 6. **End state is verified before land.** The existing post-merge gate-audit pass additionally checks this
    phase's claimed End-state conditions at the confirmed tip: provably unmet → HARD (holds the land);
    anything short of provable → SOFT note. `/red-team` gains an `intent-vs-plan` spine lens grading
@@ -573,7 +592,9 @@ every amendment above stay byte-untouched; this note supersedes their *currency*
   `skills/war/assets/workflow-template.js`) turns an in-diff `note` carrying a `suggested_fix` into
   `absorb`, and the gate-audit floor pass does the same over `phase_diff_files`. A rerouted note then
   walks the absorb ladder like any absorb, so its terminal rungs can file: `demote:absorb-regressed`
-  at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase.
+  at an ace re-audit regression, `demote:sweep-discarded` at a discarded sweep on the final phase,
+  or on ANY phase when the polish panel approved the branch and its merge never landed (the
+  approve trail, #2087).
   Decision 4's "`note` (report + servitor feed, never an issue)" therefore reads: never an issue
   *as a note* — a note the floor rerouted is an absorb from that point on, and every such reroute is
   logged.
@@ -587,3 +608,10 @@ every amendment above stay byte-untouched; this note supersedes their *currency*
 
 Decision 4's routing semantics are otherwise untouched. This amendment leaves all pre-existing
 body text above — beyond the Status currency line — byte-unchanged.
+
+## Decision log
+
+- 2026-09-08 · Decision 4 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): the blocking boundary is two-sided — on a split the one rebuttal round runs first, a blocking finding that survives it with a `suggested_fix` dispatches a fix round plus a full-roster re-audit instead of escalating (#1989), a fix-less decision-forked survivor escalates with `escalate_reason` read into `escalated[]` while a mechanical blocking finding with budget never escalates (#1664), and a seat conflict on one locus parks an operator `ask` (#1914) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D17/D18/D19, Phase 11 Task 11.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
+- 2026-09-08 · Decision 5 edited in place under the 2026-09-06 living-ADR ruling (no dated amendment): release-slot eligibility is by literal, not by file — only the `RELEASE_SLOT_FILES` basenames (`plugin.json`/`marketplace.json`) refuse by filename, a `README.md`/`CHANGELOG.md` absorb that moves no version literal, CHANGELOG head heading or README `## Status` version token rides the per-task ace, a fix that moves one is a release change and never a Minor, and `version-slots.test.mjs` in the merge gate is the guard (no engine literal detector; #2000) · plan `docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md` D20, Phase 12 Task 12.2 · the amendments' "pre-existing body text above byte-unchanged" closings hold as of their own dates.
+
+- 2026-09-09 · Decision 4 amended under the explicit PR #2297 operator ruling: all survivors must be fixable; any fix-less/unchanged/finding-less blocking seat holds; mandate questions preserve evidence while held and require a ruling plus re-audit before approval. This supersedes the 2026-09-08 conflict exception (#2279/#2280).

@@ -1,0 +1,220 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...1bd9474b7ea813d85976b8639f666df29b26fda3",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "1bd9474b7ea813d85976b8639f666df29b26fda3",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "packageManifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92",
+  "rawResultSha256": "b49448f091444d44a2bce97f04491fd31842e81e3c7bb5eb3f519e4ab065e991",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "1bd9474b7ea813d85976b8639f666df29b26fda3"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Missing or malformed audit pins still permit task approval",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "AUDIT_VERDICT, pinMismatch, and auditRound task-pin reconciliation",
+            "line": 2641,
+            "rationale": "The new reconciliation runs only when `seats.some(s => pinMismatch(s.audit_sha, pin))`, but `pinMismatch` returns false whenever either value is absent or malformed, and `audit_sha` remains optional in `AUDIT_VERDICT`. An implemented worker's `head_sha` is optional as well. Consequently, an approving seat can omit `audit_sha`, or the worker can omit a usable pin, and `allApprove` can merge the task without establishing which Git tree was reviewed. The pinned test harness demonstrates the surviving path: its default worker returns `head_sha: 'deadbeef'`, its default approving auditor returns no `audit_sha`, and this is the suite's successful work-to-land default. This leaves the #2141 invariant open in the missing-proof direction even though the changed documentation says a verdict is pinned to `audit_sha` and missing proof prevents approval.",
+            "suggested_fix": "Before accepting a task audit, resolve an absent or malformed worker pin through the existing read-only `audit-pin` path. When a task audit has an expected pin, require every returned seat to provide a usable `audit_sha`; treat an absent, malformed, or unequal value as unresolved and re-audit at the confirmed full SHA, then hold on a second invalid response. Add negative fixtures for an approving seat without `audit_sha`, a malformed `audit_sha`, and an implemented worker without a usable `head_sha`."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "1bd9474b7ea813d85976b8639f666df29b26fda3"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "The strengthened approval predicate remains duplicated at six callers",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "allApprove and its redundant conjuncts in aceBisect, aceReentry, aceStage, pin-transfer mismatch re-audit, sweepApproved, and tApproved",
+            "line": 1971,
+            "rationale": "`allApprove` now centrally requires a complete all-approve panel with no Critical/Major findings, but six callers additionally repeat `blockingOf(...).length === 0`; the sweep and terminal callers also repeat `!died`, although persistent dead seats are removed while `expected` remains unchanged, making `allApprove` false already. These redundant conjuncts add repeated finding traversals and leave multiple apparent homes for the approval invariant, increasing future drift risk without changing behavior.",
+            "suggested_fix": "Reduce each of the six expressions to `allApprove(seats, expected)` and retain the existing centralized predicate and behavioral approval tests.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "1bd9474b7ea813d85976b8639f666df29b26fda3"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Pinless or malformed approvals still bypass Git reconciliation and remain merge-eligible",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "AUDIT_VERDICT, pinMismatch, auditRound reconciliation, and allApprove",
+            "plan_ref": "Finalization pin-integrity amendment / #2141",
+            "line": 121,
+            "rationale": "The repair requires task verdicts to converge on a Git-confirmed audit pin, but `audit_sha` remains absent from `AUDIT_VERDICT.required`, `pinMismatch` returns false when either value is missing or malformed, and `allApprove` checks only seat count, verdict labels, and blockers. Consequently `auditRound` enters reconciliation only for two usable but conflicting SHAs; an approve response without `audit_sha`, or an implemented worker result with a missing/malformed `head_sha`, bypasses the Git lookup and can flow through the wave's `allApprove` branch into merge and land. Multiple valid but different seat SHAs likewise pass when the worker pin is unusable. This contradicts the pinned schema documentation's merge rule requiring all approvals on the same `audit_sha`. The test suite's shared `defaultImpl` returns approve without `audit_sha`, while the malformed-worker-pin test explicitly preserves the no-pin fail-open path; the new #2141 regressions cover valid SHA mismatches and therefore cannot reject this downstream bypass.",
+            "suggested_fix": "At the `auditRound` boundary, treat every missing or malformed seat `audit_sha`, and every missing or malformed initial/fix worker pin, as unresolved pin evidence. Resolve the task branch through the existing read-only recovery path, re-run the roster at that confirmed SHA, and refuse approval if any second-pass seat lacks or disagrees with that pin. Keep the gate-audit family's separately documented SOFT missing-pin behavior outside this task-audit rule. Add regressions proving pinless, malformed, and mutually different approve responses cannot reach merge eligibility."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "1bd9474b7ea813d85976b8639f666df29b26fda3"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/assert-test-in-diff.test.sh",
+            "skills/war/assets/reference-link-integrity.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      },
+      "truncated": false
+    }
+  ]
+}

@@ -1,0 +1,613 @@
+{
+  "candidate": "commit containing these source hashes",
+  "parentSha": "c27d7426d3417342cec3529da5b39f089b6787de",
+  "baselineSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+  "node": "v24.17.0",
+  "javascript": {
+    "command": "node --test 'skills/**/*.test.mjs'",
+    "passed": 2099,
+    "failed": 0,
+    "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-js.log",
+    "logSha256": "e64c1c2287dde9b642f118bbdd16550f5100fa1200992650bca703c99d06a2a3"
+  },
+  "shell": {
+    "passed": 31,
+    "failed": 0,
+    "files": [
+      {
+        "file": "hooks/guard-conventions.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-0.log",
+        "logSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3"
+      },
+      {
+        "file": "hooks/validate-servitor-provenance.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-1.log",
+        "logSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d"
+      },
+      {
+        "file": "hooks/warn-bash-write-scope.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-2.log",
+        "logSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa"
+      },
+      {
+        "file": "hooks/validate-auditor-git.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-3.log",
+        "logSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c"
+      },
+      {
+        "file": "skills/war-machine/war-pipeline-structure.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-4.log",
+        "logSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78"
+      },
+      {
+        "file": "skills/_shared/war-memory-lint.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-5.log",
+        "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+      },
+      {
+        "file": "skills/_shared/gh-preflight.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-6.log",
+        "logSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4"
+      },
+      {
+        "file": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-7.log",
+        "logSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b"
+      },
+      {
+        "file": "skills/red-team/diagnosis-preflight.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-8.log",
+        "logSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402"
+      },
+      {
+        "file": "hooks/vale-md/vale-md.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-9.log",
+        "logSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3"
+      },
+      {
+        "file": "hooks/validate-worktree-scope.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-10.log",
+        "logSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad"
+      },
+      {
+        "file": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-11.log",
+        "logSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b"
+      },
+      {
+        "file": "hooks/clean-surface-war-worktree.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-12.log",
+        "logSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5"
+      },
+      {
+        "file": "hooks/inject-campaign-state.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-13.log",
+        "logSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0"
+      },
+      {
+        "file": "skills/red-team/manifest-provenance.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-14.log",
+        "logSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd"
+      },
+      {
+        "file": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-15.log",
+        "logSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd"
+      },
+      {
+        "file": "hooks/reply-standard/gate.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-16.log",
+        "logSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0"
+      },
+      {
+        "file": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-17.log",
+        "logSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf"
+      },
+      {
+        "file": "skills/war-strategy/war-strategy-structure.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-18.log",
+        "logSha256": "47bbf1df3b07d8b0a1acd565eb4ce25c7d191fdeb50f625de769451dc631c6bc"
+      },
+      {
+        "file": "skills/war/assets/assert-done-when.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-19.log",
+        "logSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0"
+      },
+      {
+        "file": "skills/war/assets/gate-pin-status.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-20.log",
+        "logSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133"
+      },
+      {
+        "file": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-21.log",
+        "logSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901"
+      },
+      {
+        "file": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-22.log",
+        "logSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302"
+      },
+      {
+        "file": "skills/war/assets/provision-worktrees.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-23.log",
+        "logSha256": "d39a874d8e34dea7738b7f6e52a467c6ea4cc3bce3371205206341ad16a11877"
+      },
+      {
+        "file": "skills/war/assets/assert-issues-filed.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-24.log",
+        "logSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84"
+      },
+      {
+        "file": "skills/war/assets/refinery-surface.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-25.log",
+        "logSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345"
+      },
+      {
+        "file": "skills/war/assets/scout-manifest-surface.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-26.log",
+        "logSha256": "da0b5f02d78da293e0750d2044709fe209e6a15a6b5b0b96c37f0f864e07d0aa"
+      },
+      {
+        "file": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-27.log",
+        "logSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f"
+      },
+      {
+        "file": "skills/war/assets/assert-test-in-diff.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-28.log",
+        "logSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515"
+      },
+      {
+        "file": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-29.log",
+        "logSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18"
+      },
+      {
+        "file": "skills/war/references/schemas-manifest.test.sh",
+        "exit": 0,
+        "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/candidate9-shell-30.log",
+        "logSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49"
+      }
+    ]
+  },
+  "redaction": {
+    "result": "lint: clean",
+    "logSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e"
+  },
+  "staging": {
+    "bytes": 341339,
+    "cap": 524288
+  },
+  "releaseVersion": "0.21.13",
+  "sourceSha256": {
+    "CHANGELOG.md": "2f5947b79bea530d7534c3027ea0d7a670ccb80451dcbf5082f07f8c627b4210",
+    "README.md": "e7f44d366c5b82bdc5f84534b1583214e8a9da65e4e96cc43fbac1e2a147eca8",
+    "agents/war-auditor.md": "326d39d18f17b455891ce6e7201b52f5659003dfd2f35b8015beec72df23bfaa",
+    "agents/war-refiner.md": "68781e22fa04c6c15cb264d3a81d2b104b1e71d70c5e24fb9705d6b69a489a9e",
+    "docs/adr/0008-git-is-the-resume-source-of-truth.md": "86ebd63567decd51bc531654d800edc40b214a1424c786d94ada7a39274bf9af",
+    "docs/adr/0049-pin-transfer-and-proportional-re-audit.md": "987528d3d7bb26f2a287e23f76fb7d06c1b9e92f4527ea4923903de18e5f60cf",
+    "docs/adr/0051-verdict-intake-normalization-and-fail-closed-refiner-enums.md": "b84de388975a7a91a2bbe9d1b3c4bd42cd1c3041e87f0902126ed0aa38d770e9",
+    "docs/plans/2026-09-06-engine-and-audit-verdict-integrity.md": "9a515be87f17a926f7a59a7721aabfd2c95d094ceaa240d8f3673f3378fd24d8",
+    "skills/war/assets/task-integrated.sh": "9567d0befa9c8a31caa3f6bce5eabb34467b670f4e2ac2c9a821b27beebeb0ba",
+    "skills/war/assets/workflow-template.js": "5fb87946e50012f164078382f5d2d92daa52ab209dd5efd83ee153ef321ae6b9",
+    "skills/war/assets/workflow-template.test.mjs": "f158d7b1aaeac021d5fc0dd43990a1d191d5d287058167853348b31a8b3c48f2",
+    "skills/war/references/refiner-recovery.md": "199a30bfa71f433982ee45b20d9ca470450bb895360011f4918bde8471abe4e8",
+    "skills/war/references/resume-and-recovery.md": "c4e27d5463c89ee40f00c5383251bde57b70bb3cd09077c381ead73c83a8af79",
+    "skills/war/references/schemas.md": "649f6912d0fabe31091be6b5976a2cb67945ed7315a85b6b0e1c6576988190b7"
+  },
+  "controls": [
+    {
+      "name": "owned-order",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-order.log",
+      "logSha256": "adccf2762825a59f20a483c1e4f84cbd8b46465fadda85b588e805e8a22975c0"
+    },
+    {
+      "name": "owned-base",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-base.log",
+      "logSha256": "8653f18f0db22e4e67cf525b2ca1c72f7cde2fc855c1988ab31f8bb2da0327a9"
+    },
+    {
+      "name": "owned-membership",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-membership.log",
+      "logSha256": "e7a71c61f17782db6488ab72ce0315964d6cc6badd1bd6ee44c100fe15d6e9fb"
+    },
+    {
+      "name": "include-merge-history",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-include-merge-history.log",
+      "logSha256": "66feae22a350c2ecf4dbc9b1b514b674bd78547eadd1bd00766c632f0261bd92"
+    },
+    {
+      "name": "mixed-history",
+      "exit": 1,
+      "failed": 3,
+      "tests": 3,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-mixed-history.log",
+      "logSha256": "d386136ddb4622145dd00bfbadceaa58d0059fed55aa67367680c14cddb0b496"
+    },
+    {
+      "name": "empty-bookkeeping",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-empty-bookkeeping.log",
+      "logSha256": "45c6229cd0911a57a987f651de68fc60761be272080316a0f29e01a95f747918"
+    },
+    {
+      "name": "owned-net",
+      "exit": 1,
+      "failed": 2,
+      "tests": 2,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-net.log",
+      "logSha256": "d3ce73465058d2102a300385ba13b6599d77e7cec4d0e945e24163fce49e325f"
+    },
+    {
+      "name": "owned-history-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-history-error.log",
+      "logSha256": "2c6ea93ecf9980d0014a71a2b9f3ffb75cb9c3dcf502b811d4bd109d6571ed4a"
+    },
+    {
+      "name": "mixed-diff-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-mixed-diff-error.log",
+      "logSha256": "dac05e06bc7d4e46b49a09ed27931412d70a7958adc2844cc77695c97457a333"
+    },
+    {
+      "name": "owned-net-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-net-error.log",
+      "logSha256": "b75f905ee3dc1b588217ee151cd787b0a30dbafd86ea24100c134d9d48916105"
+    },
+    {
+      "name": "owned-footprint-vs-phase",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-footprint-vs-phase.log",
+      "logSha256": "2cd9899540d408222e2981a0634a4749087c50214082403e18f4e79ee9296d0e"
+    },
+    {
+      "name": "owned-footprint-append",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-footprint-append.log",
+      "logSha256": "7f1e5aa45a0af2f2f8a8f4415ec7e6f910616c214cce484c48fe41d062be4ab4"
+    },
+    {
+      "name": "owned-footprint-all",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-owned-footprint-all.log",
+      "logSha256": "0e3581892d024e573419c43a9fc7232d50f0abbbeffc934e4a50ffe250d92058"
+    },
+    {
+      "name": "root-cwd",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-root-cwd.log",
+      "logSha256": "15e513c220b86b220960bf136bf71a09731f6ba5ff6c15e406af5ca92ba3ec66"
+    },
+    {
+      "name": "literal-paths",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-literal-paths.log",
+      "logSha256": "f5a3d553ceb18f0cfa40dfbbf5320e912c30ccff86c980b8d03e839c9779e6da"
+    },
+    {
+      "name": "gitlink-content",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-gitlink-content.log",
+      "logSha256": "4f0a614f88bcefdd8ec755d867620c2be8b2ffd8ca6cc4a220517f2d26d562f5"
+    },
+    {
+      "name": "external-diff",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-external-diff.log",
+      "logSha256": "1169562c65010417475c1dc6070141ad95d595d39b2696c4fafdf3e2c5172027"
+    },
+    {
+      "name": "rename-old-path",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-rename-old-path.log",
+      "logSha256": "e25dcd989138264dd7d6d295eb040fddea8b08974469a15b88083097f3f7935c"
+    },
+    {
+      "name": "nul-writer",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-nul-writer.log",
+      "logSha256": "4ad89f407b0930dce49a02bb44b986d177c689de36fe6865c8d05b521f52d892"
+    },
+    {
+      "name": "nul-reader",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-nul-reader.log",
+      "logSha256": "b7e28bdc8ba0474dd83814062f083cf8ad2987a76135c5e70cfe9b159b81b317"
+    },
+    {
+      "name": "content-equality",
+      "exit": 1,
+      "failed": 4,
+      "tests": 4,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-content-equality.log",
+      "logSha256": "d58f81b9496fd55e7f405b4d78322bdcb4c0c94b2d8f3d08f7b3efc0f0598fa2"
+    },
+    {
+      "name": "list-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-list-error.log",
+      "logSha256": "7a4a342a5b155d900c1a64107011f67ecb2fa9cc0f57e7163001b1cc38f149fa"
+    },
+    {
+      "name": "compare-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-compare-error.log",
+      "logSha256": "5d17d862b91cca7441258aa2669a8ed341dfdce57b00a00d9d89bd371dfb9bb1"
+    },
+    {
+      "name": "temp-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-temp-error.log",
+      "logSha256": "6f0b30241477b1440a5cc38674f4fb00ffd61e233c1b44bc48c9fd79b2206900"
+    },
+    {
+      "name": "refs-error",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-refs-error.log",
+      "logSha256": "7309a2da3a37e57e4f76298c4a36478c17aa067da5147e6fec6de2751241cfc0"
+    },
+    {
+      "name": "ref-stability",
+      "exit": 1,
+      "failed": 3,
+      "tests": 3,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-ref-stability.log",
+      "logSha256": "33845e50d9ca51597cc716b65903d3ff0b602f0ed282897bbab4e7484f26e629"
+    },
+    {
+      "name": "cleanup",
+      "exit": 1,
+      "failed": 3,
+      "tests": 3,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-cleanup.log",
+      "logSha256": "aa13e5d3d73e83544ef076dc927e82a813c40350d2d5a44bbede7e7056e3be9f"
+    },
+    {
+      "name": "before-source",
+      "exit": 1,
+      "failed": 7,
+      "tests": 7,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-before-source.log",
+      "logSha256": "992ebcab79e84d125d431b54029b7099049a20cd2f37e7983e049c961d5532ca"
+    },
+    {
+      "name": "retain-owned-base",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-retain-owned-base.log",
+      "logSha256": "bb182db67a8ad295e0bb52679b9e3ba6213dcb14fb310734d786b15455bfbc16"
+    },
+    {
+      "name": "accumulate-owned-membership",
+      "exit": 1,
+      "failed": 1,
+      "tests": 1,
+      "assertionFailure": true,
+      "log": "/Users/ljf/.codex/visualizations/2026/09/09/01a087bf-da9d-71f1-a521-cb669481c09b/war-2297-finalization/control9-accumulate-owned-membership.log",
+      "logSha256": "89105fc19339c29aeb844ab14048b50f9397bec31dba11e19e707f5424694f2b"
+    }
+  ],
+  "controlsScriptSha256": "d59b6468cca67b8fd4533f3c70d20bb3c242d5cd9734acc3dfc25639506faad0",
+  "beforeSourceSha256": "1a07f3db392f17061c0e11d3be4429bcbda4ef72d4a98fac4ca2f0be6b3eb624",
+  "protectedRefs": [
+    {
+      "ref": "refs/heads/claude/codex-red-team-migration-5ca53a",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-4de4e6",
+      "expected": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "actual": "067b7b538350044c283f2f7e14f5b85c6677d882",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/claude/work-audit-refine-red-team-726b55",
+      "expected": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "actual": "30c8b7ece4d806e90ac7394f464d387a521410e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex-port",
+      "expected": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "actual": "7271cc3a08db978c71c450def81f49a1816dc20c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-comparison",
+      "expected": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "actual": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-implementation",
+      "expected": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "actual": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-claude",
+      "expected": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "actual": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex",
+      "expected": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "actual": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+      "expected": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "actual": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/dev/2026-08-06-red-team-gate-cli",
+      "expected": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "actual": "1655b98c6c22be7490cc48809b509d3aeaabd16c",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-1",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/integration/2026-08-06-red-team-gate-cli/phase-2",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.1",
+      "expected": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "actual": "17eb083a63fa94a2a1612622a218385ea1034af4",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-1.2",
+      "expected": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "actual": "e0fd31cda193551973d5cbd86c5b42203c8805a2",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p1-polish",
+      "expected": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "actual": "062386e1b83c8a2a421ad12e799478f0daa8fe63",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-2.1",
+      "expected": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "actual": "97df02ef26f7f5d6c152c86d786841b227f6594b",
+      "unchanged": true
+    },
+    {
+      "ref": "refs/heads/war/2026-08-06-red-team-gate-cli/p2-polish",
+      "expected": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "actual": "d5740b65b0d2384607c5d7053ec54527bb960f32",
+      "unchanged": true
+    }
+  ],
+  "limits": [
+    "29 freshly rerun Bash-parseable mutation controls fail assertion oracles. One additional before-source set reproduces seven selected failures at c27d7426. Earlier mutation evidence remains attributed to its committed manifest; temporary old raw logs are unavailable.",
+    "Actual Git fixtures and engine routing with controlled agent responses; live maintenance-model adherence and plan-declared future measurements remain deferred.",
+    "Final exact-SHA Snipe and remote checks will be recorded in PR #2297 without changing the candidate."
+  ]
+}

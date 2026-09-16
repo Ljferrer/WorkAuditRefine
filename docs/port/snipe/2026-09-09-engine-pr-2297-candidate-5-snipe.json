@@ -1,0 +1,308 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [
+        "correctness",
+        "simplicity"
+      ],
+      "autoCount": 2
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base ba08a77f812fe3e00fdf21aa5114a3f00f90df4b...f53c979c5b5338d9961ad35fd5f05fbf178a587f",
+      "comparison": "merge-base",
+      "baseSha": "ba08a77f812fe3e00fdf21aa5114a3f00f90df4b",
+      "headSha": "f53c979c5b5338d9961ad35fd5f05fbf178a587f",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "complete": true,
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "package": {
+    "package": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+    "version": "0.21.12+codex.20260908.8fd30f3",
+    "files": [
+      {
+        "path": ".codex-plugin/plugin.json",
+        "sha256": "d6439680c4077f7c756daec328b32474f06915bb253d3db9da4f6ea3dfc09c11"
+      },
+      {
+        "path": "skills/snipe/SKILL.md",
+        "sha256": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e"
+      },
+      {
+        "path": "skills/snipe/agents/openai.yaml",
+        "sha256": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/_shared/provision.mjs",
+        "sha256": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs",
+        "sha256": "7ca610e53eeaad4a54d0fe37a5d0697a812e3ab607441a462904cc7f852c2fe2"
+      },
+      {
+        "path": "skills/snipe/assets/shared/skills/war/assets/war-config.mjs",
+        "sha256": "cb13307c39eafc6469514ee547a0c543a7e066873e9c40abe8160c1145df37a2"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-files.mjs",
+        "sha256": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-git-policy.mjs",
+        "sha256": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-process.mjs",
+        "sha256": "248ba9edfcaf2b384bfce0989fe348e09d763ba320058a7e8be7b05d7e66a6a5"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-request.mjs",
+        "sha256": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-result.mjs",
+        "sha256": "f1c17a343ce45b8f427481ace3eaa4e16ef6d8e0c29a15a9875046c62cd9dd5c"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-runner.mjs",
+        "sha256": "8c86b7181a07250177caaf6eccbb38e2aec5ff6777e65e48ef90ddeb81bf6870"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-submodules.mjs",
+        "sha256": "6a243eec24aa9e726fba8f00315b2d29379789aee236f9a0791e23545c11243c"
+      },
+      {
+        "path": "skills/snipe/references/auditing-fixes.md",
+        "sha256": "d38778fdb6ddda522d47db647f90a1716ec55d838cfa9caf4cd81f4f0a173a0f"
+      },
+      {
+        "path": "skills/snipe/references/codex-auditor.md",
+        "sha256": "098cdabea5f0160db7957fd897ce8debd0351ddc15b3ca435e4f7b7d600bea7d"
+      },
+      {
+        "path": "skills/snipe/references/post-audit-fixes.md",
+        "sha256": "d6ff36a3f1b6cc020b55a8d165a1e3b2182c5730ed2a216f8b80081e19791de5"
+      },
+      {
+        "path": "skills/snipe/references/submodules.md",
+        "sha256": "284544651f22c3575730609cc868248267145c6a94c7531242af69ebdfcf020b"
+      }
+    ],
+    "manifestSha256": "d77fc9f2538dc9de93bde9b0117fa2843b0f0eb07139976729da8c3ca3a2ef92"
+  },
+  "resultSha256": "8b4451205a6e66283c132a4cacf243e7793315d6a087f2c111bd1af5804b1fd0",
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "f53c979c5b5338d9961ad35fd5f05fbf178a587f"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Git snapshot reconciliation uses superproject refs for submodule task merges",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "mergeSnapshot seed selection and pinContext construction",
+            "line": 2118,
+            "rationale": "For every task merge whose target is `ph.integrationBranch`, `mergeSnapshot` chooses `ph.workingBranch` as the seed used to validate an absent remote integration branch. In a submodule phase, however, the pinned `refiner-recovery.md` contract cuts the submodule integration branch locally from `task.targetBase`; the superproject working branch generally does not exist in the submodule repository. The first submodule task therefore presents the normal state `remote_sha: null`, but the snapshot asks for origin/<superproject-working> instead of origin/<targetBase>, cannot prove `seed_sha === base_sha`, retries, and ultimately throws before dispatching the merge. The adjacent pin-transfer setup has the inverse error: `pinContext.target` is set to `targetBase`, so its snapshot and unchanged-target verification observe the base branch rather than the submodule integration branch that the rebase is using. Existing submodule tests stub generic snapshot responses and inspect prompt presence only, so they do not exercise these Git identities.",
+            "suggested_fix": "Carry the submodule integration branch as the pin and merge target, and carry `task.targetBase` explicitly as that target's seed. Make `mergeSnapshot` use the context-provided seed instead of deriving every integration seed from `ph.workingBranch`. Add a Git-backed submodule fixture with an unpushed local integration branch cut from targetBase and verify the first task, a later task, and pin transfer all read the submodule integration/targetBase refs."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "simplicity",
+      "rationale": "operator-pinned lens",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "simplicity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "f53c979c5b5338d9961ad35fd5f05fbf178a587f"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Holder-aware worktree failure handling remains triplicated after repairing its third drift",
+            "file": "skills/war/assets/provision-worktrees.sh",
+            "locator": "cmd_ensure_worktree, cmd_ensure_refinery_worktree, and cmd_ensure_publication_worktree add-failure arms",
+            "line": 1670,
+            "rationale": "The repaired publication arm now hand-copies the same branch_holder_path lookup, fallback message, conditional holder message, and die sequence already present in the ordinary and refinery worktree arms. This duplication already caused the publication diagnostic to drift and require the present repair. The expanded divergence commentary then adds bookkeeping for a difference that no longer exists. All three paths are correct today, but retaining three implementations preserves the demonstrated source of drift and is larger than one shared holder-aware failure renderer.",
+            "suggested_fix": "Extract the branch-holder lookup and conditional add-failure message into one small shell helper used by all three worktree-add failure arms, then remove the closed third item from the publication divergence list.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/war-config.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "f53c979c5b5338d9961ad35fd5f05fbf178a587f"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Git reconciliation uses the superproject seed for submodule integration branches",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "mergeSnapshot seed selection and submodule pin/merge contexts",
+            "line": 2118,
+            "rationale": "For every target equal to ph.integrationBranch, mergeSnapshot derives the missing-remote seed from ph.workingBranch. A submodule phase instead creates its integration branch locally from task.targetBase inside targetRepo; ensure-integration does not publish that new branch. The ordinary submodule merge context targets ph.integrationBranch, so its fresh snapshot normally observes remote_sha=null, then queries the unrelated superproject working-branch name in the submodule remote. Unless that coincidental branch exists at the same commit, seed_sha !== base_sha, bounded maintenance cannot reconcile the state, and the workflow throws before merging any submodule task. The adjacent pin context compounds the mismatch by targeting targetBase rather than the submodule integration branch, so its pre-rebase alignment and post-rebase proof inspect a different ref from the later merge. The existing T4 submodule test masks this downstream failure with synthetic snapshot defaults where remote_sha always equals base_sha; the new real-Git reconciliation cases cover only the same-repository working/integration topology.",
+            "suggested_fix": "Give mergeSnapshot an explicit seed/base ref. For submodule task pin and merge operations, use target=ph.integrationBranch and seed=task.targetBase inside targetRepo; keep targetBase as the land target. Add a real-Git submodule regression where origin/main exists, the freshly cut integration branch is origin-absent, and the task reaches confirmed merge without requiring any superproject branch in the submodule repository."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "f53c979c5b5338d9961ad35fd5f05fbf178a587f"
+        },
+        "verdict": "request_changes",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Major",
+            "title": "Duplicate-cherry regression tests the wrong collection",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "already_upstream proof negative matrix and `pin proof rejects duplicate upstream commit accounting`",
+            "plan_ref": "Candidate 5 class closure: complete unique matched task commit set",
+            "line": 19118,
+            "rationale": "The production guard in `workflow-template.js` requires the resolved `matched` pins to be unique, but only checks cherry rows in one direction with `cherry.every(c => matched.includes(c.sha))`. For two distinct resolved claims `[A, B]`, a forged proof containing duplicate cherry rows `[A, A]` has the same length, every row has sign `-`, every row appears in `matched`, and `matched` itself remains unique, so the guard accepts it and calls `landMerged` even though B was never independently shown as upstream. This can falsely complete a task after the mutator dropped approved content. The negative matrix covers missing, extra, malformed, and different cherry identities, while the named duplicate test duplicates `already_upstream_commits`; its derived `matched` list therefore fails the existing uniqueness check and never exercises duplicate rows in the independent `cherry` proof. The declared complete-and-unique-set invariant can consequently regress or remain broken while all inspected assertions stay green.",
+            "suggested_fix": "Require the cherry SHA list itself to be unique and require exact bidirectional set equality with the resolved reported commits. Add a behavioral negative case with distinct resolved claims A and B but proof rows `[{- A}, {- A}]`, asserting that the task is not landed and no `already_upstream` receipt is emitted."
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/land-decision.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh",
+            "skills/war/assets/war-config.test.mjs",
+            "skills/war/assets/reference-link-integrity.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs",
+            "skills/war/assets/assert-test-in-diff.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

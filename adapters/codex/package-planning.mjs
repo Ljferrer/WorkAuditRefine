@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSy
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
+import { regularSource } from './package-source.mjs'
 import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 function manifest(version) {
@@ -29,17 +30,6 @@ const files=[
   ['docs/adr/0025-drift-guard-discipline.md','shared/docs/adr/0025-drift-guard-discipline.md'],
 ]
 const expected=['.codex-plugin/plugin.json',...files.map(([,to])=>to)].sort()
-
-function regularSource(root,path) {
-  let current=root
-  for(const part of path.split('/')) {
-    current=join(current,part)
-    const stat=lstatSync(current,{throwIfNoEntry:false})
-    if(!stat || stat.isSymbolicLink())throw new Error(`missing or symlink source: ${path}`)
-  }
-  if(!lstatSync(current).isFile())throw new Error(`missing regular source: ${path}`)
-  return current
-}
 
 // Only the background ADR's citations relocate. Operative doctrine stays byte-identical.
 function backgroundADR(source,path) {
@@ -99,7 +89,6 @@ export function verifyPlanningPlugin(root) {
 export function buildPlanningPlugin({repoRoot,output}) {
   const source=resolve(repoRoot),destination=resolve(output)
   if(existsSync(destination))throw new Error(`output already exists: ${destination}`)
-  if(!lstatSync(source).isDirectory())throw new Error('source root must be a real directory')
   for(const [from] of files) {
     regularSource(source,from)
   }

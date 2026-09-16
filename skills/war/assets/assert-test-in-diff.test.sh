@@ -745,6 +745,7 @@ assert-packaging-in-diff.sh exempt: Dockerfile-naming discovery via git ls-tree
 assert-test-in-diff.sh parity
 gate-pin-status.sh parity
 provision-worktrees.sh exempt: lifecycle tool, not a merge-path floor
+task-integrated.sh exempt: Git ancestry and task-owned commit provenance, no gate file discovery
 EOF
 )"
 
