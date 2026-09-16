@@ -2,6 +2,8 @@
 
 **Status:** authoritative plan for the next Codex integration task, authored 2026-09-10. Implementation has not started. Execute through the operator's `/goal` handoff with `$snipe 4 correctness,simplicity,auto`; this document does not launch `/war` or the experimental red-team port.
 
+> **2026-09-16 continuation:** the original integration completed in PR #2298 and merged into `codex-port`. The status and evidence below describe that original task. The active follow-on is [Sync after #2301 and #2319](#sync-after-2301-and-2319), with a separate [execution ledger](../port/2026-09-16-codex-master-sync-ledger.md). Do not rerun the completed task or rewrite its verdicts.
+
 This plan supersedes the **next-step sequencing and pre-campaign assumptions** in the [original port analysis](../port/2026-09-07-codex-port-analysis.md). The [parity roadmap](../port/2026-09-07-github-parity-testing-plan.md) remains the longer-term testing design; the [Snipe checklist](../port/2026-09-07-snipe-codex-port-plan.md) remains historical implementation/acceptance evidence. Neither is the execution checklist for this task.
 
 ## Context
@@ -208,3 +210,21 @@ Authoring source observations: repository `Ljferrer/WorkAuditRefine`; tracking P
 ```text
 /goal Integrate the merged WAR engine into the existing Codex ports using docs/plans/2026-09-10-codex-engine-integration.md as the authoritative plan. Fetch remote refs and read that committed plan from codex-port; do not rely on a stale local checkout. Create or resume an isolated integration candidate from the current remote codex-port, merge the pinned current master normally, reconcile shared/package dependencies, and complete the plan's baseline and package acceptance checklist. Use $snipe 4 correctness,simplicity,auto initially and on the final candidate, selecting the freshly built candidate package for the final panel. Keep a durable progress/evidence ledger across compactions. Preserve codex-port, master, all red-team experiment refs and installed plugins. Commit and push the candidate and open a PR into codex-port; do not merge, release, activate CI or implement the full Codex WAR runner. Finish with exact source/package identities, complete test/audit evidence, disclosed backstops, and a ready-for-review or held verdict.
 ```
+
+## Sync after #2301 and #2319
+
+Operator-authorized follow-on, 2026-09-16: synchronize the existing ports with all current upstream changes, preserve release slots and previous evidence, validate the combined source/packages, and open a separate PR into `codex-port`. No release, installation, CI activation, full runner implementation or PR merge is authorized by this continuation. (user)
+
+Pinned inputs: port `43054e8beb484a261846121e99be328f2992c40a` (merge of #2298); master `287405fc56ee54c3a46f94f0449a83c30008a8bf` (merge of #2319), including #2301. Upstream manifest version is 0.21.15; inherit the canonical slots without another release bump. (verified: remote refs and manifest, 2026-09-16)
+
+Critical path: intact upstream/port histories ← ordinary merge from port ← verified remote refs; usable relocated planning package ← full required reference closure ← dependency survey; trustworthy compatibility verdict ← full discovered baseline + exact-package audit ← repaired combined source. Frozen red-team artifacts and installed plugins are preservation constraints, not synchronization targets.
+
+- [ ] Pin refs, preserve protected state, and create a separate isolated candidate; merge master normally.
+- [ ] Preserve #2301 launch/relaunch identity and schema fixes, and #2319 doctrine/engine/tests. Validate the transitive planning chain, including `backward-chain-plan.md`, fixer doctrine, fix-round doctrine and examples. Keep required references local and byte-identical through relocation.
+- [ ] Assess auditor/fixer doctrine for Snipe: adopt relevant outcome-to-cause reasoning without phase counters, mandatory phase metadata, WorkerResult returns or automatic dispatch authority. Record exclusions explicitly.
+- [ ] Prove compatibility repairs with regression failures before changes and independent negative controls; review the discovered test census, retaining host skips/WP15 limitations.
+- [ ] Run the full baseline collector on committed stable source; build and validate fresh Snipe/planning packages outside the checkout.
+- [ ] Audit with `4 correctness,simplicity,auto`, configured `gpt-5.6-sol` / `medium`. Maximum three panels and two intervening fix rounds; one reserve panel only for a material panel-three finding after repair/validation. Stop early if complete. The final qualifying panel executes the newly built candidate Snipe package at its actual source SHA. No further panels beyond the allowance.
+- [ ] Preserve each verdict and source/package identity, publish the candidate PR into `codex-port`, and report ready-for-review or held with the remaining defect classes and backstops.
+
+The new ledger, not the original completed ledger, owns this continuation's checkboxes and next action. Backstops B1–B4 remain: hosted platform/CI evidence, fresh installed acceptance/WP15, actual full engine parity and frozen red-team completion. A changed candidate never inherits an older panel's approval.
