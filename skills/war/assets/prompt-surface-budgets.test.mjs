@@ -114,7 +114,14 @@ const FILE_BUDGETS = {
 // post-shrink 109,289 B (467 blocks, zero-floor metric) @ 3b919f0 → hard ×1.25 ceil-KB
 // = 137,216; advisory ×1.10 ceil-KB = 120,832
 // Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +55296
-const WORKFLOW_LITERAL_BUDGET = { hard: 137216, advisory: 120832 };
+// RE-BASELINED (operator-gated pass, 2026-09-12, plan 2026-09-11-backward-chain-doctrine A1/G13):
+// the pin-confirm prompt hotfix (e0cfb19a) carried the share to 137,282 B, over the old hard line,
+// and the plan's three `## The rules` blocks (tier-1 every-dispatch doctrine mirrored byte-equal
+// from references/ — neither evictable nor compressible under PIN-1) land in Phase 2. Constants
+// re-derived per ADR 0042 D5 from the measured share at 6cb1e4a5 (137,169 B, 510 blocks; the
+// hotfix adds 113 B): hard ×1.25 ceil-KB = 172,032; advisory ×1.10 ceil-KB = 151,552.
+// Trailer: Budget-Raise: ADR-0042 skills/war/assets/workflow-template.js +34816
+const WORKFLOW_LITERAL_BUDGET = { hard: 172032, advisory: 151552 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
 // #1952: 0 — every top-level template literal counts. The old 200 floor is the recorded blind

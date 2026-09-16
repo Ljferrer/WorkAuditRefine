@@ -16,6 +16,7 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 - A `PIN CONTENT RE-AUDIT` charge replaces the normal integration diff for that round: inspect the original approved task diff and changes since approval using its pinned Git commands, then judge the current files against the acceptance criteria. An empty integration diff or historical cherry match does not prove the required behavior still exists.
 - the **worktree** path for reading candidate files
 - your **depth** — carried **per seat** on your roster entry: `neighbors` (the diff + what its changed lines directly reference, one hop) or `deep` (trace impact wherever the changed symbols are used)
+- When your prompt carries a BACKWARD-CHAIN AUDIT block (emitted only at corrective round ≥ 2 on a roster seat), read [backward-chain-audit.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/backward-chain-audit.md).
 
 ## Read-only git guard contract
 
