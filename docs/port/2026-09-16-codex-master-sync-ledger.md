@@ -1,6 +1,6 @@
 # Codex master sync — 2026-09-16
 
-Status: in progress. Owner: this synchronization task. Resume from the first unchecked step below; prior integration evidence is historical and unchanged.
+Status: HELD — bounded validation complete; draft PR publication pending. The final baseline passes, but the reserve panel is incomplete and a confirmed skip-recognition edge case remains. The audit allowance is exhausted: do not resume repairs or launch more panels without a new bounded authorization. Prior evidence and verdicts remain historical and unchanged.
 
 ## Pinned scope and authority
 
@@ -10,7 +10,7 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - Branch: `codex/sync-master-0.21.15`, isolated task-owned worktree. The provided f866 worktree contains unrelated modifications; untouched.
 - Raw evidence root: `/private/tmp/war-sync-02115-20260916/evidence`; worktree sibling `repo`.
 - Protected refs and installed Snipe/planning hashes recorded in `protected-refs-before.txt` and `installed-before.json`. No installed files or frozen comparison refs are editable scope.
-- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Regular panels used: 3; ordinary fix rounds used: 2; reserve repair verified, reserve panel pending for the material collector finding from panel 3.
+- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Regular panels used: 3; ordinary fix rounds used: 2; one reserve repair and one reserve panel used. No audit allowance remains.
 
 ## Progress
 
@@ -19,11 +19,12 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - [x] Reproduced missing planning resource using the existing package link test (`planning-before.log`).
 - [x] Repair required reference closure and assess standalone Snipe doctrine.
 - [x] Review census; prove targeted regressions/negative controls.
-- [ ] Commit stable candidate, run complete collector and build/validate packages.
-- [ ] Run candidate panel(s) within budget; resolve verified in-scope findings.
+- [x] Commit stable candidates, run complete collectors and build/validate packages.
+- [x] Run all authorized panels/fix rounds; preserve final incomplete result and remaining findings.
+- [ ] Obtain a complete final four-seat qualification after the proposed follow-up (requires new authorization).
 - [ ] Commit final evidence, verify protected state, push and open PR into codex-port.
 
-Next action: commit the collector repair, run the complete baseline on candidate 4, rebuild packages and execute the single reserve panel. No further panels are authorized. After that report ready-for-review or held, preserve evidence and publish the PR into codex-port. Audit scope is pinned master `287405fc56ee54c3a46f94f0449a83c30008a8bf...CANDIDATE_SHA`, with no path filter, matching the original final integration scope. Upstream imports are also inspected against the port parent and covered by the full baseline.
+Next action: publish the held draft PR into `codex-port`, then hand off the narrow skip-recognition follow-up below. No further audit, installation, release, CI activation or PR merge is authorized by this completed budget.
 
 ## Dependency and boundary assessment
 
@@ -99,6 +100,26 @@ Root cause: skip parsing allowed indentation, but shell assertion counters requi
 The complete collector self-suite passes 25 tests, including the existing mutation harness extended with independent pass- and failure-indentation removals (`collector-indent-after.log`). Before-source failure and positive-indentation regressions both failed as expected. Related lessons read: compound TAP label/count discrimination and archived column-zero extraction limits. A scan of all shell stdout/stderr from candidates 1–3 finds no hidden indented failure rows (`prior-indented-failure-scan.json`); their recorded passes are not contradicted by this finding.
 
 Consequences: inherited shell output is classified consistently regardless of indentation, and a swallowed nonzero exit can no longer hide these recognized failure rows. This remains the documented assertion-row classifier, not a parser for arbitrary colored/proprietary test output. CI remains inactive. Candidate 3's baseline finished before the repair entered the integration worktree. The reserve audit will cover the new SHA; earlier approvals do not transfer.
+
+## Final checkpoint — HELD
+
+- Final candidate/tested source: `d2f4a3324075f53e7db47d8ebf7eb66af837b51e`.
+- Final baseline: all 71 discovered suites completed; 68 passed and three allowed-skip suites; 4,046 passing records and five named host skips. No failure, timeout, cleanup error, output limit or source drift. Source started clean and remained unchanged. Local macOS/Node evidence only.
+- [Reserve report](snipe/2026-09-16-codex-master-sync-reserve.md): scope stable and file coverage complete, but panel **INCOMPLETE**. Correctness, simplicity and cascading-impact returned validated high-confidence approvals. Test-fidelity exited 1 with no valid judgment; its owned runner transcript records `Selected model is at capacity. Please try a different model.` No retry, replacement model, repaired judgment or imported earlier approval was used. Full packaged repair guidance consumed.
+- Fresh final packages inherit 0.21.15, 18 files each. Snipe digest `8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e`; planning digest `a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2`. Both are tied to the final source; the reserve actually executed this Snipe package. No installed acceptance is inferred.
+- Exact per-file package hashes, baseline suite counts/commands/log hashes, all prior audit/source identities, mutation evidence, and preservation receipts: [validation manifest](2026-09-16-codex-master-sync-validation.json).
+- Protected state verified: all 13 recorded local/tracking refs, six live remote protected heads and the installed Snipe/planning inventories unchanged. Original f866 worktree has the same dirty status; never edited by this task.
+- Delivery changes after this SHA must be evidence-only under `docs/port/`. Non-evidence tree digest: `098586426bb187135395c75ee37a6d5d46ce5011f85febbe85daf38a7994520f` (algorithm in the manifest). This is not a complete final audit, and the earlier complete panels do not cover the collector repair.
+
+### Remaining findings and next bounded scope
+
+1. **Confirmed: indented approved skips fail closed in two readers.** A real Node test with an existing approved host-skip name nested under a wrapper emits indented TAP. Collection gives that skip `reason: null` and fails. A separate gate fixture supplies the same approved indented line and is also rejected. Reproductions are `reserve-triage-indented-approved-skip.log` and `reserve-triage-gate-indented-skip.log`. The five actual baseline skips remain accepted because they are unindented; no current baseline pass was fabricated.
+2. **Conditional: approved shell-skip accounting.** A shell TAP skip row is counted as both pass and skipped, contrary to the final gate's arithmetic. However, the current policy lists only `.mjs` host suites, so no approved shell-skip green path exists today. This portion of the auditor's claim requires a future policy expansion; it is not a reproduced current false-green report. Preserve that distinction and do not silently broaden the allowlist.
+3. **Missing qualification: test-fidelity on the final candidate.** The capacity failure is missing evidence, not a source-code finding or an approval. A complete new packaged panel requires new authorization beyond this budget.
+
+Recommended next task: repair skip-name recognition consistently in `scripts/ci/collect.mjs` and `scripts/ci/check-war-ci.mjs`; keep the current skip policy intact; add independent collection-to-gate fixtures for approved indented Node skips and distinguish the conditional shell case. Check both consumers and their count invariants, retain fail-closed behavior for unknown/stderr skips, and prove the new guards fail. Run the full baseline on committed source and build fresh packages before a newly authorized complete four-seat Sol/medium panel. Keep the PR draft/held until that work has a complete qualifying result. No further source edits or audits were attempted after the reserve.
+
+After this narrow hold is cleared: review/merge the sync into `codex-port`, run fresh installed Snipe/planning acceptance, and continue red-team on a new integration candidate while keeping frozen comparison refs/artifacts intact. Hosted CI rollout and the full executor remain separate work; #2152 should not be presented as full-runtime parity.
 
 ## Remaining backstops
 
