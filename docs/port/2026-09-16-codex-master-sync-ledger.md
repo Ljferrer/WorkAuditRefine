@@ -1,6 +1,6 @@
 # Codex master sync — 2026-09-16
 
-Status: HELD — bounded validation complete; draft PR publication pending. The final baseline passes, but the reserve panel is incomplete and a confirmed skip-recognition edge case remains. The audit allowance is exhausted: do not resume repairs or launch more panels without a new bounded authorization. Prior evidence and verdicts remain historical and unchanged.
+Status: HELD — bounded run delivered as draft [PR #2320](https://github.com/Ljferrer/WorkAuditRefine/pull/2320) into `codex-port`. The final baseline passes, but the reserve panel is incomplete and a confirmed skip-recognition edge case remains. The audit allowance is exhausted: do not resume repairs or launch more panels without a new bounded authorization. Prior evidence and verdicts remain historical and unchanged.
 
 ## Pinned scope and authority
 
@@ -22,9 +22,9 @@ Status: HELD — bounded validation complete; draft PR publication pending. The 
 - [x] Commit stable candidates, run complete collectors and build/validate packages.
 - [x] Run all authorized panels/fix rounds; preserve final incomplete result and remaining findings.
 - [ ] Obtain a complete final four-seat qualification after the proposed follow-up (requires new authorization).
-- [ ] Commit final evidence, verify protected state, push and open PR into codex-port.
+- [x] Commit final evidence, verify protected state, push and open held draft PR #2320 into codex-port.
 
-Next action: publish the held draft PR into `codex-port`, then hand off the narrow skip-recognition follow-up below. No further audit, installation, release, CI activation or PR merge is authorized by this completed budget.
+Next action: operator review of draft PR #2320 and authorization of the narrow skip-recognition/qualification follow-up below. The bounded run has stopped with a held outcome. No further audit, installation, release, CI activation or PR merge is authorized by this completed budget.
 
 ## Dependency and boundary assessment
 
@@ -124,3 +124,8 @@ After this narrow hold is cleared: review/merge the sync into `codex-port`, run 
 ## Remaining backstops
 
 B1 hosted Linux/macOS and GitHub gate behavior; B2 fresh installed acceptance and planning WP15 combined write-action/denial trace; B3 production runtime parity/full executor/recovery-role mapping; B4 independent red-team completion. Preserve prior SHA-1-only scope and other disclosed evidence limits from #2298. No simulated fixture or baseline skip is a live compatibility pass.
+
+
+## Publication receipt
+
+Draft [PR #2320](https://github.com/Ljferrer/WorkAuditRefine/pull/2320), `codex/sync-master-0.21.15` → `codex-port`, opened after normal push of evidence commit `8550e6b2c710dd58ac56558caa79d1dac05cadfa`. This receipt is also evidence-only. The implementation remains at tested/review-attempt source `d2f4a3324075f53e7db47d8ebf7eb66af837b51e`; its final panel is incomplete. PR head is reported in the final task response rather than self-referenced in this commit. No PR merge or release occurred.

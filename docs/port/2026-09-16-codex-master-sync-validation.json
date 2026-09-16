@@ -2767,5 +2767,15 @@
     "Package source preflight assumes no concurrent hostile mutation.",
     "Baseline fixtures and allowed host skips do not establish real runtime parity."
   ],
-  "publicationRule": "Subsequent delivery commits may update docs/port/ evidence only. Compare their non-evidence tree digest to candidateSourceIdentity; do not attribute the incomplete reserve audit or tested SHA to a newer publication SHA."
+  "publicationRule": "Subsequent delivery commits may update docs/port/ evidence only. Compare their non-evidence tree digest to candidateSourceIdentity; do not attribute the incomplete reserve audit or tested SHA to a newer publication SHA.",
+  "publication": {
+    "url": "https://github.com/Ljferrer/WorkAuditRefine/pull/2320",
+    "number": 2320,
+    "draft": true,
+    "base": "codex-port",
+    "head": "codex/sync-master-0.21.15",
+    "headAtCreation": "8550e6b2c710dd58ac56558caa79d1dac05cadfa",
+    "verdict": "held",
+    "receiptCommitIsEvidenceOnly": true
+  }
 }
