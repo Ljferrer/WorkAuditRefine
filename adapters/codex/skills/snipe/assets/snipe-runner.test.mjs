@@ -102,6 +102,7 @@ test('guidance survives clean, blocking, invalid, failed and cancelled panels un
   for (const [body, status] of variants) {
     const panel = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex(body) })
     assert.equal(panel.seats[0].status, status)
+    assert.ok(panel.seats.every(seat => !Object.hasOwn(seat, 'repair')), 'single-attempt results omit obsolete repair state')
     assert.equal(panel.coordinatorGuidance.text, expected)
     assert.ok(Object.isFrozen(panel.coordinatorGuidance))
   }

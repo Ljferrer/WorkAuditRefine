@@ -100,7 +100,7 @@ test('actual host audits prepared submodule blobs without changing the checkout'
     profile: { model, effort }, supportedProfiles: { [model]: [effort] },
     concern: 'Check the changed submodule code for invalid and non-finite input behavior.',
   }, { codexPath, timeoutMs: 8 * 60 * 1000 })
-  if (!result.complete) t.diagnostic(JSON.stringify(result.seats.map(seat => ({ status: seat.status, response: seat.response, repair: seat.repair }))))
+  if (!result.complete) t.diagnostic(JSON.stringify(result.seats.map(seat => ({ status: seat.status, response: seat.response }))))
   assert.equal(result.complete, true, result.report)
   assert.equal(result.seats[0].verdict.verdict, 'request_changes', result.report)
   assert.ok(result.seats[0].verdict.findings.some(finding => (

@@ -10,7 +10,7 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - Branch: `codex/sync-master-0.21.15`, isolated task-owned worktree. The provided f866 worktree contains unrelated modifications; untouched.
 - Raw evidence root: `/private/tmp/war-sync-02115-20260916/evidence`; worktree sibling `repo`.
 - Protected refs and installed Snipe/planning hashes recorded in `protected-refs-before.txt` and `installed-before.json`. No installed files or frozen comparison refs are editable scope.
-- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Panels used: 1; fix rounds used: 1; reserve unused.
+- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Panels used: 2; fix rounds used: 2; reserve unused.
 
 ## Progress
 
@@ -23,7 +23,7 @@ Status: in progress. Owner: this synchronization task. Resume from the first unc
 - [ ] Run candidate panel(s) within budget; resolve verified in-scope findings.
 - [ ] Commit final evidence, verify protected state, push and open PR into codex-port.
 
-Next action: commit the verified manifest repair and dead-state cleanup; rerun the complete collector on candidate 2, rebuild both packages and run panel 2 through that freshly built Snipe package. Audit scope is pinned master `287405fc56ee54c3a46f94f0449a83c30008a8bf...CANDIDATE_SHA`, with no path filter, matching the original final integration scope. Upstream imports are also inspected against the port parent and covered by the full baseline.
+Next action: commit the version-boundary and cleanup-coverage repairs; run the complete collector on candidate 3, rebuild both packages, and run panel 3 through that freshly built Snipe package. No ordinary fix round remains; the single reserve requires a material panel-three finding and its verified repair. Audit scope is pinned master `287405fc56ee54c3a46f94f0449a83c30008a8bf...CANDIDATE_SHA`, with no path filter, matching the original final integration scope. Upstream imports are also inspected against the port parent and covered by the full baseline.
 
 ## Dependency and boundary assessment
 
@@ -66,9 +66,25 @@ Consequences: this hardens verification of the existing package contract, adds n
 
 ### Fix round 1: unused repair status
 
-Verified no runner path can return `repair.attempted: true`; the contract forbids replacement judgments. Removed the always-false property and unreachable report branches; removed fabricated successful/failed repair fixtures and assertions against the obsolete property. Existing invocation-count tests still prove one attempt per seat, preserve malformed original responses, retain valid peers and report incompleteness. Ten targeted runner/result tests pass (`repair-status-cleanup.log`). This simplifies the coordinator result shape without changing the auditor verdict schema or enabling repairs. No other consumers found outside those runner/result/test files.
+Verified no runner path can return `repair.attempted: true`; the contract forbids replacement judgments. Removed the always-false property and unreachable report branches; removed fabricated successful/failed repair fixtures and assertions against the obsolete property. Existing invocation-count tests still prove one attempt per seat, preserve malformed original responses, retain valid peers and report incompleteness. Ten targeted runner/result tests pass (`repair-status-cleanup.log`). This simplifies the coordinator result shape without changing the auditor verdict schema or enabling repairs. The initial narrow search missed an actual-host diagnostic consumer; round 2 below corrects that sweep and the stale projection.
 
 The first collector finished before copying these repairs into the integration worktree. Earlier regression and mutation work occurred only in a disposable snapshot; candidate-1 stability evidence remains valid.
+
+## Candidate 2 baseline and panel
+
+Candidate `2ba894a8d6af024868e42ba94d4c358bbc4e6489`: complete 71-suite collector passed on clean unchanged source, 4,045 passing records and five named skips. Snipe package digest `8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e`; planning remains byte-identical to candidate 1.
+
+[Panel 2 report](snipe/2026-09-16-codex-master-sync-panel-2.md): complete/stable, all four validated high-confidence approvals. Correctness reported malformed version suffixes; test-fidelity reported missing absence assertions for the removed state; cascading-impact found a stale actual-host diagnostic projection. These are remaining defects in the same open repair classes, so they receive the second authorized fix round despite their nonblocking severity. No new scope or redesigned executor.
+
+### Fix round 2: close version and cleanup boundaries
+
+Version rule checked against [SemVer 2.0.0 clauses 9–10](https://semver.org/#spec-item-9): suffix identifiers must be nonempty ASCII alphanumeric/hyphen segments; only numeric prerelease identifiers prohibit leading zeroes. Shared validation now enforces that distinction. Independent invalid cases cover every core field, non-string inputs, empty/illegal suffix segments, leading/trailing separators and numeric prerelease zeroes; positive cases retain prerelease zero, alphanumeric `01a`, hyphens and build `001`, including existing Codex build suffixes. Both builders and both verifiers exercise these cases, including successful builds and refusal before output on invalid source versions.
+
+`semver-before.log` proves the malformed-suffix regression on candidate-2 source. Final package checks pass 16 tests (`round-2-packages-final.log`). A first positive-build fixture exposed missing ADR-linked design/plan files; the fixture now includes those real reference roots rather than weakening the builder. An attempted full-match guard was redundant under Node's anchored non-multiline regex: its removal survived (`round-2-mutations-initial.json`). Removed that redundant condition and corrected the mistaken scratch comment. The retained prerelease, build, numeric-zero and type checks each fail independent mutation assertions.
+
+For cleanup, representative completed, failed and invalid runner results now assert absence of the obsolete property; the report rejects a repair-status claim even if a historical diagnostic object carries that field. The existing one-attempt tests remain intact. A broader `seat.repair`/repair-property search found and removed the stale actual-host diagnostic projection; the live test itself stays explicitly skipped in the baseline. Restoring the field independently on each of the three runner return branches, or restoring its rendering, fails the new oracle. Eight final mutations are killed (`round-2-mutations.json`); targeted cleanup assertions pass (`round-2-cleanup-final.log`).
+
+Consequences: malformed package versions are now rejected consistently; valid generated packages retain identical bytes. The tests and dormant host diagnostic change without changing the verdict schema or launching a live-host evaluation. Candidate 2's full collector completed before these repairs entered the integration worktree. Its approvals remain attributed only to its source SHA.
 
 ## Remaining backstops
 

@@ -3,7 +3,10 @@ import { join } from 'node:path'
 import assert from 'node:assert/strict'
 
 export function assertPackageVersion(version) {
-  assert.match(version,/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,'invalid plugin manifest version')
+  // SemVer 2.0.0: nonempty identifiers; only numeric prerelease IDs forbid leading zeroes.
+  const match = typeof version === 'string' && version.match(/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/)
+  assert.ok(match, 'invalid plugin manifest version')
+  assert.ok(!match[1]?.split('.').some(id => /^0\d+$/.test(id)), 'invalid plugin manifest version')
 }
 
 export function regularSource(root,path) {
