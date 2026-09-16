@@ -1,0 +1,2675 @@
+{
+  "schemaVersion": 1,
+  "verdict": "ready for integration review",
+  "historicalEvidence": "2026-09-16-codex-master-sync-validation.json",
+  "candidateSourceIdentity": {
+    "sourceSha": "89ed01dca54da7697c32940949c916de6c36d824",
+    "nonEvidenceTreeDigest": "120bfc05e50e317f5058ca020cad17fca9a338cfc47d2051b716d12b5d74897e",
+    "algorithm": "SHA256 of git ls-tree -r -z --full-tree SHA, excluding entries whose path starts with docs/port/, retaining final NUL",
+    "excludedEvidencePrefix": "docs/port/",
+    "entryCount": 1361
+  },
+  "pins": {
+    "portBase": "43054e8beb484a261846121e99be328f2992c40a",
+    "masterBase": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+    "mergeCommit": "3dc9ff8464836f9e56ea7c373baad5f124ea95e2",
+    "branch": "codex/sync-master-0.21.15",
+    "targetBranch": "codex-port",
+    "inheritedVersion": "0.21.15"
+  },
+  "auditBudget": {
+    "additionalRoundsAuthorized": 3,
+    "additionalRoundsUsed": 2,
+    "remaining": 1,
+    "configuredProfile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "historicalPanels": 4
+  },
+  "finalBaseline": {
+    "evidenceLevel": "baseline",
+    "sourceSha": "89ed01dca54da7697c32940949c916de6c36d824",
+    "ok": true,
+    "stability": "unchanged",
+    "before": {
+      "sourceSha": "89ed01dca54da7697c32940949c916de6c36d824",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "8a9ebabf5433c586d8ada9a1bbb6ecee53a35ecc8fa077f0b445a1ed76b49267",
+      "contentDigest": "dacc062458281153f9a695d3f1df929d60f7f18d104286dfb0257d92f69912b9"
+    },
+    "after": {
+      "sourceSha": "89ed01dca54da7697c32940949c916de6c36d824",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "8a9ebabf5433c586d8ada9a1bbb6ecee53a35ecc8fa077f0b445a1ed76b49267",
+      "contentDigest": "dacc062458281153f9a695d3f1df929d60f7f18d104286dfb0257d92f69912b9"
+    },
+    "environment": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "osRelease": "25.6.0",
+      "node": "v24.17.0",
+      "git": "git version 2.54.0 (Apple Git-157)",
+      "bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)"
+    },
+    "suiteCount": 71,
+    "suiteStatuses": {
+      "passed": 68,
+      "allowed-skips": 3
+    },
+    "totals": {
+      "tests": 4056,
+      "pass": 4051,
+      "fail": 0,
+      "skipped": 5,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "reportPath": "/private/tmp/war-sync-02115-20260916/evidence/baseline-candidate-6/report.json",
+    "reportSha256": "15b19ed2164851c832d4ad05cb4750d23ef07ca994a6c0e72efb47e09cf7979d",
+    "suites": [
+      {
+        "path": "adapters/codex/package-planning.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/package-planning.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "9a9c6cccced55eda8e52e8bfd2bab1ad56a3bbe6f5808d65094f1eb7480b4a9a",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/package-snipe.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/package-snipe.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "7b84b64c1c8e44a431bd2c8c986f928af8501010e88552b0da60ff58a987aff9",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/planning-actual-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-actual-host.test.mjs"
+        ],
+        "status": "allowed-skips",
+        "counts": {
+          "tests": 2,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 1,
+          "todo": 0
+        },
+        "skips": [
+          {
+            "line": "ok 2 - actual planning verifier dispatches and host enforcement denies a write # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in paid host evaluation requires WAR_PLANNING_HOST_EVAL=1 and explicit operator authorization; deterministic CI does not establish host enforcement."
+          }
+        ],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "af79c2acb99b8e1ea823381b16ad84a5a646d456f4e6647ba2138fe5d57519a9",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/planning-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-contract.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "9953b873eb1d42920f860fc729bbda4131979e2bf6ec0d247d0d3148364dddb8",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/planning-host-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-host-contract.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "bf4bfa3d0fe0bf8a7c545c297b6a287d3f095c68b56822d21e2b302d999c9b8f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/planning-verifier.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-verifier.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "b9443375aa3763ce7a8013f41ed3d49a7c3c96b92b283a41318985a9e56c05bd",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs"
+        ],
+        "status": "allowed-skips",
+        "counts": {
+          "tests": 3,
+          "pass": 0,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 3,
+          "todo": 0
+        },
+        "skips": [
+          {
+            "line": "ok 1 - actual host reviews original pinned blobs despite replacement refs # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          },
+          {
+            "line": "ok 2 - actual host audits prepared submodule blobs without changing the checkout # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          },
+          {
+            "line": "ok 3 - actual host runs one and two independent read-only Snipe seats without target mutation # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          }
+        ],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "2b486c7558067c2a7b17c6e9c2d2b503ac8e85963438bc503b20110e675cb1b4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-files.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-files.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "afaf652af44b0792037c07bd0431b6d8aa9921368c6e70191c5f31c864293326",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-request.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 31,
+          "pass": 31,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "96d421fbcf2386bd286915907bec0ff3d831884998c8acd8fe8845538dec45f6",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-result.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "bcbb727e8ae956de40c2017aa24ff3d2d8858e5437cf128edfbea24bf05d40fe",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "1e36dfd150c9e2bad2507c608e09d5d9eb05dbb485ef021b3469d172de7e8a37",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "b45c92ae3104864d0301d5eb79742d17e5b43afdfc54184a9a68c573d04fb07d",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/skills/snipe/snipe-structure.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/snipe-structure.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "dbd7f21999d09ee22772cd019427bd44c07ed37cfda8c94ac96577f6112f6625",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "adapters/codex/snipe-discovery-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/snipe-discovery-host.test.mjs"
+        ],
+        "status": "allowed-skips",
+        "counts": {
+          "tests": 1,
+          "pass": 0,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 1,
+          "todo": 0
+        },
+        "skips": [
+          {
+            "line": "ok 1 - installed plugin resolves packaged default prompts in fresh host sessions without implicit audits # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in installed-host/model check; #2159 T7, not credential-free baseline evidence."
+          }
+        ],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "6469608f72ec7f6e93efd24879d7dbde3c8206ca8d1b71d051711704c88466e1",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/clean-surface-hook-only-confinement.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/clean-surface-war-worktree.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/clean-surface-war-worktree.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/guard-conventions.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/guard-conventions.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 20,
+          "pass": 20,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/inject-campaign-state.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/inject-campaign-state.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 54,
+          "pass": 54,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/reply-standard/gate.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/reply-standard/gate.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/vale-md/vale-md.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/vale-md/vale-md.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/validate-auditor-git.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-auditor-git.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 111,
+          "pass": 111,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/validate-servitor-provenance.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-servitor-provenance.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 27,
+          "pass": 27,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/validate-worktree-scope.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-worktree-scope.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 49,
+          "pass": 49,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "hooks/warn-bash-write-scope.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/warn-bash-write-scope.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 37,
+          "pass": 37,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "scripts/ci/check-war-ci.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "scripts/ci/check-war-ci.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "c126a9ecb6c71d470a3337caf31b53464256ae1560aebdd31598b51bb5a907dc",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "scripts/ci/collect.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "scripts/ci/collect.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 29,
+          "pass": 29,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "4b7474e7965a7e1743cd7fda2692483d11bf4b37123bea73d27bd444fb83a7d6",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/_shared/doc-cli-consistency.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/doc-cli-consistency.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "dcb494f198aac998dd13e6b53d9e007eeaf6c7041a63dc557e6ea4ce13ed4782",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/_shared/gh-preflight.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/_shared/gh-preflight.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/_shared/provision.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/provision.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 33,
+          "pass": 33,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "5696774764b27c69fd04ebf1345264ada780a1c535643fb4e4b81e6bec50f200",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/_shared/war-memory-lint.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/_shared/war-memory-lint.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/_shared/war-memory.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/war-memory.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 116,
+          "pass": 116,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "b5b3669c62968967c72f93ee046c586a173389db989d3581f0f91f7ba6491038",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/lessons-learned/assets/safe-swap.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 24,
+          "pass": 24,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/lessons-learned/assets/seed-pack.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/assets/seed-pack.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 20,
+          "pass": 20,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "d97182429980f71141a3eff556642a860c30dda593ee7a56a39dcf8f73be8ffe",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/lessons-learned/lessons-learned-doc-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/lessons-learned-doc-contract.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 35,
+          "pass": 35,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "03d518cc2c621bc5d187b2c1bf10b5699ab931e37aeba51d7973054c16504da1",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/lessons-learned/seed-set.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/seed-set.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "829a99b525903c84e7931d14048d7874910acae059167b6e8e366bd5c28aa69c",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/assets/assert-no-repo-escape.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 36,
+          "pass": 36,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/red-team/assets/red-team-gate.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/red-team/assets/red-team-gate.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 112,
+          "pass": 112,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "60ac31a5ead4e2907ffa75b8b1289fcae6062c61e895a7df1b74cbd83b38da70",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/red-team/assets/workflow-scaffold.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/red-team/assets/workflow-scaffold.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 79,
+          "pass": 79,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "f48539f7b74335d1c2cedb1d2641a69af6f9bf026efdd9dfe2b0409468ea5576",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/red-team/diagnosis-preflight.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/diagnosis-preflight.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 16,
+          "pass": 16,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/red-team/manifest-provenance.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/manifest-provenance.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/snipe/assets/snipe-args.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/snipe/assets/snipe-args.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "eb7257781e214ce41230e5abcaa0c9c4e577cfcf5c13545d83a47148ae6d450c",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war-campaign/assets/campaign-ledger.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war-campaign/assets/campaign-ledger.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 97,
+          "pass": 97,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "7e8d88c0af3792cdc66d5015081a64ccdd5ad35cea31ab5d84874f4af6e3e5e8",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-campaign/assets/snap-shared-docs.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war-machine/war-pipeline-structure.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-machine/war-pipeline-structure.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 215,
+          "pass": 215,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war-strategy/assets/plan-literal-lint.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war-strategy/assets/plan-literal-lint.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 48,
+          "pass": 48,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "8becd0067446686963ecf62c75e72d54becda89b2fe540ac2394dcedb19effd4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war-strategy/war-strategy-structure.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-strategy/war-strategy-structure.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 224,
+          "pass": 224,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "975118dd96da035866acf41f7024e8762dc5a1845f53e0b1852a4731052c1cb5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-args-complete.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/assert-args-complete.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 31,
+          "pass": 31,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "ee75cd154e99476fb6b8d7d28a7899fa10c8e0eb2d7f62a4f09c5ddb55a026f0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-budget-raise-cited.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-done-when.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-done-when.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 22,
+          "pass": 22,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-guard-specificity-in-diff.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 28,
+          "pass": 28,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-issues-filed.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-issues-filed.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-no-submodule-mutation.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 15,
+          "pass": 15,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-packaging-in-diff.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 22,
+          "pass": 22,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/assert-test-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-test-in-diff.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 48,
+          "pass": 48,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/backward-chain.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/backward-chain.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 77,
+          "pass": 77,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "73c83ad5989bdf0a0136424272941e5d05cfd2bbb7d4d6f19f61d64de4fe40c6",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/doc-semantics.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/doc-semantics.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "5334c609edb17afde7bf061e4a5fdb360b882f68951dbce5092f53af1221cce2",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/gate-pin-status.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/gate-pin-status.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/land-decision.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/land-decision.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 41,
+          "pass": 41,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "ef91a1690ae3bd431aba4dd1fb1e6fbf93aed0e62c06fd7fc332b85c405c4345",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/prompt-surface-budgets.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/prompt-surface-budgets.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "c2cd3319904a7cfc2681c905a4de50610d575cc92652e9825119de2e2ee328d5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/provision-worktrees.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/provision-worktrees.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 459,
+          "pass": 459,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "d34e3c64c9351fee69e458337ffa45799690265f59a880a57b03a97d07eee631",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/reference-link-integrity.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/reference-link-integrity.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "bd9fd7d55aad999f3df39ef8eeb066806acb6e8f319506ffb567d617683a6dd9",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/refinery-surface.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/refinery-surface.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/scout-manifest-surface.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/scout-manifest-surface.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "53495d5b95d766aae3eb2f53ded31c00fdfe0e79710509bcf60f00715ae89b52",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/skill-doc-contracts.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/skill-doc-contracts.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 68,
+          "pass": 68,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "baa7e1af5532f50f69ef58c3c48fe9c1c5ba965e0de38072c013f3dad8a4d40f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/stage-workflow.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/stage-workflow.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 35,
+          "pass": 35,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "87a142dc2c6464dc81b9485f49d8a28132e9e18139a808ff8ad126a739e69453",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/version-slots.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/version-slots.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "83d24c681df296d59be27323d7f40fc49755fa1d2fb83f3a9f722c7b91560111",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/war-config.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/war-config.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 202,
+          "pass": 202,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "7b0134360b656cc51fbdb309469064027aef3fb3c4428327e2cd939531b42c4d",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/assets/workflow-template.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/workflow-template.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 1253,
+          "pass": 1253,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "3431d08fcf483cd6035746de1425436db642979644f08745f48d7709c31c4f8f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "skills/war/references/schemas-manifest.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/references/schemas-manifest.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/parity/git-fixture.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "tests/parity/git-fixture.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "bfaa78ac6f38fac2020a42f0f4c4ad6892eb3b03c4dbf7ba86e09a938f39e35a",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/parity/oracle.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "tests/parity/oracle.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 17,
+          "pass": 17,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "skips": [],
+        "exitCode": 0,
+        "signal": null,
+        "failure": null,
+        "cleanupError": null,
+        "stdoutSha256": "c37a586a73f0cf1aea617d2b34998399d311df55c93661a32894d160eee1f113",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "finalAudit": {
+    "command": "node /private/tmp/war-sync-02115-20260916/snipe-candidate-6/skills/snipe/assets/snipe-runner.mjs --request /private/tmp/war-sync-02115-20260916/panel-6-request.json",
+    "temporaryRequestRemoved": true,
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "actualBackendIdentityIndependentlyVerified": false,
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/private/tmp/war-sync-02115-20260916/repo",
+      "description": "merge-base 287405fc56ee54c3a46f94f0449a83c30008a8bf...89ed01dca54da7697c32940949c916de6c36d824",
+      "comparison": "merge-base",
+      "baseSha": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+      "headSha": "89ed01dca54da7697c32940949c916de6c36d824",
+      "paths": [],
+      "submodules": []
+    },
+    "complete": true,
+    "coverage": {
+      "complete": true,
+      "unavailablePaths": []
+    },
+    "stability": {
+      "stable": true,
+      "before": null,
+      "after": null
+    },
+    "seats": [
+      {
+        "seat": 1,
+        "lens": "correctness",
+        "rationale": "operator-pinned lens",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "processGroupId": 24478,
+        "verdict": {
+          "schema_version": 1,
+          "seat": 1,
+          "lens": "correctness",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "89ed01dca54da7697c32940949c916de6c36d824"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/planning-actual-host.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs",
+              "scripts/ci/collect.test.mjs"
+            ]
+          }
+        },
+        "validation": {
+          "status": "valid",
+          "error": null
+        }
+      },
+      {
+        "seat": 2,
+        "lens": "simplicity",
+        "rationale": "operator-pinned lens",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "processGroupId": 24479,
+        "verdict": {
+          "schema_version": 1,
+          "seat": 2,
+          "lens": "simplicity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "89ed01dca54da7697c32940949c916de6c36d824"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [
+            {
+              "severity": "Nit",
+              "title": "Adapter retains a redundant auto-seat count",
+              "file": "adapters/codex/skills/snipe/assets/snipe-request.mjs",
+              "locator": "prepareSnipeRequest",
+              "line": 435,
+              "rationale": "The returned panel stores seats, named, and autoCount, although autoCount is always derivable as seats minus named.length. The runner's assignLenses consumes only seats and named; no production consumer reads panel.autoCount. Adapter tests and persisted diagnostics therefore maintain a second representation of the same invariant without affecting behavior.",
+              "suggested_fix": "Omit autoCount from the adapter's panel projection and remove its adapter-specific assertions, while retaining it in the shared argument parser where the canonical skill consumes it.",
+              "disposition": "absorb"
+            }
+          ],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "scripts/ci/collect.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        },
+        "validation": {
+          "status": "valid",
+          "error": null
+        }
+      },
+      {
+        "seat": 3,
+        "lens": "cascading-impact",
+        "rationale": "downstream caller and mirror review",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "processGroupId": 24480,
+        "verdict": {
+          "schema_version": 1,
+          "seat": 3,
+          "lens": "cascading-impact",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "89ed01dca54da7697c32940949c916de6c36d824"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [
+            {
+              "severity": "Minor",
+              "title": "Rendered reports silently discard accepted finding metadata",
+              "file": "adapters/codex/skills/snipe/assets/snipe-result.mjs",
+              "locator": "renderSnipeReport",
+              "line": 230,
+              "rationale": "normalizeFinding accepts and preserves locator, plan_ref, and barrier, and the runner explicitly advertises plan_ref to every seat. The downstream report renderer emits locator only when file is absent and never emits plan_ref or barrier. This loses actionable context in the report that the skill instructs the coordinator to present. The loss is observable in the pinned historical artifacts: docs/port/snipe/2026-09-09-engine-pr-2297-candidate-7-snipe.json contains both locator \"deriveSkipClause\" and plan_ref \"Finalization recovery provenance amendment (#2196)\", while its generated Markdown report retains only the file and line. The report test also supplies a follow-up barrier but asserts only the disposition, allowing that metadata loss to remain green.",
+              "suggested_fix": "Render every preserved metadata field, including plan_ref and barrier, and render locator independently of file; alternatively reject combinations or fields the report contract will not preserve. Add report assertions covering file plus locator, plan_ref, and a follow-up barrier.",
+              "disposition": "absorb"
+            }
+          ],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "adapters/codex/package-planning.test.mjs",
+              "adapters/codex/package-snipe.test.mjs",
+              "adapters/codex/planning-host-contract.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs",
+              "scripts/ci/collect.test.mjs",
+              "tests/parity/oracle.test.mjs"
+            ]
+          }
+        },
+        "validation": {
+          "status": "valid",
+          "error": null
+        }
+      },
+      {
+        "seat": 4,
+        "lens": "test-fidelity",
+        "rationale": "acceptance-test and anti-cheat review",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "processGroupId": 24481,
+        "verdict": {
+          "schema_version": 1,
+          "seat": 4,
+          "lens": "test-fidelity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "89ed01dca54da7697c32940949c916de6c36d824"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "scripts/ci/collect.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs",
+              "adapters/codex/planning-actual-host.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+              "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+              "adapters/codex/snipe-discovery-host.test.mjs",
+              "tests/parity/oracle.test.mjs",
+              "skills/war/assets/war-config.test.mjs",
+              "skills/snipe/assets/snipe-args.test.mjs",
+              "skills/war-strategy/war-strategy-structure.test.sh"
+            ]
+          }
+        },
+        "validation": {
+          "status": "valid",
+          "error": null
+        }
+      }
+    ],
+    "report": "snipe/2026-09-16-codex-master-sync-panel-6.md",
+    "rawResultSha256": "c9b0ef3b2df7bbd673387cab154a662617904eb9f415f72a9855ab3b4fb75ead",
+    "coordinatorGuidanceSha256": "2379a393b31702d49273a28be7c44eec6863b49eb05bfce9538de664814f3b00"
+  },
+  "nonblockingFollowups": {
+    "source": "89ed01dca54da7697c32940949c916de6c36d824",
+    "portBase": "43054e8beb484a261846121e99be328f2992c40a",
+    "metadata": {
+      "confirmed": true,
+      "findingRenderBlockByteIdenticalToPortBase": true,
+      "normalizedJSONRetainsFields": [
+        "locator",
+        "plan_ref",
+        "barrier"
+      ],
+      "disposition": "deferred nonblocking follow-up",
+      "reason": "Pre-existing Markdown presentation loss, independent of upstream integration, package closure and repaired baseline evidence; normalized JSON remains available. Improve rendering before relying on report-only plan/barrier traceability."
+    },
+    "autoCount": {
+      "requestModuleByteIdenticalToPortBase": true,
+      "disposition": "deferred cleanup",
+      "reason": "Redundant diagnostic state without a demonstrated behavior defect; removing it is unnecessary for this integration."
+    }
+  },
+  "resumedHistoricalCandidates": [
+    {
+      "sourceIdentity": {
+        "sourceSha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662",
+        "nonEvidenceTreeDigest": "4ff203d1f462c0ed676908d535e753a474f5d48b5678e435e68ef50874d5c210",
+        "algorithm": "SHA256 of git ls-tree -r -z --full-tree SHA, excluding entries whose path starts with docs/port/, retaining final NUL",
+        "excludedEvidencePrefix": "docs/port/",
+        "entryCount": 1361
+      },
+      "baseline": {
+        "sourceSha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662",
+        "ok": true,
+        "stability": "unchanged",
+        "suiteCount": 71,
+        "totals": {
+          "tests": 4054,
+          "pass": 4049,
+          "fail": 0,
+          "skipped": 5,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "reportSha256": "6b5ddc9158744cb2508409e171f33efbe9e7fcf9fd79c486702e38188391af02"
+      },
+      "audit": {
+        "scope": {
+          "kind": "committed",
+          "advisory": false,
+          "repository": "/private/tmp/war-sync-02115-20260916/repo",
+          "description": "merge-base 287405fc56ee54c3a46f94f0449a83c30008a8bf...7a9fe4d3f239a5ee89ab37795957c3094bf99662",
+          "comparison": "merge-base",
+          "baseSha": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+          "headSha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662",
+          "paths": [],
+          "submodules": []
+        },
+        "complete": true,
+        "coverage": {
+          "complete": true,
+          "unavailablePaths": []
+        },
+        "stability": {
+          "stable": true,
+          "before": null,
+          "after": null
+        },
+        "seats": [
+          {
+            "seat": 1,
+            "lens": "correctness",
+            "rationale": "operator-pinned lens",
+            "status": "completed",
+            "exitCode": 0,
+            "signal": null,
+            "truncated": false,
+            "cleanupError": null,
+            "processGroupId": 23842,
+            "verdict": {
+              "schema_version": 1,
+              "seat": 1,
+              "lens": "correctness",
+              "scope": {
+                "kind": "committed",
+                "audit_sha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662"
+              },
+              "verdict": "approve",
+              "confidence": "high",
+              "findings": [],
+              "tests_verified": {
+                "exist": true,
+                "inspected": [
+                  "adapters/codex/package-planning.test.mjs",
+                  "adapters/codex/package-snipe.test.mjs",
+                  "adapters/codex/planning-verifier.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs",
+                  "scripts/ci/check-war-ci.test.mjs",
+                  "scripts/ci/collect.test.mjs"
+                ]
+              }
+            },
+            "validation": {
+              "status": "valid",
+              "error": null
+            }
+          },
+          {
+            "seat": 2,
+            "lens": "simplicity",
+            "rationale": "operator-pinned lens",
+            "status": "completed",
+            "exitCode": 0,
+            "signal": null,
+            "truncated": false,
+            "cleanupError": null,
+            "processGroupId": 23843,
+            "verdict": {
+              "schema_version": 1,
+              "seat": 2,
+              "lens": "simplicity",
+              "scope": {
+                "kind": "committed",
+                "audit_sha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662"
+              },
+              "verdict": "approve",
+              "confidence": "high",
+              "findings": [],
+              "tests_verified": {
+                "exist": true,
+                "inspected": [
+                  "adapters/codex/package-planning.test.mjs",
+                  "adapters/codex/package-snipe.test.mjs",
+                  "skills/_shared/doc-cli-consistency.test.mjs",
+                  "skills/war-strategy/war-strategy-structure.test.sh",
+                  "skills/war/assets/war-config.test.mjs",
+                  "tests/parity/oracle.test.mjs"
+                ]
+              }
+            },
+            "validation": {
+              "status": "valid",
+              "error": null
+            }
+          },
+          {
+            "seat": 3,
+            "lens": "cascading-impact",
+            "rationale": "downstream caller and mirror review",
+            "status": "completed",
+            "exitCode": 0,
+            "signal": null,
+            "truncated": false,
+            "cleanupError": null,
+            "processGroupId": 23844,
+            "verdict": {
+              "schema_version": 1,
+              "seat": 3,
+              "lens": "cascading-impact",
+              "scope": {
+                "kind": "committed",
+                "audit_sha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662"
+              },
+              "verdict": "approve",
+              "confidence": "high",
+              "findings": [],
+              "tests_verified": {
+                "exist": true,
+                "inspected": [
+                  "adapters/codex/package-planning.test.mjs",
+                  "adapters/codex/package-snipe.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+                  "scripts/ci/check-war-ci.test.mjs",
+                  "scripts/ci/collect.test.mjs"
+                ]
+              }
+            },
+            "validation": {
+              "status": "valid",
+              "error": null
+            }
+          },
+          {
+            "seat": 4,
+            "lens": "test-fidelity",
+            "rationale": "acceptance-test and anti-cheat review",
+            "status": "completed",
+            "exitCode": 0,
+            "signal": null,
+            "truncated": false,
+            "cleanupError": null,
+            "processGroupId": 23845,
+            "verdict": {
+              "schema_version": 1,
+              "seat": 4,
+              "lens": "test-fidelity",
+              "scope": {
+                "kind": "committed",
+                "audit_sha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662"
+              },
+              "verdict": "request_changes",
+              "confidence": "high",
+              "findings": [
+                {
+                  "severity": "Major",
+                  "title": "Summary-shaped diagnostics let an empty Node suite pass the baseline collector",
+                  "file": "scripts/ci/collect.mjs",
+                  "locator": "collect(): Node TAP summary extraction",
+                  "line": 70,
+                  "rationale": "The collector obtains each Node count with the first regex match for `^# <key> <number>$`. Under Node's TAP reporter, a test file can emit summary-shaped diagnostics such as `console.log('tests 1')`, `console.log('pass 1')`, and zeroes for the remaining keys before the runner emits its genuine zero-test summary. The first-match parser then records one passing test, while the process exits zero and the empty-suite guard sees `tests === 1`; lines 72\u201373 consequently classify the suite as passed. The existing regression at `scripts/ci/collect.test.mjs` lines 32\u201341 covers empty files and skips but does not exercise duplicate or spoofed summary rows. This defeats the declared invariant that empty/no-op JavaScript suites cannot masquerade as executed tests and makes baseline acceptance evidence false-green.",
+                  "suggested_fix": "Parse one coherent authoritative final TAP summary trailer and reject duplicate or out-of-place summary keys. Add a zero-test `.test.mjs` fixture that prints a complete passing summary-shaped diagnostic set and assert that collection fails."
+                }
+              ],
+              "tests_verified": {
+                "exist": true,
+                "inspected": [
+                  "scripts/ci/collect.test.mjs",
+                  "scripts/ci/check-war-ci.test.mjs",
+                  "adapters/codex/package-snipe.test.mjs",
+                  "adapters/codex/package-planning.test.mjs",
+                  "adapters/codex/planning-actual-host.test.mjs",
+                  "adapters/codex/planning-contract.test.mjs",
+                  "adapters/codex/planning-host-contract.test.mjs",
+                  "adapters/codex/planning-verifier.test.mjs",
+                  "adapters/codex/snipe-discovery-host.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+                  "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs"
+                ]
+              }
+            },
+            "validation": {
+              "status": "valid",
+              "error": null
+            }
+          }
+        ],
+        "rawResultSha256": "5ae50d79b8bc2a04354531d5d246381969510830f070099045274ca421503ec6"
+      },
+      "packages": {
+        "snipe": {
+          "sourceSha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662",
+          "path": "/private/tmp/war-sync-02115-20260916/snipe-candidate-5",
+          "manifest": {
+            "name": "work-audit-refine-snipe",
+            "version": "0.21.15",
+            "description": "Run an explicit, one-shot, read-only WAR-style audit through independent Codex lenses.",
+            "author": {
+              "name": "Ljferrer",
+              "url": "https://github.com/Ljferrer"
+            },
+            "homepage": "https://github.com/Ljferrer/WorkAuditRefine",
+            "repository": "https://github.com/Ljferrer/WorkAuditRefine",
+            "license": "MIT",
+            "keywords": [
+              "code-review",
+              "audit",
+              "read-only",
+              "snipe"
+            ],
+            "skills": "./skills/",
+            "interface": {
+              "displayName": "WAR Snipe",
+              "shortDescription": "Run independent read-only code audits",
+              "longDescription": "Audit one pinned diff through one to five independent Codex lenses and return an informational report without changing code or external systems.",
+              "developerName": "Ljferrer",
+              "category": "Developer Tools",
+              "capabilities": [
+                "Interactive",
+                "Read"
+              ],
+              "websiteURL": "https://github.com/Ljferrer/WorkAuditRefine",
+              "defaultPrompt": "Run $work-audit-refine-snipe:snipe to audit the current diff through independent read-only lenses."
+            }
+          },
+          "files": {
+            ".codex-plugin/plugin.json": "89adb348f71076bf62792820bee93f56544c954e7ce57ddf6d4264a16e08ac0e",
+            "skills/snipe/SKILL.md": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e",
+            "skills/snipe/agents/openai.yaml": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3",
+            "skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+            "skills/snipe/assets/shared/skills/_shared/provision.mjs": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b",
+            "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs": "201e0c2257ade242e908d044d8ffe147e8d95f7346788406d56cc9f0cf2f56e7",
+            "skills/snipe/assets/shared/skills/war/assets/war-config.mjs": "7ca90e42e01444a196ccf868613d7ae6297227c81a2af9a2678f54be6c6b9dfa",
+            "skills/snipe/assets/snipe-files.mjs": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414",
+            "skills/snipe/assets/snipe-git-policy.mjs": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+            "skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+            "skills/snipe/assets/snipe-request.mjs": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59",
+            "skills/snipe/assets/snipe-result.mjs": "ff0b85c329b937de6673be0eb19e997985a3da896d28caa835edc0c38cda4e8e",
+            "skills/snipe/assets/snipe-runner.mjs": "7123400882d7a7f2695ea325683f8e10b5f2fa8370fe172e6b097af2ac496649",
+            "skills/snipe/assets/snipe-submodules.mjs": "70fd8efa34ee2a6a999e7fade1f94ea99227f07f592d4de132d495ab5759c686",
+            "skills/snipe/references/auditing-fixes.md": "d32a078ae9dcfa50e22a8c7d24d2a38250e1110e39ff15edc84da165bb3cec8b",
+            "skills/snipe/references/codex-auditor.md": "74a0380b2a9b4b7facf0d60da54c95dba427c7c9126296c0d48abc7df28b9a93",
+            "skills/snipe/references/post-audit-fixes.md": "2379a393b31702d49273a28be7c44eec6863b49eb05bfce9538de664814f3b00",
+            "skills/snipe/references/submodules.md": "076685833bca666d73adf3733c9d48fb467ed7c661c3848db6eed5359fc70bb1"
+          },
+          "fileCount": 18,
+          "digest": "8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e"
+        },
+        "planning": {
+          "sourceSha": "7a9fe4d3f239a5ee89ab37795957c3094bf99662",
+          "path": "/private/tmp/war-sync-02115-20260916/planning-candidate-5",
+          "manifest": {
+            "name": "work-audit-refine-planning",
+            "version": "0.21.15",
+            "description": "Author WAR plans from an interview or existing draft; does not execute plans.",
+            "author": {
+              "name": "Ljferrer"
+            },
+            "license": "MIT",
+            "skills": "./skills/",
+            "interface": {
+              "displayName": "WAR Planning",
+              "shortDescription": "Author and convert WAR plans",
+              "longDescription": "Interview and convert drafts into WAR plans without executing them.",
+              "developerName": "Ljferrer",
+              "category": "Developer Tools",
+              "capabilities": [
+                "Interactive",
+                "Read",
+                "Write"
+              ],
+              "defaultPrompt": [
+                "Use $work-audit-refine-planning:war-strategy to plan a change."
+              ]
+            }
+          },
+          "files": {
+            ".codex-plugin/plugin.json": "3b104019fc0538ac1d63d659b4f3741b06aec559eaa05000e981202402359f05",
+            "shared/docs/adr/0025-drift-guard-discipline.md": "977adebfe3210cf4e3111b653cc457155ebd4689ba8803c3da56b6f15236379e",
+            "shared/skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+            "shared/skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+            "shared/skills/war/references/backward-chain-examples.md": "f35261aaceab162814618c4986de2311e65558dc9288915b37fd32cb2636f9ff",
+            "shared/skills/war/references/backward-chain-fix.md": "f85ccd33e77923f0f0b4d208dc1ef1fcbe11747640d60e1f8556eb2ee84de6c6",
+            "shared/skills/war/references/fix-round-doctrine.md": "0f8a829f12715b835252b0e632a8cfc600371999da0b9ecda441b1af44d9ca69",
+            "shared/skills/war-strategy/SKILL.md": "fd647facb39336cdf93350d2d0d312ad95f5e6145f7a1ac684777ec0304da4b3",
+            "shared/skills/war-strategy/assets/plan-literal-lint.mjs": "c3a9621f7af9268742cf1a4845db74fb38eb2019d4aad0c790df1f7cc926acad",
+            "shared/skills/war-strategy/assets/strategy-verifier.mjs": "b53be69c10545d3e1cc0fe60a9af915fd23379c35fb729d091fdd69ac5d124f0",
+            "shared/skills/war-strategy/references/backward-chain-plan.md": "7e11062680cf721e3f1c691e435ce506b0593e8b08fa2ba7914b48d3e1e92416",
+            "shared/skills/war-strategy/references/host.md": "dfb885d60f51c2f1490912bfdf0d3a5d0a74040bf66c3310bf97fb4cf010b269",
+            "shared/skills/war-strategy/references/plan-interview.md": "78935cf7ee6ff9fcec79234d6109fcb7351151802aa75f0d4549819dab9e51fb",
+            "shared/skills/war-strategy/references/strategy-verifier.md": "4caa532bbdf4a49ebbb38a47f12bf1afd60d3e200a99740b63c9979aa58ba3dc",
+            "skills/war-help/SKILL.md": "f582192655cc363e85a4f9036a1279af46ab29343d88d0b35a1a75596e2c300f",
+            "skills/war-help/agents/openai.yaml": "60efb40280702a189fa67a6999b422dbdc94c254df2dde3f8dcb04b7163826d5",
+            "skills/war-strategy/SKILL.md": "5cc89725dd70fa8376acce65a502135fbdd7dcdf5c05315551b81b3d56b4d344",
+            "skills/war-strategy/agents/openai.yaml": "b198fa73d3411c20b0f5d39c7498ac7cf013c9315d56b74055b93f3eb68fa9a9"
+          },
+          "fileCount": 18,
+          "digest": "a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2"
+        }
+      }
+    }
+  ],
+  "finalPackages": {
+    "snipe": {
+      "sourceSha": "89ed01dca54da7697c32940949c916de6c36d824",
+      "path": "/private/tmp/war-sync-02115-20260916/snipe-candidate-6",
+      "manifest": {
+        "name": "work-audit-refine-snipe",
+        "version": "0.21.15",
+        "description": "Run an explicit, one-shot, read-only WAR-style audit through independent Codex lenses.",
+        "author": {
+          "name": "Ljferrer",
+          "url": "https://github.com/Ljferrer"
+        },
+        "homepage": "https://github.com/Ljferrer/WorkAuditRefine",
+        "repository": "https://github.com/Ljferrer/WorkAuditRefine",
+        "license": "MIT",
+        "keywords": [
+          "code-review",
+          "audit",
+          "read-only",
+          "snipe"
+        ],
+        "skills": "./skills/",
+        "interface": {
+          "displayName": "WAR Snipe",
+          "shortDescription": "Run independent read-only code audits",
+          "longDescription": "Audit one pinned diff through one to five independent Codex lenses and return an informational report without changing code or external systems.",
+          "developerName": "Ljferrer",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Interactive",
+            "Read"
+          ],
+          "websiteURL": "https://github.com/Ljferrer/WorkAuditRefine",
+          "defaultPrompt": "Run $work-audit-refine-snipe:snipe to audit the current diff through independent read-only lenses."
+        }
+      },
+      "files": {
+        ".codex-plugin/plugin.json": "89adb348f71076bf62792820bee93f56544c954e7ce57ddf6d4264a16e08ac0e",
+        "skills/snipe/SKILL.md": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e",
+        "skills/snipe/agents/openai.yaml": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3",
+        "skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "skills/snipe/assets/shared/skills/_shared/provision.mjs": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b",
+        "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs": "201e0c2257ade242e908d044d8ffe147e8d95f7346788406d56cc9f0cf2f56e7",
+        "skills/snipe/assets/shared/skills/war/assets/war-config.mjs": "7ca90e42e01444a196ccf868613d7ae6297227c81a2af9a2678f54be6c6b9dfa",
+        "skills/snipe/assets/snipe-files.mjs": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414",
+        "skills/snipe/assets/snipe-git-policy.mjs": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+        "skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "skills/snipe/assets/snipe-request.mjs": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59",
+        "skills/snipe/assets/snipe-result.mjs": "ff0b85c329b937de6673be0eb19e997985a3da896d28caa835edc0c38cda4e8e",
+        "skills/snipe/assets/snipe-runner.mjs": "7123400882d7a7f2695ea325683f8e10b5f2fa8370fe172e6b097af2ac496649",
+        "skills/snipe/assets/snipe-submodules.mjs": "70fd8efa34ee2a6a999e7fade1f94ea99227f07f592d4de132d495ab5759c686",
+        "skills/snipe/references/auditing-fixes.md": "d32a078ae9dcfa50e22a8c7d24d2a38250e1110e39ff15edc84da165bb3cec8b",
+        "skills/snipe/references/codex-auditor.md": "74a0380b2a9b4b7facf0d60da54c95dba427c7c9126296c0d48abc7df28b9a93",
+        "skills/snipe/references/post-audit-fixes.md": "2379a393b31702d49273a28be7c44eec6863b49eb05bfce9538de664814f3b00",
+        "skills/snipe/references/submodules.md": "076685833bca666d73adf3733c9d48fb467ed7c661c3848db6eed5359fc70bb1"
+      },
+      "fileCount": 18,
+      "digest": "8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e"
+    },
+    "planning": {
+      "sourceSha": "89ed01dca54da7697c32940949c916de6c36d824",
+      "path": "/private/tmp/war-sync-02115-20260916/planning-candidate-6",
+      "manifest": {
+        "name": "work-audit-refine-planning",
+        "version": "0.21.15",
+        "description": "Author WAR plans from an interview or existing draft; does not execute plans.",
+        "author": {
+          "name": "Ljferrer"
+        },
+        "license": "MIT",
+        "skills": "./skills/",
+        "interface": {
+          "displayName": "WAR Planning",
+          "shortDescription": "Author and convert WAR plans",
+          "longDescription": "Interview and convert drafts into WAR plans without executing them.",
+          "developerName": "Ljferrer",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Interactive",
+            "Read",
+            "Write"
+          ],
+          "defaultPrompt": [
+            "Use $work-audit-refine-planning:war-strategy to plan a change."
+          ]
+        }
+      },
+      "files": {
+        ".codex-plugin/plugin.json": "3b104019fc0538ac1d63d659b4f3741b06aec559eaa05000e981202402359f05",
+        "shared/docs/adr/0025-drift-guard-discipline.md": "977adebfe3210cf4e3111b653cc457155ebd4689ba8803c3da56b6f15236379e",
+        "shared/skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "shared/skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "shared/skills/war/references/backward-chain-examples.md": "f35261aaceab162814618c4986de2311e65558dc9288915b37fd32cb2636f9ff",
+        "shared/skills/war/references/backward-chain-fix.md": "f85ccd33e77923f0f0b4d208dc1ef1fcbe11747640d60e1f8556eb2ee84de6c6",
+        "shared/skills/war/references/fix-round-doctrine.md": "0f8a829f12715b835252b0e632a8cfc600371999da0b9ecda441b1af44d9ca69",
+        "shared/skills/war-strategy/SKILL.md": "fd647facb39336cdf93350d2d0d312ad95f5e6145f7a1ac684777ec0304da4b3",
+        "shared/skills/war-strategy/assets/plan-literal-lint.mjs": "c3a9621f7af9268742cf1a4845db74fb38eb2019d4aad0c790df1f7cc926acad",
+        "shared/skills/war-strategy/assets/strategy-verifier.mjs": "b53be69c10545d3e1cc0fe60a9af915fd23379c35fb729d091fdd69ac5d124f0",
+        "shared/skills/war-strategy/references/backward-chain-plan.md": "7e11062680cf721e3f1c691e435ce506b0593e8b08fa2ba7914b48d3e1e92416",
+        "shared/skills/war-strategy/references/host.md": "dfb885d60f51c2f1490912bfdf0d3a5d0a74040bf66c3310bf97fb4cf010b269",
+        "shared/skills/war-strategy/references/plan-interview.md": "78935cf7ee6ff9fcec79234d6109fcb7351151802aa75f0d4549819dab9e51fb",
+        "shared/skills/war-strategy/references/strategy-verifier.md": "4caa532bbdf4a49ebbb38a47f12bf1afd60d3e200a99740b63c9979aa58ba3dc",
+        "skills/war-help/SKILL.md": "f582192655cc363e85a4f9036a1279af46ab29343d88d0b35a1a75596e2c300f",
+        "skills/war-help/agents/openai.yaml": "60efb40280702a189fa67a6999b422dbdc94c254df2dde3f8dcb04b7163826d5",
+        "skills/war-strategy/SKILL.md": "5cc89725dd70fa8376acce65a502135fbdd7dcdf5c05315551b81b3d56b4d344",
+        "skills/war-strategy/agents/openai.yaml": "b198fa73d3411c20b0f5d39c7498ac7cf013c9315d56b74055b93f3eb68fa9a9"
+      },
+      "fileCount": 18,
+      "digest": "a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2"
+    }
+  },
+  "regressionArtifacts": [
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/panel-5-summary-empty-describe.log",
+      "sha256": "084b2fdc12cdb63e47db2c78f245b48184701f6b21e7562ad0837259c03f942b",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/panel-5-summary-reproduction.log",
+      "sha256": "738f1dfc854736ff9759c93e047d9a735c49fad83d58a1b21e1d710853d9c71a",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-5-skip-after.log",
+      "sha256": "9f2e086ac75d1619ee1f0da0e7bed307d693ab051c956568b203da8c29ac5ece",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-5-skip-before.log",
+      "sha256": "06d70e8ff4d104dc20155bc283797db55ca19aa2ce2d58e323522cbd5a8ca266",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-5-skip-final.log",
+      "sha256": "80789373222ee8fb1262bf2acb74947bc7c2b42cb4e1326edf4e0a9728fc694b",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-5-skip-mirrors.log",
+      "sha256": "e04a652234130c4d72059c10130140ce0f89f2ff465eb385fdf2bba225067e3f",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-5-skip-targeted.log",
+      "sha256": "449970b04aa2b1b619839a29c723063b95b2427f63035f203084cff1e3888b64",
+      "meaning": "intermediate fixture diagnostic"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-6-prior-summary-scan.json",
+      "sha256": "037b461f03ae9d029347e7cc8fb49ac1a4461cd4a3215b5b801f3d44f4d01378",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-6-summary-after.log",
+      "sha256": "1a36baab16e2f60de2ab8cc081821677c03c08f37ee60486be54da3837ccbd5d",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-6-summary-before.log",
+      "sha256": "ecda5d8e548188bd01c1af5aa020edee02e3fcce2f8468045923c015600b1ef4",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-6-summary-mutations.log",
+      "sha256": "429d70641fc54092a1168d9406bc5fdaa6a29b1cf605e1d689e35b4b8d35e3a9",
+      "meaning": "before/after or mutation regression evidence; see ledger"
+    },
+    {
+      "path": "/private/tmp/war-sync-02115-20260916/evidence/round-6-summary-targeted.log",
+      "sha256": "0bc2c20ae219ddcc27dfecd9a1f1d64bd79a970471625e651a6a326e9550e1df",
+      "meaning": "intermediate fixture diagnostic"
+    }
+  ],
+  "preservation": {
+    "protectedRefs": [
+      {
+        "ref": "refs/heads/codex-port",
+        "before": "7271cc3a08db978c71c450def81f49a1816dc20c",
+        "after": "7271cc3a08db978c71c450def81f49a1816dc20c"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-comparison",
+        "before": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+        "after": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-implementation",
+        "before": "25404070284cce65f68a8d7f16a0526641bf40b5",
+        "after": "25404070284cce65f68a8d7f16a0526641bf40b5"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-review-claude",
+        "before": "6a472540f7b9a317436705f3ece2213d930e5395",
+        "after": "6a472540f7b9a317436705f3ece2213d930e5395"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-review-codex",
+        "before": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+        "after": "46aef4a25b68874bff7b3b3fed14f9058c270da7"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+        "before": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+        "after": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0"
+      },
+      {
+        "ref": "refs/heads/master",
+        "before": "cf9f93e07afc6c07792c3f9f9842e973a4a154b4",
+        "after": "cf9f93e07afc6c07792c3f9f9842e973a4a154b4"
+      },
+      {
+        "ref": "refs/remotes/origin/codex-port",
+        "before": "43054e8beb484a261846121e99be328f2992c40a",
+        "after": "43054e8beb484a261846121e99be328f2992c40a"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-comparison",
+        "before": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+        "after": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-implementation",
+        "before": "25404070284cce65f68a8d7f16a0526641bf40b5",
+        "after": "25404070284cce65f68a8d7f16a0526641bf40b5"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-review-claude",
+        "before": "6a472540f7b9a317436705f3ece2213d930e5395",
+        "after": "6a472540f7b9a317436705f3ece2213d930e5395"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-review-codex",
+        "before": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+        "after": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0"
+      },
+      {
+        "ref": "refs/remotes/origin/master",
+        "before": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+        "after": "287405fc56ee54c3a46f94f0449a83c30008a8bf"
+      }
+    ],
+    "liveRemoteHeads": {
+      "refs/heads/codex-port": "43054e8beb484a261846121e99be328f2992c40a",
+      "refs/heads/codex/red-team-comparison": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "refs/heads/codex/red-team-implementation": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "refs/heads/codex/red-team-review-claude": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "refs/heads/codex/red-team-review-codex": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "refs/heads/master": "287405fc56ee54c3a46f94f0449a83c30008a8bf"
+    },
+    "installedPackages": [
+      {
+        "root": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+        "fileCount": 17,
+        "unchanged": true,
+        "inventoryDigest": "2b24f557289275a781bfba5877ca66d22beb7fd43d1168617fbf75a7b7da970a"
+      },
+      {
+        "root": "/Users/ljf/.codex/plugins/cache/personal/work-audit-refine-planning/0.21.12+codex.20260908231842",
+        "fileCount": 14,
+        "unchanged": true,
+        "inventoryDigest": "1185d9e13472abc96401b79345563c25e0996c25da4e9757fc13181ceefbdc4d"
+      }
+    ],
+    "builtPackagesUnchanged": true,
+    "originalWorktreeStatus": " M .claude/war/config.json\n M docs/roadmaps/2026-08-25-survey-debt-campaign-roadmap.md\n?? AGENTS.md\n?? docs/plans/2026-08-27-in-run-finding-resolution.md\n?? docs/plans/2026-09-08-codex-red-team-migration.md\n?? docs/port/\n?? docs/red-team/2026-08-27-in-run-finding-resolution.md\n",
+    "originalWorktreeTouched": false,
+    "releasePublished": false,
+    "pluginsInstalled": false,
+    "ciActivated": false,
+    "fullRunnerImplemented": false
+  },
+  "remainingBackstops": {
+    "B1": "Hosted Linux/macOS and actual GitHub final-gate enforcement; workflow remains inactive.",
+    "B2": "Fresh installed discovery and combined planning WP15 write-action/denial trace; existing operator deferral retained.",
+    "B3": "Production Claude/Codex runtime parity, full WAR executor and recovery-role mapping.",
+    "B4": "Frozen red-team comparison/host completion remains separate."
+  },
+  "retainedLimitations": [
+    "Git SHA-1 object formats only; SHA-256 compatibility is not claimed.",
+    "Seat-reported inspection and coordinator-supplied verifier history are not authenticated receipts.",
+    "Normalized recommendation changes do not prove substantive amendment.",
+    "Package source preflight assumes no concurrent hostile mutation.",
+    "Baseline fixtures and allowed host skips do not establish real runtime parity."
+  ],
+  "publicationRule": "Subsequent evidence commits may change only docs/port/. Verify non-evidence identity and protected state before publishing; do not attribute this panel to another code SHA."
+}

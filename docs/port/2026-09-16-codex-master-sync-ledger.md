@@ -1,6 +1,6 @@
 # Codex master sync — 2026-09-16
 
-Status: RESUMED — operator authorized three additional audit/fix rounds after the held reserve. Draft [PR #2320](https://github.com/Ljferrer/WorkAuditRefine/pull/2320) remains held pending repaired-source baseline and a complete final panel. Prior evidence and verdicts remain historical and unchanged.
+Status: READY FOR INTEGRATION REVIEW — the resumed candidate has a complete passing baseline and a complete, stable four-seat approval. Two of the three additional rounds were used. The pre-existing Minor report-metadata omission and Nit redundant request field remain explicit nonblocking follow-ups below. Historical findings and held verdicts remain unchanged.
 
 ## Pinned scope and authority
 
@@ -21,10 +21,10 @@ Status: RESUMED — operator authorized three additional audit/fix rounds after 
 - [x] Review census; prove targeted regressions/negative controls.
 - [x] Commit stable candidates, run complete collectors and build/validate packages.
 - [x] Run all authorized panels/fix rounds; preserve final incomplete result and remaining findings.
-- [ ] Obtain a complete final four-seat qualification after the authorized follow-up.
+- [x] Obtain a complete final four-seat qualification after the authorized follow-up.
 - [x] Commit final evidence, verify protected state, push and open held draft PR #2320 into codex-port.
 
-Next action: commit candidate 6 with the verified TAP-summary repair, run the full collector, rebuild both packages and run panel 6 from the fresh Snipe package. Additional rounds used: 1 of 3; panel 6 is the second. No installation, release, CI activation or PR merge is authorized.
+Next action: review/merge PR #2320 into `codex-port`; run fresh installed Snipe/planning acceptance on the integrated source; then continue red-team on a new candidate while preserving the frozen comparison. PR merge, installation, release and CI activation remain separate actions. The integration task stops after publishing its evidence; one additional audit round remains unused.
 
 ## Dependency and boundary assessment
 
@@ -163,3 +163,23 @@ Independent fixtures cover real empty-describe and passing suites with complete/
 Validation: four targeted cases pass (`round-6-summary-targeted.log`); 28 behavioral collector tests pass in the scratch full run. Its mutation harness stopped on an incorrectly escaped mutation search string, not a surviving guard (`round-6-summary-after.log`). Corrected with a raw string; the rerun passes the full mutation harness, including removal of uniqueness, final-trailer anchoring and plan framing (`round-6-summary-mutations.log`). The complete committed-source baseline is still required. Candidate 5's collector finished before copying these repairs into the integration worktree; all earlier source identities remain accurate.
 
 Consequences: ambiguous Node count evidence becomes a failed suite instead of a green baseline; this does not authenticate malicious code or establish live/hosted parity. The parser intentionally targets the repository's pinned Node 24 TAP format. A reporter-format change must update its explicit fixture and be revalidated.
+
+
+## Final resumed checkpoint — READY FOR INTEGRATION REVIEW
+
+- Tested and audited source: `89ed01dca54da7697c32940949c916de6c36d824`; master comparison base remains `287405fc56ee54c3a46f94f0449a83c30008a8bf`.
+- Complete local macOS/Node 24 baseline: all 71 suites, 4,051 passing records and 5 approved host skips; no failed cases, execution/cleanup errors or source drift. Source started clean and remained unchanged. Hosted platform evidence is still deferred.
+- [Panel 6 report](snipe/2026-09-16-codex-master-sync-panel-6.md): complete/stable scope and coverage; correctness, simplicity, cascading-impact and test-fidelity all return validated high-confidence approvals under the configured `gpt-5.6-sol` / `medium` profile. Full packaged repair guidance consumed; no model substitution or repaired judgment.
+- Fresh candidate-6 packages: 18 files each, inherited 0.21.15. Snipe digest `8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e`; planning `a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2`. The final panel ran that Snipe package. Neither package was installed.
+- Full new source/package hashes, baseline/log identities, panel judgments, mutation evidence, candidate-5 history and preservation receipt: [resumed validation manifest](2026-09-16-codex-master-sync-resumed-validation.json). The original validation manifest is retained intact as the historical held checkpoint.
+- Non-evidence tree digest: `120bfc05e50e317f5058ca020cad17fca9a338cfc47d2051b716d12b5d74897e`. Delivery commits after this candidate change only `docs/port/`; verify that identity before pushing.
+- All 13 protected local/tracking refs, six protected live remote heads, installed plugin inventories and the unrelated f866 worktree remain unchanged. No merge, release, CI activation or full Codex executor implementation.
+
+### Final nonblocking follow-ups and stopping decision
+
+The final panel has findings; it is not described as finding-free. Both were verified against the pinned port base `43054e8beb484a261846121e99be328f2992c40a` and predate this integration (`panel-6-triage.json`).
+
+1. **Minor: report metadata presentation.** The normalized verdict keeps `locator`, `plan_ref` and `barrier`, but the Markdown finding block omits the latter two and omits locator when file is present. A runtime probe reproduces this; the entire finding-render block is byte-identical to the original port base. Follow up by rendering the preserved fields and asserting file+locator, plan reference and follow-up barrier cases. Until then, consult the normalized verdict JSON for that context; do not rely on Markdown alone for plan/barrier traceability. This does not change package closure, upstream compatibility, finding severity/verdict validation or baseline acceptance.
+2. **Nit: `panel.autoCount`.** The request module is byte-identical to the original port base. The field is derivable from `seats` and `named.length`; no production adapter consumer reads it. Removing it is optional diagnostic-schema cleanup, not a demonstrated execution defect.
+
+These independent, pre-existing items do not reopen the repaired skip/summary/manifest dependency classes. Stop after two additional rounds rather than spending the third solely for unrelated presentation/cleanup changes. This is a scoped ready-for-review recommendation with disclosed follow-ups, not a full engine-parity or installed-host certification. B1–B4 remain unchanged.
