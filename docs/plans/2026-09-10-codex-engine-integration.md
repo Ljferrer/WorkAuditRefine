@@ -228,3 +228,5 @@ Critical path: intact upstream/port histories ← ordinary merge from port ← v
 - [ ] Preserve each verdict and source/package identity, publish the candidate PR into `codex-port`, and report ready-for-review or held with the remaining defect classes and backstops.
 
 The new ledger, not the original completed ledger, owns this continuation's checkboxes and next action. Backstops B1–B4 remain: hosted platform/CI evidence, fresh installed acceptance/WP15, actual full engine parity and frozen red-team completion. A changed candidate never inherits an older panel's approval.
+
+Subsequent operator authorization: after the original allowance and incomplete reserve were exhausted, three additional audit/fix rounds were authorized. Continue with panels 5–7, the same four-seat Sol/medium configuration and all existing scope/preservation rules; stop early when acceptance criteria are met. The continuation ledger records each new candidate separately from historical evidence.

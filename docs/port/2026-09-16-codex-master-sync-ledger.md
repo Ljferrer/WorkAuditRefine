@@ -1,6 +1,6 @@
 # Codex master sync — 2026-09-16
 
-Status: HELD — bounded run delivered as draft [PR #2320](https://github.com/Ljferrer/WorkAuditRefine/pull/2320) into `codex-port`. The final baseline passes, but the reserve panel is incomplete and a confirmed skip-recognition edge case remains. The audit allowance is exhausted: do not resume repairs or launch more panels without a new bounded authorization. Prior evidence and verdicts remain historical and unchanged.
+Status: RESUMED — operator authorized three additional audit/fix rounds after the held reserve. Draft [PR #2320](https://github.com/Ljferrer/WorkAuditRefine/pull/2320) remains held pending repaired-source baseline and a complete final panel. Prior evidence and verdicts remain historical and unchanged.
 
 ## Pinned scope and authority
 
@@ -10,7 +10,7 @@ Status: HELD — bounded run delivered as draft [PR #2320](https://github.com/Lj
 - Branch: `codex/sync-master-0.21.15`, isolated task-owned worktree. The provided f866 worktree contains unrelated modifications; untouched.
 - Raw evidence root: `/private/tmp/war-sync-02115-20260916/evidence`; worktree sibling `repo`.
 - Protected refs and installed Snipe/planning hashes recorded in `protected-refs-before.txt` and `installed-before.json`. No installed files or frozen comparison refs are editable scope.
-- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Regular panels used: 3; ordinary fix rounds used: 2; one reserve repair and one reserve panel used. No audit allowance remains.
+- Audit budget: up to three four-seat panels, Sol/medium, two intervening fixes. Reserve only for a material panel-three finding after repair/validation. Regular panels used: 3; ordinary fix rounds used: 2; one reserve repair and one reserve panel used. Original allowance exhausted. Latest user authorization adds three audit/fix rounds (panels 5–7), same four-seat Sol/medium profile; stop early when acceptance criteria are met.
 
 ## Progress
 
@@ -21,10 +21,10 @@ Status: HELD — bounded run delivered as draft [PR #2320](https://github.com/Lj
 - [x] Review census; prove targeted regressions/negative controls.
 - [x] Commit stable candidates, run complete collectors and build/validate packages.
 - [x] Run all authorized panels/fix rounds; preserve final incomplete result and remaining findings.
-- [ ] Obtain a complete final four-seat qualification after the proposed follow-up (requires new authorization).
+- [ ] Obtain a complete final four-seat qualification after the authorized follow-up.
 - [x] Commit final evidence, verify protected state, push and open held draft PR #2320 into codex-port.
 
-Next action: operator review of draft PR #2320 and authorization of the narrow skip-recognition/qualification follow-up below. The bounded run has stopped with a held outcome. No further audit, installation, release, CI activation or PR merge is authorized by this completed budget.
+Next action: finish skip-recognition regression/mutation checks, commit candidate 5, run the full collector, rebuild both packages and run panel 5 from the fresh Snipe package. No installation, release, CI activation or PR merge is authorized.
 
 ## Dependency and boundary assessment
 
@@ -101,7 +101,7 @@ The complete collector self-suite passes 25 tests, including the existing mutati
 
 Consequences: inherited shell output is classified consistently regardless of indentation, and a swallowed nonzero exit can no longer hide these recognized failure rows. This remains the documented assertion-row classifier, not a parser for arbitrary colored/proprietary test output. CI remains inactive. Candidate 3's baseline finished before the repair entered the integration worktree. The reserve audit will cover the new SHA; earlier approvals do not transfer.
 
-## Final checkpoint — HELD
+## Historical reserve checkpoint — HELD
 
 - Final candidate/tested source: `d2f4a3324075f53e7db47d8ebf7eb66af837b51e`.
 - Final baseline: all 71 discovered suites completed; 68 passed and three allowed-skip suites; 4,046 passing records and five named host skips. No failure, timeout, cleanup error, output limit or source drift. Source started clean and remained unchanged. Local macOS/Node evidence only.
@@ -129,3 +129,20 @@ B1 hosted Linux/macOS and GitHub gate behavior; B2 fresh installed acceptance an
 ## Publication receipt
 
 Draft [PR #2320](https://github.com/Ljferrer/WorkAuditRefine/pull/2320), `codex/sync-master-0.21.15` → `codex-port`, opened after normal push of evidence commit `8550e6b2c710dd58ac56558caa79d1dac05cadfa`. This receipt is also evidence-only. The implementation remains at tested/review-attempt source `d2f4a3324075f53e7db47d8ebf7eb66af837b51e`; its final panel is incomplete. PR head is reported in the final task response rather than self-referenced in this commit. No PR merge or release occurred.
+
+
+## Additional authorization and round 5
+
+The operator authorized increasing the audit/fix budget by three rounds after the held checkpoint. This permits panels 5–7 and their repairs under the existing scope, profile and preservation constraints. The historical incomplete reserve is not retried or recast as complete.
+
+### Skip evidence class repair
+
+Root cause: skip detection and policy-name extraction disagreed on indentation, and collector/gate hand-copied the policy rule. Both now use `skip-evidence.mjs` for approval; collector detection and pass-count exclusion share one detector. The policy file is unchanged. The shared lookup requires an own approved name, excluding inherited object keys, accepts indentation and retains stdout-only, uppercase successful SKIP approval. TODO/failing rows, unknown names and malformed gate lines stay fail-closed. Shell skip/TODO rows now form a disjoint count category from executed assertions, including failing-form and bare SKIP rows; the unchanged Node-only policy still refuses every shell skip.
+
+Sweep: collector stdout/stderr detection, Node summary counts, shell counters, gate count/skip checks, named-host policy, malformed report values and both disposable mutation harnesses. A real nested Node case travels through collection into the gate's synthetic full-census/matrix fixture; this is a reader compatibility test, not hosted Linux evidence. Space/tab and unknown-name mirrors retain exact count/status assertions.
+
+Before-source proof: all four new targeted regressions fail in `round-5-skip-before.log`. The initial stderr Node fixture was invalid: Node's TAP reporter turns child console diagnostics into comment rows, so it did not create raw stderr skip evidence. Removed that misleading fixture; existing shell either-channel tests and explicit gate stderr refusal cover the real respective boundaries. `round-5-skip-targeted.log` preserves that intermediate fixture failure rather than presenting it as a production defect.
+
+Validation: collector/gate self-suites pass all 36 tests (`round-5-skip-final.log`). The final unnumbered skip mirror and collector mutation rerun pass both selected tests (`round-5-skip-mirrors.log`); the forthcoming full baseline will bind all final bytes. Mutations remove shared indentation acceptance, own-name approval, stdout restriction, string-type protection, gate reason/null checks, shell count exclusion/total addition, and unnumbered skip detection; each produces an independent assertion failure. Existing mutations remain passing. Consequences: a previously approved host test remains approved when nested; no extra test or skip is authorized, no host test executes implicitly, and package/runtime authority is unchanged.
+
+Pre-commit sibling check also aligned optional-number shell skip detection with the existing optional-number assertion grammar. Bare SKIP, numbered/unnumbered SKIP and TODO, successful/failing forms, spaces/tabs and both channels now have disjoint count assertions while all shell skips remain unapproved. This is classification of the documented row forms, not a general TAP parser.

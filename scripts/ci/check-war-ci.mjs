@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { lstatSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { approvedSkipReason } from './skip-evidence.mjs'
 
 const inventory=JSON.parse(readFileSync(new URL('./test-inventory.json',import.meta.url),'utf8'))
-const skipPolicy=JSON.parse(readFileSync(new URL('./baseline-skips.json',import.meta.url),'utf8'))
 const platforms=['darwin','linux']
 const regular=path=>assert.ok(lstatSync(path).isFile(),`required regular artifact: ${path}`)
 
@@ -45,8 +45,8 @@ export function checkWarCI({sourceSha,needs,root}) {
       assert.ok(c.tests>0 && c.fail===0 && c.cancelled===0 && c.todo===0 && c.tests===c.pass+c.skipped,`${suite.path}: failed or empty cases`)
       assert.ok(Array.isArray(suite.skips) && suite.skips.length===c.skipped,`${suite.path}: skip accounting`)
       for(const skip of suite.skips) {
-        const name=skip.line?.match(/^ok \d+ - (.*?) # SKIP(?:\s|$)/)?.[1]
-        assert.ok(name && skip.channel==='stdout' && Object.hasOwn(skipPolicy[suite.path] ?? {},name) && skipPolicy[suite.path][name]===skip.reason,`${suite.path}: unapproved skip`)
+        const reason=approvedSkipReason(suite.path,skip.line,skip.channel)
+        assert.ok(reason!==null && reason===skip.reason,`${suite.path}: unapproved skip`)
       }
       assert.equal(suite.status,c.skipped ? 'allowed-skips' : 'passed',`${suite.path}: status differs`)
       const logs=join(directory,String(index));assert.ok(lstatSync(logs).isDirectory(),'log directory required')

@@ -86,6 +86,32 @@ test('only named host skips are allowed and remain explicitly incomplete host ev
   assert.match(report.suites[0].skips[0].reason, /not credential-free baseline evidence/)
 })
 
+test('nested named skips are accepted while unknown names remain refused', async t => {
+  const name = 'installed plugin resolves packaged default prompts in fresh host sessions without implicit audits'
+  for (const candidate of [name, 'unknown host case', '__proto__', 'constructor', 'toString']) {
+    const approved = candidate === name
+    const root = fixture(t, { 'adapters/codex/snipe-discovery-host.test.mjs': `import {test} from 'node:test'; test('wrapper', async t => { await t.test(${JSON.stringify(candidate)}, {skip:true}, () => {}); });` })
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.ok, approved)
+    assert.deepEqual(report.suites[0].counts, {tests:2,pass:1,fail:0,skipped:1,cancelled:0,todo:0})
+    assert.match(report.suites[0].skips[0].line, /^ +ok /)
+  }
+})
+
+test('shell skip rows are not passing assertions and remain unapproved', async t => {
+  for (const indent of ['', '  ', '\t']) {
+    for (const channel of ['', '>&2']) {
+    for (const row of ['ok 2 - not executed # SKIP', 'not ok 2 - not executed # SKIP', 'ok 2 - unfinished # TODO', 'ok - not executed # SKIP', 'not ok - not executed # SKIP', 'ok - unfinished # TODO', 'SKIP unavailable']) {
+      const root = fixture(t, { 'hooks/skip.test.sh': `echo 'ok - executed'; echo '${indent}${row}' ${channel}` })
+      const report = await collect({ root, output: join(root, 'report') })
+      assert.deepEqual(report.suites[0].counts, {tests:2,pass:1,fail:0,skipped:1,cancelled:0,todo:0})
+      assert.equal(report.ok, false)
+      assert.equal(report.suites[0].skips[0].reason, null)
+    }
+    }
+  }
+})
+
 test('timeout kills a hanging suite and is not a successful exit', async t => {
   const root = fixture(t, { 'hooks/hang.test.sh': 'sleep 60' })
   const report = await collect({ root, output: join(root, 'report'), timeoutMs: 100 })
@@ -363,6 +389,11 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['failure-row', 'counts.fail > 0', 'false', 'zero-exit shell failure'],
     ['failure-indent', '^\\s*(?:not ok|FAIL)', '^(?:not ok|FAIL)', 'zero-exit shell failure'],
     ['pass-indent', '^\\s*ok(?: \\d+)? -', '^ok(?: \\d+)? -', 'indented shell assertion'],
+    ['skip-indent', '^\\s*ok \\d+ -', '^ok \\d+ -', 'nested named skips', 'skip-evidence.mjs'],
+    ['skip-own-name', 'Object.hasOwn(names, name)', 'true', 'nested named skips', 'skip-evidence.mjs'],
+    ['skip-unnumbered', '(?: \\d+)? .*#', ' \\d+ .*#', 'shell skip rows', 'skip-evidence.mjs'],
+    ['skip-pass', 'lines.filter(({ line }) => !isSkipLine(line))', 'lines', 'shell skip rows'],
+    ['skip-total', 'passed + failed + skips.length', 'passed + failed', 'shell skip rows'],
     ['mode', '[path, stat?.mode ?? null, bytes.length, digest]', '[path, null, bytes.length, digest]', 'mode-only'],
     ['regular-file', "lstatSync(join(root, path), { throwIfNoEntry: false })?.isFile()", "lstatSync(join(root, path), { throwIfNoEntry: false })", 'symlinked tracked'],
     ['denial-finalization', '        finish()\n        return', '        return', 'cleanup denial', 'owned-process.mjs'],
@@ -377,7 +408,7 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     assert.equal(source.split(from).length, 2, `mutation ${name} must alter one real guard`)
     const root = mkdtempSync(join(tmpdir(), 'war-collector-mutant-'))
     t.after(() => rmSync(root, { recursive: true, force: true }))
-    for(const module of ['collect.mjs','owned-process.mjs']) writeFileSync(join(root,module),readFileSync(new URL(module,import.meta.url)))
+    for(const module of ['collect.mjs','owned-process.mjs','skip-evidence.mjs']) writeFileSync(join(root,module),readFileSync(new URL(module,import.meta.url)))
     writeFileSync(join(root, file), source.replace(from, to))
     writeFileSync(join(root, 'collect.test.mjs'), readFileSync(fileURLToPath(import.meta.url)))
     writeFileSync(join(root, 'baseline-skips.json'), readFileSync(new URL('./baseline-skips.json', import.meta.url)))

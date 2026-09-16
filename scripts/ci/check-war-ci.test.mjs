@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checkWarCI } from './check-war-ci.mjs'
+import { collect } from './collect.mjs'
 
 const sourceSha='a'.repeat(40)
 const inventory=JSON.parse(readFileSync(new URL('./test-inventory.json',import.meta.url),'utf8'))
@@ -49,10 +50,51 @@ test('only named approved skips pass, including an entirely opt-in host suite', 
   const suite=report.suites.find(s=>Object.hasOwn(policy,s.path))
   const [name,reason]=Object.entries(policy[suite.path])[0]
   suite.counts={tests:1,pass:0,fail:0,skipped:1,cancelled:0,todo:0};suite.status='allowed-skips'
-  suite.skips=[{line:`ok 1 - ${name} # SKIP`,channel:'stdout',reason}]
-  writeFileSync(path,JSON.stringify(report));assert.equal(checkWarCI(input).ok,true)
+  for(const indent of ['', '  ', '\t']) {
+    suite.skips=[{line:`${indent}ok 1 - ${name} # SKIP`,channel:'stdout',reason}]
+    writeFileSync(path,JSON.stringify(report));assert.equal(checkWarCI(input).ok,true)
+  }
+  for(const skip of [
+    {line:`  ok 1 - ${name} # SKIP`,channel:'stderr',reason},
+    {line:`  ok 1 - ${name} # TODO`,channel:'stdout',reason},
+    {line:`  not ok 1 - ${name} # SKIP`,channel:'stdout',reason},
+    {line:`  ok 1 - ${name} # SKIP`,channel:'stdout',reason:'fabricated reason'},
+    {line:'ok 1 - unknown # SKIP',channel:'stdout',reason:null},
+    {line:null,channel:'stdout',reason},
+    {line:42,channel:'stdout',reason},
+  ]) {
+    suite.skips=[skip];writeFileSync(path,JSON.stringify(report))
+    assert.throws(()=>checkWarCI(input),/unapproved skip/)
+  }
   suite.skips=[{line:'ok 1 - unknown # SKIP',channel:'stdout'}]
   writeFileSync(path,JSON.stringify(report));assert.throws(()=>checkWarCI(input),/unapproved skip/)
+})
+
+test('real nested Node skip evidence survives collection into the final gate', async t => {
+  const input=fixture(t), root=mkdtempSync(join(tmpdir(),'war-skip-roundtrip-'))
+  t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const path='adapters/codex/snipe-discovery-host.test.mjs'
+  const name='installed plugin resolves packaged default prompts in fresh host sessions without implicit audits'
+  mkdirSync(join(root,'adapters/codex'),{recursive:true})
+  writeFileSync(join(root,path),`import {test} from 'node:test'; test('wrapper',async t=>{await t.test(${JSON.stringify(name)},{skip:true},()=>{});});`)
+  execFileSync('git',['init','-q',root]);execFileSync('git',['-C',root,'add','.'])
+  execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture'])
+  const collected=await collect({root,output:join(root,'report'),inventory:[path]})
+  assert.equal(collected.ok,true)
+  assert.deepEqual(collected.suites[0].counts,{tests:2,pass:1,fail:0,skipped:1,cancelled:0,todo:0})
+  // The surrounding matrix/census is synthetic; this one suite and its logs are real collector output.
+  input.sourceSha=collected.sourceSha
+  for(const platform of ['linux','darwin']) {
+    const directory=join(input.root,`baseline-${platform}`), reportPath=join(directory,'report.json')
+    const report=JSON.parse(readFileSync(reportPath,'utf8'))
+    Object.assign(report,{sourceSha:collected.sourceSha,before:collected.before,after:collected.after})
+    const index=report.suites.findIndex(s=>s.path===path)
+    report.suites[index]=collected.suites[0]
+    copyFileSync(collected.suites[0].stdout,join(directory,String(index),'stdout.log'))
+    copyFileSync(collected.suites[0].stderr,join(directory,String(index),'stderr.log'))
+    writeFileSync(reportPath,JSON.stringify(report))
+  }
+  assert.equal(checkWarCI(input).ok,true)
 })
 
 test('malformed, wrong-revision, dirty, reduced and failed platform evidence is rejected', t => {
@@ -163,17 +205,23 @@ test('inert workflow wiring preserves complete matrix evidence and a fail-closed
 
 test('removing final-gate guards fails the corresponding behavioral assertions', t => {
   const root=mkdtempSync(join(tmpdir(),'war-gate-mutants-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
-  for(const file of ['check-war-ci.test.mjs','test-inventory.json','baseline-skips.json'])copyFileSync(new URL(file,import.meta.url),join(root,file))
-  const source=readFileSync(new URL('./check-war-ci.mjs',import.meta.url),'utf8')
-  for(const [from,to,pattern] of [
+  for(const file of ['check-war-ci.test.mjs','test-inventory.json','baseline-skips.json','collect.mjs','owned-process.mjs','skip-evidence.mjs'])copyFileSync(new URL(file,import.meta.url),join(root,file))
+  for(const [from,to,pattern,file='check-war-ci.mjs'] of [
     ["needs.baseline?.result==='success'",'true','final gate CLI propagates'],
-    ["Object.hasOwn(skipPolicy[suite.path] ?? {},name) && ",'','only named approved skips'],
+    ['Object.hasOwn(names, name)','true','only named approved skips','skip-evidence.mjs'],
+    ['^\\s*ok \\d+ -','^ok \\d+ -','only named approved skips','skip-evidence.mjs'],
+    ["channel === 'stdout' && ",'','only named approved skips','skip-evidence.mjs'],
+    ["typeof line === 'string'",'true','only named approved skips','skip-evidence.mjs'],
+    ['reason!==null && ','','only named approved skips'],
+    ['reason===skip.reason','true','only named approved skips'],
     ["    assert.equal(report.sourceSha,sourceSha,'report tested revision differs')",'','malformed, wrong-revision'],
     ["    assert.deepEqual(report.suites.map(s=>s.path),inventory,'missing, duplicate or reordered suite results')",'','malformed, wrong-revision'],
     ["      assert.equal(suite.exitCode,0,`${suite.path}: exit failed`)",'','malformed, wrong-revision'],
     ['suite.terminationConfirmed===undefined || suite.terminationConfirmed===true','suite.terminationConfirmed!==false','malformed, wrong-revision'],
   ]) {
-    assert.equal(source.split(from).length,2,from);writeFileSync(join(root,'check-war-ci.mjs'),source.replace(from,to))
+    for(const module of ['check-war-ci.mjs','skip-evidence.mjs'])copyFileSync(new URL(module,import.meta.url),join(root,module))
+    const source=readFileSync(new URL(file,import.meta.url),'utf8')
+    assert.equal(source.split(from).length,2,from);writeFileSync(join(root,file),source.replace(from,to))
     const result=spawnSync(process.execPath,['--test','--test-reporter=tap',`--test-name-pattern=${pattern}`,join(root,'check-war-ci.test.mjs')],{encoding:'utf8',timeout:15000,env:{...process.env,NODE_TEST_CONTEXT:undefined}})
     assert.equal(result.status,1,result.stdout+result.stderr);assert.match(result.stdout,/AssertionError/)
   }

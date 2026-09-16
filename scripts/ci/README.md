@@ -30,8 +30,14 @@ emit nonzero assertion evidence (`ok [number] - description` / failure rows, wit
 optional leading whitespace on either output channel); the
 existing redaction-lint wrapper instead has its named `lint: clean` assertion.
 Shell counts reflect observed rows, not comments or arbitrary summary claims.
+Skip/TODO rows form a separate count category from executed pass/fail assertions
+and are included once in total cases, even when rejected by policy.
 Empty/no-op suites fail. Skip evidence is checked on stdout and stderr.
 Only named opt-in host skips in `baseline-skips.json` are allowed and disclosed.
+Collector and final gate share the approval lookup: optional leading whitespace,
+exact approved name, successful uppercase `# SKIP` row on stdout. Unknown names,
+inherited object properties, TODO/failing rows and stderr skips are refused.
+The allowlist currently contains only Node host tests; no shell skip is approved.
 The top-level evidence level is always `baseline`, never parity or compatibility.
 The CLI exits nonzero when any suite fails or has unapproved skip evidence.
 
