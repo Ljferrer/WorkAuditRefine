@@ -24,7 +24,7 @@ Status: RESUMED — operator authorized three additional audit/fix rounds after 
 - [ ] Obtain a complete final four-seat qualification after the authorized follow-up.
 - [x] Commit final evidence, verify protected state, push and open held draft PR #2320 into codex-port.
 
-Next action: finish skip-recognition regression/mutation checks, commit candidate 5, run the full collector, rebuild both packages and run panel 5 from the fresh Snipe package. No installation, release, CI activation or PR merge is authorized.
+Next action: commit candidate 6 with the verified TAP-summary repair, run the full collector, rebuild both packages and run panel 6 from the fresh Snipe package. Additional rounds used: 1 of 3; panel 6 is the second. No installation, release, CI activation or PR merge is authorized.
 
 ## Dependency and boundary assessment
 
@@ -146,3 +146,20 @@ Before-source proof: all four new targeted regressions fail in `round-5-skip-bef
 Validation: collector/gate self-suites pass all 36 tests (`round-5-skip-final.log`). The final unnumbered skip mirror and collector mutation rerun pass both selected tests (`round-5-skip-mirrors.log`); the forthcoming full baseline will bind all final bytes. Mutations remove shared indentation acceptance, own-name approval, stdout restriction, string-type protection, gate reason/null checks, shell count exclusion/total addition, and unnumbered skip detection; each produces an independent assertion failure. Existing mutations remain passing. Consequences: a previously approved host test remains approved when nested; no extra test or skip is authorized, no host test executes implicitly, and package/runtime authority is unchanged.
 
 Pre-commit sibling check also aligned optional-number shell skip detection with the existing optional-number assertion grammar. Bare SKIP, numbered/unnumbered SKIP and TODO, successful/failing forms, spaces/tabs and both channels now have disjoint count assertions while all shell skips remain unapproved. This is classification of the documented row forms, not a general TAP parser.
+
+
+## Candidate 5 outcome and round 6
+
+Candidate `7a9fe4d3f239a5ee89ab37795957c3094bf99662`: all 71 suites completed on clean unchanged source, 4,049 passes and five named skips. Fresh 0.21.15 packages retain the candidate-4 digests. [Panel 5](snipe/2026-09-16-codex-master-sync-panel-5.md) is complete/stable with full coverage: correctness, simplicity and cascading-impact approve; test-fidelity requests changes for a Major summary-evidence issue. Its judgment is preserved without alteration. No skip-policy regression was reported.
+
+### Summary authenticity class repair
+
+Root cause: Node counters independently selected the first matching summary-shaped row, permitting console diagnostics to replace genuine runner counts. The exact empty-file example in the finding is already refused by the filename-subtest guard (`panel-5-summary-reproduction.log`). The class is nevertheless confirmed: an empty `describe()` suite emitting the same diagnostics exits zero and is incorrectly accepted with one pass despite its real zero-test summary (`panel-5-summary-empty-describe.log`). The new before-source regression fails (`round-6-summary-before.log`).
+
+Swept Node producer format, summary parser, collector classification/JSON persistence and final-gate count preconditions. `parseNodeCounts` now accepts one complete ordered final Node 24 TAP trailer, including plan/suites/duration framing, and refuses duplicate summary-count keys. It preserves the existing count object and returns invalid counts on ambiguous/malformed evidence so collection continues with a failed suite. No shell interpretation, skip policy, child lifecycle, gate schema or runtime authority changes. Node's top-level plan count is deliberately not equated to test count: nested suites differ.
+
+Independent fixtures cover real empty-describe and passing suites with complete/partial fake summary diagnostics; literal trailers cover every missing/duplicate key, ordering, fractional counts, missing plan/duration, repeated trailers and output after the trailer. Normal real nested approved skips remain accepted. A historical scan of all 160 Node-suite logs from candidates 1–4 produces identical counts (`round-6-prior-summary-scan.json`).
+
+Validation: four targeted cases pass (`round-6-summary-targeted.log`); 28 behavioral collector tests pass in the scratch full run. Its mutation harness stopped on an incorrectly escaped mutation search string, not a surviving guard (`round-6-summary-after.log`). Corrected with a raw string; the rerun passes the full mutation harness, including removal of uniqueness, final-trailer anchoring and plan framing (`round-6-summary-mutations.log`). The complete committed-source baseline is still required. Candidate 5's collector finished before copying these repairs into the integration worktree; all earlier source identities remain accurate.
+
+Consequences: ambiguous Node count evidence becomes a failed suite instead of a green baseline; this does not authenticate malicious code or establish live/hosted parity. The parser intentionally targets the repository's pinned Node 24 TAP format. A reporter-format change must update its explicit fixture and be revalidated.
