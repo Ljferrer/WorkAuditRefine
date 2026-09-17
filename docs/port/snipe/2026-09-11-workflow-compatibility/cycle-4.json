@@ -1,0 +1,209 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [],
+      "autoCount": 4
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base 668e4ff990f1c689fcf9710768c3d73c2601920c...3d1f218ba86f91d899c7800227c2ed061d892117",
+      "comparison": "merge-base",
+      "baseSha": "668e4ff990f1c689fcf9710768c3d73c2601920c",
+      "headSha": "3d1f218ba86f91d899c7800227c2ed061d892117",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "complete": true,
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "baseline behavior and error-path review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "3d1f218ba86f91d899c7800227c2ed061d892117"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "3d1f218ba86f91d899c7800227c2ed061d892117"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Bare war-review selection still assumes run IDs contain dates",
+            "file": "skills/war-review/SKILL.md",
+            "locator": "\u00a71 Select the run \u2014 default (bare) manifest selection",
+            "plan_ref": "#2300 downstream run-ID format migration",
+            "line": 50,
+            "rationale": "The updated selector correctly says new run IDs are UUIDs, but its default-selection rule still breaks equal-mtime ties by the \"runId date.\" UUID run IDs contain no date, and launch-identity.md now explicitly separates plan/date metadata from opaque identity. When manifest mtimes tie, the downstream reviewer therefore has no executable tie-break rule and may select the wrong run.",
+            "suggested_fix": "Replace the runId-date tie-break with a deterministic rule valid for both UUID and legacy IDs, such as parsed manifest startedAt followed by lexical runId/file-name ordering.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs",
+            "skills/war/assets/stage-workflow.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "3d1f218ba86f91d899c7800227c2ed061d892117"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "UUID migration test omits the review selector's date-dependent tie-breaker",
+            "file": "skills/war/assets/skill-doc-contracts.test.mjs",
+            "locator": "#2300: canonical launch surfaces use the fresh-ID producer and never waive identity for explicit paths",
+            "line": 4426,
+            "rationale": "The pinned `skills/war-review/SKILL.md` now says new run IDs are UUIDs, but its bare-run selection still breaks equal-mtime ties by the `runId` date, which a UUID does not contain. The new launch-surface contract test checks five WAR files but omits `skills/war-review/SKILL.md`, so this incompatible downstream behavior survives the acceptance suite. Equal-mtime manifests can therefore be selected using an undefined procedure.",
+            "suggested_fix": "Change the review selector to a format-independent deterministic tie-breaker, such as manifest `startedAt` followed by lexical `runId`, and include `skills/war-review/SKILL.md` in the UUID migration contract test with a negative assertion against date-derived run-ID ordering.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs",
+            "skills/war/assets/provision-worktrees.test.sh"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "security",
+      "rationale": "trust-boundary and injection review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "security",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "3d1f218ba86f91d899c7800227c2ed061d892117"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/skill-doc-contracts.test.mjs",
+            "skills/_shared/doc-cli-consistency.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "mutation": "schema-object",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: reject invalid status/object: null"
+  },
+  {
+    "mutation": "schema-required",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: reject invalid status/object: {}"
+  },
+  {
+    "mutation": "schema-enum",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: reject invalid status/object: {\"status\":\"unknown\"}"
+  },
+  {
+    "mutation": "schema-evidence",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: rebased_tip rejects a wrong wire type"
+  },
+  {
+    "mutation": "receipt-pre",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+  },
+  {
+    "mutation": "receipt-post",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: an explicitly empty patch ID remains evidence, not null"
+  }
+]

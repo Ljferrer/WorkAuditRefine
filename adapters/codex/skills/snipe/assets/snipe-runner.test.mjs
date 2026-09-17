@@ -102,6 +102,7 @@ test('guidance survives clean, blocking, invalid, failed and cancelled panels un
   for (const [body, status] of variants) {
     const panel = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath: fakeCodex(body) })
     assert.equal(panel.seats[0].status, status)
+    assert.ok(panel.seats.every(seat => !Object.hasOwn(seat, 'repair')), 'single-attempt results omit obsolete repair state')
     assert.equal(panel.coordinatorGuidance.text, expected)
     assert.ok(Object.isFrozen(panel.coordinatorGuidance))
   }
@@ -613,7 +614,6 @@ test('a seat reporting absent tests completes without a repair that invents evid
   const codexPath = fakeCodex(validVerdictSource('', 'verdict.tests_verified = { exist: false, inspected: [] }'))
   const result = await runSnipePanel({ cwd, inheritedProfile, supportedProfiles }, { codexPath, timeoutMs: 2_000 })
   assert.equal(result.complete, true)
-  assert.equal(result.seats[0].repair.attempted, false)
   assert.deepEqual(result.seats[0].verdict.tests_verified, { exist: false, inspected: [] })
 })
 
@@ -640,7 +640,6 @@ test('malformed judgment is preserved without launching a replacement review', a
   assert.equal(result.complete, false)
   assert.equal(result.seats[0].status, 'invalid_result')
   assert.equal(result.seats[0].validation.status, 'invalid')
-  assert.equal(result.seats[0].repair.attempted, false)
   assert.equal(result.seats[0].verdict, null)
   assert.equal(result.seats[0].response, '{"verdict":')
 })
@@ -670,8 +669,6 @@ test('a persistently invalid seat is incomplete while a valid peer finding survi
   assert.equal(result.seats[0].validation.status, 'valid')
   assert.equal(result.seats[0].verdict.findings[0].title, 'Input bypasses validation')
   assert.equal(result.seats[1].status, 'invalid_result')
-  assert.equal(result.seats[1].repair.attempted, false)
-  assert.equal(result.seats[1].repair.succeeded, false)
   assert.deepEqual(readFileSync(logPath, 'utf8').trim().split('\n').sort(), ['correctness', 'security'])
   assert.match(result.report, /INCOMPLETE — do not interpret this panel as clean/)
   assert.match(result.report, /Input bypasses validation/)

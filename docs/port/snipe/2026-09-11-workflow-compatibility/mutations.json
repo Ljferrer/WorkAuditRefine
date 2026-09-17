@@ -1,0 +1,27 @@
+[
+  {
+    "mutation": "clock",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: {\"phase\":3,\"landed\":[],\"escalated\":[],\"minorsFiled\":[],\"asks\":[],\"aced\":[],\"notes\":[],\"pinTransfers\":[],\"landResult\":null,\"servitorResult\":null,\"aud"
+  },
+  {
+    "mutation": "random",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: {\"phase\":3,\"landed\":[],\"escalated\":[],\"minorsFiled\":[],\"asks\":[],\"aced\":[],\"notes\":[],\"pinTransfers\":[],\"landResult\":null,\"servitorResult\":null,\"aud"
+  },
+  {
+    "mutation": "run-identity",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: fresh run/phase cannot admit a prior capture"
+  },
+  {
+    "mutation": "phase-identity",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: fresh run/phase cannot admit a prior capture"
+  },
+  {
+    "mutation": "dispatch-identity",
+    "exit": 1,
+    "assertion": "AssertionError [ERR_ASSERTION]: logical attempts have different engine-owned prefixes"
+  }
+]

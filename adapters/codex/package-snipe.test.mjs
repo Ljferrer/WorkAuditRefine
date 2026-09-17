@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { buildSnipePlugin, verifySnipePlugin } from './package-snipe.mjs'
-import { buildPlanningPlugin } from './package-planning.mjs'
+import { buildPlanningPlugin, verifyPlanningPlugin } from './package-planning.mjs'
 test('Snipe builder executes through a filesystem alias',t=>{
   const root=mkdtempSync(join(tmpdir(),'snipe-builder-alias-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const alias=join(root,'builder.mjs'),output=join(root,'package')
@@ -23,6 +23,99 @@ const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 function outputRoot() {
   return join(mkdtempSync(join(tmpdir(), 'codex-snipe-package-')), 'plugin')
 }
+
+// SemVer 2.0.0 examples/boundaries, independent of the package validator.
+const invalidVersions = [undefined, null, 21, [], ['1.2.3'], {}, true, '', 'invalid', '01.2.3', '1.02.3', '1.2.03', '1.2',
+  '1.2.3-..', '1.2.3-a.', '1.2.3-.a', '1.2.3-a..b', '1.2.3-01', '1.2.3-a.01',
+  '1.2.3-', '1.2.3+', '1.2.3+x..y', '1.2.3+.x', '1.2.3+x.', '1.2.3-a_b', '1.2.3+é', '1.2.3\n']
+const validVersions = ['0.0.0', '1.2.3-0', '1.2.3-alpha.1', '1.2.3-01a', '1.2.3-x-y.--',
+  '1.2.3+001', '1.2.3+build.42', '1.2.3-rc.1+001', '0.21.15+codex.20260916']
+
+const builders = [
+  ['snipe', buildSnipePlugin, verifySnipePlugin],
+  ['planning', buildPlanningPlugin, verifyPlanningPlugin],
+]
+
+test('both generated manifests retain independently reviewed surfaces and capabilities', t => {
+  const root = mkdtempSync(join(tmpdir(), 'war-manifest-policy-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  for (const [name, build] of builders) {
+    const output = join(root, name)
+    build({ repoRoot, output })
+    const config = JSON.parse(readFileSync(join(output, '.codex-plugin/plugin.json'), 'utf8'))
+    const keys = ['name', 'version', 'description', 'author', 'license', 'skills', 'interface']
+    if (name === 'snipe') keys.push('homepage', 'repository', 'keywords')
+    assert.deepEqual(Object.keys(config).sort(), keys.sort(), name)
+    assert.deepEqual(config.interface.capabilities, name === 'snipe' ? ['Interactive', 'Read'] : ['Interactive', 'Read', 'Write'], name)
+  }
+})
+
+test('both package verifiers reject manifest surface, metadata and version drift', t => {
+  const root = mkdtempSync(join(tmpdir(), 'war-manifest-reject-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  for (const [name, build, verify] of builders) {
+    const output = join(root, name)
+    build({ repoRoot, output })
+    const path = join(output, '.codex-plugin/plugin.json')
+    const original = readFileSync(path, 'utf8')
+    for (const [label, change] of [
+      ['MCP', m => { m.mcpServers = {} }],
+      ['apps', m => { m.apps = './apps.json' }],
+      ['hooks', m => { m.hooks = './hooks.json' }],
+      ['unknown key', m => { m.unreviewed = true }],
+      ['capabilities', m => { m.interface.capabilities = ['Interactive', 'Read', 'Write', 'Execute'] }],
+      ['prompt', m => { m.interface.defaultPrompt = 'Run $other:skill' }],
+      ['identity', m => { m.name = 'other-plugin' }],
+      ['author', m => { m.author = { name: 'other' } }],
+    ]) {
+      const config = JSON.parse(original)
+      change(config)
+      writeFileSync(path, JSON.stringify(config))
+      assert.throws(() => verify(output), /manifest/, `${name}: ${label}`)
+    }
+    for (const version of invalidVersions) {
+      writeFileSync(path, JSON.stringify({ ...JSON.parse(original), version }))
+      assert.throws(() => verify(output), /manifest/, `${name}: version ${version}`)
+    }
+    for (const version of validVersions) {
+      writeFileSync(path, JSON.stringify({ ...JSON.parse(original), version }))
+      assert.doesNotThrow(() => verify(output), `${name}: version ${version}`)
+    }
+    writeFileSync(path, original)
+    assert.doesNotThrow(() => verify(output), name)
+  }
+})
+
+test('both builders reject invalid source versions before creating output', t => {
+  const root = mkdtempSync(join(tmpdir(), 'war-source-version-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const source = join(root, 'source')
+  mkdirSync(source)
+  for (const path of ['adapters/codex', 'skills', '.claude-plugin', 'docs/adr', 'docs/specs', 'docs/plans']) cpSync(join(repoRoot, path), join(source, path), { recursive: true })
+  const path = join(source, '.claude-plugin/plugin.json')
+  const original = JSON.parse(readFileSync(path, 'utf8'))
+  for (const version of invalidVersions) {
+    writeFileSync(path, JSON.stringify({ ...original, version }))
+    for (const [name, build] of builders) {
+      const output = join(root, `${name}-output`)
+      try {
+        assert.throws(() => build({ repoRoot: source, output }), /manifest/, `${name}: version ${version}`)
+        assert.equal(existsSync(output), false, `${name}: refusal must precede output creation`)
+      } finally { rmSync(output, { recursive: true, force: true }) }
+    }
+  }
+  for (const version of validVersions) {
+    writeFileSync(path, JSON.stringify({ ...original, version }))
+    for (const [name, build, verify] of builders) {
+      const output = join(root, `${name}-valid`)
+      try {
+        build({ repoRoot: source, output })
+        assert.doesNotThrow(() => verify(output))
+        assert.equal(JSON.parse(readFileSync(join(output, '.codex-plugin/plugin.json'), 'utf8')).version, version)
+      } finally { rmSync(output, { recursive: true, force: true }) }
+    }
+  }
+})
 
 test('S-A16 builds a standalone Snipe-only plugin with its shared dependency closure', async () => {
   const output = outputRoot()
@@ -83,7 +176,7 @@ test('S-A16 rejects a wrong skill component and fails closed when a shared file 
   const manifestPath = join(output, '.codex-plugin/plugin.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   writeFileSync(manifestPath, `${JSON.stringify({ ...manifest, skills: './wrong/' }, null, 2)}\n`)
-  assert.throws(() => verifySnipePlugin(output), /skills must be '\.\/skills\/'/)
+  assert.throws(() => verifySnipePlugin(output), /manifest/)
 
   manifest.skills = './skills/'
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)

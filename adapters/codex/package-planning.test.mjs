@@ -68,9 +68,13 @@ test('package resource links stay resolvable without pulling the development che
     'shared/skills/war-strategy/SKILL.md',
     'shared/skills/war-strategy/assets/plan-literal-lint.mjs',
     'shared/skills/war-strategy/assets/strategy-verifier.mjs',
+    'shared/skills/war-strategy/references/backward-chain-plan.md',
     'shared/skills/war-strategy/references/host.md',
     'shared/skills/war-strategy/references/plan-interview.md',
     'shared/skills/war-strategy/references/strategy-verifier.md',
+    'shared/skills/war/references/backward-chain-examples.md',
+    'shared/skills/war/references/backward-chain-fix.md',
+    'shared/skills/war/references/fix-round-doctrine.md',
     'skills/war-help/SKILL.md',
     'skills/war-help/agents/openai.yaml',
     'skills/war-strategy/SKILL.md',
@@ -88,6 +92,32 @@ test('package resource links stay resolvable without pulling the development che
   }
   assert.ok(checked>=8,'required guidance links must actually be exercised')
   assert.equal(readFileSync(join(output,'shared/skills/war-strategy/references/host.md'),'utf8'),readFileSync(join(repoRoot,'adapters/codex/skills/war-strategy/references/host.md'),'utf8'))
+})
+
+test('relocated planning package retains the backward-chain reference closure byte-for-byte',t=>{
+  const root=mkdtempSync(join(tmpdir(),'war-planning-chain-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  const built=join(root,'built'),moved=join(root,'moved')
+  buildPlanningPlugin({repoRoot,output:built});renameSync(built,moved)
+  // Independent obligation list from the interview -> plan -> fix/examples -> rules links.
+  const references=[
+    'skills/war-strategy/references/backward-chain-plan.md',
+    'skills/war/references/backward-chain-fix.md',
+    'skills/war/references/backward-chain-examples.md',
+    'skills/war/references/fix-round-doctrine.md',
+  ]
+  for(const path of references) {
+    const target=join(moved,'shared',path)
+    assert.ok(existsSync(target),`required backward-chain resource absent: ${path}`)
+    const original=readFileSync(target)
+    assert.deepEqual(original,readFileSync(join(repoRoot,path)),path)
+    rmSync(target)
+    assert.throws(()=>verifyPlanningPlugin(moved),/unexpected or missing planning component/,path)
+    writeFileSync(target,original)
+  }
+  const host=readFileSync(join(moved,'shared/skills/war-strategy/references/host.md'),'utf8')
+  assert.match(host,/Shared WAR execution references are background for authoring/)
+  assert.match(host,/do not launch workers, audits, fix rounds or recovery/)
+  assert.ok(verifyPlanningPlugin(moved).includes('shared/'+references[0]))
 })
 
 test('planning verifier rejects missing components, symlinks and unreviewed manifest capabilities', t => {

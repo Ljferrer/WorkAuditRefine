@@ -176,11 +176,11 @@ async function runValidatedSeat(request, seat, assignment, concern, options) {
   const expected = { seat, lens: assignment.lens, scope: request.scope }
   const initial = await runSeat(request, seat, assignment, concern, options)
   if (initial.status !== 'completed') {
-    return { ...initial, validation: { status: 'unavailable', error: `transport status: ${initial.status}${initial.cleanupError ? `; cleanup ${initial.cleanupError.code}: ${initial.cleanupError.message}; process group ${initial.processGroupId}, termination unconfirmed (operator cleanup required)` : ''}` }, repair: { attempted: false, succeeded: false } }
+    return { ...initial, validation: { status: 'unavailable', error: `transport status: ${initial.status}${initial.cleanupError ? `; cleanup ${initial.cleanupError.code}: ${initial.cleanupError.message}; process group ${initial.processGroupId}, termination unconfirmed (operator cleanup required)` : ''}` } }
   }
   try {
     const verdict = parseSnipeVerdict(initial.response, expected)
-    return { ...initial, verdict, validation: { status: 'valid', error: null }, repair: { attempted: false, succeeded: false } }
+    return { ...initial, verdict, validation: { status: 'valid', error: null } }
   } catch (error) {
     // A fresh model response cannot prove preservation of an invalid judgment.
     // Keep the original evidence; only the parser's deterministic aliases normalize it.
@@ -189,7 +189,6 @@ async function runValidatedSeat(request, seat, assignment, concern, options) {
       status: 'invalid_result',
       verdict: null,
       validation: { status: 'invalid', error: error.message, code: error.code },
-      repair: { attempted: false, succeeded: false },
     }
   }
 }

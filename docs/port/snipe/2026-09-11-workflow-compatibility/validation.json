@@ -1,0 +1,32 @@
+{
+  "candidate": "3d1f218ba86f91d899c7800227c2ed061d892117",
+  "corrected_version_suite": {
+    "passed": 10,
+    "failed": 0
+  },
+  "final_tightened_regression": {
+    "passed": 2,
+    "failed": 0
+  },
+  "shell_suites": {
+    "passed": 31,
+    "failed": 0,
+    "log": "cycle-4-shell.log"
+  },
+  "redaction_lint": "clean",
+  "audit_cycles_launched": 4,
+  "previous_full_js": {
+    "tests": 2217,
+    "passed": 2216,
+    "failed": 1,
+    "failure": "README release-history pointer; corrected before candidate commit",
+    "duration_ms": 226340.969458
+  },
+  "full_js": {
+    "tests": 2231,
+    "passed": 2231,
+    "failed": 0,
+    "duration_ms": 215104.336292,
+    "log": "cycle-4-final-js.log"
+  }
+}

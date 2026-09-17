@@ -1,0 +1,2781 @@
+{
+  "schemaVersion": 1,
+  "verdict": "held",
+  "reason": "Reserve panel has no validated test-fidelity judgment (model capacity); confirmed approved-skip indentation false-negative remains. Audit allowance exhausted.",
+  "candidateSourceIdentity": {
+    "sourceSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+    "nonEvidenceTreeDigest": "098586426bb187135395c75ee37a6d5d46ce5011f85febbe85daf38a7994520f",
+    "algorithm": "SHA256 of git ls-tree -r -z --full-tree SHA, excluding entries whose path starts with docs/port/, retaining final NUL",
+    "excludedEvidencePrefix": "docs/port/",
+    "entryCount": 1360
+  },
+  "pins": {
+    "portBase": "43054e8beb484a261846121e99be328f2992c40a",
+    "masterBase": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+    "mergeCommit": "3dc9ff8464836f9e56ea7c373baad5f124ea95e2",
+    "branch": "codex/sync-master-0.21.15",
+    "targetBranch": "codex-port",
+    "inheritedVersion": "0.21.15"
+  },
+  "auditBudget": {
+    "regularPanelsUsed": 3,
+    "ordinaryFixRoundsUsed": 2,
+    "reservePanelsUsed": 1,
+    "reserveRepair": "Confirmed zero-exit indented shell failure could produce report.ok=true. Repaired and validated before reserve launch.",
+    "furtherPanelsAuthorized": false
+  },
+  "finalBaseline": {
+    "command": "PATH=\"/Users/ljf/miniconda3/envs/codex-snipe-port/bin:$PATH\" node scripts/ci/collect.mjs --run /private/tmp/war-sync-02115-20260916/evidence/baseline-candidate-4",
+    "evidenceLevel": "baseline",
+    "ok": true,
+    "sourceSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+    "before": {
+      "sourceSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "1352bf39a25d42f7359cb6f65b9b22606683b670b33cd0093b1a5b84536d38bd",
+      "contentDigest": "9587c04ab0be77010e7d5c0ad69d2e68e2b950eeb363ac140dc69b0b509bed17"
+    },
+    "after": {
+      "sourceSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+      "trackedChanges": [],
+      "untrackedInputs": [],
+      "indexDigest": "1352bf39a25d42f7359cb6f65b9b22606683b670b33cd0093b1a5b84536d38bd",
+      "contentDigest": "9587c04ab0be77010e7d5c0ad69d2e68e2b950eeb363ac140dc69b0b509bed17"
+    },
+    "stability": "unchanged",
+    "environment": {
+      "platform": "darwin",
+      "arch": "arm64",
+      "osRelease": "25.6.0",
+      "node": "v24.17.0",
+      "git": "git version 2.54.0 (Apple Git-157)",
+      "bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)"
+    },
+    "suiteCount": 71,
+    "suiteStatuses": {
+      "passed": 68,
+      "allowed-skips": 3
+    },
+    "totals": {
+      "tests": 4051,
+      "pass": 4046,
+      "fail": 0,
+      "skipped": 5,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "executionFailures": [],
+    "reportPath": "/private/tmp/war-sync-02115-20260916/evidence/baseline-candidate-4/report.json",
+    "reportSha256": "ea9e8ceaaf0690b8c4d0810dc913d0cf7d2f8636bcf830923b6053b53412f970",
+    "suites": [
+      {
+        "path": "adapters/codex/package-planning.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/package-planning.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "7148d756f5d6d3c488321f0150057c618ef534fe3b74e661a0e9394c1c288949",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/package-snipe.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/package-snipe.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "8870bd532d8006f9aa65d058164002d453bc752dff9b3f595cd853ef505dc9bb",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/planning-actual-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-actual-host.test.mjs"
+        ],
+        "status": "allowed-skips",
+        "counts": {
+          "tests": 2,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 1,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "4ad9d299b8c0ade20917790e7daa336ff46537741e63e4630716aa4b2ffeb93a",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": [
+          {
+            "line": "ok 2 - actual planning verifier dispatches and host enforcement denies a write # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in paid host evaluation requires WAR_PLANNING_HOST_EVAL=1 and explicit operator authorization; deterministic CI does not establish host enforcement."
+          }
+        ]
+      },
+      {
+        "path": "adapters/codex/planning-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-contract.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "fd56bfb3af7f5c703999648a5ea3e4067e974a976764f7d3209cc2db911e5287",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/planning-host-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-host-contract.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "442357b84fccc8f005d24732886dca93b14872d99045da8722ac9382b83e1bb4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/planning-verifier.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/planning-verifier.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "5b9cd2297acfaba4db9425cdde7a43576bcb1ff73bc864bd35449c90343e0a45",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs"
+        ],
+        "status": "allowed-skips",
+        "counts": {
+          "tests": 3,
+          "pass": 0,
+          "fail": 0,
+          "skipped": 3,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "e2f06d377af42a1d52e662d2ba0f768b9d2769fce51f295ac3576a656eaee9fd",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": [
+          {
+            "line": "ok 1 - actual host reviews original pinned blobs despite replacement refs # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          },
+          {
+            "line": "ok 2 - actual host audits prepared submodule blobs without changing the checkout # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          },
+          {
+            "line": "ok 3 - actual host runs one and two independent read-only Snipe seats without target mutation # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+          }
+        ]
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-files.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-files.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "fddb8bff54ce5a060d52a49918afd6c03d0243a17671bd8fd8c3a34b309a6e58",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-request.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-request.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 31,
+          "pass": 31,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "5984a98b2a4748e441d765ac0867c9bfa4191010a50bcb1af32f4b740e133061",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-result.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-result.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "8ef54061487c3a3b5972209c1fb9eb02240247e03f427612a9934e914103b602",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "56bc96ea45d96b4d32b12104a6e30ec3a52b5adfaa0922f726144310d5521d28",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/assets/snipe-submodules.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "637c8414ed2b3ba8dacbdfe74d5cbbee424802e5790c9052359c75870c12bf42",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/skills/snipe/snipe-structure.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/skills/snipe/snipe-structure.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "0c23f4c396d9f20d77189ef92f3a89351cf9929d8d4704de6b2557f0dcce37c1",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "adapters/codex/snipe-discovery-host.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "adapters/codex/snipe-discovery-host.test.mjs"
+        ],
+        "status": "allowed-skips",
+        "counts": {
+          "tests": 1,
+          "pass": 0,
+          "fail": 0,
+          "skipped": 1,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "6e9ecf4e54648e01b88f8b26a90bf569f8f865942eab9508b7e560ffacf57ada",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": [
+          {
+            "line": "ok 1 - installed plugin resolves packaged default prompts in fresh host sessions without implicit audits # SKIP",
+            "channel": "stdout",
+            "reason": "Opt-in installed-host/model check; #2159 T7, not credential-free baseline evidence."
+          }
+        ]
+      },
+      {
+        "path": "hooks/clean-surface-hook-only-confinement.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/clean-surface-hook-only-confinement.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "19f69ddcd9b8a8f0bfc45809287f26c83cabeac8efc2915ae790c32d96b4e23b",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/clean-surface-war-worktree.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/clean-surface-war-worktree.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "02c75f4ca31ed4eb5ae785e020663cf154e88a023051e35217434b04318e24a5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/guard-conventions.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/guard-conventions.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 20,
+          "pass": 20,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "3acc790a6c7c54454d397bb80525fac85ceeae5ec0971bef1f9b55cf1d27eed3",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/inject-campaign-state.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/inject-campaign-state.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 54,
+          "pass": 54,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "a43b5a5933b79ae998d1fdcb8bf646980e203659c247945ff655d8e152d66fb0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/reply-standard/gate.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/reply-standard/gate.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "5944d847bfffe428c329fb7cc3e08eff882b0cd12ce648206dac2b1dd955c9e0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/vale-md/vale-md.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/vale-md/vale-md.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "6e88c7f2b415cac3a205dea0e2fd5e1e182f0705594aa80b4e3f52229fb652f3",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/validate-auditor-git.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-auditor-git.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 111,
+          "pass": 111,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "40d2d200efdddf396a98982d96f8d3f0e17db497b063117af447c5b1dfed1a7c",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/validate-servitor-provenance.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-servitor-provenance.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 27,
+          "pass": 27,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "cf39869b227affc430e361d77c0d8ec0362696d839f6b60758d7627f1c87060d",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/validate-worktree-scope.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/validate-worktree-scope.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 49,
+          "pass": 49,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "1b18417e23c95e1f069ea4813f0cd6dc5622b0be79b982b193d2281c8ac0c3ad",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "hooks/warn-bash-write-scope.test.sh",
+        "command": [
+          "/bin/bash",
+          "hooks/warn-bash-write-scope.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 37,
+          "pass": 37,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "f76103025cd6ae044bde9685fb14c0ca9e3f717095585bc0def75bdd8aaefdfa",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "scripts/ci/check-war-ci.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "scripts/ci/check-war-ci.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "140da4e794109a6c9084aff6330eeb1b57259a34afe24206e931e58005259cbf",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "scripts/ci/collect.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "scripts/ci/collect.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "4e664bb0850ce121d4ae731977bf361b55d3f9151ceb4a871ce8ae68a8a2a734",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/_shared/doc-cli-consistency.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/doc-cli-consistency.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "1697bd8341a13334569b888dc7653cf2c64b6cfaa4796188db7d1eef6f284af3",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/_shared/gh-preflight.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/_shared/gh-preflight.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "e5604b086d06667f4a8d97b9d7d42bc8edfcf4d262de7d1556552ace95bbd4c4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/_shared/provision.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/provision.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 33,
+          "pass": 33,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "8ebc1a88191b8f313418a5cca9ba0d5ffe93cdb942709345f10f765aec0b4110",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/_shared/war-memory-lint.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/_shared/war-memory-lint.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "db326fe3912dfd52dfb83168c10ada401ee18fbee3dc4fd03056bdd0eaacd84e",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/_shared/war-memory.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/_shared/war-memory.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 116,
+          "pass": 116,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "73246686a6c9609a292287dec6e7184746cf277ddff4e443dd1f56842d608f96",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/lessons-learned/assets/safe-swap.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/lessons-learned/assets/safe-swap.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 24,
+          "pass": 24,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "64ff9601cebd8b56f6ae42c21f29ad1cd1df110fe88a05117932feab319249bd",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/lessons-learned/assets/seed-pack.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/assets/seed-pack.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 20,
+          "pass": 20,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "374857ffc9ba812fd652e2db769b2d243ca6c66a61fb5dc75fccd0344883506d",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/lessons-learned/lessons-learned-doc-contract.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/lessons-learned-doc-contract.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 35,
+          "pass": 35,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "6546a504cc9b398d4d8925236103b75d1f852fba887d28561bbf186d938e68e4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/lessons-learned/seed-set.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/lessons-learned/seed-set.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "efe4862b25de75065a6783a14718590e5e7ea2231d842b6ac350f221f87feaf4",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/red-team/assets/assert-no-repo-escape.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/assets/assert-no-repo-escape.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 36,
+          "pass": 36,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "99748088b583e6f4ee1c02cd73ddffe694924b60eece13be536133cbd1d6090b",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/red-team/assets/red-team-gate.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/red-team/assets/red-team-gate.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 112,
+          "pass": 112,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "4169d4bb97c00456a2981256ba8f2211066ab0f3610d595c88cba9cc7dd75ee5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/red-team/assets/workflow-scaffold.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/red-team/assets/workflow-scaffold.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 79,
+          "pass": 79,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "8c008b095e95b53a56de4a9303b8e499e50c34fffa28704079799cb06d0dcd4c",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/red-team/diagnosis-preflight.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/diagnosis-preflight.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 16,
+          "pass": 16,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "2ef2d111dcf4648bfe20b613210772ba6013dad65bc07f26e8de571e2d35b402",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/red-team/manifest-provenance.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/red-team/manifest-provenance.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "fa63293dca5d1d5bccc424e9bf8ee32b9eb592e5b6580640a2b6477d007af9dd",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/snipe/assets/snipe-args.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/snipe/assets/snipe-args.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "5b30701962b9039862a5503d06b44da03ee3e4326f1413ec0b186ecbee6b3e41",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war-campaign/assets/campaign-ledger.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war-campaign/assets/campaign-ledger.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 97,
+          "pass": 97,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "6354ac925432ef2f5bb69b97e54ffac41e115d09a3b95cdebad786ae6d91ef56",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war-campaign/assets/snap-shared-docs.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-campaign/assets/snap-shared-docs.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "c0c64a7c1e4e0e3222058d12b9d066b97bd81e9eb62590e9b01cd6def83c9a18",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war-machine/war-pipeline-structure.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-machine/war-pipeline-structure.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 215,
+          "pass": 215,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "c4d05960380736b8d6cca4c4105dbe5a7a6788052e24b05446f708b0979eec78",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war-strategy/assets/plan-literal-lint.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war-strategy/assets/plan-literal-lint.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 48,
+          "pass": 48,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "5958a4dfd13246cfda1aa6cf9cdea92fb841fea851f08f2e912623cd80fc0aa6",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war-strategy/war-strategy-structure.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war-strategy/war-strategy-structure.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 224,
+          "pass": 224,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "975118dd96da035866acf41f7024e8762dc5a1845f53e0b1852a4731052c1cb5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-args-complete.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/assert-args-complete.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 31,
+          "pass": 31,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "562282c3ddb3680915e862cc3527c5a0bc1ac17184ceee4aced80354e06e5906",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-budget-raise-cited.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-budget-raise-cited.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "cd605fdd4d12d443b885b763cea162b61efdf82089186db349d921135aac8901",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-done-when.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-done-when.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 22,
+          "pass": 22,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "43cc15b845f98bc842bf6145b4f1cd6d542d51e11ac47007f61250fc18d29bd0",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-guard-specificity-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-guard-specificity-in-diff.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 28,
+          "pass": 28,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "3eaee8ba8df72ee771c42227552625daf911eb7be7232daababb1c5b3512469f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-issues-filed.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-issues-filed.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "5dce0c95bad72c97a830f99bd828d91b309050a9c047b5cace917eaf081f3e84",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-no-submodule-mutation.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-no-submodule-mutation.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 15,
+          "pass": 15,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "e6ba0a4701e0869f85cdf613a4693f735e95910b76b308bac2ebd80e5f2fe302",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-packaging-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-packaging-in-diff.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 22,
+          "pass": 22,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "eabc35fd51524eabce211bdac1e3abcbe8b8cdfc447f5e6df99262b000fb6aaf",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/assert-test-in-diff.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/assert-test-in-diff.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 48,
+          "pass": 48,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "b5cad5a47076a6b9e57b29e4c54234504961939f141ad31209fc986b230b6515",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/backward-chain.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/backward-chain.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 77,
+          "pass": 77,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "1059123e4b8abd755d8ace547ea89124de2705b04e472b07a48cc6eda89376d5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/doc-semantics.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/doc-semantics.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "1c36e9033e118bec4003ee2c4643f5c6a1806f47d5a1835cbe0ec501309e715e",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/gate-pin-status.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/gate-pin-status.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 14,
+          "pass": 14,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "230dfee19db0357d0d79c728175a526c9f55923ee5e1618fa23f5e658e576133",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/land-decision.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/land-decision.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 41,
+          "pass": 41,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "c7b5d11d8c78a93a5be3bf97410c4420d77cb91fa62d099de8b4b6735c6240e6",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/prompt-surface-budgets.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/prompt-surface-budgets.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 19,
+          "pass": 19,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "caefce45ec2ef8f954111d0c60310680453dfe344b58ef6b9a3f3a9c1a2df393",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/provision-worktrees.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/provision-worktrees.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 459,
+          "pass": 459,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "b60420a0c7aac1296c2e0c5f6dd68793246820a1e485c34024845824a8055dbe",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/reference-link-integrity.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/reference-link-integrity.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "93c6ab99449363fc59c453129eaafa14d0a4976fd98a6933435c75d1d60945b2",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/refinery-surface.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/refinery-surface.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "78e18405dc1cc2f79e2fc67e0271fadc30baec9e2ac2925a24d400916a2a7345",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/scout-manifest-surface.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/assets/scout-manifest-surface.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "53495d5b95d766aae3eb2f53ded31c00fdfe0e79710509bcf60f00715ae89b52",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/skill-doc-contracts.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/skill-doc-contracts.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 68,
+          "pass": 68,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "88ab4be2770b5558c9005c58611428430d27287447ab1a46cd94d903400d45b7",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/stage-workflow.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/stage-workflow.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 35,
+          "pass": 35,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "6be3c5b4d7fc2742d39905d2f6636557f8edea0fd025cf516e4172a9ab991c37",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/version-slots.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/version-slots.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "f7f88235d218ff15c1b8fd2e9c1710d3dc4168d6e6a791b7738312ff96d53243",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/war-config.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/war-config.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 202,
+          "pass": 202,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "2fa6ce91633a02d8d9824cdc177ae0c592f7b492d8eb9b737943f4b5d5dc9c55",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/assets/workflow-template.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "skills/war/assets/workflow-template.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 1253,
+          "pass": 1253,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "7cb87d636526af80679da4034a3232cea78f66cbfbf7f7f23926b3f2c812b407",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "skills/war/references/schemas-manifest.test.sh",
+        "command": [
+          "/bin/bash",
+          "skills/war/references/schemas-manifest.test.sh"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "16e354536f383b965563625e42856bac8d7291edcb83ccb7a2d2c28c017b3d49",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "tests/parity/git-fixture.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "tests/parity/git-fixture.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "1f3bdb4a3ef4a64a817a19816a923e36dc822de21a3fea4fdca7d15e421eb983",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      },
+      {
+        "path": "tests/parity/oracle.test.mjs",
+        "command": [
+          "/Users/ljf/.nvm/versions/node/v24.17.0/bin/node",
+          "--test",
+          "--test-reporter=tap",
+          "tests/parity/oracle.test.mjs"
+        ],
+        "status": "passed",
+        "counts": {
+          "tests": 17,
+          "pass": 17,
+          "fail": 0,
+          "skipped": 0,
+          "cancelled": 0,
+          "todo": 0
+        },
+        "stdoutSha256": "970dd27aec93da4eb5947780683ed72a4db1be6afb8ae12ba1a1ac1564db8e80",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "skips": []
+      }
+    ]
+  },
+  "finalAudit": {
+    "command": "node /private/tmp/war-sync-02115-20260916/snipe-candidate-4/skills/snipe/assets/snipe-runner.mjs --request /private/tmp/war-sync-02115-20260916/panel-4-request.json",
+    "temporaryRequestRemoved": true,
+    "requestedArgs": "4 correctness,simplicity,auto",
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "actualBackendIdentityIndependentlyVerified": false,
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/private/tmp/war-sync-02115-20260916/repo",
+      "description": "merge-base 287405fc56ee54c3a46f94f0449a83c30008a8bf...d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+      "comparison": "merge-base",
+      "baseSha": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+      "headSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+      "paths": [],
+      "submodules": []
+    },
+    "complete": false,
+    "coverage": {
+      "complete": true,
+      "unavailablePaths": []
+    },
+    "stability": {
+      "stable": true,
+      "before": null,
+      "after": null
+    },
+    "seats": [
+      {
+        "seat": 1,
+        "lens": "correctness",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 1,
+          "lens": "correctness",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [
+            {
+              "severity": "Minor",
+              "title": "Indented approved skip rows remain unrecognizable",
+              "file": "scripts/ci/collect.mjs",
+              "line": 66,
+              "rationale": "Skip detection explicitly accepts leading whitespace, and the repaired pass/failure classifiers now do likewise, but the subsequent skip-name extraction still requires `ok` in column zero. Thus an otherwise approved line such as `  ok 1 - <approved name> # SKIP` is recorded with a null reason and makes collection fail. The final gate repeats the column-zero extraction in scripts/ci/check-war-ci.mjs, so even a correctly collected indented skip would be rejected there. This is a false-negative edge case in the same row-indentation invariant addressed by the final repair; existing tests cover indented pass and failure rows but not indented approved skips.",
+              "suggested_fix": "Allow leading whitespace in both skip-name extraction expressions and add an approved indented-skip case spanning collection and final-gate validation.",
+              "disposition": "absorb"
+            }
+          ],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "scripts/ci/collect.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 2,
+        "lens": "simplicity",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 2,
+          "lens": "simplicity",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "scripts/ci/collect.test.mjs",
+              "tests/parity/oracle.test.mjs",
+              "adapters/codex/planning-verifier.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 3,
+        "lens": "cascading-impact",
+        "status": "completed",
+        "exitCode": 0,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "validation": {
+          "status": "valid",
+          "error": null
+        },
+        "verdict": {
+          "schema_version": 1,
+          "seat": 3,
+          "lens": "cascading-impact",
+          "scope": {
+            "kind": "committed",
+            "audit_sha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e"
+          },
+          "verdict": "approve",
+          "confidence": "high",
+          "findings": [
+            {
+              "severity": "Minor",
+              "title": "Shell skip accounting disagrees between collector and final gate",
+              "file": "scripts/ci/collect.mjs",
+              "locator": "collect() shell-result parsing and checkWarCI() skip validation",
+              "line": 64,
+              "rationale": "The collector recognizes shell TAP skip rows with optional leading whitespace, but its downstream consumers do not preserve that contract. The skip-name extraction still uses `^ok`, and `scripts/ci/check-war-ci.mjs` repeats the same column-zero-only extraction, so an indented otherwise-approved skip is recorded with no policy reason and rejected. Separately, the shell `passed` matcher counts every `ok ... # SKIP` row as a pass while also incrementing `skipped`; this can let `collect()` report `ok: true` with counts such as tests=1, pass=1, skipped=1, which the final gate then rejects because it requires tests=pass+skipped. Thus the collector CLI and the gate can give contradictory outcomes for the same approved shell skip, and the new indentation repair did not reach these mirrored readers. The inspected tests cover approved Node skips and unapproved shell skips, but no approved shell skip is passed from collector output through the gate.",
+              "suggested_fix": "Parse shell TAP rows once with the same optional-indentation rule, extract the normalized test name from that parse, and exclude `# SKIP` rows from the pass count. Apply the same indentation-tolerant name extraction in `checkWarCI`, then add an end-to-end approved shell-skip fixture, including an indented row, whose collector report is accepted by the gate with tests=1, pass=0, skipped=1.",
+              "disposition": "absorb"
+            }
+          ],
+          "tests_verified": {
+            "exist": true,
+            "inspected": [
+              "scripts/ci/collect.test.mjs",
+              "scripts/ci/check-war-ci.test.mjs"
+            ]
+          }
+        }
+      },
+      {
+        "seat": 4,
+        "lens": "test-fidelity",
+        "status": "failed",
+        "exitCode": 1,
+        "signal": null,
+        "truncated": false,
+        "cleanupError": null,
+        "validation": {
+          "status": "unavailable",
+          "error": "transport status: failed"
+        },
+        "verdict": null
+      }
+    ],
+    "rawSha256": "d28d194406ec4e47d3f00048c8094e14a8cd62c10c07b9f8a4431853d1a8bed3",
+    "rawPath": "/private/tmp/war-sync-02115-20260916/evidence/panel-4.json",
+    "report": "snipe/2026-09-16-codex-master-sync-reserve.md"
+  },
+  "finalPackages": {
+    "snipe": {
+      "sourceSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+      "path": "/private/tmp/war-sync-02115-20260916/snipe-candidate-4",
+      "manifest": {
+        "name": "work-audit-refine-snipe",
+        "version": "0.21.15",
+        "description": "Run an explicit, one-shot, read-only WAR-style audit through independent Codex lenses.",
+        "author": {
+          "name": "Ljferrer",
+          "url": "https://github.com/Ljferrer"
+        },
+        "homepage": "https://github.com/Ljferrer/WorkAuditRefine",
+        "repository": "https://github.com/Ljferrer/WorkAuditRefine",
+        "license": "MIT",
+        "keywords": [
+          "code-review",
+          "audit",
+          "read-only",
+          "snipe"
+        ],
+        "skills": "./skills/",
+        "interface": {
+          "displayName": "WAR Snipe",
+          "shortDescription": "Run independent read-only code audits",
+          "longDescription": "Audit one pinned diff through one to five independent Codex lenses and return an informational report without changing code or external systems.",
+          "developerName": "Ljferrer",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Interactive",
+            "Read"
+          ],
+          "websiteURL": "https://github.com/Ljferrer/WorkAuditRefine",
+          "defaultPrompt": "Run $work-audit-refine-snipe:snipe to audit the current diff through independent read-only lenses."
+        }
+      },
+      "files": {
+        ".codex-plugin/plugin.json": "89adb348f71076bf62792820bee93f56544c954e7ce57ddf6d4264a16e08ac0e",
+        "skills/snipe/SKILL.md": "5ff62c9dd202ea3d9a1a3242778d5d12ab0da606f68135fe09886caf9d03b66e",
+        "skills/snipe/agents/openai.yaml": "452001ce598f9446650250df812bed7ec0159e6acce29260a1e96a89f5ad27a3",
+        "skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "skills/snipe/assets/shared/skills/_shared/provision.mjs": "ef0fa3ec95026e419923fae8689152f0260e0bffa952d54dc9715e326111b27b",
+        "skills/snipe/assets/shared/skills/snipe/assets/snipe-args.mjs": "201e0c2257ade242e908d044d8ffe147e8d95f7346788406d56cc9f0cf2f56e7",
+        "skills/snipe/assets/shared/skills/war/assets/war-config.mjs": "7ca90e42e01444a196ccf868613d7ae6297227c81a2af9a2678f54be6c6b9dfa",
+        "skills/snipe/assets/snipe-files.mjs": "ed1c7d7fcb3130807f917baf259161e0555bf3a71267a829b4d3501f73dd0414",
+        "skills/snipe/assets/snipe-git-policy.mjs": "4382d2984eee803b8690c25321ff8163eb8eb7ce1cd2831dbdfaa067593fcfec",
+        "skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "skills/snipe/assets/snipe-request.mjs": "4b0d132f4bd61c24b5f32e36203cb004b6d7a1b9f575f440c58841813ece1f59",
+        "skills/snipe/assets/snipe-result.mjs": "ff0b85c329b937de6673be0eb19e997985a3da896d28caa835edc0c38cda4e8e",
+        "skills/snipe/assets/snipe-runner.mjs": "7123400882d7a7f2695ea325683f8e10b5f2fa8370fe172e6b097af2ac496649",
+        "skills/snipe/assets/snipe-submodules.mjs": "70fd8efa34ee2a6a999e7fade1f94ea99227f07f592d4de132d495ab5759c686",
+        "skills/snipe/references/auditing-fixes.md": "d32a078ae9dcfa50e22a8c7d24d2a38250e1110e39ff15edc84da165bb3cec8b",
+        "skills/snipe/references/codex-auditor.md": "74a0380b2a9b4b7facf0d60da54c95dba427c7c9126296c0d48abc7df28b9a93",
+        "skills/snipe/references/post-audit-fixes.md": "2379a393b31702d49273a28be7c44eec6863b49eb05bfce9538de664814f3b00",
+        "skills/snipe/references/submodules.md": "076685833bca666d73adf3733c9d48fb467ed7c661c3848db6eed5359fc70bb1"
+      },
+      "digestAlgorithm": "SHA256 of canonical sorted compact JSON path-to-SHA256 map",
+      "digest": "8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e"
+    },
+    "planning": {
+      "sourceSha": "d2f4a3324075f53e7db47d8ebf7eb66af837b51e",
+      "path": "/private/tmp/war-sync-02115-20260916/planning-candidate-4",
+      "manifest": {
+        "name": "work-audit-refine-planning",
+        "version": "0.21.15",
+        "description": "Author WAR plans from an interview or existing draft; does not execute plans.",
+        "author": {
+          "name": "Ljferrer"
+        },
+        "license": "MIT",
+        "skills": "./skills/",
+        "interface": {
+          "displayName": "WAR Planning",
+          "shortDescription": "Author and convert WAR plans",
+          "longDescription": "Interview and convert drafts into WAR plans without executing them.",
+          "developerName": "Ljferrer",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Interactive",
+            "Read",
+            "Write"
+          ],
+          "defaultPrompt": [
+            "Use $work-audit-refine-planning:war-strategy to plan a change."
+          ]
+        }
+      },
+      "files": {
+        ".codex-plugin/plugin.json": "3b104019fc0538ac1d63d659b4f3741b06aec559eaa05000e981202402359f05",
+        "shared/docs/adr/0025-drift-guard-discipline.md": "977adebfe3210cf4e3111b653cc457155ebd4689ba8803c3da56b6f15236379e",
+        "shared/skills/snipe/assets/codex-models.mjs": "35eb1583267c200bac9fafe0d3c1b76b4094f456666e16a677c7f4867a56f034",
+        "shared/skills/snipe/assets/snipe-process.mjs": "8359977970c92662699ab58c0f7f2823a60a5ce675d22865f11b8d0bd91bac28",
+        "shared/skills/war/references/backward-chain-examples.md": "f35261aaceab162814618c4986de2311e65558dc9288915b37fd32cb2636f9ff",
+        "shared/skills/war/references/backward-chain-fix.md": "f85ccd33e77923f0f0b4d208dc1ef1fcbe11747640d60e1f8556eb2ee84de6c6",
+        "shared/skills/war/references/fix-round-doctrine.md": "0f8a829f12715b835252b0e632a8cfc600371999da0b9ecda441b1af44d9ca69",
+        "shared/skills/war-strategy/SKILL.md": "fd647facb39336cdf93350d2d0d312ad95f5e6145f7a1ac684777ec0304da4b3",
+        "shared/skills/war-strategy/assets/plan-literal-lint.mjs": "c3a9621f7af9268742cf1a4845db74fb38eb2019d4aad0c790df1f7cc926acad",
+        "shared/skills/war-strategy/assets/strategy-verifier.mjs": "b53be69c10545d3e1cc0fe60a9af915fd23379c35fb729d091fdd69ac5d124f0",
+        "shared/skills/war-strategy/references/backward-chain-plan.md": "7e11062680cf721e3f1c691e435ce506b0593e8b08fa2ba7914b48d3e1e92416",
+        "shared/skills/war-strategy/references/host.md": "dfb885d60f51c2f1490912bfdf0d3a5d0a74040bf66c3310bf97fb4cf010b269",
+        "shared/skills/war-strategy/references/plan-interview.md": "78935cf7ee6ff9fcec79234d6109fcb7351151802aa75f0d4549819dab9e51fb",
+        "shared/skills/war-strategy/references/strategy-verifier.md": "4caa532bbdf4a49ebbb38a47f12bf1afd60d3e200a99740b63c9979aa58ba3dc",
+        "skills/war-help/SKILL.md": "f582192655cc363e85a4f9036a1279af46ab29343d88d0b35a1a75596e2c300f",
+        "skills/war-help/agents/openai.yaml": "60efb40280702a189fa67a6999b422dbdc94c254df2dde3f8dcb04b7163826d5",
+        "skills/war-strategy/SKILL.md": "5cc89725dd70fa8376acce65a502135fbdd7dcdf5c05315551b81b3d56b4d344",
+        "skills/war-strategy/agents/openai.yaml": "b198fa73d3411c20b0f5d39c7498ac7cf013c9315d56b74055b93f3eb68fa9a9"
+      },
+      "digestAlgorithm": "SHA256 of canonical sorted compact JSON path-to-SHA256 map",
+      "digest": "a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2"
+    }
+  },
+  "historicalCandidates": [
+    {
+      "candidate": 1,
+      "sourceSha": "75364c3e7a98ec81870d8fca120b2c8c2201810c",
+      "baseline": {
+        "ok": true,
+        "stability": "unchanged",
+        "suiteCount": 71,
+        "counts": {
+          "tests": 4047,
+          "pass": 4042,
+          "fail": 0,
+          "skipped": 5
+        },
+        "reportSha256": "8491b6c2fc64e30987c57195074cb945601f148b9bc7cc0a0610d7943a5cb9ff",
+        "reportPath": "/private/tmp/war-sync-02115-20260916/evidence/baseline-candidate-1/report.json"
+      },
+      "audit": {
+        "complete": true,
+        "stability": {
+          "stable": true,
+          "before": null,
+          "after": null
+        },
+        "coverage": {
+          "complete": true,
+          "unavailablePaths": []
+        },
+        "profile": {
+          "model": "gpt-5.6-sol",
+          "effort": "medium"
+        },
+        "baseSha": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+        "headSha": "75364c3e7a98ec81870d8fca120b2c8c2201810c",
+        "seats": [
+          {
+            "seat": 1,
+            "lens": "correctness",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": []
+          },
+          {
+            "seat": 2,
+            "lens": "simplicity",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Minor",
+                "title": "Unreachable repair state remains in the seat result model",
+                "file": "adapters/codex/skills/snipe/assets/snipe-runner.mjs",
+                "locator": "runValidatedSeat",
+                "rationale": "Every return path sets repair.attempted to false, consistent with the auditor contract forbidding automatic follow-up. Nevertheless, renderSnipeReport contains branches for successful and failed repairs, and snipe-result.test.mjs constructs attempted:true states that production cannot produce. This preserves obsolete state, report behavior, and test fixtures without supporting any reachable contract.",
+                "suggested_fix": "Remove the repair property from runValidatedSeat results, delete the repair-status rendering branch, and simplify the associated tests to establish single-attempt behavior through invocation counts and validation status.",
+                "disposition": "absorb"
+              }
+            ]
+          },
+          {
+            "seat": 3,
+            "lens": "cascading-impact",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "request_changes",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Major",
+                "title": "Snipe package verification ignores manifest capability drift",
+                "file": "adapters/codex/package-snipe.mjs",
+                "locator": "verifySnipePlugin manifest validation",
+                "line": 72,
+                "rationale": "The Snipe producer declares a read-only manifest with a fixed interface, but its downstream verifier checks only `skills` and the absence of `hooks`. It therefore accepts a package whose manifest adds `mcpServers` or `apps`, changes the advertised capabilities to include writes, corrupts invocation metadata, or carries an invalid version, while returning the package as verified. This breaks the verifier\u2019s role as the post-build and reusable package boundary documented in scripts/ci/package-inventory-policy.md. The sibling planning verifier closes the same class by comparing the entire parsed manifest with `manifest(config.version)`, and package-planning.test.mjs exercises added capabilities, changed interface capabilities, and invalid versions; package-snipe.test.mjs has no corresponding negative cases. Downstream validation can consequently bless a Snipe package with surfaces that contradict its read-only contract.",
+                "suggested_fix": "Validate the complete Snipe manifest against `manifest(config.version)` (including a valid version) rather than checking selected fields, and add package-snipe negative cases for MCP/app surfaces, altered capabilities or invocation metadata, unknown keys, and invalid versions."
+              }
+            ]
+          },
+          {
+            "seat": 4,
+            "lens": "test-fidelity",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "request_changes",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Major",
+                "title": "Snipe package tests permit privileged manifest drift",
+                "file": "adapters/codex/package-snipe.mjs",
+                "locator": "verifySnipePlugin",
+                "rationale": "The Snipe package presents read-only capability as a core contract, but verifySnipePlugin validates only the skills path, absence of hooks, and file inventory. It does not compare the manifest with manifest(version), validate the version, or reject additional executable surfaces. The package test likewise checks only skills, hooks, prompts, and inventory. Consequently, changing the generated manifest to advertise Write capability or adding mcpServers/apps can leave the complete deterministic suite green and still be accepted by verifySnipePlugin. This is a discriminating-test failure around the package's authority boundary; the sibling planning verifier already demonstrates the stronger exact-manifest pattern.",
+                "suggested_fix": "Validate the complete Snipe manifest against the canonical manifest generated from a validated version, rejecting unknown fields and altered capabilities. Add negative package tests that mutate capabilities and add mcpServers, apps, or other action-bearing fields and require verification to fail."
+              }
+            ]
+          }
+        ],
+        "rawSha256": "8399a9aa3ffa3bcf339adfd2dd395be71ce9487793279bf472fb65e7b902e63c",
+        "report": "snipe/2026-09-16-codex-master-sync-panel-1.md"
+      },
+      "packages": {
+        "snipe": {
+          "version": "0.21.15",
+          "digest": "d5f6dfe26a6eda8bf2f486f39dd6d28ecc0bc1021e4efe6c8c084a9c6998143a",
+          "fileCount": 18
+        },
+        "planning": {
+          "version": "0.21.15",
+          "digest": "a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2",
+          "fileCount": 18
+        }
+      }
+    },
+    {
+      "candidate": 2,
+      "sourceSha": "2ba894a8d6af024868e42ba94d4c358bbc4e6489",
+      "baseline": {
+        "ok": true,
+        "stability": "unchanged",
+        "suiteCount": 71,
+        "counts": {
+          "tests": 4050,
+          "pass": 4045,
+          "fail": 0,
+          "skipped": 5
+        },
+        "reportSha256": "f598fe9f2fdeb8a016f06a683e65aa1dc54913452d4f9cc99834f7db8a5bb6f8",
+        "reportPath": "/private/tmp/war-sync-02115-20260916/evidence/baseline-candidate-2/report.json"
+      },
+      "audit": {
+        "complete": true,
+        "stability": {
+          "stable": true,
+          "before": null,
+          "after": null
+        },
+        "coverage": {
+          "complete": true,
+          "unavailablePaths": []
+        },
+        "profile": {
+          "model": "gpt-5.6-sol",
+          "effort": "medium"
+        },
+        "baseSha": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+        "headSha": "2ba894a8d6af024868e42ba94d4c358bbc4e6489",
+        "seats": [
+          {
+            "seat": 1,
+            "lens": "correctness",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Minor",
+                "title": "Package version validation accepts malformed semantic versions",
+                "file": "adapters/codex/package-source.mjs",
+                "locator": "assertPackageVersion",
+                "line": 6,
+                "rationale": "The shared validator permits dots anywhere in prerelease and build suffixes, so malformed values such as `1.2.3-..`, `1.2.3-a.`, and `1.2.3+x..y` pass. It also accepts numeric prerelease identifiers with leading zeroes such as `1.2.3-01`. Both package builders and verifiers therefore accept version strings outside the semantic-version contract their validation claims to enforce. The new tests cover malformed core versions but omit these suffix boundaries, allowing this defect to survive.",
+                "suggested_fix": "Validate dot-separated prerelease and build identifiers individually, including nonempty identifiers and the prerelease numeric-leading-zero rule, and add these malformed suffix cases to both builder and verifier tests.",
+                "disposition": "absorb"
+              }
+            ]
+          },
+          {
+            "seat": 2,
+            "lens": "simplicity",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": []
+          },
+          {
+            "seat": 3,
+            "lens": "cascading-impact",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Nit",
+                "title": "Actual-host diagnostic still projects the removed repair state",
+                "file": "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+                "line": 103,
+                "rationale": "The repair commit removes `seat.repair` from every `runValidatedSeat` result and removes its report/test consumers, but the incomplete-result diagnostic in `snipe-actual-host.test.mjs` still maps `repair: seat.repair`. JSON serialization silently omits the now-undefined field, so this does not affect runtime behavior, but it is a stale downstream mirror and contradicts the ledger's statement that no other consumers remained.",
+                "suggested_fix": "Remove `repair: seat.repair` from the diagnostic projection.",
+                "disposition": "absorb"
+              }
+            ]
+          },
+          {
+            "seat": 4,
+            "lens": "test-fidelity",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Minor",
+                "title": "Dead repair-state removal has no regression oracle",
+                "file": "adapters/codex/skills/snipe/assets/snipe-runner.test.mjs",
+                "locator": "a seat reporting absent tests completes without a repair that invents evidence; malformed judgment is preserved without launching a replacement review",
+                "rationale": "The repair removes the unreachable `repair` property from every `runValidatedSeat` result and removes its report rendering, but the corresponding tests only delete their former assertions and fixtures. The success, transport-failure, and invalid-result tests never assert that the property is absent, and the report test never rejects repair-status output. Reintroducing `{ attempted: false, succeeded: false }` on every production return path would therefore leave the changed suite green, so the test evidence cannot fail for the cleanup regression that the ledger declares closed.",
+                "suggested_fix": "Assert that representative completed, failed, and invalid seat results do not own a `repair` property, and assert that rendered reports contain no repair-status clause.",
+                "disposition": "absorb"
+              }
+            ]
+          }
+        ],
+        "rawSha256": "cf06c5c022e8b2f63aa33d1d53fdc7df0108f89951792ddf432be1fad82a5946",
+        "report": "snipe/2026-09-16-codex-master-sync-panel-2.md"
+      },
+      "packages": {
+        "snipe": {
+          "version": "0.21.15",
+          "digest": "8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e",
+          "fileCount": 18
+        },
+        "planning": {
+          "version": "0.21.15",
+          "digest": "a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2",
+          "fileCount": 18
+        }
+      }
+    },
+    {
+      "candidate": 3,
+      "sourceSha": "1eac9ac857a737fb5a095ed78c360c2529026fbd",
+      "baseline": {
+        "ok": true,
+        "stability": "unchanged",
+        "suiteCount": 71,
+        "counts": {
+          "tests": 4050,
+          "pass": 4045,
+          "fail": 0,
+          "skipped": 5
+        },
+        "reportSha256": "62d165e44d24f11d7857d07a3d2df03286ac6d814ec0adac65623869e1856094",
+        "reportPath": "/private/tmp/war-sync-02115-20260916/evidence/baseline-candidate-3/report.json"
+      },
+      "audit": {
+        "complete": true,
+        "stability": {
+          "stable": true,
+          "before": null,
+          "after": null
+        },
+        "coverage": {
+          "complete": true,
+          "unavailablePaths": []
+        },
+        "profile": {
+          "model": "gpt-5.6-sol",
+          "effort": "medium"
+        },
+        "baseSha": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+        "headSha": "1eac9ac857a737fb5a095ed78c360c2529026fbd",
+        "seats": [
+          {
+            "seat": 1,
+            "lens": "correctness",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": []
+          },
+          {
+            "seat": 2,
+            "lens": "simplicity",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": []
+          },
+          {
+            "seat": 3,
+            "lens": "cascading-impact",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": []
+          },
+          {
+            "seat": 4,
+            "lens": "test-fidelity",
+            "status": "completed",
+            "validation": {
+              "status": "valid",
+              "error": null
+            },
+            "verdict": "approve",
+            "confidence": "high",
+            "findings": [
+              {
+                "severity": "Minor",
+                "title": "Indented shell failure rows can produce a false-green baseline",
+                "file": "scripts/ci/collect.mjs",
+                "locator": "shell failure-row parsing",
+                "plan_ref": "T1 baseline collector anti-false-green acceptance",
+                "line": 71,
+                "rationale": "The collector recognizes skips with optional leading whitespace, but counts failures only when `not ok` or `FAIL` begins in column zero. A zero-exit shell suite can therefore emit a passing row plus an indented TAP failure row and still be classified as passed. The regression test exercises only unindented failure rows, so this defect survives the intended swallowed-exit oracle.",
+                "suggested_fix": "Allow leading whitespace when recognizing shell pass/failure rows and add zero-exit fixtures containing indented `not ok` and `FAIL` rows on both stdout and stderr.",
+                "disposition": "absorb"
+              }
+            ]
+          }
+        ],
+        "rawSha256": "fedb9c3a15a5a36ddf9b1daed90a0ec704a06f5d895ebcf0d4af1722b677fe16",
+        "report": "snipe/2026-09-16-codex-master-sync-panel-3.md"
+      },
+      "packages": {
+        "snipe": {
+          "version": "0.21.15",
+          "digest": "8b52225c6c5f573b8dbc6e2975202d6679c3b77ab4addc462d67569a3315864e",
+          "fileCount": 18
+        },
+        "planning": {
+          "version": "0.21.15",
+          "digest": "a0a356a003f99bf73bcfdf485fffd84e13da4b64a12dc8ff17bf9d1ac14383d2",
+          "fileCount": 18
+        }
+      }
+    }
+  ],
+  "mergeReview": {
+    "commonBase": "668e4ff990f1c689fcf9710768c3d73c2601920c",
+    "portBase": "43054e8beb484a261846121e99be328f2992c40a",
+    "masterBase": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+    "mergeSha": "3dc9ff8464836f9e56ea7c373baad5f124ea95e2",
+    "upstreamChangedPaths": [
+      ".claude-plugin/marketplace.json",
+      ".claude-plugin/plugin.json",
+      "CHANGELOG.md",
+      "CONTEXT.md",
+      "README.md",
+      "agents/war-auditor.md",
+      "agents/war-worker.md",
+      "docs/adr/0037-run-scoped-staged-phase-scripts.md",
+      "docs/adr/0052-backward-chain-doctrine-and-corrective-round-disclosure.md",
+      "docs/learnings/adjudication-row-count-word-drifts-from-the-record-it-summarizes.md",
+      "docs/learnings/bare-interpolation-census-generic-parameter-name-erodes-default-deny-guard.md",
+      "docs/learnings/budget-hotfix-crossing-prompt-literal-hard-line-forward-reverts-unrelated-ace-commit.md",
+      "docs/learnings/full-dag-relaunch-of-already-merged-task-content-escalates-empty-unmatched.md",
+      "docs/learnings/in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round.md",
+      "docs/learnings/mirrored-rules-block-embeds-a-trigger-literal-example-into-every-prompt-not-just-gated-ones.md",
+      "docs/learnings/plugin-cache-template-can-lag-a-branch-hotfix-mid-self-hosting-run.md",
+      "docs/learnings/refiner-verification-prompt-must-name-the-exact-ref-not-the-origin.md",
+      "docs/plans/2026-09-11-backward-chain-doctrine.md",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-1.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-1.md",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-2-mutations.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-2.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-2.md",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-3-mutations.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-3.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-3.md",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-4-mutations.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-4.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/cycle-4.md",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/ledger.md",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/mutations.json",
+      "docs/port/snipe/2026-09-11-workflow-compatibility/validation.json",
+      "docs/red-team/2026-09-11-backward-chain-doctrine.md",
+      "skills/_shared/doc-cli-consistency.test.mjs",
+      "skills/war-machine/SKILL.md",
+      "skills/war-review/SKILL.md",
+      "skills/war-strategy/references/backward-chain-plan.md",
+      "skills/war-strategy/references/plan-interview.md",
+      "skills/war/SKILL.md",
+      "skills/war/assets/assert-args-complete.mjs",
+      "skills/war/assets/backward-chain.test.mjs",
+      "skills/war/assets/new-run-id.mjs",
+      "skills/war/assets/prompt-surface-budgets.test.mjs",
+      "skills/war/assets/skill-doc-contracts.test.mjs",
+      "skills/war/assets/workflow-template.js",
+      "skills/war/assets/workflow-template.test.mjs",
+      "skills/war/references/backward-chain-audit.md",
+      "skills/war/references/backward-chain-examples.md",
+      "skills/war/references/backward-chain-fix.md",
+      "skills/war/references/backward-chain-worker.md",
+      "skills/war/references/launch-identity.md",
+      "skills/war/references/resume-and-recovery.md",
+      "skills/war/references/run-manifest.md",
+      "skills/war/references/schemas.md",
+      "skills/war/references/staged-script.md"
+    ],
+    "sharedChangedPaths": [
+      "CONTEXT.md",
+      "skills/_shared/doc-cli-consistency.test.mjs",
+      "skills/war-review/SKILL.md",
+      "skills/war-strategy/references/plan-interview.md"
+    ],
+    "upstreamOnlyFilesBytePreserved": true,
+    "bothInputsAreAncestors": true,
+    "review": "Shared intersections retain upstream backwards-chain triggers and reporting plus existing host split, Snipe vocabulary and question-count contracts. No conflict resolution was necessary."
+  },
+  "mutationEvidence": {
+    "planningReferenceOmissions": [
+      {
+        "omitted": "backward-chain-plan.md",
+        "exitCode": 1,
+        "killedByRequiredResourceAssertion": true,
+        "log": "mutation-omit-backward-chain-plan.md.log"
+      },
+      {
+        "omitted": "backward-chain-fix.md",
+        "exitCode": 1,
+        "killedByRequiredResourceAssertion": true,
+        "log": "mutation-omit-backward-chain-fix.md.log"
+      },
+      {
+        "omitted": "backward-chain-examples.md",
+        "exitCode": 1,
+        "killedByRequiredResourceAssertion": true,
+        "log": "mutation-omit-backward-chain-examples.md.log"
+      },
+      {
+        "omitted": "fix-round-doctrine.md",
+        "exitCode": 1,
+        "killedByRequiredResourceAssertion": true,
+        "log": "mutation-omit-fix-round-doctrine.md.log"
+      }
+    ],
+    "manifestBoundary": [
+      {
+        "name": "snipe-manifest-guard",
+        "source": "adapters/codex/package-snipe.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-snipe-manifest-guard.log"
+      },
+      {
+        "name": "shared-version-guard",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-shared-version-guard.log"
+      },
+      {
+        "name": "snipe-generated-mcp",
+        "source": "adapters/codex/package-snipe.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-snipe-generated-mcp.log"
+      },
+      {
+        "name": "planning-generated-mcp",
+        "source": "adapters/codex/package-planning.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-planning-generated-mcp.log"
+      },
+      {
+        "name": "snipe-generated-write",
+        "source": "adapters/codex/package-snipe.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-snipe-generated-write.log"
+      }
+    ],
+    "versionAndStateBoundaries": [
+      {
+        "name": "prerelease-identifiers",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-prerelease-identifiers-final.log"
+      },
+      {
+        "name": "build-identifiers",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-build-identifiers-final.log"
+      },
+      {
+        "name": "numeric-prerelease",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-numeric-prerelease-final.log"
+      },
+      {
+        "name": "version-type",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-version-type-final.log"
+      },
+      {
+        "name": "valid-seat-repair-state",
+        "source": "adapters/codex/skills/snipe/assets/snipe-runner.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-valid-seat-repair-state-final.log"
+      },
+      {
+        "name": "unavailable-seat-repair-state",
+        "source": "adapters/codex/skills/snipe/assets/snipe-runner.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-unavailable-seat-repair-state-final.log"
+      },
+      {
+        "name": "invalid-seat-repair-state",
+        "source": "adapters/codex/skills/snipe/assets/snipe-runner.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-invalid-seat-repair-state-final.log"
+      },
+      {
+        "name": "report-repair-state",
+        "source": "adapters/codex/skills/snipe/assets/snipe-result.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-report-repair-state-final.log"
+      }
+    ],
+    "discardedRedundantGuard": [
+      {
+        "name": "prerelease-identifiers",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-prerelease-identifiers.log"
+      },
+      {
+        "name": "build-identifiers",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-build-identifiers.log"
+      },
+      {
+        "name": "numeric-prerelease",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 1,
+        "assertionFailed": true,
+        "log": "mutation-numeric-prerelease.log"
+      },
+      {
+        "name": "whole-version",
+        "source": "adapters/codex/package-source.mjs",
+        "exitCode": 0,
+        "assertionFailed": false,
+        "log": "mutation-whole-version.log"
+      }
+    ],
+    "collectorIndentation": "Both new indentation mutations are permanently exercised by scripts/ci/collect.test.mjs; complete suite passed 25 tests in collector-indent-after.log."
+  },
+  "regressionArtifacts": [
+    {
+      "path": "planning-before.log",
+      "bytes": 1783,
+      "sha256": "b93227d605ad31022716ba3cc6d275c69539a695b7784b98d8dfc233576fbb02"
+    },
+    {
+      "path": "new-regressions-before.log",
+      "bytes": 16534,
+      "sha256": "6a4a8ddc580fa8ac436bf54af730dccc0b3a209ebea33f90ddf5182085108be9"
+    },
+    {
+      "path": "targeted-after.log",
+      "bytes": 5122,
+      "sha256": "5be1818c6d4deab9f3d5b11ac5639e64d0f0c07ac849abd810809dd4cb277594"
+    },
+    {
+      "path": "package-mutations.json",
+      "bytes": 687,
+      "sha256": "cc0f831865b9c0688e28cab07915391b018859af850a70f78576b54aba1f119a"
+    },
+    {
+      "path": "manifest-before.log",
+      "bytes": 2248,
+      "sha256": "fdb4212cdc4ffc7c606298ea17b5190a722397c346ad65f5da0eca2ef5f7bf5d"
+    },
+    {
+      "path": "manifest-after.log",
+      "bytes": 1659,
+      "sha256": "1f56ce82b0e9efe2d0f44ea9f60b6c5144638f97df23129d2d4ee7353cde2a93"
+    },
+    {
+      "path": "manifest-mutations.json",
+      "bytes": 961,
+      "sha256": "09387074a522d854af70f8fb8964a391fc01d5c85800332b7b6f652740235e19"
+    },
+    {
+      "path": "repair-status-cleanup.log",
+      "bytes": 1091,
+      "sha256": "5da3a0457dd55fc303d601d1d1929d9ebfde1a04b361cdcc98c5b82510e7049d"
+    },
+    {
+      "path": "semver-before.log",
+      "bytes": 2023,
+      "sha256": "75e65f85a5d87e8c006781d8789ba8ed7f3265af9e60d23ec646e36149fe4b7d"
+    },
+    {
+      "path": "round-2-targeted.log",
+      "bytes": 2673,
+      "sha256": "bcebf0d5dbaaa3383186f26982e90f583e2908d3c16701830a66a7cd6a80536d"
+    },
+    {
+      "path": "round-2-packages-final.log",
+      "bytes": 1658,
+      "sha256": "36da640072fa53acc36056a73e8ab0cbbc3917466f664627d91830f708ddd153"
+    },
+    {
+      "path": "round-2-cleanup-final.log",
+      "bytes": 323,
+      "sha256": "40b7f561f2939dd53ddb6b8745a4402277368412f3986da0f09c7006238975f9"
+    },
+    {
+      "path": "round-2-mutations-initial.json",
+      "bytes": 748,
+      "sha256": "fd969f6b96368f3a27ea303216411858e7768f8d95a69f6f16eb1870e6fc2a2a"
+    },
+    {
+      "path": "round-2-mutations.json",
+      "bytes": 1661,
+      "sha256": "d6aeff35ef758999e327d9c29058ba993bb3f3238208d5321130ac131c6e37f1"
+    },
+    {
+      "path": "collector-indent-before.log",
+      "bytes": 1847,
+      "sha256": "7ecb670bedaf93558a839796625663b626a3e175ab603575688275965f5bb49a"
+    },
+    {
+      "path": "collector-indent-after.log",
+      "bytes": 2466,
+      "sha256": "fefb2bf5438577c043b144b57db05885adc589bf67d7289dbb022851132c8651"
+    },
+    {
+      "path": "prior-indented-failure-scan.json",
+      "bytes": 162,
+      "sha256": "be0034a3b4d25f7a7863165ebd99bd6179133e859475381e601bdf1074cb78b6"
+    },
+    {
+      "path": "upstream-whitespace.txt",
+      "bytes": 2987,
+      "sha256": "762bd948b9c13f06479308cad15c2540b9eba4fa4c0adffea64c058c8d447aae"
+    },
+    {
+      "path": "mutation-build-identifiers-final.log",
+      "bytes": 1015,
+      "sha256": "7558fe4c0046bc71e17568c4b849cb5a9f922125943ddd08cdac04d89f0d134f"
+    },
+    {
+      "path": "mutation-build-identifiers.log",
+      "bytes": 1015,
+      "sha256": "309427924173bea4a3b8a751e4a36ed5224cb7d20f69fb7dc381b0b6b76cff55"
+    },
+    {
+      "path": "mutation-invalid-seat-repair-state-final.log",
+      "bytes": 1034,
+      "sha256": "fd33e8e7f7824710de62573a2f37c01adb33b2f8824c33a1ede00df2d62e1958"
+    },
+    {
+      "path": "mutation-numeric-prerelease-final.log",
+      "bytes": 1013,
+      "sha256": "793c555190ffafcc7e27c6bb4a70b7b9287fcf2dd40822e2ad4e07c7e983f992"
+    },
+    {
+      "path": "mutation-numeric-prerelease.log",
+      "bytes": 1013,
+      "sha256": "80311a57ce5fb8d94991fc5247d398b47aeeb8f5c1d96a9a95e8e95b0c0ad286"
+    },
+    {
+      "path": "mutation-omit-backward-chain-examples.md.log",
+      "bytes": 1058,
+      "sha256": "eb2933f9ca89c680cb3f39f63cad546a73c043e18956d297942d237ad68856e3"
+    },
+    {
+      "path": "mutation-omit-backward-chain-fix.md.log",
+      "bytes": 1054,
+      "sha256": "bb314d8a49787cfa327bb830ecf03e55e47180e1e69afd3df469b9b3b71553d6"
+    },
+    {
+      "path": "mutation-omit-backward-chain-plan.md.log",
+      "bytes": 1064,
+      "sha256": "fd3fa563394b3480013b032e6e9a5489156594cf3201c071809aa7154753852e"
+    },
+    {
+      "path": "mutation-omit-fix-round-doctrine.md.log",
+      "bytes": 1052,
+      "sha256": "29de13dbcb521567ca6c052ea9f8204ca8ebab5e039a6e94afc9cd46379b6a45"
+    },
+    {
+      "path": "mutation-planning-generated-mcp.log",
+      "bytes": 1325,
+      "sha256": "8613504e358e04ccf95edf35379c56befe6f4268af5f8bc8083b836d7ec098e8"
+    },
+    {
+      "path": "mutation-prerelease-identifiers-final.log",
+      "bytes": 1013,
+      "sha256": "c8ef0eacff744416c33bb85c67bff0f2f019e105ef1bf31bdef1ea10e3cb7033"
+    },
+    {
+      "path": "mutation-prerelease-identifiers.log",
+      "bytes": 1013,
+      "sha256": "1700d90937851913775c76d834a0f0b2a79298dcae71c050037878fb2c0e58ec"
+    },
+    {
+      "path": "mutation-report-repair-state-final.log",
+      "bytes": 6645,
+      "sha256": "67feee5119044be31c0297de0c34945287cd16cfce06feb1e6dfb99773abaa7d"
+    },
+    {
+      "path": "mutation-shared-version-guard.log",
+      "bytes": 2026,
+      "sha256": "4486e2cd0fbe70a766ccc3c65c10bfd9e93664d8c9c61e307aa41c6b6012e5c9"
+    },
+    {
+      "path": "mutation-snipe-generated-mcp.log",
+      "bytes": 1543,
+      "sha256": "55f2001794d8510f42f45905672ca2f8f2c9f92a60943ff9553470a5994d3d68"
+    },
+    {
+      "path": "mutation-snipe-generated-write.log",
+      "bytes": 1117,
+      "sha256": "01c2436316c3da323933389dd4b84497b90ecb01c68b308b7d8ec5bf1f9c781c"
+    },
+    {
+      "path": "mutation-snipe-manifest-guard.log",
+      "bytes": 999,
+      "sha256": "99d8dbacf2b21cfe7ddc8b4871ffd3087cbc312f4d6d596caec8d06df9a831b7"
+    },
+    {
+      "path": "mutation-unavailable-seat-repair-state-final.log",
+      "bytes": 1034,
+      "sha256": "211d56e6daf55aaeabf650ce88fe86396dbc5006b29bfb56ac17bfcc405dc4fd"
+    },
+    {
+      "path": "mutation-valid-seat-repair-state-final.log",
+      "bytes": 943,
+      "sha256": "b912fabced49adb8f7823fe17b26d72c726bb4abdf2973844ea762e97905833f"
+    },
+    {
+      "path": "mutation-version-type-final.log",
+      "bytes": 1010,
+      "sha256": "7ee014026a3e108b010e424c8ddb03370c3518c75e239ce8b38edce2dd2485da"
+    },
+    {
+      "path": "mutation-whole-version.log",
+      "bytes": 208,
+      "sha256": "a6c349aba5e4bbeead104cb626eeeed84dd214a9f17e8b1a778f9f0faf408a73"
+    },
+    {
+      "path": "reserve-triage-indented-approved-skip.log",
+      "bytes": 1707,
+      "sha256": "01a7346a59204ca6ae0794d48a4ab66e9b66956b22938822af5d14c7ce51bd47"
+    },
+    {
+      "path": "reserve-triage-gate-indented-skip.log",
+      "bytes": 1121,
+      "sha256": "eae5f1e6a11b51a53b586d085f26e7a9df123aacbea06078636f34ea75b44563"
+    },
+    {
+      "path": "reserve-triage.json",
+      "bytes": 1822,
+      "sha256": "d4fd7201b87a86d51b28506fdd6e82f6ddc04d8d8a51d6a68e275a2ed37374f5"
+    }
+  ],
+  "reserveTriage": {
+    "verdict": "held",
+    "auditComplete": false,
+    "scopeStable": true,
+    "coverageComplete": true,
+    "validatedSeats": [
+      1,
+      2,
+      3
+    ],
+    "missingSeat": {
+      "seat": 4,
+      "lens": "test-fidelity",
+      "exitCode": 1,
+      "cause": "Selected model is at capacity. Please try a different model.",
+      "causeSource": "owned runner seat-4 stdout error and turn.failed events",
+      "retryPerformed": false
+    },
+    "remainingFindings": [
+      {
+        "class": "indented-approved-skip recognition",
+        "assessment": "confirmed false-negative in collector and final gate",
+        "reproductions": [
+          "reserve-triage-indented-approved-skip.log",
+          "reserve-triage-gate-indented-skip.log"
+        ],
+        "scope": "Existing approved Node host name nested under a real Node test emits indented TAP; collector records reason=null. The gate separately rejects the approved indented line."
+      },
+      {
+        "class": "approved-shell-skip pass/skipped accounting",
+        "assessment": "conditional future-policy issue, not a current green-collection path",
+        "reason": "All current allowlisted suite paths end in .mjs; shell skips have no approved reason and fail closed. Do not add approved shell skips as part of a repair without a policy decision.",
+        "currentPolicyPaths": [
+          "adapters/codex/planning-actual-host.test.mjs",
+          "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs",
+          "adapters/codex/snipe-discovery-host.test.mjs"
+        ]
+      }
+    ],
+    "nextScope": "Repair skip-name recognition consistently across collector and final gate without broadening the allowlist; clarify conditional shell accounting; add independent end-to-end tests/mutations and obtain a newly authorized complete packaged four-seat panel. Keep the PR held until that coverage is complete."
+  },
+  "preservation": {
+    "protectedRefs": [
+      {
+        "ref": "refs/heads/codex-port",
+        "before": "7271cc3a08db978c71c450def81f49a1816dc20c",
+        "after": "7271cc3a08db978c71c450def81f49a1816dc20c"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-comparison",
+        "before": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+        "after": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-implementation",
+        "before": "25404070284cce65f68a8d7f16a0526641bf40b5",
+        "after": "25404070284cce65f68a8d7f16a0526641bf40b5"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-review-claude",
+        "before": "6a472540f7b9a317436705f3ece2213d930e5395",
+        "after": "6a472540f7b9a317436705f3ece2213d930e5395"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-review-codex",
+        "before": "46aef4a25b68874bff7b3b3fed14f9058c270da7",
+        "after": "46aef4a25b68874bff7b3b3fed14f9058c270da7"
+      },
+      {
+        "ref": "refs/heads/codex/red-team-review-codex-artifacts",
+        "before": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+        "after": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0"
+      },
+      {
+        "ref": "refs/heads/master",
+        "before": "cf9f93e07afc6c07792c3f9f9842e973a4a154b4",
+        "after": "cf9f93e07afc6c07792c3f9f9842e973a4a154b4"
+      },
+      {
+        "ref": "refs/remotes/origin/codex-port",
+        "before": "43054e8beb484a261846121e99be328f2992c40a",
+        "after": "43054e8beb484a261846121e99be328f2992c40a"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-comparison",
+        "before": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+        "after": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-implementation",
+        "before": "25404070284cce65f68a8d7f16a0526641bf40b5",
+        "after": "25404070284cce65f68a8d7f16a0526641bf40b5"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-review-claude",
+        "before": "6a472540f7b9a317436705f3ece2213d930e5395",
+        "after": "6a472540f7b9a317436705f3ece2213d930e5395"
+      },
+      {
+        "ref": "refs/remotes/origin/codex/red-team-review-codex",
+        "before": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+        "after": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0"
+      },
+      {
+        "ref": "refs/remotes/origin/master",
+        "before": "287405fc56ee54c3a46f94f0449a83c30008a8bf",
+        "after": "287405fc56ee54c3a46f94f0449a83c30008a8bf"
+      }
+    ],
+    "liveRemoteHeads": {
+      "refs/heads/codex-port": "43054e8beb484a261846121e99be328f2992c40a",
+      "refs/heads/codex/red-team-comparison": "9bc8f676fac1794838f556ed74f2c0d1a9b7bac5",
+      "refs/heads/codex/red-team-implementation": "25404070284cce65f68a8d7f16a0526641bf40b5",
+      "refs/heads/codex/red-team-review-claude": "6a472540f7b9a317436705f3ece2213d930e5395",
+      "refs/heads/codex/red-team-review-codex": "0ea5d4bce168034b0856fa9db8c406a9f9ebf5e0",
+      "refs/heads/master": "287405fc56ee54c3a46f94f0449a83c30008a8bf"
+    },
+    "installedPackages": [
+      {
+        "root": "/Users/ljf/.codex/plugins/cache/war-snipe-local/work-audit-refine-snipe/0.21.12+codex.20260908.8fd30f3",
+        "fileCount": 17,
+        "unchanged": true,
+        "inventoryDigest": "2b24f557289275a781bfba5877ca66d22beb7fd43d1168617fbf75a7b7da970a"
+      },
+      {
+        "root": "/Users/ljf/.codex/plugins/cache/personal/work-audit-refine-planning/0.21.12+codex.20260908231842",
+        "fileCount": 14,
+        "unchanged": true,
+        "inventoryDigest": "1185d9e13472abc96401b79345563c25e0996c25da4e9757fc13181ceefbdc4d"
+      }
+    ],
+    "originalWorktreeStatus": " M .claude/war/config.json\n M docs/roadmaps/2026-08-25-survey-debt-campaign-roadmap.md\n?? AGENTS.md\n?? docs/plans/2026-08-27-in-run-finding-resolution.md\n?? docs/plans/2026-09-08-codex-red-team-migration.md\n?? docs/port/\n?? docs/red-team/2026-08-27-in-run-finding-resolution.md\n",
+    "originalWorktreeTouched": false,
+    "releasePublished": false,
+    "pluginsInstalled": false,
+    "ciActivated": false,
+    "fullRunnerImplemented": false
+  },
+  "remainingBackstops": {
+    "B1": "Hosted Linux/macOS and actual GitHub final-gate enforcement; workflow remains inactive.",
+    "B2": "Fresh installed discovery and combined planning WP15 write-action/denial trace; existing operator deferral retained.",
+    "B3": "Production Claude/Codex runtime parity, full WAR executor and recovery-role mapping.",
+    "B4": "Frozen red-team comparison/host completion remains separate."
+  },
+  "retainedLimitations": [
+    "Git SHA-1 object formats only; SHA-256 compatibility is not claimed.",
+    "Seat-reported inspection and coordinator-supplied verifier history are not authenticated receipts.",
+    "Normalized recommendation changes do not prove substantive amendment.",
+    "Package source preflight assumes no concurrent hostile mutation.",
+    "Baseline fixtures and allowed host skips do not establish real runtime parity."
+  ],
+  "publicationRule": "Subsequent delivery commits may update docs/port/ evidence only. Compare their non-evidence tree digest to candidateSourceIdentity; do not attribute the incomplete reserve audit or tested SHA to a newer publication SHA.",
+  "publication": {
+    "url": "https://github.com/Ljferrer/WorkAuditRefine/pull/2320",
+    "number": 2320,
+    "draft": true,
+    "base": "codex-port",
+    "head": "codex/sync-master-0.21.15",
+    "headAtCreation": "8550e6b2c710dd58ac56558caa79d1dac05cadfa",
+    "verdict": "held",
+    "receiptCommitIsEvidenceOnly": true
+  }
+}

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { discoverTests, collect } from './collect.mjs'
+import { discoverTests, collect, parseNodeCounts } from './collect.mjs'
 
 function fixture(t, files) {
   const root = mkdtempSync(join(tmpdir(), 'war-collector-test-'))
@@ -38,6 +38,35 @@ test('zero-exit empty JavaScript and unapproved skips do not masquerade as execu
   const report = await collect({ root, output: join(root, 'report') })
   assert.equal(report.ok, false)
   assert.ok(report.suites.every(s => s.status !== 'passed'))
+})
+
+test('Node counts require a unique complete final summary trailer', () => {
+  const trailer = '1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 12.5\n'
+  assert.deepEqual(parseNodeCounts('TAP version 13\n# diagnostic\nok 1 - actual\n' + trailer), {tests:1,pass:1,fail:0,cancelled:0,skipped:0,todo:0})
+  const keys = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']
+  for (const malformed of [
+    ...keys.map(key => `# ${key} 1\n` + trailer),
+    ...keys.map(key => trailer.replace(new RegExp(`# ${key} \\d+\\n`), '')),
+    trailer + 'extra output\n', trailer.replace('1..1\n', ''),
+    trailer.replace('# pass 1\n# fail 0', '# fail 0\n# pass 1'),
+    trailer.replace('# pass 1', '# pass 1.5'), trailer + trailer,
+    trailer.replace('# duration_ms 12.5\n', ''),
+  ]) assert.ok(Object.values(parseNodeCounts(malformed)).every(Number.isNaN), malformed)
+})
+
+test('summary-shaped diagnostics cannot certify empty or passing Node suites', async t => {
+  const fake = "console.log('tests 1');console.log('pass 1');for(const key of ['fail','skipped','cancelled','todo'])console.log(key+' 0');"
+  for (const body of [
+    "import {describe} from 'node:test';describe('empty',()=>{});" + fake,
+    "import {test} from 'node:test';test('real',()=>{});" + fake,
+    "import {test} from 'node:test';test('real',()=>{});console.log('tests 1');",
+  ]) {
+    const root = fixture(t, { 'skills/diagnostic.test.mjs': body })
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.suites[0].exitCode, 0)
+    assert.equal(report.ok, false, 'duplicate summary-shaped rows are ambiguous evidence')
+    assert.equal(report.suites[0].status, 'failed')
+  }
 })
 
 test('shell completion requires case evidence and skips on either channel fail', async t => {
@@ -84,6 +113,32 @@ test('only named host skips are allowed and remain explicitly incomplete host ev
   assert.equal(report.evidenceLevel, 'baseline')
   assert.equal(report.suites[0].status, 'allowed-skips')
   assert.match(report.suites[0].skips[0].reason, /not credential-free baseline evidence/)
+})
+
+test('nested named skips are accepted while unknown names remain refused', async t => {
+  const name = 'installed plugin resolves packaged default prompts in fresh host sessions without implicit audits'
+  for (const candidate of [name, 'unknown host case', '__proto__', 'constructor', 'toString']) {
+    const approved = candidate === name
+    const root = fixture(t, { 'adapters/codex/snipe-discovery-host.test.mjs': `import {test} from 'node:test'; test('wrapper', async t => { await t.test(${JSON.stringify(candidate)}, {skip:true}, () => {}); });` })
+    const report = await collect({ root, output: join(root, 'report') })
+    assert.equal(report.ok, approved)
+    assert.deepEqual(report.suites[0].counts, {tests:2,pass:1,fail:0,skipped:1,cancelled:0,todo:0})
+    assert.match(report.suites[0].skips[0].line, /^ +ok /)
+  }
+})
+
+test('shell skip rows are not passing assertions and remain unapproved', async t => {
+  for (const indent of ['', '  ', '\t']) {
+    for (const channel of ['', '>&2']) {
+    for (const row of ['ok 2 - not executed # SKIP', 'not ok 2 - not executed # SKIP', 'ok 2 - unfinished # TODO', 'ok - not executed # SKIP', 'not ok - not executed # SKIP', 'ok - unfinished # TODO', 'SKIP unavailable']) {
+      const root = fixture(t, { 'hooks/skip.test.sh': `echo 'ok - executed'; echo '${indent}${row}' ${channel}` })
+      const report = await collect({ root, output: join(root, 'report') })
+      assert.deepEqual(report.suites[0].counts, {tests:2,pass:1,fail:0,skipped:1,cancelled:0,todo:0})
+      assert.equal(report.ok, false)
+      assert.equal(report.suites[0].skips[0].reason, null)
+    }
+    }
+  }
 })
 
 test('timeout kills a hanging suite and is not a successful exit', async t => {
@@ -298,14 +353,31 @@ test('shared process owner contains output capture, stream and spawn errors', t 
 })
 
 test('zero-exit shell failure rows on either channel still fail', async t => {
+  for (const indent of ['', '  ', '\t']) {
   for (const row of ['FAIL - assertion failed', 'not ok 1 - assertion failed']) {
     for (const channel of ['', '>&2']) {
-      const root = fixture(t, { 'hooks/fail.test.sh': `echo '${row}' ${channel}; exit 0` })
+      // Include a real passing row so an ignored failure cannot hide behind the empty-suite guard.
+      const root = fixture(t, { 'hooks/fail.test.sh': `echo 'ok - passed'; echo '${indent}${row}' ${channel}; exit 0` })
       const report = await collect({ root, output: join(root, 'report') })
       assert.equal(report.suites[0].exitCode, 0)
+      assert.equal(report.ok, false, JSON.stringify({ indent, row, channel, status: report.suites[0].status }))
+      assert.equal(report.suites[0].counts.pass, 1)
       assert.equal(report.suites[0].counts.fail, 1)
       assert.equal(report.suites[0].status, 'failed')
       assert.equal(report.ok, false)
+    }
+  }
+  }
+})
+
+test('indented shell assertion rows count on either channel without counting diagnostic mentions', async t => {
+  for (const indent of ['  ', '\t']) {
+    for (const channel of ['', '>&2']) {
+      const root = fixture(t, { 'hooks/pass.test.sh': `echo '${indent}ok 1 - passed' ${channel}; echo 'diagnostic: not ok and FAIL are examples'; exit 0` })
+      const report = await collect({ root, output: join(root, 'report') })
+      assert.equal(report.suites[0].counts.pass, 1)
+      assert.equal(report.suites[0].counts.fail, 0)
+      assert.equal(report.ok, true)
     }
   }
 })
@@ -332,6 +404,9 @@ test('symlinked tracked suite is rejected before executing its target', async t 
 
 test('targeted guard removals fail their independent behavioral regressions', t => {
   const cases = [
+    ['summary-unique', 'trailer && unique', 'trailer', 'summary-shaped diagnostics'],
+    ['summary-final', '\\n?$', '\\n?', 'Node counts require'],
+    ['summary-plan', String.raw`(?:^|\\n)1\\.\\.\\d+\\n`, String.raw`(?:^|\\n)`, 'Node counts require'],
     ['shell-count', 'counts.tests < 1', 'false', 'shell completion'],
     ['stderr-skip', "const errorText = readFileSync(stderr, 'utf8')", "const errorText = ''", 'shell completion'],
     ['census', "if (JSON.stringify(inventory) !== JSON.stringify(discovered)) throw new Error('inventory mismatch')", '', 'CLI refuses'],
@@ -344,6 +419,13 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     ['cleanup-error', '!execution.cleanupError && ', '', 'cleanup error'],
     ['framing', "hash.update(JSON.stringify([path, stat?.mode ?? null, bytes.length, digest]) + '\\n')", "hash.update(JSON.stringify([path, stat?.mode ?? null])); hash.update(bytes)", 'metadata-shaped'],
     ['failure-row', 'counts.fail > 0', 'false', 'zero-exit shell failure'],
+    ['failure-indent', '^\\s*(?:not ok|FAIL)', '^(?:not ok|FAIL)', 'zero-exit shell failure'],
+    ['pass-indent', '^\\s*ok(?: \\d+)? -', '^ok(?: \\d+)? -', 'indented shell assertion'],
+    ['skip-indent', '^\\s*ok \\d+ -', '^ok \\d+ -', 'nested named skips', 'skip-evidence.mjs'],
+    ['skip-own-name', 'Object.hasOwn(names, name)', 'true', 'nested named skips', 'skip-evidence.mjs'],
+    ['skip-unnumbered', '(?: \\d+)? .*#', ' \\d+ .*#', 'shell skip rows', 'skip-evidence.mjs'],
+    ['skip-pass', 'lines.filter(({ line }) => !isSkipLine(line))', 'lines', 'shell skip rows'],
+    ['skip-total', 'passed + failed + skips.length', 'passed + failed', 'shell skip rows'],
     ['mode', '[path, stat?.mode ?? null, bytes.length, digest]', '[path, null, bytes.length, digest]', 'mode-only'],
     ['regular-file', "lstatSync(join(root, path), { throwIfNoEntry: false })?.isFile()", "lstatSync(join(root, path), { throwIfNoEntry: false })", 'symlinked tracked'],
     ['denial-finalization', '        finish()\n        return', '        return', 'cleanup denial', 'owned-process.mjs'],
@@ -358,7 +440,7 @@ test('targeted guard removals fail their independent behavioral regressions', t 
     assert.equal(source.split(from).length, 2, `mutation ${name} must alter one real guard`)
     const root = mkdtempSync(join(tmpdir(), 'war-collector-mutant-'))
     t.after(() => rmSync(root, { recursive: true, force: true }))
-    for(const module of ['collect.mjs','owned-process.mjs']) writeFileSync(join(root,module),readFileSync(new URL(module,import.meta.url)))
+    for(const module of ['collect.mjs','owned-process.mjs','skip-evidence.mjs']) writeFileSync(join(root,module),readFileSync(new URL(module,import.meta.url)))
     writeFileSync(join(root, file), source.replace(from, to))
     writeFileSync(join(root, 'collect.test.mjs'), readFileSync(fileURLToPath(import.meta.url)))
     writeFileSync(join(root, 'baseline-skips.json'), readFileSync(new URL('./baseline-skips.json', import.meta.url)))

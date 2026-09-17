@@ -25,12 +25,21 @@ the collector does not install dependencies or activate GitHub workflows.
 
 Each suite has a distinct log directory and recorded literal command, exit code,
 signal and timeout/output-limit classification. Collection continues after suite
-failure. Node TAP summary counts and skip lines are recorded. Shell suites must
-emit nonzero assertion evidence (`ok [number] - description` / failure rows); the
+failure. Node 24 TAP counts require one complete ordered final summary trailer;
+duplicate summary-shaped diagnostics are ambiguous and fail closed. Skip lines
+are recorded separately. Shell suites must
+emit nonzero assertion evidence (`ok [number] - description` / failure rows, with
+optional leading whitespace on either output channel); the
 existing redaction-lint wrapper instead has its named `lint: clean` assertion.
 Shell counts reflect observed rows, not comments or arbitrary summary claims.
+Skip/TODO rows form a separate count category from executed pass/fail assertions
+and are included once in total cases, even when rejected by policy.
 Empty/no-op suites fail. Skip evidence is checked on stdout and stderr.
 Only named opt-in host skips in `baseline-skips.json` are allowed and disclosed.
+Collector and final gate share the approval lookup: optional leading whitespace,
+exact approved name, successful uppercase `# SKIP` row on stdout. Unknown names,
+inherited object properties, TODO/failing rows and stderr skips are refused.
+The allowlist currently contains only Node host tests; no shell skip is approved.
 The top-level evidence level is always `baseline`, never parity or compatibility.
 The CLI exits nonzero when any suite fails or has unapproved skip evidence.
 

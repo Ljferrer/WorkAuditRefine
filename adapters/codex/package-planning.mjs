@@ -2,11 +2,11 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSy
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { regularSource } from './package-source.mjs'
+import { regularSource, assertPackageVersion } from './package-source.mjs'
 import { isMain } from './skills/snipe/assets/snipe-process.mjs'
 
 function manifest(version) {
-  assert.match(version,/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,'invalid planning manifest version')
+  assertPackageVersion(version)
   return {
     name:'work-audit-refine-planning',version,
     description:'Author WAR plans from an interview or existing draft; does not execute plans.',
@@ -25,7 +25,8 @@ const files=[
   ...['codex-models.mjs','snipe-process.mjs'].map(path=>[`adapters/codex/skills/snipe/assets/${path}`,`shared/skills/snipe/assets/${path}`]),
   ['adapters/codex/skills/war-strategy/SKILL.md','skills/war-strategy/SKILL.md'],
   ['adapters/codex/skills/war-strategy/agents/openai.yaml','skills/war-strategy/agents/openai.yaml'],
-  ...['SKILL.md','references/plan-interview.md','references/strategy-verifier.md','assets/plan-literal-lint.mjs'].map(path=>[`skills/war-strategy/${path}`,`shared/skills/war-strategy/${path}`]),
+  ...['SKILL.md','references/plan-interview.md','references/backward-chain-plan.md','references/strategy-verifier.md','assets/plan-literal-lint.mjs'].map(path=>[`skills/war-strategy/${path}`,`shared/skills/war-strategy/${path}`]),
+  ...['backward-chain-fix.md','backward-chain-examples.md','fix-round-doctrine.md'].map(path=>[`skills/war/references/${path}`,`shared/skills/war/references/${path}`]),
   ['adapters/codex/skills/war-strategy/references/host.md','shared/skills/war-strategy/references/host.md'],
   ['docs/adr/0025-drift-guard-discipline.md','shared/docs/adr/0025-drift-guard-discipline.md'],
 ]

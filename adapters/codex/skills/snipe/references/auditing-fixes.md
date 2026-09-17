@@ -24,6 +24,15 @@ do not add checklist fields or demand phase metadata from a one-shot Snipe audit
 
 ## Trace the invariant through the repair
 
+- **Chain independently from the outcome.** For a repair, derive your own chain from the supplied outcome
+  or established behavior to the pinned code before reading the fixer's explanation.
+  Name the earliest unmet condition and trace the downstream consequences; a fluent
+  chain, a marker or peer agreement is a claim to verify, not evidence. Relate a
+  repeated finding to the prior cause when history is supplied, using the existing
+  rationale and suggested-fix fields. Missing phase End state numbers or corrective-round history are not findings.
+  Do not require phase relation tags or delay a demonstrated impossible requirement
+  until a numbered round. Explain it through the existing finding/ask contract,
+  with severity by consequence; do not invent a new return or dispatch action.
 - **Start with evidence, not the proposed patch.** Identify the violated rule and
   the behavior the repair claims to restore. Compare the pinned implementation
   against the requirement, existing contract and operator rulings. Verify a prior

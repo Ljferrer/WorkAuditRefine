@@ -5,12 +5,20 @@ import { createHash } from 'node:crypto'
 import { platform, arch, release } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { ownProcess } from './owned-process.mjs'
-
-const baselineSkips = JSON.parse(readFileSync(new URL('./baseline-skips.json', import.meta.url), 'utf8'))
+import { isSkipLine, approvedSkipReason } from './skip-evidence.mjs'
 
 export function discoverTests(root) {
   return execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' })
     .split('\0').filter(path => /^(skills|hooks|adapters|tests\/parity|scripts\/ci)\/.+\.test\.(mjs|sh)$/.test(path)).sort()
+}
+
+// Node 24 TAP ends with one ordered summary trailer. Console diagnostics are not counts.
+export function parseNodeCounts(text) {
+  const keys = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']
+  const pattern = new RegExp('(?:^|\\n)1\\.\\.\\d+\\n' + keys.map(key => `# ${key} (\\d+)\\n`).join('') + '# duration_ms \\d+(?:\\.\\d+)?\\n?$')
+  const trailer = text.match(pattern)
+  const unique = keys.every(key => (text.match(new RegExp(`^# ${key} \\d+$`, 'gm')) ?? []).length === 1)
+  return Object.fromEntries(keys.map((key, index) => [key, trailer && unique ? Number(trailer[index + 1]) : NaN]).filter(([key]) => key !== 'suites'))
 }
 
 function snapshot(root, output) {
@@ -62,15 +70,14 @@ export async function collect({ root, output, inventory, timeoutMs = 600000 }) {
     const text = readFileSync(stdout, 'utf8')
     const errorText = readFileSync(stderr, 'utf8')
     const lines = [...text.split('\n').map(line => ({ channel: 'stdout', line })), ...errorText.split('\n').map(line => ({ channel: 'stderr', line }))]
-    const skips = lines.filter(({ line }) => /^\s*SKIP\b/i.test(line) || /^\s*(?:ok|not ok) \d+.*# (?:SKIP|TODO)\b/i.test(line)).map(({ line, channel }) => {
-      const name = line.match(/^ok \d+ - (.*?) # SKIP(?:\s|$)/)?.[1]
-      return { line, channel, reason: channel === 'stdout' ? baselineSkips[path]?.[name] ?? null : null }
-    })
-    const passed = lines.filter(({ line }) => /^ok(?: \d+)? - \S/.test(line)).length
+    const skips = lines.filter(({ line }) => isSkipLine(line)).map(({ line, channel }) =>
+      ({ line, channel, reason: approvedSkipReason(path, line, channel) }))
+    const assertions = lines.filter(({ line }) => !isSkipLine(line))
+    const passed = assertions.filter(({ line }) => /^\s*ok(?: \d+)? - \S/.test(line)).length
       + (path === 'skills/_shared/war-memory-lint.test.sh' && /^lint: clean\s*$/m.test(text) ? 1 : 0)
-    const failed = lines.filter(({ line }) => /^(?:not ok|FAIL)(?:\s|$)/.test(line)).length
-    const counts = path.endsWith('.mjs') ? Object.fromEntries(['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo'].map(key => [key, Number(text.match(new RegExp(`^# ${key} (\\d+)$`, 'm'))?.[1] ?? NaN)]))
-      : { tests: passed + failed, pass: passed, fail: failed, skipped: skips.length, cancelled: 0, todo: 0 }
+    const failed = assertions.filter(({ line }) => /^\s*(?:not ok|FAIL)(?:\s|$)/.test(line)).length
+    const counts = path.endsWith('.mjs') ? parseNodeCounts(text)
+      : { tests: passed + failed + skips.length, pass: passed, fail: failed, skipped: skips.length, cancelled: 0, todo: 0 }
     const invalidCounts = Object.values(counts).some(n => !Number.isSafeInteger(n)) || counts.tests < 1 || counts.fail > 0 || counts.cancelled > 0 || counts.todo > 0 || counts.skipped !== skips.length || text.includes(`# Subtest: ${path}\n`)
     const status = execution.exitCode === 0 && !execution.failure && !execution.cleanupError && !invalidCounts && skips.every(s => s.reason) ? (skips.length ? 'allowed-skips' : 'passed') : 'failed'
     suites.push({ path, command, stdout, stderr, ...execution, counts, skips, status })

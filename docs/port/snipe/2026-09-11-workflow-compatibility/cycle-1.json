@@ -1,0 +1,200 @@
+{
+  "request": {
+    "panel": {
+      "seats": 4,
+      "named": [],
+      "autoCount": 4
+    },
+    "profile": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "scope": {
+      "kind": "committed",
+      "advisory": false,
+      "repository": "/Users/ljf/.codex/worktrees/7d12/WorkAuditRefine",
+      "description": "merge-base 668e4ff990f1c689fcf9710768c3d73c2601920c...ec949bb9dda7d7358a74905e49b6518a671af0fb",
+      "comparison": "merge-base",
+      "baseSha": "668e4ff990f1c689fcf9710768c3d73c2601920c",
+      "headSha": "ec949bb9dda7d7358a74905e49b6518a671af0fb",
+      "paths": [],
+      "submodules": []
+    }
+  },
+  "stability": {
+    "stable": true,
+    "before": null,
+    "after": null
+  },
+  "coverage": {
+    "complete": true,
+    "unavailablePaths": []
+  },
+  "complete": true,
+  "seats": [
+    {
+      "seat": 1,
+      "lens": "correctness",
+      "rationale": "baseline behavior and error-path review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 1,
+        "lens": "correctness",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "ec949bb9dda7d7358a74905e49b6518a671af0fb"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "Flat mismatch replies can produce incomplete pin-transfer receipts",
+            "file": "skills/war/assets/workflow-template.js",
+            "locator": "PIN_TRANSFER schema and probeRow mismatch receipt",
+            "plan_ref": "#2299 flat-schema compatibility while retaining consumer evidence checks",
+            "line": 4169,
+            "rationale": "The flattened `PIN_TRANSFER` schema now accepts `{status:'mismatch', rebased_tip:'\u2026'}` without either patch ID. The consumer safely computes both values in `pinProof` and performs the full re-audit, but `probeRow` records `prePatchId` and `postPatchId` from the incomplete `pinProbe`, yielding null fields after approval. This contradicts the documented invariant in `skills/war/references/schemas.md` that every merge receipt retains both patch IDs so it can be re-verified without replaying the rebase.",
+            "suggested_fix": "Populate mismatch receipt patch IDs from the independently computed `pinProof` (or normalize missing probe fields from that proof before constructing the receipt), and add a regression using a schema-valid mismatch reply without patch-ID fields that asserts the receipt contains both computed IDs.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 2,
+      "lens": "cascading-impact",
+      "rationale": "downstream caller and mirror review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 2,
+        "lens": "cascading-impact",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "ec949bb9dda7d7358a74905e49b6518a671af0fb"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs",
+            "skills/war/assets/version-slots.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 3,
+      "lens": "test-fidelity",
+      "rationale": "acceptance-test and anti-cheat review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 3,
+        "lens": "test-fidelity",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "ec949bb9dda7d7358a74905e49b6518a671af0fb"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [
+          {
+            "severity": "Minor",
+            "title": "PIN_TRANSFER compatibility check is green-by-schema-deletion",
+            "file": "skills/war/assets/workflow-template.test.mjs",
+            "locator": "runPhase top-level schema-combinator check and EVALUATED_SCHEMAS",
+            "plan_ref": "docs/port/snipe/2026-09-11-workflow-compatibility/ledger.md \u2014 #2299",
+            "rationale": "The new runPhase check only rejects top-level allOf/anyOf/oneOf properties. It does not verify the repair's declared invariant that PIN_TRANSFER remains a flat object schema requiring status and preserving its status enum and evidence properties. Existing pin-transfer behavioral fixtures feed responses directly through the mock agent without evaluating opts.schema, and PIN_TRANSFER is absent from EVALUATED_SCHEMAS. Replacing PIN_TRANSFER with {} would therefore pass the new compatibility check and consumer tests while removing the live dispatch's declared wire contract.",
+            "suggested_fix": "Add a focused assertion against the schema on an actual pin-transfer dispatch: require type object, required ['status'], the six legal status values, and the retained evidence-property keys, while continuing to reject root combinators. Alternatively, add PIN_TRANSFER to EVALUATED_SCHEMAS and exercise missing, unknown, and legal status values.",
+            "disposition": "absorb"
+          }
+        ],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    },
+    {
+      "seat": 4,
+      "lens": "security",
+      "rationale": "trust-boundary and injection review",
+      "status": "completed",
+      "exitCode": 0,
+      "signal": null,
+      "truncated": false,
+      "verdict": {
+        "schema_version": 1,
+        "seat": 4,
+        "lens": "security",
+        "scope": {
+          "kind": "committed",
+          "audit_sha": "ec949bb9dda7d7358a74905e49b6518a671af0fb"
+        },
+        "verdict": "approve",
+        "confidence": "high",
+        "findings": [],
+        "tests_verified": {
+          "exist": true,
+          "inspected": [
+            "skills/war/assets/workflow-template.test.mjs"
+          ]
+        }
+      },
+      "validation": {
+        "status": "valid",
+        "error": null
+      },
+      "repair": {
+        "attempted": false,
+        "succeeded": false
+      }
+    }
+  ]
+}
