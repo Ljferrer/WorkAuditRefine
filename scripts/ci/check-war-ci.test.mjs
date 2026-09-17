@@ -161,8 +161,20 @@ test('Claude package entry inventory is independently reviewed, not generated fr
   }
 })
 
+const YAML_TO_JSON="import sys,yaml,json; print(json.dumps(yaml.load(sys.stdin.read(),Loader=yaml.BaseLoader)))"
+const YAML_REMEDY='see the prerequisites in scripts/ci/README.md: run inside the codex-snipe-port conda environment (conda activate codex-snipe-port) or install it with python3 -m pip install pyyaml'
+// Fail closed with a named prerequisite, never a skip: the collector approves only the named host skips in baseline-skips.json.
+function parseWorkflowYAML(yaml,env=process.env) {
+  const result=spawnSync('python3',['-c',YAML_TO_JSON],{input:yaml,encoding:'utf8',env})
+  if(result.error?.code==='ENOENT')throw new Error(`python3 was not found on PATH; the workflow-wiring check needs Python 3 with PyYAML, ${YAML_REMEDY}`)
+  if(result.error)throw result.error
+  if(/No module named 'yaml'/.test(result.stderr))throw new Error(`PyYAML is missing from the python3 on PATH; the workflow-wiring check needs it, ${YAML_REMEDY}`)
+  if(result.status!==0)throw new Error(`python3 could not parse the workflow YAML (exit ${result.status}): ${result.stderr.trim()}`)
+  return JSON.parse(result.stdout)
+}
+
 function checkWorkflow(yaml) {
-  const workflow=JSON.parse(execFileSync('python3',['-c',"import sys,yaml,json; print(json.dumps(yaml.load(sys.stdin.read(),Loader=yaml.BaseLoader)))"],{input:yaml,encoding:'utf8'}))
+  const workflow=parseWorkflowYAML(yaml)
   assert.deepEqual(Object.keys(workflow.on).sort(),['merge_group','pull_request','push','workflow_dispatch'])
   for(const [event,options] of Object.entries(workflow.on))if(event!=='push')assert.equal(options,'')
   assert.deepEqual(workflow.on.push,{branches:['master','codex-port']})
@@ -193,6 +205,14 @@ function checkWorkflow(yaml) {
   }
   assert.equal(baseline.steps[0].with['fetch-depth'],'0')
 }
+
+test('a missing PyYAML or python3 names the prerequisite instead of a raw traceback', t => {
+  const root=mkdtempSync(join(tmpdir(),'war-yaml-prereq-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
+  writeFileSync(join(root,'python3'),"#!/bin/sh\necho \"ModuleNotFoundError: No module named 'yaml'\" >&2\nexit 1\n",{mode:0o755})
+  assert.throws(()=>parseWorkflowYAML('a: 1',{PATH:root}),/PyYAML is missing.*codex-snipe-port.*pip install pyyaml/)
+  const empty=join(root,'empty');mkdirSync(empty)
+  assert.throws(()=>parseWorkflowYAML('a: 1',{PATH:empty}),/python3 was not found on PATH.*codex-snipe-port/)
+})
 
 test('inert workflow wiring preserves complete matrix evidence and a fail-closed WAR CI gate', () => {
   const yaml=readFileSync(new URL('./war-ci.yml',import.meta.url),'utf8')

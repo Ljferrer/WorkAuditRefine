@@ -18,7 +18,9 @@ expected census, not a filter.
 
 Prerequisites are Node >=24, Git, `/bin/bash`, jq and Python 3 with PyYAML for the
 existing suites. The dedicated development conda environment is `codex-snipe-port`;
-do not install into base. Existing shell tests are executed with `/bin/bash`,
+do not install into base. If `python3` or PyYAML is missing, the workflow-wiring test
+in `check-war-ci.test.mjs` fails with a named prerequisite error and the remedy; it
+never skips, because only the named host skips in `baseline-skips.json` are approved. Existing shell tests are executed with `/bin/bash`,
 which tests system Bash 3.2 on macOS. Linux execution remains separate evidence.
 Tests may use ordinary platform utilities and locally stub their optional tools;
 the collector does not install dependencies or activate GitHub workflows.
