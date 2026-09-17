@@ -15,10 +15,10 @@
 import { RESERVED_LENSES, MODELS, EFFORTS, fillDefaults } from '../../war/assets/war-config.mjs'
 
 // Parse-time catalog for the bare-single-word case only — comma lists accept novel lenses.
-// Union of the preset roster pools; keep in sync when a preset introduces a new lens.
+// Preset roster pools plus documented standard Snipe lenses; keep both surfaces reachable.
 export const SNIPE_LENS_CATALOG = [
   'correctness', 'cascading-impact', 'plan-faithfulness', 'simplicity',
-  'performance', 'security', 'test-fidelity',
+  'performance', 'security', 'test-fidelity', 'usability',
 ]
 
 const LENS_LIST = /^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)+$/
