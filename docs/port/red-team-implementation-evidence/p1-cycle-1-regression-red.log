@@ -1,0 +1,129 @@
+✖ mixed findings get independent confirmations and retain only the reproduced blocker (828.6035ms)
+✖ target guard detects config without cleanup (738.239584ms)
+✖ target guard detects other-ref without cleanup (739.046791ms)
+✖ target guard detects ignored-content without cleanup (708.2595ms)
+✖ operative scope consistently names isolated repository for probes and confirmation (649.989125ms)
+✖ prompt larger than argv capacity reaches real process stdin with exact bytes (148.920916ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 0
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3877.828166
+
+✖ failing tests:
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:177:1
+✖ mixed findings get independent confirmations and retain only the reproduced blocker (828.6035ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'INCOMPLETE'
+  - 'BLOCKED'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:183:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'INCOMPLETE',
+    expected: 'BLOCKED',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:185:64
+✖ target guard detects config without cleanup (738.239584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'CLEARED'
+  - 'INCOMPLETE'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:193:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CLEARED',
+    expected: 'INCOMPLETE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:185:64
+✖ target guard detects other-ref without cleanup (739.046791ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'CLEARED'
+  - 'INCOMPLETE'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:193:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CLEARED',
+    expected: 'INCOMPLETE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:185:64
+✖ target guard detects ignored-content without cleanup (708.2595ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'CLEARED'
+  - 'INCOMPLETE'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:193:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CLEARED',
+    expected: 'INCOMPLETE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:195:1
+✖ operative scope consistently names isolated repository for probes and confirmation (649.989125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'INCOMPLETE'
+  - 'BLOCKED'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:198:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'INCOMPLETE',
+    expected: 'BLOCKED',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:200:1
+✖ prompt larger than argv capacity reaches real process stdin with exact bytes (148.920916ms)
+  Error: spawn E2BIG
+      at ChildProcess.spawn (node:internal/child_process:441:11)
+      at spawn (node:child_process:796:9)
+      at dispatchCodex (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.mjs:93:15)
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:202:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    errno: -7,
+    code: 'E2BIG',
+    syscall: 'spawn'
+  }

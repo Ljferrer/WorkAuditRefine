@@ -1,0 +1,68 @@
+✖ offline relocated diagnostic entrypoint: directory (6618.852167ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6673.133834
+
+✖ failing tests:
+
+test at adapters/codex/red-team-actual-host.test.mjs:43:200
+✖ offline relocated diagnostic entrypoint: directory (6618.852167ms)
+  AssertionError [ERR_ASSERTION]: 
+  {
+    "status": "OBSERVED",
+    "configuredProfile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "independentlyObservedModelIdentity": null,
+    "observations": [
+      {
+        "kind": "clean",
+        "status": "OBSERVED",
+        "gaps": [],
+        "runFile": "clean-run/run.json",
+        "verdict": "CLEARED",
+        "fixture": {
+          "revision": "acbd07d7c2699a49bf9a2ddd83869bb8e665a5fe",
+          "source": "RED_TEAM_SOURCE:7c72a5e6-1cc5-4d68-bf8f-2a23b288203e:4",
+          "proof": "RED_TEAM_PROOF:692c7c3f-c38f-4154-9018-6cff8efe3e96:4",
+          "expectedExit": 0
+        }
+      },
+      {
+        "kind": "seeded",
+        "status": "OBSERVED",
+        "gaps": [],
+        "runFile": "seeded-run/run.json",
+        "verdict": "BLOCKED",
+        "fixture": {
+          "revision": "c6dd86d04c13d22619b7b5e36e5b279685df33a8",
+          "source": "RED_TEAM_SOURCE:9d476a7d-bffe-4f0d-9277-576b5e3619a7:5",
+          "proof": "RED_TEAM_PROOF:4394b407-c158-4b25-b78a-41ccf2aa4857:5",
+          "expectedExit": 1
+        }
+      }
+    ],
+    "evidenceDir": "/private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-host-fixture-0CyMRd/evidence"
+  }
+  
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/red-team-actual-host.test.mjs:50:46)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,84 @@
+✖ linked worktree control bytes reaches original-target guard (1511.136ms)
+✖ linked worktree control mode reaches original-target guard (1401.011125ms)
+✖ root Git control symlink and resolved metadata paths have independent identities (389.775958ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3362.898959
+
+✖ failing tests:
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:309:40
+✖ linked worktree control bytes reaches original-target guard (1511.136ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d',
+    metadataSha256: 'a44b917cdbe18717ecd59d2e5ea92f27f8b03e3c4a84df6c35de3c03720d0404',
+    refs: 'refs/heads/main b3188cda50c824f8db3caaabc48fba81d4a0edca',
+    revision: 'b3188cda50c824f8db3caaabc48fba81d4a0edca',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:317:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: 'b3188cda50c824f8db3caaabc48fba81d4a0edca', status: '', refs: 'refs/heads/main b3188cda50c824f8db3caaabc48fba81d4a0edca', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d', metadataSha256: 'a44b917cdbe18717ecd59d2e5ea92f27f8b03e3c4a84df6c35de3c03720d0404' },
+    expected: { revision: 'b3188cda50c824f8db3caaabc48fba81d4a0edca', status: '', refs: 'refs/heads/main b3188cda50c824f8db3caaabc48fba81d4a0edca', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d', metadataSha256: 'a44b917cdbe18717ecd59d2e5ea92f27f8b03e3c4a84df6c35de3c03720d0404' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:309:40
+✖ linked worktree control mode reaches original-target guard (1401.011125ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d',
+    metadataSha256: '37d6ccf7f23778255c38beaabf580aa438f7b436cdbbbed9669dad0b949826b1',
+    refs: 'refs/heads/main 9e5cb462fd4313e1a7df9a2d068f611d119894a2',
+    revision: '9e5cb462fd4313e1a7df9a2d068f611d119894a2',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:317:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: '9e5cb462fd4313e1a7df9a2d068f611d119894a2', status: '', refs: 'refs/heads/main 9e5cb462fd4313e1a7df9a2d068f611d119894a2', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d', metadataSha256: '37d6ccf7f23778255c38beaabf580aa438f7b436cdbbbed9669dad0b949826b1' },
+    expected: { revision: '9e5cb462fd4313e1a7df9a2d068f611d119894a2', status: '', refs: 'refs/heads/main 9e5cb462fd4313e1a7df9a2d068f611d119894a2', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d', metadataSha256: '37d6ccf7f23778255c38beaabf580aa438f7b436cdbbbed9669dad0b949826b1' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:320:1
+✖ root Git control symlink and resolved metadata paths have independent identities (389.775958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - '/private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-test-8kyQ4p/target/.git/worktrees/linked'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:325:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: '/private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-test-8kyQ4p/target/.git/worktrees/linked',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

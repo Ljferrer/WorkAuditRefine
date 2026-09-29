@@ -1,0 +1,12 @@
+✔ linked worktree control bytes reaches original-target guard (1669.389875ms)
+✔ linked worktree control mode reaches original-target guard (1644.346625ms)
+✔ root Git control symlink and resolved metadata paths have independent identities (722.865125ms)
+✔ separately located per-worktree metadata is included alongside common metadata (741.832333ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4843.681583

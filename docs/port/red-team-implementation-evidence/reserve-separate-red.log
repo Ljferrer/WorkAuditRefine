@@ -1,0 +1,37 @@
+✖ separately located per-worktree metadata is included alongside common metadata (765.289917ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 828.491375
+
+✖ failing tests:
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:331:1
+✖ separately located per-worktree metadata is included alongside common metadata (765.289917ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d',
+    metadataSha256: 'b77872328271082736dfda91c4824e47674ca24d4c18d48b05ad4a62af04aee8',
+    refs: 'refs/heads/main 55b6ea2f1ae568f95882034ffb5e312a5bca89ac',
+    revision: '55b6ea2f1ae568f95882034ffb5e312a5bca89ac',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:337:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: '55b6ea2f1ae568f95882034ffb5e312a5bca89ac', status: '', refs: 'refs/heads/main 55b6ea2f1ae568f95882034ffb5e312a5bca89ac', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d', metadataSha256: 'b77872328271082736dfda91c4824e47674ca24d4c18d48b05ad4a62af04aee8' },
+    expected: { revision: '55b6ea2f1ae568f95882034ffb5e312a5bca89ac', status: '', refs: 'refs/heads/main 55b6ea2f1ae568f95882034ffb5e312a5bca89ac', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', directoriesSha256: '24ca65c52a91101d21b71adc92095d62d73534b2cb51e68912b1db3bb973b47d', metadataSha256: 'b77872328271082736dfda91c4824e47674ca24d4c18d48b05ad4a62af04aee8' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }

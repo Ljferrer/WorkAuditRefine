@@ -1,0 +1,10 @@
+✔ offline relocated diagnostic entrypoint: tamper (5996.854209ms)
+✔ offline relocated diagnostic entrypoint: success (6478.789667ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12530.251666

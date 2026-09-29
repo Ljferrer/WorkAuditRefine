@@ -1,0 +1,120 @@
+✖ directory identity detects worktree (657.624542ms)
+✖ directory identity detects git (663.568333ms)
+✖ directory identity detects worktree-mode (602.5815ms)
+✖ directory identity detects git-mode (598.058875ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2583.353666
+
+✖ failing tests:
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:296:69
+✖ directory identity detects worktree (657.624542ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    metadataSha256: '9cc5fbee485b1baa11694e4cf24d521505a55073d0e1700790f5e8811eeae53e',
+    refs: 'refs/heads/main 257f8a36ea2fd5465afd8732120afa3c6d6f10e9',
+    revision: '257f8a36ea2fd5465afd8732120afa3c6d6f10e9',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:301:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: '257f8a36ea2fd5465afd8732120afa3c6d6f10e9', status: '', refs: 'refs/heads/main 257f8a36ea2fd5465afd8732120afa3c6d6f10e9', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: '9cc5fbee485b1baa11694e4cf24d521505a55073d0e1700790f5e8811eeae53e' },
+    expected: { revision: '257f8a36ea2fd5465afd8732120afa3c6d6f10e9', status: '', refs: 'refs/heads/main 257f8a36ea2fd5465afd8732120afa3c6d6f10e9', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: '9cc5fbee485b1baa11694e4cf24d521505a55073d0e1700790f5e8811eeae53e' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:296:69
+✖ directory identity detects git (663.568333ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    metadataSha256: 'c373a11e8e0d3e41beb679d95f4918b363b5b5083e44f05e05da02fae39979bb',
+    refs: 'refs/heads/main d16125a5df0d0d25b5e2b8b43accb30c38c51cb2',
+    revision: 'd16125a5df0d0d25b5e2b8b43accb30c38c51cb2',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:301:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: 'd16125a5df0d0d25b5e2b8b43accb30c38c51cb2', status: '', refs: 'refs/heads/main d16125a5df0d0d25b5e2b8b43accb30c38c51cb2', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: 'c373a11e8e0d3e41beb679d95f4918b363b5b5083e44f05e05da02fae39979bb' },
+    expected: { revision: 'd16125a5df0d0d25b5e2b8b43accb30c38c51cb2', status: '', refs: 'refs/heads/main d16125a5df0d0d25b5e2b8b43accb30c38c51cb2', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: 'c373a11e8e0d3e41beb679d95f4918b363b5b5083e44f05e05da02fae39979bb' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:296:69
+✖ directory identity detects worktree-mode (602.5815ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    metadataSha256: '737193a8bba77d7588720ab45adce9cd7951a3b16e94238ca14e1aa52858fd9b',
+    refs: 'refs/heads/main d16125a5df0d0d25b5e2b8b43accb30c38c51cb2',
+    revision: 'd16125a5df0d0d25b5e2b8b43accb30c38c51cb2',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:301:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: 'd16125a5df0d0d25b5e2b8b43accb30c38c51cb2', status: '', refs: 'refs/heads/main d16125a5df0d0d25b5e2b8b43accb30c38c51cb2', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: '737193a8bba77d7588720ab45adce9cd7951a3b16e94238ca14e1aa52858fd9b' },
+    expected: { revision: 'd16125a5df0d0d25b5e2b8b43accb30c38c51cb2', status: '', refs: 'refs/heads/main d16125a5df0d0d25b5e2b8b43accb30c38c51cb2', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: '737193a8bba77d7588720ab45adce9cd7951a3b16e94238ca14e1aa52858fd9b' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:296:69
+✖ directory identity detects git-mode (598.058875ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+  
+  {
+    contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a',
+    metadataSha256: '72fb57c71e1c04a44fe90e3f3f29255cb5716ba556c701d814b3546d4f91ceca',
+    refs: 'refs/heads/main df0ce2c4130b75695ddd7ba5b0586cd68c0ffa58',
+    revision: 'df0ce2c4130b75695ddd7ba5b0586cd68c0ffa58',
+    status: ''
+  }
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:301:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { revision: 'df0ce2c4130b75695ddd7ba5b0586cd68c0ffa58', status: '', refs: 'refs/heads/main df0ce2c4130b75695ddd7ba5b0586cd68c0ffa58', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: '72fb57c71e1c04a44fe90e3f3f29255cb5716ba556c701d814b3546d4f91ceca' },
+    expected: { revision: 'df0ce2c4130b75695ddd7ba5b0586cd68c0ffa58', status: '', refs: 'refs/heads/main df0ce2c4130b75695ddd7ba5b0586cd68c0ffa58', contentSha256: '6da99323b1aa20e3ed2c14e39fd66caf4f3bd317c8c19f27c44df99e999d0a7a', metadataSha256: '72fb57c71e1c04a44fe90e3f3f29255cb5716ba556c701d814b3546d4f91ceca' },
+    operator: 'notDeepStrictEqual',
+    diff: 'simple'
+  }

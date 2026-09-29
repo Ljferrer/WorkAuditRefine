@@ -1,0 +1,32 @@
+from pathlib import Path
+import tempfile,shutil,subprocess,os,json
+source=Path('/private/tmp/war-red-team-implementation')
+runner='adapters/codex/skills/red-team/assets/red-team-runner.mjs'
+evidence='adapters/codex/skills/red-team/assets/red-team-evidence.mjs'
+rtest='adapters/codex/skills/red-team/assets/red-team-runner.test.mjs'
+etest='adapters/codex/skills/red-team/assets/red-team-evidence.test.mjs'
+cases=[
+ ('finding-provenance',runner,"result.findings=result.findings.map(finding=>Object.fromEntries(['severity','needsDecision','deliverableAbsence','envGap','claim','reality','evidence','fix','planRef'].filter(key=>Object.hasOwn(finding,key)).map(key=>[key,finding[key]])))","result.findings=result.findings",rtest,'model provenance'),
+ ('object-store',runner,"const path=join(directory,entry.name)\n    return", "if(directory===root && entry.name==='objects')return []\n    const path=join(directory,entry.name)\n    return",rtest,'target guard detects dangling-object'),
+ ('initial-confirmation-order',runner,'    await confirmNewCandidates()\n    for(let retry=1;','    for(let retry=1;',rtest,'mandatory initial probe'),
+ ('page-free-projection',evidence,'  return parsed;','  return evidence;',etest,'H2 preserves'),
+]
+
+
+results=[]
+with tempfile.TemporaryDirectory(prefix='red-team-mutations-') as root:
+ root=Path(root)
+ for path in ['adapters/codex/skills/red-team','adapters/codex/skills/snipe/assets']:
+  shutil.copytree(source/path,root/path)
+ path='skills/red-team/assets/red-team-gate.mjs';(root/path).parent.mkdir(parents=True);shutil.copy(source/path,root/path)
+ for name,path,old,new,test,pattern in cases:
+  target=root/path;original=target.read_text();assert old in original,name
+  target.write_text(original.replace(old,new))
+  env=dict(os.environ);env.pop('NODE_TEST_CONTEXT',None)
+  p=subprocess.run(['node','--test','--test-name-pattern='+pattern,test],cwd=root,env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=40)
+  target.write_text(original)
+  assertion=p.returncode==1 and ('AssertionError' in p.stdout or 'ERR_ASSERTION' in p.stdout)
+  results.append({'name':name,'exit':p.returncode,'assertionKilled':assertion,'output':p.stdout})
+  print(name,assertion,flush=True)
+Path('/private/tmp/red-team-p1c3-mutations.json').write_text(json.dumps(results,indent=2))
+assert all(r['assertionKilled'] for r in results)

@@ -1,0 +1,126 @@
+✖ target guard detects dangling-object (1108.758917ms)
+✖ target guard detects alternates (1046.894625ms)
+✖ model provenance cannot hide an independently confirmed Major (1186.353042ms)
+✖ mandatory initial probe and candidate attempts precede retries (2924.962625ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6329.411458
+
+✖ failing tests:
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:257:56
+✖ target guard detects dangling-object (1108.758917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'CLEARED'
+  - 'INCOMPLETE'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:264:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CLEARED',
+    expected: 'INCOMPLETE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:257:56
+✖ target guard detects alternates (1046.894625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'CLEARED'
+  - 'INCOMPLETE'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:264:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CLEARED',
+    expected: 'INCOMPLETE',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:266:1
+✖ model provenance cannot hide an independently confirmed Major (1186.353042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'CLEARED'
+  - 'BLOCKED'
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:269:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CLEARED',
+    expected: 'BLOCKED',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:271:1
+✖ mandatory initial probe and candidate attempts precede retries (2924.962625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      'P:a:0',
+  +   'P:a:1',
+  +   'C:a#1:0',
+  +   'C:a#1:1',
+      'P:b:0',
+  +   'P:b:1',
+  +   'C:b#1:0',
+  +   'C:b#1:1',
+      'P:c:0',
+      'C:c#1:0',
+  +   'C:c#1:1',
+      'C:c#2:0',
+  -   'P:a:1',
+  -   'P:b:1',
+  -   'C:a#1:0',
+  -   'C:b#1:0',
+  -   'C:c#1:1',
+      'C:c#2:1',
+  -   'C:a#1:1',
+  -   'C:b#1:1'
+    ]
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/skills/red-team/assets/red-team-runner.test.mjs:282:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [
+      'P:a:0',   'P:a:1',
+      'C:a#1:0', 'C:a#1:1',
+      'P:b:0',   'P:b:1',
+      'C:b#1:0', 'C:b#1:1',
+      'P:c:0',   'C:c#1:0',
+      'C:c#1:1', 'C:c#2:0',
+      'C:c#2:1'
+    ],
+    expected: [
+      'P:a:0',   'P:b:0',
+      'P:c:0',   'C:c#1:0',
+      'C:c#2:0', 'P:a:1',
+      'P:b:1',   'C:a#1:0',
+      'C:b#1:0', 'C:c#1:1',
+      'C:c#2:1', 'C:a#1:1',
+      'C:b#1:1'
+    ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

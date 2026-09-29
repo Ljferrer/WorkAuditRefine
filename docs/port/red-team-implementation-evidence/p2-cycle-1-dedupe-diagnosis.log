@@ -1,0 +1,70 @@
+✖ offline relocated diagnostic entrypoint: success (3694.772291ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3752.831208
+
+✖ failing tests:
+
+test at adapters/codex/red-team-actual-host.test.mjs:40:132
+✖ offline relocated diagnostic entrypoint: success (3694.772291ms)
+  AssertionError [ERR_ASSERTION]: 
+  {
+    "status": "INCOMPLETE",
+    "configuredProfile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "independentlyObservedModelIdentity": null,
+    "observations": [
+      {
+        "kind": "clean",
+        "status": "OBSERVED",
+        "gaps": [],
+        "runFile": "clean-run/run.json",
+        "verdict": "CLEARED",
+        "fixture": {
+          "revision": "326bf32b92e70f2ed98f7e0f24fe611850e6fe72",
+          "source": "RED_TEAM_SOURCE:6bed2fa0-a3ef-401b-a2b3-cc38ff0bfbff:4",
+          "proof": "RED_TEAM_PROOF:1bda9e67-2bd9-45fb-a88d-d1aab775dd1c:4",
+          "expectedExit": 0
+        }
+      },
+      {
+        "kind": "seeded",
+        "status": "INCOMPLETE",
+        "gaps": [
+          "proof: no confirmed blocker matches the seeded oracle"
+        ],
+        "runFile": "seeded-run/run.json",
+        "verdict": "BLOCKED",
+        "fixture": {
+          "revision": "0a840d15607a57145a16fe7a17c573a6da7fbe84",
+          "source": "RED_TEAM_SOURCE:fbd382aa-8c78-4e9e-98c9-d751d2b9d591:5",
+          "proof": "RED_TEAM_PROOF:b375400d-7a50-473e-87d1-c6ab0d1fc385:5",
+          "expectedExit": 1
+        }
+      }
+    ],
+    "evidenceDir": "/private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-host-fixture-IjRfl4/evidence"
+  }
+  
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/red-team-actual-host.test.mjs:47:46)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

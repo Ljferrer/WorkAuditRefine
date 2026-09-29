@@ -1,0 +1,76 @@
+✖ offline relocated diagnostic entrypoint: success (3710.542917ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3765.162834
+
+✖ failing tests:
+
+test at adapters/codex/red-team-actual-host.test.mjs:42:188
+✖ offline relocated diagnostic entrypoint: success (3710.542917ms)
+  AssertionError [ERR_ASSERTION]: 
+  {
+    "status": "INCOMPLETE",
+    "configuredProfile": {
+      "model": "gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "independentlyObservedModelIdentity": null,
+    "observations": [
+      {
+        "kind": "clean",
+        "status": "INCOMPLETE",
+        "gaps": [
+          "expected CLEARED; observed INCOMPLETE",
+          "proof probe 2: missing valid result or observed RED_TEAM_PROOF:12128837-04db-4a9b-90a3-ba924e92ec41:4 command output/exit"
+        ],
+        "runFile": "clean-run/run.json",
+        "verdict": "INCOMPLETE",
+        "fixture": {
+          "revision": "7ae6caf5b2d5d032922a662b82a4f6db639fa259",
+          "source": "RED_TEAM_SOURCE:c5b51318-630f-4e2c-b978-84f50e75e1e4:4",
+          "proof": "RED_TEAM_PROOF:12128837-04db-4a9b-90a3-ba924e92ec41:4",
+          "expectedExit": 0
+        }
+      },
+      {
+        "kind": "seeded",
+        "status": "INCOMPLETE",
+        "gaps": [
+          "expected BLOCKED; observed INCOMPLETE",
+          "proof: no confirmed blocker matches the seeded oracle",
+          "proof: missing initial or applicable confirmation",
+          "proof probe 2: missing valid result or observed RED_TEAM_PROOF:1fc3a70a-336e-4ad1-9096-db5c2e565006:5 command output/exit"
+        ],
+        "runFile": "seeded-run/run.json",
+        "verdict": "INCOMPLETE",
+        "fixture": {
+          "revision": "d66b57aa15a4cf23b41ec87317ec80f81a93c734",
+          "source": "RED_TEAM_SOURCE:89616760-1b90-45ee-9b29-9418c65c5a29:5",
+          "proof": "RED_TEAM_PROOF:1fc3a70a-336e-4ad1-9096-db5c2e565006:5",
+          "expectedExit": 1
+        }
+      }
+    ],
+    "evidenceDir": "/private/var/folders/77/9ykv1t3j655fmtld52556jxh0000gn/T/red-team-host-fixture-DofwxB/evidence"
+  }
+  
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///private/tmp/war-red-team-implementation/adapters/codex/red-team-actual-host.test.mjs:49:46)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.start (node:internal/test_runner/test:1177:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
