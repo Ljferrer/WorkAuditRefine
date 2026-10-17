@@ -4,6 +4,10 @@
 
 It's a portable, dependency-free re-imagining of [Steve Yegge's Gas Town](https://github.com/gastownhall/gastown), built on Claude Code's own primitives — `Agent`, the `Workflow` tool, git worktrees, and GitHub issues — with **no Go binary, no Dolt, no beads**. WAR keeps Gas Town's worker / auditor / refinery roles, **absorbs the witness's live coordination into the Workflow itself**, and adds a **servitor** that records each phase's learnings.
 
+## Demo
+
+[**Watch the WAR v0.21.15 demo on YouTube (3 minutes)**](https://youtu.be/6LXrfWtKSlg) — parallel workers, independent audits, focused correction, verified integration, and shared engineering lessons.
+
 ## TL;DR
 
 Sixty seconds, five commands:
