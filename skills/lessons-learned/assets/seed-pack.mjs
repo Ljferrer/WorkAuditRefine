@@ -12,11 +12,20 @@
 // preflight on old Node, never partially seeds. seed-pack adds no dependency of its own: the
 // system `tar` (portable -czf / -xzf / -C flags only, never --sort — BSD compat) does the
 // archiving, and equality is always checked against unpacked contents.
+//
+// macOS AppleDouble sidecars: Apple's bsdtar runs copyfile(3) on create and archives a `._<name>`
+// sidecar for every entry carrying an xattr (com.apple.provenance is enough), unless
+// COPYFILE_DISABLE=1 is set — and its own extract consumes them again by default, so such a corpus
+// verifies green on the Mac that packed it and red on every other tar. runTar sets the opt-out on every call,
+// tarCreate refuses an archive that still carries one, and verify names one explicitly. The
+// sidecar check reads member names straight from the gzip stream (tarMemberNames), never through
+// the system tar, so it sees the same member set on every platform.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -103,18 +112,76 @@ function parseArgv(args) {
 
 // Shell out to system tar; any spawn error or non-zero status is fatal, echoing the underlying
 // stderr. Portable flags only — never --sort (BSD tar lacks it), so archive BYTES are never
-// deterministic and are never asserted; only unpacked contents are.
+// deterministic and are never asserted; only unpacked contents are. COPYFILE_DISABLE=1 is an env
+// opt-out, not a flag: Apple's bsdtar stops writing (and folding back) `._` AppleDouble sidecars,
+// and every other tar ignores it.
 function runTar(args, what) {
-  const r = spawnSync('tar', args, { encoding: 'utf8' });
+  const r = spawnSync('tar', args, { encoding: 'utf8', env: { ...process.env, COPYFILE_DISABLE: '1' } });
   if (r.error) die(EXIT_REFUSE, `seed-pack: ${what} failed: ${r.error.message}`);
   if (r.status !== 0) {
     die(EXIT_REFUSE, `seed-pack: ${what} failed (tar exit ${r.status}): ${(r.stderr || '').trim()}`);
   }
 }
 
+// Member names of a .tar.gz, read in-process from the gzip stream: ustar name + prefix, a pax
+// `path` record, or a GNU long name. Header records (pax x/g, GNU L/K) are not members.
+function tarMemberNames(tarballPath) {
+  let buf;
+  try {
+    buf = zlib.gunzipSync(fs.readFileSync(tarballPath));
+  } catch (e) {
+    die(EXIT_REFUSE, `seed-pack: cannot read tarball '${tarballPath}': ${e.message}`);
+  }
+  const cstr = (b) => {
+    const z = b.indexOf(0);
+    return b.subarray(0, z === -1 ? b.length : z).toString('utf8');
+  };
+  const names = [];
+  let longName = null;
+  for (let off = 0; off + 512 <= buf.length; ) {
+    const h = buf.subarray(off, off + 512);
+    if (h.every((b) => b === 0)) break; // end-of-archive block
+    const size = parseInt(cstr(h.subarray(124, 136)).trim() || '0', 8);
+    const type = String.fromCharCode(h[156] || 0x30);
+    const body = buf.subarray(off + 512, off + 512 + size);
+    off += 512 + Math.ceil(size / 512) * 512;
+    if (type === 'L' || type === 'x') {
+      longName = type === 'L' ? cstr(body) : (/(?:^|\n)\d+ path=([^\n]*)\n/.exec(body.toString('utf8'))?.[1] ?? longName);
+      continue;
+    }
+    if (type === 'K' || type === 'g') continue;
+    const prefix = cstr(h.subarray(257, 263)) === 'ustar' ? cstr(h.subarray(345, 500)) : '';
+    const name = cstr(h.subarray(0, 100));
+    names.push(longName ?? (prefix ? `${prefix}/${name}` : name));
+    longName = null;
+  }
+  return names;
+}
+
+// `._<name>` members — macOS AppleDouble sidecars, never lessons.
+function appleDoubleMembers(tarballPath) {
+  return tarMemberNames(tarballPath).filter((n) => path.basename(n).startsWith('._'));
+}
+
+function describeSidecars(sidecars) {
+  return `${sidecars.length} macOS AppleDouble sidecar member(s) (${sidecars.slice(0, 3).join(', ')}${sidecars.length > 3 ? ', ...' : ''})`;
+}
+
 function tarCreate(tarballPath, dir, what) {
   // -C dir . packs the directory CONTENTS (entries land flat on extract). No --sort (BSD compat).
-  runTar(['-czf', tarballPath, '-C', dir, '.'], what);
+  // Built beside the target and renamed into place only once it carries no AppleDouble sidecar,
+  // so a refused create leaves the previous tarball untouched.
+  const partial = `${tarballPath}.partial`;
+  try {
+    runTar(['-czf', partial, '-C', dir, '.'], what);
+    const sidecars = appleDoubleMembers(partial);
+    if (sidecars.length > 0) {
+      die(EXIT_REFUSE, `seed-pack: ${what} refused: tar archived ${describeSidecars(sidecars)} despite COPYFILE_DISABLE=1 — pack with a tar that honors it`);
+    }
+    fs.renameSync(partial, tarballPath);
+  } finally {
+    fs.rmSync(partial, { force: true });
+  }
 }
 
 function tarExtract(tarballPath, destDir, what) {
@@ -178,7 +245,8 @@ function readManifestIfPresent(dir) {
 // Member resolution (pack). Each top-level *.md member of the src dir passes fail-closed gates,
 // then contributes a manifest row. Non-recursive and skips the generated MEMORY.md projection —
 // mirrors war-memory's readLessonsFromDir (a seed corpus is a flat memory root; archive/ is a
-// separate tier handled by evict).
+// separate tier handled by evict). Also skips `._*` AppleDouble sidecars, which a non-macOS tar
+// extracts as plain files when a staging dir is unpacked from a sidecar-carrying tarball.
 // ---------------------------------------------------------------------------
 function readMembers(dir) {
   let entries;
@@ -191,6 +259,7 @@ function readMembers(dir) {
   for (const e of entries) {
     if (!e.isFile() || !e.name.endsWith('.md')) continue;
     if (e.name === PROJECTION_FILE) continue;
+    if (e.name.startsWith('._')) continue;
     out.push({ name: e.name, content: fs.readFileSync(path.join(dir, e.name), 'utf8') });
   }
   return out;
@@ -359,6 +428,11 @@ function verifyTier(tarball, rows, tier, maxMembers, maxBytes) {
   const rowBytes = rows.reduce((s, r) => s + r.bytes, 0);
   if (rowBytes > maxBytes) {
     die(EXIT_VERIFY, `seed-pack verify: ${tier} byte cap exceeded — ${rowBytes} > ${maxBytes} B`);
+  }
+
+  const sidecars = appleDoubleMembers(tarball);
+  if (sidecars.length > 0) {
+    die(EXIT_VERIFY, `seed-pack verify: ${tier} tarball carries ${describeSidecars(sidecars)} — it was packed by macOS tar without COPYFILE_DISABLE=1; re-pack it with seed-pack pack`);
   }
 
   const tmp = mkdtemp(`seed-pack-verify-${tier}-`);

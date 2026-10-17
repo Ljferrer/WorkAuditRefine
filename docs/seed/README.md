@@ -22,6 +22,13 @@ tarball blob. `skills/lessons-learned/assets/seed-pack.mjs` packs / verifies / e
 `skills/lessons-learned/seed-set.test.mjs` is the standing contract that `verify` stays green
 against the committed pair.
 
+Always re-pack through `seed-pack.mjs`, never a bare `tar`. On macOS, Apple's `tar` archives a
+`._<name>` AppleDouble sidecar beside every member unless `COPYFILE_DISABLE=1` is set, and its
+own extract hides them again, so a hand-packed corpus verifies green on the Mac that packed it
+and red on every other platform. `seed-pack` sets that opt-out on every `tar` call and refuses
+an archive that still carries a sidecar. `verify` reads member names from the gzip stream
+itself, so it reports a sidecar on every platform.
+
 ## Caps (dual-axis, operator-gated eviction)
 
 Overflow on **either** axis; nothing is ever auto-deleted.
