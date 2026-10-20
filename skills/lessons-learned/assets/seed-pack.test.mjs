@@ -373,6 +373,108 @@ test('an unknown verb exits 1 with a single-line refusal (no stack trace)', () =
 });
 
 // =============================================================================
+// macOS AppleDouble sidecars (`._<name>`): bsdtar's copyfile(3) archives one per entry unless
+// COPYFILE_DISABLE=1, and macOS tar's own extract hides them again, so a corpus packed on a Mac
+// verified green there and red everywhere else. These fixtures reproduce that on any platform.
+// =============================================================================
+const APPLEDOUBLE_MAGIC = Buffer.from([0x00, 0x05, 0x16, 0x07]); // AppleDouble header magic
+
+// A `tar` shim that emulates macOS bsdtar's create mode: unless COPYFILE_DISABLE=1, every entry
+// under the `-C` dir (and the dir itself, as `._.`) gains an AppleDouble sidecar in the archive.
+// SHIM_ALWAYS_SIDECAR=1 injects them regardless — a tar that ignores the opt-out. Any other mode
+// (extract, list) passes straight through to the real tar.
+function bsdtarShim() {
+  const realTar = spawnSync('sh', ['-c', 'command -v tar'], { encoding: 'utf8' }).stdout.trim();
+  assert.ok(realTar, 'no system tar on PATH');
+  const bin = tmp('seed-pack-shim-');
+  writeFileSync(join(bin, 'tar'), `#!/usr/bin/env bash
+case "$1" in -c*) ;; *) exec "${realTar}" "$@" ;; esac
+if [ "\${COPYFILE_DISABLE:-}" = "1" ] && [ "\${SHIM_ALWAYS_SIDECAR:-}" != "1" ]; then exec "${realTar}" "$@"; fi
+args=("$@"); dir=""
+for ((i = 0; i < \${#args[@]}; i++)); do [ "\${args[i]}" = "-C" ] && dir="\${args[i+1]}"; done
+stage=$(mktemp -d)
+cp -R "$dir"/. "$stage"/
+for f in "$stage"/*; do printf '\\000\\005\\026\\007' > "$stage/._$(basename "$f")"; done
+printf '\\000\\005\\026\\007' > "$stage/._."
+for ((i = 0; i < \${#args[@]}; i++)); do [ "\${args[i]}" = "-C" ] && args[i+1]="$stage"; done
+"${realTar}" "\${args[@]}"; rc=$?
+rm -rf "$stage"
+exit $rc
+`, { mode: 0o755 });
+  return { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+}
+
+function tarMembers(tarball) {
+  const r = spawnSync('tar', ['-tzf', tarball], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout.split('\n').filter(Boolean);
+}
+
+test('verify names an AppleDouble sidecar member and the COPYFILE_DISABLE cause', () => {
+  const src = goodCorpus();
+  const dest = tmp('seed-pack-out-');
+  assert.equal(run(['pack', src, '--out', dest]).status, 0);
+
+  // Re-tar the packed members with one `._` sidecar beside them; the manifest is untouched.
+  const stage = tmp('seed-pack-stage-');
+  assert.equal(spawnSync('tar', ['-xzf', join(dest, 'seed.tar.gz'), '-C', stage]).status, 0);
+  writeFileSync(join(stage, '._shell-quoting.md'), APPLEDOUBLE_MAGIC);
+  assert.equal(spawnSync('tar', ['-czf', join(dest, 'seed.tar.gz'), '-C', stage, '.']).status, 0);
+
+  const v = run(['verify', dest]);
+  assert.equal(v.status, 3, out(v));
+  assert.match(out(v), /AppleDouble/);
+  assert.match(out(v), /\._shell-quoting\.md/);
+  assert.match(out(v), /COPYFILE_DISABLE=1/);
+});
+
+test('pack under a copyfile-style tar writes no AppleDouble sidecar (COPYFILE_DISABLE=1)', () => {
+  const src = goodCorpus();
+  const dest = tmp('seed-pack-out-');
+  const env = bsdtarShim();
+
+  const p = run(['pack', src, '--out', dest], { env });
+  assert.equal(p.status, 0, out(p));
+  const sidecars = tarMembers(join(dest, 'seed.tar.gz')).filter((n) => n.split('/').pop().startsWith('._'));
+  assert.deepEqual(sidecars, [], 'pack archived AppleDouble sidecars');
+  const v = run(['verify', dest]);
+  assert.equal(v.status, 0, out(v));
+
+  // Same for evict's two re-packs.
+  const e = run(['evict', '--slugs', 'shell-quoting', dest], { env });
+  assert.equal(e.status, 0, out(e));
+  assert.equal(run(['verify', dest]).status, 0);
+});
+
+test('pack refuses, leaving the prior pair intact, when tar archives a sidecar anyway', () => {
+  const src = goodCorpus();
+  const dest = tmp('seed-pack-out-');
+  assert.equal(run(['pack', src, '--out', dest]).status, 0);
+  const before = readFileSync(join(dest, 'seed.tar.gz'));
+
+  writeLesson(src, 'regex-greedy.md', { slug: 'regex-greedy', description: 'Greedy quantifiers overreach', body: 'A greedy star takes the longest match.' });
+  const p = run(['pack', src, '--out', dest], { env: { ...bsdtarShim(), SHIM_ALWAYS_SIDECAR: '1' } });
+  assert.equal(p.status, 1, out(p));
+  assert.match(out(p), /AppleDouble/);
+  assert.ok(readFileSync(join(dest, 'seed.tar.gz')).equals(before), 'the refused pack replaced seed.tar.gz');
+  assert.deepEqual(readdirSync(dest).sort(), ['seed-manifest.json', 'seed.tar.gz'], 'the refused pack left a stray file');
+  assert.equal(run(['verify', dest]).status, 0);
+});
+
+test('pack skips `._` sidecar files in its src dir (a non-macOS unpack of a sidecar tarball)', () => {
+  const src = goodCorpus();
+  writeFileSync(join(src, '._shell-quoting.md'), APPLEDOUBLE_MAGIC);
+  writeFileSync(join(src, '._.'), APPLEDOUBLE_MAGIC);
+  const dest = tmp('seed-pack-out-');
+
+  const p = run(['pack', src, '--out', dest]);
+  assert.equal(p.status, 0, out(p));
+  const manifest = JSON.parse(readFileSync(join(dest, 'seed-manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.seed.map((r) => r.slug), ['git-detached-head', 'regex-anchors', 'shell-quoting']);
+  assert.equal(run(['verify', dest]).status, 0);
+});
+
+// =============================================================================
 // eviction ranking: near-dupe outranks a larger unique member (spec §3 order)
 // =============================================================================
 test('rankEvictions puts near-dupes ahead of a larger unique member', () => {
