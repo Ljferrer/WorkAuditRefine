@@ -4245,6 +4245,27 @@ test('roster — phase-start assertion: a task with NO roster → held:workflow-
   assert.ok(out.workflowError.message.includes('t1'), 'the error names the task')
 })
 
+test('roster — phase-start assertion threads run.evidence: an evidence seat passes entry with run.evidence true and ends held:workflow-error when the knob is absent', async () => {
+  // The call site is validateRoster(t.roster, run.evidence). A mutation back to validateRoster(t.roster)
+  // refuses every evidence seat at entry; the ON arm below goes red on it.
+  const evidenceTasks = [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] },
+  ]
+  const on = await runPhase(PROVISION_ARGS({ tasks: evidenceTasks, run: { evidence: true } }), defaultImpl)
+  assert.notEqual(on.out.landDecision, 'held:workflow-error',
+    `an evidence seat passes entry validation with run.evidence true; got: ${JSON.stringify(on.out.workflowError)}`)
+  assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`),
+    'the evidence seat is dispatched under its lens label (presence guard)')
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
+  const off = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, PROVISION_ARGS({ tasks: evidenceTasks }), { total: null })
+  assert.equal(off.landDecision, 'held:workflow-error',
+    'the same roster with run.evidence absent must yield held:workflow-error')
+  assert.ok(off.workflowError && off.workflowError.message.includes('t1'), 'the error names the task')
+  assert.ok(off.workflowError.message.includes('needs run.evidence: true'), 'the error names the run.evidence gate')
+})
+
 test('D7 — gate-audit auto-skip: a merged requiresTest:false task spawns NO gate-audit seat and the skip is logged', async () => {
   const args = PROVISION_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false },

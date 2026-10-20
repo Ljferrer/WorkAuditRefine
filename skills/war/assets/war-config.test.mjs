@@ -11,7 +11,6 @@ import {
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
-import * as warConfig from './war-config.mjs'
 import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
@@ -2664,10 +2663,7 @@ test('seat-shape de-mirror: war-room SKILL.md and schemas.md roster rows carry v
   ]
   for (const row of rows) {
     assert.ok(row.includes(shape[0]), `the row must carry the code's seat shape ${shape[0]}: ${row.slice(0, 120)}`)
-    const named = row.match(/\b(SEAT_AGENT_TYPES|[A-Z_]+_TYPES)\b/)
-    assert.ok(named, 'the row must name the agentType allowlist by export')
-    assert.equal(named[1], 'SEAT_AGENT_TYPES')
-    assert.deepEqual(warConfig[named[1]], SEAT_AGENT_TYPES, 'the named export exists in war-config.mjs')
+    assert.match(row, /\bSEAT_AGENT_TYPES\b/, 'the row must name the agentType allowlist by export')
     assert.match(row, /per `validateRoster`/, 'the seat bound, the depth enum and the depth default point at validateRoster')
     assert.doesNotMatch(row, /1[–-]5/, 'the seat bound is not restated')
     assert.doesNotMatch(row, /neighbors/, 'the depth enum is not restated')
@@ -2677,11 +2673,15 @@ test('seat-shape de-mirror: war-room SKILL.md and schemas.md roster rows carry v
   const warRoomRow = seatShapeRow('skills/war-room/SKILL.md', '- `run.evidence`')
   assert.match(warRoomRow, /never restated here/)
   assert.match(warRoomRow, /no preset sets it/)
+  assert.match(warRoomRow, /\bSEAT_AGENT_TYPES\b/, 'the gate names the evidence seat by export')
+  assert.doesNotMatch(warRoomRow, /war-evidence-auditor/, 'the evidence member is not restated')
   const schemasKeys = seatShapeRow('skills/war/references/schemas.md', 'run: { roundLimit')
   assert.match(schemasKeys, /\bevidence\b/, 'evidence joins the schemas.md run key list')
   const schemasRow = seatShapeRow('skills/war/references/schemas.md', '// evidence —')
   assert.match(schemasRow, /per war-config\.mjs validate\(\) — never restated here/)
   assert.match(schemasRow, /no preset sets it/)
+  assert.match(schemasRow, /\bSEAT_AGENT_TYPES\b/, 'the gate names the evidence seat by export')
+  assert.doesNotMatch(schemasRow, /war-evidence-auditor/, 'the evidence member is not restated')
 })
 
 // resolveGate (ADR 0036): the inline gate-composition mirror. Extract the arrow body + its own detector
