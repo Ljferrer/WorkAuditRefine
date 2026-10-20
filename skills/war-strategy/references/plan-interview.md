@@ -37,9 +37,9 @@ node skills/_shared/war-memory.mjs query --queries <file> --local <local root> -
    rows (path, sha256, provider). An artifact first named at Stage 2 gets the same pass
    mid-interview.
 
-Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, an empty run
-corpus, or an absent REA never blocks the interview — proceed without the rows (and without a `--local` root
-the query writes nothing).
+Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, an empty run corpus, or
+an absent REA never blocks the interview — proceed without the rows (and without a `--local`
+root the query writes nothing).
 
 **Stage 1 — silent rehearsal + pre-mortem.** Mentally execute the plan-to-be, then name **at
 least two landmine falsifiers** from the WAR falsifier list:
@@ -87,7 +87,7 @@ is not a question. Intent material (Purpose / Method / End states) is **never**
 default-and-tagged: it is asked, or it is absent (ADR 0013).
 When the End states are drafted, read [references/backward-chain-plan.md](backward-chain-plan.md):
 the chain from each one orders Part 2, and the file boundary carves it.
-When the Stage 0 artifact recon lane fired, read [references/artifact-evidence.md](artifact-evidence.md):
+When the artifact recon lane fires (Stage 0 or mid-interview), read [references/artifact-evidence.md](artifact-evidence.md):
 the tag grammar, the digest rule, the cite-only rule and the block law live there, never here.
 
 **Stage 2 — the interview.** Run under the question contract:
