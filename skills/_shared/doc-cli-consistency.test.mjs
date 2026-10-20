@@ -104,19 +104,34 @@ function normalizeVerb(tok) {
   return m ? m[1] : null
 }
 
+// Fenced ``` blocks, shared by the verb scan and the spec-posterity rule. Non-greedy: prose
+// BETWEEN two fences stays in place. An unbalanced trailing fence is left UNSTRIPPED — the
+// tail is still scanned (fail-closed) by each consumer.
+const FENCE_RE = /```[\s\S]*?```/g
+const stripFences = text => text.replace(FENCE_RE, '')
+
 // A "claimed verb" = the first token after the module name in either
-// (1) an inline `code span` or (2) a raw "shell out to <module> <verb>" phrase
-// (the plan's two grep forms). The module name preceding "shell out to" (the
-// real "…owned by `X` — shell out to it" prose) never matches — the verb must
-// follow the module, which must follow the phrase.
+// (1) an inline `code span`, (2) a fenced ``` block, scanned whole as one span, or (3) a
+// raw "shell out to <module> <verb>" phrase (the plan's two grep forms plus the fence).
+// The module name preceding "shell out to" (the real "…owned by `X` — shell out to it"
+// prose) never matches — the verb must follow the module, which must follow the phrase.
+// Fence-aware (ace 1.3 re-entry): a fence spends three backticks, so a left-to-right
+// single-backtick pairing over the raw text flips after every fence — real code spans fall
+// outside the matches and prose falls inside. Each fence body is scanned first, then the
+// inline-span pairing runs on the text with the fences removed. A stray (unbalanced) fence
+// opener survives the strip: its tail is scanned whole as one span, so no later verb is
+// lost to a flipped pairing.
 function claimedVerbs(skillText, moduleName) {
   const out = []
   const push = tok => { const v = normalizeVerb(tok); if (v) out.push(v) }
   const mod = escapeRe(moduleName)
-  for (const span of skillText.match(/`[^`]+`/g) || []) {
-    const inner = span.slice(1, -1)
-    for (const m of inner.matchAll(new RegExp(mod + '\\s+(\\S+)', 'g'))) push(m[1])
-  }
+  const verbRe = new RegExp(mod + '\\s+(\\S+)', 'g')
+  const scanSpan = inner => { for (const m of inner.matchAll(verbRe)) push(m[1]) }
+  for (const fence of skillText.match(FENCE_RE) || []) scanSpan(fence.slice(3, -3))
+  let prose = stripFences(skillText)
+  const stray = prose.indexOf('```')
+  if (stray >= 0) { scanSpan(prose.slice(stray + 3)); prose = prose.slice(0, stray) }
+  for (const span of prose.match(/`[^`]+`/g) || []) scanSpan(span.slice(1, -1))
   for (const m of skillText.matchAll(new RegExp('shell out to\\s+`?(?:node\\s+)?\\S*?' + mod + '\\s+`?(\\S+)', 'gi'))) push(m[1])
   return out
 }
@@ -308,10 +323,8 @@ function posterityCorpus() {
 // bare docs/specs/ output-directory mention (survey-corps). Fenced code blocks
 // are stripped first: in this corpus a fence is always a command/template/output
 // example — input-shape mechanics by definition — while doctrine citations live
-// in prose links and inline code spans, exactly where this rule looks.
-
-// An unbalanced trailing fence leaves the tail UNSTRIPPED — still scanned (fail-closed).
-const stripFences = text => text.replace(/```[\s\S]*?```/g, '')
+// in prose links and inline code spans, exactly where this rule looks (stripFences is
+// defined beside claimedVerbs, which shares it).
 
 function specCitations(path, text) {
   const out = []
@@ -394,6 +407,31 @@ test('delete-and-trace: an injected fake verb fails resolution; real verbs do no
   const good = [{ path: 'FIXTURE', text: 'Run `campaign-ledger.mjs sweep`, then `safe-swap.sh recover` and `provision-worktrees.sh ensure-exclude $MAIN`.' }]
   assert.ok(unresolved([{ path: 'FIXTURE', text: 'Run `provision-worktrees.sh frobnicate`.' }], cases).some(b => b.mod === 'provision-worktrees.sh' && b.verb === 'frobnicate'), 'a fake provision-worktrees.sh subcommand must be flagged')
   assert.deepEqual(unresolved(good, cases), [], 'genuine verbs must resolve to their dispatch cases')
+})
+
+test('claimedVerbs is fence-aware: fenced verbs are scanned, and a fence never flips the inline-span pairing', () => {
+  const cases = dispatchCases()
+  // (a) a verb inside a fence is scanned as one span — real and fake alike
+  const fenced = 'Run:\n```sh\nbash safe-swap.sh stage x\n```\nthen `campaign-ledger.mjs sweep`.'
+  assert.deepEqual(claimedVerbs(fenced, 'safe-swap.sh'), ['stage'], 'a fenced verb must be scanned')
+  assert.ok(unresolved([{ path: 'FIXTURE', text: 'see\n```\nsafe-swap.sh frobnicate\n```\n' }], cases).some(b => b.verb === 'frobnicate'), 'a fake fenced verb must be flagged')
+  // (b) an inline span AFTER a fence still pairs correctly (the fence spends three backticks;
+  // a raw left-to-right pairing would put `campaign-ledger.mjs sweep` outside every match)
+  assert.deepEqual(claimedVerbs(fenced, 'campaign-ledger.mjs'), ['sweep'], 'an inline span after a fence must still be scanned')
+  // (c) a span between two fences pairs correctly (the greedy-regex arm itself is pinned by the
+  // spec-posterity carve-outs test below, which shares FENCE_RE)
+  assert.deepEqual(claimedVerbs('```\na\n```\nRun `safe-swap.sh recover` now.\n```\nb\n```', 'safe-swap.sh'), ['recover'], 'prose between two fences must still be scanned')
+  // (d) an unbalanced trailing fence: its tail is scanned whole, never lost to a flipped pairing
+  assert.deepEqual(claimedVerbs('intro\n```\nx\nRun `safe-swap.sh verify`.', 'safe-swap.sh'), ['verify'], 'an unbalanced trailing fence leaves its tail scanned (fail-closed)')
+  // Non-vacuity on the live corpus (ace 1.3 re-entry): the recon lane's ensure-exclude line sits
+  // after a fence in BOTH doctrine files, so this row is red under a fence-blind pairing. The
+  // plan-interview.md Stage-0 recon command (#1306) is itself fenced, so its `query` pins arm (a).
+  assert.ok(claimedVerbs(src('skills/war-strategy/references/artifact-evidence.md'), 'provision-worktrees.sh').includes('ensure-exclude'),
+    'artifact-evidence.md: the recon lane\'s `provision-worktrees.sh ensure-exclude` line must reach the verb scan')
+  assert.ok(claimedVerbs(src('skills/war-strategy/references/plan-interview.md'), 'provision-worktrees.sh').includes('ensure-exclude'),
+    'plan-interview.md: lane 4\'s `provision-worktrees.sh ensure-exclude` line must reach the verb scan')
+  assert.ok(claimedVerbs(src('skills/war-strategy/references/plan-interview.md'), 'war-memory.mjs').includes('query'),
+    'plan-interview.md: the fenced Stage-0 `war-memory.mjs query` command must reach the verb scan (#1306)')
 })
 
 test('verb-scan placement census (D2): every skills/*/references/*.md file is consciously placed', () => {

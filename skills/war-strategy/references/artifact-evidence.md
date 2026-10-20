@@ -54,10 +54,9 @@ Marker: **Target artifacts**
 Each row carries three fields: `path` (where the artifact sits on the authoring machine),
 `sha256` (64 lowercase hex) and `provider` (the REA provider that measured it).
 `target-artifacts.mjs` parses the rows fence-aware and names the tasks whose `Plan slice:`
-cites a `rea:` tag. Row shape:
+cites a `rea:` tag. Row shape (one line per artifact, under the marker line):
 
 ```
-**Target artifacts**
 - path: `/abs/path/to/app.bin` · sha256: `<64hex>` · provider: `ghidra`
 ```
 
