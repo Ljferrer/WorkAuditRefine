@@ -23,6 +23,10 @@
 #   backtick/quotes that crashes with unexpected-EOF).
 #   We do NOT rely on $(...) to materialize a bare newline — bash 3.2 strips
 #   trailing newlines from command substitution, yielding an empty pattern.
+#   That same stripping erases a newline-ONLY residue, so an embedded newline
+#   is caught by an explicit `case "$cmd" in *$'\n'*)` pre-check that runs
+#   BEFORE the residue assignment (#1828); the match reads $cmd directly and
+#   never passes through $(...).
 #
 # GLOBAL GIT FLAGS DENIED (even before subcommand check)
 #   -c / --config       : override git config (security risk)
@@ -72,24 +76,39 @@ deny() {
 [ -z "$cmd" ] && deny "empty command"
 
 # ---------------------------------------------------------------------------
+# EMBEDDED-NEWLINE pre-check (#1828). A newline is outside the char allowlist,
+# but the $(...) at the residue assignment below strips trailing newlines, so a
+# command whose ONLY out-of-allowlist byte is a newline (`git diff HEAD`,
+# newline, `echo pwned`) used to reach the verb parser with an EMPTY residue
+# and pass. This pattern match reads $cmd itself, never a $(...) result, so the
+# newline survives. Routed to the chain-operator arm's text: a newline joins two
+# commands in one Bash call, the same composition shape as && and ;. The
+# residue assignment and the classifier below stay byte-unchanged.
+# ---------------------------------------------------------------------------
+case "$cmd" in
+  *$'\n'*)
+    deny "command contains forbidden character(s): <newline> — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools" ;;
+esac
+
+# ---------------------------------------------------------------------------
 # CHARACTER ALLOWLIST check (fail-closed).
 # Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ ~ % + -
 # Use LC_ALL=C tr -d to extract any character outside the allowed set.
 # If residue is non-empty, a forbidden character is present → DENY.
 #
 # NOTE: We do NOT put a literal newline in the allowlist string — bash 3.2
-# strips trailing newlines from $(...) so the pattern would be empty.
-# Instead, newline is implicitly denied because it is NOT in the allowlist.
+# strips trailing newlines from $(...) so the pattern would be empty. The same
+# stripping erases a newline-ONLY residue, so the allowlist alone never denied
+# a newline; the explicit pre-check above owns that deny (#1828).
 #
 # The deny message NAMES the rule that fired, classified from the residue
 # BEFORE the message is composed (#1435, refining #1412 fix 1's single
 # unconditional message that over-attributed chain denials to the
 # metacharacter rule):
-#   - residue of ONLY chain/control operators (& ; | — a newline-ONLY residue
-#     never reaches this classifier: the $(...) at the residue assignment
-#     strips it to empty, per the note above; a newline only survives into the
-#     residue alongside a following non-chain byte, and the \n member of the
-#     classifier's delete set keeps such a mixed residue correctly routed) →
+#   - residue of ONLY chain/control operators (& ; | — a newline never reaches
+#     this classifier: the pre-check above denies every newline-carrying
+#     command before the residue assignment, so the \n member of the
+#     classifier's delete set is defense in depth only) →
 #     the chain-operator rule: one bare git command per Bash call, with the
 #     #1421(b) ergonomics guidance (split && / ; chains into separate calls;
 #     filter/search with Read/Grep/Glob) retained on THIS branch, where the
@@ -116,9 +135,10 @@ if [ -n "$residue" ]; then
   # Classify: delete the chain/control operator bytes from the residue; anything
   # left is a non-chain metacharacter. tr interprets its own '\n' escape, so
   # the tr ARGUMENT needs no shell-level $'\n' literal (the parameter expansion
-  # above does use one). The \n member is load-bearing: a trailing-mixed
-  # residue like "\n&&" (from `git diff<newline>&& git log`) would otherwise
-  # leave a newline in nonchain_residue and misclassify as metacharacter.
+  # above does use one). The \n member is defense in depth: the pre-check
+  # above denies every newline-carrying command before this point, so no
+  # newline reaches the residue; the member stays so a mixed residue like
+  # "\n&&" would still classify as chain-operator if the pre-check were lost.
   nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
   if [ -n "$nonchain_residue" ]; then
     deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep"
