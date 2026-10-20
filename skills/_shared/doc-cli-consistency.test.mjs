@@ -110,9 +110,9 @@ function normalizeVerb(tok) {
 const FENCE_RE = /```[\s\S]*?```/g
 const stripFences = text => text.replace(FENCE_RE, '')
 
-// A "claimed verb" = the first token after the module name in either
-// (1) an inline `code span`, (2) a fenced ``` block, scanned whole as one span, or (3) a
-// raw "shell out to <module> <verb>" phrase (the plan's two grep forms plus the fence).
+// A "claimed verb" = the first token after the module name in any of these forms (the
+// plan's two grep forms plus the fence): (1) an inline `code span`, (2) a fenced ``` block,
+// scanned whole as one span, or (3) a raw "shell out to <module> <verb>" phrase.
 // The module name preceding "shell out to" (the real "…owned by `X` — shell out to it"
 // prose) never matches — the verb must follow the module, which must follow the phrase.
 // Fence-aware (ace 1.3 re-entry): a fence spends three backticks, so a left-to-right
