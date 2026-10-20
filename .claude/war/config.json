@@ -20,7 +20,11 @@
     },
     "refiner": {
       "model": "sonnet",
-      "effort": "high"
+      "effort": "high",
+      "recovery": {
+        "model": "opus",
+        "effort": "high"
+      }
     },
     "servitor": {
       "model": "sonnet",
@@ -63,6 +67,7 @@
   },
   "run": {
     "roundLimit": 6,
+    "absorbRounds": 6,
     "redteamRoundLimit": 3,
     "afk": false,
     "ace": true,
@@ -81,7 +86,7 @@
     "valeStyle": "workAuditRefine"
   },
   "overrides": {
-    "gate": null,
+    "gate": "node --test 'skills/**/*.test.mjs'",
     "workingBranch": null,
     "landingBranch": null,
     "learningsTarget": null,
