@@ -176,7 +176,9 @@ const defaultImpl = (prompt, opts) => {
   if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
   if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
-  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+  // Every SEAT_AGENT_TYPES member answers as an auditor: an evidence seat dispatched under its own
+  // agentType (End state 11) gets a verdict here, not {}.
+  if (SEAT_AGENT_TYPES.includes(seat)) return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
       ? { mode: 'land-phase', status: 'landed', working_sha: '2'.repeat(40) }
@@ -4255,6 +4257,8 @@ test('roster — phase-start assertion threads run.evidence: an evidence seat pa
   const on = await runPhase(PROVISION_ARGS({ tasks: evidenceTasks, run: { evidence: true } }), defaultImpl)
   assert.notEqual(on.out.landDecision, 'held:workflow-error',
     `an evidence seat passes entry validation with run.evidence true; got: ${JSON.stringify(on.out.workflowError)}`)
+  assert.equal(on.out.landDecision, 'landed', `the evidence seat's verdict is read as an approval and t1 lands; got: ${on.out.landDecision}`)
+  assert.ok(on.out.landed.includes('t1'), 't1 lands on the ON arm (a {} verdict from the seat would escalate instead)')
   assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`),
     'the evidence seat is dispatched under its lens label (presence guard)')
   const fn = build()
@@ -5120,7 +5124,7 @@ const sweepBase = (queued) => (prompt, opts) => {
   if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
   if (seat === 'war-worker') return { task_id: 't1', status: 'implemented',
     head_sha: (opts.label || '').startsWith('polish:') ? 'b01a5a00' : 'deadbeef', tests: { unit: 1 } }
-  if (seat === 'war-auditor') {
+  if (SEAT_AGENT_TYPES.includes(seat)) {   // every seat type answers, the evidence seat included
     const label = opts.label || ''
     const f = label.includes(':t1:') && !label.startsWith('gate-audit:') ? queued : []
     return { seat: label, lens: 'correctness', verdict: 'approve', findings: f, confidence: 'high' }
