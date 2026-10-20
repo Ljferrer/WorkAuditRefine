@@ -5277,6 +5277,28 @@ test('phase-close sweep: the sweep dispatch carries the intent when present', as
   assert.ok(pw.prompt.includes('Purpose: wibble the wtprov.'), 'the sweep prompt carries the intent')
 })
 
+test('phase-close sweep threads run.evidence: a config default roster carrying the evidence seat convenes the polish panel with run.evidence true and skips fail-open when the knob is absent', async () => {
+  // The call site is validateRoster(defaultRoster, run.evidence). A mutation back to validateRoster(defaultRoster)
+  // refuses the evidence seat at the sweep: the ON arm goes red. A mutation to validateRoster(defaultRoster, true)
+  // admits it with the knob absent: the OFF arm goes red. The phase-start twin is 'roster — phase-start assertion
+  // threads run.evidence'; the sweep is the second engine call site.
+  const evidenceDefault = { audit: { roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] } }
+  const on = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true, evidence: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:p3-polish:${EVIDENCE_LENS}`),
+    'the evidence seat re-audits the polish: the sweep convenes with run.evidence true')
+  assert.ok(!on.logs.some(l => typeof l === 'string' && l.includes('config default audit.roster is unusable')),
+    'no skip line names an invalid default roster')
+  assert.equal(on.out.handoff.polish, 'merged', 'the re-approved polish merges')
+  assert.ok(!(on.out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding is absorbed, never drained')
+  const off = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(!off.calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatch with the knob absent')
+  const skip = off.logs.find(l => typeof l === 'string' && l.includes('config default audit.roster is unusable'))
+  assert.ok(skip && skip.includes('needs run.evidence: true'), 'the skip line names the run.evidence gate (fail-open, logged)')
+  assert.ok((off.out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue drains to follow-up')
+  assert.equal(off.out.handoff.polish, 'skipped', 'the phase still lands with polish skipped')
+  assert.ok(off.out.landed.includes('t1'), 't1 lands on the fail-open path')
+})
+
 // --- End-state check (criterion 11) ---
 
 const ES_CONDS = ['condition A: the wibble exists at the tip', 'condition B: later-phase thing']
