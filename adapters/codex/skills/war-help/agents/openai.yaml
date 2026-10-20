@@ -1,0 +1,4 @@
+interface:
+  display_name: "WAR Help"
+  short_description: "Orient yourself to WAR planning and audit capabilities"
+  default_prompt: "Use $work-audit-refine-planning:war-help to explain what is available."

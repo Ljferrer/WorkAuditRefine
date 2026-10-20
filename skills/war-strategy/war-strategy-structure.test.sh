@@ -41,6 +41,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SKILL="$HERE/SKILL.md"
 DOCTRINE="$HERE/references/plan-interview.md"
 CHARTER="$HERE/references/strategy-verifier.md"
+HOST="$HERE/references/host.md"
 
 fails=0
 # All helpers pass the pattern via `-e` + `--` so anchors that START with `-` (the separate
@@ -262,8 +263,17 @@ check_f 'use the dotted path'                                # dotted path for n
 check_f 'next free patch above the live base'               # release-task next-free-patch
 check_f 'defined-but-not-yet-emitted; produced in Task N'    # cross-slice annotation
 check_f 'requires a manual same-scope title/comment survey'  # grep-as-floor
-check_f 'The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`)'   # §2 convention block
-check_f 'run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>`'     # §4 lint-the-authored-plan step
+check_f 'The advisory `plan-literal-lint.mjs` (resolved through the host reference)' # §2 convention block
+check_f 'use the host reference to run the shared `assets/plan-literal-lint.mjs`' # §4 delegates mechanics, not lint duty
+check_f 'read [references/host.md](references/host.md)'
+for host_literal in 'find -L ~/.claude/skills' 'node skills/war-strategy/assets/plan-literal-lint.mjs <plan>' 'node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings' '.claude/war/runs/'; do
+  if grep -qF -e "$host_literal" -- "$HOST"; then
+    printf 'ok - Claude host mechanics: %s\n' "$host_literal"
+  else
+    printf 'not ok - missing Claude host mechanics: %s\n' "$host_literal"
+    fails=$((fails + 1))
+  fi
+done
 # D12 staleness sentence (new convention bullet, same block)
 check_f 'literals are dated snapshots at a stated base'
 check_f "re-measure at the task's rebased base"
@@ -323,12 +333,12 @@ doc_f 'Stage 0 — silent recon'
 # Batched prefetch (D16, 2026-08-24) — the single-query literal is RETIRED (OLD-absent
 # guard below); the Stage-0 prefetch is one batched --queries call, /war-Lead flag
 # discipline (--local always, --repo when resolved).
-doc_f 'node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings'
+doc_f '[the host reference](host.md)'
 doc_f 'one batched call, one query per interview area'
 # Run-history recon lane (D8, 2026-08-24) — the four corpus classes + issue-linked
 # artifacts, and the artifact-borne Evidence consumed duty.
 doc_f '**The run-history recon lane**'
-doc_f 'run manifests (`.claude/war/runs/`) · epic phase reports · the war-followup corpus · `docs/learnings/`'
+doc_f 'run manifests (host-resolved location) · epic phase reports · the war-followup corpus · `docs/learnings/`'
 doc_f 'issue-linked evidence artifacts'
 doc_f '`## Evidence artifacts` section'
 doc_f '**Evidence consumed** block: one row per linked artifact, read or unread-with-reason'
@@ -339,7 +349,10 @@ doc_f 'touched-doc silence'
 doc_f 'Stage 1b — private full-template draft'
 doc_f 'Stage 2 — the interview'
 doc_f 'one question per turn'
-doc_f 'Qk/14'
+doc_f 'Qk · cap <budget>'
+doc_f 'a maximum, not a target or a forecast'
+doc_f 'Echo-backs and their confirmations do not consume question slots'
+doc_f 'targeted recon before spending more questions'
 doc_f 'Stage 3 — mid-budget checkpoint'
 doc_f 'Stage 4 — coverage sweep + two echo-backs'
 doc_f 'Stage 5 — two silent gates'

@@ -554,8 +554,13 @@ _Avoid_: reviewer instance; redundant/duplicate seats as a form of rigor.
 **Snipe**:
 A **one-shot roster outside a run** (`/snipe`, #1920): 1–5 read-only auditor seats convened on demand
 against a diff — no plan, no phase, no refinery, no filing — verdicts reported in chat, informational
-only (Critical/Major labeled *would block in a phase*, gating nothing). Seats spawn at the config
-tier ladder `agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS, always `deep`.
+only (Critical/Major labeled *would block in a phase*, gating nothing). Claude seats spawn at the
+config tier ladder `agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS. Codex seats instead
+inherit the invoking session's exact model/effort when that pair is supported by the selected host;
+an explicit Codex override is validated against that host and never translated or downgraded.
+When active task metadata is unavailable, Codex asks for an explicit auditor profile using the
+host's model catalog; it does not infer a profile from Claude configuration or session logs. Both
+runtimes always use `deep`.
 _Avoid_: treating a snipe verdict as a phase gate; snipe seats that write or file anything.
 
 **Lens**:

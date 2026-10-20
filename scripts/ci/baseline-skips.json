@@ -1,0 +1,13 @@
+{
+  "adapters/codex/planning-actual-host.test.mjs": {
+    "actual planning verifier dispatches and host enforcement denies a write": "Opt-in paid host evaluation requires WAR_PLANNING_HOST_EVAL=1 and explicit operator authorization; deterministic CI does not establish host enforcement."
+  },
+  "adapters/codex/skills/snipe/assets/snipe-actual-host.test.mjs": {
+    "actual host reviews original pinned blobs despite replacement refs": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence.",
+    "actual host audits prepared submodule blobs without changing the checkout": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence.",
+    "actual host runs one and two independent read-only Snipe seats without target mutation": "Opt-in live Codex model call; #2159 T7, not credential-free baseline evidence."
+  },
+  "adapters/codex/snipe-discovery-host.test.mjs": {
+    "installed plugin resolves packaged default prompts in fresh host sessions without implicit audits": "Opt-in installed-host/model check; #2159 T7, not credential-free baseline evidence."
+  }
+}

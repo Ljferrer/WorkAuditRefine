@@ -1,0 +1,7 @@
+interface:
+  display_name: "Snipe"
+  short_description: "Run an explicit read-only multi-lens audit"
+  default_prompt: "Use $work-audit-refine-snipe:snipe to audit the current diff and report findings only."
+
+policy:
+  allow_implicit_invocation: false

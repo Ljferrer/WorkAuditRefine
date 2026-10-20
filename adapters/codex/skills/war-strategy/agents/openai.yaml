@@ -1,0 +1,4 @@
+interface:
+  display_name: "WAR Strategy"
+  short_description: "Interview and convert drafts into WAR plans"
+  default_prompt: "Use $work-audit-refine-planning:war-strategy to plan a change."

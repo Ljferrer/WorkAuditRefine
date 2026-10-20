@@ -92,3 +92,10 @@ test('snipeTier omits effort when default (spawnOpts shape)', () => {
   const r = snipeTier({ agents: { snipe: { model: 'sonnet', effort: 'default' } } })
   assert.deepEqual(r, { model: 'sonnet' })
 })
+
+test('documented usability lens is reachable without a second seat', () => {
+  for(const raw of ['usability','1 usability']) {
+    const parsed=parseSnipeArgs(raw)
+    assert.deepEqual([parsed.target,parsed.seats,parsed.named,parsed.autoCount,parsed.errors],['',1,['usability'],0,[]])
+  }
+})
