@@ -693,10 +693,11 @@ expect_deny "K4: git blame -L 1,+5; rm -rf . → denied (semicolon composition s
 
 # K5/K6/K7/K8: the D3 forbidden-char micro-teach, asserted four times on one payload —
 # one per contract element, so no element can be trimmed away silently.
-# SITE-PINNED BY ROUTING, not merely by substring: the char check is the first check
-# after the empty-command guard, so "git diff HEAD && git log" can only exit at the
-# forbidden-char deny site — a future teach-vocabulary overlap at another deny site
-# cannot make any of these assertions pass vacuously.
+# SITE-PINNED BY ROUTING, not merely by substring: the char checks (the #1828 newline
+# pre-check, then the residue allowlist) are the first checks after the empty-command
+# guard, and this payload carries no newline, so "git diff HEAD && git log" can only
+# exit at the forbidden-char deny site — a future teach-vocabulary overlap at another
+# deny site cannot make any of these assertions pass vacuously.
 # K5 pins the prefix tail "forbidden character(s):" plus the 20-char residue echo at
 # the front (the leading "command contains" fragment rides along, unpinned by itself).
 expect_deny_teach "K5: git diff HEAD && git log → denied + byte-preserved prefix and residue echo" \
@@ -731,10 +732,11 @@ expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain tea
 # untouched — #1412 fix 2's grep-verb widening is deliberately NOT taken, cf.
 # G6), and K5–K8 stay green on their frozen substrings.
 # L1/L2 assert on a representative denied search: git grep with an alternation
-# \| — the exact #1412 shape. Routing-pinned like K5–K8: the char check is the
-# first check after the empty-command guard, so this payload can only exit at
-# the forbidden-char deny site (never at G6's unlisted-verb site — the \| and
-# quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
+# \| — the exact #1412 shape. Routing-pinned like K5–K8: the char checks (the
+# #1828 newline pre-check, then the residue allowlist) are the first checks
+# after the empty-command guard, and this payload carries no newline, so it can
+# only exit at the forbidden-char deny site (never at G6's unlisted-verb site —
+# the \| and quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
 # rationale: \| is an invalid JSON escape, so auditor_cmd's printf would emit
 # unparseable JSON, the guard's jq read of .agent_type would return empty, and
 # the non-auditor `*) exit 0` pass-through would exit 0 with empty stderr —
@@ -880,6 +882,23 @@ expect_deny_teach "N3 newline-deny: git diff HEAD + newline + echo pwned → den
 expect_deny_lacks "N3b newline-deny: git diff HEAD + newline + echo pwned → metacharacter rule NOT named" \
   "$(auditor_cmd 'git diff HEAD\necho pwned')" \
   "the metacharacter rule fired"
+
+# N4/N5/N6: the pre-check's deny text is a hand copy of the classifier's
+# chain-operator literal (the slice keeps the classifier byte-unchanged, so no
+# shared variable). N1-N3 pin only the rule name, and K6/K7/K8 pin the teach
+# elements on the classifier copy only, so a trimmed pre-check copy would go
+# unnoticed. These three rows pin each teach element on the pre-check copy.
+expect_deny_teach "N4 newline-deny: git diff HEAD + newline + echo pwned → denied + one-bare-git-command teach" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "one bare git command per Bash call"
+
+expect_deny_teach "N5 newline-deny: git diff HEAD + newline + echo pwned → denied + split-the-chain teach element" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "split && / ; chains"
+
+expect_deny_teach "N6 newline-deny: git diff HEAD + newline + echo pwned → denied + Read/Grep/Glob teach element" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "Read/Grep/Glob tools"
 
 # ---------------------------------------------------------------------------
 # Summary
