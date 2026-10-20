@@ -39,6 +39,10 @@ const MODULES = {
   'war-memory.mjs': 'skills/_shared/war-memory.mjs',
   'war-config.mjs': 'skills/war/assets/war-config.mjs',
   'safe-swap.sh': 'skills/lessons-learned/assets/safe-swap.sh',
+  // provision-worktrees.sh dispatches on `case "$sub" in <verb>)` (plan 2026-10-20-rea-artifact-
+  // evidence Task 1.3): the artifact recon lane phrases `ensure-exclude`, and the Lead/refiner
+  // references phrase `land-advance`, `sync-follower` and friends.
+  'provision-worktrees.sh': 'skills/war/assets/provision-worktrees.sh',
 }
 
 const src = rel => readFileSync(join(REPO, rel), 'utf8')
@@ -47,7 +51,7 @@ const src = rel => readFileSync(join(REPO, rel), 'utf8')
 // Each extractor is fail-closed: a missing anchor throws (a refactor that
 // renames the dispatch surfaces the drift instead of silently emptying the
 // allow-set into a false pass). ponytail: per-module extractors, no shared
-// AST — there are exactly four named modules and each dispatches differently.
+// AST — there are exactly five named modules and each dispatches differently.
 
 function jsSwitchCases(text) { // campaign-ledger.mjs: switch (cmd) { case '<verb>': }
   const i = text.indexOf('switch (cmd)')
@@ -69,12 +73,20 @@ function shCaseArms(text) { // safe-swap.sh: case "$cmd" in <verb>) ... ;; esac
   return new Set([...block.matchAll(/^\s*([a-z][a-z0-9-]*)\)/gm)].map(m => m[1]))
 }
 
+function shSubCaseArms(text) { // provision-worktrees.sh: case "$sub" in <verb>) cmd_x "$@" ;; esac
+  const i = text.indexOf('case "$sub" in')
+  assert.ok(i >= 0, 'provision-worktrees.sh: `case "$sub" in` dispatch not found')
+  const block = text.slice(i, text.indexOf('esac', i))
+  return new Set([...block.matchAll(/^\s*([a-z][a-z0-9-]*)\)/gm)].map(m => m[1]))
+}
+
 function dispatchCases() {
   return {
     'campaign-ledger.mjs': jsSwitchCases(src(MODULES['campaign-ledger.mjs'])),
     'war-memory.mjs': jsVerbsObject(src(MODULES['war-memory.mjs'])),
     'war-config.mjs': new Set(), // flag-based CLI — no verb subcommands (see MODULES note)
     'safe-swap.sh': shCaseArms(src(MODULES['safe-swap.sh'])),
+    'provision-worktrees.sh': shSubCaseArms(src(MODULES['provision-worktrees.sh'])),
   }
 }
 
@@ -144,6 +156,18 @@ const EVICTION_DESTINATIONS = [
   // `extractFilesFromPlanFile` (never a ledger CLI verb; the verb set is closed) — verb-scanned
   // so a future shell-out rephrasing of that import rots loudly, never silently.
   'skills/war/references/sweep-exclusion.md',
+  // 2026-10-20-rea-artifact-evidence Task 1.3: the artifact-evidence doctrine home phrases the
+  // Stage 0 recon lane's `provision-worktrees.sh ensure-exclude` ordering — verb-scanned so a
+  // subcommand rename rots that line loudly, never silently.
+  'skills/war-strategy/references/artifact-evidence.md',
+  // Same plan: the Lead procedure stub (filled in Phase 2) will phrase the same ensure-exclude
+  // ordering and the target-artifacts parser run — verb-scanned from creation.
+  'skills/war/references/artifact-evidence-lead.md',
+  // Same plan: provision-worktrees.sh joined MODULES, so the two refiner references that phrase
+  // `provision-worktrees.sh land-advance` moved here from the reason-excluded list (their
+  // "no shell-out prose for the scanned modules" reason rotted the moment the module was scanned).
+  'skills/war/references/refiner-recovery.md',
+  'skills/war/references/budget-raise-floor.md',
 ]
 
 // Reason-excluded from the VERB scan only (D9/D10) — never from the posterity rule: every
@@ -168,7 +192,6 @@ const VERB_SCAN_EXCLUSIONS = [
   // scanned module, and it phrases no verb for any scanned module.
   'skills/war/references/budget-rebaseline.md',
   'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
-  'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
   // gate-failure-classification.md holds the `## Gate-failure classification` section evicted
   // byte-identical from agents/war-refiner.md (in-band-absorb-default D12, ADR 0042); its only
   // command prose is git (the base re-run / re-attach idiom) — no scanned-module verb.
@@ -205,13 +228,6 @@ const VERB_SCAN_EXCLUSIONS = [
   // no shell-out prose for the scanned modules (arming/refute/waive doctrine only; names
   // the recon corpus classes by prose, never a CLI command)
   'skills/war-strategy/references/strategy-verifier.md',
-  // budget-raise-floor.md carries the Budget-Raise merge floor's branch prose plus blocks
-  // evicted verbatim from agents/war-refiner.md (byte-funding, engine-reliability Phase 2
-  // Task 2); its only command prose targets assert-budget-raise-cited.sh, git, and
-  // provision-worktrees.sh — none a scanned module. It does name war-config.mjs (in the
-  // evicted Gate-contract block, `war-config.mjs --resolve-gate`), but the following token
-  // is a flag, so no verb is claimed for any scanned module.
-  'skills/war/references/budget-raise-floor.md',
   // backward-chain-fix.md is the fixer's backward-chain doctrine (2026-09-11-backward-chain-doctrine
   // Task 1.1); its `## The rules` section is mirrored byte-equal into the fix-applying prompts. Its only
   // command prose is the commit-body block shape and a `grep` sibling sweep — no scanned-module verb, and
@@ -349,6 +365,7 @@ test('dispatch-case extraction found the real verbs (fail-closed sanity)', () =>
   for (const v of ['init', 'add', 'sweep', 'next', 'record']) assert.ok(c['campaign-ledger.mjs'].has(v), `campaign-ledger.mjs missing case '${v}'`)
   for (const v of ['query', 'render-index', 'archive', 'lint', 'consolidate', 'migrate']) assert.ok(c['war-memory.mjs'].has(v), `war-memory.mjs missing verb '${v}'`)
   for (const v of ['stage', 'verify', 'commit', 'recover']) assert.ok(c['safe-swap.sh'].has(v), `safe-swap.sh missing subcommand '${v}'`)
+  for (const v of ['ensure-exclude', 'land-advance', 'sync-follower', 'resolve-working-branch']) assert.ok(c['provision-worktrees.sh'].has(v), `provision-worktrees.sh missing subcommand '${v}'`)
   assert.equal(c['war-config.mjs'].size, 0, 'war-config.mjs is flag-based; it has no verb subcommands')
 })
 
@@ -374,7 +391,8 @@ test('delete-and-trace: an injected fake verb fails resolution; real verbs do no
   const fakeShellout = [{ path: 'FIXTURE', text: 'shell out to campaign-ledger.mjs aggregateBackstops for the union.' }]
   assert.ok(unresolved(fakeShellout, cases).some(b => b.verb === 'aggregateBackstops'), 'an export phrased as a shell-out must be flagged')
   // no false positive: genuine verbs resolve clean (proves the guard is not vacuous)
-  const good = [{ path: 'FIXTURE', text: 'Run `campaign-ledger.mjs sweep`, then `safe-swap.sh recover`.' }]
+  const good = [{ path: 'FIXTURE', text: 'Run `campaign-ledger.mjs sweep`, then `safe-swap.sh recover` and `provision-worktrees.sh ensure-exclude $MAIN`.' }]
+  assert.ok(unresolved([{ path: 'FIXTURE', text: 'Run `provision-worktrees.sh frobnicate`.' }], cases).some(b => b.mod === 'provision-worktrees.sh' && b.verb === 'frobnicate'), 'a fake provision-worktrees.sh subcommand must be flagged')
   assert.deepEqual(unresolved(good, cases), [], 'genuine verbs must resolve to their dispatch cases')
 })
 
