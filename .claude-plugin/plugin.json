@@ -10,6 +10,7 @@
   "skills": ["./skills/war", "./skills/war-room", "./skills/red-team", "./skills/lessons-learned", "./skills/war-help", "./skills/war-strategy", "./skills/war-campaign", "./skills/survey-corps", "./skills/war-machine", "./skills/aftermath", "./skills/war-review", "./skills/snipe"],
   "agents": [
     "./agents/war-auditor.md",
+    "./agents/war-evidence-auditor.md",
     "./agents/war-refiner.md",
     "./agents/war-servitor.md",
     "./agents/war-worker.md"

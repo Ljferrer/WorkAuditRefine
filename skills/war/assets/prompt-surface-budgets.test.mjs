@@ -35,6 +35,8 @@ const FILE_BUDGETS = {
   'skills/war/SKILL.md': { hard: 73728, advisory: 64512 },
   // post-shrink 22,216 B @ c6a05fb → hard ×1.25 ceil-KB = 28,672; advisory ×1.10 ceil-KB = 24,576
   'agents/war-auditor.md': { hard: 28672, advisory: 24576 },
+  // post-shrink 10,267 B @ 9b83667 → hard ×1.25 ceil-KB = 13,312; advisory ×1.10 ceil-KB = 12,288
+  'agents/war-evidence-auditor.md': { hard: 13312, advisory: 12288 },
   // post-shrink 27,109 B @ c6a05fb → hard ×1.25 ceil-KB = 34,816; advisory ×1.10 ceil-KB = 30,720
   // RAISED +2,048 B (34,816 → 36,864) under the engine-concurrency-and-pin-transfer plan's
   // pre-ratified PIN-17 / ADJ-1 row (operator, 2026-08-30): the card's merge-task steps must state the
@@ -67,13 +69,15 @@ const FILE_BUDGETS = {
   'CLAUDE.md': { hard: 16384, advisory: 14336 },
   // Reply Standard seat cards (0.21.6): injected via SubagentStart additionalContext into
   // EVERY work-audit-refine:war-* spawn — a prompt-bearing surface with wider reach than any
-  // single agent card, so the five files join the census. Tiny-file deviation from the pure
+  // single agent card, so the six files join the census. Tiny-file deviation from the pure
   // ×1.25/×1.10 ceil-KB formula: rounding would collapse hard and advisory onto one KB step,
   // and checkBudget requires advisory < hard, so advisory takes the 0.75×hard step instead.
   // post-shrink 1,009 B @ d959346 → hard ×1.25 ceil-KB = 2048; advisory pinned below at 1536
   'hooks/reply-standard/subagent-card.md': { hard: 2048, advisory: 1536 },
   // post-shrink 269 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
   'hooks/reply-standard/subagent-card.war-auditor.md': { hard: 1024, advisory: 768 },
+  // post-shrink 383 B @ 9b83667 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
+  'hooks/reply-standard/subagent-card.war-evidence-auditor.md': { hard: 1024, advisory: 768 },
   // post-shrink 318 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
   'hooks/reply-standard/subagent-card.war-refiner.md': { hard: 1024, advisory: 768 },
   // post-shrink 304 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
@@ -253,7 +257,7 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
     .filter((f) => f.endsWith('.md'))
     .map((f) => `agents/${f}`);
   assert.ok(agentCards.length > 0, 'non-vacuity: no agents/*.md cards discovered');
-  // Seat cards are discovered live too (same default-deny posture): a sixth
+  // Seat cards are discovered live too (same default-deny posture): a new
   // subagent-card*.md cannot land unbudgeted, and a removed one reds the census.
   const seatCards = readdirSync(join(repoRoot, 'hooks', 'reply-standard'))
     .filter((f) => f.startsWith('subagent-card') && f.endsWith('.md'))
