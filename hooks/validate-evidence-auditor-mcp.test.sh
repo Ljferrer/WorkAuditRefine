@@ -10,7 +10,8 @@
 #     one-line canary on stdout.
 #   - every other agent_type (main session, non-WAR agent) : pass-through (0).
 #   - a parse or infra error (payload not JSON, no tool_name, a tool_name that
-#     is not `mcp__<server>__<tool>`) : exit 2, never a pass.
+#     is not `mcp__<server>__<tool>`, a tool_name carrying a newline) : exit 2,
+#     never a pass.
 #
 # ASSERTION DESIGN: deny cases assert exit 2 AND a `WAR:` marker AND the
 # rule's own substring on stderr, never exit != 0 alone (a crashed hook also
@@ -116,6 +117,25 @@ expect_deny "exact-shape :war-evidence-auditor non-member denied" \
 expect_deny "war-evidence-auditor non-rea mcp tool denied" \
   "$(mk 'war-evidence-auditor' 'mcp__github__get_issue')" "not on the REA allowlist"
 
+# Exactness of the membership match. The hook compares the whole allowlist
+# line; a delimiter-free match (`*"mcp__rea__$suffix"*`) would admit
+# `mcp__rea__binary`, a proper prefix of the members `mcp__rea__binary_session`
+# and `mcp__rea__binary_overview`, and an unquoted suffix would let a glob
+# character match any member. Each row below goes red under one of those
+# mutations; the first row is a precondition that keeps the prefix row from
+# going vacuous if the `binary_` members are ever renamed.
+if grep -qE '^mcp__rea__binary_[a-z0-9_]+$' "$HOOK"; then
+  pass "a member with the proper prefix mcp__rea__binary_ is on the hook allowlist"
+else
+  fail "no hook allowlist member starts with mcp__rea__binary_ (the proper-prefix row below is vacuous)"
+fi
+expect_deny "war-evidence-auditor proper-prefix of a member denied (no substring capture)" \
+  "$(mk 'war-evidence-auditor' 'mcp__rea__binary')" "not on the REA allowlist"
+expect_deny "war-evidence-auditor glob suffix denied (suffix matched literally)" \
+  "$(mk 'war-evidence-auditor' 'mcp__rea__*')" "not on the REA allowlist"
+expect_deny "war-evidence-auditor single-char glob suffix denied (suffix matched literally)" \
+  "$(mk 'war-evidence-auditor' 'mcp__rea__binary_sessio?')" "not on the REA allowlist"
+
 expect_allow "war-worker allowlist member allowed" \
   "$(mk 'war-worker' "$PRESENCE_TOOL")"
 expect_allow "exact-shape :war-worker allowlist member allowed" \
@@ -192,6 +212,13 @@ expect_deny "war-evidence-auditor empty suffix -> exit 2" \
   "$(mk 'war-evidence-auditor' 'mcp__rea__')" "not an mcp__<server>__<tool> name"
 expect_deny "war-worker empty server prefix -> exit 2" \
   "$(mk 'war-worker' 'mcp____binary_session')" "not an mcp__<server>__<tool> name"
+# A newline inside the name is the allowlist's line delimiter: a name that
+# splices two adjacent members (binary_overview, newline, binary_session)
+# matched the block as a whole before the hook's newline reject. The row
+# goes red when that reject arm is deleted. jq --arg carries the newline
+# byte verbatim.
+expect_deny "war-evidence-auditor newline-spliced tool_name -> exit 2 (delimiter never matched)" \
+  "$(mk 'war-evidence-auditor' $'mcp__rea__binary_overview\nmcp__rea__binary_session')" "carries a newline"
 # The deny roles report a missing tool_name as the deny (they reach no MCP tool
 # at all), still exit 2.
 expect_deny "war-auditor empty tool_name -> still exit 2" \

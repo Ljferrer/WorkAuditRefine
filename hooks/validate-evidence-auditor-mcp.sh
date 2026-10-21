@@ -34,7 +34,8 @@
 # EXIT CONTRACT
 #   0 = allow or pass-through. 2 = deny, OR a parse / infra error (payload not
 #   JSON, jq missing, no tool_name, a tool_name that is not
-#   `mcp__<server>__<tool>`). Never any other code: `set -E` + the ERR trap
+#   `mcp__<server>__<tool>`, a tool_name carrying a newline). Never any other
+#   code: `set -E` + the ERR trap
 #   fold an unexpected failure into 2, because a non-2 PreToolUse exit does
 #   NOT block the tool call (fail-closed, never a pass).
 #
@@ -245,10 +246,16 @@ mcp__rea__xrefs
 '
 
 # ---------------------------------------------------------------------------
-# Parse `mcp__<server>__<tool>`: fail closed on any other shape.
+# Parse `mcp__<server>__<tool>`: fail closed on any other shape. A newline
+# inside the name is rejected first: the membership match below delimits
+# allowlist lines by newline, so a name that splices two adjacent members
+# (`mcp__rea__binary_overview`, newline, `mcp__rea__binary_session`) would
+# otherwise match the block as a whole. This reads $tool itself; $(...)
+# strips only trailing newlines, so an embedded one survives to here.
 # ---------------------------------------------------------------------------
 [ -z "$tool" ] && infra "no tool_name in the payload"
 case "$tool" in
+  *$'\n'*) infra "tool_name carries a newline; not an mcp__<server>__<tool> name" ;;
   mcp__*__*) ;;
   *) infra "tool_name '$tool' is not an mcp__<server>__<tool> name" ;;
 esac
@@ -265,7 +272,9 @@ if [ "$server" != "rea" ]; then
 fi
 
 # Membership: the full name `mcp__rea__<suffix>` must sit on its own line in
-# the allowlist (newline-delimited exact match, no substring capture).
+# the allowlist (newline-delimited exact match, no substring capture). The
+# suffix is quoted so a glob character in it matches literally; the newline
+# reject above keeps a name from spanning two lines.
 case "$REA_ALLOWLIST" in
   *$'\n'"mcp__rea__$suffix"$'\n'*) exit 0 ;;
 esac
