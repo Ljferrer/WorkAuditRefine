@@ -3,12 +3,13 @@
 //
 // Two tests, titled exactly as End-state 20 names them:
 //   1. the parser reads block rows anywhere in Part 1 (more than one block, in document order,
-//      a blank line allowed between a marker and its first row), skips code fences, drops a
+//      blank lines allowed under a marker and between its rows), skips code fences, drops a
 //      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
 //      the bullet line or a continuation line (a tag on a later bullet or after a blank line
 //      never cites; with no block rows citingTasks is empty); a marker with no `- path:` row
 //      under it throws; the CLI prints the same object and exits 2 on an unreadable file, on a
-//      malformed row and on a rowless marker;
+//      malformed row and on a rowless marker; a rowless marker after a valid block throws with
+//      its own line number (a global rows-empty guard would pass it);
 //   2. the doc-token guard (ADR 0025 rule 8, extraction plus equality): every surface in the
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
 //      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants.
@@ -150,6 +151,37 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
   assert.throws(
     () => parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n- path: \`/x\` · sha256: \`abc\` · provider: \`ghidra\`\n`),
     /malformed Target artifacts row/,
+  )
+
+  // A loose Markdown list (a blank line between rows) keeps the block open: both rows parse in
+  // order, with one blank line and with two. A blank line followed by a non-row ends the block,
+  // and a second marker after the blank opens the next block.
+  const rowA = `- path: \`/a\` · sha256: \`${HEX}\` · provider: \`ghidra\``
+  const rowB = `- path: \`/b\` · sha256: \`${HEX2}\` · provider: \`rizin\``
+  const both = { rows: [{ path: '/a', sha256: HEX, provider: 'ghidra' }, { path: '/b', sha256: HEX2, provider: 'rizin' }], citingTasks: [] }
+  for (const gap of ['\n', '\n\n']) {
+    assert.deepEqual(
+      parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n${gap}${rowB}\n`),
+      both,
+      `loose list with gap ${JSON.stringify(gap)}`,
+    )
+  }
+  assert.deepEqual(
+    parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n\nprose, not a row\n`),
+    { rows: [{ path: '/a', sha256: HEX, provider: 'ghidra' }], citingTasks: [] },
+    'a blank line then a non-row ends the block',
+  )
+  assert.deepEqual(
+    parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n\n${TARGET_ARTIFACTS_MARKER}\n${rowB}\n`),
+    both,
+    'a second marker after the blank opens the next block',
+  )
+
+  // A rowless marker AFTER a valid block throws with its own line number: the guard is
+  // per-marker, never a global rows-empty check (which would pass this plan with rows [/a]).
+  assert.throws(
+    () => parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n\n${TARGET_ARTIFACTS_MARKER}\n| x |\n`),
+    /Target artifacts marker at line 6 carries no rows/,
   )
 
   // A marker with no `- path:` row under it is loud too, never rows [] with exit 0: a `* path:`

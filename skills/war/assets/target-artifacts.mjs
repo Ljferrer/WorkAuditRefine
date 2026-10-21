@@ -34,10 +34,11 @@
 //   - The marker is a line whose trimmed text starts with TARGET_ARTIFACTS_MARKER. Its rows
 //     follow on the next lines, one per artifact, in the shape artifact-evidence.md shows:
 //       - path: `<path>` · sha256: `<64 lowercase hex>` · provider: `<name>`
-//     Blank lines between the marker and the first row are skipped (valid Markdown puts one
-//     there). The first line after them must be a `- path:` row, or the marker is rowless and
-//     the parse throws. After the first row, the first line that is not a `- path:` bullet
-//     ends the block. More than one block concatenates in document order.
+//     Blank lines between the marker and the first row, and between rows, are skipped (valid
+//     Markdown puts one under the marker; a loose list puts one between every row). The first
+//     non-blank line under the marker must be a `- path:` row, or the marker is rowless and the
+//     parse throws. After a row, the next non-blank line that is not a `- path:` bullet ends the
+//     block. More than one block concatenates in document order.
 //   - citingTasks: each `### Task <id>:` heading in Part 2 opens a task; its `- Plan slice:`
 //     bullet (plus continuation lines up to a blank line or a new construct) cites a tag when it
 //     carries `rea:ev_<64hex>`. Prose that merely mentions `rea:` does not cite. A bullet other
@@ -84,10 +85,13 @@ export function parseTargetArtifacts(text) {
     if (inPart1) {
       if (!line.trim().startsWith(TARGET_ARTIFACTS_MARKER)) continue
       const marker = i + 1
-      let j = i + 1
-      while (j < lines.length && lines[j].trim() === '') j++ // blank lines before the first row
+      // Blank lines under the marker and between rows are skipped by one predicate; `i` advances
+      // only over consumed rows, so a non-row after a blank (a second marker, a heading) is
+      // re-read by the outer loop.
+      const nextNonBlank = k => { while (k < lines.length && lines[k].trim() === '') k++; return k }
+      let j = nextNonBlank(i + 1)
       const first = j
-      for (; j < lines.length && ROW_START.test(lines[j]); j++) {
+      for (; j < lines.length && ROW_START.test(lines[j]); j = nextNonBlank(j + 1)) {
         const m = lines[j].match(ROW)
         if (!m) throw new Error(`malformed Target artifacts row at line ${j + 1}: ${lines[j].trim()}`)
         rows.push({ path: m[1], sha256: m[2], provider: m[3] })
