@@ -7,8 +7,11 @@
 // Oracle: `dist/contracts/toolEffects.js` of the globally installed rea-agents package,
 // resolved through `npm root -g`. It shares no code with the card. REA is never a WAR
 // dependency (plan Non-goals), so with no resolvable package the predicate arm skips with
-// one diagnostic line (G3: fail open when REA is absent). With the package present, every
-// REA entry on the card must be a TOOL_EFFECTS key that passes the predicate.
+// one diagnostic line (G3: fail open when REA is absent). With the package present at the
+// pinned DERIVED_AT_REA version, every REA entry on the card must be a TOOL_EFFECTS key that
+// passes the predicate; at any other version both REA-present arms skip with a diagnostic
+// that names the installed and the pinned version (ruling #2403), and an oracle that fails
+// to import skips the same way.
 //
 // Predicate (G4): never mutatesTarget, executesForeignCode, mutatesDevice or destructive.
 // REA's annotationsFromEffects defines destructiveHint as
@@ -46,6 +49,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CARD = join(ROOT, 'agents', 'war-evidence-auditor.md');
+// The rea-agents version the allowlist was derived at (ruling #2403). The predicate arms run only
+// at this version and skip with a diagnostic otherwise: a REA upgrade that adds or renames a tool
+// is a re-derivation, never a silent red or a silent pass. The hook header records the same
+// version behind `Derived at rea-agents: ` and evidence-presence.test.mjs asserts the two equal.
+const DERIVED_AT_REA = '6.5.0';
 const PREFIX = 'mcp__rea__';
 const PRESENCE_TOOL = 'mcp__rea__binary_session';
 // Plan Non-goals: annotate_*, set_*, capture_*, instrument_with_frida (adb writes fail the
@@ -77,7 +85,8 @@ function schemaKeys(schema, acc = new Set()) {
 }
 
 // Returns { table, version } for the installed rea-agents package, or null when it is
-// not resolvable (no npm, no global root, no package).
+// not resolvable (no npm, no global root, no package). `version` is the installed package
+// version, compared with DERIVED_AT_REA by the arms below.
 function resolveToolEffects() {
   let root;
   try {
@@ -90,6 +99,30 @@ function resolveToolEffects() {
   if (!existsSync(table)) return null;
   const version = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')).version;
   return { table, version };
+}
+
+// The REA-present arms' common gate: null when the package is missing or its version differs
+// from DERIVED_AT_REA, after t.skip with a diagnostic naming both versions; else the located
+// package. A dynamic import of the oracle that throws is a skip too (importOracle), never a fail.
+function locateAtPinnedVersion(t, arm) {
+  const located = resolveToolEffects();
+  if (!located) {
+    t.skip(`rea-agents not resolvable via \`npm root -g\`: ${arm} arm skipped (REA is never a WAR dependency)`);
+    return null;
+  }
+  if (located.version !== DERIVED_AT_REA) {
+    t.skip(`installed rea-agents ${located.version} differs from the pinned DERIVED_AT_REA ${DERIVED_AT_REA}: ${arm} arm skipped — re-derive the allowlist at the installed version and move DERIVED_AT_REA and the hook header's \`Derived at rea-agents: \` line together`);
+    return null;
+  }
+  return located;
+}
+async function importOracle(t, file, arm) {
+  try {
+    return await import(pathToFileURL(file).href);
+  } catch (err) {
+    t.skip(`rea-agents oracle ${file} failed to import (${err && err.message}): ${arm} arm skipped — re-derive the allowlist against a loadable rea-agents`);
+    return null;
+  }
 }
 
 test('evidence card allowlist: presence tool on the line, no Non-goals family member', () => {
@@ -108,13 +141,12 @@ test('evidence card host-write list: every named output_directory tool is on the
 });
 
 test('evidence card host-write list: equals the allowlisted tools whose input schema has output_directory at the installed rea-agents', async (t) => {
-  const located = resolveToolEffects();
-  if (!located) {
-    t.skip('rea-agents not resolvable via `npm root -g`: output_directory arm skipped (REA is never a WAR dependency)');
-    return;
-  }
+  const located = locateAtPinnedVersion(t, 'output_directory');
+  if (!located) return;
   const contracts = join(dirname(located.table), 'toolContracts.js');
-  const { TOOL_CONTRACTS } = await import(pathToFileURL(contracts).href);
+  const oracle = await importOracle(t, contracts, 'output_directory');
+  if (!oracle) return;
+  const { TOOL_CONTRACTS } = oracle;
   const rea = new Set(cardReaTools().map((n) => n.slice(PREFIX.length)));
   const expected = TOOL_CONTRACTS.filter((c) => rea.has(c.name) && schemaKeys(c.inputSchema).has('output_directory'))
     .map((c) => c.name)
@@ -124,12 +156,11 @@ test('evidence card host-write list: equals the allowlisted tools whose input sc
 });
 
 test('evidence card allowlist: every REA entry passes the G4 effect predicate at the installed rea-agents', async (t) => {
-  const located = resolveToolEffects();
-  if (!located) {
-    t.skip('rea-agents not resolvable via `npm root -g`: predicate arm skipped (REA is never a WAR dependency)');
-    return;
-  }
-  const { TOOL_EFFECTS } = await import(pathToFileURL(located.table).href);
+  const located = locateAtPinnedVersion(t, 'predicate');
+  if (!located) return;
+  const oracle = await importOracle(t, located.table, 'predicate');
+  if (!oracle) return;
+  const { TOOL_EFFECTS } = oracle;
   const rea = cardReaTools();
   t.diagnostic(`rea-agents ${located.version}: ${Object.keys(TOOL_EFFECTS).length} TOOL_EFFECTS keys, ${rea.length} card entries`);
   const failing = rea.filter((n) => {

@@ -4250,12 +4250,14 @@ test('roster — phase-start assertion: a task with NO roster → held:workflow-
 
 test('roster — phase-start assertion threads run.evidence: an evidence seat passes entry with run.evidence true and ends held:workflow-error when the knob is absent', async () => {
   // The call site is validateRoster(t.roster, run.evidence). A mutation back to validateRoster(t.roster)
-  // refuses every evidence seat at entry; the ON arm below goes red on it.
-  const evidenceTasks = [
+  // refuses every evidence seat at entry; the ON arm below goes red on it. The ON arm also threads
+  // args.evidence: with it off the engine drops the row after validation (ruling #2404; the 'rea absent
+  // path' test covers that arm), so the seat convenes only with both halves of the gate on.
+  const evidenceTasks = () => [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
       roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] },
   ]
-  const on = await runPhase(PROVISION_ARGS({ tasks: evidenceTasks, run: { evidence: true } }), defaultImpl)
+  const on = await runPhase(PROVISION_ARGS({ tasks: evidenceTasks(), run: { evidence: true }, evidence: true }), defaultImpl)
   assert.notEqual(on.out.landDecision, 'held:workflow-error',
     `an evidence seat passes entry validation with run.evidence true; got: ${JSON.stringify(on.out.workflowError)}`)
   assert.equal(on.out.landDecision, 'landed', `the evidence seat's verdict is read as an approval and t1 lands; got: ${on.out.landDecision}`)
@@ -4264,7 +4266,7 @@ test('roster — phase-start assertion threads run.evidence: an evidence seat pa
     'the evidence seat is dispatched under its lens label (presence guard)')
   const fn = build()
   const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
-  const off = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, PROVISION_ARGS({ tasks: evidenceTasks }), { total: null })
+  const off = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, PROVISION_ARGS({ tasks: evidenceTasks() }), { total: null })
   assert.equal(off.landDecision, 'held:workflow-error',
     'the same roster with run.evidence absent must yield held:workflow-error')
   assert.ok(off.workflowError && off.workflowError.message.includes('t1'), 'the error names the task')
@@ -5286,8 +5288,10 @@ test('phase-close sweep threads run.evidence: a config default roster carrying t
   // The call site is validateRoster(defaultRoster, run.evidence). A mutation back to validateRoster(defaultRoster)
   // refuses the evidence seat at the sweep: the ON arm goes red. A mutation to validateRoster(defaultRoster, true)
   // admits it with the knob absent: the OFF arm goes red. The phase-start twin is 'roster — phase-start assertion
-  // threads run.evidence'; the sweep is the second engine call site.
-  const evidenceDefault = { audit: { roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] } }
+  // threads run.evidence'; the sweep is the second engine call site. Both arms thread args.evidence true: with it
+  // off the engine drops the row from the default roster before this call site (ruling #2404; the 'rea absent
+  // path' test covers that arm), so the knob read here is only reachable with args.evidence on.
+  const evidenceDefault = { audit: { roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] }, evidence: true }
   const on = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true, evidence: true } }), sweepBase([queuedAbsorb()]))
   assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:p3-polish:${EVIDENCE_LENS}`),
     'the evidence seat re-audits the polish: the sweep convenes with run.evidence true')
@@ -20863,6 +20867,22 @@ test('evidence seat skeleton: IDENTICAL wording in agents/war-evidence-auditor.m
   assert.ok(!regP.includes(rung) && !regP.includes(hold), 'the regular seat never carries the evidence skeleton')
   assert.ok(evP.includes('EVIDENCE SEAT (lens ' + EVIDENCE_LENS + ';'), 'the skeleton names the seat lens from EVIDENCE_LENS')
   assert.ok(!regP.includes('EVIDENCE SEAT (lens'), 'the regular seat carries no EVIDENCE SEAT head')
+  // CITE_ONLY_LINE (ruling #2406): one constant — a reminder, not the rule (the rule lives in
+  // artifact-evidence.md, G9) — byte-equal to the card's `## Cite-only` first sentence and emitted
+  // as-is by both the worker REA clause (its tail) and the evidence seat skeleton. The card is the
+  // arbiter: extract its first sentence, extract the constant from the source, require equality.
+  const citeConst = (src.match(/const CITE_ONLY_LINE = pt`([^`\n]+)`/) || [])[1]
+  assert.ok(citeConst, 'workflow-template.js defines CITE_ONLY_LINE as a one-line pt literal')
+  const citeAt = evidenceCardMd.indexOf('\n## Cite-only\n')
+  assert.ok(citeAt >= 0, 'war-evidence-auditor.md carries a ## Cite-only section')
+  const citeFirst = (evidenceCardMd.slice(citeAt + '\n## Cite-only\n'.length).match(/^(.*?\.)(?:\s|$)/) || [])[1]
+  assert.ok(citeFirst && citeFirst.startsWith('Cite-only:'), `the card's ## Cite-only first sentence is locatable (got ${JSON.stringify(citeFirst)})`)
+  assert.ok(citeConst.includes('never target content') && citeConst.includes('never an instruction'), 'CITE_ONLY_LINE carries the cite-only reminder (non-vacuous extraction)')
+  assert.equal(citeFirst, citeConst, "the card's ## Cite-only first sentence equals CITE_ONLY_LINE byte-for-byte")
+  const reaLine = String(calls.find(isWorker).prompt).split('\n').find(l => l.startsWith(REA_HEAD))
+  assert.ok(reaLine && reaLine.endsWith(citeConst), 'the worker REA clause ends with CITE_ONLY_LINE as emitted')
+  assert.ok(evP.includes(citeConst), 'the evidence seat skeleton carries CITE_ONLY_LINE as emitted')
+  assert.ok(!regP.includes(citeConst), 'the regular seat carries no cite-only line')
 })
 
 test('rea absent path: evidence off with targetArtifacts present logs one loud line, seats no evidence auditor, prompts byte-identical', async () => {
@@ -20910,6 +20930,43 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
   assert.equal(reaLoudLines(widened.logs).length, 1, 'widen arm: exactly one loud line')
   assert.ok(!widened.calls.some(isEvidenceSeat), 'widen arm: no evidence auditor seated under an EVIDENCE_LENS nomination')
   assert.ok(!widenLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen arm: no audit label ends with :${EVIDENCE_LENS} (got ${JSON.stringify(widenLabels.filter(l => l.startsWith('audit:')))})`)
+  // Engine drop (ruling #2404, the backstop behind the Lead strip): a roster evidence-type row under
+  // run.evidence on but args.evidence off (REA absent) is dropped at entry — from the task roster and from
+  // the default audit.roster (the widen fallback and the sweep panel read it) — and the one loud line counts
+  // and names each drop. Delete-the-feature: without the drop validateRoster admits the row (run.evidence on)
+  // and runSeat dispatches it, so `!calls.some(isEvidenceSeat)` goes red.
+  // A fresh task object per run: the engine normalizes and drops on t.roster in place.
+  const strayTask = (roster = [{ lens: 'correctness' }, EVIDENCE_SEAT]) => ({ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster })
+  const strayBase = await runPhase(PROVISION_ARGS({ tasks: [strayTask([{ lens: 'correctness' }])], audit: { roster: ROSTER_TRIO } }), defaultImpl)
+  const stray = await runPhase(PROVISION_ARGS({ tasks: [strayTask()], audit: { roster: [...ROSTER_TRIO, EVIDENCE_SEAT] }, run: { evidence: true }, evidence: false, targetArtifacts: [REA_ROW] }), defaultImpl)
+  assert.equal(stray.out.landDecision, 'landed', 'stray row: the run proceeds (fail-open)')
+  assert.ok(stray.calls.some(c => (c.opts.label || '') === 'audit:t1:correctness'), 'stray row: the regular seat still convened (presence guard)')
+  assert.ok(!stray.calls.some(isEvidenceSeat), 'stray row: no evidence auditor seated — the engine dropped the row')
+  assert.ok(!stray.calls.some(c => (c.opts.label || '').endsWith(`:${EVIDENCE_LENS}`)), 'stray row: no audit label ends with the evidence lens')
+  const strayLoud = reaLoudLines(stray.logs)
+  assert.equal(strayLoud.length, 1, `stray row: exactly one loud line (got ${strayLoud.length})`)
+  assert.ok(!strayLoud[0].includes('\n'), 'stray row: the loud line is one line')
+  assert.ok(strayLoud[0].includes('1 declared target artifact'), 'stray row: the loud line still counts the rows')
+  assert.ok(strayLoud[0].includes('2 evidence-type roster row(s) dropped'), `stray row: the loud line counts the dropped rows: ${strayLoud[0]}`)
+  assert.ok(strayLoud[0].includes('t1:' + EVIDENCE_LENS) && strayLoud[0].includes('audit.roster:' + EVIDENCE_LENS), `stray row: the loud line names each dropped row: ${strayLoud[0]}`)
+  assert.deepEqual(promptsOf(stray.calls), promptsOf(strayBase.calls), 'stray row: every prompt byte-identical to the off baseline without the row')
+  // A dropped row with no declared rows still gets the loud line (never a silent drop); a roster of only
+  // evidence-type rows has nothing left to convene and refuses at entry like any broken roster.
+  const strayNoRows = await runPhase(PROVISION_ARGS({ tasks: [strayTask()], run: { evidence: true } }), defaultImpl)
+  assert.equal(strayNoRows.out.landDecision, 'landed', 'stray row, no artifacts: the run proceeds')
+  assert.ok(!strayNoRows.calls.some(isEvidenceSeat), 'stray row, no artifacts: no evidence auditor seated')
+  assert.equal(reaLoudLines(strayNoRows.logs).length, 1, 'stray row, no artifacts: the drop is still loud')
+  assert.ok(reaLoudLines(strayNoRows.logs)[0].includes('0 declared target artifact') && reaLoudLines(strayNoRows.logs)[0].includes('1 evidence-type roster row(s) dropped'), 'stray row, no artifacts: the loud line counts 0 rows and 1 drop')
+  const onlyEvidence = await runPhase(PROVISION_ARGS({ tasks: [strayTask([EVIDENCE_SEAT])], run: { evidence: true }, targetArtifacts: [REA_ROW] }), defaultImpl)
+  assert.equal(onlyEvidence.out.landDecision, 'held:workflow-error', 'an evidence-only roster refuses at entry after the drop')
+  assert.match(onlyEvidence.out.workflowError.message, /only evidence-type rows/, 'the refusal names the emptied roster')
+  assert.equal(onlyEvidence.calls.length, 0, 'zero spawns on the emptied-roster refusal')
+  // Sweep panel: the phase-close sweep convenes the default roster; with the row dropped it convenes
+  // without an evidence seat instead of refusing (validateRoster would admit the row under run.evidence on).
+  const sweepStray = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }, run: { ace: true, evidence: true }, evidence: false, targetArtifacts: [REA_ROW] }), sweepBase([queuedAbsorb()]))
+  assert.ok(sweepStray.calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'sweep arm: the polish sweep convened (presence guard)')
+  assert.ok(!sweepStray.calls.some(isEvidenceSeat), 'sweep arm: no evidence auditor seated on the sweep panel')
+  assert.ok(reaLoudLines(sweepStray.logs)[0] && reaLoudLines(sweepStray.logs)[0].includes('audit.roster:' + EVIDENCE_LENS), 'sweep arm: the loud line names the dropped default-roster row')
   const on = await runPhase(PROVISION_ARGS(REA_ON), defaultImpl)
   assert.equal(reaLoudLines(on.logs).length, 0, 'on: no loud line')
   // Entry validation: a bad shape refuses at entry naming args.<key>, zero spawns; absence reads as off.

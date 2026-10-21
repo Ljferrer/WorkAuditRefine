@@ -13,6 +13,14 @@
 //      `Optional \`<key>\`` row in schemas.md's args contract.
 // One doc-stated rule with no machine source (the Lead procedure is prose), pinned by section
 // extraction (Task 2.4 fix round 1):
+//   5. The derivation version (ruling #2403). The hook header records the rea-agents version the
+//      allowlist was derived at behind the fixed lead-in `Derived at rea-agents: `; it must equal
+//      the DERIVED_AT_REA literal in evidence-card-allowlist.test.mjs, the pin that gates its
+//      predicate arms. The literal is extracted from that test's source, never imported (an import
+//      would run its tests here).
+//   6. The decline rule (ruling #2405). The war-room `audit.roster` row must say accepting the
+//      evidence offer keeps `run.evidence` on and declining turns it off: the knob is the only
+//      opt-in record, so the rule is pinned by presence.
 //   4. The pool strip. A config `audit.roster` evidence row feeds every task under rosterPolicy
 //      `all`, the lone-seat widen fallback and the sweep panel, and the /war Lead reads the strip
 //      when the plan carries a Target artifacts block or the config roster carries an
@@ -38,6 +46,7 @@ const REPO = resolve(HERE, '..', '..', '..')
 const src = rel => readFileSync(join(REPO, rel), 'utf8')
 
 const HOOK = 'hooks/validate-evidence-auditor-mcp.sh'
+const ALLOWLIST_TEST = 'skills/war/assets/evidence-card-allowlist.test.mjs'
 const WAR_ROOM = 'skills/war-room/SKILL.md'
 const LEAD = 'skills/war/references/artifact-evidence-lead.md'
 const SCHEMAS = 'skills/war/references/schemas.md'
@@ -160,4 +169,41 @@ test('evidence presence: the war-room offer never writes an evidence row into au
   const inverted = 'for each task id in citingTasks add one seat. Remove every such row from the pool.'
   const invertedThread = section('fixture', '\n## Thread the args and the evidence seat rows\n' + inverted, 'Thread the args and the evidence seat rows')
   assert.ok(invertedThread.search(STRIP) > invertedThread.indexOf('citingTasks'), 'control: an inverted body would fail the ordering read')
+})
+
+// `Derived at rea-agents: <version>` on its own header line of the hook: exactly one.
+function hookDerivedVersion(rel, text) {
+  const hits = [...text.matchAll(/^#\s*Derived at rea-agents: (\S+)\s*$/gm)].map(m => m[1])
+  assert.equal(hits.length, 1, `${rel}: expected exactly one \`Derived at rea-agents: <version>\` header line, found ${JSON.stringify(hits)} — the extractor fails closed`)
+  return hits[0]
+}
+// `const DERIVED_AT_REA = '<version>'` in the allowlist test source: exactly one.
+function pinnedVersion(rel, text) {
+  const hits = [...text.matchAll(/const DERIVED_AT_REA = '([^']+)'/g)].map(m => m[1])
+  assert.equal(hits.length, 1, `${rel}: expected exactly one \`const DERIVED_AT_REA = '…'\` literal, found ${JSON.stringify(hits)} — the extractor fails closed`)
+  return hits[0]
+}
+
+test('evidence presence: the hook header\'s Derived at rea-agents version equals DERIVED_AT_REA in the allowlist test (extraction plus equality)', () => {
+  const fromHook = hookDerivedVersion(HOOK, src(HOOK))
+  const fromTest = pinnedVersion(ALLOWLIST_TEST, src(ALLOWLIST_TEST))
+  assert.match(fromHook, /^\d+\.\d+\.\d+$/, `${HOOK}: the derivation version is not a dotted version literal: ${fromHook}`)
+  assert.equal(fromHook, fromTest, `${HOOK} records Derived at rea-agents: ${fromHook} but ${ALLOWLIST_TEST} pins DERIVED_AT_REA = '${fromTest}' — move both together when the allowlist is re-derived`)
+  // Fail-closed controls on both extractors, and a discrimination control on the equality.
+  assert.throws(() => hookDerivedVersion('fixture', '# no version line'), /fails closed/)
+  assert.throws(() => hookDerivedVersion('fixture', '#   Derived at rea-agents: 1.0.0\n#   Derived at rea-agents: 2.0.0\n'), /fails closed/)
+  assert.throws(() => pinnedVersion('fixture', 'const OTHER = 1'), /fails closed/)
+  assert.notEqual(hookDerivedVersion('fixture', '#   Derived at rea-agents: 0.0.1\n'), fromTest, 'control: a differing header version would fail the equality')
+})
+
+test('evidence presence: the war-room audit.roster row pins the decline rule — accepting keeps run.evidence on, declining turns it off', () => {
+  const warRoom = src(WAR_ROOM)
+  const rosterRow = warRoom.split('\n').find(l => l.includes('`audit.roster` — an array of seat objects'))
+  assert.ok(rosterRow, `${WAR_ROOM}: the audit.roster whitelist row not found — the extractor fails closed`)
+  assert.ok(rosterRow.includes('accepting keeps it on'), `${WAR_ROOM}: the audit.roster row must say "accepting keeps it on"`)
+  assert.ok(rosterRow.includes('declining turns `run.evidence` off'), `${WAR_ROOM}: the audit.roster row must say "declining turns \`run.evidence\` off"`)
+  // Discrimination control: the same row read refuses a row that drops the decline clause.
+  const dropped = rosterRow.replace('declining turns `run.evidence` off', 'declining writes nothing')
+  assert.notEqual(dropped, rosterRow, 'control fixture: the decline clause was locatable')
+  assert.ok(!dropped.includes('declining turns `run.evidence` off'), 'control: a row without the decline clause fails the read')
 })
