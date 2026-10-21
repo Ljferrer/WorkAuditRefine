@@ -18,9 +18,10 @@ measurement.
 ## Decision
 
 **A REA Evidence record is a `(verified:)` source bound to the target's digest, behind a plan-side
-`**Target artifacts**` declaration and the run-side `run.evidence` knob. Target content is cited,
-never pasted. Proof that REA behaves is a backstop, never a CI job. The MCP matrix is stated by agent
-type, and the evidence-auditor MCP hook owns the allow and deny sets.** Five parts follow.
+Target artifacts block (its marker is `TARGET_ARTIFACTS_MARKER` in `target-artifacts.mjs`) and the
+run-side `run.evidence` knob. Target content is cited, never pasted. Proof that REA behaves is a
+backstop, never a CI job. The MCP matrix is stated by agent type, and the evidence-auditor MCP hook
+owns the allow and deny sets.** Five parts follow.
 
 ### 1. The source class
 
@@ -31,11 +32,11 @@ type, and the evidence-auditor MCP hook owns the allow and deny sets.** Five par
   ADR restates none of it.
 - The base is the artifact digest, never a git SHA. A digest-bound measurement cannot go stale while
   the digest holds, so no run re-measures it (the plan-interview D12 exemption).
-- A plan declares its targets with the `**Target artifacts**` block in Part 1: path, sha256 and
-  provider per row, with placement latitude and never a new required H2
+- A plan declares its targets with the Target artifacts block in Part 1: path, sha256 and provider
+  per row, with placement latitude and never a new required H2
   ([ADR 0044](0044-authoring-contract-and-merged-artifact.md)). `target-artifacts.mjs` parses the
   rows and exports `TARGET_ARTIFACTS_MARKER`, `MANIFEST_PATH_TEMPLATE` and `MANIFEST_KEYS`. The
-  Lead threads the parser's output as `args.targetArtifacts`. The engine never scans plan text.
+  Lead threads the parser's `rows` as `args.targetArtifacts`. The engine never scans plan text.
 - Off by default. `run.evidence` absent is off, and every prompt is byte-identical when off. WAR
   never depends on REA: the Lead resolves presence before launch and threads it as an arg. With REA
   absent the run proceeds, logs one loud line and seats no evidence auditor.
@@ -125,7 +126,7 @@ plan than this record.
   amendment row.
 - [ADR 0042](0042-prompt-surface-budgets.md) — `artifact-evidence.md` is the one cold home; the
   cards and SKILLs carry pointers, and every budgeted surface stays under its hard line.
-- [ADR 0044](0044-authoring-contract-and-merged-artifact.md) — the `**Target artifacts**` block is
+- [ADR 0044](0044-authoring-contract-and-merged-artifact.md) — the Target artifacts block is
   Part 1 latitude, never a new extraction heading.
 
 ## Consequences

@@ -740,7 +740,7 @@ contradiction.
 A plan claim whose evidence is a REA record bound to a target digest, per `artifact-evidence.md`.
 
 **Target artifacts block**:
-The Part 1 rows that turn the artifact recon lane on, parsed by `target-artifacts.mjs` under
+The Part 1 rows the artifact recon lane writes, parsed by `target-artifacts.mjs` under
 `TARGET_ARTIFACTS_MARKER`.
 
 **Evidence seat**:
