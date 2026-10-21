@@ -1553,6 +1553,22 @@ test('rea probes: lenses.md and SKILL.md carry rea-evidence (executed) and untru
     // restates its keyword or id prefix; the rows point at the home instead.
     assert.ok(!/at sha256:|rea:ev_/.test(text), `${name} must restate no grammar fragment (at sha256: / rea:ev_)`)
   }
+  // Ruling #2397 (closes #2393): the two catalog rows are pure pointers. Each points at "the evidence
+  // doctrine file the scope-lock names" (the Lead-threaded args.doctrineFile), carries no relative
+  // link to the home (a scope-locked probe on a foreign repo cannot follow one), and inlines neither
+  // the grammar's base keyword nor the target-content list the home defines.
+  const lenses = surfaces['references/lenses.md']
+  const DOCTRINE_POINTER = 'the evidence doctrine file the scope-lock names; read it first'
+  const rowOf = (text, probe) => text.split('\n').find(l => l.includes(`| \`${probe}\` |`))
+  for (const probe of ['rea-evidence', 'untrusted-content']) {
+    const row = rowOf(lenses, probe)
+    assert.ok(row, `lenses.md carries the ${probe} catalog row`)
+    assert.ok(row.includes(DOCTRINE_POINTER), `lenses.md ${probe} row points at the doctrine file the scope-lock names`)
+    assert.ok(!row.includes('](../../war-strategy/references/artifact-evidence.md)'), `lenses.md ${probe} row carries no relative link to the home`)
+    assert.ok(!/decompiled or pseudo code|hex dumps/.test(row), `lenses.md ${probe} row inlines no target-content list`)
+    assert.ok(!/at sha256:/.test(row), `lenses.md ${probe} row restates no grammar base keyword (#2393)`)
+  }
+  assert.match(region(lenses, 'rea-evidence'), /doctrineFile/, 'lenses.md narrative names args.doctrineFile beside the rows')
   // SKILL.md Step 2 is one long line, and its ff-topology rule already says "executed" on that line,
   // so the line-widened region cannot fail on the REA text alone. Slice the derivation paragraph
   // itself: from its bold lead-in to the next bold lead-in or the backstops sentence.
@@ -1587,6 +1603,13 @@ test('rea probes: lenses.md and SKILL.md carry rea-evidence (executed) and untru
     'SKILL.md Step 2 threads the block rows as args.targetArtifacts beside the derivation')
   assert.match(surfaces['SKILL.md'], /Workflow\(\{[\s\S]*?args:\s*\{[^}]*\btargetArtifacts\b[^}]*\}/,
     'Step 3 Workflow args literal must include targetArtifacts')
+  // Ruling #2397: whenever targetArtifacts is threaded, the Lead also threads the doctrine home's
+  // ABSOLUTE path as args.doctrineFile (Step 2 names the plugin-root path; Step 3 lists the arg).
+  assert.match(derivation, /doctrineFile/, 'SKILL.md Step 2 threads args.doctrineFile beside targetArtifacts')
+  assert.ok(derivation.includes('doctrineFile: ${CLAUDE_PLUGIN_ROOT}/skills/war-strategy/references/artifact-evidence.md'),
+    'SKILL.md Step 2 names the doctrine home by its plugin-root absolute path')
+  assert.match(surfaces['SKILL.md'], /Workflow\(\{[\s\S]*?args:\s*\{[^}]*\bdoctrineFile\b[^}]*\}/,
+    'Step 3 Workflow args literal must include doctrineFile')
 
   // Scope-lock carve-out, both techniques; off path byte-identical.
   const probes = [
@@ -1689,4 +1712,57 @@ test('rea probes: lenses.md and SKILL.md carry rea-evidence (executed) and untru
     'relative, root-equivalent, trailing-slash, control-character, backtick and dollar-sign artifact paths are filtered: byte-identical to the off path')
   assert.deepEqual(scalarPrompts.map(p => p.prompt), offPrompts.map(p => p.prompt),
     'a non-array targetArtifacts arg is the off path')
+
+  // Ruling #2397: args.doctrineFile (the plugin's absolute artifact-evidence.md path). With it set,
+  // the scope-lock names the file read-only on BOTH techniques, as one JSON-quoted token, on every
+  // probe AND every confirm prompt, and the D14 gh carve-out survives verbatim beside it. The arg
+  // is independent of targetArtifacts (the SKILL tells the Lead when to thread it). Absent, '' and
+  // null are the off path: every prompt byte-identical, no log line. A path isArtifactPath rejects
+  // is dropped with ONE log line and is also the off path.
+  const DOC = '/abs/plugin/skills/war-strategy/references/artifact-evidence.md'
+  const DOC_CLAUSE = `, and the evidence doctrine file at ${JSON.stringify(DOC)} (read-only)`
+  const DOC_DROP_LOG = 'doctrineFile: dropped (path must be absolute, normalized, and free of control characters, backticks and dollar signs)'
+  const docDropLogs = (logs) => logs.filter(l => l === DOC_DROP_LOG)
+  const failing = (a) => (_, opts) => opts.phase === 'Probe'
+    ? { probe: opts.label, kind: 'bespoke', technique: 'analyzed', status: 'fail', read_anchor: anchorOf(a),
+        findings: [{ severity: 'Major', title: 't', detail: 'd' }] }
+    : { reproduced: true }
+  const docOn = baseArgs({ probes, doctrineFile: DOC })
+  const { prompts: docPrompts, logs: docLogs } = await runScaffold(docOn, failing(docOn))
+  assert.deepEqual(docDropLogs(docLogs), [], 'a valid doctrineFile logs no drop line')
+  for (const name of [...ANALYZED_SPINE, 'b-analyzed', 'executable-proof', 'b-executed']) {
+    const prompt = docPrompts.find(p => p.opts.label === `probe:${name}`)?.prompt
+    assert.ok(prompt, `probe '${name}' must be dispatched (guards a vacuous loop)`)
+    assert.ok(prompt.includes(DOC_CLAUSE), `probe '${name}' scope-lock names the doctrine file read-only as one JSON-quoted token`)
+    assert.ok(!prompt.includes(' at ' + DOC), `probe '${name}' never renders the doctrine path bare`)
+    assert.ok(!prompt.includes('declared target artifact'), `probe '${name}' carries no artifact carve-out without targetArtifacts`)
+  }
+  assert.ok(docPrompts.find(p => p.opts.label === 'probe:b-analyzed').prompt.includes(D14_CARVE_OUT),
+    'the D14 carve-out survives verbatim beside the doctrine clause')
+  assert.ok(docPrompts.find(p => p.opts.label === 'probe:b-analyzed').prompt.includes(`(plus the plan/spec named above${DOC_CLAUSE})`),
+    'the analyzed Read/Grep/Glob restriction admits the doctrine file too, so the arm does not contradict the shared sentence')
+  const confirms = docPrompts.filter(p => p.opts.phase === 'Confirm')
+  assert.ok(confirms.length >= 2, 'confirm prompts were dispatched (guards a vacuous loop)')
+  for (const c of confirms) assert.ok(c.prompt.includes(DOC_CLAUSE), `confirm '${c.opts.label}' scope-lock names the doctrine file`)
+  // Both args together: the doctrine clause and the artifact carve-out ride the same lock.
+  const both = baseArgs({ probes, doctrineFile: DOC, targetArtifacts: [ART] })
+  const { prompts: bothPrompts } = await runScaffold(both, passResult(both))
+  for (const name of ['b-analyzed', 'b-executed']) {
+    const prompt = bothPrompts.find(p => p.opts.label === `probe:${name}`).prompt
+    assert.ok(prompt.includes(DOC_CLAUSE) && prompt.includes(JSON.stringify(ART)), `probe '${name}' carries both the doctrine clause and the artifact carve-out`)
+  }
+  // Off path.
+  for (const p of offPrompts) assert.ok(!/evidence doctrine file/.test(p.prompt), `off path: prompt ${p.opts.label} names no doctrine file`)
+  for (const [label, value] of [['empty string', ''], ['null', null]]) {
+    const a = baseArgs({ probes, doctrineFile: value })
+    const { prompts, logs } = await runScaffold(a, passResult(a))
+    assert.deepEqual(prompts.map(p => p.prompt), offPrompts.map(p => p.prompt), `a doctrineFile of ${label} is byte-identical to the absent arg`)
+    assert.deepEqual(docDropLogs(logs), [], `a doctrineFile of ${label} logs no drop line`)
+  }
+  for (const junkDoc of ['relative/artifact-evidence.md', '/..', '/abs/x`y', '/abs/x$y', '/abs/x\ny', 42, [DOC]]) {
+    const a = baseArgs({ probes, doctrineFile: junkDoc })
+    const { prompts, logs } = await runScaffold(a, passResult(a))
+    assert.deepEqual(prompts.map(p => p.prompt), offPrompts.map(p => p.prompt), `a rejected doctrineFile ${JSON.stringify(junkDoc)} is the off path`)
+    assert.deepEqual(docDropLogs(logs), [DOC_DROP_LOG], `a rejected doctrineFile ${JSON.stringify(junkDoc)} logs exactly one drop line`)
+  }
 })
