@@ -123,8 +123,8 @@ printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"a3","session_id
 if grep -q '"violations_total": 0' "$TMP/subagent-meter.log"; then pass 'case24 clean JSON message: zero violations, syntax never counted'; else fail 'case24 clean JSON message: zero violations, syntax never counted'; fi
 
 # Every shipped role addendum appends — a missing or misnamed addendum file goes red here.
-for role in war-worker war-auditor war-refiner war-servitor; do
-  MARK="$(printf '%s' "$role" | sed 's/^war-//' | tr '[:lower:]' '[:upper:]') ADDENDUM"
+for role in war-worker war-auditor war-refiner war-servitor war-evidence-auditor; do
+  MARK="$(printf '%s' "$role" | sed 's/^war-//' | tr '[:lower:]' '[:upper:]' | tr '-' ' ') ADDENDUM"
   out="$(printf '{"agent_type":"work-audit-refine:%s","agent_id":"r1"}' "$role" | sh "$TMP/gate.sh" subagent-start.py)"
   case "$out" in *'SEAT EDITION'*"$MARK"*) pass "role $role: blanket + $MARK" ;; *) fail "role $role: blanket + $MARK" ;; esac
 done

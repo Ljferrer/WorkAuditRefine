@@ -175,14 +175,19 @@ const EVICTION_DESTINATIONS = [
   // Stage 0 recon lane's `provision-worktrees.sh ensure-exclude` ordering — verb-scanned so a
   // subcommand rename rots that line loudly, never silently.
   'skills/war-strategy/references/artifact-evidence.md',
-  // Same plan: the Lead procedure stub (filled in Phase 2) will phrase the same ensure-exclude
-  // ordering and the target-artifacts parser run — verb-scanned from creation.
+  // Same plan: the Lead procedure file (a stub at Task 1.3, filled at Task 2.4) phrases the same
+  // ensure-exclude ordering and the target-artifacts parser run — verb-scanned from creation.
   'skills/war/references/artifact-evidence-lead.md',
   // Same plan: provision-worktrees.sh joined MODULES, so the two refiner references that phrase
   // `provision-worktrees.sh land-advance` moved here from the reason-excluded list (their
   // "no shell-out prose for the scanned modules" reason rotted the moment the module was scanned).
   'skills/war/references/refiner-recovery.md',
   'skills/war/references/budget-raise-floor.md',
+  // Same plan, Task 2.4: the /war-room REA setup walkthrough, registered under the verb scan
+  // (the vale-custom-interview.md placement precedent, on the scanned side): it phrases the
+  // external `rea` CLI and no scanned-module verb today, so a future shell-out claim for a
+  // scanned module rots loudly, never silently.
+  'skills/war-room/references/rea-setup.md',
 ]
 
 // Reason-excluded from the VERB scan only (D9/D10) — never from the posterity rule: every

@@ -14,6 +14,12 @@
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-auditor-git.sh" },
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/warn-bash-write-scope.sh" }
         ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-evidence-auditor-mcp.sh" }
+        ]
       }
     ],
     "PostToolUse": [

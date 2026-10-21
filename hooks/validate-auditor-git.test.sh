@@ -3,7 +3,8 @@
 # hooks/validate-auditor-git.sh
 #
 # This guard is FAIL-CLOSED: for agent_type suffix-anchored to war-auditor
-# (case pattern `*war-auditor`), it allows
+# (case pattern `*war-auditor`) or to war-evidence-auditor (its own arm
+# `*war-evidence-auditor`, same deny set — group O), it allows
 # ONLY a single git read-subcommand (diff/log/show/merge-base/rev-parse/status/
 # ls-files/ls-tree/cat-file/blame, plus read-form branch) with no shell
 # metacharacters. Anything else → DENY
@@ -553,7 +554,7 @@ expect_allow "H6: git -C -C rev-parse HEAD → allowed (first -C peeled; rest = 
 
 # ---------------------------------------------------------------------------
 # CASE GROUP I: suffix-anchored agent-type arm (#810)
-# The "Only gate war-auditor agents" arm is suffix-anchored (`*war-auditor`),
+# The "Only gate war-auditor and war-evidence-auditor agents" block's auditor arm is suffix-anchored (`*war-auditor`),
 # capturing the dispatched `work-audit-refine:war-auditor` but NOT a longer
 # `...war-auditor-helper` decoration. I1/I2 are a delete-the-feature pair:
 # revert the anchor to a substring arm and I1 flips to deny (over-capture)
@@ -899,6 +900,38 @@ expect_deny_teach "N5 newline-deny: git diff HEAD + newline + echo pwned → den
 expect_deny_teach "N6 newline-deny: git diff HEAD + newline + echo pwned → denied + Read/Grep/Glob teach element" \
   "$(auditor_cmd 'git diff HEAD\necho pwned')" \
   "Read/Grep/Glob tools"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP O: the evidence seat arm (plan 2026-10-20-rea-artifact-evidence
+# Task 2.2, D3). `*war-evidence-auditor` is its own suffix-anchored arm with
+# the same deny set as `*war-auditor`: the `*war-auditor` pattern does not
+# capture `<ns>:war-evidence-auditor`, so before the arm the seat fell to the
+# pass-through `*) exit 0` (delete-the-feature: remove the arm and O1-O3 flip
+# to exit 0). O1 carries the plan's exact label. The seat's MCP tools are gated
+# by validate-evidence-auditor-mcp.sh, not here.
+# ---------------------------------------------------------------------------
+
+# O1: non-git command → denied (exact plan label).
+expect_deny "war-evidence-auditor non-git command denied" \
+  "$(typed_cmd "war-evidence-auditor" "cat /etc/passwd")"
+
+# O2: exact dispatched shape (namespaced) → still captured → non-git denied.
+# Deny-side under-capture guard on the live default string.
+expect_deny "exact-shape :war-evidence-auditor non-git command denied (deny-side under-capture guard)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "ls /tmp")"
+
+# O3: a write verb is gated for the seat exactly as for war-auditor (B1 parity).
+expect_deny "O3: work-audit-refine:war-evidence-auditor git push → denied (same verb gate as war-auditor)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "git push")"
+
+# O4: the read verb the card names for the manifest read is admitted.
+expect_allow "O4: work-audit-refine:war-evidence-auditor git show abc1234:docs/plans/evidence/x.manifest.json → allowed" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "git show abc1234:docs/plans/evidence/x.manifest.json")"
+
+# O5: trailing-junk decoration → the suffix-anchored arm no longer captures →
+# pass-through (I1 parity).
+expect_allow "O5: work-audit-refine:war-evidence-auditor-helper cat x → exit 0 (arm no longer captures)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor-helper" "cat x")"
 
 # ---------------------------------------------------------------------------
 # Summary
