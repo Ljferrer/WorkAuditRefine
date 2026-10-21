@@ -7,11 +7,17 @@
 //      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
 //      the bullet line or a continuation line (a tag on a later bullet or after a blank line
 //      never cites; with no block rows citingTasks is empty); a marker with no `- path:` row
-//      under it throws; the CLI prints the same object and exits 2 on an unreadable file, on a
-//      malformed row and on a rowless marker; a rowless marker after a valid block throws with
-//      its own line number (a global rows-empty guard would pass it);
+//      under it throws; a full-shape row in Part 1 outside any block (after a continuation
+//      line, after prose, or with no marker above it) throws as an orphan, while a plain
+//      `- path:` bullet, a fenced row and a Part 2 row outside a block never do; the CLI prints
+//      the same object and exits 2 on an unreadable file (stderr names `cannot read`), on a
+//      missing path (stderr names the usage line), on a malformed row, on a rowless marker and
+//      on an orphan row; a rowless marker after a valid block throws with its own line number
+//      (a global rows-empty guard would pass it);
 //   2. the doc-token guard (ADR 0025 rule 8, extraction plus equality): every surface in the
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
+//      Every bare occurrence of a lead-in must carry a shaped value, so a second occurrence
+//      that drifts to plain text reds the guard instead of being skipped.
 //      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants.
 //
 // Repo root resolves from import.meta.url, never process.cwd(): a WAR subagent's cwd is the
@@ -184,6 +190,34 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
     /Target artifacts marker at line 6 carries no rows/,
   )
 
+  // A full-shape row the row loop did not consume is an orphan and throws with its own line
+  // number, never rows [/a] with exit 0: after a continuation line, after prose under a blank,
+  // and with no marker above it at all.
+  const orphanAfterContinuation = `# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n  (the main binary)\n${rowB}\n`
+  assert.throws(() => parseTargetArtifacts(orphanAfterContinuation), /orphan Target artifacts row at line 6/)
+  assert.throws(
+    () => parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n\nprose, not a row\n${rowB}\n`),
+    /orphan Target artifacts row at line 7/,
+  )
+  assert.throws(() => parseTargetArtifacts(`# p\n## Context\n${rowA}\n`), /orphan Target artifacts row at line 3/)
+  // The orphan guard keys on the full row shape: a plain `- path:` bullet in Part 1 prose, a
+  // fenced full-shape row, and a full-shape row in Part 2 outside any block never throw.
+  assert.deepEqual(
+    parseTargetArtifacts(`# p\n## Context\n- path: the repo root, nothing more\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n`),
+    { rows: [{ path: '/a', sha256: HEX, provider: 'ghidra' }], citingTasks: [] },
+    'a plain path bullet in prose is not an orphan',
+  )
+  assert.deepEqual(
+    parseTargetArtifacts(`# p\n## Context\n\`\`\`\n${rowA}\n\`\`\`\n`),
+    { rows: [], citingTasks: [] },
+    'a fenced full-shape row is inert',
+  )
+  assert.deepEqual(
+    parseTargetArtifacts(`# p\n## Context\n## Phase 1 — x\n${rowA}\n`),
+    { rows: [], citingTasks: [] },
+    'a Part 2 row outside a block is inert',
+  )
+
   // A marker with no `- path:` row under it is loud too, never rows [] with exit 0: a `* path:`
   // bullet, a table row, an Evidence-consumed-style bullet, a heading after a blank line, and a
   // marker at end of file each throw with the marker's line number.
@@ -212,10 +246,11 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
 
   const missing = spawnSync(process.execPath, [CLI, join(dir, 'absent.md')], { encoding: 'utf8' })
   assert.equal(missing.status, 2)
-  assert.match(missing.stderr, /target-artifacts/)
+  assert.match(missing.stderr, /cannot read/)
 
   const noArg = spawnSync(process.execPath, [CLI], { encoding: 'utf8' })
   assert.equal(noArg.status, 2)
+  assert.match(noArg.stderr, /usage: node target-artifacts\.mjs/)
 
   // CLI: a malformed row maps the parser's throw to exit 2, never an uncaught exit 1.
   const badPath = join(dir, 'bad.md')
@@ -230,6 +265,13 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
   const rowless = spawnSync(process.execPath, [CLI, rowlessPath], { encoding: 'utf8' })
   assert.equal(rowless.status, 2, rowless.stderr)
   assert.match(rowless.stderr, /Target artifacts marker at line 3 carries no rows/)
+
+  // CLI: an orphan row maps the parser's throw to exit 2 as well.
+  const orphanPath = join(dir, 'orphan.md')
+  writeFileSync(orphanPath, orphanAfterContinuation)
+  const orphan = spawnSync(process.execPath, [CLI, orphanPath], { encoding: 'utf8' })
+  assert.equal(orphan.status, 2, orphan.stderr)
+  assert.match(orphan.stderr, /orphan Target artifacts row at line 6/)
 })
 
 // --- the doc-token guard -----------------------------------------------------------------
@@ -248,12 +290,15 @@ const MANIFEST_KEYS_SURFACE = { file: 'skills/war-strategy/references/artifact-e
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Every occurrence of `<leadIn><value>` on the surface, where `shape` captures the value.
-// Zero occurrences throws (fail closed).
-function extractAfterLeadIn(file, leadIn, shape) {
-  const text = src(file)
+// Zero occurrences throws (fail closed). Every bare occurrence of the lead-in must carry a
+// shaped value: an occurrence whose value drifted to plain text throws instead of being
+// skipped. `text` defaults to the surface's source; a caller passes it only to prove the arms.
+function extractAfterLeadIn(file, leadIn, shape, text = src(file)) {
   const re = new RegExp(esc(leadIn) + shape.source, 'g')
   const found = [...text.matchAll(re)].map(m => m[1])
   assert.ok(found.length > 0, `${file}: lead-in ${JSON.stringify(leadIn)} absent or not followed by a value`)
+  const bare = text.split(leadIn).length - 1
+  assert.equal(bare, found.length, `${file}: lead-in ${JSON.stringify(leadIn)} occurs ${bare} times but ${found.length} carry a shaped value`)
   return found
 }
 
@@ -272,6 +317,16 @@ test('doc-token guard: every mapped surface carries the lead-in-anchored value o
   const keys = [...keyLines[0].matchAll(/`([^`]+)`/g)].map(m => m[1])
   assert.deepEqual(keys, MANIFEST_KEYS, `${MANIFEST_KEYS_SURFACE.file}: Manifest keys line`)
 
-  // The extractor's fail-closed arm, proven red on a lead-in no surface carries.
+  // The extractor's fail-closed arms, proven red: a lead-in no surface carries, and a second
+  // occurrence of a lead-in whose value drifted to plain text (synthetic text, not a surface).
   assert.throws(() => extractAfterLeadIn(MANIFEST_PATH_SURFACE.file, 'No such lead-in: ', /`([^`\n]+)`/), /absent/)
+  assert.throws(
+    () => extractAfterLeadIn('synthetic', 'Marker: ', /(\*\*[^*\n]+\*\*)/, 'Marker: **Target artifacts**\nMarker: Target artifacts\n'),
+    /occurs 2 times but 1 carry a shaped value/,
+  )
+  assert.deepEqual(
+    extractAfterLeadIn('synthetic', 'Marker: ', /(\*\*[^*\n]+\*\*)/, 'Marker: **a**\nMarker: **b**\n'),
+    ['**a**', '**b**'],
+    'every occurrence is returned when each carries a shaped value',
+  )
 })

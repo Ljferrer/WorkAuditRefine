@@ -20,10 +20,13 @@
 //
 // Exit contract:
 //   0 — parsed (an absent block is a normal parse).
-//   2 — no path given, the file is unreadable, a row under the marker breaks the row shape, or
-//       the marker carries no `- path:` row at all (a `* path:` bullet, a table row, a heading).
-//       A malformed or rowless block is loud on purpose: a silently dropped artifact would run
-//       a plan's evidence seat against fewer targets than the plan declares.
+//   2 — no path given, the file is unreadable, a row under the marker breaks the row shape,
+//       the marker carries no `- path:` row at all (a `* path:` bullet, a table row, a heading),
+//       or a full-shape row sits in Part 1 outside any block (an orphan: after a continuation
+//       line, after prose, or with no marker above it). A malformed, rowless or orphaned row is
+//       loud on purpose: a silently dropped artifact would run a plan's evidence seat against
+//       fewer targets than the plan declares. The rule: every full-shape row in Part 1 reaches
+//       `rows`, or the parse throws.
 //
 // Parse rules:
 //   - Part 1 is every line before the first Part 2 H2: `## Commander's Intent` (either ADR 0014
@@ -38,7 +41,9 @@
 //     Markdown puts one under the marker; a loose list puts one between every row). The first
 //     non-blank line under the marker must be a `- path:` row, or the marker is rowless and the
 //     parse throws. After a row, the next non-blank line that is not a `- path:` bullet ends the
-//     block. More than one block concatenates in document order.
+//     block. A full-shape row the outer loop then meets in Part 1 is an orphan and throws; a
+//     `- path:` bullet that is not a full-shape row is ordinary prose outside a block. More than
+//     one block concatenates in document order.
 //   - citingTasks: each `### Task <id>:` heading in Part 2 opens a task; its `- Plan slice:`
 //     bullet (plus continuation lines up to a blank line or a new construct) cites a tag when it
 //     carries `rea:ev_<64hex>`. Prose that merely mentions `rea:` does not cite. A bullet other
@@ -83,11 +88,16 @@ export function parseTargetArtifacts(text) {
     if (inPart1 && PART2_H2.test(line)) inPart1 = false
 
     if (inPart1) {
-      if (!line.trim().startsWith(TARGET_ARTIFACTS_MARKER)) continue
+      if (!line.trim().startsWith(TARGET_ARTIFACTS_MARKER)) {
+        // A full-shape row the row loop did not consume is an orphan: loud, never dropped. The
+        // full ROW shape, not ROW_START, so a plain `- path:` bullet in prose never trips it.
+        if (ROW.test(line)) throw new Error(`orphan Target artifacts row at line ${i + 1}: ${line.trim()}`)
+        continue
+      }
       const marker = i + 1
       // Blank lines under the marker and between rows are skipped by one predicate; `i` advances
       // only over consumed rows, so a non-row after a blank (a second marker, a heading) is
-      // re-read by the outer loop.
+      // re-read by the outer loop, and a full-shape row re-read there is an orphan.
       const nextNonBlank = k => { while (k < lines.length && lines[k].trim() === '') k++; return k }
       let j = nextNonBlank(i + 1)
       const first = j
