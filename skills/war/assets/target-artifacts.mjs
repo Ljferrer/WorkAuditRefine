@@ -14,14 +14,16 @@
 // Usage:
 //   node target-artifacts.mjs <plan.md>
 // Prints one JSON object: { rows: [{ path, sha256, provider }], citingTasks: ['1.1', ...] }.
-// `{ rows: [], citingTasks: [] }` when the plan carries no block. The Lead threads this
-// output as `args.targetArtifacts`; the engine never scans plan text itself.
+// `{ rows: [], citingTasks: [] }` when the plan carries no block. The Lead threads `rows` as
+// `args.targetArtifacts` and adds the evidence seat only on the `citingTasks` tasks; the engine
+// never scans plan text itself.
 //
 // Exit contract:
 //   0 — parsed (an absent block is a normal parse).
-//   2 — no path given, the file is unreadable, or a row under the marker breaks the row shape.
-//       A malformed row is loud on purpose: a silently dropped artifact would run a plan's
-//       evidence seat against fewer targets than the plan declares.
+//   2 — no path given, the file is unreadable, a row under the marker breaks the row shape, or
+//       the marker carries no `- path:` row at all (a `* path:` bullet, a table row, a heading).
+//       A malformed or rowless block is loud on purpose: a silently dropped artifact would run
+//       a plan's evidence seat against fewer targets than the plan declares.
 //
 // Parse rules:
 //   - Part 1 is every line before the first Part 2 H2: `## Commander's Intent` (either ADR 0014
@@ -33,8 +35,9 @@
 //     follow on the next lines, one per artifact, in the shape artifact-evidence.md shows:
 //       - path: `<path>` · sha256: `<64 lowercase hex>` · provider: `<name>`
 //     Blank lines between the marker and the first row are skipped (valid Markdown puts one
-//     there). After the first row, the first line that is not a `- path:` bullet ends the
-//     block. More than one block concatenates in document order.
+//     there). The first line after them must be a `- path:` row, or the marker is rowless and
+//     the parse throws. After the first row, the first line that is not a `- path:` bullet
+//     ends the block. More than one block concatenates in document order.
 //   - citingTasks: each `### Task <id>:` heading in Part 2 opens a task; its `- Plan slice:`
 //     bullet (plus continuation lines up to a blank line or a new construct) cites a tag when it
 //     carries `rea:ev_<64hex>`. Prose that merely mentions `rea:` does not cite. A bullet other
@@ -80,14 +83,18 @@ export function parseTargetArtifacts(text) {
 
     if (inPart1) {
       if (!line.trim().startsWith(TARGET_ARTIFACTS_MARKER)) continue
+      const marker = i + 1
       let j = i + 1
       while (j < lines.length && lines[j].trim() === '') j++ // blank lines before the first row
+      const first = j
       for (; j < lines.length && ROW_START.test(lines[j]); j++) {
         const m = lines[j].match(ROW)
         if (!m) throw new Error(`malformed Target artifacts row at line ${j + 1}: ${lines[j].trim()}`)
         rows.push({ path: m[1], sha256: m[2], provider: m[3] })
         i = j
       }
+      // Rowless marker (`* path:`, a table row, a heading, end of file): loud, never rows [].
+      if (j === first) throw new Error(`Target artifacts marker at line ${marker} carries no rows`)
       continue
     }
 

@@ -6,8 +6,9 @@
 //      a blank line allowed between a marker and its first row), skips code fences, drops a
 //      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
 //      the bullet line or a continuation line (a tag on a later bullet or after a blank line
-//      never cites; with no block rows citingTasks is empty); the CLI prints the same object
-//      and exits 2 on an unreadable file and on a malformed row;
+//      never cites; with no block rows citingTasks is empty); a marker with no `- path:` row
+//      under it throws; the CLI prints the same object and exits 2 on an unreadable file, on a
+//      malformed row and on a rowless marker;
 //   2. the doc-token guard (ADR 0025 rule 8, extraction plus equality): every surface in the
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
 //      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants.
@@ -151,6 +152,24 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
     /malformed Target artifacts row/,
   )
 
+  // A marker with no `- path:` row under it is loud too, never rows [] with exit 0: a `* path:`
+  // bullet, a table row, an Evidence-consumed-style bullet, a heading after a blank line, and a
+  // marker at end of file each throw with the marker's line number.
+  const star = `# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n* path: \`/x\` · sha256: \`${HEX}\` · provider: \`ghidra\`\n`
+  assert.throws(() => parseTargetArtifacts(star), /Target artifacts marker at line 3 carries no rows/)
+  for (const under of [
+    `| path | sha256 | provider |\n| /x | ${HEX} | ghidra |\n`,
+    `- \`/x\` · sha256: \`${HEX}\` · provider: \`ghidra\`\n`,
+    `\n## Next heading\n- path: \`/x\` · sha256: \`${HEX}\` · provider: \`ghidra\`\n`,
+    '',
+  ]) {
+    assert.throws(
+      () => parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${under}`),
+      /Target artifacts marker at line 3 carries no rows/,
+      `rowless marker followed by ${JSON.stringify(under)}`,
+    )
+  }
+
   // CLI: same object on stdout, exit 0; exit 2 on an unreadable file and on a missing path.
   const dir = mkdtempSync(join(tmpdir(), 'target-artifacts-'))
   const planPath = join(dir, 'plan.md')
@@ -172,6 +191,13 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
   const bad = spawnSync(process.execPath, [CLI, badPath], { encoding: 'utf8' })
   assert.equal(bad.status, 2, bad.stderr)
   assert.match(bad.stderr, /malformed Target artifacts row/)
+
+  // CLI: a rowless marker maps the parser's throw to exit 2 as well.
+  const rowlessPath = join(dir, 'rowless.md')
+  writeFileSync(rowlessPath, star)
+  const rowless = spawnSync(process.execPath, [CLI, rowlessPath], { encoding: 'utf8' })
+  assert.equal(rowless.status, 2, rowless.stderr)
+  assert.match(rowless.stderr, /Target artifacts marker at line 3 carries no rows/)
 })
 
 // --- the doc-token guard -----------------------------------------------------------------
