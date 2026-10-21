@@ -114,8 +114,12 @@ test('evidence presence: the doc-stated presence tool is a hook allowlist member
   // Discrimination control: an unknown key is refused by the same row read.
   assert.ok(!argsContract.includes('Optional `noSuchArgKey`'), 'control: the Optional-row read does not vacuously accept an unknown key')
   // Scope control: an Optional row outside the args contract H2 is refused by the same section read.
-  const outside = '\n## Other\nOptional `evidence`\n\n## Workflow per-phase args contract\nno rows here\n'
-  assert.ok(!section('fixture', outside, 'Workflow per-phase args contract').includes('Optional `evidence`'), 'control: an Optional row outside the args contract section must not satisfy the args arm')
+  // The fixture carries an Optional row in an H2 before the contract AND one in an H2 after it, so
+  // the control fails if section() loses either its start anchor or its next-H2 truncation.
+  const outside = '\n## Other\nOptional `evidence`\n\n## Workflow per-phase args contract\nno rows here\n\n## Later\nOptional `targetArtifacts`\n'
+  const outsideBody = section('fixture', outside, 'Workflow per-phase args contract')
+  assert.ok(!outsideBody.includes('Optional `evidence`'), 'control: an Optional row in an H2 before the args contract section must not satisfy the args arm')
+  assert.ok(!outsideBody.includes('Optional `targetArtifacts`'), 'control: an Optional row in an H2 after the args contract section must not satisfy the args arm')
 
   // Fail-closed controls on the extractors themselves (delete-the-feature: a surface that
   // drops its lead-in throws instead of returning an empty, vacuously-passing set).
