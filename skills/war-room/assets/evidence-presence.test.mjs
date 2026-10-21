@@ -11,17 +11,14 @@
 //      it must deepEqual EVIDENCE_LENS from war-config.mjs.
 //   3. The threaded args. Every `args.<key>` token the lead file names must have an
 //      `Optional \`<key>\`` row in schemas.md's args contract.
-// One doc-stated rule with no machine source (the Lead procedure is prose), pinned by section
-// extraction (Task 2.4 fix round 1):
-//   5. The derivation version (ruling #2403). The hook header records the rea-agents version the
+//   4. The derivation version (ruling #2403). The hook header records the rea-agents version the
 //      allowlist was derived at behind the fixed lead-in `Derived at rea-agents: `; it must equal
 //      the DERIVED_AT_REA literal in evidence-card-allowlist.test.mjs, the pin that gates its
 //      predicate arms. The literal is extracted from that test's source, never imported (an import
 //      would run its tests here).
-//   6. The decline rule (ruling #2405). The war-room `audit.roster` row must say accepting the
-//      evidence offer keeps `run.evidence` on and declining turns it off: the knob is the only
-//      opt-in record, so the rule is pinned by presence.
-//   4. The pool strip. A config `audit.roster` evidence row feeds every task under rosterPolicy
+// Two doc-stated rules with no machine source (the Lead procedure is prose), each pinned by
+// extraction of the doc row or section that states it:
+//   5. The pool strip (Task 2.4 fix round 1). A config `audit.roster` evidence row feeds every task under rosterPolicy
 //      `all`, the lone-seat widen fallback and the sweep panel, and the /war Lead reads the strip
 //      when the plan carries a Target artifacts block or the config roster carries an
 //      evidence-type row (skills/war/SKILL.md Decompose step 1), so the war-room roster row must say the
@@ -29,6 +26,9 @@
 //      lead file's § Thread section must order the strip before the `citingTasks` add (the guard
 //      for a hand-written row), its § Skip section must keep the strip, and the war-room roster
 //      row must point at the lead file.
+//   6. The decline rule (ruling #2405). The war-room `audit.roster` row must say accepting the
+//      evidence offer keeps `run.evidence` on and declining turns it off: the knob is the only
+//      opt-in record, so the rule is pinned by presence.
 // Every extractor fails closed: a doc that drops its lead-in is a red test, never a vacuous pass.
 //
 // Repo root resolves from import.meta.url, never process.cwd() (a WAR subagent's cwd is the

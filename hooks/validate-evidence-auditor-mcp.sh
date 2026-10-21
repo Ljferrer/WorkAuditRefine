@@ -50,7 +50,8 @@
 #   (or `destination`, where a contract uses it) must name a path under the
 #   run's evidence dir: the value carries the segment `/.claude/war/evidence/`
 #   and no `..` segment, else DENY. The rule binds war-evidence-auditor and
-#   war-worker alike (the G2 bundle rule). An absent key passes.
+#   war-worker alike (the G2 bundle rule). An absent key passes; a present
+#   key must hold a non-empty string, else DENY.
 #
 # SUFFIX KEYING + CANARY
 #   A tool name is `mcp__<server>__<tool>`. The compare uses the suffix after
@@ -317,12 +318,24 @@ esac
 # path may name only a path under the run's evidence dir. The value must carry
 # the segment `/.claude/war/evidence/` and no `..` segment (the value is
 # wrapped in `/` so a leading or trailing `..` is a segment too; `v1..v2` is a
-# name, not a segment). An absent or empty key passes. A non-object tool_input
-# makes jq fail, and the ERR trap folds that to 2.
+# name, not a segment). An absent key passes. A present key is read by
+# presence (`has`), never by value: a present key whose value is not a
+# non-empty string (`""`, null, false, a number, an array or an object, which
+# jq -r would print as JSON text that could embed the segment) is denied. A
+# tool_input that is neither absent nor an object is denied before the loop.
 # ---------------------------------------------------------------------------
+ti_type="$(printf '%s' "$input" | jq -r '.tool_input | type')"
+case "$ti_type" in
+  null|object) ;;
+  *) deny "tool '$tool' carries a tool_input of type $ti_type, not an object, for agent type '$atype'." ;;
+esac
 for key in output_directory destination; do
-  val="$(get ".tool_input.$key")"
-  if [ -n "$val" ]; then
+  if printf '%s' "$input" | jq -e --arg k "$key" '(.tool_input|type)=="object" and (.tool_input|has($k))' >/dev/null; then
+    vtype="$(printf '%s' "$input" | jq -r --arg k "$key" '.tool_input[$k] | type')"
+    val="$(printf '%s' "$input" | jq -r --arg k "$key" '.tool_input[$k]')"
+    if [ "$vtype" != "string" ] || [ -z "$val" ]; then
+      deny "tool '$tool' names $key with a $vtype value that is not a non-empty path string (a path under /.claude/war/evidence/ only; the G2 bundle rule) for agent type '$atype'."
+    fi
     case "$val" in
       *"/.claude/war/evidence/"*) ;;
       *) deny "tool '$tool' names $key '$val' outside the run's evidence dir (a path under /.claude/war/evidence/ only; the G2 bundle rule) for agent type '$atype'." ;;

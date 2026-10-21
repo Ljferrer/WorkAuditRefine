@@ -867,9 +867,10 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 // loud line (after the phase-start roster assertion below, so it counts the drops) and proceeds — any
 // evidence-type row is dropped here (dropEvidenceRows: every task roster and defaultRoster, which feeds the
 // widen fallback and the sweep panel; ruling #2404, the backstop behind the Lead strip) and every prompt
-// stays byte-identical to the off baseline (fail-open, never a hold). validateRoster already refuses the
-// row while run.evidence is off, so a dropped row means run.evidence on with REA absent. The rows are
-// entry-validated below (class 10) before anything reads them.
+// stays byte-identical to the off baseline (fail-open, never a hold). validateRoster already refuses a
+// task-roster row while run.evidence is off, so a dropped task-roster row means run.evidence on with REA
+// absent; an audit.roster row is dropped whatever run.evidence says (the splice runs before the sweep's
+// validateRoster). The rows are entry-validated below (class 10) before anything reads them.
 const reaOn = A.evidence === true
 const targetArtifacts = Array.isArray(A.targetArtifacts) ? A.targetArtifacts : []
 const droppedEvidenceRows = []   // '<task-id|audit.roster>:<lens>' per dropped row, for the loud line
