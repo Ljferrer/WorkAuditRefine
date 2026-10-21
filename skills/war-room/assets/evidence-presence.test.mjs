@@ -75,11 +75,22 @@ function argsKeys(rel, text) {
   return keys
 }
 
+// One H2 section's body: from its heading to the next `## ` or the end of the file.
+function section(rel, text, heading) {
+  const start = text.indexOf('\n## ' + heading + '\n')
+  assert.ok(start >= 0, `${rel}: section "## ${heading}" not found — the extractor fails closed`)
+  const body = text.slice(start + heading.length + 5)
+  const end = body.indexOf('\n## ')
+  return end >= 0 ? body.slice(0, end) : body
+}
+
 test('evidence presence: the doc-stated presence tool is a hook allowlist member, the offered lens equals EVIDENCE_LENS, and every args key the lead file names has an Optional row in schemas.md', () => {
   const allow = hookAllowlist(src(HOOK))
   const warRoom = src(WAR_ROOM)
   const lead = src(LEAD)
   const schemas = src(SCHEMAS)
+  // The args contract is one H2 of schemas.md; an Optional row elsewhere in the file does not count.
+  const argsContract = section(SCHEMAS, schemas, 'Workflow per-phase args contract')
 
   // 1. presence tool — a member on every doc, and the same tool on every doc.
   const fromWarRoom = presenceTools(WAR_ROOM, warRoom)
@@ -97,11 +108,14 @@ test('evidence presence: the doc-stated presence tool is a hook allowlist member
 
   // 3. args keys — each has an Optional row in the args contract.
   const keys = argsKeys(LEAD, lead)
-  for (const k of keys) assert.ok(schemas.includes('Optional `' + k + '`'), `${LEAD} names args.${k} but ${SCHEMAS} carries no \`Optional \\\`${k}\\\`\` row`)
+  for (const k of keys) assert.ok(argsContract.includes('Optional `' + k + '`'), `${LEAD} names args.${k} but ${SCHEMAS} § Workflow per-phase args contract carries no \`Optional \\\`${k}\\\`\` row`)
   for (const must of ['evidence', 'targetArtifacts'])
     assert.ok(keys.includes(must), `${LEAD}: the Lead procedure must thread args.${must} (D8/PIN-1)`)
   // Discrimination control: an unknown key is refused by the same row read.
-  assert.ok(!schemas.includes('Optional `noSuchArgKey`'), 'control: the Optional-row read does not vacuously accept an unknown key')
+  assert.ok(!argsContract.includes('Optional `noSuchArgKey`'), 'control: the Optional-row read does not vacuously accept an unknown key')
+  // Scope control: an Optional row outside the args contract H2 is refused by the same section read.
+  const outside = '\n## Other\nOptional `evidence`\n\n## Workflow per-phase args contract\nno rows here\n'
+  assert.ok(!section('fixture', outside, 'Workflow per-phase args contract').includes('Optional `evidence`'), 'control: an Optional row outside the args contract section must not satisfy the args arm')
 
   // Fail-closed controls on the extractors themselves (delete-the-feature: a surface that
   // drops its lead-in throws instead of returning an empty, vacuously-passing set).
@@ -110,15 +124,6 @@ test('evidence presence: the doc-stated presence tool is a hook allowlist member
   assert.throws(() => argsKeys('fixture', 'no args here'), /no args/)
   assert.throws(() => hookAllowlist('no block'), /not found/)
 })
-
-// One H2 section's body: from its heading to the next `## ` or the end of the file.
-function section(rel, text, heading) {
-  const start = text.indexOf('\n## ' + heading + '\n')
-  assert.ok(start >= 0, `${rel}: section "## ${heading}" not found — the extractor fails closed`)
-  const body = text.slice(start + heading.length + 5)
-  const end = body.indexOf('\n## ')
-  return end >= 0 ? body.slice(0, end) : body
-}
 
 test('evidence presence: the war-room offer never writes an evidence row into audit.roster, the Lead strips a hand-written one from the pool before the citingTasks add, keeps the strip on the skip arm, and the war-room roster row points at the lead file', () => {
   const lead = src(LEAD)

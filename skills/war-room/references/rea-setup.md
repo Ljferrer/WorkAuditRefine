@@ -4,8 +4,9 @@ Read this when the operator opts into `run.evidence` in `/war-room` step 2 (the 
 on that row). It covers the install, the providers, the env rule per shell, the verification
 command, and the presence check. The evidence lens is offered only when `run.evidence` is on AND
 the presence check passes (plan `2026-10-20-rea-artifact-evidence` D20, G1). Walk the operator
-through the sections in order; stop at the first one they cannot complete and record REA as
-absent for this run.
+through the sections in order; stop at the first one they cannot complete and treat REA as
+absent: `/war-room` does not offer the evidence lens, and the `/war` Lead re-checks presence at
+launch.
 
 ## Install
 
@@ -18,7 +19,9 @@ absent for this run.
 ## Providers
 
 Install only the providers the plan's artifacts need. The `provider` field of each
-`**Target artifacts**` row names it.
+`**Target artifacts**` row names it. If no plan is in hand, ask the operator which providers their
+target artifacts will need, and use that set wherever this file says the plan's artifacts need or
+the plan needs.
 
 - **Ghidra** (native binaries): Ghidra 12.1.x plus a JDK ≥ 21. Export `GHIDRA_INSTALL_DIR` to the
   install directory and `JAVA_HOME` to the JDK. macOS native build step: the macOS download ships
