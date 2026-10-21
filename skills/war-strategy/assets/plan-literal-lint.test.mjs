@@ -6,7 +6,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-import { lint, lintInfo, LINT_PATTERNS, SHAPE_RULES, parsePlanShape } from './plan-literal-lint.mjs';
+import {
+  lint, lintInfo, LINT_PATTERNS, SHAPE_RULES, parsePlanShape, REA_SOURCE_BASE, REA_TAG_GRAMMAR,
+} from './plan-literal-lint.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, 'plan-literal-lint.mjs');
@@ -15,11 +17,14 @@ const names = (hits) => hits.map((h) => h.pattern);
 const countOf = (hits, name) => hits.filter((h) => h.pattern === name).length;
 
 // Every declared pattern has a name — no silent gap (mirrors war-memory's structural check).
-test('LINT_PATTERNS: five named patterns, no gaps', () => {
-  assert.equal(LINT_PATTERNS.length, 5);
+test('LINT_PATTERNS: seven named patterns, no gaps', () => {
+  assert.equal(LINT_PATTERNS.length, 7);
   assert.deepEqual(
     LINT_PATTERNS.map((p) => p.name).sort(),
-    ['bare-files-path', 'hardcoded-version', 'line-range', 'literal-suite-list', 'suite-count']
+    [
+      'bare-files-path', 'hardcoded-version', 'line-range', 'literal-suite-list', 'rea-source-base',
+      'suite-count', 'target-content-paste',
+    ]
   );
 });
 
@@ -135,6 +140,82 @@ test('combined fixture reports exactly one hit per pattern; compliant rewrite re
     '- Plan slice: bump the slots to the next free patch above the live base',
   ].join('\n');
   assert.deepEqual(lint(goodPlan), []);
+});
+
+// ===========================================================================
+// Fifth family — artifact evidence (plan 2026-10-20-rea-artifact-evidence D5/D7). Both rules
+// are advisory line-level patterns: the digest rule for a `rea:` source and the cite-only
+// paste detector. The doctrine home is skills/war-strategy/references/artifact-evidence.md.
+// ===========================================================================
+
+const HEX64 = '0123456789abcdef'.repeat(4);
+const REA_TAG = `(verified: rea:ev_${HEX64} at sha256:${HEX64})`;
+
+// Title pinned verbatim by End state 3 of the plan.
+test('rea-source-base: flags a rea: source without a 64-hex sha256: base; clean with one', () => {
+  const mk = (tag) => `- The launcher reads its config from the app bundle ${tag}.`;
+  const bad = {
+    'no base': `(verified: rea:ev_${HEX64})`,
+    '12-hex prefix': `(verified: rea:ev_${HEX64} at sha256:${HEX64.slice(0, 12)})`,
+    '63-hex base': `(verified: rea:ev_${HEX64} at sha256:${HEX64.slice(0, 63)})`,
+    '65-hex base': `(verified: rea:ev_${HEX64} at sha256:${HEX64}a)`,
+    'uppercase base': `(verified: rea:ev_${HEX64} at sha256:${HEX64.toUpperCase()})`,
+    'git-sha base': `(verified: rea:ev_${HEX64} at 287405fc)`,
+    'backticked source, no base': `(verified: \`rea:ev_${HEX64}\`)`,
+  };
+  for (const [why, tag] of Object.entries(bad)) {
+    assert.equal(countOf(lint(mk(tag)), 'rea-source-base'), 1, why);
+  }
+  assert.equal(countOf(lint(mk(REA_TAG)), 'rea-source-base'), 0, 'full 64-hex base is clean');
+  // Two sources on one line report two hits — one per source, not one per line.
+  assert.equal(countOf(lint(`${mk(bad['no base'])} ${mk(bad['12-hex prefix'])}`), 'rea-source-base'), 2);
+  // Prose that names the tag kind, or the doctrine's elided placeholder, is not a source.
+  const prose = [
+    'A regular seat treats a `rea:` claim as digest-bound.',
+    'The plan cites the record (`rea:ev_…`) and states the conclusion in its own words.',
+    'Grammar: `(verified: rea:ev_<64hex> at sha256:<64hex>)`',
+  ].join('\n');
+  assert.equal(countOf(lint(prose), 'rea-source-base'), 0);
+  assert.ok(REA_SOURCE_BASE.test(REA_TAG), 'the exported regex accepts the full tag');
+  assert.ok(!REA_SOURCE_BASE.test(bad['12-hex prefix']), 'the exported regex rejects a 12-hex prefix');
+});
+
+// ADR 0025 extraction + equality: the doctrine home's one grammar line is read by its `Grammar: `
+// lead-in, its template span must equal the exported literal, and its full-length example must
+// match the exported regex and lint clean. Title pinned verbatim by End state 3 of the plan.
+test('artifact-evidence.md grammar line matches the rea-source-base regex', () => {
+  const doc = readFileSync(join(HERE, '..', 'references', 'artifact-evidence.md'), 'utf8');
+  const lines = doc.split('\n').filter((l) => /^Grammar: /.test(l));
+  assert.equal(lines.length, 1, 'exactly one `Grammar: ` line in the doctrine home');
+  const spans = [...lines[0].matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  assert.ok(spans.length >= 2, 'the grammar line carries the template span and one full-length example');
+  assert.equal(spans[0], REA_TAG_GRAMMAR, 'the doc template equals the exported grammar literal');
+  assert.ok(REA_SOURCE_BASE.test(spans[1]), 'the doc example matches the rea-source-base regex');
+  assert.ok(REA_SOURCE_BASE.test(REA_TAG_GRAMMAR.replaceAll('<64hex>', HEX64)), 'the template instantiates to the regex shape');
+  assert.equal(countOf(lint(lines[0]), 'rea-source-base'), 0, 'the grammar line lints clean');
+  assert.equal(countOf(lint(doc), 'rea-source-base'), 0, 'the whole doctrine home lints clean on the rule');
+  assert.equal(countOf(lint(doc), 'target-content-paste'), 0, 'the doctrine home names target content without pasting any');
+});
+
+test('target-content-paste: flags a decompiler header and a hex-dump run; clean on prose and a digest', () => {
+  const pasted = {
+    'ghidra header': 'undefined8 FUN_00101149(long param_1)',
+    'hex-rays header': '__int64 __fastcall sub_140001000(__int64 a1, int a2)',
+    'ida label': 'the branch at loc_14000A2B0 jumps back',
+    'hexdump -C run': '00000000  7f 45 4c 46 02 01 01 00  00 00 00 00 00 00 00 00  |.ELF............|',
+    'xxd run': '00000010: 0300 3e00 0100 0000 c010 0000 0000 0000',
+  };
+  for (const [why, line] of Object.entries(pasted)) {
+    assert.ok(countOf(lint(line), 'target-content-paste') >= 1, why);
+  }
+  const clean = [
+    `- The binary validates its license file on launch ${REA_TAG}.`,
+    'Target content is anything REA returned from the artifact: strings, hex dumps, decompiled code.',
+    '- Files: `skills/war/assets/workflow-template.js` (the auditPrompt function)',
+    '| D5 | Tag grammar | 12 of 16 providers | (user) | guardrail |',
+    'Landed at 287405fc; the 2026-10-20 base is 1.2.3.',
+  ].join('\n');
+  assert.equal(countOf(lint(clean), 'target-content-paste'), 0);
 });
 
 // ===========================================================================
