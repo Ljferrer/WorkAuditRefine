@@ -20889,6 +20889,17 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
   const widened = await runPhase(widenArgs, widenImpl)
   const widenLabels = widened.calls.map(c => c.opts.label || '')
   assert.ok(widenLabels.filter(l => l === 'audit:t1:security').length >= 2, 'widen arm: the lone seat re-convened (the widen path ran)')
+  // Discriminating witness: the fix round + full-roster re-audit re-label audit:t1:security whether or not the
+  // widening block ran, so the >= 2 count alone cannot see a deleted or regressed widening branch. The engine's
+  // own narration line (source: default fallback) is emitted only inside that branch, and only when the
+  // EVIDENCE_LENS nomination was barred (a nominated source would read `source: nominated`).
+  assert.ok(widened.logs.some(l => typeof l === 'string' && /lone-seat widening \(Critical or low confidence; source: default fallback\)/.test(l)),
+    'widen arm: the widening ran and fell back to the default roster (the EVIDENCE_LENS nomination was barred)')
+  assert.ok(!widened.logs.some(l => typeof l === 'string' && l.includes('lone-seat widening') && l.includes('source: nominated')),
+    'widen arm: the barred nomination never reads as a nominated source')
+  for (const { lens } of ROSTER_TRIO) {
+    assert.ok(widenLabels.includes(`audit:t1:${lens}`), `widen arm: the default-roster lens ${lens} convened after the fallback`)
+  }
   assert.equal(reaLoudLines(widened.logs).length, 1, 'widen arm: exactly one loud line')
   assert.ok(!widened.calls.some(isEvidenceSeat), 'widen arm: no evidence auditor seated under an EVIDENCE_LENS nomination')
   assert.ok(!widenLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen arm: no audit label ends with :${EVIDENCE_LENS} (got ${JSON.stringify(widenLabels.filter(l => l.startsWith('audit:')))})`)
