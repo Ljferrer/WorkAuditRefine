@@ -14,9 +14,12 @@
 // One doc-stated rule with no machine source (the Lead procedure is prose), pinned by section
 // extraction (Task 2.4 fix round 1):
 //   4. The pool strip. A config `audit.roster` evidence row feeds every task under rosterPolicy
-//      `all`, the lone-seat widen fallback and the sweep panel, so the lead file's § Thread
-//      section must order the strip before the `citingTasks` add, its § Skip section must keep
-//      the strip, and the war-room roster row must point at the lead file.
+//      `all`, the lone-seat widen fallback and the sweep panel, and the /war Lead reads the strip
+//      only for a plan with a Target artifacts block, so the war-room roster row must say the
+//      offer never writes such a row and `run.evidence` is the opt-in record (fix round 2), the
+//      lead file's § Thread section must order the strip before the `citingTasks` add (the guard
+//      for a hand-written row), its § Skip section must keep the strip, and the war-room roster
+//      row must point at the lead file.
 // Every extractor fails closed: a doc that drops its lead-in is a red test, never a vacuous pass.
 //
 // Repo root resolves from import.meta.url, never process.cwd() (a WAR subagent's cwd is the
@@ -117,7 +120,7 @@ function section(rel, text, heading) {
   return end >= 0 ? body.slice(0, end) : body
 }
 
-test('evidence presence: the Lead strips the config evidence row from the pool before the citingTasks add, keeps the strip on the skip arm, and the war-room roster row points at the lead file', () => {
+test('evidence presence: the war-room offer never writes an evidence row into audit.roster, the Lead strips a hand-written one from the pool before the citingTasks add, keeps the strip on the skip arm, and the war-room roster row points at the lead file', () => {
   const lead = src(LEAD)
   const thread = section(LEAD, lead, 'Thread the args and the evidence seat rows')
   const skip = section(LEAD, lead, 'Skip with one loud line')
@@ -135,7 +138,10 @@ test('evidence presence: the Lead strips the config evidence row from the pool b
   const rosterRow = warRoom.split('\n').find(l => l.includes('`audit.roster` — an array of seat objects'))
   assert.ok(rosterRow, `${WAR_ROOM}: the audit.roster whitelist row not found — the extractor fails closed`)
   assert.ok(rosterRow.includes('(../war/references/artifact-evidence-lead.md)'), `${WAR_ROOM}: the audit.roster row must link the Lead procedure that strips the evidence row`)
-  assert.match(rosterRow, /opt-in record/, `${WAR_ROOM}: the audit.roster row must say the accepted row is the opt-in record, never a seat the pool feeds every task`)
+  assert.match(rosterRow, /Never write an evidence-type row into `audit\.roster`/, `${WAR_ROOM}: the audit.roster row must say the offer never writes an evidence-type row into audit.roster`)
+  assert.match(rosterRow, /`run\.evidence` on is the opt-in record/, `${WAR_ROOM}: the audit.roster row must name run.evidence as the opt-in record`)
+  // Bare-rendering ban on the retired rule: the row never again says the accepted offer writes the row.
+  assert.doesNotMatch(rosterRow, /Accepting writes the row/, `${WAR_ROOM}: the audit.roster row must not say the accepted offer writes a row (fix round 2)`)
 
   // Fail-closed control on the section extractor.
   assert.throws(() => section('fixture', '\n## Other\nbody\n', 'Thread the args and the evidence seat rows'), /fails closed/)

@@ -40,9 +40,10 @@ Thread into every per-phase Workflow (the args contract is in [schemas.md](schem
   it absent (absent is off; `null` is refused at entry).
 - `args.targetArtifacts`: the parser's `rows`, verbatim, whenever the block exists, on or off.
   With `args.evidence` off the engine logs its own loud line and proceeds (G3).
-- the evidence seat rows, in two moves. First strip the pool: an evidence-type row in the config
-  `audit.roster` (its `agentType` the evidence member of `SEAT_AGENT_TYPES`) is the operator's
-  opt-in record, never a seat. Remove every such row from the pool before `rosterPolicy` seeds the
+- the evidence seat rows, in two moves. First strip the pool: `/war-room` never writes an
+  evidence-type row (its `agentType` the evidence member of `SEAT_AGENT_TYPES`) into the config
+  `audit.roster`, because `run.evidence` is the opt-in record, so any such row is hand-written and
+  never a seat. Remove every such row from the pool before `rosterPolicy` seeds the
   per-task rosters (`all`, `solo` and `auto` all read the stripped pool), and thread the stripped
   pool as the `audit.roster` of the args, because the engine convenes that default roster for a
   lone seat's widen fallback and for the phase-close sweep panel. The strip holds on every arm,
