@@ -11,7 +11,8 @@
 #   - every other agent_type (main session, non-WAR agent) : pass-through (0).
 #   - a parse or infra error (payload not JSON, no tool_name, a tool_name that
 #     is not `mcp__<server>__<tool>`, a tool_name carrying a newline) : exit 2,
-#     never a pass.
+#     never a pass. An unexpected failure with no explicit branch folds to 2
+#     through the hook's ERR trap (the `ERR trap` rows in Group E).
 #
 # ASSERTION DESIGN: deny cases assert exit 2 AND a `WAR:` marker AND the
 # rule's own substring on stderr, never exit != 0 alone (a crashed hook also
@@ -224,9 +225,47 @@ expect_deny "war-evidence-auditor newline-spliced tool_name -> exit 2 (delimiter
 expect_deny "war-auditor empty tool_name -> still exit 2" \
   "$(mk 'war-auditor' '')" "reaches no MCP tool"
 
-# Exit codes are 0/2 only: every exit above was asserted as exactly 0 or
-# exactly 2, so a `set -e` trip (1) or a SIGPIPE (141) would already have
-# failed a row.
+# ERR trap: every row above reaches an explicit infra/deny/exit-0 branch, so
+# none of them trips `trap ... ERR`. The rows below force a failure with no
+# explicit branch through a PATH shim, one per unguarded `$(...)` site in the
+# hook: `get` (jq -r fails, jq -e still passes) and `input="$(cat)"`. Only
+# the trap turns that failure into exit 2; without it `set -e` exits with the
+# shim's own status (5, 3), which a PreToolUse hook does not treat as a block.
+# Deleting the trap line goes red on each row. The infra line may print
+# twice: `set -E` fires the trap inside the substitution subshell and the
+# parent fires it again, so the assertion is a substring, not a line count.
+# shim_err <shim-dir> <payload> -> stderr; shim_rc <shim-dir> <payload> -> rc.
+shim_err() { printf '%s' "$2" | PATH="$1:$PATH" bash "$HOOK" 2>&1 >/dev/null || true; }
+shim_rc() { _rc=0; printf '%s' "$2" | PATH="$1:$PATH" bash "$HOOK" >/dev/null 2>&1 || _rc=$?; echo "$_rc"; }
+expect_trap() {
+  _rc="$(shim_rc "$2" "$3")"
+  _err="$(shim_err "$2" "$3")"
+  _war=0; _sub=0
+  case "$_err" in *WAR:*) _war=1 ;; esac
+  case "$_err" in *"unexpected failure"*) _sub=1 ;; esac
+  if [ "$_rc" = "2" ] && [ "$_war" = "1" ] && [ "$_sub" = "1" ]; then
+    pass "$1 (exit 2, WAR: + |unexpected failure|)"
+  else
+    fail "$1 (expected exit 2 + WAR: + |unexpected failure|, got rc=$_rc stderr=|$_err|)"
+  fi
+}
+REAL_JQ="$(command -v jq)"
+SHIM="$(mktemp -d 2>/dev/null || mktemp -d -t evmcpshim)"
+printf '#!/usr/bin/env bash\ncase "$1" in -r) exit 5 ;; esac\nexec "%s" "$@"\n' "$REAL_JQ" > "$SHIM/jq"
+chmod +x "$SHIM/jq"
+expect_trap "ERR trap: jq -r failure inside get folds to exit 2" \
+  "$SHIM" "$(mk 'war-evidence-auditor' "$PRESENCE_TOOL")"
+rm -rf "$SHIM"
+SHIM="$(mktemp -d 2>/dev/null || mktemp -d -t evmcpshim)"
+printf '#!/usr/bin/env bash\nexit 3\n' > "$SHIM/cat"
+chmod +x "$SHIM/cat"
+expect_trap "ERR trap: cat failure reading the payload folds to exit 2" \
+  "$SHIM" "$(mk 'war-evidence-auditor' "$PRESENCE_TOOL")"
+rm -rf "$SHIM"
+
+# Exit codes are 0/2 only: every row above asserts exactly 0 or exactly 2,
+# and the `ERR trap` rows (jq, cat) are the proof that a failure with no
+# explicit branch reaches 2 rather than the failing command's own status.
 
 # ---------------------------------------------------------------------------
 # Group F: the hook owns the allowlist literal; the card's `tools:` REA

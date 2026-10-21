@@ -12,6 +12,19 @@
 #     - every other agent_type (the main session with no agent_type, any
 #       non-WAR agent)                         : pass-through, exit 0.
 #
+# RESIDUAL (accepted)
+#   This guard sees only tool calls whose name matches the hooks.json matcher
+#   `mcp__.*`. Outside that matcher sit a Bash call to the REA CLI (`rea ...`,
+#   the binary `rea doctor --json` probes for presence) and the built-in MCP
+#   resource tools (ListMcpResourcesTool, ReadMcpResourceTool). The cards
+#   agents/war-worker.md and agents/war-refiner.md carry no `tools:` line, so
+#   war-worker and war-refiner inherit the Bash channel and the resource-tool
+#   channel, and neither channel reaches this hook.
+#   The residual is accepted: G4 confines the MCP tool channel, and Bash for
+#   those roles is covered only advisorily (warn-bash-write-scope.sh).
+#   war-auditor and war-servitor are not affected: their cards pin `tools:`
+#   without either channel.
+#
 # ALLOWLIST (G4)
 #   This file OWNS the allowlist literal, as full `mcp__rea__<tool>` names:
 #   the tools that pass REA's effect predicate (never mutatesTarget,
@@ -34,10 +47,13 @@
 # EXIT CONTRACT
 #   0 = allow or pass-through. 2 = deny, OR a parse / infra error (payload not
 #   JSON, jq missing, no tool_name, a tool_name that is not
-#   `mcp__<server>__<tool>`, a tool_name carrying a newline). Never any other
-#   code: `set -E` + the ERR trap
+#   `mcp__<server>__<tool>`, a tool_name carrying a newline). The jq check
+#   runs before the agent_type routing, so a host without jq exits 2 on every
+#   `mcp__.*` call, in the main session and in non-WAR agents too; the deny
+#   message names the cause. Never any other code: `set -E` + the ERR trap
 #   fold an unexpected failure into 2, because a non-2 PreToolUse exit does
-#   NOT block the tool call (fail-closed, never a pass).
+#   NOT block the tool call (fail-closed, never a pass). Proof rows: the
+#   `ERR trap` rows in validate-evidence-auditor-mcp.test.sh Group E.
 #
 # CONSTRAINTS
 #   Runs on macOS bash 3.2.57 — no globstar, no associative arrays, no ${,,}.
