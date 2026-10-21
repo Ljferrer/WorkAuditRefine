@@ -590,7 +590,7 @@ reading of `auto`.
 The runtime widening of a **lone** seat that returns a Critical or low-confidence verdict: the roster
 becomes the **union** of the existing seat and a **widening source** (capped at 5), then the full widened
 roster re-audits on the pinned SHA. The source is the seat's own **`widen` nomination** when it supplies
-a valid one (a non-empty list of distinct, non-reserved lens names → those lenses at `deep`), else the
+a valid one (a non-empty list of distinct lens names, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member → those lenses at `deep`), else the
 **default roster's lenses** (the byte-identical default-roster-union fallback). Fires only on 1-seat rosters — a
 multi-seat roster the human approved is never second-guessed.
 _Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;
@@ -735,6 +735,20 @@ both rungs — signal, never silence, never an automatic escalation. Benign forw
 benign: the steady-state pin/HEAD mismatch is not a cross-rung contradiction.
 _Avoid_: silent-win; escalation-on-contradiction; recording benign forward-advance as a
 contradiction.
+
+**Artifact evidence**:
+A plan claim whose evidence is a REA record bound to a target digest, per `artifact-evidence.md`.
+
+**Target artifacts block**:
+The Part 1 rows that turn the artifact recon lane on, parsed by `target-artifacts.mjs` under
+`TARGET_ARTIFACTS_MARKER`.
+
+**Evidence seat**:
+The roster row whose `agentType` is the evidence member of `SEAT_AGENT_TYPES`, carrying the
+`WIDEN_BARRED_LENSES` lens.
+
+**Digest manifest**:
+The payload-free manifest a worker commits at the path `MANIFEST_PATH_TEMPLATE` names.
 
 ### Worker tiers (dispatch)
 
