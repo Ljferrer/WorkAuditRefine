@@ -22,8 +22,10 @@
 #   channel, and neither channel reaches this hook.
 #   The residual is accepted: G4 confines the MCP tool channel, and Bash for
 #   those roles is covered only advisorily (warn-bash-write-scope.sh).
-#   war-auditor and war-servitor are not affected: their cards pin `tools:`
-#   without either channel.
+#   war-servitor is not affected: its card pins `tools:` without Bash and
+#   without the resource tools. war-auditor and war-evidence-auditor carry
+#   Bash, but validate-auditor-git.sh denies every non-git command for them,
+#   so `rea ...` never runs there; neither card lists the resource tools.
 #
 # ALLOWLIST (G4)
 #   This file OWNS the allowlist literal, as full `mcp__rea__<tool>` names:
