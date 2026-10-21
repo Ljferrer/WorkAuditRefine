@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -176,7 +176,9 @@ const defaultImpl = (prompt, opts) => {
   if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
   if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
-  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+  // Every SEAT_AGENT_TYPES member answers as an auditor: an evidence seat dispatched under its own
+  // agentType (End state 11) gets a verdict here, not {}.
+  if (SEAT_AGENT_TYPES.includes(seat)) return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
       ? { mode: 'land-phase', status: 'landed', working_sha: '2'.repeat(40) }
@@ -4113,8 +4115,9 @@ test('roster — auto-escalate nominated widening: a lone seat naming valid cata
   })
   const impl = buildSeqImpl(
     { 'audit:t1:security': [
-        // The lone seat NOMINATES catalog lenses via `widen`; resolveWidenSource accepts (distinct,
-        // non-reserved) and widens toward performance+usability @ deep — NOT the trio default roster.
+        // The lone seat NOMINATES catalog lenses via `widen`; resolveWidenSource accepts (distinct, never a
+        // `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member (exports in `war-config.mjs`)) and widens
+        // toward performance+usability @ deep — NOT the trio default roster.
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
           widen: ['performance', 'usability'],
           findings: [{ severity: 'Critical', title: 'smells like a perf+ux issue', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
@@ -4242,6 +4245,29 @@ test('roster — phase-start assertion: a task with NO roster → held:workflow-
   assert.equal(out.landDecision, 'held:workflow-error',
     'an absent roster must yield held:workflow-error — no silent runtime default roster')
   assert.ok(out.workflowError.message.includes('t1'), 'the error names the task')
+})
+
+test('roster — phase-start assertion threads run.evidence: an evidence seat passes entry with run.evidence true and ends held:workflow-error when the knob is absent', async () => {
+  // The call site is validateRoster(t.roster, run.evidence). A mutation back to validateRoster(t.roster)
+  // refuses every evidence seat at entry; the ON arm below goes red on it.
+  const evidenceTasks = [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] },
+  ]
+  const on = await runPhase(PROVISION_ARGS({ tasks: evidenceTasks, run: { evidence: true } }), defaultImpl)
+  assert.notEqual(on.out.landDecision, 'held:workflow-error',
+    `an evidence seat passes entry validation with run.evidence true; got: ${JSON.stringify(on.out.workflowError)}`)
+  assert.equal(on.out.landDecision, 'landed', `the evidence seat's verdict is read as an approval and t1 lands; got: ${on.out.landDecision}`)
+  assert.ok(on.out.landed.includes('t1'), 't1 lands on the ON arm (a {} verdict from the seat would escalate instead)')
+  assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`),
+    'the evidence seat is dispatched under its lens label (presence guard)')
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
+  const off = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, PROVISION_ARGS({ tasks: evidenceTasks }), { total: null })
+  assert.equal(off.landDecision, 'held:workflow-error',
+    'the same roster with run.evidence absent must yield held:workflow-error')
+  assert.ok(off.workflowError && off.workflowError.message.includes('t1'), 'the error names the task')
+  assert.ok(off.workflowError.message.includes('needs run.evidence: true'), 'the error names the run.evidence gate')
 })
 
 test('D7 — gate-audit auto-skip: a merged requiresTest:false task spawns NO gate-audit seat and the skip is logged', async () => {
@@ -5098,7 +5124,7 @@ const sweepBase = (queued) => (prompt, opts) => {
   if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
   if (seat === 'war-worker') return { task_id: 't1', status: 'implemented',
     head_sha: (opts.label || '').startsWith('polish:') ? 'b01a5a00' : 'deadbeef', tests: { unit: 1 } }
-  if (seat === 'war-auditor') {
+  if (SEAT_AGENT_TYPES.includes(seat)) {   // every seat type answers, the evidence seat included
     const label = opts.label || ''
     const f = label.includes(':t1:') && !label.startsWith('gate-audit:') ? queued : []
     return { seat: label, lens: 'correctness', verdict: 'approve', findings: f, confidence: 'high' }
@@ -5253,6 +5279,28 @@ test('phase-close sweep: the sweep dispatch carries the intent when present', as
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
   assert.ok(pw, 'sweep worker dispatched (presence guard)')
   assert.ok(pw.prompt.includes('Purpose: wibble the wtprov.'), 'the sweep prompt carries the intent')
+})
+
+test('phase-close sweep threads run.evidence: a config default roster carrying the evidence seat convenes the polish panel with run.evidence true and skips fail-open when the knob is absent', async () => {
+  // The call site is validateRoster(defaultRoster, run.evidence). A mutation back to validateRoster(defaultRoster)
+  // refuses the evidence seat at the sweep: the ON arm goes red. A mutation to validateRoster(defaultRoster, true)
+  // admits it with the knob absent: the OFF arm goes red. The phase-start twin is 'roster — phase-start assertion
+  // threads run.evidence'; the sweep is the second engine call site.
+  const evidenceDefault = { audit: { roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] } }
+  const on = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true, evidence: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:p3-polish:${EVIDENCE_LENS}`),
+    'the evidence seat re-audits the polish: the sweep convenes with run.evidence true')
+  assert.ok(!on.logs.some(l => typeof l === 'string' && l.includes('config default audit.roster is unusable')),
+    'no skip line names an invalid default roster')
+  assert.equal(on.out.handoff.polish, 'merged', 'the re-approved polish merges')
+  assert.ok(!(on.out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding is absorbed, never drained')
+  const off = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(!off.calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatch with the knob absent')
+  const skip = off.logs.find(l => typeof l === 'string' && l.includes('config default audit.roster is unusable'))
+  assert.ok(skip && skip.includes('needs run.evidence: true'), 'the skip line names the run.evidence gate (fail-open, logged)')
+  assert.ok((off.out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue drains to follow-up')
+  assert.equal(off.out.handoff.polish, 'skipped', 'the phase still lands with polish skipped')
+  assert.ok(off.out.landed.includes('t1'), 't1 lands on the fail-open path')
 })
 
 // --- End-state check (criterion 11) ---
@@ -9327,17 +9375,27 @@ const RTRIO = [
   { lens: 'cascading-impact', depth: 'deep' },
   { lens: 'plan-faithfulness', depth: 'deep' },
 ]
+// [roster, evidence] pairs — `evidence` is the run.evidence knob validateRoster takes beside the roster.
+const EVIDENCE_SEAT = { lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }
+const PLAIN_SEATS = n => Array.from({ length: n }, (_, i) => ({ lens: `plain-${i}` }))
 const VALIDATE_ROSTER_CASES = [
-  [{ lens: 'correctness' }],                                                   // valid 1-seat
-  [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }], // valid 2-seat
-  [],                                                                          // too few
-  [{ lens: 'a' }, { lens: 'b' }, { lens: 'c' }, { lens: 'd' }, { lens: 'e' }, { lens: 'f' }], // too many (6)
-  'not-an-array',                                                              // non-array
-  [{ depth: 'deep' }],                                                         // missing lens
-  [{ lens: 'x' }, { lens: 'x' }],                                              // duplicate lens
-  [{ lens: 'x', depth: 'sideways' }],                                          // bad depth
-  [null],                                                                      // null seat
-  [{ lens: '' }],                                                              // empty lens
+  [[{ lens: 'correctness' }], undefined],                                      // valid 1-seat
+  [[{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }], undefined], // valid 2-seat
+  [[], undefined],                                                             // too few
+  [[{ lens: 'a' }, { lens: 'b' }, { lens: 'c' }, { lens: 'd' }, { lens: 'e' }, { lens: 'f' }], undefined], // too many (6)
+  ['not-an-array', undefined],                                                 // non-array
+  [[{ depth: 'deep' }], undefined],                                            // missing lens
+  [[{ lens: 'x' }, { lens: 'x' }], undefined],                                 // duplicate lens
+  [[{ lens: 'x', depth: 'sideways' }], undefined],                             // bad depth
+  [[null], undefined],                                                         // null seat
+  [[{ lens: '' }], undefined],                                                 // empty lens
+  [[{ lens: 'correctness', agentType: 'war-auditor' }], undefined],            // valid plain agentType
+  [[{ lens: 'correctness', agentType: 'bogus' }], true],                       // unknown agentType
+  [[EVIDENCE_SEAT], true],                                                     // evidence seat, run.evidence on
+  [[EVIDENCE_SEAT], false],                                                    // evidence seat, run.evidence off
+  [[EVIDENCE_SEAT], undefined],                                                // evidence seat, knob absent
+  [[...PLAIN_SEATS(4), EVIDENCE_SEAT], true],                                  // 4 + evidence = 5: valid
+  [[...PLAIN_SEATS(5), EVIDENCE_SEAT], true],                                  // cap-4 beside an evidence seat
 ]
 const WIDEN_ROSTER_CASES = [
   [[{ lens: 'a' }], RTRIO],                                                     // union append
@@ -9349,6 +9407,7 @@ const WIDEN_ROSTER_CASES = [
 const RESOLVE_WIDEN_CASES = [
   [['security', 'cascading-impact'], RTRIO],                                   // valid nomination
   [['security', 'execution-evidence'], RTRIO],                                 // reserved lens → default
+  [['security', EVIDENCE_LENS], RTRIO],                                        // artifact-evidence nomination (widen-barred) → default
   [['dup', 'dup'], RTRIO],                                                     // duplicate → default
   [[], RTRIO],                                                                 // empty → default
   ['nope', RTRIO],                                                             // non-array → default
@@ -9436,9 +9495,9 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([agents, role]) => inlineHelpers(agents).spawn(role),
       canonical: ([agents, role]) => spawnOpts({ agents }, role) },
     { name: 'validateRoster', mode: 'behavioral',
-      cases: VALIDATE_ROSTER_CASES.map(r => [r]),
-      inline: ([roster]) => inlineHelpers().validateRoster(roster),
-      canonical: ([roster]) => validateRoster(roster) },
+      cases: VALIDATE_ROSTER_CASES,
+      inline: ([roster, evidence]) => inlineHelpers().validateRoster(roster, evidence),
+      canonical: ([roster, evidence]) => validateRoster(roster, evidence) },
     { name: 'widenRoster', mode: 'behavioral',
       cases: WIDEN_ROSTER_CASES,
       inline: ([roster, def]) => inlineHelpers().widenRoster(roster, def),
@@ -9447,6 +9506,15 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       cases: RESOLVE_WIDEN_CASES,
       inline: ([nom, def]) => inlineHelpers().resolveWidenSource(nom, def),
       canonical: ([nom, def]) => resolveWidenSource(nom, def) },
+    // SEAT_AGENT_TYPES and WIDEN_BARRED_LENSES (REA artifact evidence D3/D18/D19): the two roster-contract
+    // arrays canonical in war-config.mjs, hand-copied inline inside the roster-helper block (validateRoster
+    // reads the first; resolveWidenSource reads the second beside RESERVED_LENSES). deepEqual, no literal restated.
+    { name: 'SEAT_AGENT_TYPES', mode: 'deepEqual',
+      canonical: SEAT_AGENT_TYPES,
+      extractInline: () => parseInlineArray(/const\s+SEAT_AGENT_TYPES\s*=\s*(\[[^\]]+\])/) },
+    { name: 'WIDEN_BARRED_LENSES', mode: 'deepEqual',
+      canonical: WIDEN_BARRED_LENSES,
+      extractInline: () => parseInlineArray(/const\s+WIDEN_BARRED_LENSES\s*=\s*(\[[^\]]+\])/) },
     // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
     // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs is the only
     // defaulted tier (fix has no default block: absent ⇒ inherit the base worker, nothing to mirror).
@@ -9463,7 +9531,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 17, 'the mirror registry lists at least the seventeen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, the two widening-(1) barrier subset rows, the sweep-exclude RELEASE_SLOT_FILES row, the demote-census DEMOTE_REASONS row, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 19, 'the mirror registry lists at least the nineteen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, the two widening-(1) barrier subset rows, the sweep-exclude RELEASE_SLOT_FILES row, the demote-census DEMOTE_REASONS row, landDecision, the four roster helpers, the SEAT_AGENT_TYPES row, the WIDEN_BARRED_LENSES row, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -11029,11 +11097,14 @@ const LITERAL_REGISTRY = [
   [" --pattern '${testPattern}'` : ''\n// Partial"],
   ["war/${planSlug}/p${ph.id}-${t.id}` : t.branc"],
   ["${worktreeRoot}/${runId}/p${ph.id}-${t.id}` "],
-  ["roster must be an array of 1-5 seats (got ${"],
+  ["roster must be an array of 1-5 seats (got ${", 2],
+  ["roster carries ${roster.length - evidenceSea"],
   ["roster[${i}] must be an object { lens, depth"],
   ["roster[${i}].lens must be a non-empty string"],
   ["roster[${i}].lens \"${seat.lens}\" duplicates "],
   ["roster[${i}].depth must be \"neighbors\" or \"d"],
+  ["roster[${i}].agentType must be one of ${SEAT"],
+  ["roster[${i}].agentType \"war-evidence-auditor"],
   ["-name '*.test.sh'`\nconst resolveGate = (decl"],
   ["for f in $(find . -type f ${GATE_DISCOVERY_T"],
   ["do printf '\\\\n== gate(bash): %s ==\\\\n' \"$f\" "],

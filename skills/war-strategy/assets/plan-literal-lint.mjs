@@ -30,6 +30,13 @@
 // SEPARATE informational channel: `lintInfo(text)`, excluded from `lint()`'s hits and from the
 // CLI's `anyHit`, so `--strict` still exits 0 on a ‡-marked conforming plan.
 //
+// Fifth family (plan 2026-10-20-rea-artifact-evidence D5/D7): two advisory line-level rules in
+// LINT_PATTERNS — `rea-source-base` (a `rea:` source carries a 64-hex `sha256:` base; a prefix, an
+// elided run or a git SHA flags) and `target-content-paste` (a decompiler header or an
+// offset-prefixed hex-dump run in the plan body flags: cite-only, no quote carve-out). The tag
+// grammar's doctrine home is skills/war-strategy/references/artifact-evidence.md; its `Grammar: `
+// line is guarded by extraction + equality against REA_TAG_GRAMMAR / REA_SOURCE_BASE (ADR 0025).
+//
 // FAIL-OPEN BY DECISION (ADR 0030): report-and-exit-0. This is NEVER a CI gate — the only CI job is
 // war-memory's redaction lint. `--strict` is opt-in (exit non-zero on any hit) for local authoring.
 // The version pattern is advisory precisely because a legitimately-cited baseline version can
@@ -43,10 +50,22 @@ import { fileURLToPath } from 'node:url';
 //   requireOnLine — the line must also match this (e.g. a gate/run directive);
 //   releaseScoped — only fires inside a task/phase heading naming a release/version bump;
 //   stripBackticks — remove `backtick spans` from the line before running re (so a compliant
-//                    backticked token can't trip a rule that only cares about bare tokens).
+//                    backticked token can't trip a rule that only cares about bare tokens);
+//   spanNextLine — append the next line to the scan target so a trailing lookahead can see a
+//                  continuation that hard-wrapped; only a match starting on this line reports.
 // Extending the line-level lint is editing this array (the war-memory.mjs idiom); the
 // merged-template shape rules (section/bullet/task-block scoped) live in SHAPE_RULES below.
 // ---------------------------------------------------------------------------
+// ---- Fifth-family anchors (plan 2026-10-20-rea-artifact-evidence D5/D7) ----
+// The D4 `(verified:)` tag may name a REA Evidence record as its source and the target's digest
+// as its base. The template below equals the doctrine home's `Grammar: ` span byte-for-byte; the
+// regex is the same shape with 64 lowercase hex in each slot, right-delimited so a 65-hex run or
+// a trailing word character never passes as a base. A shorter prefix cannot drive a replay (D5).
+export const REA_TAG_GRAMMAR = '(verified: rea:ev_<64hex> at sha256:<64hex>)';
+const HEX64 = '[a-f0-9]{64}';
+const REA_BASE = `\\s+at\\s+sha256:${HEX64}(?!\\w)`;
+export const REA_SOURCE_BASE = new RegExp(`\\brea:ev_${HEX64}${REA_BASE}`);
+
 export const LINT_PATTERNS = [
   {
     // A construct locator should name the enclosing symbol/comment header, not a stack-fragile
@@ -87,6 +106,28 @@ export const LINT_PATTERNS = [
     re: /[\w.-]+\/[\w./-]*|\b[\w-]+\.[A-Za-z][\w-]*\b/g,
     requireOnLine: /^\s*-\s*Files:/i,
     stripBackticks: true,
+  },
+  {
+    // D5: a `rea:` source is an `ev_<id>` token that must be followed by ` at sha256:<64hex>`.
+    // The token is `rea:ev_` plus a word run, so prose naming the tag kind (`rea:`) or the
+    // doctrine's elided placeholder (`rea:ev_…`, `rea:ev_<64hex>`) is never a source. The
+    // right-delimiter `(?!\w)` stops the word run from backtracking into a shorter id whose
+    // "base" would then begin mid-token. One hit per source, not per line. spanNextLine lets
+    // the base lookahead see a tag that hard-wrapped between the source and ` at sha256:`.
+    name: 'rea-source-base',
+    re: new RegExp(`\\brea:ev_\\w+(?!\\w)(?!${REA_BASE})`, 'g'),
+    spanNextLine: true,
+  },
+  {
+    // D7 cite-only: target content never enters a plan, and a fence is no carve-out. Two
+    // high-precision shapes of pasted target content — a decompiler header or label (Ghidra's
+    // `FUN_`/`LAB_`/`DAT_` + hex, IDA/Hex-Rays' `sub_`/`loc_`/`unk_` + hex, a `__fastcall`-family
+    // calling convention, Ghidra's sized `undefined<n> name(` return type; the bare `undefined`
+    // word is prose) and an offset-prefixed
+    // hex-dump run (`hexdump -C` / `od` byte pairs, `xxd` 4-hex groups). A contiguous digest
+    // (`sha256:<64hex>`, a git SHA) carries no spaces and never matches.
+    name: 'target-content-paste',
+    re: /\b(?:thunk_)?(?:FUN|LAB|DAT|sub|loc|unk|byte|word|dword|qword)_[0-9a-f]{5,}\b|\b__(?:fastcall|cdecl|thiscall|stdcall|usercall)\b|\bundefined[1248]\s+\w+\s*\(|\b[0-9a-f]{4,16}:?\s+(?:[0-9a-f]{2}\s+){7,}[0-9a-f]{2}\b|\b[0-9a-f]{4,16}:\s+(?:[0-9a-f]{4}\s+){3,}[0-9a-f]{4}\b/gi,
   },
 ];
 
@@ -546,18 +587,23 @@ export function lintInfo(text) {
 function lintLines(text) {
   const hits = [];
   let inRelease = false;
-  for (const line of text.split('\n')) {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
     if (HEADING.test(line)) inRelease = RELEASE_HEADING.test(line);
     for (const p of LINT_PATTERNS) {
       if (p.releaseScoped && !inRelease) continue;
       if (p.requireOnLine && !p.requireOnLine.test(line)) continue;
       // stripBackticks entry guard: run re against the line with `backtick spans` removed, so a
       // compliant backticked token doesn't trip a rule (bare-files-path) that only wants bare ones.
-      const target = p.stripBackticks ? line.replace(/`[^`]*`/g, '') : line;
+      const own = p.stripBackticks ? line.replace(/`[^`]*`/g, '') : line;
+      // spanNextLine entry guard: scan this line plus the next so a trailing lookahead can see a
+      // hard-wrapped continuation; a match that starts on the next line is that line's own hit.
+      const target = p.spanNextLine && i + 1 < lines.length ? `${own}\n${lines[i + 1]}` : own;
       p.re.lastIndex = 0;
       let m;
       while ((m = p.re.exec(target)) !== null) {
-        hits.push({ pattern: p.name, match: m[0].trim() });
+        if (m.index < own.length) hits.push({ pattern: p.name, match: m[0].trim() });
         if (m.index === p.re.lastIndex) p.re.lastIndex++; // guard zero-width
       }
     }

@@ -35,7 +35,7 @@ export const meta = {
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth?, agentType? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging?, pendingAbsorbs? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // pendingAbsorbs = RELAUNCH-SEED ONLY ([finding rows] held by a blocker-held batch ace at a prior launch); aceStage folds
 //                                     // them into the next approve's ace batch through the same routing chain as fresh rows. Absent ⇒ nothing folds.
 //                                     // planSlice = the task charter (REQUIRED non-empty string — the entry-validation
@@ -68,12 +68,15 @@ export const meta = {
 //                                     // relaunch (D3b, PIN-5); entry-validated + #1413 provenance-floored; drains into this phase's sweep queue.
 //     finalPhase?,                    // optional boolean — the terminal pass's finality signal (D3a): false ⇒ a terminal-born absorb
 //                                     // rides carriedPhaseClose; true/absent ⇒ it demotes (absent reads as FINAL); non-boolean refused at entry.
-//     run:    { roundLimit, absorbRounds, maxParallel, afk },          // roundLimit used here; absorbRounds = the per-task absorb budget (the ace
+//     run:    { roundLimit, absorbRounds, maxParallel, afk, evidence },  // roundLimit used here; absorbRounds = the per-task absorb budget (the ace
 //                                     // ladder's own meter, D5; absent ⇒ 6, the DEFAULTS.run.absorbRounds mirror); afk gates recordAced's
 //                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
 //                                     // maxParallel (optional positive integer) is the GLOBAL ceiling on agent dispatches
 //                                     // in flight across the whole run, held by one counting semaphore at the leaf dispatch
 //                                     // seam; absent/null ⇒ agent() is called straight through, a byte-identical dispatch path
+//                                     // evidence (optional boolean, REA artifact evidence D8) is the run-side half of the
+//                                     // evidence-seat gate: validateRoster admits a war-evidence-auditor seat row only while
+//                                     // it is true; absent/null/false ⇒ every evidence-type row is refused at entry
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared?, planFile? } — every
 //                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
@@ -776,20 +779,31 @@ const spawnRefinerRecovery = () => {
 // an absent OR empty files list ⇒ FALSE (base worker tier) — an undefined/empty list must never
 // vacuously read as all-*.md and misclassify a non-doc task as docs.
 const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.every(f => typeof f === 'string' && f.endsWith('.md'))
-// Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct.
-const validateRoster = roster => {
+// Roster seat agent types (REA artifact evidence D3/D18): inline copy of the war-config.mjs export, bound by
+// the SEAT_AGENT_TYPES registry row in workflow-template.test.mjs. 'war-evidence-auditor' is the evidence seat.
+const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
+// Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct,
+// agentType absent or a SEAT_AGENT_TYPES member. `evidence` is the run.evidence knob: an evidence-type row is
+// rejected unless it is exactly true; beside an evidence seat the non-evidence seats cap at 4 (five-seat ceiling).
+const validateRoster = (roster, evidence) => {
   const errors = []
-  if (!Array.isArray(roster) || roster.length < 1 || roster.length > 5) {
+  if (!Array.isArray(roster)) {
     errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
     return { valid: false, errors }
   }
+  const evidenceSeats = roster.filter(s => s !== null && typeof s === 'object' && !Array.isArray(s) && s.agentType === 'war-evidence-auditor').length
+  if (evidenceSeats > 0 && roster.length - evidenceSeats > 4) errors.push(`roster carries ${roster.length - evidenceSeats} non-evidence seats beside an evidence seat (max 4: the five-seat ceiling holds)`)
+  else if (roster.length < 1 || roster.length > 5) errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
+  if (errors.length > 0) return { valid: false, errors }
   const seen = []
   roster.forEach((seat, i) => {
-    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth? }`); return }
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType? }`); return }
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
     else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     else seen.push(seat.lens)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
+    if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
+    else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
   })
   return { valid: errors.length === 0, errors }
 }
@@ -804,12 +818,16 @@ const widenRoster = (roster, defaultRoster) => {
   return out
 }
 // Lone-seat widening SOURCE (D4): a valid auditor nomination is a non-empty array of distinct,
-// non-empty strings, none reserved (strict whole-field). Valid → nominated lenses @ deep,
+// non-empty strings, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member (exports in
+// `war-config.mjs`), strict whole-field. Valid → nominated lenses @ deep,
 // source 'nominated'; else → defaultRoster verbatim, source 'default'. Feeds widenRoster.
 const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
+// WIDEN_BARRED_LENSES (REA artifact evidence D19): inline copy of the war-config.mjs export, bound by the
+// WIDEN_BARRED_LENSES registry row in workflow-template.test.mjs; a lone seat never widens toward the evidence seat.
+const WIDEN_BARRED_LENSES = ['artifact-evidence']
 const resolveWidenSource = (nominated, defaultRoster) => {
   const valid = Array.isArray(nominated) && nominated.length > 0 &&
-    nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l)) &&
+    nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l) && !WIDEN_BARRED_LENSES.includes(l)) &&
     new Set(nominated).size === nominated.length
   return valid
     ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
@@ -1260,7 +1278,7 @@ for (const t of (tasks || [])) {
     t.roster = t.roster.map(s =>
       (s && typeof s === 'object' && !Array.isArray(s) && s.depth === undefined) ? { ...s, depth: 'deep' } : s)
   }
-  const rv = validateRoster(t.roster)
+  const rv = validateRoster(t.roster, run.evidence)
   if (!rv.valid) throw new Error(`task ${t.id}: invalid roster — ${rv.errors.join('; ')}`)
 }
 
@@ -5505,7 +5523,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
 // Not an `else if` of the chain above: the exclusion-set drain there may have emptied the queue,
 // so the sweep arm re-tests both conditions on the drained queue.
 if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
-  const rvSweep = validateRoster(defaultRoster)
+  const rvSweep = validateRoster(defaultRoster, run.evidence)
   if (!rvSweep.valid) {
     // Fail-open, never a hold: without a valid config default audit.roster the mandatory full-panel
     // re-audit cannot convene (the Lead may NOT downgrade it — Open decision 1). Skip + drain.
