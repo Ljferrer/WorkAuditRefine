@@ -30,8 +30,8 @@ owns the allow and deny sets.** Five parts follow.
   [artifact-evidence.md](../../skills/war-strategy/references/artifact-evidence.md). Every other
   surface points there or carries a value a drift guard extracts and compares to its export. This
   ADR restates none of it.
-- The base is the artifact digest, never a git SHA. A digest-bound measurement cannot go stale while
-  the digest holds, so no run re-measures it (the plan-interview D12 exemption).
+- The base is a digest, not a git SHA, so the D12 staleness exemption applies (see
+  artifact-evidence.md).
 - A plan declares its targets with the Target artifacts block in Part 1: path, sha256 and provider
   per row, with placement latitude and never a new required H2
   ([ADR 0044](0044-authoring-contract-and-merged-artifact.md)). `target-artifacts.mjs` parses the
