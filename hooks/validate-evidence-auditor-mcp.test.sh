@@ -9,8 +9,8 @@
 #     registered under another prefix still matches by suffix and prints a
 #     one-line canary on stdout.
 #   - every other agent_type (main session, non-WAR agent) : pass-through (0).
-#   - a parse or infra error (payload not JSON, no tool_name, a tool_name that
-#     is not `mcp__<server>__<tool>`, a tool_name carrying a newline) : exit 2,
+#   - a parse or infra error (jq absent, payload not JSON, no tool_name, a
+#     tool_name that is not `mcp__<server>__<tool>`, one carrying a newline) : exit 2,
 #     never a pass. An unexpected failure with no explicit branch folds to 2
 #     through the hook's ERR trap (the `ERR trap` rows in Group E).
 #
@@ -261,6 +261,25 @@ printf '#!/usr/bin/env bash\nexit 3\n' > "$SHIM/cat"
 chmod +x "$SHIM/cat"
 expect_trap "ERR trap: cat failure reading the payload folds to exit 2" \
   "$SHIM" "$(mk 'war-evidence-auditor' "$PRESENCE_TOOL")"
+rm -rf "$SHIM"
+
+# jq missing: the hook's first guard (`command -v jq ... || infra`) exits 2
+# with its own message before the payload is read. A PATH holding only `cat`
+# (no jq) drives that branch; the payload is built BEFORE the PATH override
+# (mk needs the real jq), and the hook runs through $BASH, not a PATH lookup.
+SHIM="$(mktemp -d 2>/dev/null || mktemp -d -t evmcpshim)"
+ln -s "$(command -v cat)" "$SHIM/cat"
+_nojq_payload="$(mk 'war-evidence-auditor' "$PRESENCE_TOOL")"
+_rc=0; printf '%s' "$_nojq_payload" | PATH="$SHIM" "$BASH" "$HOOK" >/dev/null 2>&1 || _rc=$?
+_err="$(printf '%s' "$_nojq_payload" | PATH="$SHIM" "$BASH" "$HOOK" 2>&1 >/dev/null || true)"
+_war=0; _sub=0
+case "$_err" in *WAR:*) _war=1 ;; esac
+case "$_err" in *"jq is not installed"*) _sub=1 ;; esac
+if [ "$_rc" = "2" ] && [ "$_war" = "1" ] && [ "$_sub" = "1" ]; then
+  pass "jq missing from PATH -> exit 2 (exit 2, WAR: + |jq is not installed|)"
+else
+  fail "jq missing from PATH -> exit 2 (expected exit 2 + WAR: + |jq is not installed|, got rc=$_rc stderr=|$_err|)"
+fi
 rm -rf "$SHIM"
 
 # Exit codes are 0/2 only: every row above asserts exactly 0 or exactly 2,
