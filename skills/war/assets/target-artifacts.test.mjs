@@ -2,9 +2,11 @@
 // evidence Task 1.7; D8, D18; PIN-6, PIN-15) and its doc-token guard.
 //
 // Two tests, titled exactly as End-state 20 names them:
-//   1. the parser reads block rows anywhere in Part 1, skips code fences, and names the tasks
-//      whose `Plan slice:` cites a `rea:` tag; the CLI prints the same object and exits 2 on an
-//      unreadable file;
+//   1. the parser reads block rows anywhere in Part 1 (more than one block, in document order,
+//      a blank line allowed between a marker and its first row), skips code fences, drops a
+//      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
+//      the bullet line or a continuation line; the CLI prints the same object and exits 2 on an
+//      unreadable file and on a malformed row;
 //   2. the doc-token guard (ADR 0025 rule 8, extraction plus equality): every surface in the
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
 //      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants.
@@ -36,9 +38,11 @@ const HEX = '0123456789abcdef'.repeat(4) // 64 lowercase hex
 const HEX2 = 'fedcba9876543210'.repeat(4)
 const EV = 'ev_' + 'abcdef0123456789'.repeat(4)
 
-// A merged plan whose block sits in the Assumptions ledger (not at a fixed slot), with a
-// fenced decoy block in Part 1, an unfenced decoy block in Part 2, and three tasks: 1.1 cites a
-// rea: tag in its Plan slice, 1.2 only talks about `rea:` in prose, 2.1 cites one inside a fence.
+// A merged plan with one block in the Assumptions ledger and a second in Non-goals (not at a
+// fixed slot; the second has a blank line under its marker), a fenced decoy block in Part 1,
+// unfenced decoy blocks in Part 2 (one directly under `## Commander's Intent`, one under a
+// task), and tasks: 1.1 cites a rea: tag on its Plan slice line, 1.2 only talks about `rea:` in
+// prose, 1.3 cites one on a Plan slice continuation line, 2.1 cites one inside a fence.
 const PLAN = `# A plan
 ## Context — the gap / problem
 Some claim (verified: rea:${EV} at sha256:${HEX}).
@@ -57,7 +61,12 @@ Some claim (verified: rea:${EV} at sha256:${HEX}).
 - path: \`/opt/app/lib.dylib\` · sha256: \`${HEX2}\` · provider: \`rizin\`
 
 ## Non-goals / deferred
+**Target artifacts**
+
+- path: \`/opt/app/plugin.so\` · sha256: \`${HEX}\` · provider: \`rizin\`
 ## Commander's Intent
+**Target artifacts**
+- path: \`/intent/decoy.bin\` · sha256: \`${HEX}\` · provider: \`ghidra\`
 - Purpose: p
 ## Build order (for /war)
 - Phase 1
@@ -71,6 +80,11 @@ Some claim (verified: rea:${EV} at sha256:${HEX}).
 - Plan slice: the lint flags a \`rea:\` source without a base; never cites a record.
 **Target artifacts**
 - path: \`/part2/decoy.bin\` · sha256: \`${HEX}\` · provider: \`ghidra\`
+- requiresTest: true
+### Task 1.3: wrapped
+- Files: \`d.mjs\`
+- Plan slice: do the other thing
+  (verified: rea:${EV} at sha256:${HEX}).
 - requiresTest: true
 ## Phase 2 — two
 ### Task 2.1: fenced
@@ -94,9 +108,20 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
     rows: [
       { path: '/opt/app/app.bin', sha256: HEX, provider: 'ghidra' },
       { path: '/opt/app/lib.dylib', sha256: HEX2, provider: 'rizin' },
+      { path: '/opt/app/plugin.so', sha256: HEX, provider: 'rizin' },
     ],
-    citingTasks: ['1.1'],
+    citingTasks: ['1.1', '1.3'],
   })
+
+  // Each Part 2 H2 arm ends Part 1 on its own: a block directly under it is a decoy.
+  const row = `- path: \`/x\` · sha256: \`${HEX}\` · provider: \`ghidra\``
+  for (const h2 of ["## Commander's Intent", "## AI-Commander's Intent", '## Build order (for /war)', '## Phase 1 — x']) {
+    assert.deepEqual(
+      parseTargetArtifacts(`# p\n## Context\n${h2}\n${TARGET_ARTIFACTS_MARKER}\n${row}\n`),
+      { rows: [], citingTasks: [] },
+      `decoy under ${h2}`,
+    )
+  }
 
   // Block absent → the empty shape, never undefined fields.
   assert.deepEqual(parseTargetArtifacts('# plan\n## Context\nnothing\n## Phase 1 — x\n'), { rows: [], citingTasks: [] })
@@ -121,6 +146,13 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
 
   const noArg = spawnSync(process.execPath, [CLI], { encoding: 'utf8' })
   assert.equal(noArg.status, 2)
+
+  // CLI: a malformed row maps the parser's throw to exit 2, never an uncaught exit 1.
+  const badPath = join(dir, 'bad.md')
+  writeFileSync(badPath, `# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n- path: \`/x\` · sha256: \`abc\` · provider: \`ghidra\`\n`)
+  const bad = spawnSync(process.execPath, [CLI, badPath], { encoding: 'utf8' })
+  assert.equal(bad.status, 2, bad.stderr)
+  assert.match(bad.stderr, /malformed Target artifacts row/)
 })
 
 // --- the doc-token guard -----------------------------------------------------------------
