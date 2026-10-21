@@ -5,8 +5,9 @@
 //   1. the parser reads block rows anywhere in Part 1 (more than one block, in document order,
 //      a blank line allowed between a marker and its first row), skips code fences, drops a
 //      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
-//      the bullet line or a continuation line; the CLI prints the same object and exits 2 on an
-//      unreadable file and on a malformed row;
+//      the bullet line or a continuation line (a tag on a later bullet or after a blank line
+//      never cites; with no block rows citingTasks is empty); the CLI prints the same object
+//      and exits 2 on an unreadable file and on a malformed row;
 //   2. the doc-token guard (ADR 0025 rule 8, extraction plus equality): every surface in the
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
 //      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants.
@@ -42,7 +43,9 @@ const EV = 'ev_' + 'abcdef0123456789'.repeat(4)
 // fixed slot; the second has a blank line under its marker), a fenced decoy block in Part 1,
 // unfenced decoy blocks in Part 2 (one directly under `## Commander's Intent`, one under a
 // task), and tasks: 1.1 cites a rea: tag on its Plan slice line, 1.2 only talks about `rea:` in
-// prose, 1.3 cites one on a Plan slice continuation line, 2.1 cites one inside a fence.
+// prose, 1.3 cites one on a Plan slice continuation line, 1.4 carries a tag on the `- Done when:`
+// bullet after its slice, 1.5 carries one after a blank line under its slice, 2.1 cites one
+// inside a fence. Only 1.1 and 1.3 cite.
 const PLAN = `# A plan
 ## Context — the gap / problem
 Some claim (verified: rea:${EV} at sha256:${HEX}).
@@ -86,6 +89,17 @@ Some claim (verified: rea:${EV} at sha256:${HEX}).
 - Plan slice: do the other thing
   (verified: rea:${EV} at sha256:${HEX}).
 - requiresTest: true
+### Task 1.4: terminated by the next bullet
+- Files: \`e.mjs\`
+- Plan slice: no tag here
+- Done when: see rea:${EV} at sha256:${HEX}
+- requiresTest: true
+### Task 1.5: terminated by a blank line
+- Files: \`f.mjs\`
+- Plan slice: no tag here either
+
+  (verified: rea:${EV} at sha256:${HEX}).
+- requiresTest: true
 ## Phase 2 — two
 ### Task 2.1: fenced
 - Files: \`c.mjs\`
@@ -125,6 +139,11 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
 
   // Block absent → the empty shape, never undefined fields.
   assert.deepEqual(parseTargetArtifacts('# plan\n## Context\nnothing\n## Phase 1 — x\n'), { rows: [], citingTasks: [] })
+  // Block absent with a citing Plan slice → citingTasks still empty: no declared target, no seat.
+  assert.deepEqual(
+    parseTargetArtifacts(`# plan\n## Context\nnothing\n## Phase 1 — x\n### Task 1.1: cites\n- Plan slice: see rea:${EV} at sha256:${HEX}\n`),
+    { rows: [], citingTasks: [] },
+  )
 
   // A row under the marker that breaks the row shape is loud, never silently dropped.
   assert.throws(

@@ -37,7 +37,9 @@
 //     block. More than one block concatenates in document order.
 //   - citingTasks: each `### Task <id>:` heading in Part 2 opens a task; its `- Plan slice:`
 //     bullet (plus continuation lines up to a blank line or a new construct) cites a tag when it
-//     carries `rea:ev_<64hex>`. Prose that merely mentions `rea:` does not cite.
+//     carries `rea:ev_<64hex>`. Prose that merely mentions `rea:` does not cite. A bullet other
+//     than `- Plan slice:` (`- Done when:`, `- Files:`) never cites. citingTasks is empty when
+//     no block rows exist: a citation with no declared target seats nothing.
 
 import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -98,7 +100,7 @@ export function parseTargetArtifacts(text) {
     }
   }
   closeSlice()
-  return { rows, citingTasks }
+  return { rows, citingTasks: rows.length ? citingTasks : [] }
 }
 
 // ---- CLI --------------------------------------------------------------------------------
