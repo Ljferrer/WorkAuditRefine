@@ -20820,6 +20820,11 @@ test('rea clause: names the MANIFEST_PATH_TEMPLATE mirror and get_evidence_bundl
   // Bare restatement guard: sha256, provider and tool legitimately appear bare in the row text; these three never do.
   for (const k of ['evidence_id', 'parameters', 'limitations']) assert.ok(!line.includes(k), `no bare key name restated in the clause (found ${k})`)
   assert.ok(line.includes(REA_ROW.path) && line.includes(REA_ROW.sha256) && line.includes(REA_ROW.provider), 'the declared row rides the clause')
+  // Conditioned duty: only a citing slice commits a manifest; the condition precedes the path, the otherwise-arm follows it.
+  assert.ok(line.includes('If your plan slice cites a `rea:` tag'), 'the manifest duty is conditioned on a citing slice')
+  assert.ok(line.includes('otherwise commit no manifest'), 'a non-citing task commits no manifest')
+  assert.ok(line.indexOf('If your plan slice cites') < line.indexOf(MANIFEST_PATH_TEMPLATE), 'the citing-slice condition precedes MANIFEST_PATH_TEMPLATE')
+  assert.ok(line.indexOf(MANIFEST_PATH_TEMPLATE) < line.indexOf('otherwise commit no manifest'), 'the otherwise-arm follows MANIFEST_PATH_TEMPLATE')
   // The inline mirror is a plain single-quoted const (never a template literal) and equals the export.
   const inline = (src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]
   assert.equal(inline, MANIFEST_PATH_TEMPLATE, 'the inline MANIFEST_PATH_TEMPLATE mirror equals the target-artifacts.mjs export')
@@ -20856,6 +20861,8 @@ test('evidence seat skeleton: IDENTICAL wording in agents/war-evidence-auditor.m
   assert.ok(evP.includes(REA_RESOLVED_PATH), 'the seat prompt names the task manifest path (plan slug + task id substituted into MANIFEST_PATH_TEMPLATE)')
   assert.ok(evP.includes(REA_ROW.sha256) && evP.includes(REA_ROW.path), 'the seat prompt names the declared row')
   assert.ok(!regP.includes(rung) && !regP.includes(hold), 'the regular seat never carries the evidence skeleton')
+  assert.ok(evP.includes('EVIDENCE SEAT (lens ' + EVIDENCE_LENS + ';'), 'the skeleton names the seat lens from EVIDENCE_LENS')
+  assert.ok(!regP.includes('EVIDENCE SEAT (lens'), 'the regular seat carries no EVIDENCE SEAT head')
 })
 
 test('rea absent path: evidence off with targetArtifacts present logs one loud line, seats no evidence auditor, prompts byte-identical', async () => {
@@ -20912,6 +20919,10 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
     [{ targetArtifacts: [null] }, /workflow-template: args\.targetArtifacts\[0\]/],
     [{ targetArtifacts: [{ path: 'a', sha256: 'b' }] }, /workflow-template: args\.targetArtifacts\[0\]\.provider/],
     [{ targetArtifacts: [{ path: 'a', sha256: 7, provider: 'p' }] }, /workflow-template: args\.targetArtifacts\[0\]\.sha256/],
+    // Empty-string arm (`|| !e[k]`), one row per field: schemas.md states an empty field refuses the launch.
+    [{ targetArtifacts: [{ path: '', sha256: 'b', provider: 'p' }] }, /workflow-template: args\.targetArtifacts\[0\]\.path/],
+    [{ targetArtifacts: [{ path: 'a', sha256: '', provider: 'p' }] }, /workflow-template: args\.targetArtifacts\[0\]\.sha256/],
+    [{ targetArtifacts: [{ path: 'a', sha256: 'b', provider: '' }] }, /workflow-template: args\.targetArtifacts\[0\]\.provider/],
   ]) {
     const bad = await runPhase(PROVISION_ARGS(over), defaultImpl)
     assert.equal(bad.out.landDecision, 'held:workflow-error', `${JSON.stringify(over)}: refused at entry`)
