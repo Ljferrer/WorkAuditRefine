@@ -11,8 +11,9 @@ those exports. The presence tool literal is guarded against the hook allowlist b
 ## Run the parser at Decompose
 
 Run `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/target-artifacts.mjs <plan.md>` once at the
-Decompose gate. It prints `{ rows, citingTasks }`: `rows` are the `**Target artifacts**` block
-rows (path, sha256, provider), `citingTasks` the task ids whose `Plan slice:` cites a `rea:` tag.
+Decompose gate. It prints `{ rows, citingTasks }`: `rows` are the Target artifacts block rows
+(the marker is `TARGET_ARTIFACTS_MARKER` in `target-artifacts.mjs`; path, sha256, provider),
+`citingTasks` the task ids whose `Plan slice:` cites a `rea:` tag.
 Exit 2 is a malformed block: stop and show it at the gate, never thread a partial list. The
 engine never scans plan text; this output is the only block signal it gets.
 

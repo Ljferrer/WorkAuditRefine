@@ -19,7 +19,8 @@ launch.
 ## Providers
 
 Install only the providers the plan's artifacts need. The `provider` field of each
-`**Target artifacts**` row names it. If no plan is in hand, ask the operator which providers their
+Target artifacts block row (`TARGET_ARTIFACTS_MARKER` in `skills/war/assets/target-artifacts.mjs`)
+names it. If no plan is in hand, ask the operator which providers their
 target artifacts will need, and use that set wherever this file says the plan's artifacts need or
 the plan needs.
 
@@ -31,7 +32,7 @@ the plan needs.
 - **JADX** (Android): the JADX MCP bridge jar 0.7.1 (`jadx-headless-mcp-0.7.1-all.jar`). Export
   `REA_JADX_MCP_JAR` to its absolute path. It needs the same JDK.
 - **adb** (device inspection): the platform-tools `adb` binary. Export `REA_ADB_PATH` to its
-  absolute path. REA 6.5.0's doctor carries no adb row; confirm the binary with
+  absolute path. If `rea doctor --json` carries no adb row, confirm the binary with
   `"$REA_ADB_PATH" version`.
 
 ## The env rule per shell
