@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # WAR auditor read-only-git Bash guard (PreToolUse: Bash).
-# F03 — fail-closed confinement for the war-auditor agent.
+# F03 — fail-closed confinement for the war-auditor and war-evidence-auditor agents.
 #
 # PURPOSE
-#   Gate only the war-auditor agent: the case arm is suffix-anchored
-#   (pattern `*war-auditor`), so it captures the dispatched agent_type
-#   `<ns>:war-auditor` but NOT a longer `war-auditor-helper` decoration.
+#   Gate only the war-auditor and war-evidence-auditor agents: each case arm
+#   is suffix-anchored (patterns `*war-auditor`, `*war-evidence-auditor`), so
+#   it captures the dispatched agent_type `<ns>:war-auditor` but NOT a longer
+#   `war-auditor-helper` decoration.
 #   For a captured type: ALLOW iff the command is a single git read-subcommand
 #   from the explicit allowlist, with no shell metacharacters.  DENY (exit 2)
 #   anything else.

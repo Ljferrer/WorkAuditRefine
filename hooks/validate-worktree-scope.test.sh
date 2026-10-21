@@ -105,6 +105,20 @@ expect "war-evidence-auditor write denied" \
 expect "exact-shape :war-evidence-auditor write denied (deny-side under-capture guard)" \
   2 "$(run "$(mk 'work-audit-refine:war-evidence-auditor' "$INSIDE_WT")")"
 
+# 3c-msg: the evidence-seat deny names its own rule on stderr (guard
+# specificity: the arm's message, not only its exit code). Both the `WAR:`
+# marker and the rule substring must appear. Delete-the-feature: a generic
+# `deny` text, or the arm falling to another exit-2 path, fails this row.
+ev_deny="$(printf '%s' "$(mk 'work-audit-refine:war-evidence-auditor' "$INSIDE_WT")" | bash "$HOOK" 2>&1 >/dev/null)"
+n=$((n + 1))
+case "$ev_deny" in
+  *"WAR:"*"the evidence seat is read-only"*)
+    printf 'ok %d - evidence-seat deny message names its rule (WAR: + the evidence seat is read-only)\n' "$n" ;;
+  *)
+    printf 'FAIL %d - evidence-seat deny message lacks WAR: or the rule substring (got: %s)\n' "$n" "$ev_deny"
+    fails=$((fails + 1)) ;;
+esac
+
 # 3d: trailing-junk :war-evidence-auditor-helper is not captured by the
 # suffix-anchored arm -> fail-open default arm (0).
 expect "trailing-junk :war-evidence-auditor-helper falls to fail-open default arm" \

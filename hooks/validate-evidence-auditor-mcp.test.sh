@@ -206,9 +206,19 @@ expect_deny "war-auditor empty tool_name -> still exit 2" \
 # entries are set-equal to it (G4, PIN-15 extraction plus equality); the
 # presence tool is a member (asserted from THIS file's literal, no doc
 # extraction). Allowlist extraction contract: one full `mcp__rea__<tool>`
-# name per line, nothing else on the line.
+# name per line, nothing else on the line. The extraction reads the lines
+# between `REA_ALLOWLIST='` and its closing `'` line, the same block the
+# hook's membership match reads, so an entry the hook would honor can never
+# be dropped by a shape filter; a separate row enforces the shape instead.
 # ---------------------------------------------------------------------------
-hook_list="$(grep -E '^mcp__rea__[a-z0-9_]+$' "$HOOK" | sort)"
+hook_block="$(awk '/^REA_ALLOWLIST=/{f=1;next} f&&/^'"'"'$/{exit} f&&NF' "$HOOK")"
+hook_bad="$(printf '%s\n' "$hook_block" | grep -vE '^mcp__rea__[a-z0-9_]+$' || true)"
+if [ -n "$hook_block" ] && [ -z "$hook_bad" ]; then
+  pass "every REA_ALLOWLIST line is a full mcp__rea__<tool> name"
+else
+  fail "REA_ALLOWLIST carries an off-contract line (block empty, or lines: $hook_bad)"
+fi
+hook_list="$(printf '%s\n' "$hook_block" | sort)"
 card_list="$(grep '^tools: ' "$CARD" | sed 's/^tools: //' | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep '^mcp__rea__' | sort)"
 hook_count="$(printf '%s\n' "$hook_list" | grep -c '^mcp__rea__')"
 card_count="$(printf '%s\n' "$card_list" | grep -c '^mcp__rea__')"
