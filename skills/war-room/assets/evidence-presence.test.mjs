@@ -145,7 +145,9 @@ test('evidence presence: the war-room offer never writes an evidence row into au
 
   // Fail-closed control on the section extractor.
   assert.throws(() => section('fixture', '\n## Other\nbody\n', 'Thread the args and the evidence seat rows'), /fails closed/)
-  // Discrimination control: the ordering read refuses a Thread body whose add precedes its strip.
+  // Discrimination control: the ordering read refuses a Thread body whose add precedes its strip,
+  // run through the same section() extractor the live read uses, on a fixture.
   const inverted = 'for each task id in citingTasks add one seat. Remove every such row from the pool.'
-  assert.ok(inverted.search(STRIP) > inverted.indexOf('citingTasks'), 'control: an inverted body would fail the ordering read')
+  const invertedThread = section('fixture', '\n## Thread the args and the evidence seat rows\n' + inverted, 'Thread the args and the evidence seat rows')
+  assert.ok(invertedThread.search(STRIP) > invertedThread.indexOf('citingTasks'), 'control: an inverted body would fail the ordering read')
 })

@@ -33,8 +33,8 @@ Install only the providers the plan's artifacts need. The `provider` field of ea
 
 ## The env rule per shell
 
-The seat shells and the presence check are non-interactive. An export that lives only in an
-interactive rc file is invisible there: the `rea` CLI fallback fails in a seat shell while the
+Worker shells and the presence check are non-interactive. An export that lives only in an
+interactive rc file is invisible there: the `rea` CLI fallback fails in a worker shell while the
 MCP path still works, because the registration carries its own env. Put the exports where every
 shell reads them:
 
@@ -48,7 +48,7 @@ Export only the ones the installed providers need.
 
 ## Verify
 
-Run the doctor in a non-interactive shell on purpose, the same way a seat shell would:
+Run the doctor in a non-interactive shell on purpose, the same way a worker shell would:
 
 ```bash
 zsh -c 'rea doctor --json'
@@ -75,6 +75,9 @@ Presence holds when either is true:
    the `rea` MCP server), or
 2. `zsh -c 'rea doctor --json'` (or `bash -c 'rea doctor --json'`) reports every provider the
    plan's artifacts need as ok, per the rows above.
+
+adb has no doctor row, so a plan with an adb row resolves presence by the MCP path (item 1) only;
+`"$REA_ADB_PATH" version` confirms the install, never presence.
 
 With `run.evidence` on and presence failing, `/war-room` does not offer the evidence lens and the
 `/war` Lead skips the seat with one loud line (`artifact-evidence-lead.md`). The run proceeds

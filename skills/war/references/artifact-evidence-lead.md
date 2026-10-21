@@ -4,7 +4,9 @@ The `/war` Lead's side of the REA evidence gate (plan `2026-10-20-rea-artifact-e
 G1, G3, G10). The doctrine home is
 [artifact-evidence.md](../../war-strategy/references/artifact-evidence.md); the operator-facing
 setup walkthrough is [rea-setup.md](../../war-room/references/rea-setup.md). This file restates
-no grammar, no path value and no member literal: it names exports.
+no grammar, no manifest path value and no `SEAT_AGENT_TYPES` or `EVIDENCE_LENS` member: it names
+those exports. The presence tool literal is guarded against the hook allowlist by
+`evidence-presence.test.mjs`.
 
 ## Run the parser at Decompose
 
@@ -23,6 +25,9 @@ Resolve presence before launch, the same two ways `/war-room` does (G1):
 2. `zsh -c 'rea doctor --json'` or `bash -c 'rea doctor --json'`, a non-interactive shell on
    purpose, reports every provider the rows name as ok (the per-provider rows in
    rea-setup.md § Verify).
+
+adb has no doctor row, so a plan with an adb row resolves presence by the MCP path (item 1) only;
+`"$REA_ADB_PATH" version` confirms the install, never presence.
 
 `run.evidence` must be `true` in the resolved config as well. Both must hold; the engine never
 probes.
