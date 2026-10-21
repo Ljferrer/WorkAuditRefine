@@ -50,7 +50,9 @@ import { fileURLToPath } from 'node:url';
 //   requireOnLine — the line must also match this (e.g. a gate/run directive);
 //   releaseScoped — only fires inside a task/phase heading naming a release/version bump;
 //   stripBackticks — remove `backtick spans` from the line before running re (so a compliant
-//                    backticked token can't trip a rule that only cares about bare tokens).
+//                    backticked token can't trip a rule that only cares about bare tokens);
+//   spanNextLine — append the next line to the scan target so a trailing lookahead can see a
+//                  continuation that hard-wrapped; only a match starting on this line reports.
 // Extending the line-level lint is editing this array (the war-memory.mjs idiom); the
 // merged-template shape rules (section/bullet/task-block scoped) live in SHAPE_RULES below.
 // ---------------------------------------------------------------------------
@@ -110,9 +112,11 @@ export const LINT_PATTERNS = [
     // The token is `rea:ev_` plus a word run, so prose naming the tag kind (`rea:`) or the
     // doctrine's elided placeholder (`rea:ev_…`, `rea:ev_<64hex>`) is never a source. The
     // right-delimiter `(?!\w)` stops the word run from backtracking into a shorter id whose
-    // "base" would then begin mid-token. One hit per source, not per line.
+    // "base" would then begin mid-token. One hit per source, not per line. spanNextLine lets
+    // the base lookahead see a tag that hard-wrapped between the source and ` at sha256:`.
     name: 'rea-source-base',
     re: new RegExp(`\\brea:ev_\\w+(?!\\w)(?!${REA_BASE})`, 'g'),
+    spanNextLine: true,
   },
   {
     // D7 cite-only: target content never enters a plan, and a fence is no carve-out. Two
@@ -583,18 +587,23 @@ export function lintInfo(text) {
 function lintLines(text) {
   const hits = [];
   let inRelease = false;
-  for (const line of text.split('\n')) {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
     if (HEADING.test(line)) inRelease = RELEASE_HEADING.test(line);
     for (const p of LINT_PATTERNS) {
       if (p.releaseScoped && !inRelease) continue;
       if (p.requireOnLine && !p.requireOnLine.test(line)) continue;
       // stripBackticks entry guard: run re against the line with `backtick spans` removed, so a
       // compliant backticked token doesn't trip a rule (bare-files-path) that only wants bare ones.
-      const target = p.stripBackticks ? line.replace(/`[^`]*`/g, '') : line;
+      const own = p.stripBackticks ? line.replace(/`[^`]*`/g, '') : line;
+      // spanNextLine entry guard: scan this line plus the next so a trailing lookahead can see a
+      // hard-wrapped continuation; a match that starts on the next line is that line's own hit.
+      const target = p.spanNextLine && i + 1 < lines.length ? `${own}\n${lines[i + 1]}` : own;
       p.re.lastIndex = 0;
       let m;
       while ((m = p.re.exec(target)) !== null) {
-        hits.push({ pattern: p.name, match: m[0].trim() });
+        if (m.index < own.length) hits.push({ pattern: p.name, match: m[0].trim() });
         if (m.index === p.re.lastIndex) p.re.lastIndex++; // guard zero-width
       }
     }

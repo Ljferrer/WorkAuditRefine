@@ -176,6 +176,12 @@ test('rea-source-base: flags a rea: source without a 64-hex sha256: base; clean 
     'Grammar: `(verified: rea:ev_<64hex> at sha256:<64hex>)`',
   ].join('\n');
   assert.equal(countOf(lint(prose), 'rea-source-base'), 0);
+  // A full tag hard-wrapped between the source and its base is clean (the entry spans one line
+  // forward); a wrapped tag whose next line carries no base still reports one hit.
+  const wrap = (rest) => `- The launcher reads its config from the app bundle (verified: rea:ev_${HEX64}\n  ${rest}).`;
+  assert.equal(countOf(lint(wrap(`at sha256:${HEX64}`)), 'rea-source-base'), 0, 'hard-wrapped full tag is clean');
+  assert.equal(countOf(lint(wrap('at 287405fc')), 'rea-source-base'), 1, 'hard-wrapped tag with a git-sha base flags once');
+  assert.equal(countOf(lint(`${wrap(`at sha256:${HEX64}`)}\n${mk(bad['no base'])}`), 'rea-source-base'), 1, 'the next line keeps its own hit');
   assert.ok(REA_SOURCE_BASE.test(REA_TAG), 'the exported regex accepts the full tag');
   assert.ok(!REA_SOURCE_BASE.test(bad['12-hex prefix']), 'the exported regex rejects a 12-hex prefix');
 });
@@ -208,6 +214,18 @@ test('target-content-paste: flags a decompiler header and a hex-dump run; clean 
   for (const [why, line] of Object.entries(pasted)) {
     assert.ok(countOf(lint(line), 'target-content-paste') >= 1, why);
   }
+  // Each of these matches exactly one alternative, so deleting that alternative goes red here
+  // (the headers above also carry a `FUN_` / `sub_` label and would mask the deletion).
+  const isolated = {
+    'sized undefined return type only': 'undefined4 check_license(void)',
+    'calling convention only': 'int __cdecl main(int argc, char **argv)',
+  };
+  for (const [why, line] of Object.entries(isolated)) {
+    assert.equal(countOf(lint(line), 'target-content-paste'), 1, why);
+  }
+  // D7: a fence is no carve-out — a hex-dump run inside ```text still reports.
+  const fenced = ['```text', pasted['hexdump -C run'], '```'].join('\n');
+  assert.ok(countOf(lint(fenced), 'target-content-paste') >= 1, 'fenced hex-dump run still flags');
   const clean = [
     `- The binary validates its license file on launch ${REA_TAG}.`,
     'Target content is anything REA returned from the artifact: strings, hex dumps, decompiled code.',
