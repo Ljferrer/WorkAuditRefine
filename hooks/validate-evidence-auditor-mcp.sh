@@ -9,7 +9,7 @@
 #     - war-auditor, war-servitor, war-refiner : DENY every MCP tool.
 #     - war-evidence-auditor, war-worker       : ALLOW only the REA allowlist
 #                                               below, and only with an output
-#                                               path under the evidence dir;
+#                                               path under an evidence dir;
 #                                               DENY anything else.
 #     - every other agent_type (the main session with no agent_type, any
 #       non-WAR agent)                         : pass-through, exit 0.
@@ -51,8 +51,9 @@
 #   both literals together.
 #
 #   Output-path check: after membership passes, a `tool_input.output_directory`
-#   (or `destination`, where a contract uses it) must name a path under the
-#   run's evidence dir: the value carries the segment `/.claude/war/evidence/`
+#   (or `destination`, where a contract uses it) must name a path under an
+#   evidence dir (segment containment; see RESIDUAL): the value carries the
+#   segment `/.claude/war/evidence/`
 #   and no `..` segment, else DENY. The rule binds war-evidence-auditor and
 #   war-worker alike (the G2 bundle rule). An absent key passes; a present
 #   key must hold a non-empty string, else DENY.
@@ -319,7 +320,8 @@ esac
 
 # ---------------------------------------------------------------------------
 # Output-path check (G2 bundle rule): a member that takes a caller-named output
-# path may name only a path under the run's evidence dir. The value must carry
+# path may name only a path under an evidence dir (segment containment; see
+# RESIDUAL). The value must carry
 # the segment `/.claude/war/evidence/` and no `..` segment (the value is
 # wrapped in `/` so a leading or trailing `..` is a segment too; `v1..v2` is a
 # name, not a segment). An absent key passes. A present key is read by
