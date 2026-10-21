@@ -6,6 +6,11 @@
 # next Bash call (probe E1), so the old env-var guard was a proven NO-OP. This
 # guard reads `agent_type` (set per-subagent in the PreToolUse payload) and:
 #   - war-auditor  : hard-deny every write (auditors are read-only).
+#   - war-evidence-auditor : hard-deny every write, the same deny as the
+#                    auditor, in its own suffix-anchored arm (`*war-auditor`
+#                    does not capture `...:war-evidence-auditor`). Plan
+#                    2026-10-20-rea-artifact-evidence D3; the seat's MCP arm
+#                    lives in validate-evidence-auditor-mcp.sh.
 #   - war-worker   : allow only when some ancestor dir holds a `.war-task`
 #                    marker (i.e. the write lands in *a* provisioned worktree).
 #                    RATIFIED DEVIATION (ADR 0002): this confines a worker to
@@ -81,6 +86,13 @@ esac
 case "$atype" in
   *war-auditor)
     [ -n "$path" ] && deny "auditors are read-only; refusing write to '$path'."
+    exit 0
+    ;;
+  *war-evidence-auditor)
+    # The evidence seat (plan 2026-10-20-rea-artifact-evidence D3): read-only
+    # like war-auditor, same deny. Its own arm, because `*war-auditor` does not
+    # capture `...:war-evidence-auditor` and the seat would fall to fail-open.
+    [ -n "$path" ] && deny "the evidence seat is read-only; refusing write to '$path'."
     exit 0
     ;;
   *war-worker)

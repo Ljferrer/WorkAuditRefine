@@ -93,6 +93,23 @@ expect "war-worker outside any worktree denied" \
 expect "war-auditor write denied (read-only)" \
   2 "$(run "$(mk 'war-auditor' "$INSIDE_WT")")"
 
+# 3b: war-evidence-auditor anywhere -> 2 (hard-deny, read-only). Its own arm:
+# `*war-auditor` does not capture it, so without the arm this fell to the
+# fail-open default (0). Plan 2026-10-20-rea-artifact-evidence Task 2.2 exact
+# label: `war-evidence-auditor write denied`.
+expect "war-evidence-auditor write denied" \
+  2 "$(run "$(mk 'war-evidence-auditor' "$INSIDE_WT")")"
+
+# 3c: exact dispatched shape work-audit-refine:war-evidence-auditor -> 2
+# (deny-side under-capture guard: falling to the default arm would be 0).
+expect "exact-shape :war-evidence-auditor write denied (deny-side under-capture guard)" \
+  2 "$(run "$(mk 'work-audit-refine:war-evidence-auditor' "$INSIDE_WT")")"
+
+# 3d: trailing-junk :war-evidence-auditor-helper is not captured by the
+# suffix-anchored arm -> fail-open default arm (0).
+expect "trailing-junk :war-evidence-auditor-helper falls to fail-open default arm" \
+  0 "$(run "$(mk 'work-audit-refine:war-evidence-auditor-helper' "$INSIDE_WT")")"
+
 # 4a: war-servitor under .../.claude/projects/<p>/memory/x.md, with HOME pinned
 # so the path sits under the servitor's own $HOME anchor (#810 retrofit) -> 0.
 expect "war-servitor memory path under pinned \$HOME allowed" \
