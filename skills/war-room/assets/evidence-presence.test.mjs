@@ -15,7 +15,8 @@
 // extraction (Task 2.4 fix round 1):
 //   4. The pool strip. A config `audit.roster` evidence row feeds every task under rosterPolicy
 //      `all`, the lone-seat widen fallback and the sweep panel, and the /war Lead reads the strip
-//      only for a plan with a Target artifacts block, so the war-room roster row must say the
+//      when the plan carries a Target artifacts block or the config roster carries an
+//      evidence-type row (skills/war/SKILL.md Decompose step 1), so the war-room roster row must say the
 //      offer never writes such a row and `run.evidence` is the opt-in record (fix round 2), the
 //      lead file's § Thread section must order the strip before the `citingTasks` add (the guard
 //      for a hand-written row), its § Skip section must keep the strip, and the war-room roster
