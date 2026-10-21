@@ -22,6 +22,18 @@
 // appending mcp__rea__capture_adb_screen reds the Non-goals family arm; removing
 // mcp__rea__binary_session reds the presence arm.
 //
+// Host-write residual (ace re-entry: "Host-write and process-launch REA tools on the allowlist
+// are unverified from this seat"): the predicate reads neither writesFilesystem nor
+// launchesProcess, so allowlisted tools may write host paths. The card's
+// `## Read-only guard contract` names the allowlisted tools whose input schema carries a
+// caller-named `output_directory`. That list is a restated value, bound here: the card-local arm
+// checks every named tool is on the `tools:` line; the REA-present arm extracts the names and
+// deepEquals them to the TOOL_CONTRACTS entries (dist/contracts/toolContracts.js) whose input
+// schema, walked through unions and effects, has an `output_directory` key. Mutation proof:
+// dropping `pull_adb_file` from the card sentence reds the REA-present arm; adding
+// `extract_artifact` (REA picks its own temp dir) reds it too; misspelling a name reds the
+// card-local arm everywhere.
+//
 // Root is resolved from import.meta.url — NEVER process.cwd() (the suite's standing idiom:
 // a subagent's cwd is the main repo and resets between bash calls).
 
@@ -46,6 +58,24 @@ function cardReaTools() {
   return line.slice('tools: '.length).split(', ').filter((n) => n.startsWith(PREFIX));
 }
 
+// The bare tool names (no mcp__rea__ prefix) the card's host-write sentence lists, in card order.
+function cardOutputDirTools() {
+  const m = readFileSync(CARD, 'utf8').match(/caller-named `output_directory`: ((?:`[a-z_]+`(?:, | and )?)+)\./);
+  assert.ok(m, 'agents/war-evidence-auditor.md names the caller-named `output_directory` tools');
+  return [...m[1].matchAll(/`([a-z_]+)`/g)].map((x) => x[1]);
+}
+
+// Every property key reachable in a zod input schema, through unions, effects and pipes.
+function schemaKeys(schema, acc = new Set()) {
+  const def = schema && schema._def;
+  if (!def) return acc;
+  const shape = typeof def.shape === 'function' ? def.shape() : def.shape || schema.shape;
+  if (shape) for (const k of Object.keys(shape)) acc.add(k);
+  for (const inner of [def.innerType, def.schema, def.left, def.right, def.in, def.out]) schemaKeys(inner, acc);
+  if (def.options) for (const o of def.options) schemaKeys(o, acc);
+  return acc;
+}
+
 // Returns { table, version } for the installed rea-agents package, or null when it is
 // not resolvable (no npm, no global root, no package).
 function resolveToolEffects() {
@@ -67,6 +97,30 @@ test('evidence card allowlist: presence tool on the line, no Non-goals family me
   assert.ok(rea.includes(PRESENCE_TOOL), `${PRESENCE_TOOL} must be on the card's tools: line`);
   assert.deepEqual(rea.filter((n) => NON_GOALS_FAMILY.test(n)), [], 'no Non-goals family member on the card');
   assert.equal(new Set(rea).size, rea.length, 'no duplicate REA entry on the card');
+});
+
+test('evidence card host-write list: every named output_directory tool is on the tools: line', () => {
+  const rea = new Set(cardReaTools());
+  const named = cardOutputDirTools();
+  assert.ok(named.length > 0, 'the host-write sentence names at least one tool');
+  assert.equal(new Set(named).size, named.length, 'no duplicate name in the host-write sentence');
+  assert.deepEqual(named.filter((n) => !rea.has(PREFIX + n)), [], 'every named tool is an allowlist member');
+});
+
+test('evidence card host-write list: equals the allowlisted tools whose input schema has output_directory at the installed rea-agents', async (t) => {
+  const located = resolveToolEffects();
+  if (!located) {
+    t.skip('rea-agents not resolvable via `npm root -g`: output_directory arm skipped (REA is never a WAR dependency)');
+    return;
+  }
+  const contracts = join(dirname(located.table), 'toolContracts.js');
+  const { TOOL_CONTRACTS } = await import(pathToFileURL(contracts).href);
+  const rea = new Set(cardReaTools().map((n) => n.slice(PREFIX.length)));
+  const expected = TOOL_CONTRACTS.filter((c) => rea.has(c.name) && schemaKeys(c.inputSchema).has('output_directory'))
+    .map((c) => c.name)
+    .sort();
+  t.diagnostic(`rea-agents ${located.version}: ${expected.length} allowlisted tools take output_directory`);
+  assert.deepEqual([...cardOutputDirTools()].sort(), expected, `card host-write list vs TOOL_CONTRACTS at rea-agents ${located.version}`);
 });
 
 test('evidence card allowlist: every REA entry passes the G4 effect predicate at the installed rea-agents', async (t) => {
