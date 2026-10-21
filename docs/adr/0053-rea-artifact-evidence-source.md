@@ -150,3 +150,6 @@ plan than this record.
 - 2026-10-20 · ADR authored: the source class, the cite-only rule, the backstop-only proof, the MCP
   matrix by agent type with the evidence-auditor MCP hook as the owner of the allow and deny sets,
   the evidence seat and the widen-refusal wording · plan 2026-10-20-rea-artifact-evidence
+- 2026-10-21 · operator rulings #2402 (hook output-path check), #2403 (allowlist pinned to its
+  derivation version), #2404 (engine drops evidence-type rows while args.evidence is off) · plan
+  2026-10-20-rea-artifact-evidence task 3.1

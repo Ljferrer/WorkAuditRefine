@@ -8,9 +8,9 @@
 #   `*war-<role>*`, so a `war-<role>-helper` decoration falls through):
 #     - war-auditor, war-servitor, war-refiner : DENY every MCP tool.
 #     - war-evidence-auditor, war-worker       : ALLOW only the REA allowlist
-#                                               below, and only with an output
-#                                               path under an evidence dir;
-#                                               DENY anything else.
+#                                               below, and only when any output
+#                                               path it names sits under an
+#                                               evidence dir; DENY anything else.
 #     - every other agent_type (the main session with no agent_type, any
 #       non-WAR agent)                         : pass-through, exit 0.
 #

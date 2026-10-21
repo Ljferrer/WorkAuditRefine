@@ -20931,6 +20931,34 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
   assert.equal(reaLoudLines(widened.logs).length, 1, 'widen arm: exactly one loud line')
   assert.ok(!widened.calls.some(isEvidenceSeat), 'widen arm: no evidence auditor seated under an EVIDENCE_LENS nomination')
   assert.ok(!widenLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen arm: no audit label ends with :${EVIDENCE_LENS} (got ${JSON.stringify(widenLabels.filter(l => l.startsWith('audit:')))})`)
+  // Widen fallback over a stray default-roster row (ruling #2404, the in-place defaultRoster splice): the
+  // lone seat nominates nothing, so resolveWidenSource falls back to defaultRoster verbatim. With the row
+  // dropped at entry the fallback convenes the trio and no evidence seat. Delete-the-feature: hand the
+  // widen fallback a pre-splice copy of defaultRoster (the stray-row loud-line count already catches a moved
+  // splice) and widenRoster appends EVIDENCE_SEAT (run.evidence on admits it), so `!calls.some(isEvidenceSeat)` goes red.
+  const widenStrayImpl = buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
+          findings: [{ severity: 'Major', title: 'needs the artifact measured', suggested_fix: 'measure it', file: 'a.js', rationale: 'unsure' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const widenStray = await runPhase(PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: [...ROSTER_TRIO, EVIDENCE_SEAT], rosterPolicy: 'all', autoEscalate: true },
+    run: { evidence: true }, evidence: false, targetArtifacts: [REA_ROW],
+  }), widenStrayImpl)
+  const widenStrayLabels = widenStray.calls.map(c => c.opts.label || '')
+  assert.ok(widenStray.logs.some(l => typeof l === 'string' && /lone-seat widening \(Critical or low confidence; source: default fallback\)/.test(l)),
+    'widen stray arm: the widening ran and fell back to the default roster')
+  for (const { lens } of ROSTER_TRIO) {
+    assert.ok(widenStrayLabels.includes(`audit:t1:${lens}`), `widen stray arm: the default-roster lens ${lens} convened after the fallback`)
+  }
+  assert.ok(!widenStray.calls.some(isEvidenceSeat), 'widen stray arm: no evidence auditor seated — the fallback read the stripped default roster')
+  assert.ok(!widenStrayLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen stray arm: no audit label ends with :${EVIDENCE_LENS}`)
+  const widenStrayLoud = reaLoudLines(widenStray.logs)
+  assert.equal(widenStrayLoud.length, 1, `widen stray arm: exactly one loud line (got ${widenStrayLoud.length})`)
+  assert.ok(widenStrayLoud[0].includes('audit.roster:' + EVIDENCE_LENS) && widenStrayLoud[0].includes('1 evidence-type roster row(s) dropped'), `widen stray arm: the loud line names the dropped default-roster row: ${widenStrayLoud[0]}`)
   // Engine drop (ruling #2404, the backstop behind the Lead strip): a roster evidence-type row under
   // run.evidence on but args.evidence off (REA absent) is dropped at entry — from the task roster and from
   // the default audit.roster (the widen fallback and the sweep panel read it) — and the one loud line counts
