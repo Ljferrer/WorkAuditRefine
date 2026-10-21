@@ -20718,23 +20718,26 @@ const promptsOf = calls => calls.map(c => stableGatePrompt(String(c.prompt)))
 // The eight worker spawn sites: the primary work dispatch plus the seven fix-applying builds
 // (the CHAIN_FIX_BUILDS fixtures, re-run here with the evidence args threaded). Each `impl` is a
 // fresh closure per run — several fixtures count rounds internally.
+// `resolved` names whether a task is in scope at the site: the clause then carries the resolved
+// manifest path (REA_RESOLVED_PATH, PROVISION_ARGS planSlug + task t1); the sweep and terminal sites do not.
+const REA_RESOLVED_PATH = 'docs/plans/evidence/wtprov-a/t1.manifest.json'
 const REA_WORKER_SITES = [
   { site: 'work', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => defaultImpl,
-    find: c => c.find(isWorker) },
+    find: c => c.find(isWorker), resolved: true },
   { site: 'FIX_NEEDED', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => fixNeededImpl(),
-    find: c => c.find(x => /^fix:t1:/.test(x.opts.label || '')) },
+    find: c => c.find(x => /^fix:t1:/.test(x.opts.label || '')), resolved: true },
   { site: 'ace subset', args: o => ACE_ARGS(o), impl: () => bisectSubsetImpl(),
-    find: c => c.find(x => /^ace:subset:t1:/.test(x.opts.label || '')) },
+    find: c => c.find(x => /^ace:subset:t1:/.test(x.opts.label || '')), resolved: true },
   { site: 'ace re-entry', args: o => ACE_ARGS(o), impl: () => reentryImpl(),
-    find: c => c.find(x => /^ace:reentry:t1:/.test(x.opts.label || '')) },
+    find: c => c.find(x => /^ace:reentry:t1:/.test(x.opts.label || '')), resolved: true },
   { site: 'ace advisory polish', args: o => ACE_ARGS(o), impl: () => polishAceImpl(),
-    find: c => c.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) },
+    find: c => c.find(x => /^ace:polish:t1:/.test(x.opts.label || '')), resolved: true },
   { site: 'floor family (add-test)', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => floorRetryImpl(),
-    find: c => c.find(x => /^add-test:t1:/.test(x.opts.label || '')) },
+    find: c => c.find(x => /^add-test:t1:/.test(x.opts.label || '')), resolved: true },
   { site: 'phase-close sweep', args: o => SWEEP_ARGS(o), impl: () => sweepBase([queuedAbsorb()]),
-    find: c => c.find(x => (x.opts.label || '') === 'polish:phase-3') },
+    find: c => c.find(x => (x.opts.label || '') === 'polish:phase-3'), resolved: false },
   { site: 'terminal pass', args: o => SWEEP_ARGS(o), impl: () => terminalImpl(),
-    find: c => c.find(x => (x.opts.label || '') === 'terminal:phase-3') },
+    find: c => c.find(x => (x.opts.label || '') === 'terminal:phase-3'), resolved: false },
 ]
 
 test('rea clause: rides every worker spawn site when on; every prompt byte-identical when off', async () => {
@@ -20748,19 +20751,29 @@ test('rea clause: rides every worker spawn site when on; every prompt byte-ident
     assert.ok(onP.prompt.includes(REA_HEAD), `${s.site}: the REA clause rides the dispatched prompt when on`)
     assert.ok(onP.prompt.includes(REA_ROW.sha256), `${s.site}: the clause carries the declared row's digest`)
     assert.ok(onP.prompt.includes(REA_ROW.path), `${s.site}: the clause carries the declared row's path`)
+    // A task-bearing site names the RESOLVED manifest path (A.planSlug + task.id — the same inputs the
+    // evidence seat reads the manifest with); the task-less sweep and terminal sites name only the template.
+    const onLine = onP.prompt.split('\n').find(l => l.startsWith(REA_HEAD))
+    assert.equal(onLine.includes('(this task: ' + REA_RESOLVED_PATH + ')'), s.resolved,
+      `${s.site}: resolved manifest path ${s.resolved ? 'named' : 'absent'} (task ${s.resolved ? 'in' : 'out of'} scope)`)
     // Every prompt of the run — not only this site's — is byte-identical between absent and
     // evidence:false (rows present): the clause is gated on args.evidence alone.
     assert.deepEqual(promptsOf(offRows.calls), promptsOf(off.calls), `${s.site}: every dispatched prompt byte-identical with evidence:false + rows vs evidence absent`)
     assert.ok(on.calls.every(c => !isWorker(c) || c.prompt.includes(REA_HEAD)), `${s.site}: every Work-phase worker prompt carries the clause when on`)
   }
   // Source census (comment-stripped — the reaClause header comment names the pairing): every worker spawn
-  // site that carries provisionClause carries reaClause beside it — the eight sites (work, fix, floor
-  // family, ace ×3, polish sweep, terminal pass), none skipped.
+  // site that carries provisionClause carries the REA clause beside it — the eight sites (work, fix, floor
+  // family, ace ×3, polish sweep, terminal pass), none skipped. The six task-bearing sites call
+  // reaClauseOf(task) / reaClauseOf(r.task) (the resolved manifest path rides); the two task-less sites
+  // (polish sweep, terminal pass) carry the bare reaClause.
   const code = src.replace(/^\s*\/\/.*$/gm, '')
   const carriers = (code.match(/\+ provisionClause\b/g) || []).length
-  const paired = (code.match(/\+ provisionClause \+ reaClause\b/g) || []).length
+  const resolved = (code.match(/\+ provisionClause \+ reaClauseOf\((?:r\.)?task\)/g) || []).length
+  const bare = (code.match(/\+ provisionClause \+ reaClause\b/g) || []).length
   assert.equal(carriers, 8, `eight provisionClause carrier sites (got ${carriers})`)
-  assert.equal(paired, carriers, 'reaClause rides every provisionClause carrier site')
+  assert.equal(resolved, 6, `six task-bearing sites call reaClauseOf(task) (got ${resolved})`)
+  assert.equal(bare, 2, `two task-less sites carry the bare reaClause (got ${bare})`)
+  assert.equal(resolved + bare, carriers, 'the REA clause rides every provisionClause carrier site')
 })
 
 test('runSeat dispatches seat.agentType from the SEAT_AGENT_TYPES allowlist and refuses an unlisted type', async () => {
@@ -20840,7 +20853,7 @@ test('evidence seat skeleton: IDENTICAL wording in agents/war-evidence-auditor.m
   assert.ok(hold.includes('Every other REA finding is SOFT') && hold.includes('`cannot-confirm`') && hold.includes('never a hold'), 'the card HOLD line carries SOFT + cannot-confirm + never a hold (non-vacuous extraction)')
   assert.ok(evP.includes(rung), 'the dispatched evidence-seat skeleton carries the ADR 0041 rung line byte-for-byte')
   assert.ok(evP.includes(hold), 'the dispatched evidence-seat skeleton carries the HOLD-only-on-mismatch line byte-for-byte')
-  assert.ok(evP.includes('docs/plans/evidence/wtprov-a/t1.manifest.json'), 'the seat prompt names the task manifest path (plan slug + task id substituted into MANIFEST_PATH_TEMPLATE)')
+  assert.ok(evP.includes(REA_RESOLVED_PATH), 'the seat prompt names the task manifest path (plan slug + task id substituted into MANIFEST_PATH_TEMPLATE)')
   assert.ok(evP.includes(REA_ROW.sha256) && evP.includes(REA_ROW.path), 'the seat prompt names the declared row')
   assert.ok(!regP.includes(rung) && !regP.includes(hold), 'the regular seat never carries the evidence skeleton')
 })
@@ -20857,6 +20870,28 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
     assert.ok(!r.calls.some(isEvidenceSeat), `${arm}: no evidence auditor seated`)
     assert.deepEqual(promptsOf(r.calls), promptsOf(base.calls), `${arm}: every prompt byte-identical to the off baseline`)
   }
+  // Widen arm (End-state 23, non-vacuous): a lone seat at low confidence nominating EVIDENCE_LENS is the
+  // one engine route that could add a seat the roster never listed. With evidence off the nomination is
+  // widen-barred (resolveWidenSource falls back to the default roster) and no evidence seat convenes.
+  const widenArgs = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+    evidence: false, targetArtifacts: [REA_ROW],
+  })
+  const widenImpl = buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
+          widen: [EVIDENCE_LENS],
+          findings: [{ severity: 'Major', title: 'needs the artifact measured', suggested_fix: 'measure it', file: 'a.js', rationale: 'unsure' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const widened = await runPhase(widenArgs, widenImpl)
+  const widenLabels = widened.calls.map(c => c.opts.label || '')
+  assert.ok(widenLabels.filter(l => l === 'audit:t1:security').length >= 2, 'widen arm: the lone seat re-convened (the widen path ran)')
+  assert.equal(reaLoudLines(widened.logs).length, 1, 'widen arm: exactly one loud line')
+  assert.ok(!widened.calls.some(isEvidenceSeat), 'widen arm: no evidence auditor seated under an EVIDENCE_LENS nomination')
+  assert.ok(!widenLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen arm: no audit label ends with :${EVIDENCE_LENS} (got ${JSON.stringify(widenLabels.filter(l => l.startsWith('audit:')))})`)
   const on = await runPhase(PROVISION_ARGS(REA_ON), defaultImpl)
   assert.equal(reaLoudLines(on.logs).length, 0, 'on: no loud line')
   // Entry validation: a bad shape refuses at entry naming args.<key>, zero spawns; absence reads as off.

@@ -50,7 +50,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## `env-died` — the post-spawn dispatch death (D21, #1411, #1481)
 A dispatch that spawned and then died under the harness (API/quota/transport) is an environment event, never a content verdict. Read-only audit/probe deaths retain their site-specific soft or subset-abandon classifications. Pin rebases additionally have independent pre/post Git proof before transfer accounting. A mutating task/polish/terminal merge or land first receives bounded in-phase Git reconciliation by a fresh refiner; success requires matching Git evidence, and unmerged requires unchanged local and remote target refs plus matching source identity. Unresolved uncertainty holds before land. See [refiner-recovery.md](refiner-recovery.md#uncertain-merge-reconciliation) for the procedure and `MERGE_SNAPSHOT` / `PIN_GIT_PROOF` / `MERGE_CONFIRMATION` / `MERGE_RECONCILIATION` in `workflow-template.js` for the wire shapes. A proved-unmerged infrastructure death can retain `env-died` soft; it never acquires that classification solely because its response died. `env-died` remains in `SOFT_ENV_REASONS`, not `HARD_ESCALATION_REASONS`.
 
-## AuditVerdict — `war-auditor` (one per seat per round)
+## AuditVerdict — `war-auditor` and `war-evidence-auditor` (one per seat per round)
 ```jsonc
 { seat: "seat-1",
   lens: "correctness" | "cascading-impact" | "plan-faithfulness" | "<domain>",
