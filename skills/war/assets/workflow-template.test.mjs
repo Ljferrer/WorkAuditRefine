@@ -5290,7 +5290,8 @@ test('phase-close sweep threads run.evidence: a config default roster carrying t
   // admits it with the knob absent: the OFF arm goes red. The phase-start twin is 'roster — phase-start assertion
   // threads run.evidence'; the sweep is the second engine call site. Both arms thread args.evidence true: with it
   // off the engine drops the row from the default roster before this call site (ruling #2404; the 'rea absent
-  // path' test covers that arm), so the knob read here is only reachable with args.evidence on.
+  // path' test's sweepStray and sweepStrayKnobOff arms cover that drop with run.evidence on and off), so the
+  // knob read here is only reachable with args.evidence on.
   const evidenceDefault = { audit: { roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] }, evidence: true }
   const on = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true, evidence: true } }), sweepBase([queuedAbsorb()]))
   assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:p3-polish:${EVIDENCE_LENS}`),
@@ -20967,6 +20968,19 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
   assert.ok(sweepStray.calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'sweep arm: the polish sweep convened (presence guard)')
   assert.ok(!sweepStray.calls.some(isEvidenceSeat), 'sweep arm: no evidence auditor seated on the sweep panel')
   assert.ok(reaLoudLines(sweepStray.logs)[0] && reaLoudLines(sweepStray.logs)[0].includes('audit.roster:' + EVIDENCE_LENS), 'sweep arm: the loud line names the dropped default-roster row')
+  // The same drop with run.evidence OFF too (the template comment: an audit.roster evidence row is dropped
+  // whatever run.evidence says, because the splice runs before the sweep's validateRoster). Before the drop
+  // this config held the sweep at validateRoster (fail-open skip, no polish); now the row is dropped with the
+  // loud line and the sweep convenes. Delete-the-feature: without the splice validateRoster(defaultRoster,
+  // undefined) refuses the row and no 'polish:phase-3' dispatch happens, so the presence assert goes red.
+  const sweepStrayKnobOff = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }, run: { ace: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(sweepStrayKnobOff.calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'sweep arm, knob off: the polish sweep convened on the stripped pool')
+  assert.ok(!sweepStrayKnobOff.calls.some(isEvidenceSeat), 'sweep arm, knob off: no evidence auditor seated on the sweep panel')
+  assert.ok(!sweepStrayKnobOff.calls.some(c => (c.opts.label || '').endsWith(`:${EVIDENCE_LENS}`)), 'sweep arm, knob off: no audit label ends with the evidence lens')
+  assert.ok(!sweepStrayKnobOff.logs.some(l => typeof l === 'string' && l.includes('config default audit.roster is unusable')), 'sweep arm, knob off: no fail-open skip line — the row was dropped, not refused')
+  const knobOffLoud = reaLoudLines(sweepStrayKnobOff.logs)
+  assert.equal(knobOffLoud.length, 1, `sweep arm, knob off: exactly one loud line (got ${knobOffLoud.length})`)
+  assert.ok(knobOffLoud[0].includes('audit.roster:' + EVIDENCE_LENS) && knobOffLoud[0].includes('1 evidence-type roster row(s) dropped'), `sweep arm, knob off: the loud line names the dropped default-roster row: ${knobOffLoud[0]}`)
   const on = await runPhase(PROVISION_ARGS(REA_ON), defaultImpl)
   assert.equal(reaLoudLines(on.logs).length, 0, 'on: no loud line')
   // Entry validation: a bad shape refuses at entry naming args.<key>, zero spawns; absence reads as off.

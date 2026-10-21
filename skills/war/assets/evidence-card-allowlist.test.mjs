@@ -11,7 +11,7 @@
 // pinned DERIVED_AT_REA version, every REA entry on the card must be a TOOL_EFFECTS key that
 // passes the predicate; at any other version both REA-present arms skip with a diagnostic
 // that names the installed and the pinned version (ruling #2403), and an oracle that fails
-// to import skips the same way.
+// to import, or whose package.json is missing or unparseable, skips the same way.
 //
 // Predicate (G4): never mutatesTarget, executesForeignCode, mutatesDevice or destructive.
 // REA's annotationsFromEffects defines destructiveHint as
@@ -27,7 +27,10 @@
 //
 // Host-write residual (ace re-entry: "Host-write and process-launch REA tools on the allowlist
 // are unverified from this seat"): the predicate reads neither writesFilesystem nor
-// launchesProcess, so allowlisted tools may write host paths. The card's
+// launchesProcess, so allowlisted tools may write host paths. Since ruling #2402 the MCP hook's
+// output-path check denies an `output_directory` (or `destination`) that does not carry the
+// `/.claude/war/evidence/` segment (segment containment, not a `$MAIN` anchor); the predicate
+// itself still reads neither flag. The card's
 // `## Read-only guard contract` names the allowlisted tools whose input schema carries a
 // caller-named `output_directory`. That list is a restated value, bound here: the card-local arm
 // checks every named tool is on the `tools:` line; the REA-present arm extracts the names and
@@ -86,7 +89,9 @@ function schemaKeys(schema, acc = new Set()) {
 
 // Returns { table, version } for the installed rea-agents package, or null when it is
 // not resolvable (no npm, no global root, no package). `version` is the installed package
-// version, compared with DERIVED_AT_REA by the arms below.
+// version, compared with DERIVED_AT_REA by the arms below; it is null when package.json is
+// missing or unparseable, so the version-mismatch arm skips (ruling #2403: a broken oracle
+// skips, never fails).
 function resolveToolEffects() {
   let root;
   try {
@@ -97,7 +102,12 @@ function resolveToolEffects() {
   const pkg = join(root, 'rea-agents');
   const table = join(pkg, 'dist', 'contracts', 'toolEffects.js');
   if (!existsSync(table)) return null;
-  const version = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')).version;
+  let version = null;
+  try {
+    version = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')).version;
+  } catch {
+    version = null;
+  }
   return { table, version };
 }
 
@@ -111,7 +121,7 @@ function locateAtPinnedVersion(t, arm) {
     return null;
   }
   if (located.version !== DERIVED_AT_REA) {
-    t.skip(`installed rea-agents ${located.version} differs from the pinned DERIVED_AT_REA ${DERIVED_AT_REA}: ${arm} arm skipped — re-derive the allowlist at the installed version and move DERIVED_AT_REA and the hook header's \`Derived at rea-agents: \` line together`);
+    t.skip(`installed rea-agents ${located.version === null ? '(package.json unreadable)' : located.version} differs from the pinned DERIVED_AT_REA ${DERIVED_AT_REA}: ${arm} arm skipped — re-derive the allowlist at the installed version and move DERIVED_AT_REA and the hook header's \`Derived at rea-agents: \` line together`);
     return null;
   }
   return located;

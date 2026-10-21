@@ -28,6 +28,10 @@
 #   without the resource tools. war-auditor and war-evidence-auditor carry
 #   Bash, but validate-auditor-git.sh denies every non-git command for them,
 #   so `rea ...` never runs there; neither card lists the resource tools.
+#   The output-path check below is segment containment, not a `$MAIN` anchor:
+#   the hook cannot know `$MAIN`, so a path under any `.claude/war/evidence/`
+#   (another repo's, a task worktree's, /tmp/x/.claude/war/evidence/) passes.
+#   G2's `$MAIN` placement stays a card instruction to the seat (ruling #2402).
 #
 # ALLOWLIST (G4)
 #   This file OWNS the allowlist literal, as full `mcp__rea__<tool>` names:

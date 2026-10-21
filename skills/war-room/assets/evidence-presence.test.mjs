@@ -15,7 +15,8 @@
 //      allowlist was derived at behind the fixed lead-in `Derived at rea-agents: `; it must equal
 //      the DERIVED_AT_REA literal in evidence-card-allowlist.test.mjs, the pin that gates its
 //      predicate arms. The literal is extracted from that test's source, never imported (an import
-//      would run its tests here).
+//      would run its tests here). The lead-in itself is a restated value: every doc that quotes it
+//      (DERIVED_LEAD_IN_QUOTERS) must contain the literal the hook extractor anchors on.
 // Two doc-stated rules with no machine source (the Lead procedure is prose), each pinned by
 // extraction of the doc row or section that states it:
 //   5. The pool strip (Task 2.4 fix round 1). A config `audit.roster` evidence row feeds every task under rosterPolicy
@@ -171,10 +172,17 @@ test('evidence presence: the war-room offer never writes an evidence row into au
   assert.ok(invertedThread.search(STRIP) > invertedThread.indexOf('citingTasks'), 'control: an inverted body would fail the ordering read')
 })
 
+// The fixed lead-in of the hook's derivation-version header line. The war-room SKILL.md run.evidence
+// row, the lead file's "Resolve REA presence" step and the allowlist test's header and skip
+// diagnostic all quote it so a reader can find the version: each is pinned below to contain this
+// literal, so a rename of the lead-in that leaves a doc pointing at the old string is red.
+const DERIVED_LEAD_IN = 'Derived at rea-agents: '
+const DERIVED_LEAD_IN_QUOTERS = [WAR_ROOM, LEAD, ALLOWLIST_TEST]
 // `Derived at rea-agents: <version>` on its own header line of the hook: exactly one.
 function hookDerivedVersion(rel, text) {
-  const hits = [...text.matchAll(/^#\s*Derived at rea-agents: (\S+)\s*$/gm)].map(m => m[1])
-  assert.equal(hits.length, 1, `${rel}: expected exactly one \`Derived at rea-agents: <version>\` header line, found ${JSON.stringify(hits)} — the extractor fails closed`)
+  const leadIn = DERIVED_LEAD_IN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const hits = [...text.matchAll(new RegExp('^#\\s*' + leadIn + '(\\S+)\\s*$', 'gm'))].map(m => m[1])
+  assert.equal(hits.length, 1, `${rel}: expected exactly one \`${DERIVED_LEAD_IN}<version>\` header line, found ${JSON.stringify(hits)} — the extractor fails closed`)
   return hits[0]
 }
 // `const DERIVED_AT_REA = '<version>'` in the allowlist test source: exactly one.
@@ -188,7 +196,14 @@ test('evidence presence: the hook header\'s Derived at rea-agents version equals
   const fromHook = hookDerivedVersion(HOOK, src(HOOK))
   const fromTest = pinnedVersion(ALLOWLIST_TEST, src(ALLOWLIST_TEST))
   assert.match(fromHook, /^\d+\.\d+\.\d+$/, `${HOOK}: the derivation version is not a dotted version literal: ${fromHook}`)
-  assert.equal(fromHook, fromTest, `${HOOK} records Derived at rea-agents: ${fromHook} but ${ALLOWLIST_TEST} pins DERIVED_AT_REA = '${fromTest}' — move both together when the allowlist is re-derived`)
+  assert.equal(fromHook, fromTest, `${HOOK} records ${DERIVED_LEAD_IN}${fromHook} but ${ALLOWLIST_TEST} pins DERIVED_AT_REA = '${fromTest}' — move both together when the allowlist is re-derived`)
+  // Every doc that quotes the lead-in so a reader can find the version carries the same literal the
+  // hook extractor anchors on (ADR 0025: a restated value is extraction plus equality, never a bare
+  // restatement). Mutation proof: renaming the lead-in in the hook and in DERIVED_LEAD_IN alone reds
+  // each quoter here; dropping the quote from one doc reds that doc's row.
+  for (const rel of DERIVED_LEAD_IN_QUOTERS) {
+    assert.ok(src(rel).includes(DERIVED_LEAD_IN), `${rel}: must quote the hook header lead-in \`${DERIVED_LEAD_IN}\` so the Lead can find the derivation version`)
+  }
   // Fail-closed controls on both extractors, and a discrimination control on the equality.
   assert.throws(() => hookDerivedVersion('fixture', '# no version line'), /fails closed/)
   assert.throws(() => hookDerivedVersion('fixture', '#   Derived at rea-agents: 1.0.0\n#   Derived at rea-agents: 2.0.0\n'), /fails closed/)
