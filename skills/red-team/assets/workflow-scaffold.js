@@ -11,7 +11,8 @@ export const meta = {
 // args (the Red Team Lead passes) — may be a plain object OR a JSON string (the
 // scaffold normalizes both via parse-if-string so either form works):
 //   { planFile, repo, sourceSpec,
-//     probes: [ { name, kind:"bespoke", technique:"executed"|"analyzed", prompt } ] }
+//     probes: [ { name, kind:"bespoke", technique:"executed"|"analyzed", prompt } ],
+//     targetArtifacts: [ { path, sha256, provider } ]   // optional: the plan's Target artifacts rows }
 // CONTRACTS:
 //   Probe side — a FINDINGS finding is a DEFECT (false claim, gap, or needsDecision
 //   ambiguity), NOT a confirmation. A claim that checks out is NOT recorded. A
@@ -79,7 +80,20 @@ try {
   A = (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) ? parsed : {}
 }
 catch { A = {} }
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan', analyzedAgentType, model, effort } = A
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan', analyzedAgentType, model, effort, targetArtifacts = [] } = A
+
+// Declared target artifacts (plan 2026-10-20-rea-artifact-evidence Task 1.6, G11). The Lead threads
+// the plan's `**Target artifacts**` rows as args.targetArtifacts (`[{ path, sha256, provider }]`,
+// the target-artifacts.mjs row shape; a bare path string is tolerated) when the plan carries the
+// block. The scope-lock then admits those paths on BOTH techniques: the rea-evidence probe replays
+// REA read-only against the artifact in place, never a copy and never the repo copy, and the
+// untrusted-content probe may read it too. The sandbox cannot read files, so an absent or empty
+// list is the off path: every prompt is byte-identical to the pre-arg scaffold.
+const artifactPaths = (Array.isArray(targetArtifacts) ? targetArtifacts : [])
+  .map(r => typeof r === 'string' ? r : (r && r.path)).filter(p => typeof p === 'string' && p)
+const artifactCarveOut = (technique) => artifactPaths.length === 0 ? '' : (technique === 'executed'
+  ? `\nThe declared target artifact${artifactPaths.length > 1 ? 's' : ''} at ${artifactPaths.join(', ')} ${artifactPaths.length > 1 ? 'are' : 'is'} readable IN PLACE, read-only: run every REA operation against that declared path only. NEVER copy the artifact into the sandbox, and NEVER run REA on the repo copy.`
+  : ` ALSO read-only: the declared target artifact${artifactPaths.length > 1 ? 's' : ''} at ${artifactPaths.join(', ')}, in place, never copied.`)
 
 // Analyzed-agent dispatch types (#727). Analyzed probes/confirms need a read-only agent; the
 // preferred one is `Explore` (overridable via args.analyzedAgentType — the issue's configurability
@@ -160,13 +174,14 @@ const scopeLock = (technique) => [
         `  • Your probe runs \`git\` AT ALL -> \`git clone --no-hardlinks ${repo} <tmp>\`. This is the only form that stays isolated even when ${repo} is a linked worktree. Caveat: a clone carries COMMITTED STATE ONLY — uncommitted edits and untracked files do not come across — so a probe that needs the working tree as it stands must overlay it explicitly (copy the dirty paths in, or apply \`git -C ${repo} diff\`), never assume the clone reflects it.`,
         `  • Your probe ONLY READS AND EDITS FILES -> \`cp -R ${repo} <tmp>\` is fine. But when \`${repo}/.git\` is a FILE rather than a directory, ${repo} IS a linked worktree and this copy is NOT git-isolated: it duplicates a pointer to the real repo, so any \`git -C <tmp>\` would drive ${repo} itself. Never run \`git\` against a \`cp -R\` sandbox.`,
         `  • Read-only INSPECTION of committed state -> \`git -C ${repo} worktree add --detach <tmp> HEAD\`. It shares ${repo}'s ref store, so create NO branches and NO tags in it, and dispose of it with \`git -C ${repo} worktree remove --force <tmp>\` rather than a bare \`rm -rf\` (which strands a prunable \`.git/worktrees/<name>/\` admin entry that accumulates and later blocks reuse of the path). Never omit \`--detach\`: the plain form writes a \`refs/heads/<tmp-basename>\` branch into ${repo} that OUTLIVES \`rm -rf\` of the sandbox directory, and the post-run ref-diff guard reports that ref as an escape.`,
-        `The Bash tool RESETS cwd between calls, so NEVER rely on a prior \`cd\` into that sandbox: use \`git -C <abs-sandbox>\` for every git call and absolute paths throughout, run there only, never from the session cwd, and NEVER mutate ${repo}. NEVER run a bare \`git push\` — a cwd reset can land it against the REAL remote (the recorded cwd-reset escape).${provisionDirective(technique)}`,
+        `The Bash tool RESETS cwd between calls, so NEVER rely on a prior \`cd\` into that sandbox: use \`git -C <abs-sandbox>\` for every git call and absolute paths throughout, run there only, never from the session cwd, and NEVER mutate ${repo}. NEVER run a bare \`git push\` — a cwd reset can land it against the REAL remote (the recorded cwd-reset escape).${provisionDirective(technique)}${artifactCarveOut(technique)}`,
       ].join('\n')
     // D14 carve-out. The coverage-vs-source probe's per-issue evidence join DIRECTS an analyzed
     // agent to read each cited issue's `## Evidence artifacts` section, which the bare lock forbade.
     // The exception is read-only, gh-only, and scoped to THIS repo's issues; the executed branch
-    // above is byte-untouched.
-    : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine, EXCEPT: reading a cited issue's \`## Evidence artifacts\` section via \`gh issue view\` when your probe prompt directs it (read-only, this repo's issues only).`,
+    // above carries no gh carve-out. The artifact carve-out (Task 1.6) rides both branches and is
+    // empty, so byte-silent, unless args.targetArtifacts names a path.
+    : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine, EXCEPT: reading a cited issue's \`## Evidence artifacts\` section via \`gh issue view\` when your probe prompt directs it (read-only, this repo's issues only).${artifactCarveOut(technique)}`,
   `If the plan you open is NOT titled "${fingerprint.titleLine}", or you find yourself reading another project's files, STOP — you are on the WRONG plan. Re-open ${planFile} and confine yourself to ${repo}.`,
   `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
 ].join('\n')

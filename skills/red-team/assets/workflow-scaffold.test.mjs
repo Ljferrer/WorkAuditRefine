@@ -1513,3 +1513,76 @@ test('adjudicated provenance (behavioral): a probe-minted stamp is stripped from
   assert.ok(out.probeResults.some(r => r && r.dropped === true && r.probe === 'executable-proof'),
     'the dropped:true coverage marker survives the collection boundary unchanged')
 })
+
+// --- Task 1.6 (plan 2026-10-20-rea-artifact-evidence, End state 7): the REA probe pair ----------
+// Presence pair in the ff-topology idiom: lenses.md and SKILL.md both carry the two catalog probe
+// names, each inside a ±window region that states its technique, and both carry the fixed
+// `Target artifacts marker: ` lead-in Task 1.7's doc-token guard extracts. The scope-lock half runs
+// the scaffold with `args.targetArtifacts` (the block's rows) and checks every probe prompt, executed
+// AND analyzed, admits the declared artifact path, and that the off path (no arg) is byte-identical.
+test('rea probes: lenses.md and SKILL.md carry rea-evidence (executed) and untrusted-content (analyzed); the scope-lock admits the declared artifact path on both techniques', async () => {
+  const surfaces = {
+    'SKILL.md': readFileSync(join(__dirname, '..', 'SKILL.md'), 'utf8'),
+    'references/lenses.md': readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8'),
+  }
+  // Region = the ±320 window around every mention, widened to the whole line the mention sits on:
+  // a catalog row is one long table line, and the row IS the construct, so its tail clauses count.
+  const region = (text, token) => {
+    const lower = text.toLowerCase(), out = []
+    for (let i = lower.indexOf(token); i !== -1; i = lower.indexOf(token, i + 1)) {
+      const lineStart = text.lastIndexOf('\n', i) + 1
+      const lineEnd = text.indexOf('\n', i) === -1 ? text.length : text.indexOf('\n', i)
+      out.push(text.slice(Math.min(lineStart, Math.max(0, i - 320)), Math.max(lineEnd, i + 320)))
+    }
+    return out.join('\n---\n')
+  }
+  const MARKER_LEAD_IN = 'Target artifacts marker: **Target artifacts**'
+  for (const [name, text] of Object.entries(surfaces)) {
+    assert.ok(text.includes('rea-evidence'), `${name} must name the rea-evidence probe`)
+    assert.ok(text.includes('untrusted-content'), `${name} must name the untrusted-content probe`)
+    assert.match(region(text, 'rea-evidence'), /executed/, `${name} rea-evidence region must state the probe is executed`)
+    assert.match(region(text, 'untrusted-content'), /analyzed/, `${name} untrusted-content region must state the probe is analyzed`)
+    assert.match(region(text, 'rea-evidence'), /artifact-evidence\.md/, `${name} rea-evidence region must point at the grammar home`)
+    assert.ok(text.includes(MARKER_LEAD_IN), `${name} must carry the fixed lead-in + bold marker (the doc-token extractor's anchor)`)
+    assert.ok(!/rea-source-base/.test(text), `${name} must name no lint rule id (the rows point at artifact-evidence.md instead)`)
+  }
+  assert.match(region(surfaces['references/lenses.md'], 'rea-evidence'), /never copy/i,
+    'lenses.md rea-evidence row forbids copying the artifact into the sandbox')
+  assert.match(region(surfaces['references/lenses.md'], 'rea-evidence'), /repo copy/i,
+    'lenses.md rea-evidence row forbids running REA on the repo copy')
+  assert.match(region(surfaces['SKILL.md'], 'rea-evidence'), /targetArtifacts/,
+    'SKILL.md Step 2 threads the block rows as args.targetArtifacts beside the derivation')
+  assert.match(surfaces['SKILL.md'], /Workflow\(\{[\s\S]*?args:\s*\{[^}]*\btargetArtifacts\b[^}]*\}/,
+    'Step 3 Workflow args literal must include targetArtifacts')
+
+  // Scope-lock carve-out, both techniques; off path byte-identical.
+  const probes = [
+    { name: 'b-analyzed', kind: 'bespoke', technique: 'analyzed', prompt: 'do b-analyzed' },
+    { name: 'b-executed', kind: 'bespoke', technique: 'executed', prompt: 'do b-executed' },
+  ]
+  const ART = '/abs/target/app.bin'
+  const on = baseArgs({ probes, targetArtifacts: [{ path: ART, sha256: 'a'.repeat(64), provider: 'ghidra' }] })
+  const { prompts: onPrompts } = await runScaffold(on, passResult(on))
+  const onBy = Object.fromEntries(onPrompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  for (const name of [...ANALYZED_SPINE, 'b-analyzed', 'executable-proof', 'b-executed']) {
+    const prompt = onBy[`probe:${name}`]
+    assert.ok(prompt, `probe '${name}' must be dispatched (guards a vacuous loop)`)
+    assert.ok(prompt.includes(ART), `probe '${name}' scope-lock must admit the declared artifact path`)
+    assert.match(prompt, /read-only/, `probe '${name}' carve-out is read-only`)
+  }
+  for (const name of ['executable-proof', 'b-executed']) {
+    assert.match(onBy[`probe:${name}`], /never copy/i, `executed probe '${name}' carve-out forbids copying the artifact into the sandbox`)
+    assert.match(onBy[`probe:${name}`], /repo copy/i, `executed probe '${name}' carve-out forbids REA on the repo copy`)
+    assert.ok(onBy[`probe:${name}`].includes(D14_CARVE_OUT) === false, `executed probe '${name}' keeps the D14 gh carve-out off`)
+  }
+  assert.ok(onBy['probe:b-analyzed'].includes(D14_CARVE_OUT), 'the D14 carve-out survives verbatim beside the artifact carve-out')
+  const off = baseArgs({ probes })
+  const { prompts: offPrompts } = await runScaffold(off, passResult(off))
+  const { prompts: offPrompts2 } = await runScaffold(baseArgs({ probes, targetArtifacts: [] }), passResult(off))
+  assert.deepEqual(offPrompts2.map(p => p.prompt), offPrompts.map(p => p.prompt),
+    'an empty targetArtifacts list is byte-identical to the absent arg')
+  for (const p of offPrompts) {
+    assert.ok(!p.prompt.includes(ART) && !/declared target artifact/.test(p.prompt),
+      `off path: prompt ${p.opts.label} carries no artifact carve-out`)
+  }
+})
