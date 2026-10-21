@@ -80,8 +80,8 @@ Presence holds when either is true:
 2. `zsh -c 'rea doctor --json'` (or `bash -c 'rea doctor --json'`) reports every provider the
    plan's artifacts need as ok, per the rows above.
 
-adb has no doctor row, so a plan with an adb row resolves presence by the MCP path (item 1) only;
-`"$REA_ADB_PATH" version` confirms the install, never presence.
+If `rea doctor --json` carries no adb row, a plan with an adb row resolves presence by the MCP
+path (item 1) only; `"$REA_ADB_PATH" version` confirms the install, never presence.
 
 With `run.evidence` on and presence failing, `/war-room` does not offer the evidence lens and the
 `/war` Lead skips the seat with one loud line (`artifact-evidence-lead.md`). The run proceeds

@@ -27,8 +27,8 @@ Resolve presence before launch, the same two ways `/war-room` does (G1):
    purpose, reports every provider the rows name as ok (the per-provider rows in
    rea-setup.md § Verify).
 
-adb has no doctor row, so a plan with an adb row resolves presence by the MCP path (item 1) only;
-`"$REA_ADB_PATH" version` confirms the install, never presence.
+If `rea doctor --json` carries no adb row, a plan with an adb row resolves presence by the MCP
+path (item 1) only; `"$REA_ADB_PATH" version` confirms the install, never presence.
 
 `run.evidence` must be `true` in the resolved config as well. Both must hold; the engine never
 probes.
