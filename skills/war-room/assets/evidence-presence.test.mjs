@@ -2,7 +2,7 @@
 // operative docs of the REA evidence gate (plan 2026-10-20-rea-artifact-evidence Task 2.4;
 // D4, D8, D20; PIN-1, PIN-6, PIN-17).
 //
-// Three restated facts, three machine sources:
+// The restated facts and their machine sources:
 //   1. The presence tool. skills/war-room/SKILL.md, skills/war/references/artifact-evidence-lead.md
 //      and skills/war-room/references/rea-setup.md name it behind the fixed lead-in
 //      `presence tool \`mcp__…\``. Each literal must be a member of the allowlist that
@@ -11,6 +11,12 @@
 //      it must deepEqual EVIDENCE_LENS from war-config.mjs.
 //   3. The threaded args. Every `args.<key>` token the lead file names must have an
 //      `Optional \`<key>\`` row in schemas.md's args contract.
+// One doc-stated rule with no machine source (the Lead procedure is prose), pinned by section
+// extraction (Task 2.4 fix round 1):
+//   4. The pool strip. A config `audit.roster` evidence row feeds every task under rosterPolicy
+//      `all`, the lone-seat widen fallback and the sweep panel, so the lead file's § Thread
+//      section must order the strip before the `citingTasks` add, its § Skip section must keep
+//      the strip, and the war-room roster row must point at the lead file.
 // Every extractor fails closed: a doc that drops its lead-in is a red test, never a vacuous pass.
 //
 // Repo root resolves from import.meta.url, never process.cwd() (a WAR subagent's cwd is the
@@ -100,4 +106,40 @@ test('evidence presence: the doc-stated presence tool is a hook allowlist member
   assert.throws(() => offeredLens('fixture', 'evidence lens `a` and evidence lens `b`'), /exactly one distinct/)
   assert.throws(() => argsKeys('fixture', 'no args here'), /no args/)
   assert.throws(() => hookAllowlist('no block'), /not found/)
+})
+
+// One H2 section's body: from its heading to the next `## ` or the end of the file.
+function section(rel, text, heading) {
+  const start = text.indexOf('\n## ' + heading + '\n')
+  assert.ok(start >= 0, `${rel}: section "## ${heading}" not found — the extractor fails closed`)
+  const body = text.slice(start + heading.length + 5)
+  const end = body.indexOf('\n## ')
+  return end >= 0 ? body.slice(0, end) : body
+}
+
+test('evidence presence: the Lead strips the config evidence row from the pool before the citingTasks add, keeps the strip on the skip arm, and the war-room roster row points at the lead file', () => {
+  const lead = src(LEAD)
+  const thread = section(LEAD, lead, 'Thread the args and the evidence seat rows')
+  const skip = section(LEAD, lead, 'Skip with one loud line')
+  const STRIP = /Remove every such row|still strip every evidence-type row/
+  const stripAt = thread.search(STRIP)
+  const addAt = thread.indexOf('citingTasks')
+  assert.ok(stripAt >= 0, `${LEAD} § Thread: no pool-strip sentence`)
+  assert.ok(addAt >= 0, `${LEAD} § Thread: no citingTasks add`)
+  assert.ok(stripAt < addAt, `${LEAD} § Thread: the strip must come before the citingTasks add (strip at ${stripAt}, add at ${addAt})`)
+  assert.match(thread, /widen fallback/, `${LEAD} § Thread: the strip must name the widen fallback the default roster feeds`)
+  assert.match(thread, /sweep panel/, `${LEAD} § Thread: the strip must name the sweep panel the default roster feeds`)
+  assert.match(skip, STRIP, `${LEAD} § Skip: the skip arm must keep the strip`)
+
+  const warRoom = src(WAR_ROOM)
+  const rosterRow = warRoom.split('\n').find(l => l.includes('`audit.roster` — an array of seat objects'))
+  assert.ok(rosterRow, `${WAR_ROOM}: the audit.roster whitelist row not found — the extractor fails closed`)
+  assert.ok(rosterRow.includes('(../war/references/artifact-evidence-lead.md)'), `${WAR_ROOM}: the audit.roster row must link the Lead procedure that strips the evidence row`)
+  assert.match(rosterRow, /opt-in record/, `${WAR_ROOM}: the audit.roster row must say the accepted row is the opt-in record, never a seat the pool feeds every task`)
+
+  // Fail-closed control on the section extractor.
+  assert.throws(() => section('fixture', '\n## Other\nbody\n', 'Thread the args and the evidence seat rows'), /fails closed/)
+  // Discrimination control: the ordering read refuses a Thread body whose add precedes its strip.
+  const inverted = 'for each task id in citingTasks add one seat. Remove every such row from the pool.'
+  assert.ok(inverted.search(STRIP) > inverted.indexOf('citingTasks'), 'control: an inverted body would fail the ordering read')
 })
