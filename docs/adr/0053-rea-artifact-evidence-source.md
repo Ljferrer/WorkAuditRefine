@@ -111,7 +111,8 @@ plan than this record.
 - **Regular seats re-measure a `rea:` claim (rejected).** A digest-bound claim cannot go stale, and
   re-measurement would need REA on every seat, which the matrix forbids.
 - **An allowlist keyed on the full registered name (rejected).** A server rename would deny every
-  tool silently. The suffix key survives a rename, and the live-name canary catches a tool rename.
+  tool silently. The suffix key survives a server rename, and the live-name canary reports it. A tool
+  rename fails closed until the hook is re-derived.
 
 ## Relationship to prior ADRs
 
