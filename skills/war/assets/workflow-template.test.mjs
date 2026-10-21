@@ -20804,6 +20804,8 @@ test('rea clause: names the MANIFEST_PATH_TEMPLATE mirror and get_evidence_bundl
   assert.ok(line.includes('`Manifest keys: `'), "the clause names the doc home's `Manifest keys: ` line as the key schema")
   assert.ok(line.includes('skills/war-strategy/references/artifact-evidence.md'), 'the clause names artifact-evidence.md')
   for (const k of MANIFEST_KEYS) assert.ok(!line.includes('`' + k + '`'), `no key list restated in the clause (found \`${k}\`)`)
+  // Bare restatement guard: sha256, provider and tool legitimately appear bare in the row text; these three never do.
+  for (const k of ['evidence_id', 'parameters', 'limitations']) assert.ok(!line.includes(k), `no bare key name restated in the clause (found ${k})`)
   assert.ok(line.includes(REA_ROW.path) && line.includes(REA_ROW.sha256) && line.includes(REA_ROW.provider), 'the declared row rides the clause')
   // The inline mirror is a plain single-quoted const (never a template literal) and equals the export.
   const inline = (src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]
