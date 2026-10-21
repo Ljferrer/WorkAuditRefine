@@ -35,8 +35,8 @@ const FILE_BUDGETS = {
   'skills/war/SKILL.md': { hard: 73728, advisory: 64512 },
   // post-shrink 22,216 B @ c6a05fb → hard ×1.25 ceil-KB = 28,672; advisory ×1.10 ceil-KB = 24,576
   'agents/war-auditor.md': { hard: 28672, advisory: 24576 },
-  // post-shrink 10,267 B @ 9b83667 → hard ×1.25 ceil-KB = 13,312; advisory ×1.10 ceil-KB = 12,288
-  'agents/war-evidence-auditor.md': { hard: 13312, advisory: 12288 },
+  // post-shrink 10,081 B @ 7b68e80 → hard ×1.25 ceil-KB = 13,312; advisory ×1.10 ceil-KB = 11,264
+  'agents/war-evidence-auditor.md': { hard: 13312, advisory: 11264 },
   // post-shrink 27,109 B @ c6a05fb → hard ×1.25 ceil-KB = 34,816; advisory ×1.10 ceil-KB = 30,720
   // RAISED +2,048 B (34,816 → 36,864) under the engine-concurrency-and-pin-transfer plan's
   // pre-ratified PIN-17 / ADJ-1 row (operator, 2026-08-30): the card's merge-task steps must state the
@@ -76,7 +76,7 @@ const FILE_BUDGETS = {
   'hooks/reply-standard/subagent-card.md': { hard: 2048, advisory: 1536 },
   // post-shrink 269 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
   'hooks/reply-standard/subagent-card.war-auditor.md': { hard: 1024, advisory: 768 },
-  // post-shrink 383 B @ 9b83667 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
+  // post-shrink 333 B @ 7b68e80 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
   'hooks/reply-standard/subagent-card.war-evidence-auditor.md': { hard: 1024, advisory: 768 },
   // post-shrink 318 B @ d959346 → hard ×1.25 ceil-KB = 1024; advisory pinned below at 768
   'hooks/reply-standard/subagent-card.war-refiner.md': { hard: 1024, advisory: 768 },
