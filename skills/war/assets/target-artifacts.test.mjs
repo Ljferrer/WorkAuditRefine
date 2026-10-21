@@ -7,9 +7,11 @@
 //      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
 //      the bullet line or a continuation line (a tag on a later bullet or after a blank line
 //      never cites; with no block rows citingTasks is empty); a marker with no `- path:` row
-//      under it throws; a full-shape row in Part 1 outside any block (after a continuation
-//      line, after prose, or with no marker above it) throws as an orphan, while a plain
-//      `- path:` bullet, a fenced row and a Part 2 row outside a block never do; the CLI prints
+//      under it throws; a row-shaped line in Part 1 outside any block (after a continuation
+//      line, after prose, or with no marker above it, full-shape or with a bad sha256) throws as
+//      an orphan, while a plain `- path:` bullet, a backticked path bullet with no `· sha256:`,
+//      a fenced row and a Part 2 row outside a block never do; a fenced Part 2 H2 does not end
+//      Part 1; MANIFEST_KEYS is frozen; the CLI prints
 //      the same object and exits 2 on an unreadable file (stderr names `cannot read`), on a
 //      missing path (stderr names the usage line), on a malformed row, on a rowless marker and
 //      on an orphan row; a rowless marker after a valid block throws with its own line number
@@ -25,7 +27,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -124,6 +126,8 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
   assert.equal(TARGET_ARTIFACTS_MARKER, '**Target artifacts**')
   assert.equal(MANIFEST_PATH_TEMPLATE, 'docs/plans/evidence/<plan-slug>/<task-id>.manifest.json')
   assert.deepEqual(MANIFEST_KEYS, ['evidence_id', 'sha256', 'provider', 'tool', 'parameters', 'limitations'])
+  // deepEqual ignores frozenness: a consumer must not be able to push a key into the shared export.
+  assert.ok(Object.isFrozen(MANIFEST_KEYS), 'MANIFEST_KEYS is frozen')
 
   const out = parseTargetArtifacts(PLAN)
   assert.deepEqual(out, {
@@ -135,13 +139,20 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
     citingTasks: ['1.1', '1.3'],
   })
 
-  // Each Part 2 H2 arm ends Part 1 on its own: a block directly under it is a decoy.
+  // Each Part 2 H2 arm ends Part 1 on its own: a block directly under it is a decoy. The same
+  // H2 inside a fence does not end Part 1 (the fence check runs before the H2 check), so a block
+  // declared after a fenced example heading still parses.
   const row = `- path: \`/x\` · sha256: \`${HEX}\` · provider: \`ghidra\``
   for (const h2 of ["## Commander's Intent", "## AI-Commander's Intent", '## Build order (for /war)', '## Phase 1 — x']) {
     assert.deepEqual(
       parseTargetArtifacts(`# p\n## Context\n${h2}\n${TARGET_ARTIFACTS_MARKER}\n${row}\n`),
       { rows: [], citingTasks: [] },
       `decoy under ${h2}`,
+    )
+    assert.deepEqual(
+      parseTargetArtifacts(`# p\n## Context\n\`\`\`\n${h2}\n\`\`\`\n${TARGET_ARTIFACTS_MARKER}\n${row}\n`),
+      { rows: [{ path: '/x', sha256: HEX, provider: 'ghidra' }], citingTasks: [] },
+      `a fenced Part 2 H2 does not end Part 1 (${h2})`,
     )
   }
 
@@ -190,9 +201,10 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
     /Target artifacts marker at line 6 carries no rows/,
   )
 
-  // A full-shape row the row loop did not consume is an orphan and throws with its own line
+  // A row-shaped line the row loop did not consume is an orphan and throws with its own line
   // number, never rows [/a] with exit 0: after a continuation line, after prose under a blank,
-  // and with no marker above it at all.
+  // with no marker above it at all, and (row-shaped but not full-shape) with a bad sha256 or no
+  // provider after prose.
   const orphanAfterContinuation = `# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n  (the main binary)\n${rowB}\n`
   assert.throws(() => parseTargetArtifacts(orphanAfterContinuation), /orphan Target artifacts row at line 6/)
   assert.throws(
@@ -200,13 +212,26 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
     /orphan Target artifacts row at line 7/,
   )
   assert.throws(() => parseTargetArtifacts(`# p\n## Context\n${rowA}\n`), /orphan Target artifacts row at line 3/)
-  // The orphan guard keys on the full row shape: a plain `- path:` bullet in Part 1 prose, a
+  for (const broken of [
+    '- path: `/b` · sha256: `abc` · provider: `x`',
+    `- path: \`/b\` · sha256: \`${HEX2}\``,
+  ]) {
+    assert.throws(
+      () => parseTargetArtifacts(`# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\nprose, not a row\n${broken}\n`),
+      /orphan Target artifacts row at line 6/,
+      `row-shaped orphan with a broken field: ${broken}`,
+    )
+  }
+  // The orphan guard keys on the row head (`- path: \`…\` · sha256:`), never on `- path:` alone:
+  // a plain `- path:` bullet in Part 1 prose, a backticked path bullet with no `· sha256:`, a
   // fenced full-shape row, and a full-shape row in Part 2 outside any block never throw.
-  assert.deepEqual(
-    parseTargetArtifacts(`# p\n## Context\n- path: the repo root, nothing more\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n`),
-    { rows: [{ path: '/a', sha256: HEX, provider: 'ghidra' }], citingTasks: [] },
-    'a plain path bullet in prose is not an orphan',
-  )
+  for (const prose of ['- path: the repo root, nothing more', '- path: `/opt/app` is where it installs']) {
+    assert.deepEqual(
+      parseTargetArtifacts(`# p\n## Context\n${prose}\n${TARGET_ARTIFACTS_MARKER}\n${rowA}\n`),
+      { rows: [{ path: '/a', sha256: HEX, provider: 'ghidra' }], citingTasks: [] },
+      `a path bullet in prose is not an orphan: ${prose}`,
+    )
+  }
   assert.deepEqual(
     parseTargetArtifacts(`# p\n## Context\n\`\`\`\n${rowA}\n\`\`\`\n`),
     { rows: [], citingTasks: [] },
@@ -237,41 +262,46 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
   }
 
   // CLI: same object on stdout, exit 0; exit 2 on an unreadable file and on a missing path.
+  // The temp dir is removed in `finally`, so a failing assertion leaves nothing under tmpdir.
   const dir = mkdtempSync(join(tmpdir(), 'target-artifacts-'))
-  const planPath = join(dir, 'plan.md')
-  writeFileSync(planPath, PLAN)
-  const ok = spawnSync(process.execPath, [CLI, planPath], { encoding: 'utf8' })
-  assert.equal(ok.status, 0, ok.stderr)
-  assert.deepEqual(JSON.parse(ok.stdout), out)
+  try {
+    const planPath = join(dir, 'plan.md')
+    writeFileSync(planPath, PLAN)
+    const ok = spawnSync(process.execPath, [CLI, planPath], { encoding: 'utf8' })
+    assert.equal(ok.status, 0, ok.stderr)
+    assert.deepEqual(JSON.parse(ok.stdout), out)
 
-  const missing = spawnSync(process.execPath, [CLI, join(dir, 'absent.md')], { encoding: 'utf8' })
-  assert.equal(missing.status, 2)
-  assert.match(missing.stderr, /cannot read/)
+    const missing = spawnSync(process.execPath, [CLI, join(dir, 'absent.md')], { encoding: 'utf8' })
+    assert.equal(missing.status, 2)
+    assert.match(missing.stderr, /cannot read/)
 
-  const noArg = spawnSync(process.execPath, [CLI], { encoding: 'utf8' })
-  assert.equal(noArg.status, 2)
-  assert.match(noArg.stderr, /usage: node target-artifacts\.mjs/)
+    const noArg = spawnSync(process.execPath, [CLI], { encoding: 'utf8' })
+    assert.equal(noArg.status, 2)
+    assert.match(noArg.stderr, /usage: node target-artifacts\.mjs/)
 
-  // CLI: a malformed row maps the parser's throw to exit 2, never an uncaught exit 1.
-  const badPath = join(dir, 'bad.md')
-  writeFileSync(badPath, `# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n- path: \`/x\` · sha256: \`abc\` · provider: \`ghidra\`\n`)
-  const bad = spawnSync(process.execPath, [CLI, badPath], { encoding: 'utf8' })
-  assert.equal(bad.status, 2, bad.stderr)
-  assert.match(bad.stderr, /malformed Target artifacts row/)
+    // CLI: a malformed row maps the parser's throw to exit 2, never an uncaught exit 1.
+    const badPath = join(dir, 'bad.md')
+    writeFileSync(badPath, `# p\n## Context\n${TARGET_ARTIFACTS_MARKER}\n- path: \`/x\` · sha256: \`abc\` · provider: \`ghidra\`\n`)
+    const bad = spawnSync(process.execPath, [CLI, badPath], { encoding: 'utf8' })
+    assert.equal(bad.status, 2, bad.stderr)
+    assert.match(bad.stderr, /malformed Target artifacts row/)
 
-  // CLI: a rowless marker maps the parser's throw to exit 2 as well.
-  const rowlessPath = join(dir, 'rowless.md')
-  writeFileSync(rowlessPath, star)
-  const rowless = spawnSync(process.execPath, [CLI, rowlessPath], { encoding: 'utf8' })
-  assert.equal(rowless.status, 2, rowless.stderr)
-  assert.match(rowless.stderr, /Target artifacts marker at line 3 carries no rows/)
+    // CLI: a rowless marker maps the parser's throw to exit 2 as well.
+    const rowlessPath = join(dir, 'rowless.md')
+    writeFileSync(rowlessPath, star)
+    const rowless = spawnSync(process.execPath, [CLI, rowlessPath], { encoding: 'utf8' })
+    assert.equal(rowless.status, 2, rowless.stderr)
+    assert.match(rowless.stderr, /Target artifacts marker at line 3 carries no rows/)
 
-  // CLI: an orphan row maps the parser's throw to exit 2 as well.
-  const orphanPath = join(dir, 'orphan.md')
-  writeFileSync(orphanPath, orphanAfterContinuation)
-  const orphan = spawnSync(process.execPath, [CLI, orphanPath], { encoding: 'utf8' })
-  assert.equal(orphan.status, 2, orphan.stderr)
-  assert.match(orphan.stderr, /orphan Target artifacts row at line 6/)
+    // CLI: an orphan row maps the parser's throw to exit 2 as well.
+    const orphanPath = join(dir, 'orphan.md')
+    writeFileSync(orphanPath, orphanAfterContinuation)
+    const orphan = spawnSync(process.execPath, [CLI, orphanPath], { encoding: 'utf8' })
+    assert.equal(orphan.status, 2, orphan.stderr)
+    assert.match(orphan.stderr, /orphan Target artifacts row at line 6/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 // --- the doc-token guard -----------------------------------------------------------------
