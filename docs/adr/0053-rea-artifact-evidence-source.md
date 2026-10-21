@@ -29,7 +29,7 @@ owns the allow and deny sets.** Five parts follow.
   staleness exemption and the cite-only rule live in
   [artifact-evidence.md](../../skills/war-strategy/references/artifact-evidence.md). Every other
   surface points there or carries a value a drift guard extracts and compares to its export. This
-  ADR restates none of it.
+  ADR records the decision and leaves the rule text to that home.
 - The base is a digest, not a git SHA, so the D12 staleness exemption applies (see
   artifact-evidence.md).
 - A plan declares its targets with the Target artifacts block in Part 1: path, sha256 and provider
