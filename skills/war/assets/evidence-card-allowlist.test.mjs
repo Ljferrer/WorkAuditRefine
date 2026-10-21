@@ -35,10 +35,12 @@
 // caller-named `output_directory`. That list is a restated value, bound here: the card-local arm
 // checks every named tool is on the `tools:` line; the REA-present arm extracts the names and
 // deepEquals them to the TOOL_CONTRACTS entries (dist/contracts/toolContracts.js) whose input
-// schema, walked through unions and effects, has an `output_directory` key. Mutation proof:
+// schema, walked through unions and effects, has an `output_directory` key (HOST_WRITE_KEY).
+// The hook's output-path loop is pinned to carry that same key, so the oracle arm's filter and
+// the loop list move together. Mutation proof:
 // dropping `pull_adb_file` from the card sentence reds the REA-present arm; adding
 // `extract_artifact` (REA picks its own temp dir) reds it too; misspelling a name reds the
-// card-local arm everywhere.
+// card-local arm everywhere; dropping `output_directory` from the hook loop reds the loop arm.
 //
 // Root is resolved from import.meta.url — NEVER process.cwd() (the suite's standing idiom:
 // a subagent's cwd is the main repo and resets between bash calls).
@@ -59,6 +61,11 @@ const CARD = join(ROOT, 'agents', 'war-evidence-auditor.md');
 const DERIVED_AT_REA = '6.5.0';
 const PREFIX = 'mcp__rea__';
 const PRESENCE_TOOL = 'mcp__rea__binary_session';
+const HOOK = join(ROOT, 'hooks', 'validate-evidence-auditor-mcp.sh');
+// The input-schema key the REA-present host-write arm filters on. The hook's output-path loop
+// (`for key in ...`) must carry it: a re-derivation that finds another host-write key moves this
+// constant and the loop list together (the hook header's RESIDUAL section states the rule).
+const HOST_WRITE_KEY = 'output_directory';
 // Plan Non-goals: annotate_*, set_*, capture_*, instrument_with_frida (adb writes fail the
 // predicate itself through mutatesDevice).
 const NON_GOALS_FAMILY = /^mcp__rea__(annotate_|set_|capture_|instrument_with_frida$)/;
@@ -150,18 +157,25 @@ test('evidence card host-write list: every named output_directory tool is on the
   assert.deepEqual(named.filter((n) => !rea.has(PREFIX + n)), [], 'every named tool is an allowlist member');
 });
 
+test('evidence card host-write list: the hook output-path loop carries the host-write key', () => {
+  const m = readFileSync(HOOK, 'utf8').match(/^for key in ((?:[a-z_]+ ?)+); do$/m);
+  assert.ok(m, 'hooks/validate-evidence-auditor-mcp.sh carries one `for key in <keys>; do` output-path loop');
+  const keys = m[1].trim().split(' ');
+  assert.ok(keys.includes(HOST_WRITE_KEY), `the hook loop keys [${keys.join(', ')}] carry HOST_WRITE_KEY ${HOST_WRITE_KEY}`);
+});
+
 test('evidence card host-write list: equals the allowlisted tools whose input schema has output_directory at the installed rea-agents', async (t) => {
-  const located = locateAtPinnedVersion(t, 'output_directory');
+  const located = locateAtPinnedVersion(t, HOST_WRITE_KEY);
   if (!located) return;
   const contracts = join(dirname(located.table), 'toolContracts.js');
-  const oracle = await importOracle(t, contracts, 'output_directory');
+  const oracle = await importOracle(t, contracts, HOST_WRITE_KEY);
   if (!oracle) return;
   const { TOOL_CONTRACTS } = oracle;
   const rea = new Set(cardReaTools().map((n) => n.slice(PREFIX.length)));
-  const expected = TOOL_CONTRACTS.filter((c) => rea.has(c.name) && schemaKeys(c.inputSchema).has('output_directory'))
+  const expected = TOOL_CONTRACTS.filter((c) => rea.has(c.name) && schemaKeys(c.inputSchema).has(HOST_WRITE_KEY))
     .map((c) => c.name)
     .sort();
-  t.diagnostic(`rea-agents ${located.version}: ${expected.length} allowlisted tools take output_directory`);
+  t.diagnostic(`rea-agents ${located.version}: ${expected.length} allowlisted tools take ${HOST_WRITE_KEY}`);
   assert.deepEqual([...cardOutputDirTools()].sort(), expected, `card host-write list vs TOOL_CONTRACTS at rea-agents ${located.version}`);
 });
 

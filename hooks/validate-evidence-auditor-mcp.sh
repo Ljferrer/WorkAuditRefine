@@ -32,6 +32,17 @@
 #   the hook cannot know `$MAIN`, so a path under any `.claude/war/evidence/`
 #   (another repo's, a task worktree's, /tmp/x/.claude/war/evidence/) passes.
 #   G2's `$MAIN` placement stays a card instruction to the seat (ruling #2402).
+#   The output-path loop reads the keys `output_directory` and `destination`
+#   only. At the derivation version named under ALLOWLIST, `output_directory`
+#   is the only caller-named output path key on any allowlisted tool's input
+#   schema (the other writesFilesystem members write REA's own cache or temp
+#   paths; `path`, `capture_path` and `manifest_path` are read inputs), and
+#   `destination` is the spare ruling #2402 named, on no REA tool. A
+#   re-derivation that finds another host-write key adds it to the loop list
+#   and to HOST_WRITE_KEY in evidence-card-allowlist.test.mjs together (that
+#   test pins the loop list to carry the key). The loop is a string check: a
+#   symlink already present under an evidence-segment dir that points
+#   elsewhere is outside what it sees.
 #
 # ALLOWLIST (G4)
 #   This file OWNS the allowlist literal, as full `mcp__rea__<tool>` names:
