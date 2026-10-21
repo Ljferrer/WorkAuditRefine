@@ -4,9 +4,9 @@ Read this when the operator opts into `run.evidence` in `/war-room` step 2 (the 
 on that row). It covers the install, the providers, the env rule per shell, the verification
 command, and the presence check. The evidence lens is offered only when `run.evidence` is on AND
 the presence check passes (plan `2026-10-20-rea-artifact-evidence` D20, G1). Walk the operator
-through the sections in order; stop at the first one they cannot complete and treat REA as
-absent: `/war-room` does not offer the evidence lens, and the `/war` Lead re-checks presence at
-launch.
+through the sections in order; if they cannot complete one, skip to § The presence check: that
+check alone decides whether `/war-room` offers the evidence lens, and the `/war` Lead re-checks
+presence at launch.
 
 ## Install
 
