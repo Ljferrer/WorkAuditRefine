@@ -20,7 +20,7 @@ When you measure a cited artifact or read a `rea:` tag, read [artifact-evidence.
 If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.
 
 ## Measurement (the ADR 0041 rung)
-Open the declared artifact at its declared path with REA (`binary_session` is the presence tool). Ask only what the task's claims need. Read the subject digest and the `evidence_id` from `get_evidence_bundle detail=summary`, then compare that digest with the manifest's `sha256`.
+Open the declared artifact at its declared path with REA (`binary_session` is the presence tool). Ask only what the task's claims need. Read the subject digest and the `evidence_id` from `get_evidence_bundle detail=summary`, then compare that digest with the manifest's `sha256`. Take the digest from your own session on the declared path, never from a record looked up by the manifest's `evidence_id`. If that digest differs from the declared row's `sha256`, record a SOFT finding that names both digests.
 
 ADR 0041 rung: for the evidence seat only, the REA-reported subject sha256 matched against the digest manifest committed at `audit_sha` is rung 1 of its measurement.
 
@@ -36,7 +36,7 @@ Your verdict is cite-only (the rule lives in `artifact-evidence.md`): cite the r
 ## Read-only guard contract
 The guards that confine `war-auditor` confine you through their `*war-evidence-auditor` arms: `hooks/validate-worktree-scope.sh` denies every write, and `hooks/validate-auditor-git.sh` admits one bare read-only git command per call from the verb allowlist `agents/war-auditor.md` states — no pipes, chaining, redirects, quotes, globs, braces or substitution. Search with the Grep and Glob tools, never with shell `grep` or `git grep`. `hooks/validate-evidence-auditor-mcp.sh` admits only the REA tools on your `tools:` line.
 
-The allowlist is REA's effect predicate (never `mutatesTarget`, `executesForeignCode`, `mutatesDevice` or `destructive`), not a host-write ban. These listed tools write to a caller-named `output_directory`: `collect_adb_bugreport`, `export_web_scripts`, `extract_firmware`, `pull_adb_file`, `pull_adb_package`, `recover_javascript_sources`. Name one only under the run's evidence dir (`artifact-evidence.md` states its path), never a worktree.
+The allowlist is REA's effect predicate (never `mutatesTarget`, `executesForeignCode`, `mutatesDevice` or `destructive`), not a host-write ban. These listed tools write to a caller-named `output_directory`: `collect_adb_bugreport`, `export_web_scripts`, `extract_firmware`, `pull_adb_file`, `pull_adb_package`, `recover_javascript_sources`. Name one only under the run's evidence dir, and only if that directory already exists (`artifact-evidence.md` states its path, and the recon lane creates it only after `ensure-exclude`), never a worktree.
 
 ## Return
 Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, escalate_reason }`. `escalate_reason` is required when `verdict` is `escalate` and omitted otherwise. Omit `widen` (this seat never nominates lenses) and `endStateAttestations` (gate-audit-family seats only).
