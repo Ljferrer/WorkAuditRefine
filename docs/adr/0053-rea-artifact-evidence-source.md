@@ -75,7 +75,9 @@ The allowlist holds the tools that pass the effect predicate: never `mutatesTarg
 land. The owner of the allow and deny sets is the evidence-auditor MCP hook, under the PreToolUse
 matcher `hooks.json` registers for it. The hook holds the allowlist literal as full tool names,
 strips any server prefix and compares the tool suffix, fails closed on anything unlisted, and
-carries a live-name canary. The evidence-auditor card's `tools:` REA entries are guarded set-equal
+carries a live-name canary. The hook also checks the output path of a file-writing tool: a
+caller-named output directory must carry the `/.claude/war/evidence/` path segment, with no `..` segment (ruling
+#2402). The evidence-auditor card's `tools:` REA entries are guarded set-equal
 to the hook's literal, and the presence-check tool is guarded as a member. This ADR names the hook
 by role only, never by file path or matcher value, because the hook lands in a later phase of the
 plan than this record.
@@ -148,3 +150,6 @@ plan than this record.
 - 2026-10-20 · ADR authored: the source class, the cite-only rule, the backstop-only proof, the MCP
   matrix by agent type with the evidence-auditor MCP hook as the owner of the allow and deny sets,
   the evidence seat and the widen-refusal wording · plan 2026-10-20-rea-artifact-evidence
+- 2026-10-21 · operator rulings #2402 (hook output-path check), #2403 (allowlist pinned to its
+  derivation version), #2404 (engine drops evidence-type rows while args.evidence is off) · plan
+  2026-10-20-rea-artifact-evidence task 3.1

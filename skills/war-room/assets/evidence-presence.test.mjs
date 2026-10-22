@@ -11,9 +11,15 @@
 //      it must deepEqual EVIDENCE_LENS from war-config.mjs.
 //   3. The threaded args. Every `args.<key>` token the lead file names must have an
 //      `Optional \`<key>\`` row in schemas.md's args contract.
-// One doc-stated rule with no machine source (the Lead procedure is prose), pinned by section
-// extraction (Task 2.4 fix round 1):
-//   4. The pool strip. A config `audit.roster` evidence row feeds every task under rosterPolicy
+//   4. The derivation version (ruling #2403). The hook header records the rea-agents version the
+//      allowlist was derived at behind the fixed lead-in `Derived at rea-agents: `; it must equal
+//      the DERIVED_AT_REA literal in evidence-card-allowlist.test.mjs, the pin that gates its
+//      predicate arms. The literal is extracted from that test's source, never imported (an import
+//      would run its tests here). The lead-in itself is a restated value: every doc that quotes it
+//      (DERIVED_LEAD_IN_QUOTERS) must contain the literal the hook extractor anchors on.
+// Two doc-stated rules with no machine source (the Lead procedure is prose), each pinned by
+// extraction of the doc row or section that states it:
+//   5. The pool strip (Task 2.4 fix round 1). A config `audit.roster` evidence row feeds every task under rosterPolicy
 //      `all`, the lone-seat widen fallback and the sweep panel, and the /war Lead reads the strip
 //      when the plan carries a Target artifacts block or the config roster carries an
 //      evidence-type row (skills/war/SKILL.md Decompose step 1), so the war-room roster row must say the
@@ -21,6 +27,9 @@
 //      lead file's § Thread section must order the strip before the `citingTasks` add (the guard
 //      for a hand-written row), its § Skip section must keep the strip, and the war-room roster
 //      row must point at the lead file.
+//   6. The decline rule (ruling #2405). The war-room `audit.roster` row must say accepting the
+//      evidence offer keeps `run.evidence` on and declining turns it off: the knob is the only
+//      opt-in record, so the rule is pinned by presence.
 // Every extractor fails closed: a doc that drops its lead-in is a red test, never a vacuous pass.
 //
 // Repo root resolves from import.meta.url, never process.cwd() (a WAR subagent's cwd is the
@@ -38,6 +47,7 @@ const REPO = resolve(HERE, '..', '..', '..')
 const src = rel => readFileSync(join(REPO, rel), 'utf8')
 
 const HOOK = 'hooks/validate-evidence-auditor-mcp.sh'
+const ALLOWLIST_TEST = 'skills/war/assets/evidence-card-allowlist.test.mjs'
 const WAR_ROOM = 'skills/war-room/SKILL.md'
 const LEAD = 'skills/war/references/artifact-evidence-lead.md'
 const SCHEMAS = 'skills/war/references/schemas.md'
@@ -160,4 +170,55 @@ test('evidence presence: the war-room offer never writes an evidence row into au
   const inverted = 'for each task id in citingTasks add one seat. Remove every such row from the pool.'
   const invertedThread = section('fixture', '\n## Thread the args and the evidence seat rows\n' + inverted, 'Thread the args and the evidence seat rows')
   assert.ok(invertedThread.search(STRIP) > invertedThread.indexOf('citingTasks'), 'control: an inverted body would fail the ordering read')
+})
+
+// The fixed lead-in of the hook's derivation-version header line. The war-room SKILL.md run.evidence
+// row, the lead file's "Resolve REA presence" step and the allowlist test's header and skip
+// diagnostic all quote it so a reader can find the version: each is pinned below to contain this
+// literal, so a rename of the lead-in that leaves a doc pointing at the old string is red.
+const DERIVED_LEAD_IN = 'Derived at rea-agents: '
+const DERIVED_LEAD_IN_QUOTERS = [WAR_ROOM, LEAD, ALLOWLIST_TEST]
+// `Derived at rea-agents: <version>` on its own header line of the hook: exactly one.
+function hookDerivedVersion(rel, text) {
+  const leadIn = DERIVED_LEAD_IN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const hits = [...text.matchAll(new RegExp('^#\\s*' + leadIn + '(\\S+)\\s*$', 'gm'))].map(m => m[1])
+  assert.equal(hits.length, 1, `${rel}: expected exactly one \`${DERIVED_LEAD_IN}<version>\` header line, found ${JSON.stringify(hits)} — the extractor fails closed`)
+  return hits[0]
+}
+// `const DERIVED_AT_REA = '<version>'` in the allowlist test source: exactly one.
+function pinnedVersion(rel, text) {
+  const hits = [...text.matchAll(/const DERIVED_AT_REA = '([^']+)'/g)].map(m => m[1])
+  assert.equal(hits.length, 1, `${rel}: expected exactly one \`const DERIVED_AT_REA = '…'\` literal, found ${JSON.stringify(hits)} — the extractor fails closed`)
+  return hits[0]
+}
+
+test('evidence presence: the hook header\'s Derived at rea-agents version equals DERIVED_AT_REA in the allowlist test (extraction plus equality)', () => {
+  const fromHook = hookDerivedVersion(HOOK, src(HOOK))
+  const fromTest = pinnedVersion(ALLOWLIST_TEST, src(ALLOWLIST_TEST))
+  assert.match(fromHook, /^\d+\.\d+\.\d+$/, `${HOOK}: the derivation version is not a dotted version literal: ${fromHook}`)
+  assert.equal(fromHook, fromTest, `${HOOK} records ${DERIVED_LEAD_IN}${fromHook} but ${ALLOWLIST_TEST} pins DERIVED_AT_REA = '${fromTest}' — move both together when the allowlist is re-derived`)
+  // Every doc that quotes the lead-in so a reader can find the version carries the same literal the
+  // hook extractor anchors on (ADR 0025: a restated value is extraction plus equality, never a bare
+  // restatement). Mutation proof: renaming the lead-in in the hook and in DERIVED_LEAD_IN alone reds
+  // each quoter here; dropping the quote from one doc reds that doc's row.
+  for (const rel of DERIVED_LEAD_IN_QUOTERS) {
+    assert.ok(src(rel).includes(DERIVED_LEAD_IN), `${rel}: must quote the hook header lead-in \`${DERIVED_LEAD_IN}\` so the Lead can find the derivation version`)
+  }
+  // Fail-closed controls on both extractors, and a discrimination control on the equality.
+  assert.throws(() => hookDerivedVersion('fixture', '# no version line'), /fails closed/)
+  assert.throws(() => hookDerivedVersion('fixture', '#   Derived at rea-agents: 1.0.0\n#   Derived at rea-agents: 2.0.0\n'), /fails closed/)
+  assert.throws(() => pinnedVersion('fixture', 'const OTHER = 1'), /fails closed/)
+  assert.notEqual(hookDerivedVersion('fixture', '#   Derived at rea-agents: 0.0.1\n'), fromTest, 'control: a differing header version would fail the equality')
+})
+
+test('evidence presence: the war-room audit.roster row pins the decline rule — accepting keeps run.evidence on, declining turns it off', () => {
+  const warRoom = src(WAR_ROOM)
+  const rosterRow = warRoom.split('\n').find(l => l.includes('`audit.roster` — an array of seat objects'))
+  assert.ok(rosterRow, `${WAR_ROOM}: the audit.roster whitelist row not found — the extractor fails closed`)
+  assert.ok(rosterRow.includes('accepting keeps it on'), `${WAR_ROOM}: the audit.roster row must say "accepting keeps it on"`)
+  assert.ok(rosterRow.includes('declining turns `run.evidence` off'), `${WAR_ROOM}: the audit.roster row must say "declining turns \`run.evidence\` off"`)
+  // Discrimination control: the same row read refuses a row that drops the decline clause.
+  const dropped = rosterRow.replace('declining turns `run.evidence` off', 'declining writes nothing')
+  assert.notEqual(dropped, rosterRow, 'control fixture: the decline clause was locatable')
+  assert.ok(!dropped.includes('declining turns `run.evidence` off'), 'control: a row without the decline clause fails the read')
 })

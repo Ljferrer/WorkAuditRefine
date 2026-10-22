@@ -8,7 +8,9 @@
 #   `*war-<role>*`, so a `war-<role>-helper` decoration falls through):
 #     - war-auditor, war-servitor, war-refiner : DENY every MCP tool.
 #     - war-evidence-auditor, war-worker       : ALLOW only the REA allowlist
-#                                               below; DENY anything else.
+#                                               below, and only when any output
+#                                               path it names sits under an
+#                                               evidence dir; DENY anything else.
 #     - every other agent_type (the main session with no agent_type, any
 #       non-WAR agent)                         : pass-through, exit 0.
 #
@@ -26,6 +28,21 @@
 #   without the resource tools. war-auditor and war-evidence-auditor carry
 #   Bash, but validate-auditor-git.sh denies every non-git command for them,
 #   so `rea ...` never runs there; neither card lists the resource tools.
+#   The output-path check below is segment containment, not a `$MAIN` anchor:
+#   the hook cannot know `$MAIN`, so a path under any `.claude/war/evidence/`
+#   (another repo's, a task worktree's, /tmp/x/.claude/war/evidence/) passes.
+#   G2's `$MAIN` placement stays a card instruction to the seat (ruling #2402).
+#   The output-path loop reads the keys `output_directory` and `destination`
+#   only. At the derivation version named under ALLOWLIST, `output_directory`
+#   is the only caller-named output path key on any allowlisted tool's input
+#   schema (the other writesFilesystem members write REA's own cache or temp
+#   paths; `path`, `capture_path` and `manifest_path` are read inputs), and
+#   `destination` is the spare ruling #2402 named, on no REA tool. A
+#   re-derivation that finds another host-write key adds it to the loop list
+#   and to HOST_WRITE_KEY in evidence-card-allowlist.test.mjs together (that
+#   test pins the loop list to carry the key). The loop is a string check: a
+#   symlink already present under an evidence-segment dir that points
+#   elsewhere is outside what it sees.
 #
 # ALLOWLIST (G4)
 #   This file OWNS the allowlist literal, as full `mcp__rea__<tool>` names:
@@ -37,6 +54,20 @@
 #   `mcp__rea__binary_session` is guarded as a member there and in
 #   evidence-presence.test.mjs. Extraction contract: one full name per line
 #   between the REA_ALLOWLIST quotes, nothing else on the line.
+#   Derived at rea-agents: 6.5.0
+#   The line above is the derivation version, in a fixed lead-in:
+#   evidence-card-allowlist.test.mjs pins DERIVED_AT_REA to it and runs its
+#   predicate arms only at that version; evidence-presence.test.mjs extracts
+#   it and asserts equality. A REA upgrade re-derives the allowlist and moves
+#   both literals together.
+#
+#   Output-path check: after membership passes, a `tool_input.output_directory`
+#   (or `destination`, where a contract uses it) must name a path under an
+#   evidence dir (segment containment; see RESIDUAL): the value carries the
+#   segment `/.claude/war/evidence/`
+#   and no `..` segment, else DENY. The rule binds war-evidence-auditor and
+#   war-worker alike (the G2 bundle rule). An absent key passes; a present
+#   key must hold a non-empty string, else DENY.
 #
 # SUFFIX KEYING + CANARY
 #   A tool name is `mcp__<server>__<tool>`. The compare uses the suffix after
@@ -294,6 +325,41 @@ fi
 # suffix is quoted so a glob character in it matches literally; the newline
 # reject above keeps a name from spanning two lines.
 case "$REA_ALLOWLIST" in
-  *$'\n'"mcp__rea__$suffix"$'\n'*) exit 0 ;;
+  *$'\n'"mcp__rea__$suffix"$'\n'*) ;;
+  *) deny "tool '$tool' (suffix '$suffix') is not on the REA allowlist for agent type '$atype'; the allowlist is the REA effect predicate (never mutatesTarget, executesForeignCode, mutatesDevice or destructive)." ;;
 esac
-deny "tool '$tool' (suffix '$suffix') is not on the REA allowlist for agent type '$atype'; the allowlist is the REA effect predicate (never mutatesTarget, executesForeignCode, mutatesDevice or destructive)."
+
+# ---------------------------------------------------------------------------
+# Output-path check (G2 bundle rule): a member that takes a caller-named output
+# path may name only a path under an evidence dir (segment containment; see
+# RESIDUAL). The value must carry
+# the segment `/.claude/war/evidence/` and no `..` segment (the value is
+# wrapped in `/` so a leading or trailing `..` is a segment too; `v1..v2` is a
+# name, not a segment). An absent key passes. A present key is read by
+# presence (`has`), never by value: a present key whose value is not a
+# non-empty string (`""`, null, false, a number, an array or an object, which
+# jq -r would print as JSON text that could embed the segment) is denied. A
+# tool_input that is neither absent nor an object is denied before the loop.
+# ---------------------------------------------------------------------------
+ti_type="$(printf '%s' "$input" | jq -r '.tool_input | type')"
+case "$ti_type" in
+  null|object) ;;
+  *) deny "tool '$tool' carries a tool_input of type $ti_type, not an object, for agent type '$atype'." ;;
+esac
+for key in output_directory destination; do
+  if printf '%s' "$input" | jq -e --arg k "$key" '(.tool_input|type)=="object" and (.tool_input|has($k))' >/dev/null; then
+    vtype="$(printf '%s' "$input" | jq -r --arg k "$key" '.tool_input[$k] | type')"
+    val="$(printf '%s' "$input" | jq -r --arg k "$key" '.tool_input[$k]')"
+    if [ "$vtype" != "string" ] || [ -z "$val" ]; then
+      deny "tool '$tool' names $key with a $vtype value that is not a non-empty path string (a path under /.claude/war/evidence/ only; the G2 bundle rule) for agent type '$atype'."
+    fi
+    case "$val" in
+      *"/.claude/war/evidence/"*) ;;
+      *) deny "tool '$tool' names $key '$val' outside the run's evidence dir (a path under /.claude/war/evidence/ only; the G2 bundle rule) for agent type '$atype'." ;;
+    esac
+    case "/$val/" in
+      *"/../"*) deny "tool '$tool' names $key '$val' with a .. segment (the G2 bundle rule) for agent type '$atype'." ;;
+    esac
+  fi
+done
+exit 0

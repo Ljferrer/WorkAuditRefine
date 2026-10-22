@@ -7,7 +7,9 @@
 #   - war-evidence-auditor / war-worker        : allowed only when the tool-name
 #     suffix (after the second `__`) is on the hook's REA allowlist; a server
 #     registered under another prefix still matches by suffix and prints a
-#     one-line canary on stdout.
+#     one-line canary on stdout. A member's `tool_input.output_directory` (or
+#     `destination`) must sit under `/.claude/war/evidence/` with no `..`
+#     segment (Group B2, the output-path check).
 #   - every other agent_type (main session, non-WAR agent) : pass-through (0).
 #   - a parse or infra error (jq absent, payload not JSON, no tool_name, a
 #     tool_name that is not `mcp__<server>__<tool>`, one carrying a newline) : exit 2,
@@ -145,6 +147,80 @@ expect_deny "war-worker non-member denied" \
   "$(mk 'war-worker' "$NON_MEMBER")" "not on the REA allowlist"
 expect_deny "exact-shape :war-worker non-member denied" \
   "$(mk 'work-audit-refine:war-worker' "$NON_MEMBER")" "not on the REA allowlist"
+
+# ---------------------------------------------------------------------------
+# Group B2: the output-path check (ruling #2402, the G2 bundle rule). After the
+# allowlist membership passes, a `tool_input.output_directory` (or
+# `destination`) must contain the segment `/.claude/war/evidence/` and carry no
+# `..` segment, else deny; an absent key passes, and a present key must hold a
+# non-empty string (`""`, null, false, an array or an object is denied; the key
+# is read by presence, never by value). A tool_input that is neither absent nor
+# an object is denied. war-evidence-auditor and war-worker share the rule. The
+# four plan labels are the exact TAP labels.
+# ---------------------------------------------------------------------------
+# mk_in <agent_type> <tool_name> <tool_input-json> -> a payload with that input.
+mk_in() { jq -nc --arg at "$1" --arg tn "$2" --argjson ti "$3" '{"agent_type":$at,"tool_name":$tn,"tool_input":$ti}'; }
+WRITE_TOOL="mcp__rea__pull_adb_file"                  # a member that takes a caller-named output_directory
+EVID_DIR="/Users/x/repo/.claude/war/evidence/plan-slug"
+expect_deny "output_directory outside evidence dir denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"output_directory":"/Users/x/repo/.claude/war-worktrees/p1"}')" "outside the run's evidence dir"
+expect_deny "output_directory with .. denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "{\"output_directory\":\"$EVID_DIR/../../../etc\"}")" ".. segment"
+expect_allow "output_directory under evidence dir allowed" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "{\"output_directory\":\"$EVID_DIR/bundle\"}")"
+expect_allow "no output_directory key allowed" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"path":"/data/app/x.apk"}')"
+# A trailing `..` is a segment too; a dotted name is not.
+expect_deny "output_directory with trailing .. denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "{\"output_directory\":\"$EVID_DIR/..\"}")" ".. segment"
+expect_allow "output_directory with a dotted name under evidence dir allowed" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "{\"output_directory\":\"$EVID_DIR/v1..v2\"}")"
+# The contract is the path segment: a bare `evidence` dir name elsewhere is denied.
+expect_deny "output_directory with the bare dir name but no segment denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"output_directory":"/Users/x/evidence/plan"}')" "outside the run's evidence dir"
+# `destination` rides the same rule.
+expect_deny "destination outside evidence dir denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"destination":"/tmp/out"}')" "outside the run's evidence dir"
+expect_allow "destination under evidence dir allowed" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "{\"destination\":\"$EVID_DIR/out\"}")"
+# war-worker: the same rule (G2 bundle rule).
+expect_deny "war-worker output_directory outside evidence dir denied" \
+  "$(mk_in 'war-worker' "$WRITE_TOOL" '{"output_directory":"/Users/x/repo/.claude/war-worktrees/p1"}')" "outside the run's evidence dir"
+expect_deny "war-worker output_directory with .. denied" \
+  "$(mk_in 'war-worker' "$WRITE_TOOL" "{\"output_directory\":\"$EVID_DIR/../x\"}")" ".. segment"
+expect_allow "war-worker output_directory under evidence dir allowed" \
+  "$(mk_in 'war-worker' "$WRITE_TOOL" "{\"output_directory\":\"$EVID_DIR/bundle\"}")"
+# Order: membership first. A non-member is denied by the allowlist even with a
+# clean output_directory; a member with no tool_input key at all passes.
+expect_deny "non-member with an evidence-dir output_directory still denied by the allowlist" \
+  "$(mk_in 'war-evidence-auditor' "$NON_MEMBER" "{\"output_directory\":\"$EVID_DIR/bundle\"}")" "not on the REA allowlist"
+expect_allow "member with no tool_input key allowed" \
+  "$(jq -nc --arg tn "$WRITE_TOOL" '{"agent_type":"war-evidence-auditor","tool_name":$tn}')"
+# A present key is read by presence, never by value: an empty string, null,
+# false or a non-string is denied (ruling #2402: when present, deny unless the
+# value carries the segment). The array row embeds the segment in one element,
+# which jq -r would print as JSON text; the type check denies it first.
+expect_deny "output_directory empty string denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"output_directory":""}')" "not a non-empty path string"
+expect_deny "destination empty string denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"destination":""}')" "not a non-empty path string"
+expect_deny "output_directory null denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"output_directory":null}')" "not a non-empty path string"
+expect_deny "output_directory false denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" '{"output_directory":false}')" "not a non-empty path string"
+# The array literal is assigned first: bash 3.2 mis-parses a comma between
+# `\"`-escaped strings nested inside `"$(...)"` and splits the arguments.
+ARRAY_OD="{\"output_directory\":[\"$EVID_DIR/a\",\"/tmp/evil\"]}"
+expect_deny "output_directory non-string denied" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "$ARRAY_OD")" "not a non-empty path string"
+expect_deny "war-worker output_directory empty string denied" \
+  "$(mk_in 'war-worker' "$WRITE_TOOL" '{"output_directory":""}')" "not a non-empty path string"
+# A tool_input that is neither absent nor an object is an explicit deny, not an
+# ERR-trap fold.
+expect_deny "tool_input non-object denied (exit 2)" \
+  "$(jq -nc --arg tn "$WRITE_TOOL" '{"agent_type":"war-evidence-auditor","tool_name":$tn,"tool_input":"/tmp/out"}')" "not an object"
+expect_deny "tool_input array denied (exit 2)" \
+  "$(mk_in 'war-evidence-auditor' "$WRITE_TOOL" "[\"$EVID_DIR/bundle\"]")" "not an object"
 
 # ---------------------------------------------------------------------------
 # Group C: suffix keying + the live-name canary. A server registered under

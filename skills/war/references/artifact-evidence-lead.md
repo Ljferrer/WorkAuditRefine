@@ -31,7 +31,9 @@ If `rea doctor --json` carries no adb row, a plan with an adb row resolves prese
 path (item 1) only; `"$REA_ADB_PATH" version` confirms the install, never presence.
 
 `run.evidence` must be `true` in the resolved config as well. Both must hold; the engine never
-probes.
+probes. If `rea --version` differs from the version the evidence-auditor MCP hook's header records
+(`Derived at rea-agents: `), print one loud line: re-derive the allowlist before relying on the
+evidence seat.
 
 When rows exist and both hold, run
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh ensure-exclude $MAIN`
@@ -76,4 +78,6 @@ precondition:
 
 Then still thread `args.targetArtifacts`, leave `args.evidence` absent, and launch. The run
 proceeds, and every prompt is byte-identical to an evidence-less run (G3). With no rows there is
-nothing to skip and nothing to log.
+nothing to skip and nothing to log. The engine drops any stray evidence-type row at entry as a
+backstop and counts the drops on its own loud line (ruling #2404), so this strip is the first
+line, not the only one.
