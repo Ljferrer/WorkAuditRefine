@@ -87,7 +87,8 @@ plan than this record.
 - A new agent type, the evidence member of `SEAT_AGENT_TYPES` (`war-config.mjs`). `runSeat`
   dispatches `seat.agentType` from that allowlist and refuses an unlisted type. `validateRoster`
   rejects an evidence-type row unless `run.evidence` is `true`, and caps non-evidence seats at 4
-  beside an evidence seat. The five-seat ceiling holds everywhere else.
+  beside an evidence seat. The five-seat ceiling holds everywhere else. With `args.evidence` off
+  the engine drops any evidence-type row at entry and counts it on the loud line (ruling #2404).
 - Its lens is `EVIDENCE_LENS`, a `WIDEN_BARRED_LENSES` member. `resolveWidenSource` refuses it in
   both copies. Every doc surface states the widen refusal by export name, never as a closed pair
   (D19, PIN-16): a nomination is valid when it is never a `RESERVED_LENSES` or
@@ -143,7 +144,10 @@ plan than this record.
 - **Sharp edge:** the lint is advisory, so a pasted decompiler header reaches the plan body until
   `/red-team`'s `untrusted-content` probe runs.
 - **Sharp edge:** the allowlist is derived at one REA version. A REA upgrade that adds a tool leaves
-  the new tool denied until the hook is re-derived, because the hook fails closed.
+  the new tool denied until the hook is re-derived, because the hook fails closed. The allowlist
+  test's predicate arms run only at the pinned derivation version and skip with a diagnostic
+  otherwise, and war-room and the Lead each print one loud line on a version mismatch (ruling
+  #2403).
 
 ## Decision log
 
@@ -151,5 +155,7 @@ plan than this record.
   matrix by agent type with the evidence-auditor MCP hook as the owner of the allow and deny sets,
   the evidence seat and the widen-refusal wording · plan 2026-10-20-rea-artifact-evidence
 - 2026-10-21 · operator rulings #2402 (hook output-path check), #2403 (allowlist pinned to its
-  derivation version), #2404 (engine drops evidence-type rows while args.evidence is off) · plan
-  2026-10-20-rea-artifact-evidence task 3.1
+  derivation version), #2404 (engine drops evidence-type rows while args.evidence is off), #2405
+  (declining the war-room evidence offer turns run.evidence off, pinned by the presence test),
+  #2406 (one cite-only constant, byte-equal to the card) · plan 2026-10-20-rea-artifact-evidence
+  task 3.1
