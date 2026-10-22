@@ -1407,8 +1407,8 @@ const provisionClause = provisionList.length
 // path, sha256 and provider are non-empty strings, so the row text needs no fallback. The manifest duty
 // is conditioned on a citing plan slice (artifact-evidence.md § The digest manifest); a non-citing task,
 // the polish sweep and the terminal pass commit no manifest. One manifest per cited artifact (D23):
-// `<sha12>` keys the file by the first 12 hex of that artifact's sha256, so a task that cites N
-// artifacts commits N manifests. A task-bearing site also names the RESOLVED path (manifestPathOf:
+// `<sha12>` keys the file by the first 12 hex of that artifact's DECLARED sha256 (the plan row's
+// digest, never a digest the worker measures), so a task that cites N artifacts commits N manifests. A task-bearing site also names the RESOLVED path (manifestPathOf:
 // A.planSlug + task.id — the same inputs evidenceSeatSkeleton reads the manifests with; `<sha12>`
 // stays a placeholder because the engine never knows which declared rows a task cites), so the
 // worker and the evidence seat never build the path from different inputs.
@@ -1425,7 +1425,7 @@ const CITE_ONLY_LINE = pt`Cite-only: cite the record id and the digests, never t
 const reaClauseWith = resolved => reaOn
   ? pt`\nREA ARTIFACT EVIDENCE (args.evidence on: run.evidence on and REA present): declared target artifacts — ` + artifactRows(targetArtifacts)
     + pt`. If your plan slice cites a \`rea:\` tag, ground every claim about a declared artifact on your own REA measurement through the allowlisted tools, then commit a payload-free digest manifest on your task branch at ` + MANIFEST_PATH_TEMPLATE
-    + pt` (one manifest per cited artifact: substitute this plan's slug, your task id and <sha12>, the first 12 hex of that artifact's sha256; the manifest's sha256 key carries the full digest)` + resolved + pt`; otherwise commit no manifest. Read the record's digest keys from get_evidence_bundle detail=summary; the key schema is the \`Manifest keys: \` line of skills/war-strategy/references/artifact-evidence.md (the doctrine home — tag grammar, digest rule, cite-only rule). ` + CITE_ONLY_LINE + pt`\n`
+    + pt` (one manifest per cited artifact: substitute this plan's slug, your task id and <sha12>, the first 12 hex of that artifact's declared sha256; the manifest's sha256 key carries the full digest)` + resolved + pt`; otherwise commit no manifest. Read the record's digest keys from get_evidence_bundle detail=summary; the key schema is the \`Manifest keys: \` line of skills/war-strategy/references/artifact-evidence.md (the doctrine home — tag grammar, digest rule, cite-only rule). ` + CITE_ONLY_LINE + pt`\n`
   : ''
 const reaClause = reaClauseWith('')
 const reaClauseOf = task => reaClauseWith(pt` (this task: ` + manifestPathOf(task) + pt`)`)
@@ -2892,12 +2892,12 @@ const BACKWARD_CHAIN_WORK_CLAUSE = pt`\nBACKWARD-CHAIN WORK (canonical home: `
 // `ADR 0041 rung:` and `HOLD only on` lines in agents/war-evidence-auditor.md (same commit; the End-state
 // 22 test is the arbiter). The manifest path is manifestPathOf(task) (beside MANIFEST_PATH_TEMPLATE), the
 // same resolved path the worker's reaClauseOf(task) names, one manifest per cited artifact with `<sha12>`
-// left for the seat to cut from each cited row's sha256 (D23); the rows are the Lead-threaded declared
+// left for the seat to cut from each cited row's declared sha256 (D23; the worker clause names the same declared digest); the rows are the Lead-threaded declared
 // artifacts (path, digest, provider); the lens name is the seat's own `lens` (never a literal), so an
 // EVIDENCE_LENS rename cannot drift it.
 const EVIDENCE_SEAT_RUNG = pt`ADR 0041 rung: for the evidence seat only, the REA-reported subject sha256 matched against the digest manifest committed at \`audit_sha\` is rung 1 of its measurement.`
 const EVIDENCE_SEAT_HOLD = pt`HOLD only on a sha256 mismatch between the REA-reported subject and that artifact's manifest committed at \`audit_sha\`, on any cited artifact. Every other REA finding is SOFT, a cited artifact with no manifest included. REA unreachable is \`cannot-confirm\`, never a hold.`
-const evidenceSeatSkeleton = (task, lens) => pt`\nEVIDENCE SEAT (lens ${lens}; standing card agents/war-evidence-auditor.md, doctrine home skills/war-strategy/references/artifact-evidence.md): measure each cited artifact through your allowlisted REA tools and compare the REA-reported subject digest with that artifact's digest manifest at the pin — one manifest per cited artifact, read with git show <audit_sha>:` + manifestPathOf(task) + pt` (<sha12>: the first 12 hex of that artifact's sha256), never from the working tree. ` + EVIDENCE_SEAT_RUNG + pt` ` + EVIDENCE_SEAT_HOLD + pt` Declared target artifacts — ` + artifactRows(targetArtifacts) + pt`. ` + CITE_ONLY_LINE
+const evidenceSeatSkeleton = (task, lens) => pt`\nEVIDENCE SEAT (lens ${lens}; standing card agents/war-evidence-auditor.md, doctrine home skills/war-strategy/references/artifact-evidence.md): measure each cited artifact through your allowlisted REA tools and compare the REA-reported subject digest with that artifact's digest manifest at the pin — one manifest per cited artifact, read with git show <audit_sha>:` + manifestPathOf(task) + pt` (<sha12>: the first 12 hex of that artifact's declared sha256), never from the working tree. ` + EVIDENCE_SEAT_RUNG + pt` ` + EVIDENCE_SEAT_HOLD + pt` Declared target artifacts — ` + artifactRows(targetArtifacts) + pt`. ` + CITE_ONLY_LINE
 // D12 staleness line (plan-interview D12, G8): the regular seat's ONE gated line; its source is the doctrine home.
 const REA_STALENESS_LINE = pt`\nREA STALENESS (plan-interview D12; source: skills/war-strategy/references/artifact-evidence.md): a \`rea:\` claim is digest-bound, never re-measured, never a hold — read it as settled; the evidence seat measures the artifact, not the claim's prose.`
 function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound, agentType = 'war-auditor') {

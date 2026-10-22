@@ -20709,8 +20709,8 @@ for (const id of [0, 1, '0', '01', '42']) {
 
 // ===========================================================================
 // REA artifact evidence — Task 2.3 (plan 2026-10-20-rea-artifact-evidence; D3, D8, D9, D10, D18;
-// PIN-3, PIN-6, PIN-7, PIN-15). The six test titles below are the End-state 8, 11, 18, 22 and 23
-// titles verbatim (the Done when awk-anchors each one). `args.evidence` is the Lead-resolved
+// PIN-3, PIN-6, PIN-7, PIN-15). The End-state 8, 11, 18, 22 and 23 titles sit below verbatim (the
+// Done when awk-anchors each one), beside the Task 5.1 (D23) per-artifact manifest test. `args.evidence` is the Lead-resolved
 // presence half of the evidence gate (run.evidence on AND REA present); `args.targetArtifacts` is
 // the Lead-threaded target-artifacts.mjs output. Off ⇒ every prompt byte-identical (G3).
 const REA_ROW = { path: 'build/hello', sha256: 'a'.repeat(64), provider: 'ghidra' }
@@ -20889,7 +20889,8 @@ test('evidence seat skeleton: IDENTICAL wording in agents/war-evidence-auditor.m
 })
 
 // One manifest per cited artifact (D23): the worker clause and the evidence seat skeleton both say
-// so, both name `<sha12>` as the first 12 hex of that artifact's sha256, and the seat reads a cited
+// so, both name `<sha12>` as the first 12 hex of that artifact's DECLARED sha256 (never a measured
+// one: the two differ only when the file on disk drifted from the plan row), and the seat reads a cited
 // artifact with no manifest as SOFT. Off, no prompt carries any of it (the off arm is byte-identical
 // to the evidence-less baseline by the rea-clause test; here the per-artifact wording is absent).
 test('rea clause and evidence skeleton: one manifest per cited artifact', async () => {
@@ -20901,7 +20902,7 @@ test('rea clause and evidence skeleton: one manifest per cited artifact', async 
   for (const [who, text] of [['worker clause', workerLine], ['evidence seat skeleton', evP]]) {
     assert.ok(text.includes('one manifest per cited artifact'), `${who}: says one manifest per cited artifact`)
     assert.ok(text.includes(REA_RESOLVED_PATH), `${who}: names the resolved path with <sha12> left for the artifact`)
-    assert.ok(text.includes('first 12 hex of that artifact\'s sha256'), `${who}: defines <sha12> as the first 12 hex of that artifact's sha256`)
+    assert.ok(text.includes('first 12 hex of that artifact\'s declared sha256'), `${who}: defines <sha12> as the first 12 hex of that artifact's DECLARED sha256`)
   }
   assert.ok(workerLine.includes('full digest'), 'worker clause: the manifest sha256 key still carries the full digest')
   const hold = evP.split('\n').find(l => l.includes('HOLD only on a sha256 mismatch'))
@@ -20913,6 +20914,7 @@ test('rea clause and evidence skeleton: one manifest per cited artifact', async 
   assert.ok(inline.endsWith('/<task-id>.<sha12>.manifest.json'), 'the inline mirror keys the file by <sha12>')
   // Off: no dispatched prompt carries the per-artifact wording or the placeholder.
   const off = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  assert.ok(off.calls.some(isWorker), 'off: a worker dispatched (presence guard)')
   for (const c of off.calls) {
     const p = String(c.prompt)
     assert.ok(!p.includes('one manifest per cited artifact') && !p.includes('<sha12>'), `off: ${c.opts.label || 'prompt'} carries no per-artifact manifest wording`)

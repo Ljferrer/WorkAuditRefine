@@ -1,7 +1,8 @@
 // target-artifacts.test.mjs — the `**Target artifacts**` parser (plan 2026-10-20-rea-artifact-
 // evidence Task 1.7; D8, D18; PIN-6, PIN-15) and its doc-token guard.
 //
-// Two tests, titled exactly as End-state 20 names them:
+// The parser test and the doc-token guard test are titled exactly as End-state 20 names them;
+// the manifest path test is titled exactly as End-state 27 names it:
 //   1. the parser reads block rows anywhere in Part 1 (more than one block, in document order,
 //      blank lines allowed under a marker and between its rows), skips code fences, drops a
 //      block under any Part 2 H2, and names the tasks whose `Plan slice:` cites a `rea:` tag on
@@ -20,7 +21,10 @@
 //      per-surface map carries a lead-in-anchored value, and that value deepEquals the export.
 //      Every bare occurrence of a lead-in must carry a shaped value, so a second occurrence
 //      that drifts to plain text reds the guard instead of being skipped.
-//      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants.
+//      `CONTEXT.md` and `artifact-evidence-lead.md` are NOT in the map — they name constants;
+//   3. the manifest path test (End-state 27, D23): the `<sha12>` placeholder sits between
+//      `<task-id>` and `.manifest.json`, two artifacts under one task resolve to two files in one
+//      plan-slug directory, and MANIFEST_KEYS is unchanged.
 //
 // Repo root resolves from import.meta.url, never process.cwd(): a WAR subagent's cwd is the
 // main checkout and resets between bash calls.
