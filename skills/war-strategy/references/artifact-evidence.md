@@ -72,8 +72,9 @@ Manifest path: `docs/plans/evidence/<plan-slug>/<task-id>.<sha12>.manifest.json`
 Plan slug: `<plan-slug>` is the merged plan's file basename without `.md`, date prefix
 included (example: `2026-10-20-rea-artifact-evidence`).
 
-`<sha12>` is the first 12 hex of that artifact's sha256. It only names the file: the
-manifest's `sha256` key carries the full 64-hex digest the seat compares.
+`<sha12>` is the first 12 hex of that artifact's declared sha256 (the Target artifacts row).
+It only names the file: the manifest's `sha256` key carries the full 64-hex digest the seat
+compares.
 
 Manifest keys: `evidence_id`, `sha256`, `provider`, `tool`, `parameters`, `limitations`
 

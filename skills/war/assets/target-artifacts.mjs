@@ -7,7 +7,7 @@
 // target-artifacts.test.mjs extracts and compares to the export:
 //   TARGET_ARTIFACTS_MARKER — the block's marker line, verbatim.
 //   MANIFEST_PATH_TEMPLATE  — where a worker commits a digest manifest, on the task branch: one
-//                             per cited artifact, `<sha12>` the first 12 hex of its sha256 (D23).
+//                             per cited artifact, `<sha12>` the first 12 hex of its declared sha256 (D23).
 //   MANIFEST_KEYS           — the only keys a manifest carries (G6); any other key is payload.
 // The grammar, the digest rule and the cite-only rule live in
 // skills/war-strategy/references/artifact-evidence.md, never here.

@@ -20726,7 +20726,7 @@ const promptsOf = calls => calls.map(c => stableGatePrompt(String(c.prompt)))
 // `resolved` names whether a task is in scope at the site: the clause then carries the resolved
 // manifest path (REA_RESOLVED_PATH, PROVISION_ARGS planSlug + task t1); the sweep and terminal sites do not.
 // `<sha12>` stays a placeholder in the resolved path (D23): the engine does not know which declared
-// artifacts a task cites, so the worker cuts the key from each cited artifact's own sha256.
+// artifacts a task cites, so the worker cuts the key from each cited artifact's declared sha256.
 const REA_RESOLVED_PATH = 'docs/plans/evidence/wtprov-a/t1.<sha12>.manifest.json'
 const REA_WORKER_SITES = [
   { site: 'work', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => defaultImpl,

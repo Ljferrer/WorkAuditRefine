@@ -11,7 +11,7 @@ You are the **WAR evidence seat**. You are **READ-ONLY**: files via Read/Grep/Gl
 - your **lens**: `artifact-evidence` (`EVIDENCE_LENS` in `war-config.mjs`). The Lead seats it only when `run.evidence` is on and REA is present. It is a `WIDEN_BARRED_LENSES` member, so it is never a widen nominee.
 - the **`audit_sha`** you are judging (your verdict is pinned to it). Resolve the task branch tip yourself with read-only git, never its merge-base.
 - the **diff**: compute it yourself (`git diff <integrationBranch>...<task.branch>`), and re-run it each round.
-- the **worktree** path, and the task's **digest manifest** path on the task branch (the dispatched prompt names it from `MANIFEST_PATH_TEMPLATE`): one manifest per cited artifact, `<sha12>` the first 12 hex of that artifact's sha256. Read each manifest at the pin with `git show <audit_sha>:<path>`, never from the working tree.
+- the **worktree** path, and the task's **digest manifest** path on the task branch (the dispatched prompt names it from `MANIFEST_PATH_TEMPLATE`): one manifest per cited artifact, `<sha12>` the first 12 hex of that artifact's declared sha256. Read each manifest at the pin with `git show <audit_sha>:<path>`, never from the working tree.
 - the declared **target artifacts** the Lead threads: one row per artifact with its path, sha256 and provider.
 
 ## Doctrine home (ADR 0042)

@@ -1408,10 +1408,11 @@ const provisionClause = provisionList.length
 // is conditioned on a citing plan slice (artifact-evidence.md § The digest manifest); a non-citing task,
 // the polish sweep and the terminal pass commit no manifest. One manifest per cited artifact (D23):
 // `<sha12>` keys the file by the first 12 hex of that artifact's DECLARED sha256 (the plan row's
-// digest, never a digest the worker measures), so a task that cites N artifacts commits N manifests. A task-bearing site also names the RESOLVED path (manifestPathOf:
-// A.planSlug + task.id — the same inputs evidenceSeatSkeleton reads the manifests with; `<sha12>`
-// stays a placeholder because the engine never knows which declared rows a task cites), so the
-// worker and the evidence seat never build the path from different inputs.
+// digest, never a digest the worker measures), so a task that cites N artifacts commits N manifests.
+// A task-bearing site also names the RESOLVED path (manifestPathOf: A.planSlug + task.id — the same
+// inputs evidenceSeatSkeleton reads the manifests with; `<sha12>` stays a placeholder because the
+// engine never knows which declared rows a task cites), so the worker and the evidence seat never
+// build the path from different inputs.
 const MANIFEST_PATH_TEMPLATE = 'docs/plans/evidence/<plan-slug>/<task-id>.<sha12>.manifest.json'
 const manifestPathOf = task => MANIFEST_PATH_TEMPLATE.replace('<plan-slug>', planSlug || '<plan-slug>').replace('<task-id>', task.id ?? '<task-id>')
 const artifactRows = rows => rows.length
@@ -2892,9 +2893,9 @@ const BACKWARD_CHAIN_WORK_CLAUSE = pt`\nBACKWARD-CHAIN WORK (canonical home: `
 // `ADR 0041 rung:` and `HOLD only on` lines in agents/war-evidence-auditor.md (same commit; the End-state
 // 22 test is the arbiter). The manifest path is manifestPathOf(task) (beside MANIFEST_PATH_TEMPLATE), the
 // same resolved path the worker's reaClauseOf(task) names, one manifest per cited artifact with `<sha12>`
-// left for the seat to cut from each cited row's declared sha256 (D23; the worker clause names the same declared digest); the rows are the Lead-threaded declared
-// artifacts (path, digest, provider); the lens name is the seat's own `lens` (never a literal), so an
-// EVIDENCE_LENS rename cannot drift it.
+// left for the seat to cut from each cited row's declared sha256 (D23; the worker clause names the same
+// declared digest); the rows are the Lead-threaded declared artifacts (path, digest, provider); the lens
+// name is the seat's own `lens` (never a literal), so an EVIDENCE_LENS rename cannot drift it.
 const EVIDENCE_SEAT_RUNG = pt`ADR 0041 rung: for the evidence seat only, the REA-reported subject sha256 matched against the digest manifest committed at \`audit_sha\` is rung 1 of its measurement.`
 const EVIDENCE_SEAT_HOLD = pt`HOLD only on a sha256 mismatch between the REA-reported subject and that artifact's manifest committed at \`audit_sha\`, on any cited artifact. Every other REA finding is SOFT, a cited artifact with no manifest included. REA unreachable is \`cannot-confirm\`, never a hold.`
 const evidenceSeatSkeleton = (task, lens) => pt`\nEVIDENCE SEAT (lens ${lens}; standing card agents/war-evidence-auditor.md, doctrine home skills/war-strategy/references/artifact-evidence.md): measure each cited artifact through your allowlisted REA tools and compare the REA-reported subject digest with that artifact's digest manifest at the pin — one manifest per cited artifact, read with git show <audit_sha>:` + manifestPathOf(task) + pt` (<sha12>: the first 12 hex of that artifact's declared sha256), never from the working tree. ` + EVIDENCE_SEAT_RUNG + pt` ` + EVIDENCE_SEAT_HOLD + pt` Declared target artifacts — ` + artifactRows(targetArtifacts) + pt`. ` + CITE_ONLY_LINE
