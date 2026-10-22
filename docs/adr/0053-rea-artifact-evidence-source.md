@@ -144,8 +144,10 @@ plan than this record.
 - **Sharp edge:** the lint is advisory, so a pasted decompiler header reaches the plan body until
   `/red-team`'s `untrusted-content` probe runs.
 - **Sharp edge:** the allowlist is derived at one REA version. A REA upgrade that adds a tool leaves
-  the new tool denied until the hook is re-derived, because the hook fails closed. The predicate
-  arms skip off the pinned derivation version and the Lead warns at launch (ruling #2403).
+  the new tool denied until the hook is re-derived, because the hook fails closed. The allowlist
+  test's predicate arms run only at the pinned derivation version and skip with a diagnostic
+  otherwise, and war-room and the Lead each print one loud line on a version mismatch (ruling
+  #2403).
 
 ## Decision log
 
@@ -154,5 +156,6 @@ plan than this record.
   the evidence seat and the widen-refusal wording · plan 2026-10-20-rea-artifact-evidence
 - 2026-10-21 · operator rulings #2402 (hook output-path check), #2403 (allowlist pinned to its
   derivation version), #2404 (engine drops evidence-type rows while args.evidence is off), #2405
-  (the war-room decline rule pinned by presence), #2406 (one cite-only constant, byte-equal to the
-  card) · plan 2026-10-20-rea-artifact-evidence task 3.1
+  (declining the war-room evidence offer turns run.evidence off, pinned by the presence test),
+  #2406 (one cite-only constant, byte-equal to the card) · plan 2026-10-20-rea-artifact-evidence
+  task 3.1
