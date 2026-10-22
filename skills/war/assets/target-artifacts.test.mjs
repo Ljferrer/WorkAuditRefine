@@ -124,7 +124,7 @@ None
 
 test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names citing tasks', () => {
   assert.equal(TARGET_ARTIFACTS_MARKER, '**Target artifacts**')
-  assert.equal(MANIFEST_PATH_TEMPLATE, 'docs/plans/evidence/<plan-slug>/<task-id>.manifest.json')
+  assert.equal(MANIFEST_PATH_TEMPLATE, 'docs/plans/evidence/<plan-slug>/<task-id>.<sha12>.manifest.json')
   assert.deepEqual(MANIFEST_KEYS, ['evidence_id', 'sha256', 'provider', 'tool', 'parameters', 'limitations'])
   // deepEqual ignores frozenness: a consumer must not be able to push a key into the shared export.
   assert.ok(Object.isFrozen(MANIFEST_KEYS), 'MANIFEST_KEYS is frozen')
@@ -302,6 +302,30 @@ test('target-artifacts: parses rows anywhere in Part 1, fence-aware, and names c
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// --- one manifest per cited artifact (D23) -----------------------------------------------
+// `<sha12>` keys the file to one artifact: a task that cites N artifacts commits N manifests
+// under one `<plan-slug>/<task-id>.` prefix. The placeholder only names the file; the full
+// 64-hex digest the seat compares stays in the manifest's `sha256` key (MANIFEST_KEYS).
+test('manifest path: one manifest per cited artifact, keyed by the first 12 hex of its sha256', () => {
+  assert.equal(MANIFEST_PATH_TEMPLATE, 'docs/plans/evidence/<plan-slug>/<task-id>.<sha12>.manifest.json')
+  assert.ok(MANIFEST_PATH_TEMPLATE.endsWith('/<task-id>.<sha12>.manifest.json'), 'the sha12 key sits between the task id and the .manifest.json suffix')
+  assert.equal(MANIFEST_PATH_TEMPLATE.split('<sha12>').length - 1, 1, 'exactly one <sha12> placeholder')
+  // Two cited artifacts under one task resolve to two distinct files; the first 12 hex of a
+  // 64-hex digest is the key, never the whole digest and never a git SHA.
+  const resolve = (slug, id, sha256) => {
+    assert.match(sha256, /^[0-9a-f]{64}$/, 'the key is cut from a full 64-hex sha256')
+    return MANIFEST_PATH_TEMPLATE.replace('<plan-slug>', slug).replace('<task-id>', id).replace('<sha12>', sha256.slice(0, 12))
+  }
+  const a = resolve('2026-10-20-rea-artifact-evidence', '1.1', HEX)
+  const b = resolve('2026-10-20-rea-artifact-evidence', '1.1', 'b'.repeat(64))
+  assert.equal(a, `docs/plans/evidence/2026-10-20-rea-artifact-evidence/1.1.${HEX.slice(0, 12)}.manifest.json`)
+  assert.notEqual(a, b, 'one task, two artifacts, two manifest files')
+  assert.equal(a.slice(0, a.lastIndexOf('/') + 1), b.slice(0, b.lastIndexOf('/') + 1), 'both files share the plan-slug directory')
+  assert.ok(!a.includes('<') && !b.includes('<'), 'every placeholder resolves')
+  // MANIFEST_KEYS is unchanged: the full digest still rides the manifest body under `sha256`.
+  assert.deepEqual(MANIFEST_KEYS, ['evidence_id', 'sha256', 'provider', 'tool', 'parameters', 'limitations'])
 })
 
 // --- the doc-token guard -----------------------------------------------------------------

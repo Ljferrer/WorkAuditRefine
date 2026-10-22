@@ -29,8 +29,8 @@ task's rebased base. A `rea:` claim is exempt. Its base is a content digest, and
 measurement bound to a digest cannot go stale while the digest holds. No run re-measures
 it. A regular audit seat treats a `rea:` claim as digest-bound: never re-measured, never a
 hold. Only the evidence seat measures, and it HOLDs only when the REA-reported subject
-sha256 differs from the manifest committed at `audit_sha`. Every other REA finding is SOFT,
-and REA unreachable is `cannot-confirm`.
+sha256 differs from that artifact's manifest committed at `audit_sha`. Every other REA
+finding is SOFT, and REA unreachable is `cannot-confirm`.
 
 ## Cite-only
 
@@ -63,9 +63,17 @@ cites a `rea:` tag. Row shape (one line per artifact, under the marker line):
 ## The digest manifest
 
 A worker whose task cites artifact evidence commits a payload-free manifest on the task
-branch. The evidence seat compares its `sha256` against the REA-reported subject.
+branch, one manifest per cited artifact: a task that cites N artifacts commits N manifests.
+The evidence seat compares each manifest's `sha256` against the REA-reported subject of
+that artifact, HOLDs on any mismatch, and reads a cited artifact with no manifest as SOFT.
 
-Manifest path: `docs/plans/evidence/<plan-slug>/<task-id>.manifest.json`
+Manifest path: `docs/plans/evidence/<plan-slug>/<task-id>.<sha12>.manifest.json`
+
+Plan slug: `<plan-slug>` is the merged plan's file basename without `.md`, date prefix
+included (example: `2026-10-20-rea-artifact-evidence`).
+
+`<sha12>` is the first 12 hex of that artifact's sha256. It only names the file: the
+manifest's `sha256` key carries the full 64-hex digest the seat compares.
 
 Manifest keys: `evidence_id`, `sha256`, `provider`, `tool`, `parameters`, `limitations`
 
@@ -81,20 +89,23 @@ path with a digest). With no trigger the lane stays silent and the plan carries 
 1. Resolve the main checkout:
    `MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`.
 2. Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh ensure-exclude $MAIN`.
-   Only then create `$MAIN/.claude/war/evidence/<plan-slug>/`. The order is the rule: no
-   bundle byte lands before the exclude line exists. Bundles are untracked, never committed.
+   No bundle byte lands before the exclude line exists.
 3. Measure the digest with `shasum -a 256 <path>`.
-4. Open the artifact in REA, ask only what the draft needs, and export the evidence bundle
-   into the directory from step 2.
-5. Record each `evidence_id` beside the digest. Draft the block rows (path, sha256,
+4. Only then create `$MAIN/.claude/war/evidence/<plan-slug>/`. The order is the rule: the
+   exclude line first, the digest second, the directory last. Bundles are untracked, never
+   committed. Digest first: a failed digest creates no directory, and a directory the lane
+   created and left empty is removed before the lane exits.
+5. Open the artifact in REA, ask only what the draft needs, and export the evidence bundle
+   into the directory from step 4.
+6. Record each `evidence_id` beside the digest. Draft the block rows (path, sha256,
    provider) and tag each claim `(verified: rea:ev_… at sha256:…)` in its own words.
-6. Fail open. REA absent, or the artifact unreadable, means no bundle and no block; the
+7. Fail open. REA absent, or the artifact unreadable, means no bundle and no block; the
    claim stays `[assumed:]` and the interview continues.
 
 ## The mid-interview recon pass
 
 An artifact first named at Stage 2 (the operator names a binary in an answer) gets the same
-lane mid-interview. Steps 1 to 6 run at that point, the bundle joins the same
+lane mid-interview. Steps 1 to 7 run at that point, the bundle joins the same
 `<plan-slug>` directory, the row joins the block, and the affected Stage 1b draft claims
 are re-tagged. The pass costs no question from the budget. Record it in the Evidence
 consumed block: one row per bundle, read or unread-with-reason.

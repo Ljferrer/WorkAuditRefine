@@ -20725,7 +20725,9 @@ const promptsOf = calls => calls.map(c => stableGatePrompt(String(c.prompt)))
 // fresh closure per run — several fixtures count rounds internally.
 // `resolved` names whether a task is in scope at the site: the clause then carries the resolved
 // manifest path (REA_RESOLVED_PATH, PROVISION_ARGS planSlug + task t1); the sweep and terminal sites do not.
-const REA_RESOLVED_PATH = 'docs/plans/evidence/wtprov-a/t1.manifest.json'
+// `<sha12>` stays a placeholder in the resolved path (D23): the engine does not know which declared
+// artifacts a task cites, so the worker cuts the key from each cited artifact's own sha256.
+const REA_RESOLVED_PATH = 'docs/plans/evidence/wtprov-a/t1.<sha12>.manifest.json'
 const REA_WORKER_SITES = [
   { site: 'work', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => defaultImpl,
     find: c => c.find(isWorker), resolved: true },
@@ -20884,6 +20886,37 @@ test('evidence seat skeleton: IDENTICAL wording in agents/war-evidence-auditor.m
   assert.ok(reaLine && reaLine.endsWith(citeConst), 'the worker REA clause ends with CITE_ONLY_LINE as emitted')
   assert.ok(evP.includes(citeConst), 'the evidence seat skeleton carries CITE_ONLY_LINE as emitted')
   assert.ok(!regP.includes(citeConst), 'the regular seat carries no cite-only line')
+})
+
+// One manifest per cited artifact (D23): the worker clause and the evidence seat skeleton both say
+// so, both name `<sha12>` as the first 12 hex of that artifact's sha256, and the seat reads a cited
+// artifact with no manifest as SOFT. Off, no prompt carries any of it (the off arm is byte-identical
+// to the evidence-less baseline by the rea-clause test; here the per-artifact wording is absent).
+test('rea clause and evidence skeleton: one manifest per cited artifact', async () => {
+  const tasks = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }]
+  const on = await runPhase(PROVISION_ARGS({ tasks, run: { evidence: true }, ...REA_ON }), defaultImpl)
+  const workerLine = String(on.calls.find(isWorker).prompt).split('\n').find(l => l.startsWith(REA_HEAD))
+  const evP = (on.calls.find(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`) || {}).prompt
+  assert.ok(workerLine && evP, 'the worker and the evidence seat dispatched (presence guard)')
+  for (const [who, text] of [['worker clause', workerLine], ['evidence seat skeleton', evP]]) {
+    assert.ok(text.includes('one manifest per cited artifact'), `${who}: says one manifest per cited artifact`)
+    assert.ok(text.includes(REA_RESOLVED_PATH), `${who}: names the resolved path with <sha12> left for the artifact`)
+    assert.ok(text.includes('first 12 hex of that artifact\'s sha256'), `${who}: defines <sha12> as the first 12 hex of that artifact's sha256`)
+  }
+  assert.ok(workerLine.includes('full digest'), 'worker clause: the manifest sha256 key still carries the full digest')
+  assert.ok(evP.includes('a cited artifact with no manifest is SOFT'), 'evidence seat skeleton: a cited artifact with no manifest is SOFT')
+  const hold = evP.split('\n').find(l => l.includes('HOLD only on a sha256 mismatch'))
+  assert.ok(hold && hold.includes('any cited artifact'), 'the HOLD line applies to any cited artifact')
+  // The inline mirror carries <sha12> between the task id and the suffix, whole-string equal to the export.
+  const inline = (src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]
+  assert.equal(inline, MANIFEST_PATH_TEMPLATE, 'the inline mirror equals the export')
+  assert.ok(inline.endsWith('/<task-id>.<sha12>.manifest.json'), 'the inline mirror keys the file by <sha12>')
+  // Off: no dispatched prompt carries the per-artifact wording or the placeholder.
+  const off = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  for (const c of off.calls) {
+    const p = String(c.prompt)
+    assert.ok(!p.includes('one manifest per cited artifact') && !p.includes('<sha12>'), `off: ${c.opts.label || 'prompt'} carries no per-artifact manifest wording`)
+  }
 })
 
 test('rea absent path: evidence off with targetArtifacts present logs one loud line, seats no evidence auditor, prompts byte-identical', async () => {
