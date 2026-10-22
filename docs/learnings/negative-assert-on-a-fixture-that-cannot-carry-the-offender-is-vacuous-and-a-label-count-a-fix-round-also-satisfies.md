@@ -26,7 +26,7 @@ metadata:
     - workflow-template
   created: 2026-10-21
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-21T16:42:59.860Z
+  modified: 2026-10-22T15:48:14.570Z
 ---
 
 # Two new vacuous-test shapes from the REA absent-path test
@@ -43,6 +43,8 @@ Both shapes were caught by audit seats and fixed in ace rounds before land. Both
 
 **Residual.** The original `>= 2` line and the default-roster `isEvidenceSeat` line still exist at the landed tip. The discriminating witnesses sit beside them. A reader who sees only those two lines will think the test is weak. Read the whole test.
 
-**Status.** Audit findings resolved in a fix round before land, recorded as pattern, not live instance. The engine still does not drop a stray evidence row when `args.evidence` is off; see [[evidence-knob-has-two-engine-carriers-run-evidence-and-args-evidence]].
+**Phase 3 follow-up.** Phase 3 gave the engine the behavior these shapes were probing. Since phase 3 (ruling #2404) the engine drops stray evidence-type rows when `args.evidence` is off and names them on the one loud line; see [[evidence-knob-has-two-engine-carriers-run-evidence-and-args-evidence]]. The same test now carries arms whose fixtures can hold the offender: a stray task-roster row, stray `audit.roster` rows in the sweep panel (with `run.evidence` on and off), and a widen arm. The widen arm uses a lone security seat at low confidence with no nomination, so the fallback reads the default roster, which carries a stray evidence row. A mutation that moves the in-place `defaultRoster` splice to after the widen read turns only that arm red. Check each arm with that mutation test before you call it covered.
 
-**Locate-cue (verify still present before acting).** `skills/war/assets/workflow-template.test.mjs`, the test titled "rea absent path: evidence off with targetArtifacts present". Found at landed tip 0d8a9fba, read through the run's `_refinery` worktree (HEAD equal to the tip).
+**Status.** Audit findings from phase 2 resolved in a fix round before land, recorded as pattern, not live instance.
+
+**Locate-cue (verify still present before acting).** `skills/war/assets/workflow-template.test.mjs`, the test titled "rea absent path: evidence off with targetArtifacts present", and its `widenStray` arm. Found at the phase-3 integration tip f94b8783, read through the run's `_refinery` worktree. That commit is the second parent of landed tip 6e655d6e, and the landed merge's other parent is an ancestor of it, so the two trees match by ancestry (tree not read directly).

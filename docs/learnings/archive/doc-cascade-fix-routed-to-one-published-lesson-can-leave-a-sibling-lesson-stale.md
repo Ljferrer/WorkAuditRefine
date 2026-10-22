@@ -23,7 +23,7 @@ metadata:
     - audit-finding
   created: 2026-08-18
   originSessionId: db0604c4-3009-475d-8db8-5d92ff291ce2
-  modified: 2026-08-18T12:01:15.895Z
+  modified: 2026-10-22T15:48:51.487Z
 ---
 
 # A doc-cascade fix routed to one published lesson can leave a sibling lesson stale
@@ -73,5 +73,16 @@ describe this mechanism" as part of scoping the change, alongside "which code fi
 it" — a quick repo-lesson grep for the mechanism's key terms (e.g. `git log --name-only`, `Gate-2
 pre-push`, `@{upstream}`) before locking the plan's file footprint costs one search and prevents
 exactly this class of stale-doc follow-up.
+
+**Recurrence (2026-10-20-rea-artifact-evidence, phase 3, tasks 3.1 and p3-polish).** The engine
+began dropping stray evidence rows (ruling #2404) and the MCP hook began checking output paths
+(ruling #2402). Three published lessons then described the old behavior. The task audit named two
+of them. The polish worker fixed those two and skipped the third, citing an enumerated sweep scope.
+Only the polish audit's three seats caught the third, as a Minor, because the plan slice charged
+cross-task coherence at the integrated tip. The two fixed lessons also kept two wrong sentences
+after the first polish: a Phase 2 bullet read as current, and a bullet that said every off-run
+proceeds when only some do. Rule: when a task changes behavior that lessons narrate, grep
+`docs/learnings/` for the behavior's key terms and list every hit in the polish row, not only the
+rows the audit queued. Re-read each fixed lesson for sentences that now over- or under-state.
 
 > archived 2026-08-30: resolved — moved to archive
