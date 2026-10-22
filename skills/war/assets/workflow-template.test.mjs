@@ -20904,9 +20904,9 @@ test('rea clause and evidence skeleton: one manifest per cited artifact', async 
     assert.ok(text.includes('first 12 hex of that artifact\'s sha256'), `${who}: defines <sha12> as the first 12 hex of that artifact's sha256`)
   }
   assert.ok(workerLine.includes('full digest'), 'worker clause: the manifest sha256 key still carries the full digest')
-  assert.ok(evP.includes('a cited artifact with no manifest is SOFT'), 'evidence seat skeleton: a cited artifact with no manifest is SOFT')
   const hold = evP.split('\n').find(l => l.includes('HOLD only on a sha256 mismatch'))
   assert.ok(hold && hold.includes('any cited artifact'), 'the HOLD line applies to any cited artifact')
+  assert.ok(hold.includes('a cited artifact with no manifest included'), 'the HOLD line, the card-identical copy, reads a cited artifact with no manifest as SOFT')
   // The inline mirror carries <sha12> between the task id and the suffix, whole-string equal to the export.
   const inline = (src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]
   assert.equal(inline, MANIFEST_PATH_TEMPLATE, 'the inline mirror equals the export')
