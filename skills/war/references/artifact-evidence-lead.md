@@ -63,8 +63,8 @@ Thread into every per-phase Workflow (the args contract is in [schemas.md](schem
   the row while `run.evidence` is off, and `resolveWidenSource` never nominates the lens
   (`WIDEN_BARRED_LENSES`).
 
-The worker commits its digest manifest at the path `MANIFEST_PATH_TEMPLATE` names (an export in
-`target-artifacts.mjs`). The engine renders that path into the dispatched clause and the seat
+The worker commits one digest manifest per cited artifact at the path `MANIFEST_PATH_TEMPLATE`
+names (an export in `target-artifacts.mjs`). The engine renders that path into the dispatched clause and the seat
 prompt; thread nothing for it.
 
 ## Skip with one loud line
