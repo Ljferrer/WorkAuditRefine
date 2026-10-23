@@ -7,8 +7,9 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
+import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -176,7 +177,9 @@ const defaultImpl = (prompt, opts) => {
   if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
   if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
-  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
+  // Every SEAT_AGENT_TYPES member answers as an auditor: an evidence seat dispatched under its own
+  // agentType (End state 11) gets a verdict here, not {}.
+  if (SEAT_AGENT_TYPES.includes(seat)) return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: fixtureAuditPin(prompt) }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
       ? { mode: 'land-phase', status: 'landed', working_sha: '2'.repeat(40) }
@@ -4113,8 +4116,9 @@ test('roster — auto-escalate nominated widening: a lone seat naming valid cata
   })
   const impl = buildSeqImpl(
     { 'audit:t1:security': [
-        // The lone seat NOMINATES catalog lenses via `widen`; resolveWidenSource accepts (distinct,
-        // non-reserved) and widens toward performance+usability @ deep — NOT the trio default roster.
+        // The lone seat NOMINATES catalog lenses via `widen`; resolveWidenSource accepts (distinct, never a
+        // `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member (exports in `war-config.mjs`)) and widens
+        // toward performance+usability @ deep — NOT the trio default roster.
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
           widen: ['performance', 'usability'],
           findings: [{ severity: 'Critical', title: 'smells like a perf+ux issue', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'bad' }] },
@@ -4242,6 +4246,31 @@ test('roster — phase-start assertion: a task with NO roster → held:workflow-
   assert.equal(out.landDecision, 'held:workflow-error',
     'an absent roster must yield held:workflow-error — no silent runtime default roster')
   assert.ok(out.workflowError.message.includes('t1'), 'the error names the task')
+})
+
+test('roster — phase-start assertion threads run.evidence: an evidence seat passes entry with run.evidence true and ends held:workflow-error when the knob is absent', async () => {
+  // The call site is validateRoster(t.roster, run.evidence). A mutation back to validateRoster(t.roster)
+  // refuses every evidence seat at entry; the ON arm below goes red on it. The ON arm also threads
+  // args.evidence: with it off the engine drops the row after validation (ruling #2404; the 'rea absent
+  // path' test covers that arm), so the seat convenes only with both halves of the gate on.
+  const evidenceTasks = () => [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] },
+  ]
+  const on = await runPhase(PROVISION_ARGS({ tasks: evidenceTasks(), run: { evidence: true }, evidence: true }), defaultImpl)
+  assert.notEqual(on.out.landDecision, 'held:workflow-error',
+    `an evidence seat passes entry validation with run.evidence true; got: ${JSON.stringify(on.out.workflowError)}`)
+  assert.equal(on.out.landDecision, 'landed', `the evidence seat's verdict is read as an approval and t1 lands; got: ${on.out.landDecision}`)
+  assert.ok(on.out.landed.includes('t1'), 't1 lands on the ON arm (a {} verdict from the seat would escalate instead)')
+  assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`),
+    'the evidence seat is dispatched under its lens label (presence guard)')
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
+  const off = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, PROVISION_ARGS({ tasks: evidenceTasks() }), { total: null })
+  assert.equal(off.landDecision, 'held:workflow-error',
+    'the same roster with run.evidence absent must yield held:workflow-error')
+  assert.ok(off.workflowError && off.workflowError.message.includes('t1'), 'the error names the task')
+  assert.ok(off.workflowError.message.includes('needs run.evidence: true'), 'the error names the run.evidence gate')
 })
 
 test('D7 — gate-audit auto-skip: a merged requiresTest:false task spawns NO gate-audit seat and the skip is logged', async () => {
@@ -5098,7 +5127,7 @@ const sweepBase = (queued) => (prompt, opts) => {
   if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
   if (seat === 'war-worker') return { task_id: 't1', status: 'implemented',
     head_sha: (opts.label || '').startsWith('polish:') ? 'b01a5a00' : 'deadbeef', tests: { unit: 1 } }
-  if (seat === 'war-auditor') {
+  if (SEAT_AGENT_TYPES.includes(seat)) {   // every seat type answers, the evidence seat included
     const label = opts.label || ''
     const f = label.includes(':t1:') && !label.startsWith('gate-audit:') ? queued : []
     return { seat: label, lens: 'correctness', verdict: 'approve', findings: f, confidence: 'high' }
@@ -5253,6 +5282,31 @@ test('phase-close sweep: the sweep dispatch carries the intent when present', as
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
   assert.ok(pw, 'sweep worker dispatched (presence guard)')
   assert.ok(pw.prompt.includes('Purpose: wibble the wtprov.'), 'the sweep prompt carries the intent')
+})
+
+test('phase-close sweep threads run.evidence: a config default roster carrying the evidence seat convenes the polish panel with run.evidence true and skips fail-open when the knob is absent', async () => {
+  // The call site is validateRoster(defaultRoster, run.evidence). A mutation back to validateRoster(defaultRoster)
+  // refuses the evidence seat at the sweep: the ON arm goes red. A mutation to validateRoster(defaultRoster, true)
+  // admits it with the knob absent: the OFF arm goes red. The phase-start twin is 'roster — phase-start assertion
+  // threads run.evidence'; the sweep is the second engine call site. Both arms thread args.evidence true: with it
+  // off the engine drops the row from the default roster before this call site (ruling #2404; the 'rea absent
+  // path' test's sweepStray and sweepStrayKnobOff arms cover that drop with run.evidence on and off), so the
+  // knob read here is only reachable with args.evidence on.
+  const evidenceDefault = { audit: { roster: [{ lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] }, evidence: true }
+  const on = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true, evidence: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(on.calls.some(c => (c.opts.label || '') === `audit:p3-polish:${EVIDENCE_LENS}`),
+    'the evidence seat re-audits the polish: the sweep convenes with run.evidence true')
+  assert.ok(!on.logs.some(l => typeof l === 'string' && l.includes('config default audit.roster is unusable')),
+    'no skip line names an invalid default roster')
+  assert.equal(on.out.handoff.polish, 'merged', 'the re-approved polish merges')
+  assert.ok(!(on.out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding is absorbed, never drained')
+  const off = await runPhase(SWEEP_ARGS({ ...evidenceDefault, run: { ace: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(!off.calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatch with the knob absent')
+  const skip = off.logs.find(l => typeof l === 'string' && l.includes('config default audit.roster is unusable'))
+  assert.ok(skip && skip.includes('needs run.evidence: true'), 'the skip line names the run.evidence gate (fail-open, logged)')
+  assert.ok((off.out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue drains to follow-up')
+  assert.equal(off.out.handoff.polish, 'skipped', 'the phase still lands with polish skipped')
+  assert.ok(off.out.landed.includes('t1'), 't1 lands on the fail-open path')
 })
 
 // --- End-state check (criterion 11) ---
@@ -9327,17 +9381,27 @@ const RTRIO = [
   { lens: 'cascading-impact', depth: 'deep' },
   { lens: 'plan-faithfulness', depth: 'deep' },
 ]
+// [roster, evidence] pairs — `evidence` is the run.evidence knob validateRoster takes beside the roster.
+const EVIDENCE_SEAT = { lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }
+const PLAIN_SEATS = n => Array.from({ length: n }, (_, i) => ({ lens: `plain-${i}` }))
 const VALIDATE_ROSTER_CASES = [
-  [{ lens: 'correctness' }],                                                   // valid 1-seat
-  [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }], // valid 2-seat
-  [],                                                                          // too few
-  [{ lens: 'a' }, { lens: 'b' }, { lens: 'c' }, { lens: 'd' }, { lens: 'e' }, { lens: 'f' }], // too many (6)
-  'not-an-array',                                                              // non-array
-  [{ depth: 'deep' }],                                                         // missing lens
-  [{ lens: 'x' }, { lens: 'x' }],                                              // duplicate lens
-  [{ lens: 'x', depth: 'sideways' }],                                          // bad depth
-  [null],                                                                      // null seat
-  [{ lens: '' }],                                                              // empty lens
+  [[{ lens: 'correctness' }], undefined],                                      // valid 1-seat
+  [[{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }], undefined], // valid 2-seat
+  [[], undefined],                                                             // too few
+  [[{ lens: 'a' }, { lens: 'b' }, { lens: 'c' }, { lens: 'd' }, { lens: 'e' }, { lens: 'f' }], undefined], // too many (6)
+  ['not-an-array', undefined],                                                 // non-array
+  [[{ depth: 'deep' }], undefined],                                            // missing lens
+  [[{ lens: 'x' }, { lens: 'x' }], undefined],                                 // duplicate lens
+  [[{ lens: 'x', depth: 'sideways' }], undefined],                             // bad depth
+  [[null], undefined],                                                         // null seat
+  [[{ lens: '' }], undefined],                                                 // empty lens
+  [[{ lens: 'correctness', agentType: 'war-auditor' }], undefined],            // valid plain agentType
+  [[{ lens: 'correctness', agentType: 'bogus' }], true],                       // unknown agentType
+  [[EVIDENCE_SEAT], true],                                                     // evidence seat, run.evidence on
+  [[EVIDENCE_SEAT], false],                                                    // evidence seat, run.evidence off
+  [[EVIDENCE_SEAT], undefined],                                                // evidence seat, knob absent
+  [[...PLAIN_SEATS(4), EVIDENCE_SEAT], true],                                  // 4 + evidence = 5: valid
+  [[...PLAIN_SEATS(5), EVIDENCE_SEAT], true],                                  // cap-4 beside an evidence seat
 ]
 const WIDEN_ROSTER_CASES = [
   [[{ lens: 'a' }], RTRIO],                                                     // union append
@@ -9349,6 +9413,7 @@ const WIDEN_ROSTER_CASES = [
 const RESOLVE_WIDEN_CASES = [
   [['security', 'cascading-impact'], RTRIO],                                   // valid nomination
   [['security', 'execution-evidence'], RTRIO],                                 // reserved lens → default
+  [['security', EVIDENCE_LENS], RTRIO],                                        // artifact-evidence nomination (widen-barred) → default
   [['dup', 'dup'], RTRIO],                                                     // duplicate → default
   [[], RTRIO],                                                                 // empty → default
   ['nope', RTRIO],                                                             // non-array → default
@@ -9436,9 +9501,9 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([agents, role]) => inlineHelpers(agents).spawn(role),
       canonical: ([agents, role]) => spawnOpts({ agents }, role) },
     { name: 'validateRoster', mode: 'behavioral',
-      cases: VALIDATE_ROSTER_CASES.map(r => [r]),
-      inline: ([roster]) => inlineHelpers().validateRoster(roster),
-      canonical: ([roster]) => validateRoster(roster) },
+      cases: VALIDATE_ROSTER_CASES,
+      inline: ([roster, evidence]) => inlineHelpers().validateRoster(roster, evidence),
+      canonical: ([roster, evidence]) => validateRoster(roster, evidence) },
     { name: 'widenRoster', mode: 'behavioral',
       cases: WIDEN_ROSTER_CASES,
       inline: ([roster, def]) => inlineHelpers().widenRoster(roster, def),
@@ -9447,6 +9512,21 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       cases: RESOLVE_WIDEN_CASES,
       inline: ([nom, def]) => inlineHelpers().resolveWidenSource(nom, def),
       canonical: ([nom, def]) => resolveWidenSource(nom, def) },
+    // SEAT_AGENT_TYPES and WIDEN_BARRED_LENSES (REA artifact evidence D3/D18/D19): the two roster-contract
+    // arrays canonical in war-config.mjs, hand-copied inline inside the roster-helper block (validateRoster
+    // reads the first; resolveWidenSource reads the second beside RESERVED_LENSES). deepEqual, no literal restated.
+    { name: 'SEAT_AGENT_TYPES', mode: 'deepEqual',
+      canonical: SEAT_AGENT_TYPES,
+      extractInline: () => parseInlineArray(/const\s+SEAT_AGENT_TYPES\s*=\s*(\[[^\]]+\])/) },
+    { name: 'WIDEN_BARRED_LENSES', mode: 'deepEqual',
+      canonical: WIDEN_BARRED_LENSES,
+      extractInline: () => parseInlineArray(/const\s+WIDEN_BARRED_LENSES\s*=\s*(\[[^\]]+\])/) },
+    // MANIFEST_PATH_TEMPLATE (REA artifact evidence D9/D18, PIN-15): the digest manifest path the REA clause
+    // and the evidence seat prompt name, canonical in target-artifacts.mjs, hand-copied inline beside reaClause.
+    // One-element arrays on both sides, so the order-insensitive compare is whole-string equality.
+    { name: 'MANIFEST_PATH_TEMPLATE', mode: 'deepEqual',
+      canonical: [MANIFEST_PATH_TEMPLATE],
+      extractInline: () => [(src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]] },
     // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
     // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs is the only
     // defaulted tier (fix has no default block: absent ⇒ inherit the base worker, nothing to mirror).
@@ -9463,7 +9543,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 17, 'the mirror registry lists at least the seventeen required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, the two widening-(1) barrier subset rows, the sweep-exclude RELEASE_SLOT_FILES row, the demote-census DEMOTE_REASONS row, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 20, 'the mirror registry lists at least the twenty required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, the four barrier-list BARRIER_TOKENS rows, the two widening-(1) barrier subset rows, the sweep-exclude RELEASE_SLOT_FILES row, the demote-census DEMOTE_REASONS row, landDecision, the four roster helpers, the SEAT_AGENT_TYPES row, the WIDEN_BARRED_LENSES row, the MANIFEST_PATH_TEMPLATE row, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -10241,6 +10321,21 @@ const BRANCH_READ_FLAGS_ONLY_SAMPLES = [
   ['auditPrompt() sentence (pre-change bytes)',
     'branch takes =-attached read flags only (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); a bare name or write flag denies.'],
 ]
+// D21 retired-claim regexes (Task 6.1): the card bullet carried `git grep` in backticks, so a bare
+// /git grep stays denied/ never matched the card form — the optional backticks make one regex
+// cover the card, the dispatched literal and the eviction destination.
+const GIT_GREP_STAYS_DENIED_RETIRED = /`?git grep`? stays denied/i
+const GIT_GREP_NOT_AND_STAYS_DENIED_RETIRED = /is not and stays denied/i
+const NEVER_SHELL_GREP_RETIRED = /never (?:with )?shell `?grep`?(?: or |\/)`?git grep`?/i
+// Unwired negative reference (both-ways proof), same shape as BRANCH_READ_FLAGS_ONLY_SAMPLES: the
+// pre-D21 bytes of each surface's OWN retired claim, each paired with the regex that must fire on it.
+// FIXTURES: never re-introduced into a live surface.
+const GIT_GREP_RETIRED_SAMPLES = [
+  ['card bullet', '**`git grep` stays denied**', GIT_GREP_STAYS_DENIED_RETIRED],
+  ['dispatched literal', 'git grep stays denied —', GIT_GREP_STAYS_DENIED_RETIRED],
+  ['card committed-tree clause', '`git grep` is not and stays denied', GIT_GREP_NOT_AND_STAYS_DENIED_RETIRED],
+  ['evidence card', 'never with shell `grep` or `git grep`', NEVER_SHELL_GREP_RETIRED],
+]
 
 test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -10399,9 +10494,15 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // two-arm branch characterization the mirrors adopted from the hook's own deny string (/value-carrying/i,
     // /bare read flags/i), which replaced the retired "=-attached read flags only" blanket claim. Reverting
     // either surface's block OR just its branch clause REDs this row (End-state-5 delete-the-feature proof).
-    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, two-arm branch flags, Grep tool is the sweep channel',
+    // D21 (plan 2026-10-20-rea-artifact-evidence, ADR 0029 Amendment 2026-10-22): the search rule became
+    // "the Grep tool first; with no Grep tool, git grep -F -e <token>" — the fallback token is anchored on
+    // both surfaces here, and the retired "stays denied" claim is OLD-absent-scanned in the D5 test below.
+    // The bare /git grep -F -e <token>/ token also matches the committed-tree grounding paragraph on both
+    // surfaces, so a plain deletion of the rule sentence stays green behind it; the rule-phrase anchor
+    // (card bullet in bold + backticks, dispatched sentence bare) is what REDs that deletion (Task 6.1 ace).
+    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, two-arm branch flags, Grep tool is the sweep channel, git grep -F -e <token> fallback',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
-      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i] },
+      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i, /git grep -F -e <token>/, /The Grep tool first; with no Grep tool, `?git grep -F -e <token>/] },
     // #990 (D3/D4): the four-step landed-tip grounding ladder — the servitor grounds every referent read
     // on the THREADED landed tip, never on its own cwd. Anchor precondition (#990 plan): every token here
     // was verified ABSENT from both surfaces at the pre-change base, so a per-surface revert REDs this row.
@@ -10537,8 +10638,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // AUDIT_VERDICT if/then conditional; enforcement arm recorded at that literal and by the intake-
     // contract test above), the by-construction discriminator (a blocking finding with a concrete
     // in-file suggested_fix needing no new plan decision is request_changes, however severe), and the
-    // search-tooling rule (Grep/Glob tools, never shell grep/git grep — the guard refuses
-    // glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
+    // search-tooling rule (Grep/Glob tools first, with no Grep tool the narrow git grep -F -e <token>
+    // form, shell grep always denied — the guard refuses glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
     // base): `required when`, `however severe`, and `metacharacter` each count 0 on BOTH surfaces, so
     // a per-surface revert of any of the three sentences reds this row; `by construction`
     // (pre-existing in an unrelated workflow-template.js comment) and bare `escalate_reason` (1 hit
@@ -10738,6 +10839,25 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     assert.doesNotMatch(sText, /%-format/, `${sName}: the retired '%-format' teach is absent (the D5 contract replaced it)`)
     assert.doesNotMatch(sText, /reflog syntax/, `${sName}: the retired 'reflog syntax' teach is absent (the D5 contract replaced it)`)
   }
+  // D21 (plan 2026-10-20-rea-artifact-evidence Task 6.1, ADR 0029 Amendment 2026-10-22): the grep verb
+  // is admitted in ONE narrow form, so the OLD "git grep stays denied" / "never shell grep or git grep"
+  // claims are retired on every surface that stated them — the card, the dispatched literal, the
+  // eviction destination AND the evidence card's guard paragraph — and each of the three seat-facing
+  // surfaces names the fallback form. The hook's own grammar is pinned by group P of
+  // hooks/validate-auditor-git.test.sh; this scan is the doc side of the same ruling.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+    ['references/auditor-teach.md', auditorTeachMd], ['war-evidence-auditor.md', evidenceCardMd]]) {
+    assert.doesNotMatch(sText, GIT_GREP_STAYS_DENIED_RETIRED, `${sName}: the retired 'git grep stays denied' claim is absent (D21 admitted git grep -F -e <token>)`)
+    assert.doesNotMatch(sText, GIT_GREP_NOT_AND_STAYS_DENIED_RETIRED, `${sName}: the retired committed-tree 'is not and stays denied' clause is absent (D21)`)
+    assert.doesNotMatch(sText, NEVER_SHELL_GREP_RETIRED, `${sName}: the retired 'never shell grep/git grep' rule is absent (D21: the Grep tool first, then git grep -F -e <token>)`)
+  }
+  for (const [label, sample, retired] of GIT_GREP_RETIRED_SAMPLES) {
+    assert.match(sample, retired,
+      `negative reference (${label}): the retired D21 claim DOES match its guard — the doesNotMatch above is non-vacuous`)
+  }
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['war-evidence-auditor.md', evidenceCardMd]]) {
+    assert.match(sText, /git grep -F -e <token>/, `${sName}: names the D21 fallback form git grep -F -e <token>`)
+  }
   // #1080 retired-claim lock: the card used to claim this contract was "mirrored verbatim" into the
   // dispatched audit prompt. False — the two surfaces are deliberately different FORMATS, and what is
   // actually enforced is the D5 row above, which anchors shared TOKENS per surface (four at #1080, six
@@ -10812,6 +10932,41 @@ test('D6 — branch flag enumeration: every token in the hook\'s canonical deny 
     for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
       assert.match(sText, flagTokenRe(tok),
         `${sName}: the hook admits branch flag "${tok}" but the mirror does not enumerate it (token-boundary matched) — the mirrors follow the hook's deny string`)
+    }
+  }
+})
+
+// D6 (Task 6.1 ace, D21) — the same extraction-equality lock for the grep optional-flag enumeration.
+// The hook's grep deny string is CANONICAL (the `grep_deny` helper in hooks/validate-auditor-git.sh);
+// the card bullet and the dispatched literal list its optional flags (-n -i -l -w -c) as followers.
+// Reading the deny string and asserting every listed flag onto both mirrors makes a hook-side flag
+// change RED the mirrors instead of stranding them — the #1124 class the branch D6 test exists to catch.
+test('D6 — grep flag enumeration: every optional flag in the hook\'s canonical grep deny string reaches BOTH prompt mirrors (token-boundary matched)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  assert.ok(auditP, 'a regular auditor prompt was dispatched (presence guard)')
+  const hookSh = readFileSync(join(here, '../../../hooks/validate-auditor-git.sh'), 'utf8')
+  const REPOINT = 're-point the extractor at the reshaped grep deny string in hooks/validate-auditor-git.sh'
+  const denyStmt = (hookSh.match(/deny "git grep admits one form only:[^"]*"/) || [])[0]
+  assert.ok(denyStmt, `hook grep deny string not locatable — ${REPOINT}`)
+  // The admitted optional flags ride one slash-joined list right after the first "optional " — the
+  // later "optional -- <pathspec>" is the second occurrence, which a non-global match never reaches.
+  const list = (denyStmt.match(/optional ([^ ]*) /) || [])[1]
+  assert.ok(list, `hook grep deny string's optional-flag list not locatable — ${REPOINT}`)
+  const toks = list.split('/').map(t => t.trim()).filter(Boolean)
+  assert.ok(toks.length > 0, `grep optional-flag list parsed to zero tokens — ${REPOINT}`)
+  toks.forEach(tok => assert.match(tok, /^-[a-z]$/, `grep optional-flag token "${tok}" is not a short flag — ${REPOINT}`))
+  // Reflow guard: a space-joined deny string ("optional -n -i -l -w -c") would leave the capture
+  // holding only "-n" and the loop below green for the rest. The per-token loop ignores the hook's
+  // cluster case arm (`n|i|l|w|c)`), so the parsed list is set-equal to that arm's letters.
+  const armLetters = (hookSh.match(/^\s*([a-z](?:\|[a-z])+)\)\s+;;$/m) || [])[1]
+  assert.ok(armLetters, `hook grep cluster case arm (n|i|l|w|c) not locatable — ${REPOINT}`)
+  assert.deepEqual(toks.map(t => t.slice(1)).sort(), armLetters.split('|').sort(),
+    `grep optional-flag list "${list}" is not set-equal to the hook's cluster case arm "${armLetters}" — a reflowed deny string, or a flag admitted on one side only; ${REPOINT}`)
+  for (const tok of toks) {
+    for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+      assert.match(sText, flagTokenRe(tok),
+        `${sName}: the hook admits grep flag "${tok}" but the mirror does not enumerate it (token-boundary matched) — the mirrors follow the hook's grep deny string`)
     }
   }
 })
@@ -11029,11 +11184,14 @@ const LITERAL_REGISTRY = [
   [" --pattern '${testPattern}'` : ''\n// Partial"],
   ["war/${planSlug}/p${ph.id}-${t.id}` : t.branc"],
   ["${worktreeRoot}/${runId}/p${ph.id}-${t.id}` "],
-  ["roster must be an array of 1-5 seats (got ${"],
+  ["roster must be an array of 1-5 seats (got ${", 2],
+  ["roster carries ${roster.length - evidenceSea"],
   ["roster[${i}] must be an object { lens, depth"],
   ["roster[${i}].lens must be a non-empty string"],
   ["roster[${i}].lens \"${seat.lens}\" duplicates "],
   ["roster[${i}].depth must be \"neighbors\" or \"d"],
+  ["roster[${i}].agentType must be one of ${SEAT"],
+  ["roster[${i}].agentType \"war-evidence-auditor"],
   ["-name '*.test.sh'`\nconst resolveGate = (decl"],
   ["for f in $(find . -type f ${GATE_DISCOVERY_T"],
   ["do printf '\\\\n== gate(bash): %s ==\\\\n' \"$f\" "],
@@ -11545,8 +11703,19 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
   // as the pointer change.
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(auditorMd),
     'war-auditor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth')
-  assert.equal((auditorMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 4,
-    'war-auditor.md carries all four plugin-root-anchored trigger pointers to auditor-teach.md')
+  // Five since plan 2026-10-20-rea-artifact-evidence Task 6.1 evicted the widening-nomination detail
+  // bullets behind a `When you set \`widen\`, read` pointer (ADR 0042, to fund the D21 grep-fallback
+  // bullet under the card's unchanged hard line).
+  assert.equal((auditorMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 5,
+    'war-auditor.md carries all five plugin-root-anchored trigger pointers to auditor-teach.md')
+  // Destination presence keys for that eviction (adjudication E — the keys move with the text): one
+  // distinctive fragment per moved widening-nomination bullet at the destination, and the moved
+  // lone-seat bullet absent from the card, so a lost or reverted move REDs here (Task 6.1 ace).
+  for (const frag of ['Honored only on a lone seat', 'the default-roster-union fallback']) {
+    assert.ok(auditorTeachMd.includes(frag), `auditor-teach.md carries the moved widening-nomination fragment: ${frag}`)
+  }
+  assert.ok(!auditorMd.includes('Honored only on a lone seat'),
+    'war-auditor.md no longer carries the evicted lone-seat widening bullet (it moved to auditor-teach.md)')
   // …and to war-refiner.md (family locality, ADR 0025/0031: the equivalence class is "agent
   // cards carrying skills/war/references/ pointers", and every member is asserted where the
   // family lives): this assert consolidates the pointer-shape family here, alongside the
@@ -16747,7 +16916,7 @@ test('terminal-pass — retired text is absent from workflow-template.js under t
   assert.ok(src.includes('pt`TERMINAL PASS for WAR phase'), 'the terminal pass prompt is the successor')
 })
 
-test('terminal-pass — schema-slot pins: the schemas.md rows for carriedPhaseClose, seededPhaseClose and finalPhase bind to the engine\'s emitted / validated key names', () => {
+test('terminal-pass — schema-slot pins: the schemas.md rows for carriedPhaseClose, seededPhaseClose, finalPhase, evidence and targetArtifacts bind to the engine\'s emitted / validated key names', () => {
   // carriedPhaseClose: emitted TOP-LEVEL at BOTH return sites (never inside the handoff).
   const mainReturn = src.match(/^return \{ phase: phaseId, landed, [^\n]*\}$/m)
   assert.ok(mainReturn, 'the main return line is extracted')
@@ -16760,8 +16929,9 @@ test('terminal-pass — schema-slot pins: the schemas.md rows for carriedPhaseCl
   const rEnd = schemasMd.indexOf('\n## ', rStart + 1)   // the next H2 (none today — the section closes the file)
   const returnDoc = schemasMd.slice(rStart, rEnd > 0 ? rEnd : schemasMd.length)
   assert.ok(new RegExp('^\\s*' + carriedKey + ':', 'm').test(returnDoc), 'schemas.md § Workflow per-phase return documents the same key name (' + carriedKey + ')')
-  // seededPhaseClose + finalPhase: validated at entry under those exact arg names; documented in the args contract.
-  for (const key of ['seededPhaseClose', 'finalPhase']) {
+  // seededPhaseClose + finalPhase + evidence + targetArtifacts (REA artifact evidence Task 2.3): validated at
+  // entry under those exact arg names; documented in the args contract.
+  for (const key of ['seededPhaseClose', 'finalPhase', 'evidence', 'targetArtifacts']) {
     const validated = (src.match(new RegExp("A\\.(" + key + ") !== undefined")) || [])[1]
     assert.equal(validated, key, 'the entry validation reads args.' + key + ' (non-vacuous extraction)')
     assert.ok(src.includes("'workflow-template: args." + key), 'the refusal message names args.' + key)
@@ -20622,3 +20792,361 @@ for (const id of [0, 1, '0', '01', '42']) {
     assert.ok(calls.some(isWorker))
   })
 }
+
+// ===========================================================================
+// REA artifact evidence — Task 2.3 (plan 2026-10-20-rea-artifact-evidence; D3, D8, D9, D10, D18;
+// PIN-3, PIN-6, PIN-7, PIN-15). The End-state 8, 11, 18, 22 and 23 titles sit below verbatim (the
+// Done when awk-anchors each one), beside the Task 5.1 (D23) per-artifact manifest test. `args.evidence` is the Lead-resolved
+// presence half of the evidence gate (run.evidence on AND REA present); `args.targetArtifacts` is
+// the Lead-threaded target-artifacts.mjs output. Off ⇒ every prompt byte-identical (G3).
+const REA_ROW = { path: 'build/hello', sha256: 'a'.repeat(64), provider: 'ghidra' }
+const REA_ON = { evidence: true, targetArtifacts: [REA_ROW] }
+const REA_HEAD = 'REA ARTIFACT EVIDENCE'
+const evidenceCardMd = readFileSync(join(here, '../../../agents/war-evidence-auditor.md'), 'utf8')
+const isEvidenceSeat = c => seatOf(c.opts) === 'war-evidence-auditor'
+const reaLoudLines = logs => logs.filter(l => typeof l === 'string' && /^REA ARTIFACT EVIDENCE OFF \(loud\):/.test(l))
+const promptsOf = calls => calls.map(c => stableGatePrompt(String(c.prompt)))
+// The eight worker spawn sites: the primary work dispatch plus the seven fix-applying builds
+// (the CHAIN_FIX_BUILDS fixtures, re-run here with the evidence args threaded). Each `impl` is a
+// fresh closure per run — several fixtures count rounds internally.
+// `resolved` names whether a task is in scope at the site: the clause then carries the resolved
+// manifest path (REA_RESOLVED_PATH, PROVISION_ARGS planSlug + task t1); the sweep and terminal sites do not.
+// `<sha12>` stays a placeholder in the resolved path (D23): the engine does not know which declared
+// artifacts a task cites, so the worker cuts the key from each cited artifact's declared sha256.
+const REA_RESOLVED_PATH = 'docs/plans/evidence/wtprov-a/t1.<sha12>.manifest.json'
+const REA_WORKER_SITES = [
+  { site: 'work', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => defaultImpl,
+    find: c => c.find(isWorker), resolved: true },
+  { site: 'FIX_NEEDED', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => fixNeededImpl(),
+    find: c => c.find(x => /^fix:t1:/.test(x.opts.label || '')), resolved: true },
+  { site: 'ace subset', args: o => ACE_ARGS(o), impl: () => bisectSubsetImpl(),
+    find: c => c.find(x => /^ace:subset:t1:/.test(x.opts.label || '')), resolved: true },
+  { site: 'ace re-entry', args: o => ACE_ARGS(o), impl: () => reentryImpl(),
+    find: c => c.find(x => /^ace:reentry:t1:/.test(x.opts.label || '')), resolved: true },
+  { site: 'ace advisory polish', args: o => ACE_ARGS(o), impl: () => polishAceImpl(),
+    find: c => c.find(x => /^ace:polish:t1:/.test(x.opts.label || '')), resolved: true },
+  { site: 'floor family (add-test)', args: o => PROVISION_ARGS({ tasks: SINGLE_TASK, ...o }), impl: () => floorRetryImpl(),
+    find: c => c.find(x => /^add-test:t1:/.test(x.opts.label || '')), resolved: true },
+  { site: 'phase-close sweep', args: o => SWEEP_ARGS(o), impl: () => sweepBase([queuedAbsorb()]),
+    find: c => c.find(x => (x.opts.label || '') === 'polish:phase-3'), resolved: false },
+  { site: 'terminal pass', args: o => SWEEP_ARGS(o), impl: () => terminalImpl(),
+    find: c => c.find(x => (x.opts.label || '') === 'terminal:phase-3'), resolved: false },
+]
+
+test('rea clause: rides every worker spawn site when on; every prompt byte-identical when off', async () => {
+  for (const s of REA_WORKER_SITES) {
+    const off = await runPhase(s.args({}), s.impl())
+    const offRows = await runPhase(s.args({ evidence: false, targetArtifacts: [REA_ROW] }), s.impl())
+    const on = await runPhase(s.args(REA_ON), s.impl())
+    const offP = s.find(off.calls), onP = s.find(on.calls)
+    assert.ok(offP && offP.prompt && onP && onP.prompt, `${s.site}: dispatched on both arms (presence guard)`)
+    assert.ok(!offP.prompt.includes(REA_HEAD), `${s.site}: no REA clause when args.evidence is absent`)
+    assert.ok(onP.prompt.includes(REA_HEAD), `${s.site}: the REA clause rides the dispatched prompt when on`)
+    assert.ok(onP.prompt.includes(REA_ROW.sha256), `${s.site}: the clause carries the declared row's digest`)
+    assert.ok(onP.prompt.includes(REA_ROW.path), `${s.site}: the clause carries the declared row's path`)
+    // A task-bearing site names the RESOLVED manifest path (A.planSlug + task.id — the same inputs the
+    // evidence seat reads the manifest with); the task-less sweep and terminal sites name only the template.
+    const onLine = onP.prompt.split('\n').find(l => l.startsWith(REA_HEAD))
+    assert.equal(onLine.includes('(this task: ' + REA_RESOLVED_PATH + ')'), s.resolved,
+      `${s.site}: resolved manifest path ${s.resolved ? 'named' : 'absent'} (task ${s.resolved ? 'in' : 'out of'} scope)`)
+    // Every prompt of the run — not only this site's — is byte-identical between absent and
+    // evidence:false (rows present): the clause is gated on args.evidence alone.
+    assert.deepEqual(promptsOf(offRows.calls), promptsOf(off.calls), `${s.site}: every dispatched prompt byte-identical with evidence:false + rows vs evidence absent`)
+    assert.ok(on.calls.every(c => !isWorker(c) || c.prompt.includes(REA_HEAD)), `${s.site}: every Work-phase worker prompt carries the clause when on`)
+  }
+  // Source census (comment-stripped — the reaClause header comment names the pairing): every worker spawn
+  // site that carries provisionClause carries the REA clause beside it — the eight sites (work, fix, floor
+  // family, ace ×3, polish sweep, terminal pass), none skipped. The six task-bearing sites call
+  // reaClauseOf(task) / reaClauseOf(r.task) (the resolved manifest path rides); the two task-less sites
+  // (polish sweep, terminal pass) carry the bare reaClause.
+  const code = src.replace(/^\s*\/\/.*$/gm, '')
+  const carriers = (code.match(/\+ provisionClause\b/g) || []).length
+  const resolved = (code.match(/\+ provisionClause \+ reaClauseOf\((?:r\.)?task\)/g) || []).length
+  const bare = (code.match(/\+ provisionClause \+ reaClause\b/g) || []).length
+  assert.equal(carriers, 8, `eight provisionClause carrier sites (got ${carriers})`)
+  assert.equal(resolved, 6, `six task-bearing sites call reaClauseOf(task) (got ${resolved})`)
+  assert.equal(bare, 2, `two task-less sites carry the bare reaClause (got ${bare})`)
+  assert.equal(resolved + bare, carriers, 'the REA clause rides every provisionClause carrier site')
+})
+
+test('runSeat dispatches seat.agentType from the SEAT_AGENT_TYPES allowlist and refuses an unlisted type', async () => {
+  const mixed = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }]
+  const { calls, out } = await runPhase(PROVISION_ARGS({ tasks: mixed, run: { evidence: true }, ...REA_ON }), defaultImpl)
+  const regular = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness')
+  const evidence = calls.find(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`)
+  assert.ok(regular && evidence, 'both roster seats dispatched (presence guard)')
+  assert.equal(regular.opts.agentType, 'work-audit-refine:war-auditor', 'a seat without agentType dispatches as the regular auditor')
+  assert.equal(evidence.opts.agentType, 'work-audit-refine:war-evidence-auditor', 'the evidence seat dispatches NS + seat.agentType')
+  assert.equal(out.landDecision, 'landed', `both verdicts read as approvals; got ${out.landDecision}`)
+  // The dispatch site derives the type from the seat and guards it against the inline allowlist —
+  // no 'war-auditor' literal remains at runSeat.
+  const site = src.slice(src.indexOf('const runSeat = seat =>'), src.indexOf('let results = await parallel(roster.map'))
+  assert.ok(site.length > 0, 'runSeat site located')
+  assert.match(site, /SEAT_AGENT_TYPES\.includes\(/, 'runSeat guards the type against SEAT_AGENT_TYPES')
+  assert.doesNotMatch(site, /NS \+ 'war-auditor'/, "runSeat no longer hard-codes NS + 'war-auditor'")
+  // An unlisted type is refused at entry (validateRoster) with zero spawns…
+  const unlisted = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness', agentType: 'war-refiner' }] }]
+  const entry = await runPhase(PROVISION_ARGS({ tasks: unlisted }), defaultImpl)
+  assert.equal(entry.out.landDecision, 'held:workflow-error', 'an unlisted agentType refuses at entry')
+  assert.match(entry.out.workflowError.message, /agentType must be one of/, 'the entry message names the allowlist')
+  assert.equal(entry.calls.length, 0, 'zero spawns on the entry refusal')
+  // …and runSeat refuses it on its own: with the entry roster assertion neutralized, the dispatch
+  // guard still refuses the type and no audit seat is spawned (the mutation proves the guard is live).
+  const neutered = src.replace('const rv = validateRoster(t.roster, run.evidence)', 'const rv = { valid: true, errors: [] }')
+  assert.notEqual(neutered, src, 'the entry roster assertion line is locatable')
+  const m = await runPhase(PROVISION_ARGS({ tasks: unlisted }), defaultImpl, {}, neutered)
+  assert.notEqual(m.out.landDecision, 'landed', 'the unlisted type never lands')
+  assert.ok(JSON.stringify(m.out).includes('not a SEAT_AGENT_TYPES member'), `the refusal names the allowlist: ${JSON.stringify(m.out).slice(0, 400)}`)
+  assert.ok(!m.calls.some(c => (c.opts.label || '').startsWith('audit:t1:')), 'no audit seat is dispatched for the unlisted type')
+})
+
+test('rea clause: names the MANIFEST_PATH_TEMPLATE mirror and get_evidence_bundle detail=summary', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, ...REA_ON }), defaultImpl)
+  const p = calls.find(isWorker).prompt
+  const line = p.split('\n').find(l => l.startsWith(REA_HEAD))
+  assert.ok(line, 'the REA clause is one line headed REA ARTIFACT EVIDENCE')
+  assert.ok(line.includes(MANIFEST_PATH_TEMPLATE), 'the clause names the manifest path (the inline MANIFEST_PATH_TEMPLATE mirror, registry-bound to the export)')
+  assert.ok(line.includes('get_evidence_bundle detail=summary'), 'the clause names get_evidence_bundle detail=summary')
+  assert.ok(line.includes('`Manifest keys: `'), "the clause names the doc home's `Manifest keys: ` line as the key schema")
+  assert.ok(line.includes('skills/war-strategy/references/artifact-evidence.md'), 'the clause names artifact-evidence.md')
+  for (const k of MANIFEST_KEYS) assert.ok(!line.includes('`' + k + '`'), `no key list restated in the clause (found \`${k}\`)`)
+  // Bare restatement guard: sha256, provider and tool legitimately appear bare in the row text; these three never do.
+  for (const k of ['evidence_id', 'parameters', 'limitations']) assert.ok(!line.includes(k), `no bare key name restated in the clause (found ${k})`)
+  assert.ok(line.includes(REA_ROW.path) && line.includes(REA_ROW.sha256) && line.includes(REA_ROW.provider), 'the declared row rides the clause')
+  // Conditioned duty: only a citing slice commits a manifest; the condition precedes the path, the otherwise-arm follows it.
+  assert.ok(line.includes('If your plan slice cites a `rea:` tag'), 'the manifest duty is conditioned on a citing slice')
+  assert.ok(line.includes('otherwise commit no manifest'), 'a non-citing task commits no manifest')
+  assert.ok(line.indexOf('If your plan slice cites') < line.indexOf(MANIFEST_PATH_TEMPLATE), 'the citing-slice condition precedes MANIFEST_PATH_TEMPLATE')
+  assert.ok(line.indexOf(MANIFEST_PATH_TEMPLATE) < line.indexOf('otherwise commit no manifest'), 'the otherwise-arm follows MANIFEST_PATH_TEMPLATE')
+  // The inline mirror is a plain single-quoted const (never a template literal) and equals the export.
+  const inline = (src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]
+  assert.equal(inline, MANIFEST_PATH_TEMPLATE, 'the inline MANIFEST_PATH_TEMPLATE mirror equals the target-artifacts.mjs export')
+})
+
+test('regular auditor prompt carries the D12 digest-bound line only when args.evidence is on', async () => {
+  const D12 = /digest-bound, never re-measured, never a hold/
+  const regularOf = calls => (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  const off = regularOf((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)).calls)
+  const on = regularOf((await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, ...REA_ON }), defaultImpl)).calls)
+  assert.ok(off && on, 'the regular roster seat dispatched on both arms (presence guard)')
+  assert.doesNotMatch(off, D12, 'off: the regular auditor prompt carries no D12 line')
+  assert.match(on, D12, 'on: the regular auditor prompt carries the D12 digest-bound line')
+  const line = on.split('\n').find(l => D12.test(l))
+  assert.ok(line.includes('skills/war-strategy/references/artifact-evidence.md'), 'the D12 line names artifact-evidence.md as its source')
+  assert.ok(line.includes('D12'), 'the D12 line cites plan-interview D12')
+  assert.ok(!line.includes('HOLD only on'), 'the regular seat never receives the evidence-seat HOLD rule')
+})
+
+test('evidence seat skeleton: IDENTICAL wording in agents/war-evidence-auditor.md and the dispatched prompt for the ADR 0041 rung, HOLD only on sha256 mismatch, and cannot-confirm when REA is unreachable', async () => {
+  const tasks = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }]
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks, run: { evidence: true }, ...REA_ON }), defaultImpl)
+  const evP = (calls.find(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`) || {}).prompt
+  const regP = (calls.find(c => (c.opts.label || '') === 'audit:t1:correctness') || {}).prompt
+  assert.ok(evP && regP, 'the evidence seat and the regular seat dispatched (presence guard)')
+  // The card is the arbiter: extract its G8 rung line and its G7 HOLD line, then require them byte-for-byte.
+  const cardLine = re => { const m = evidenceCardMd.match(re); assert.ok(m, `war-evidence-auditor.md carries ${re}`); return m[0] }
+  const rung = cardLine(/^ADR 0041 rung: [^\n]+$/m)
+  const hold = cardLine(/^HOLD only on a sha256 mismatch[^\n]+$/m)
+  assert.ok(rung.includes('rung 1') && rung.includes('`audit_sha`'), 'the card rung line names rung 1 at audit_sha (non-vacuous extraction)')
+  assert.ok(hold.includes('Every other REA finding is SOFT') && hold.includes('`cannot-confirm`') && hold.includes('never a hold'), 'the card HOLD line carries SOFT + cannot-confirm + never a hold (non-vacuous extraction)')
+  assert.ok(evP.includes(rung), 'the dispatched evidence-seat skeleton carries the ADR 0041 rung line byte-for-byte')
+  assert.ok(evP.includes(hold), 'the dispatched evidence-seat skeleton carries the HOLD-only-on-mismatch line byte-for-byte')
+  assert.ok(evP.includes(REA_RESOLVED_PATH), 'the seat prompt names the task manifest path (plan slug + task id substituted into MANIFEST_PATH_TEMPLATE)')
+  assert.ok(evP.includes(REA_ROW.sha256) && evP.includes(REA_ROW.path), 'the seat prompt names the declared row')
+  assert.ok(!regP.includes(rung) && !regP.includes(hold), 'the regular seat never carries the evidence skeleton')
+  assert.ok(evP.includes('EVIDENCE SEAT (lens ' + EVIDENCE_LENS + ';'), 'the skeleton names the seat lens from EVIDENCE_LENS')
+  assert.ok(!regP.includes('EVIDENCE SEAT (lens'), 'the regular seat carries no EVIDENCE SEAT head')
+  // CITE_ONLY_LINE (ruling #2406): one constant — a reminder, not the rule (the rule lives in
+  // artifact-evidence.md, G9) — byte-equal to the card's `## Cite-only` first sentence and emitted
+  // as-is by both the worker REA clause (its tail) and the evidence seat skeleton. The card is the
+  // arbiter: extract its first sentence, extract the constant from the source, require equality.
+  const citeConst = (src.match(/const CITE_ONLY_LINE = pt`([^`\n]+)`/) || [])[1]
+  assert.ok(citeConst, 'workflow-template.js defines CITE_ONLY_LINE as a one-line pt literal')
+  const citeAt = evidenceCardMd.indexOf('\n## Cite-only\n')
+  assert.ok(citeAt >= 0, 'war-evidence-auditor.md carries a ## Cite-only section')
+  const citeFirst = (evidenceCardMd.slice(citeAt + '\n## Cite-only\n'.length).match(/^(.*?\.)(?:\s|$)/) || [])[1]
+  assert.ok(citeFirst && citeFirst.startsWith('Cite-only:'), `the card's ## Cite-only first sentence is locatable (got ${JSON.stringify(citeFirst)})`)
+  assert.ok(citeConst.includes('never target content') && citeConst.includes('never an instruction'), 'CITE_ONLY_LINE carries the cite-only reminder (non-vacuous extraction)')
+  assert.equal(citeFirst, citeConst, "the card's ## Cite-only first sentence equals CITE_ONLY_LINE byte-for-byte")
+  const reaLine = String(calls.find(isWorker).prompt).split('\n').find(l => l.startsWith(REA_HEAD))
+  assert.ok(reaLine && reaLine.endsWith(citeConst), 'the worker REA clause ends with CITE_ONLY_LINE as emitted')
+  assert.ok(evP.includes(citeConst), 'the evidence seat skeleton carries CITE_ONLY_LINE as emitted')
+  assert.ok(!regP.includes(citeConst), 'the regular seat carries no cite-only line')
+})
+
+// One manifest per cited artifact (D23): the worker clause and the evidence seat skeleton both say
+// so, both name `<sha12>` as the first 12 hex of that artifact's DECLARED sha256 (never a measured
+// one: the two differ only when the file on disk drifted from the plan row), and the seat reads a cited
+// artifact with no manifest as SOFT. Off, no prompt carries any of it (the off arm is byte-identical
+// to the evidence-less baseline by the rea-clause test; here the per-artifact wording is absent).
+test('rea clause and evidence skeleton: one manifest per cited artifact', async () => {
+  const tasks = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }]
+  const on = await runPhase(PROVISION_ARGS({ tasks, run: { evidence: true }, ...REA_ON }), defaultImpl)
+  const workerLine = String(on.calls.find(isWorker).prompt).split('\n').find(l => l.startsWith(REA_HEAD))
+  const evP = (on.calls.find(c => (c.opts.label || '') === `audit:t1:${EVIDENCE_LENS}`) || {}).prompt
+  assert.ok(workerLine && evP, 'the worker and the evidence seat dispatched (presence guard)')
+  for (const [who, text] of [['worker clause', workerLine], ['evidence seat skeleton', evP]]) {
+    assert.ok(text.includes('one manifest per cited artifact'), `${who}: says one manifest per cited artifact`)
+    assert.ok(text.includes(REA_RESOLVED_PATH), `${who}: names the resolved path with <sha12> left for the artifact`)
+    assert.ok(text.includes('first 12 hex of that artifact\'s declared sha256'), `${who}: defines <sha12> as the first 12 hex of that artifact's DECLARED sha256`)
+  }
+  assert.ok(workerLine.includes('full digest'), 'worker clause: the manifest sha256 key still carries the full digest')
+  const hold = evP.split('\n').find(l => l.includes('HOLD only on a sha256 mismatch'))
+  assert.ok(hold && hold.includes('any cited artifact'), 'the HOLD line applies to any cited artifact')
+  assert.ok(hold.includes('a cited artifact with no manifest included'), 'the HOLD line, the card-identical copy, reads a cited artifact with no manifest as SOFT')
+  // The inline mirror carries <sha12> between the task id and the suffix, whole-string equal to the export.
+  const inline = (src.match(/const\s+MANIFEST_PATH_TEMPLATE\s*=\s*'([^'\n]+)'/) || [])[1]
+  assert.equal(inline, MANIFEST_PATH_TEMPLATE, 'the inline mirror equals the export')
+  assert.ok(inline.endsWith('/<task-id>.<sha12>.manifest.json'), 'the inline mirror keys the file by <sha12>')
+  // Off: no dispatched prompt carries the per-artifact wording or the placeholder.
+  const off = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  assert.ok(off.calls.some(isWorker), 'off: a worker dispatched (presence guard)')
+  for (const c of off.calls) {
+    const p = String(c.prompt)
+    assert.ok(!p.includes('one manifest per cited artifact') && !p.includes('<sha12>'), `off: ${c.opts.label || 'prompt'} carries no per-artifact manifest wording`)
+  }
+})
+
+test('rea absent path: evidence off with targetArtifacts present logs one loud line, seats no evidence auditor, prompts byte-identical', async () => {
+  const base = await runPhase(PROVISION_ARGS(), defaultImpl)
+  assert.equal(reaLoudLines(base.logs).length, 0, 'no loud line without rows')
+  for (const [arm, over] of [['evidence absent', { targetArtifacts: [REA_ROW] }], ['evidence false', { evidence: false, targetArtifacts: [REA_ROW] }]]) {
+    const r = await runPhase(PROVISION_ARGS(over), defaultImpl)
+    assert.equal(r.out.landDecision, 'landed', `${arm}: the run proceeds (fail-open)`)
+    const loud = reaLoudLines(r.logs)
+    assert.equal(loud.length, 1, `${arm}: exactly one loud line (got ${loud.length}: ${JSON.stringify(loud)})`)
+    assert.ok(loud[0].includes('1 declared target artifact'), `${arm}: the loud line counts the rows`)
+    assert.ok(!r.calls.some(isEvidenceSeat), `${arm}: no evidence auditor seated`)
+    assert.deepEqual(promptsOf(r.calls), promptsOf(base.calls), `${arm}: every prompt byte-identical to the off baseline`)
+  }
+  // Widen arm (End-state 23, non-vacuous): a lone seat at low confidence nominating EVIDENCE_LENS is the
+  // one engine route that could add a seat the roster never listed. With evidence off the nomination is
+  // widen-barred (resolveWidenSource falls back to the default roster) and no evidence seat convenes.
+  const widenArgs = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+    evidence: false, targetArtifacts: [REA_ROW],
+  })
+  const widenImpl = buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
+          widen: [EVIDENCE_LENS],
+          findings: [{ severity: 'Major', title: 'needs the artifact measured', suggested_fix: 'measure it', file: 'a.js', rationale: 'unsure' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const widened = await runPhase(widenArgs, widenImpl)
+  const widenLabels = widened.calls.map(c => c.opts.label || '')
+  assert.ok(widenLabels.filter(l => l === 'audit:t1:security').length >= 2, 'widen arm: the lone seat re-convened (the widen path ran)')
+  // Discriminating witness: the fix round + full-roster re-audit re-label audit:t1:security whether or not the
+  // widening block ran, so the >= 2 count alone cannot see a deleted or regressed widening branch. The engine's
+  // own narration line (source: default fallback) is emitted only inside that branch, and only when the
+  // EVIDENCE_LENS nomination was barred (a nominated source would read `source: nominated`).
+  assert.ok(widened.logs.some(l => typeof l === 'string' && /lone-seat widening \(Critical or low confidence; source: default fallback\)/.test(l)),
+    'widen arm: the widening ran and fell back to the default roster (the EVIDENCE_LENS nomination was barred)')
+  assert.ok(!widened.logs.some(l => typeof l === 'string' && l.includes('lone-seat widening') && l.includes('source: nominated')),
+    'widen arm: the barred nomination never reads as a nominated source')
+  for (const { lens } of ROSTER_TRIO) {
+    assert.ok(widenLabels.includes(`audit:t1:${lens}`), `widen arm: the default-roster lens ${lens} convened after the fallback`)
+  }
+  assert.equal(reaLoudLines(widened.logs).length, 1, 'widen arm: exactly one loud line')
+  assert.ok(!widened.calls.some(isEvidenceSeat), 'widen arm: no evidence auditor seated under an EVIDENCE_LENS nomination')
+  assert.ok(!widenLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen arm: no audit label ends with :${EVIDENCE_LENS} (got ${JSON.stringify(widenLabels.filter(l => l.startsWith('audit:')))})`)
+  // Widen fallback over a stray default-roster row (ruling #2404, the in-place defaultRoster splice): the
+  // lone seat nominates nothing, so resolveWidenSource falls back to defaultRoster verbatim. With the row
+  // dropped at entry the fallback convenes the trio and no evidence seat. Delete-the-feature: hand the
+  // widen fallback a pre-splice copy of defaultRoster (the stray-row loud-line count already catches a moved
+  // splice) and widenRoster appends EVIDENCE_SEAT (run.evidence on admits it), so `!calls.some(isEvidenceSeat)` goes red.
+  const widenStrayImpl = buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
+          findings: [{ severity: 'Major', title: 'needs the artifact measured', suggested_fix: 'measure it', file: 'a.js', rationale: 'unsure' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const widenStray = await runPhase(PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: [...ROSTER_TRIO, EVIDENCE_SEAT], rosterPolicy: 'all', autoEscalate: true },
+    run: { evidence: true }, evidence: false, targetArtifacts: [REA_ROW],
+  }), widenStrayImpl)
+  const widenStrayLabels = widenStray.calls.map(c => c.opts.label || '')
+  assert.ok(widenStray.logs.some(l => typeof l === 'string' && /lone-seat widening \(Critical or low confidence; source: default fallback\)/.test(l)),
+    'widen stray arm: the widening ran and fell back to the default roster')
+  for (const { lens } of ROSTER_TRIO) {
+    assert.ok(widenStrayLabels.includes(`audit:t1:${lens}`), `widen stray arm: the default-roster lens ${lens} convened after the fallback`)
+  }
+  assert.ok(!widenStray.calls.some(isEvidenceSeat), 'widen stray arm: no evidence auditor seated — the fallback read the stripped default roster')
+  assert.ok(!widenStrayLabels.some(l => l.endsWith(`:${EVIDENCE_LENS}`)), `widen stray arm: no audit label ends with :${EVIDENCE_LENS}`)
+  const widenStrayLoud = reaLoudLines(widenStray.logs)
+  assert.equal(widenStrayLoud.length, 1, `widen stray arm: exactly one loud line (got ${widenStrayLoud.length})`)
+  assert.ok(widenStrayLoud[0].includes('audit.roster:' + EVIDENCE_LENS) && widenStrayLoud[0].includes('1 evidence-type roster row(s) dropped'), `widen stray arm: the loud line names the dropped default-roster row: ${widenStrayLoud[0]}`)
+  // Engine drop (ruling #2404, the backstop behind the Lead strip): a roster evidence-type row under
+  // run.evidence on but args.evidence off (REA absent) is dropped at entry — from the task roster and from
+  // the default audit.roster (the widen fallback and the sweep panel read it) — and the one loud line counts
+  // and names each drop. Delete-the-feature: without the drop validateRoster admits the row (run.evidence on)
+  // and runSeat dispatches it, so `!calls.some(isEvidenceSeat)` goes red.
+  // A fresh task object per run: the engine normalizes and drops on t.roster in place.
+  const strayTask = (roster = [{ lens: 'correctness' }, EVIDENCE_SEAT]) => ({ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster })
+  const strayBase = await runPhase(PROVISION_ARGS({ tasks: [strayTask([{ lens: 'correctness' }])], audit: { roster: ROSTER_TRIO } }), defaultImpl)
+  const stray = await runPhase(PROVISION_ARGS({ tasks: [strayTask()], audit: { roster: [...ROSTER_TRIO, EVIDENCE_SEAT] }, run: { evidence: true }, evidence: false, targetArtifacts: [REA_ROW] }), defaultImpl)
+  assert.equal(stray.out.landDecision, 'landed', 'stray row: the run proceeds (fail-open)')
+  assert.ok(stray.calls.some(c => (c.opts.label || '') === 'audit:t1:correctness'), 'stray row: the regular seat still convened (presence guard)')
+  assert.ok(!stray.calls.some(isEvidenceSeat), 'stray row: no evidence auditor seated — the engine dropped the row')
+  assert.ok(!stray.calls.some(c => (c.opts.label || '').endsWith(`:${EVIDENCE_LENS}`)), 'stray row: no audit label ends with the evidence lens')
+  const strayLoud = reaLoudLines(stray.logs)
+  assert.equal(strayLoud.length, 1, `stray row: exactly one loud line (got ${strayLoud.length})`)
+  assert.ok(!strayLoud[0].includes('\n'), 'stray row: the loud line is one line')
+  assert.ok(strayLoud[0].includes('1 declared target artifact'), 'stray row: the loud line still counts the rows')
+  assert.ok(strayLoud[0].includes('2 evidence-type roster row(s) dropped'), `stray row: the loud line counts the dropped rows: ${strayLoud[0]}`)
+  assert.ok(strayLoud[0].includes('t1:' + EVIDENCE_LENS) && strayLoud[0].includes('audit.roster:' + EVIDENCE_LENS), `stray row: the loud line names each dropped row: ${strayLoud[0]}`)
+  assert.deepEqual(promptsOf(stray.calls), promptsOf(strayBase.calls), 'stray row: every prompt byte-identical to the off baseline without the row')
+  // A dropped row with no declared rows still gets the loud line (never a silent drop); a roster of only
+  // evidence-type rows has nothing left to convene and refuses at entry like any broken roster.
+  const strayNoRows = await runPhase(PROVISION_ARGS({ tasks: [strayTask()], run: { evidence: true } }), defaultImpl)
+  assert.equal(strayNoRows.out.landDecision, 'landed', 'stray row, no artifacts: the run proceeds')
+  assert.ok(!strayNoRows.calls.some(isEvidenceSeat), 'stray row, no artifacts: no evidence auditor seated')
+  assert.equal(reaLoudLines(strayNoRows.logs).length, 1, 'stray row, no artifacts: the drop is still loud')
+  assert.ok(reaLoudLines(strayNoRows.logs)[0].includes('0 declared target artifact') && reaLoudLines(strayNoRows.logs)[0].includes('1 evidence-type roster row(s) dropped'), 'stray row, no artifacts: the loud line counts 0 rows and 1 drop')
+  const onlyEvidence = await runPhase(PROVISION_ARGS({ tasks: [strayTask([EVIDENCE_SEAT])], run: { evidence: true }, targetArtifacts: [REA_ROW] }), defaultImpl)
+  assert.equal(onlyEvidence.out.landDecision, 'held:workflow-error', 'an evidence-only roster refuses at entry after the drop')
+  assert.match(onlyEvidence.out.workflowError.message, /only evidence-type rows/, 'the refusal names the emptied roster')
+  assert.equal(onlyEvidence.calls.length, 0, 'zero spawns on the emptied-roster refusal')
+  // Sweep panel: the phase-close sweep convenes the default roster; with the row dropped it convenes
+  // without an evidence seat instead of refusing (validateRoster would admit the row under run.evidence on).
+  const sweepStray = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }, run: { ace: true, evidence: true }, evidence: false, targetArtifacts: [REA_ROW] }), sweepBase([queuedAbsorb()]))
+  assert.ok(sweepStray.calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'sweep arm: the polish sweep convened (presence guard)')
+  assert.ok(!sweepStray.calls.some(isEvidenceSeat), 'sweep arm: no evidence auditor seated on the sweep panel')
+  assert.ok(reaLoudLines(sweepStray.logs)[0] && reaLoudLines(sweepStray.logs)[0].includes('audit.roster:' + EVIDENCE_LENS), 'sweep arm: the loud line names the dropped default-roster row')
+  // The same drop with run.evidence OFF too (the template comment: an audit.roster evidence row is dropped
+  // whatever run.evidence says, because the splice runs before the sweep's validateRoster). Before the drop
+  // this config held the sweep at validateRoster (fail-open skip, no polish); now the row is dropped with the
+  // loud line and the sweep convenes. Delete-the-feature: without the splice validateRoster(defaultRoster,
+  // undefined) refuses the row and no 'polish:phase-3' dispatch happens, so the presence assert goes red.
+  const sweepStrayKnobOff = await runPhase(SWEEP_ARGS({ audit: { roster: [{ lens: 'correctness' }, EVIDENCE_SEAT] }, run: { ace: true } }), sweepBase([queuedAbsorb()]))
+  assert.ok(sweepStrayKnobOff.calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'sweep arm, knob off: the polish sweep convened on the stripped pool')
+  assert.ok(!sweepStrayKnobOff.calls.some(isEvidenceSeat), 'sweep arm, knob off: no evidence auditor seated on the sweep panel')
+  assert.ok(!sweepStrayKnobOff.calls.some(c => (c.opts.label || '').endsWith(`:${EVIDENCE_LENS}`)), 'sweep arm, knob off: no audit label ends with the evidence lens')
+  assert.ok(!sweepStrayKnobOff.logs.some(l => typeof l === 'string' && l.includes('config default audit.roster is unusable')), 'sweep arm, knob off: no fail-open skip line — the row was dropped, not refused')
+  const knobOffLoud = reaLoudLines(sweepStrayKnobOff.logs)
+  assert.equal(knobOffLoud.length, 1, `sweep arm, knob off: exactly one loud line (got ${knobOffLoud.length})`)
+  assert.ok(knobOffLoud[0].includes('audit.roster:' + EVIDENCE_LENS) && knobOffLoud[0].includes('1 evidence-type roster row(s) dropped'), `sweep arm, knob off: the loud line names the dropped default-roster row: ${knobOffLoud[0]}`)
+  const on = await runPhase(PROVISION_ARGS(REA_ON), defaultImpl)
+  assert.equal(reaLoudLines(on.logs).length, 0, 'on: no loud line')
+  // Entry validation: a bad shape refuses at entry naming args.<key>, zero spawns; absence reads as off.
+  for (const [over, re] of [
+    [{ evidence: null }, /workflow-template: args\.evidence/], [{ evidence: 'yes' }, /workflow-template: args\.evidence/],
+    [{ targetArtifacts: null }, /workflow-template: args\.targetArtifacts/], [{ targetArtifacts: 'x' }, /workflow-template: args\.targetArtifacts/],
+    [{ targetArtifacts: [null] }, /workflow-template: args\.targetArtifacts\[0\]/],
+    [{ targetArtifacts: [{ path: 'a', sha256: 'b' }] }, /workflow-template: args\.targetArtifacts\[0\]\.provider/],
+    [{ targetArtifacts: [{ path: 'a', sha256: 7, provider: 'p' }] }, /workflow-template: args\.targetArtifacts\[0\]\.sha256/],
+    // Empty-string arm (`|| !e[k]`), one row per field: schemas.md states an empty field refuses the launch.
+    [{ targetArtifacts: [{ path: '', sha256: 'b', provider: 'p' }] }, /workflow-template: args\.targetArtifacts\[0\]\.path/],
+    [{ targetArtifacts: [{ path: 'a', sha256: '', provider: 'p' }] }, /workflow-template: args\.targetArtifacts\[0\]\.sha256/],
+    [{ targetArtifacts: [{ path: 'a', sha256: 'b', provider: '' }] }, /workflow-template: args\.targetArtifacts\[0\]\.provider/],
+  ]) {
+    const bad = await runPhase(PROVISION_ARGS(over), defaultImpl)
+    assert.equal(bad.out.landDecision, 'held:workflow-error', `${JSON.stringify(over)}: refused at entry`)
+    assert.match(bad.out.workflowError.message, re, `${JSON.stringify(over)}: the refusal names the key`)
+    assert.equal(bad.calls.length, 0, `${JSON.stringify(over)}: zero spawns`)
+  }
+})

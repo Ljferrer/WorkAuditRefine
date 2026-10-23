@@ -14,6 +14,24 @@
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-auditor-git.sh" },
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/warn-bash-write-scope.sh" }
         ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-evidence-auditor-mcp.sh" }
+        ]
+      },
+      {
+        "matcher": "Read|Bash|Glob|Grep",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+        ]
+      },
+      {
+        "matcher": "StructuredOutput",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+        ]
       }
     ],
     "PostToolUse": [
@@ -53,6 +71,12 @@
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/gate.sh\" subagent-start.py", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "^work-audit-refine:war-(evidence-)?auditor$",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+        ]
       }
     ],
     "SubagentStop": [
@@ -60,6 +84,12 @@
         "matcher": "^work-audit-refine:war-",
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/reply-standard/gate.sh\" subagent-stop.py", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "^work-audit-refine:war-(evidence-)?auditor$",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
         ]
       }
     ]

@@ -10,7 +10,7 @@ falsifier probes + provenance scan against a drafted conversion).
 
 ## The stages
 
-**Stage 0 — silent recon.** Before any question, three recon lanes, all fail-open:
+**Stage 0 — silent recon.** Before any question, four recon lanes, all fail-open:
 
 1. **Static recon** — read the repo tree, `CONTEXT.md`, `docs/adr/`, and the related plans
    under `docs/plans/`.
@@ -30,9 +30,16 @@ node skills/_shared/war-memory.mjs query --queries <file> --local <local root> -
 
 (the `--queries <file>` format is JSONL — one `{"label":…,"text":…}` object per line.)
 
-Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, or an empty run
-corpus never blocks the interview — proceed without the rows (and without a `--local` root
-the query writes nothing).
+4. Artifact recon lane — marker **Target artifacts** — fires only when the invocation names
+   an artifact path or a cited issue's `## Evidence artifacts` row names one. Measure the
+   artifact with REA, bundle the evidence under `$MAIN/.claude/war/evidence/<plan-slug>/`
+   only after `provision-worktrees.sh ensure-exclude $MAIN` has run, and draft the block
+   rows (path, sha256, provider). An artifact first named at Stage 2 gets the same pass
+   mid-interview.
+
+Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, an empty run corpus, or
+an absent REA never blocks the interview — proceed without the rows (and without a `--local`
+root the query writes nothing).
 
 **Stage 1 — silent rehearsal + pre-mortem.** Mentally execute the plan-to-be, then name **at
 least two landmine falsifiers** from the WAR falsifier list:
@@ -80,6 +87,8 @@ is not a question. Intent material (Purpose / Method / End states) is **never**
 default-and-tagged: it is asked, or it is absent (ADR 0013).
 When the End states are drafted, read [references/backward-chain-plan.md](backward-chain-plan.md):
 the chain from each one orders Part 2, and the file boundary carves it.
+When the artifact recon lane fires (Stage 0 or mid-interview), read [references/artifact-evidence.md](artifact-evidence.md):
+the tag grammar, the digest rule, the cite-only rule and the block law live there, never here.
 
 **Stage 2 — the interview.** Run under the question contract:
 

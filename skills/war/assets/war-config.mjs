@@ -19,6 +19,16 @@ export const ROSTER_POLICIES = ['auto', 'all', 'solo']
 // Lenses reserved for built-in passes — never roster-selectable, never a valid widen nomination (D4).
 // (execution-evidence = post-merge gate-audit pass; pin-validity = gitlink-bump pre-flight.)
 export const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
+// Roster seat agent types (REA artifact evidence D3/D18): the card a roster seat dispatches under.
+// 'war-auditor' is the plain seat; 'war-evidence-auditor' is the evidence seat, admitted by
+// validateRoster only while run.evidence is true. Inline copy in workflow-template.js, bound by the
+// SEAT_AGENT_TYPES registry row in workflow-template.test.mjs and the F07 validateRoster drift guard.
+export const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
+// The evidence seat's lens (D15). WIDEN_BARRED_LENSES holds every lens resolveWidenSource refuses
+// beside RESERVED_LENSES (D19): a lone seat never widens toward the evidence seat. Inline copy in
+// workflow-template.js, bound by the WIDEN_BARRED_LENSES registry row and the F07 drift guard.
+export const EVIDENCE_LENS = 'artifact-evidence'
+export const WIDEN_BARRED_LENSES = [EVIDENCE_LENS]
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
 // How a run's provision list was derived. 'explicit' = pinned by the user;
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
@@ -266,7 +276,8 @@ export function validate(input) {
   if (Object.prototype.hasOwnProperty.call(au, 'covenSize')) errors.push('audit.covenSize was removed (seat count = roster length) — run /war-room to regenerate the config')
   if (Object.prototype.hasOwnProperty.call(au, 'lenses')) errors.push('audit.lenses was removed (lenses live on audit.roster seats) — run /war-room to regenerate the config')
   if (Object.prototype.hasOwnProperty.call(au, 'covenPolicy')) errors.push('audit.covenPolicy was renamed to audit.rosterPolicy — run /war-room to regenerate the config')
-  for (const e of validateRoster(au.roster).errors) errors.push(`audit.${e}`)
+  // validateRoster sees the run.evidence knob too: an evidence-type seat row is admitted only while it is true.
+  for (const e of validateRoster(au.roster, c.run.evidence).errors) errors.push(`audit.${e}`)
   if (!ROSTER_POLICIES.includes(au.rosterPolicy)) errors.push(`audit.rosterPolicy must be one of ${ROSTER_POLICIES.join('|')} (got ${JSON.stringify(au.rosterPolicy)})`)
   if (typeof au.autoEscalate !== 'boolean') errors.push('audit.autoEscalate must be a boolean')
 
@@ -277,6 +288,11 @@ export function validate(input) {
   // fan-out, byte-identical to pre-knob behavior). An explicit null is unset too (the overrides.*
   // null-as-unset convention, #2088). When set it must be an integer >= 1.
   if (c.run.maxParallel != null && (!Number.isInteger(c.run.maxParallel) || c.run.maxParallel < 1)) errors.push(`run.maxParallel must be an integer >= 1 when set (got ${JSON.stringify(c.run.maxParallel)})`)
+  // run.evidence (REA artifact evidence D8) is optional with NO DEFAULTS.run entry, like run.maxParallel:
+  // absence IS off (the byte-identical off path), an explicit null is unset too, and no preset sets it.
+  // When set it must be a boolean. true is the run-side half of the evidence-seat gate (the Lead also
+  // resolves REA presence before launch); the knob alone never seats an evidence auditor.
+  if (c.run.evidence != null && typeof c.run.evidence !== 'boolean') errors.push(`run.evidence must be a boolean when set (got ${JSON.stringify(c.run.evidence)})`)
   if (!Number.isInteger(c.run.redteamRoundLimit) || c.run.redteamRoundLimit < 1) errors.push(`run.redteamRoundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.redteamRoundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
   if (typeof c.run.ace !== 'boolean') errors.push('run.ace must be a boolean')
@@ -380,21 +396,30 @@ export function resolveProvision(config) {
 }
 
 // Roster validation (D8): a roster is an array of 1–5 seats; each seat an object with a
-// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct.
+// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct; agentType absent or a
+// SEAT_AGENT_TYPES member. `evidence` is the run.evidence knob: an evidence-type row is rejected unless
+// it is exactly true (REA artifact evidence D8/D12). Beside an evidence seat the non-evidence seats cap
+// at 4 (the five-seat ceiling holds); every other roster keeps the plain 1-5 bound.
 // Returns { valid, errors: [string] }. MIRRORED inline in workflow-template.js. Keep in sync.
-export function validateRoster(roster) {
+export function validateRoster(roster, evidence) {
   const errors = []
-  if (!Array.isArray(roster) || roster.length < 1 || roster.length > 5) {
+  if (!Array.isArray(roster)) {
     errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
     return { valid: false, errors }
   }
+  const evidenceSeats = roster.filter(s => s !== null && typeof s === 'object' && !Array.isArray(s) && s.agentType === 'war-evidence-auditor').length
+  if (evidenceSeats > 0 && roster.length - evidenceSeats > 4) errors.push(`roster carries ${roster.length - evidenceSeats} non-evidence seats beside an evidence seat (max 4: the five-seat ceiling holds)`)
+  else if (roster.length < 1 || roster.length > 5) errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
+  if (errors.length > 0) return { valid: false, errors }
   const seen = []
   roster.forEach((seat, i) => {
-    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth? }`); return }
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType? }`); return }
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
     else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     else seen.push(seat.lens)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
+    if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
+    else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
   })
   return { valid: errors.length === 0, errors }
 }
@@ -412,7 +437,8 @@ export function widenRoster(roster, defaultRoster) {
 }
 
 // Lone-seat widening SOURCE (D4): pick the seats a triggered lone seat widens toward. A valid auditor
-// nomination is a non-empty array of DISTINCT, non-empty strings, NONE reserved — strict whole-field
+// nomination is a non-empty array of DISTINCT, non-empty strings, never a `RESERVED_LENSES` or
+// `WIDEN_BARRED_LENSES` member (exports in `war-config.mjs`) — strict whole-field
 // (any bad entry rejects the whole nomination, no per-entry salvage). Valid → seats from the nominated
 // lenses @ deep, source 'nominated'; anything else → defaultRoster verbatim, source 'default' (the
 // byte-identical default-roster-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
@@ -420,7 +446,7 @@ export function widenRoster(roster, defaultRoster) {
 // workflow-template.js. Keep in sync.
 export function resolveWidenSource(nominated, defaultRoster) {
   const valid = Array.isArray(nominated) && nominated.length > 0 &&
-    nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l)) &&
+    nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l) && !WIDEN_BARRED_LENSES.includes(l)) &&
     new Set(nominated).size === nominated.length
   return valid
     ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
