@@ -10937,6 +10937,13 @@ test('D6 — grep flag enumeration: every optional flag in the hook\'s canonical
   const toks = list.split('/').map(t => t.trim()).filter(Boolean)
   assert.ok(toks.length > 0, `grep optional-flag list parsed to zero tokens — ${REPOINT}`)
   toks.forEach(tok => assert.match(tok, /^-[a-z]$/, `grep optional-flag token "${tok}" is not a short flag — ${REPOINT}`))
+  // Reflow guard: a space-joined deny string ("optional -n -i -l -w -c") would leave the capture
+  // holding only "-n" and the loop below green for the rest. The per-token loop ignores the hook's
+  // cluster case arm (`n|i|l|w|c)`), so the parsed list is set-equal to that arm's letters.
+  const armLetters = (hookSh.match(/^\s*([a-z](?:\|[a-z])+)\)\s+;;$/m) || [])[1]
+  assert.ok(armLetters, `hook grep cluster case arm (n|i|l|w|c) not locatable — ${REPOINT}`)
+  assert.deepEqual(toks.map(t => t.slice(1)).sort(), armLetters.split('|').sort(),
+    `grep optional-flag list "${list}" is not set-equal to the hook's cluster case arm "${armLetters}" — a reflowed deny string, or a flag admitted on one side only; ${REPOINT}`)
   for (const tok of toks) {
     for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
       assert.match(sText, flagTokenRe(tok),

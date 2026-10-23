@@ -26,6 +26,9 @@ card, and the evidence card's guard paragraph carries the same one sentence. The
 `-- <pathspec>`; `-O` in any spelling or cluster, `-f`, `--no-index`, `--recurse-submodules` and
 every regex selector deny) is enforced by the hook's per-token grep loop and pinned by group P of
 `hooks/validate-auditor-git.test.sh`; ADR 0029's Amendment (2026-10-22) records the reversal.
+The optional-flag list (-n -i -l -w -c) has the same extraction-equality arbiter as the branch
+flags: the `D6 — grep flag enumeration` test in `skills/war/assets/workflow-template.test.mjs`
+reads the hook's grep deny string and asserts each flag onto both prompt mirrors.
 
 ## Widening nomination details
 

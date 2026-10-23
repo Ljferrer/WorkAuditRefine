@@ -519,8 +519,12 @@ expect_deny_teach "P5: git grep --open-files-in-pager denied" \
 expect_deny_teach "P6: git grep -E denied" \
   "$(auditor_cmd "git grep -E -F -e token")" "git grep admits one form only"
 
+# P7/P22 carry a full `-F -e token` so ONLY the -f/--file rule can deny: a
+# payload without -e would still deny at the closing exactly-one-`-e` check,
+# so the row could not see a regression that admits -f. Each pins the
+# rule-specific substring, not the shared opening fragment.
 expect_deny_teach "P7: git grep -f denied" \
-  "$(auditor_cmd "git grep -F -f /etc/passwd")" "git grep admits one form only"
+  "$(auditor_cmd "git grep -F -e token -f /etc/passwd")" "carries -f"
 
 expect_deny_teach "P8: git grep --no-index denied" \
   "$(auditor_cmd "git grep -F -e token --no-index")" "git grep admits one form only"
@@ -572,7 +576,7 @@ expect_deny_teach "P21: git grep -F -e token --recurse-submodules → denied" \
   "$(auditor_cmd "git grep -F -e token --recurse-submodules")" "git grep admits one form only"
 
 expect_deny_teach "P22: git grep -F --file=pats → denied (long -f spelling)" \
-  "$(auditor_cmd "git grep -F --file=pats")" "git grep admits one form only"
+  "$(auditor_cmd "git grep -F -e token --file=pats")" "'--file=pats' is not part of that form"
 
 expect_deny_teach "P23: git grep -F -e token HEAD HEAD~1 → denied (at most one revision)" \
   "$(auditor_cmd "git grep -F -e token HEAD HEAD~1")" "git grep admits one form only"
