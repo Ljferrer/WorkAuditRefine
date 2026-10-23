@@ -313,6 +313,27 @@ run "$(mk_start "$AUD" t11)"
 run "$(mk_bash "$AUD" t11 "git -C~/wtB log")"
 if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t11/touched" ]; then pass "Bash attached -C~/<path> stays literal and touches nothing"; else fail "attached tilde expanded (rc=$RC touched=|$(cat "$FP_ROOT/t11/touched" 2>/dev/null)|)"; fi
 HOME="$_home"
+# `~+` and `~-` are admitted too and the seat's shell expands them (PWD and
+# OLDPWD); the hook reads both from the payload cwd (wtA here, so `~+/../wtB`
+# reaches wtB). A `~<name>` form needs getpwnam, so the hook records it
+# literal and the verdict arm escalates it.
+PCWD="$TMP/wtA"
+run "$(mk_start "$AUD" t12)"
+run "$(mk_bash "$AUD" t12 "git -C ~+/../wtB log")"
+if touched_is t12 "$WTB"; then pass "Bash unquoted -C ~+/<path> resolves from the payload cwd and touches that worktree"; else fail "tilde-plus -C touch not recorded: |$(cat "$FP_ROOT/t12/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t13)"
+run "$(mk_bash "$AUD" t13 "git -C ~-/../wtB log")"
+if touched_is t13 "$WTB"; then pass "Bash unquoted -C ~-/<path> resolves from the payload cwd and touches that worktree"; else fail "tilde-minus -C touch not recorded: |$(cat "$FP_ROOT/t13/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t14)"
+run "$(mk_bash "$AUD" t14 "git -C ~nosuchuser/wtB log")"
+run "$(mk_verdict "$AUD" t14)"
+PCWD="$MAIN"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if touched_is t14 "~nosuchuser/wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved -C path)" ]; then
+  pass "Bash unquoted -C ~<name>/<path> is recorded literal and escalates as an unresolved -C path"
+else
+  fail "tilde-name -C not escalated (touched=|$(cat "$FP_ROOT/t14/touched" 2>/dev/null)| rsn=|$rsn|)"
+fi
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -374,6 +395,27 @@ run "$(mk_start "$AUD" c7)"
 run "$(mk_read "$AUD" c7 "$TMP/wtB/f")"
 printf 'two\n' > "$TMP/wtB/p"
 if escalates_on c7 "$WTB"; then pass "a second edit to a plain dirty sibling of a leading-quote and a trailing-CR name escalates"; else fail "plain sibling edit not caught beside odd names (rc=$RC out=|$OUT|)"; fi
+# Negative control: the same odd names stay dirty, nothing moves, and the
+# verdict passes, so the c rows above fail on the edit and not on churn in
+# the out-of-batch arm or the batch zip between two runs.
+run "$(mk_start "$AUD" c8)"
+run "$(mk_read "$AUD" c8 "$TMP/wtB/f")"
+run "$(mk_verdict "$AUD" c8)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "an unchanged worktree with odd-name dirty paths passes"; else fail "unchanged odd-name worktree did not pass (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# hash-object runs no clean filter: a `text` attribute would normalize CRLF
+# to LF on the way in and hide a line-ending-only second edit. One row per
+# hash-object arm: the batch (plain name e) and the single call (the CR name).
+printf 'e text\nr* text\n' > "$TMP/wtB/.gitattributes"
+printf 'x\n' > "$TMP/wtB/e"
+run "$(mk_start "$AUD" c9)"
+run "$(mk_read "$AUD" c9 "$TMP/wtB/f")"
+printf 'x\r\n' > "$TMP/wtB/e"
+if escalates_on c9 "$WTB"; then pass "a line-ending-only second edit under a text attribute escalates (batch arm, no clean filter)"; else fail "clean filter hid a CRLF edit in the batch arm (rc=$RC out=|$OUT|)"; fi
+printf 'x\n' > "$TMP/wtB/$CRN"
+run "$(mk_start "$AUD" c10)"
+run "$(mk_read "$AUD" c10 "$TMP/wtB/f")"
+printf 'x\r\n' > "$TMP/wtB/$CRN"
+if escalates_on c10 "$WTB"; then pass "a line-ending-only second edit to a CR-named path under a text attribute escalates (single-call arm, no clean filter)"; else fail "clean filter hid a CRLF edit in the single-call arm (rc=$RC out=|$OUT|)"; fi
 
 # --- unverifiable fingerprint escalates --------------------------------------
 run "$(mk_read "$AUD" a9 "$TMP/wtA/f")"
@@ -390,6 +432,18 @@ fi
 run "$(jq -nc --arg at "$AUD" --arg c "$MAIN" '{hook_event_name:"PreToolUse",agent_type:$at,tool_name:"StructuredOutput",tool_input:{verdict:"approve"},cwd:$c}')"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
 case "$rsn" in "AUDIT-TAMPER: unverifiable fingerprint (no agent_id"*) pass "missing agent_id at verdict time escalates as unverifiable" ;; *) fail "missing agent_id not caught: |$OUT|" ;; esac
+# A rejected agent_id (a separator or traversal in it) is unverifiable too,
+# named as unsafe, and never keys a state path outside the fingerprint root.
+run "$(mk_start "$AUD" '../esc')"
+run "$(mk_verdict "$AUD" '../esc')"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id"*) p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ ! -e "$MAIN/.claude/war/esc" ]; then
+  pass "a traversal agent_id escalates as unsafe and writes no state outside the fingerprint root"
+else
+  fail "traversal agent_id not rejected (rc=$RC ver=$ver rsn=|$rsn| esc=$([ -e "$MAIN/.claude/war/esc" ] && echo present || echo absent))"
+fi
 # A git error on a touched worktree (its .git link removed) is unverifiable.
 run "$(mk_start "$AUD" a4)"
 run "$(mk_read "$AUD" a4 "$TMP/wtD/f")"
@@ -399,7 +453,10 @@ rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_rea
 case "$rsn" in "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTD)") pass "a git error on a touched worktree escalates as unverifiable" ;; *) fail "git error not caught: |$OUT| err=|$ERR|" ;; esac
 # A marked worktree whose start fingerprint fails (wtD, .git link gone) is
 # skipped by the start arm; a touch on it then has no start record.
+# The seat touches clean wtA first, so a record that carried the previous
+# worktree's start or now fingerprint would show a fabricated mismatch.
 run "$(mk_start "$AUD" t7)"
+run "$(mk_read "$AUD" t7 "$TMP/wtA/f")"
 run "$(mk_read "$AUD" t7 "$TMP/wtD/f")"
 run "$(mk_verdict "$AUD" t7)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
@@ -407,6 +464,12 @@ if [ -f "$FP_ROOT/t7/start" ] && ! grep -Fq " $WTD" "$FP_ROOT/t7/start" && [ "$r
   pass "a touched worktree the start arm could not fingerprint escalates as no start record"
 else
   fail "start-arm skip not caught: rsn=|$rsn| start=|$(cat "$FP_ROOT/t7/start" 2>/dev/null)|"
+fi
+rec="$TAMPER_ROOT/t7.json"
+if [ "$(jq -r '.worktree' "$rec" 2>/dev/null)" = "$WTD" ] && [ -z "$(jq -r '.start' "$rec" 2>/dev/null)" ] && [ -z "$(jq -r '.now' "$rec" 2>/dev/null)" ]; then
+  pass "an unverifiable record carries no start or now fingerprint from a previous worktree"
+else
+  fail "unverifiable record carries stale fingerprints: $(cat "$rec" 2>/dev/null)"
 fi
 
 # --- subagent stop records a mismatch without blocking -----------------------
@@ -429,6 +492,21 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -f "$TAMPER_ROOT/a7.json" ]; then
 else
   fail "clean stop wrote a record or failed (rc=$RC out=|$OUT|)"
 fi
+# A rewritten verdict's record outlives the stop: the stop arm never replaces
+# a PreToolUse:StructuredOutput record with its own.
+run "$(mk_start "$AUD" a6)"
+run "$(mk_read "$AUD" a6 "$TMP/wtA/f")"
+printf 'late change\n' >> "$TMP/wtA/f"
+run "$(mk_verdict "$AUD" a6)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rec="$TAMPER_ROOT/a6.json"
+vrec="$(cat "$rec" 2>/dev/null)"
+run "$(mk_stop "$AUD" a6)"
+if [ "$ver" = escalate ] && [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(jq -r '.event' "$rec")" = "PreToolUse:StructuredOutput" ] && [ "$(cat "$rec")" = "$vrec" ]; then
+  pass "subagent stop keeps the verdict-time tamper record"
+else
+  fail "subagent stop replaced the verdict-time record (ver=$ver rc=$RC rec=$(cat "$rec" 2>/dev/null))"
+fi
 
 # --- exit contract: 0 or 2 only -----------------------------------------------
 run '{not json'
@@ -436,6 +514,21 @@ case "$ERR" in *"WAR: audit tree fingerprint: payload is not JSON"*) m=1 ;; *) m
 if [ "$RC" = 2 ] && [ "$m" = 1 ]; then pass "payload not JSON -> exit 2 with a WAR: marker"; else fail "not-JSON payload rc=$RC err=|$ERR|"; fi
 run "$(jq -nc --arg at "$AUD" --arg c "$MAIN" '{hook_event_name:"PreToolUse",agent_type:$at,agent_id:"a1",tool_name:"Write",tool_input:{},cwd:$c}')"
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "an unmatched tool_name passes through"; else fail "unmatched tool rc=$RC out=|$OUT|"; fi
+# The updatedInput build guard: a jq that fails only on the rewrite call (a
+# shim that exits 5 when its arguments name updatedInput, else the real jq)
+# makes a tainted verdict exit 2 with that guard's own message.
+REALJQ="$(command -v jq)"
+SHIM2="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshim2)"
+printf '#!/bin/bash\ncase "$*" in *updatedInput*) exit 5 ;; esac\nexec "%s" "$@"\n' "$REALJQ" > "$SHIM2/jq"
+chmod +x "$SHIM2/jq"
+run "$(mk_start "$AUD" a10)"
+run "$(mk_read "$AUD" a10 "$TMP/wtA/f")"
+printf 'late change\n' >> "$TMP/wtA/f"
+_p="$(mk_verdict "$AUD" a10)"
+_rc=0; _err="$(printf '%s' "$_p" | PATH="$SHIM2:$PATH" "$BASH" "$HOOK" 2>&1 >/dev/null)" || _rc=$?
+case "$_err" in *"WAR: audit tree fingerprint: could not build the updatedInput payload"*) m=1 ;; *) m=0 ;; esac
+if [ "$_rc" = 2 ] && [ "$m" = 1 ]; then pass "a failed updatedInput build -> exit 2 with its own WAR: message"; else fail "updatedInput build guard rc=$_rc err=|$_err|"; fi
+rm -rf "$SHIM2"
 # jq missing: an auditor payload exits 2 (fail-closed); a worker payload passes
 # through, so a jq-less host never blocks the main session's every Read. The
 # payloads are built BEFORE the PATH override (the builders need the real jq);
@@ -443,12 +536,14 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "an unmatched tool_name passes thro
 SHIM="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshim)"
 for _t in cat grep printf; do _b="$(command -v "$_t")" && [ -n "$_b" ] && ln -s "$_b" "$SHIM/$_t"; done
 _aud_payload="$(mk_verdict "$AUD" a1)"
-_wrk_payload="$(mk_verdict 'work-audit-refine:war-worker' w1)"
+# The worker payload carries a file_path ending war-auditor: a grep that is
+# not anchored on the agent_type key would block it.
+_wrk_payload="$(mk_read 'work-audit-refine:war-worker' w1 "$TMP/notes-war-auditor")"
 _rc=0; _err="$(printf '%s' "$_aud_payload" | PATH="$SHIM" "$BASH" "$HOOK" 2>&1 >/dev/null)" || _rc=$?
 case "$_err" in *"jq is not installed"*) m=1 ;; *) m=0 ;; esac
 if [ "$_rc" = 2 ] && [ "$m" = 1 ]; then pass "jq missing on an auditor payload -> exit 2 (fail-closed)"; else fail "jq missing auditor rc=$_rc err=|$_err|"; fi
 _rc=0; _out="$(printf '%s' "$_wrk_payload" | PATH="$SHIM" "$BASH" "$HOOK" 2>/dev/null)" || _rc=$?
-if [ "$_rc" = 0 ] && [ -z "$_out" ]; then pass "jq missing on a worker payload -> pass-through"; else fail "jq missing worker rc=$_rc out=|$_out|"; fi
+if [ "$_rc" = 0 ] && [ -z "$_out" ]; then pass "jq missing on a worker payload whose path ends war-auditor -> pass-through"; else fail "jq missing worker rc=$_rc out=|$_out|"; fi
 rm -rf "$SHIM"
 
 # --- registration + conventions ---------------------------------------------

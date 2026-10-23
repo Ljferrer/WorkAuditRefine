@@ -10,7 +10,8 @@
 #     (1) SubagentStart: record the fingerprint of every `.war-task` worktree
 #         (`git worktree list --porcelain`, marker present): HEAD sha plus the
 #         sha256 of `git status --porcelain=v1 -z -uall` joined with the blob
-#         hash (`git hash-object`, no write) of every path that status lists.
+#         hash (`git hash-object --no-filters`, no write, no clean filter) of
+#         every path that status lists.
 #         The blob hashes make the fingerprint content-sensitive: a status line
 #         is the same before and after a second edit to an already-dirty file.
 #         The -z form carries every path raw; the newline form C-quotes a path
@@ -25,13 +26,15 @@
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
-#         agent_id, no git common dir, a missing start record, a git error),
+#         or an unsafe agent_id, no git common dir, a missing start record, a
+#         git error, an unresolved Bash `-C` path),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
 #         `AUDIT-TAMPER: <worktree> changed during the audit round (<start> -> <now>)`
 #         or `AUDIT-TAMPER: unverifiable fingerprint (<cause>)`, and writes a
 #         record to `$MAIN/.claude/war/audit-tamper/<agent_id>.json`.
-#     (4) SubagentStop: the same comparison, record only, never a block.
+#     (4) SubagentStop: the same comparison, record only, never a block, and
+#         never over a record the StructuredOutput arm wrote for the seat.
 #   A worktree the seat never touched is never compared, so concurrent workers
 #   in sibling worktrees cannot trip it.
 #
@@ -59,8 +62,10 @@
 #   composed `dirname "$(git ...)"` yields "." on a failed probe). `.claude/`
 #   is already excluded from status by provision-worktrees.sh ensure-exclude.
 #   `start` lines are `<head> <status-sha256> <worktree>`; `touched` holds one
-#   canonical worktree path per line. Worktree paths are canonical (`pwd -P`)
-#   on both sides, so a symlinked temp dir compares equal to its real path.
+#   canonical worktree path per line, or a literal `~<name>` Bash `-C` token
+#   the hook cannot expand (the verdict arm reports it as unresolved). Worktree
+#   paths are canonical (`pwd -P`) on both sides, so a symlinked temp dir
+#   compares equal to its real path.
 #
 # PAYLOAD CONTRACT
 #   `agent_id` and `agent_type` ride SubagentStart and SubagentStop (confirmed
@@ -73,7 +78,7 @@
 # EXIT CONTRACT
 #   0 = pass-through, recorded, allowed (with or without updatedInput).
 #   2 = a parse or infra error: payload not JSON, or jq missing on an auditor
-#   payload (without jq the agent type is read by a value-anchored grep, so a
+#   payload (without jq the agent type is read by a key-anchored grep, so a
 #   jq-less host blocks only the two seat types, never the main session's
 #   every Read).
 #   Never any other code.
@@ -97,11 +102,13 @@ infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
 input="$(cat)"
 
-# Without jq the agent type is read by a value-anchored grep on the raw payload
-# (a JSON string value ending war-auditor or war-evidence-auditor), so the two
-# seat types fail closed and every other caller passes through.
+# Without jq the agent type is read by a key-anchored grep on the raw payload
+# (an `agent_type` key whose string value ends war-auditor or
+# war-evidence-auditor), so the two seat types fail closed and every other
+# caller passes through, a main-session Read of a path ending war-auditor
+# included.
 if ! command -v jq >/dev/null 2>&1; then
-  if printf '%s' "$input" | grep -q 'war-\(evidence-\)\{0,1\}auditor"'; then
+  if printf '%s' "$input" | grep -q '"agent_type"[[:space:]]*:[[:space:]]*"[^"]*war-\(evidence-\)\{0,1\}auditor"'; then
     infra "jq is not installed; an audit seat cannot be fingerprinted (fail-closed)"
   fi
   exit 0
@@ -122,7 +129,10 @@ cwd="$(get '.cwd')"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$PWD"
 
 # agent_id keys the state dir: one path segment, no separators or traversal.
-aid="$(get '.agent_id')"
+# aid_raw keeps the payload value so the verdict arm can tell a rejected id
+# from an absent one.
+aid_raw="$(get '.agent_id')"
+aid="$aid_raw"
 case "$aid" in
   ''|*[!A-Za-z0-9._-]*|.|..) aid="" ;;
 esac
@@ -172,7 +182,7 @@ blob_lines() {
     else
       case "$_p" in
         *"$NL"*|\"*|*"$CR")
-           _o="$(git -C "$1" hash-object -- "$_p" 2>/dev/null)" && [ -n "$_o" ] || _o="unreadable"
+           _o="$(git -C "$1" hash-object --no-filters -- "$_p" 2>/dev/null)" && [ -n "$_o" ] || _o="unreadable"
            _O[$_n]="$_o" ;;
         *) _O[$_n]=""; _batch="$_batch$_p$NL"; _nb=$((_nb + 1)) ;;
       esac
@@ -181,7 +191,7 @@ blob_lines() {
   done
   _hashes=""
   if [ "$_nb" -gt 0 ]; then
-    _hashes="$(printf '%s' "$_batch" | git -C "$1" hash-object --stdin-paths 2>/dev/null)" || _hashes=""
+    _hashes="$(printf '%s' "$_batch" | git -C "$1" hash-object --no-filters --stdin-paths 2>/dev/null)" || _hashes=""
   fi
   # set -f is on, so this split is on whitespace only (hashes are hex).
   set -- $_hashes
@@ -201,8 +211,10 @@ blob_lines() {
 # The sha256 covers the raw -z status output plus its blob_lines. The status
 # bytes land in a temp file (a bash variable cannot hold NUL) that feeds both
 # the parse and the hash from ONE status run. Read-only on the worktree:
-# status runs under the exported GIT_OPTIONAL_LOCKS=0, hash-object never
-# writes.
+# status runs under the exported GIT_OPTIONAL_LOCKS=0, and hash-object runs
+# with --no-filters, so it hashes raw bytes and never runs a clean filter (a
+# git-lfs filter writes under .git/lfs; an eol filter would hide a
+# line-ending-only edit).
 fingerprint() {
   _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
   [ -n "$_h" ] || return 1
@@ -231,23 +243,32 @@ task_worktrees() {
 # task_worktree_of <path> -> the canonical .war-task worktree root that holds
 # <path>, or nothing. A relative path resolves against the payload cwd. The
 # walk runs on the canonical path of the nearest existing ancestor, so a `..`
-# segment or a symlink cannot name a different worktree than it reaches.
+# segment or a symlink cannot name a different worktree than it reaches. The
+# parent step is a parameter expansion, not a dirname spawn per level.
 task_worktree_of() {
   _p="$1"
   case "$_p" in /*) ;; *) _p="$cwd/$_p" ;; esac
   _d="$_p"
   while [ ! -d "$_d" ]; do
-    _nd="$(dirname "$_d")"
+    _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
     [ "$_nd" = "$_d" ] && return 0
     _d="$_nd"
   done
   _d="$(canon "$_d")" || return 0
   while :; do
     if [ -e "$_d/.war-task" ]; then printf '%s\n' "$_d"; return 0; fi
-    _nd="$(dirname "$_d")"
+    _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
     [ "$_nd" = "$_d" ] && return 0
     _d="$_nd"
   done
+}
+
+# touch_line <line>: add one line to the touched set (deduped).
+touch_line() {
+  [ -n "$STATE" ] || return 0
+  mkdir -p "$STATE" 2>/dev/null || return 0
+  [ -f "$STATE/touched" ] && grep -Fxq -- "$1" "$STATE/touched" 2>/dev/null && return 0
+  printf '%s\n' "$1" >> "$STATE/touched"
 }
 
 # touch_path <path>: add the worktree <path> reaches to the touched set.
@@ -255,23 +276,31 @@ touch_path() {
   [ -n "$STATE" ] || return 0
   _wt="$(task_worktree_of "$1")"
   [ -n "$_wt" ] || return 0
-  mkdir -p "$STATE" 2>/dev/null || return 0
-  [ -f "$STATE/touched" ] && grep -Fxq -- "$_wt" "$STATE/touched" 2>/dev/null && return 0
-  printf '%s\n' "$_wt" >> "$STATE/touched"
+  touch_line "$_wt"
 }
 
 # compare: sets REASON (empty on a clean pass) plus T_WT, T_START, T_NOW.
-# The first failing worktree wins. A seat that touched nothing passes only
-# when its start record exists: a missing record means the start arm never
-# ran, which is unverifiable, not clean.
+# The first failing worktree wins, and T_START and T_NOW are reset per
+# worktree so a failing record never carries the previous worktree's values.
+# A seat that touched nothing passes only when its start record exists: a
+# missing record means the start arm never ran, which is unverifiable, not
+# clean.
 REASON=""; T_WT=""; T_START=""; T_NOW=""
 compare() {
-  if [ -z "$aid" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no agent_id in the hook payload)"; return 0; fi
+  if [ -z "$aid" ]; then
+    if [ -n "$aid_raw" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the hook payload)"
+    else REASON="AUDIT-TAMPER: unverifiable fingerprint (no agent_id in the hook payload)"; fi
+    return 0
+  fi
   if [ -z "$MAIN" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no git common dir from cwd '$cwd')"; return 0; fi
   if [ ! -f "$STATE/start" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no start record for agent $aid)"; return 0; fi
   [ -f "$STATE/touched" ] || return 0
   while IFS= read -r _wt || [ -n "$_wt" ]; do
     [ -n "$_wt" ] || continue
+    T_START=""; T_NOW=""
+    case "$_wt" in /*) ;; *)
+      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved -C path)"; return 0 ;;
+    esac
     _rec="$(while IFS= read -r _l; do
               _p="${_l#* }"; _p="${_p#* }"
               [ "$_p" = "$_wt" ] && { printf '%s\n' "$_l"; break; }
@@ -337,9 +366,14 @@ case "$event" in
         # whitespace-split only (set -f above: a glob token stays literal); a
         # quoted path has its quotes stripped. An unquoted word-initial `~`
         # (admitted by validate-auditor-git.sh for HEAD~1) is expanded by the
-        # seat's shell before git sees it, so the hook expands that form too;
-        # a quoted `'~/x'` or an attached `-C~/x` reaches git literal and
-        # stays literal here.
+        # seat's shell before git sees it, so the hook expands that form too:
+        # `~` and `~/x` from HOME, `~+` and `~-` (`+` and `-` are admitted
+        # too) from the payload cwd (the nearest reading of PWD and OLDPWD the
+        # payload offers), and a `~<name>` form, which only getpwnam can
+        # resolve, goes into the touched set literal so the verdict arm
+        # escalates it as unresolved instead of comparing nothing. A quoted
+        # `'~/x'` or an attached `-C~/x` reaches git literal and stays literal
+        # here.
         _cmd="$(get '.tool_input.command')"
         _found=0; _want=0
         for _tok in $_cmd; do
@@ -348,6 +382,9 @@ case "$event" in
             case "$_tok" in
               \"*|\'*) _tok="${_tok#\"}"; _tok="${_tok%\"}"; _tok="${_tok#\'}"; _tok="${_tok%\'}" ;;
               "~"|"~/"*) [ -n "${HOME-}" ] && _tok="$HOME${_tok#\~}" ;;
+              "~+"|"~+/"*) _tok="$cwd${_tok#\~+}" ;;
+              "~-"|"~-/"*) _tok="$cwd${_tok#\~-}" ;;
+              "~"*) touch_line "$_tok"; continue ;;
             esac
             [ -n "$_tok" ] && touch_path "$_tok"
             continue
@@ -376,7 +413,13 @@ case "$event" in
   SubagentStop)
     compare
     [ -n "$REASON" ] || exit 0
-    write_tamper_record "SubagentStop"
+    # A verdict-time record outranks the stop-time one: the Lead reads a
+    # SubagentStop record as informational (the verdict stood), so the stop
+    # arm never overwrites the record that documents a rewritten verdict.
+    _prev="$MAIN/.claude/war/audit-tamper/$aid.json"
+    if [ -n "$aid" ] && [ -f "$_prev" ] \
+       && [ "$(jq -r '.event // empty' "$_prev" 2>/dev/null)" = "PreToolUse:StructuredOutput" ]; then :
+    else write_tamper_record "SubagentStop"; fi
     echo "WAR: audit tree fingerprint: $REASON" >&2
     exit 0 ;;
 
