@@ -30,6 +30,18 @@
 #   A worktree the seat never touched is never compared, so concurrent workers
 #   in sibling worktrees cannot trip it.
 #
+# NON-INTERFERENCE
+#   Every git call runs with GIT_OPTIONAL_LOCKS=0 (git(1) --no-optional-locks,
+#   exported once below). Without it, `git status` refreshes each worktree's
+#   index and writes it back under <gitdir>/index.lock, and the SubagentStart
+#   arm runs status in EVERY marked worktree, live sibling workers' and the
+#   refiner's included: a `git add`, `git commit` or `git rebase` there during
+#   that window dies on `index.lock: File exists`. With the opt-out, status
+#   reads the index and never locks or writes it, so the hook writes no git
+#   state in any worktree (an audit seat writes nothing, ADR 0002). The status
+#   output is the same either way. Pinned by the test row `every
+#   fingerprinting arm leaves the worktree index unwritten (no optional lock)`.
+#
 # SCOPE
 #   Acts only for agent types ending `war-auditor` or `war-evidence-auditor`
 #   (suffix-anchored arms, `*war-<role>`, never `*war-<role>*`). Every other
@@ -66,6 +78,8 @@
 #   Reads the payload via jq (already a hook dependency). sha256 via
 #   `sha256sum` or `shasum -a 256`, whichever is present.
 set -u
+# No optional locks on any git call below (see NON-INTERFERENCE above).
+export GIT_OPTIONAL_LOCKS=0
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
@@ -140,7 +154,8 @@ blob_lines() {
 
 # fingerprint <worktree> -> prints "<head> <status-sha256>", or returns 1.
 # The sha256 covers the status output plus its blob_lines. quotePath is off
-# so a non-ASCII path reaches hash-object verbatim.
+# so a non-ASCII path reaches hash-object verbatim. Read-only: status runs
+# under the exported GIT_OPTIONAL_LOCKS=0, hash-object never writes.
 fingerprint() {
   _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
   [ -n "$_h" ] || return 1
