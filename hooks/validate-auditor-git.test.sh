@@ -575,7 +575,7 @@ expect_deny_teach "P20: git grep -F -e token --open-files-in-pager → denied (b
 expect_deny_teach "P21: git grep -F -e token --recurse-submodules → denied" \
   "$(auditor_cmd "git grep -F -e token --recurse-submodules")" "git grep admits one form only"
 
-expect_deny_teach "P22: git grep -F --file=pats → denied (long -f spelling)" \
+expect_deny_teach "P22: git grep -F -e token --file=pats → denied (long -f spelling)" \
   "$(auditor_cmd "git grep -F -e token --file=pats")" "'--file=pats' is not part of that form"
 
 expect_deny_teach "P23: git grep -F -e token HEAD HEAD~1 → denied (at most one revision)" \

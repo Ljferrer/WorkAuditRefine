@@ -10321,6 +10321,21 @@ const BRANCH_READ_FLAGS_ONLY_SAMPLES = [
   ['auditPrompt() sentence (pre-change bytes)',
     'branch takes =-attached read flags only (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); a bare name or write flag denies.'],
 ]
+// D21 retired-claim regexes (Task 6.1): the card bullet carried `git grep` in backticks, so a bare
+// /git grep stays denied/ never matched the card form — the optional backticks make one regex
+// cover the card, the dispatched literal and the eviction destination.
+const GIT_GREP_STAYS_DENIED_RETIRED = /`?git grep`? stays denied/i
+const GIT_GREP_NOT_AND_STAYS_DENIED_RETIRED = /is not and stays denied/i
+const NEVER_SHELL_GREP_RETIRED = /never (?:with )?shell `?grep`?(?: or |\/)`?git grep`?/i
+// Unwired negative reference (both-ways proof), same shape as BRANCH_READ_FLAGS_ONLY_SAMPLES: the
+// pre-D21 bytes of each surface's OWN retired claim, each paired with the regex that must fire on it.
+// FIXTURES: never re-introduced into a live surface.
+const GIT_GREP_RETIRED_SAMPLES = [
+  ['card bullet', '**`git grep` stays denied**', GIT_GREP_STAYS_DENIED_RETIRED],
+  ['dispatched literal', 'git grep stays denied —', GIT_GREP_STAYS_DENIED_RETIRED],
+  ['card committed-tree clause', '`git grep` is not and stays denied', GIT_GREP_NOT_AND_STAYS_DENIED_RETIRED],
+  ['evidence card', 'never with shell `grep` or `git grep`', NEVER_SHELL_GREP_RETIRED],
+]
 
 test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -10832,9 +10847,13 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   // hooks/validate-auditor-git.test.sh; this scan is the doc side of the same ruling.
   for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
     ['references/auditor-teach.md', auditorTeachMd], ['war-evidence-auditor.md', evidenceCardMd]]) {
-    assert.doesNotMatch(sText, /git grep stays denied/i, `${sName}: the retired 'git grep stays denied' claim is absent (D21 admitted git grep -F -e <token>)`)
-    assert.doesNotMatch(sText, /is not and stays denied/i, `${sName}: the retired committed-tree 'is not and stays denied' clause is absent (D21)`)
-    assert.doesNotMatch(sText, /never (?:with )?shell `?grep`?(?: or |\/)`?git grep`?/i, `${sName}: the retired 'never shell grep/git grep' rule is absent (D21: the Grep tool first, then git grep -F -e <token>)`)
+    assert.doesNotMatch(sText, GIT_GREP_STAYS_DENIED_RETIRED, `${sName}: the retired 'git grep stays denied' claim is absent (D21 admitted git grep -F -e <token>)`)
+    assert.doesNotMatch(sText, GIT_GREP_NOT_AND_STAYS_DENIED_RETIRED, `${sName}: the retired committed-tree 'is not and stays denied' clause is absent (D21)`)
+    assert.doesNotMatch(sText, NEVER_SHELL_GREP_RETIRED, `${sName}: the retired 'never shell grep/git grep' rule is absent (D21: the Grep tool first, then git grep -F -e <token>)`)
+  }
+  for (const [label, sample, retired] of GIT_GREP_RETIRED_SAMPLES) {
+    assert.match(sample, retired,
+      `negative reference (${label}): the retired D21 claim DOES match its guard — the doesNotMatch above is non-vacuous`)
   }
   for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['war-evidence-auditor.md', evidenceCardMd]]) {
     assert.match(sText, /git grep -F -e <token>/, `${sName}: names the D21 fallback form git grep -F -e <token>`)
