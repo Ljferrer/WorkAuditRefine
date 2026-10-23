@@ -123,7 +123,7 @@ else
   fail "start record content wrong (lines=$lines): $(cat "$START" 2>/dev/null)"
 fi
 head_a="$(git -C "$TMP/wtA" rev-parse HEAD)"
-if grep -Fq "^$head_a " "$START" || grep -q "^$head_a [0-9a-f]\{64\} " "$START"; then
+if grep -q "^$head_a [0-9a-f]\{64\} " "$START"; then
   pass "start record line carries the HEAD sha and a 64-hex status sha256"
 else
   fail "start record line shape wrong: $(cat "$START")"
@@ -298,6 +298,21 @@ if touched_is t6 "$WTA"; then pass "Read through a ..-segment path touches the w
 run "$(mk_start "$AUD" t8)"
 run "$(mk_bash "$AUD" t8 "git -C $TMP/wt[B] log")"
 if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t8/touched" ]; then pass "a glob in a Bash -C token is not expanded against the filesystem"; else fail "glob -C token expanded (rc=$RC touched=|$(cat "$FP_ROOT/t8/touched" 2>/dev/null)|)"; fi
+# The seat's shell expands an unquoted word-initial `~` before git runs, so
+# `git -C ~/wtB` reads wtB and the hook must touch it; a quoted `'~/wtB'` or
+# an attached `-C~/wtB` reaches git literal (cwd-relative, no such dir) and
+# the hook must touch nothing. HOME is the fixture dir for these three rows.
+_home="$HOME"; HOME="$TMP"
+run "$(mk_start "$AUD" t9)"
+run "$(mk_bash "$AUD" t9 "git -C ~/wtB log")"
+if touched_is t9 "$WTB"; then pass "Bash unquoted -C ~/<path> expands the tilde and touches that worktree"; else fail "tilde -C touch not recorded: |$(cat "$FP_ROOT/t9/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t10)"
+run "$(mk_bash "$AUD" t10 "git -C '~/wtB' log")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t10/touched" ]; then pass "Bash quoted -C '~/<path>' stays literal and touches nothing"; else fail "quoted tilde expanded (rc=$RC touched=|$(cat "$FP_ROOT/t10/touched" 2>/dev/null)|)"; fi
+run "$(mk_start "$AUD" t11)"
+run "$(mk_bash "$AUD" t11 "git -C~/wtB log")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t11/touched" ]; then pass "Bash attached -C~/<path> stays literal and touches nothing"; else fail "attached tilde expanded (rc=$RC touched=|$(cat "$FP_ROOT/t11/touched" 2>/dev/null)|)"; fi
+HOME="$_home"
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -305,7 +320,11 @@ if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t8/touched" ]; then pass "a glob in a Bash 
 # porcelain v1 C-quotes a path with a space, a double quote or a control byte
 # even under core.quotePath=false; the -z form carries it raw. A staged rename
 # record carries its source path as an extra -z field; its blob is the new
-# path's. A path with a newline is hashed outside the --stdin-paths batch.
+# path's. The --stdin-paths batch reader ends a path at a newline, strips a
+# trailing CR and C-unquotes a line whose first byte is a double quote (a raw
+# name there kills the whole batch): each of those three forms is hashed
+# outside the batch, and a plain dirty sibling beside such a name must keep
+# its own content sensitivity.
 # escalates_on <agent_id> <worktree>: the seat's verdict names that worktree.
 escalates_on() {
   run "$(mk_verdict "$AUD" $1)"
@@ -336,6 +355,25 @@ run "$(mk_start "$AUD" c4)"
 run "$(mk_read "$AUD" c4 "$TMP/wtB/f")"
 printf 'r2\n' >> "$TMP/wtB/g2"
 if escalates_on c4 "$WTB"; then pass "a second edit to the new path of a staged rename escalates"; else fail "rename path edit not caught (rc=$RC out=|$OUT|)"; fi
+printf 'one\n' > "$TMP/wtB/\"lead"
+run "$(mk_start "$AUD" c5)"
+run "$(mk_read "$AUD" c5 "$TMP/wtB/f")"
+printf 'two\n' > "$TMP/wtB/\"lead"
+if escalates_on c5 "$WTB"; then pass "a second edit to an untracked path whose first byte is a double quote escalates"; else fail "leading-quote path edit not caught (rc=$RC out=|$OUT|)"; fi
+CRN="$(printf 'r\r')"
+printf 'one\n' > "$TMP/wtB/$CRN"
+run "$(mk_start "$AUD" c6)"
+run "$(mk_read "$AUD" c6 "$TMP/wtB/f")"
+printf 'two\n' > "$TMP/wtB/$CRN"
+if escalates_on c6 "$WTB"; then pass "a second edit to an untracked path ending in CR escalates"; else fail "trailing-CR path edit not caught (rc=$RC out=|$OUT|)"; fi
+# The leading-quote and trailing-CR names are still dirty in wtB: a second
+# edit to a plain dirty sibling must escalate on its own blob, not vanish
+# into a dead batch that marks every batched path `unreadable`.
+printf 'one\n' > "$TMP/wtB/p"
+run "$(mk_start "$AUD" c7)"
+run "$(mk_read "$AUD" c7 "$TMP/wtB/f")"
+printf 'two\n' > "$TMP/wtB/p"
+if escalates_on c7 "$WTB"; then pass "a second edit to a plain dirty sibling of a leading-quote and a trailing-CR name escalates"; else fail "plain sibling edit not caught beside odd names (rc=$RC out=|$OUT|)"; fi
 
 # --- unverifiable fingerprint escalates --------------------------------------
 run "$(mk_read "$AUD" a9 "$TMP/wtA/f")"
