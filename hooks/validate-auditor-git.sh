@@ -46,7 +46,12 @@
 #
 # READ-ONLY SUBCOMMAND ALLOWLIST
 #   diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree,
-#   cat-file, blame, branch (read forms only — see the per-token loop below)
+#   cat-file, blame, branch (read forms only — see the per-token loop below),
+#   grep (ONE narrow form only — `git grep -F -e <token>`, see the per-token
+#   loop below; plan 2026-10-20-rea-artifact-evidence D21, ADR 0029 Amendment
+#   2026-10-22: on Claude Code 2.1.304 no auditor seat had the Grep tool, so
+#   the fixed-string form is the fallback search channel. The `-O` pager hole
+#   that kept the verb out stays closed by per-flag policing.)
 #
 # CONSTRAINTS
 #   Runs on macOS bash 3.2.57 — no globstar, no associative arrays, no ${,,}.
@@ -125,9 +130,10 @@ esac
 #   - any other residue byte present (quotes, glob *, $, parens, backtick,
 #     braces, backslash, …) → the metacharacter rule: a genuine search shape
 #     (git grep 'a\|b', --include=*.py), remedied by the Grep tool's
-#     glob:/type: filters. A mixed residue (e.g. 'a\|b': quotes + \ + |)
-#     classifies metacharacter — the non-chain byte proves a search/expansion
-#     shape, not mere composition.
+#     glob:/type: filters, or with no Grep tool by the one admitted
+#     `git grep -F -e <token>` form (D21). A mixed residue (e.g. 'a\|b':
+#     quotes + \ + |) classifies metacharacter — the non-chain byte proves a
+#     search/expansion shape, not mere composition.
 # Message text only — the decision, exit code, and routing (char check first,
 # before any verb parsing) are byte-unchanged.
 # ---------------------------------------------------------------------------
@@ -150,7 +156,7 @@ if [ -n "$residue" ]; then
   # "\n&&" would still classify as chain-operator if the pre-check were lost.
   nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
   if [ -n "$nonchain_residue" ]; then
-    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep"
+    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> is the one admitted search form (one bare word, no quotes)"
   else
     deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
   fi
@@ -162,7 +168,7 @@ fi
 # ---------------------------------------------------------------------------
 case "$cmd" in
   git\ *|git) ;;
-  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access" ;;
+  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access; with no Grep tool, git grep -F -e <token> is the one admitted search form" ;;
 esac
 
 # Strip the leading 'git' token and any surrounding spaces to get the rest.
@@ -225,12 +231,13 @@ case "$rest" in
   cat-file\ *|cat-file)     subcmd="cat-file" ;;
   blame\ *|blame)           subcmd="blame" ;;
   branch\ *|branch)         subcmd="branch" ;;
+  grep\ *|grep)             subcmd="grep" ;;
   "")
     deny "bare 'git' with no subcommand" ;;
   *)
     # Extract first word for a cleaner error message.
     first_word="$(printf '%s' "$rest" | cut -d' ' -f1)"
-    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch); for repo-wide search use the Grep tool" ;;
+    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch/grep); for repo-wide search use the Grep tool, or with no Grep tool the one admitted form git grep -F -e <token>" ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -259,6 +266,77 @@ if [ "$subcmd" = "branch" ]; then
         deny "git branch admits read forms only: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); '$tok' is not one — space-form values and write flags deny" ;;
     esac
   done
+fi
+
+# ---------------------------------------------------------------------------
+# NARROW-FORM grep enforcement (D21, ADR 0029 Amendment 2026-10-22): `grep` is
+# admitted in ONE shape — `-F` (or `--fixed-strings`) plus exactly one
+# `-e <token>` — with optional `-n -i -l -w -c` (bare, or in a short cluster
+# parsed letter by letter), at most one bare revision, and an optional
+# `-- <pathspec>...` (glob bytes already denied by the residue rule). EVERY
+# other token denies by shape, without enumerating the option space: any other
+# long flag (`--open-files-in-pager`, `--no-index`, `--recurse-submodules`,
+# `--file`, the regex selectors), any other cluster letter (`O` in `-O`, `-nO`,
+# `-Ovim`; `E`/`G`/`P`; `f`; `e` inside a cluster), a bare pattern without
+# `-e`, a second `-e`, a dangling `-e`, a second revision. `-O` is named in its
+# deny: it runs an arbitrary pager command, the hole that kept the verb out of
+# the allowlist from 2026-07-26 until this per-flag policing. The pattern token
+# after `-e` is consumed as data whatever it looks like (git does the same), so
+# `-e -O` searches for the literal "-O". bash-3.2-safe: the unquoted word-split
+# is safe for the same reason as the branch loop above.
+# COUPLING: the deny string's opening fragment ("git grep admits one form only")
+# and its "-O runs a pager command" clause are pinned by group P of
+# hooks/validate-auditor-git.test.sh — reshape both together.
+# ---------------------------------------------------------------------------
+if [ "$subcmd" = "grep" ]; then
+  grep_rest="${rest#grep}"
+  grep_rest="${grep_rest# }"
+  grep_deny() {
+    deny "git grep admits one form only: -F (or --fixed-strings) plus exactly one -e <token>, optional -n/-i/-l/-w/-c (bare or in a short cluster), at most one revision, optional -- <pathspec>...; $1 — -O/--open-files-in-pager runs a pager command and stays denied, as do -f/--file, --no-index, --recurse-submodules and every regex selector; with no Grep tool this form is the search channel"
+  }
+  grep_fixed=0
+  grep_patterns=0
+  grep_expect=0
+  grep_revs=0
+  grep_dashdash=0
+  for tok in $grep_rest; do
+    if [ "$grep_dashdash" = 1 ]; then
+      continue                      # pathspec: residue rule already refused globs
+    fi
+    if [ "$grep_expect" = 1 ]; then
+      grep_patterns=$((grep_patterns + 1))
+      grep_expect=0
+      continue                      # the -e value is data, whatever it looks like
+    fi
+    case "$tok" in
+      --)              grep_dashdash=1 ;;
+      --fixed-strings) grep_fixed=1 ;;
+      -e)              grep_expect=1 ;;
+      --*)             grep_deny "'$tok' is not part of that form" ;;
+      -?*)
+        cluster="${tok#-}"
+        while [ -n "$cluster" ]; do
+          ch="${cluster:0:1}"
+          cluster="${cluster:1}"
+          case "$ch" in
+            F)         grep_fixed=1 ;;
+            n|i|l|w|c) ;;
+            O)         grep_deny "'$tok' carries -O: -O runs a pager command" ;;
+            e)         grep_deny "'$tok' carries -e inside a cluster: -e must be its own token" ;;
+            *)         grep_deny "'$tok' carries -$ch, which is not part of that form" ;;
+          esac
+        done ;;
+      -)               grep_deny "'-' is not part of that form" ;;
+      *)
+        grep_revs=$((grep_revs + 1))
+        if [ "$grep_revs" -gt 1 ]; then
+          grep_deny "'$tok' is a second bare token: at most one revision, and the pattern must ride -e"
+        fi ;;
+    esac
+  done
+  [ "$grep_expect" = 0 ] || grep_deny "-e has no <token>"
+  [ "$grep_fixed" = 1 ] || grep_deny "-F (or --fixed-strings) is missing"
+  [ "$grep_patterns" = 1 ] || grep_deny "exactly one -e <token> is required (found $grep_patterns)"
 fi
 
 # ---------------------------------------------------------------------------

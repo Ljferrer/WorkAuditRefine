@@ -2913,21 +2913,25 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     + pt`Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
     // READ-ONLY GIT GUARD CONTRACT (D5, spec §5) — mirrored as the "## Read-only git guard contract"
     // section in agents/war-auditor.md (same commit); the D3 both-surfaces registry row anchors the
-    // shared tokens (one bare git / no pipes / ls-tree / Grep tool / value-carrying / bare read flags) on
-    // BOTH surfaces AND asserts the
+    // shared tokens (one bare git / no pipes / ls-tree / Grep tool / value-carrying / bare read flags /
+    // git grep -F -e <token>, the D21 fallback form) on BOTH surfaces AND asserts the
     // retired partial teach (the old pretty-format / reflog fragments) is absent from both (red-team
     // adjudication, ADR 0025). The verb list mirrors the hook's unlisted-verb deny enumeration in
-    // hooks/validate-auditor-git.sh. The branch two-arm flag enumeration below has a STRICTER arbiter:
-    // the D6 extraction-equality test in workflow-template.test.mjs reads the hook's own branch deny
-    // string and asserts every flag token it lists onto BOTH mirror surfaces — the hook string is
-    // canonical, these mirrors are followers, so a hook-side flag change REDs the mirrors.
-    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, quotes, globs, braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Non-git shell reads (ls, cat, wc, …) always deny — use Read/Glob, or git ls-files / git ls-tree to list tree contents. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); a bare name, a space-form value (--contains <rev>), or any write flag denies. git grep stays denied — the Grep tool is the sweep channel. Avoid @{} reflog (braces are denied) — use git log -g instead.\n`
+    // hooks/validate-auditor-git.sh, minus grep, which the contract states separately as the narrow
+    // D21 git grep -F -e <token> form (grep excepted from the list: its one narrow form rides its own
+    // sentence below). The branch two-arm flag enumeration below has a STRICTER arbiter: the D6
+    // extraction-equality test in workflow-template.test.mjs reads the hook's own branch deny string
+    // and asserts every flag token it lists onto BOTH mirror surfaces — the hook string is canonical,
+    // these mirrors are followers, so a hook-side flag change REDs the mirrors. The grep optional-flag
+    // list (-n -i -l -w -c) has the same arbiter: the D6 grep-flag test reads the hook's grep deny string.
+    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, quotes, globs, braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Non-git shell reads (ls, cat, wc, …) always deny — use Read/Glob, or git ls-files / git ls-tree to list tree contents. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); a bare name, a space-form value (--contains <rev>), or any write flag denies. The Grep tool first; with no Grep tool, git grep -F -e <token> — the Grep tool is the sweep channel, and the guard admits git grep only as -F plus one -e <token> (optional -n -i -l -w -c, one revision, -- <pathspec>); -O, -f, --no-index and every regex flag deny. Avoid @{} reflog (braces are denied) — use git log -g instead.\n`
     // SEARCH-TOOLING RULE (gate-audit-finding-routing Task 2.1(c), #1412 fix 3) — mirrored as a bullet
     // in the "## Read-only git guard contract" section of agents/war-auditor.md (same commit); the D3
     // both-surfaces registry row anchors the zero-hit `metacharacter` token on BOTH auditor surfaces.
     // Seat doctrine only — the guard-message half (the denial naming the rule that fired) is Task 2.2's,
-    // in hooks/validate-auditor-git.sh; the guard's allowlist and deny decisions are byte-unchanged.
-    + pt`SEARCH-TOOLING RULE: search with the Grep/Glob tools, never shell grep or git grep — the git guard refuses glob/alternation metacharacters (*, \\|), not just command chains.\n`
+    // in hooks/validate-auditor-git.sh. Since D21 (ADR 0029 Amendment 2026-10-22) the rule names the
+    // narrow git grep -F -e <token> fallback for a seat without the Grep tool; shell grep still denies.
+    + pt`SEARCH-TOOLING RULE: search with the Grep/Glob tools first; with no Grep tool, git grep -F -e <token> is the one admitted search form (shell grep always denies) — the git guard refuses glob/alternation metacharacters (*, \\|), not just command chains.\n`
     + pt`Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + pt`Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
     // Latitude + disposition + calibration + cost-claim rules (ADR 0013) — mirrored VERBATIM in
@@ -2991,9 +2995,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // COMMITTED-TREE GROUNDING (spec §8, ADR 0029) — the full paragraph lives in agents/war-auditor.md
     // (the standing card); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification,
     // spec §4.3/§4.4) that must keep the both-surfaces registry row's anchor tokens (committed-tree
-    // grounding / verify-and-close / git show <audit_sha>:<path> / advisory only / git grep). The auditor
-    // git allowlist is NOT widened — git show/git log are already read-only allowlisted, git grep stays denied.
-    + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): ground the claim against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\`, and pick the history verb per claim shape (\`git log -S<token>\` for "when did the occurrence count change", \`git log -G<regex>\` for content-pattern change; presence at the tip is git show, never -S). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim; the git allowlist is NOT widened — git show/log are already allowlisted, git grep stays denied. Full paragraph: the Committed-tree grounding section of agents/war-auditor.md.`
+    // grounding / verify-and-close / git show <audit_sha>:<path> / advisory only / git grep). git show and
+    // git log are read-only allowlisted; since D21 git grep -F -e <token> is the one admitted search form.
+    + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): ground the claim against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\`, and pick the history verb per claim shape (\`git log -S<token>\` for "when did the occurrence count change", \`git log -G<regex>\` for content-pattern change; presence at the tip is git show, never -S). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim; git show/log are read-only allowlisted, and git grep -F -e <token> is the one admitted search form (D21). Full paragraph: the Committed-tree grounding section of agents/war-auditor.md.`
     // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the full four claim-shape ladders live in the
     // "## Evidence precedence" section of agents/war-auditor.md (same commit; standing/dispatched
     // split, progressive disclosure: skeleton only in the hot path). The identical skeleton line is
