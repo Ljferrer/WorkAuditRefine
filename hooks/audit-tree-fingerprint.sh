@@ -16,6 +16,8 @@
 #         The -z form carries every path raw; the newline form C-quotes a path
 #         with a space, a double quote, a backslash or a control byte (even
 #         under core.quotePath=false), and such a path could not be hashed.
+#         The hash-object batch reader has line rules of its own (see
+#         blob_lines): a path that reader would rewrite gets its own call.
 #     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
 #         worktree the call reaches (a Read file_path, a Glob or Grep path, a
 #         Bash `git -C <path>`, else the payload cwd) and add it to the seat's
@@ -89,6 +91,7 @@ set -f
 export GIT_OPTIONAL_LOCKS=0
 NL='
 '
+CR="$(printf '\r')"
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
@@ -149,10 +152,14 @@ canon() { (cd "$1" 2>/dev/null && pwd -P); }
 # or copy record (R or C in either status column) carries its source path as
 # an extra NUL field, skipped here; the line names the new path. Every present
 # path goes to ONE `git hash-object --stdin-paths` call per worktree, never one
-# spawn per path; a path with a newline, which that reader cannot carry, gets
-# its own call. If the batch fails or returns the wrong line count, every
-# batched path is `unreadable`. Its own function, not an inline loop: bash 3.2
-# misparses a `case` arm's `)` inside `$(...)`.
+# spawn per path. That reader (builtin/hash-object.c hash_stdin_paths) reads a
+# line with strbuf_getline, which ends a path at a newline and strips a
+# trailing CR, and C-unquotes a line whose first byte is a double quote (it
+# dies on a raw name). A path with a newline, a path ending in CR and a path
+# starting with a double quote therefore get their own `git hash-object --
+# <path>` call, which takes the name raw. If the batch fails or returns the
+# wrong line count, every batched path is `unreadable`. Its own function, not
+# an inline loop: bash 3.2 misparses a `case` arm's `)` inside `$(...)`.
 blob_lines() {
   _P=(); _O=(); _n=0; _nb=0; _skip=0; _batch=""
   while IFS= read -r -d '' _l; do
@@ -164,8 +171,9 @@ blob_lines() {
       _O[$_n]="absent"
     else
       case "$_p" in
-        *"$NL"*) _o="$(git -C "$1" hash-object -- "$_p" 2>/dev/null)" && [ -n "$_o" ] || _o="unreadable"
-                 _O[$_n]="$_o" ;;
+        *"$NL"*|\"*|*"$CR")
+           _o="$(git -C "$1" hash-object -- "$_p" 2>/dev/null)" && [ -n "$_o" ] || _o="unreadable"
+           _O[$_n]="$_o" ;;
         *) _O[$_n]=""; _batch="$_batch$_p$NL"; _nb=$((_nb + 1)) ;;
       esac
     fi
@@ -327,13 +335,20 @@ case "$event" in
         # Every `-C <path>` (or `-C<path>`) token names a worktree the command
         # reaches; with none, the command runs in the payload cwd. Tokens are
         # whitespace-split only (set -f above: a glob token stays literal); a
-        # quoted path has its quotes stripped.
+        # quoted path has its quotes stripped. An unquoted word-initial `~`
+        # (admitted by validate-auditor-git.sh for HEAD~1) is expanded by the
+        # seat's shell before git sees it, so the hook expands that form too;
+        # a quoted `'~/x'` or an attached `-C~/x` reaches git literal and
+        # stays literal here.
         _cmd="$(get '.tool_input.command')"
         _found=0; _want=0
         for _tok in $_cmd; do
           if [ "$_want" = 1 ]; then
             _want=0; _found=1
-            _tok="${_tok#\"}"; _tok="${_tok%\"}"; _tok="${_tok#\'}"; _tok="${_tok%\'}"
+            case "$_tok" in
+              \"*|\'*) _tok="${_tok#\"}"; _tok="${_tok%\"}"; _tok="${_tok#\'}"; _tok="${_tok%\'}" ;;
+              "~"|"~/"*) [ -n "${HOME-}" ] && _tok="$HOME${_tok#\~}" ;;
+            esac
             [ -n "$_tok" ] && touch_path "$_tok"
             continue
           fi
