@@ -10479,9 +10479,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // two-arm branch characterization the mirrors adopted from the hook's own deny string (/value-carrying/i,
     // /bare read flags/i), which replaced the retired "=-attached read flags only" blanket claim. Reverting
     // either surface's block OR just its branch clause REDs this row (End-state-5 delete-the-feature proof).
-    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, two-arm branch flags, Grep tool is the sweep channel',
+    // D21 (plan 2026-10-20-rea-artifact-evidence, ADR 0029 Amendment 2026-10-22): the search rule became
+    // "the Grep tool first; with no Grep tool, git grep -F -e <token>" — the fallback token is anchored on
+    // both surfaces here, and the retired "stays denied" claim is OLD-absent-scanned in the D5 test below.
+    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, two-arm branch flags, Grep tool is the sweep channel, git grep -F -e <token> fallback',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
-      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i] },
+      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i, /git grep -F -e <token>/] },
     // #990 (D3/D4): the four-step landed-tip grounding ladder — the servitor grounds every referent read
     // on the THREADED landed tip, never on its own cwd. Anchor precondition (#990 plan): every token here
     // was verified ABSENT from both surfaces at the pre-change base, so a per-surface revert REDs this row.
@@ -10617,8 +10620,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // AUDIT_VERDICT if/then conditional; enforcement arm recorded at that literal and by the intake-
     // contract test above), the by-construction discriminator (a blocking finding with a concrete
     // in-file suggested_fix needing no new plan decision is request_changes, however severe), and the
-    // search-tooling rule (Grep/Glob tools, never shell grep/git grep — the guard refuses
-    // glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
+    // search-tooling rule (Grep/Glob tools first, with no Grep tool the narrow git grep -F -e <token>
+    // form, shell grep always denied — the guard refuses glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
     // base): `required when`, `however severe`, and `metacharacter` each count 0 on BOTH surfaces, so
     // a per-surface revert of any of the three sentences reds this row; `by construction`
     // (pre-existing in an unrelated workflow-template.js comment) and bare `escalate_reason` (1 hit
@@ -10817,6 +10820,21 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     ['references/auditor-teach.md', auditorTeachMd]]) {
     assert.doesNotMatch(sText, /%-format/, `${sName}: the retired '%-format' teach is absent (the D5 contract replaced it)`)
     assert.doesNotMatch(sText, /reflog syntax/, `${sName}: the retired 'reflog syntax' teach is absent (the D5 contract replaced it)`)
+  }
+  // D21 (plan 2026-10-20-rea-artifact-evidence Task 6.1, ADR 0029 Amendment 2026-10-22): the grep verb
+  // is admitted in ONE narrow form, so the OLD "git grep stays denied" / "never shell grep or git grep"
+  // claims are retired on every surface that stated them — the card, the dispatched literal, the
+  // eviction destination AND the evidence card's guard paragraph — and each of the three seat-facing
+  // surfaces names the fallback form. The hook's own grammar is pinned by group P of
+  // hooks/validate-auditor-git.test.sh; this scan is the doc side of the same ruling.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+    ['references/auditor-teach.md', auditorTeachMd], ['war-evidence-auditor.md', evidenceCardMd]]) {
+    assert.doesNotMatch(sText, /git grep stays denied/i, `${sName}: the retired 'git grep stays denied' claim is absent (D21 admitted git grep -F -e <token>)`)
+    assert.doesNotMatch(sText, /is not and stays denied/i, `${sName}: the retired committed-tree 'is not and stays denied' clause is absent (D21)`)
+    assert.doesNotMatch(sText, /never (?:with )?shell `?grep`?(?: or |\/)`?git grep`?/i, `${sName}: the retired 'never shell grep/git grep' rule is absent (D21: the Grep tool first, then git grep -F -e <token>)`)
+  }
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP], ['war-evidence-auditor.md', evidenceCardMd]]) {
+    assert.match(sText, /git grep -F -e <token>/, `${sName}: names the D21 fallback form git grep -F -e <token>`)
   }
   // #1080 retired-claim lock: the card used to claim this contract was "mirrored verbatim" into the
   // dispatched audit prompt. False — the two surfaces are deliberately different FORMATS, and what is
@@ -11628,8 +11646,11 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
   // as the pointer change.
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(auditorMd),
     'war-auditor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth')
-  assert.equal((auditorMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 4,
-    'war-auditor.md carries all four plugin-root-anchored trigger pointers to auditor-teach.md')
+  // Five since plan 2026-10-20-rea-artifact-evidence Task 6.1 evicted the widening-nomination detail
+  // bullets behind a `When you set \`widen\`, read` pointer (ADR 0042, to fund the D21 grep-fallback
+  // bullet under the card's unchanged hard line).
+  assert.equal((auditorMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 5,
+    'war-auditor.md carries all five plugin-root-anchored trigger pointers to auditor-teach.md')
   // …and to war-refiner.md (family locality, ADR 0025/0031: the equivalence class is "agent
   // cards carrying skills/war/references/ pointers", and every member is asserted where the
   // family lives): this assert consolidates the pointer-shape family here, alongside the

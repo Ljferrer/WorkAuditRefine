@@ -1,6 +1,6 @@
 # Capture grounds on the committed tip, not the working tree
 
-**Status:** accepted; amended 2026-07-22, 2026-07-26
+**Status:** accepted; amended 2026-07-22, 2026-07-26, 2026-10-22
 
 Two recorded frictions show a *capture* step — the servitor recording a learning, an auditor forming a
 verify-and-close verdict — trusting a surface that does not match the committed tree, so a fact enters the
@@ -169,3 +169,40 @@ remains the mechanical record, its payload byte-identical, its comment now citin
 This amendment records a re-ratification, not a change of decision: the Decision (items 1–3), the
 Considered options — including the `grep`-verb entry it re-affirms — and every other line of this ADR's
 pre-existing body stand as originally ratified and are left byte-unchanged.
+
+## Amendment (2026-10-22): the narrow `git grep -F -e <token>` form is admitted
+
+This amendment reverses the 2026-07-26 "still no" on the grep verb for one fixed-string form only.
+Plan [2026-10-20-rea-artifact-evidence](../plans/2026-10-20-rea-artifact-evidence.md) D21 records the
+operator ruling and its evidence: on Claude Code 2.1.304 every auditor seat ran with `Read`, `Bash` and
+`StructuredOutput` only (43 of 43 auditors across two workflow runs had no `Grep` tool). Every rejection
+above rested on *sufficiency* — the unrestricted Grep tool was the sanctioned sweep channel — and that
+premise failed at dispatch: no seat could search file contents at all, so a verify-and-close claim had
+no search channel but whole-file Reads.
+
+**Decision, amended — the auditor half.** `hooks/validate-auditor-git.sh` admits `git grep` in ONE
+shape: `-F` (or `--fixed-strings`) plus exactly one `-e <token>`, where the token passes the existing
+character-residue rule (one shell word, no quotes), with optional `-n`, `-i`, `-l`, `-w`, `-c` (bare or in
+a short cluster parsed letter by letter), at most one revision, and an optional `-- <pathspec>...` with no
+glob bytes. Every other token denies by shape. The `-O` / `--open-files-in-pager` hole the 2026-07-26
+amendment named stays closed **by name**: the guard parses short-flag clusters (`-nO`, `-Ovim`, `-nF`)
+letter by letter and denies `-O` in any spelling or cluster, beside `-f`/`--file`, `--no-index`,
+`--recurse-submodules` and every regex selector (`-E`, `-G`, `-P` and their long forms). The seat rule on
+the three contract surfaces (`agents/war-auditor.md`, the dispatched READ-ONLY GIT GUARD CONTRACT literal,
+`agents/war-evidence-auditor.md`) is "the Grep tool first; with no Grep tool, `git grep -F -e <token>`".
+Deny messages that pointed only at the Grep tool also name the fallback form.
+
+**Compensating control.** Admitting a search verb widens what a read-only seat can run, so the same plan
+adds the audit tree fingerprint hook (Task 6.2): it fingerprints the audited worktree at seat start and
+rewrites any verdict returned over a changed tree to `escalate` with an `AUDIT-TAMPER:` reason, failing
+closed when it cannot compute a fingerprint. The seat's confinement still rests on the guard; the hook
+is the detector behind it.
+
+Group G6 of `hooks/validate-auditor-git.test.sh` flips to `expect_allow` for `git grep -F -e token` and
+its group P pins the grammar's deny set; the Decision's item 3 ("`git grep` stays absent") is superseded
+for this one form. Decision items 1–2, the 2026-07-22 amendment and every other line of this ADR's
+pre-existing body stand as ratified and are left byte-unchanged.
+
+## Decision log
+
+- 2026-10-22 · the auditor git guard admits `git grep -F -e <token>` (fixed-string, one `-e`, optional `-n -i -l -w -c`, one revision, `-- <pathspec>`) and denies every other grep form, `-O` in any spelling or cluster by name; reverses the 2026-07-26 "still no" because no seat had the Grep tool on Claude Code 2.1.304; the audit tree fingerprint hook is the compensating control · plan 2026-10-20-rea-artifact-evidence D21/D22, Task 6.1
