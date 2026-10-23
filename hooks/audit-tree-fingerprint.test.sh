@@ -8,7 +8,9 @@
 # reaches. PreToolUse on StructuredOutput compares the touched worktrees and,
 # on a mismatch or an unverifiable fingerprint, allows the call with an
 # `updatedInput` whose verdict is `escalate` and whose escalate_reason starts
-# `AUDIT-TAMPER:`. SubagentStop records a mismatch and never blocks.
+# `AUDIT-TAMPER:`. SubagentStop records a mismatch and never blocks. No arm
+# writes a worktree's index (GIT_OPTIONAL_LOCKS=0): pinned by an index-bytes
+# oracle over a staled index, with its own sensitivity row.
 #
 # FIXTURES: a throwaway repo with real worktrees under a mktemp dir, outside
 # any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo).
@@ -33,6 +35,9 @@ fail() { n=$((n + 1)); fails=$((fails + 1)); printf 'FAIL %d - %s\n' "$n" "$1"; 
 
 # --- fixture repo ------------------------------------------------------------
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+# The no-optional-locks rows read git's default: the hook sets the opt-out
+# itself, and an inherited opt-out would hide a hook that dropped it.
+unset GIT_OPTIONAL_LOCKS
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t.invalid
 TMP="$(mktemp -d 2>/dev/null || mktemp -d -t atfp)"
 cleanup() { rm -rf "$TMP"; }
@@ -139,6 +144,51 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ]; then
   pass "untouched worktree passes"
 else
   fail "untouched worktree passes (rc=$RC out=|$OUT| err=|$ERR|)"
+fi
+
+# --- no optional locks: the hook never writes a worktree index ---------------
+# With optional locks on, `git status` refreshes a stale index and writes it
+# back under <gitdir>/index.lock; a sibling worker's `git add` or the refiner's
+# rebase in that worktree then dies on `index.lock: File exists`. Oracle: stale
+# wtA's index (its tracked file gets an old mtime, content unchanged), run each
+# arm that fingerprints, and compare the index bytes before and after. A
+# pre-existing index.lock is NOT the oracle: `git status` skips the refresh
+# silently when it cannot take the lock, in both modes, so that row never
+# goes red. The plain `git status` after the three arms is the oracle's own
+# sensitivity check: it writes a stale index, which the hook never did.
+GDA="$(git -C "$TMP/wtA" rev-parse --path-format=absolute --git-dir)"
+# stale <mtime>: gives wtA's tracked file that old mtime, content unchanged.
+# Each call takes a mtime unlike the last one, so the index is stat-stale
+# again even if the previous call's status wrote it back.
+stale() { touch -t "$1" "$TMP/wtA/f"; }
+# stale_arm <label> <mtime> <payload>: stales wtA's index, runs the hook, and
+# appends to ARM_BAD on a non-zero exit, any output, or a changed index.
+ARM_BAD=""
+stale_arm() {
+  stale "$2"
+  _b="$(cksum < "$GDA/index")"
+  run "$3"
+  _a="$(cksum < "$GDA/index")"
+  [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$_b" = "$_a" ] && return 0
+  ARM_BAD="$ARM_BAD $1(rc=$RC out=|$OUT| index=$([ "$_b" = "$_a" ] && echo unchanged || echo written))"
+}
+stale_arm SubagentStart 200001010000 "$(mk_start "$AUD" a8)"
+run "$(mk_read "$AUD" a8 "$TMP/wtA/f")"
+stale_arm StructuredOutput 200101010000 "$(mk_verdict "$AUD" a8)"
+stale_arm SubagentStop 200201010000 "$(mk_stop "$AUD" a8)"
+if [ -z "$ARM_BAD" ] && grep -Fq " $WTA" "$FP_ROOT/a8/start" && [ ! -f "$GDA/index.lock" ]; then
+  pass "every fingerprinting arm leaves the worktree index unwritten (no optional lock)"
+else
+  fail "an arm wrote the worktree index or failed:$ARM_BAD (lock=$([ -f "$GDA/index.lock" ] && echo present || echo absent))"
+fi
+stale 200301010000
+_b="$(cksum < "$GDA/index")"
+git -C "$TMP/wtA" status --porcelain=v1 -uall >/dev/null 2>&1
+_a="$(cksum < "$GDA/index")"
+if [ "$_b" != "$_a" ]; then
+  pass "oracle sensitivity: a plain git status writes the stale index the hook left alone"
+else
+  fail "oracle vacuous: a plain git status did not write the stale index"
 fi
 
 # --- changed worktree rewrites verdict to escalate ---------------------------
