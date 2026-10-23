@@ -176,7 +176,8 @@ This amendment reverses the 2026-07-26 "still no" on the grep verb for one fixed
 Plan [2026-10-20-rea-artifact-evidence](../plans/2026-10-20-rea-artifact-evidence.md) D21 records the
 operator ruling and its evidence: on Claude Code 2.1.304 every auditor seat ran with `Read`, `Bash` and
 `StructuredOutput` only (43 of 43 auditors across two workflow runs had no `Grep` tool). Every rejection
-above rested on *sufficiency* — the unrestricted Grep tool was the sanctioned sweep channel — and that
+above rested at least in part on *sufficiency* (the 2026-07-26 `-O` argument is handled below) — the
+unrestricted Grep tool was the sanctioned sweep channel — and that
 premise failed at dispatch: no seat could search file contents at all, so a verify-and-close claim had
 no search channel but whole-file Reads.
 

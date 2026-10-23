@@ -10482,9 +10482,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // D21 (plan 2026-10-20-rea-artifact-evidence, ADR 0029 Amendment 2026-10-22): the search rule became
     // "the Grep tool first; with no Grep tool, git grep -F -e <token>" — the fallback token is anchored on
     // both surfaces here, and the retired "stays denied" claim is OLD-absent-scanned in the D5 test below.
+    // The bare /git grep -F -e <token>/ token also matches the committed-tree grounding paragraph on both
+    // surfaces, so a plain deletion of the rule sentence stays green behind it; the rule-phrase anchor
+    // (card bullet in bold + backticks, dispatched sentence bare) is what REDs that deletion (Task 6.1 ace).
     { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, two-arm branch flags, Grep tool is the sweep channel, git grep -F -e <token> fallback',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
-      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i, /git grep -F -e <token>/] },
+      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i, /git grep -F -e <token>/, /The Grep tool first; with no Grep tool, `?git grep -F -e <token>/] },
     // #990 (D3/D4): the four-step landed-tip grounding ladder — the servitor grounds every referent read
     // on the THREADED landed tip, never on its own cwd. Anchor precondition (#990 plan): every token here
     // was verified ABSENT from both surfaces at the pre-change base, so a per-surface revert REDs this row.
@@ -10910,6 +10913,34 @@ test('D6 — branch flag enumeration: every token in the hook\'s canonical deny 
     for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
       assert.match(sText, flagTokenRe(tok),
         `${sName}: the hook admits branch flag "${tok}" but the mirror does not enumerate it (token-boundary matched) — the mirrors follow the hook's deny string`)
+    }
+  }
+})
+
+// D6 (Task 6.1 ace, D21) — the same extraction-equality lock for the grep optional-flag enumeration.
+// The hook's grep deny string is CANONICAL (the `grep_deny` helper in hooks/validate-auditor-git.sh);
+// the card bullet and the dispatched literal list its optional flags (-n -i -l -w -c) as followers.
+// Reading the deny string and asserting every listed flag onto both mirrors makes a hook-side flag
+// change RED the mirrors instead of stranding them — the #1124 class the branch D6 test exists to catch.
+test('D6 — grep flag enumeration: every optional flag in the hook\'s canonical grep deny string reaches BOTH prompt mirrors (token-boundary matched)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  assert.ok(auditP, 'a regular auditor prompt was dispatched (presence guard)')
+  const hookSh = readFileSync(join(here, '../../../hooks/validate-auditor-git.sh'), 'utf8')
+  const REPOINT = 're-point the extractor at the reshaped grep deny string in hooks/validate-auditor-git.sh'
+  const denyStmt = (hookSh.match(/deny "git grep admits one form only:[^"]*"/) || [])[0]
+  assert.ok(denyStmt, `hook grep deny string not locatable — ${REPOINT}`)
+  // The admitted optional flags ride one slash-joined list right after the first "optional " — the
+  // later "optional -- <pathspec>" is the second occurrence, which a non-global match never reaches.
+  const list = (denyStmt.match(/optional ([^ ]*) /) || [])[1]
+  assert.ok(list, `hook grep deny string's optional-flag list not locatable — ${REPOINT}`)
+  const toks = list.split('/').map(t => t.trim()).filter(Boolean)
+  assert.ok(toks.length > 0, `grep optional-flag list parsed to zero tokens — ${REPOINT}`)
+  toks.forEach(tok => assert.match(tok, /^-[a-z]$/, `grep optional-flag token "${tok}" is not a short flag — ${REPOINT}`))
+  for (const tok of toks) {
+    for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+      assert.match(sText, flagTokenRe(tok),
+        `${sName}: the hook admits grep flag "${tok}" but the mirror does not enumerate it (token-boundary matched) — the mirrors follow the hook's grep deny string`)
     }
   }
 })
@@ -11651,6 +11682,14 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
   // bullet under the card's unchanged hard line).
   assert.equal((auditorMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 5,
     'war-auditor.md carries all five plugin-root-anchored trigger pointers to auditor-teach.md')
+  // Destination presence keys for that eviction (adjudication E — the keys move with the text): one
+  // distinctive fragment per moved widening-nomination bullet at the destination, and the moved
+  // lone-seat bullet absent from the card, so a lost or reverted move REDs here (Task 6.1 ace).
+  for (const frag of ['Honored only on a lone seat', 'the default-roster-union fallback']) {
+    assert.ok(auditorTeachMd.includes(frag), `auditor-teach.md carries the moved widening-nomination fragment: ${frag}`)
+  }
+  assert.ok(!auditorMd.includes('Honored only on a lone seat'),
+    'war-auditor.md no longer carries the evicted lone-seat widening bullet (it moved to auditor-teach.md)')
   // …and to war-refiner.md (family locality, ADR 0025/0031: the equivalence class is "agent
   // cards carrying skills/war/references/ pointers", and every member is asserted where the
   // family lives): this assert consolidates the pointer-shape family here, alongside the
