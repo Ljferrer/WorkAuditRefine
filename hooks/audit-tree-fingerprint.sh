@@ -24,9 +24,9 @@
 #         The hash-object batch reader has line rules of its own (see
 #         blob_lines): a path that reader would rewrite gets its own call.
 #     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
-#         worktree the call reaches (a Read file_path, a Glob or Grep path, a
-#         Bash `git -C <path>`, else the payload cwd) and add it to the seat's
-#         touched set.
+#         worktree the call reaches (a Read file_path, a Glob or Grep path, an
+#         absolute Glob pattern, a Bash `git -C <path>` or an absolute Bash
+#         operand, else the payload cwd) and add it to the seat's touched set.
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
@@ -172,8 +172,13 @@ canon() { (cd "$1" 2>/dev/null && pwd -P); }
 # dies on a raw name). A path with a newline, a path ending in CR and a path
 # starting with a double quote therefore get their own `git hash-object --
 # <path>` call, which takes the name raw. If the batch fails or returns the
-# wrong line count, every batched path is `unreadable`. Its own function, not
-# an inline loop: bash 3.2 misparses a `case` arm's `)` inside `$(...)`.
+# wrong line count, every batched path is `unreadable`. A symlink is hashed
+# as `link-<sha256 of its target text>` and never given to hash-object: that
+# call follows the link and reads the target (a file outside the worktree, a
+# slow target, or a same-content file a retarget would hide), while git
+# itself stores a symlink as its link text. The `-L` test comes before `-f`
+# because `-f` follows the link too. Its own function, not an inline loop:
+# bash 3.2 misparses a `case` arm's `)` inside `$(...)`.
 blob_lines() {
   _P=(); _O=(); _n=0; _nb=0; _skip=0; _batch=""
   while IFS= read -r -d '' _l; do
@@ -181,7 +186,9 @@ blob_lines() {
     case "$_l" in [RC]?*|?[RC]*) _skip=1 ;; esac
     _p="${_l#???}"
     _P[$_n]="$_p"
-    if [ ! -f "$1/$_p" ]; then
+    if [ -L "$1/$_p" ]; then
+      _O[$_n]="link-$(readlink "$1/$_p" | sha256_of_stdin)"
+    elif [ ! -f "$1/$_p" ]; then
       _O[$_n]="absent"
     else
       case "$_p" in
@@ -387,6 +394,13 @@ case "$event" in
         _p="$(get '.tool_input.path')"
         [ -n "$_p" ] || _p="$cwd"
         touch_path "$_p"
+        # An absolute Glob pattern reaches its own tree whatever `path` says:
+        # touch the prefix up to the first glob metacharacter (`*`, `?`, `[`,
+        # `{`), the literal directory the pattern walks.
+        if [ "$tool" = Glob ]; then
+          _pat="$(get '.tool_input.pattern')"
+          case "$_pat" in /*) touch_path "${_pat%%[*?\[{]*}" ;; esac
+        fi
         exit 0 ;;
       Bash)
         # Every `-C <path>` (or `-C<path>`) token names a worktree the command
@@ -401,7 +415,12 @@ case "$event" in
         # resolve, goes into the touched set literal so the verdict arm
         # escalates it as unresolved instead of comparing nothing. A quoted
         # `'~/x'` or an attached `-C~/x` reaches git literal and stays literal
-        # here.
+        # here. Every absolute token (`/...`, quotes stripped) is touched too:
+        # validate-auditor-git.sh admits `git diff /abs/wtB/f /abs/wtB/g`,
+        # and git implies --no-index for a path outside the cwd repository,
+        # so the command reads a worktree the `-C` scan and the cwd fallback
+        # never name. The cwd fallback is unchanged by such a token: the
+        # command still runs in the payload cwd.
         _cmd="$(get '.tool_input.command')"
         _found=0; _want=0
         for _tok in $_cmd; do
@@ -420,6 +439,7 @@ case "$event" in
           case "$_tok" in
             -C) _want=1 ;;
             -C?*) _found=1; _t="${_tok#-C}"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; touch_path "$_t" ;;
+            /*|\"/*|\'/*) _t="${_tok#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; touch_path "$_t" ;;
           esac
         done
         [ "$_found" = 0 ] && touch_path "$cwd"

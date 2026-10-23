@@ -403,6 +403,18 @@ if touched_is t14 "~nosuchuser/wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fi
 else
   fail "tilde-name -C not escalated (touched=|$(cat "$FP_ROOT/t14/touched" 2>/dev/null)| rsn=|$rsn|)"
 fi
+# An absolute operand reaches a worktree with no -C: validate-auditor-git.sh
+# admits `git diff /abs/f /abs/g`, and git implies --no-index outside the cwd
+# repository. Both the bare and the quoted form touch; the cwd (MAIN, no
+# marker) adds no line.
+run "$(mk_start "$AUD" t15)"
+run "$(mk_bash "$AUD" t15 "git diff $TMP/wtB/f '$TMP/wtD/f'")"
+if touched_is t15 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "Bash absolute path operands add every worktree they reach to the touched set"; else fail "absolute operand touch not recorded: |$(cat "$FP_ROOT/t15/touched" 2>/dev/null)|"; fi
+# An absolute Glob pattern with no path: the prefix before the first glob
+# metacharacter names the tree the pattern walks.
+run "$(mk_start "$AUD" t16)"
+run "$(mk_tool "$AUD" t16 Glob "$(jq -nc --arg p "$TMP/wtB/**/*.md" '{pattern:$p}')")"
+if touched_is t16 "$WTB"; then pass "Glob with an absolute pattern and no path touches the worktree the pattern prefix reaches"; else fail "absolute Glob pattern touch not recorded: |$(cat "$FP_ROOT/t16/touched" 2>/dev/null)|"; fi
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -485,6 +497,27 @@ run "$(mk_start "$AUD" c10)"
 run "$(mk_read "$AUD" c10 "$TMP/wtB/f")"
 printf 'x\r\n' > "$TMP/wtB/$CRN"
 if escalates_on c10 "$WTB"; then pass "a line-ending-only second edit to a CR-named path under a text attribute escalates (single-call arm, no clean filter)"; else fail "clean filter hid a CRLF edit in the single-call arm (rc=$RC out=|$OUT|)"; fi
+# A symlink is fingerprinted by its link text, never by its target: a
+# retarget to a same-content file keeps the status record and the target's
+# blob the same, and a link to a directory is not a regular file at all. The
+# unchanged links then pass, so the two rows fail on the retarget alone.
+printf 'same\n' > "$TMP/wtB/x1"
+printf 'same\n' > "$TMP/wtB/x2"
+ln -s x1 "$TMP/wtB/lnk"
+run "$(mk_start "$AUD" c11)"
+run "$(mk_read "$AUD" c11 "$TMP/wtB/f")"
+ln -sfn x2 "$TMP/wtB/lnk"
+if escalates_on c11 "$WTB"; then pass "an untracked symlink retargeted to a same-content file escalates (link text hashed, target never read)"; else fail "symlink retarget not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+mkdir -p "$TMP/wtB/d1" "$TMP/wtB/d2"
+ln -s d1 "$TMP/wtB/dlnk"
+run "$(mk_start "$AUD" c12)"
+run "$(mk_read "$AUD" c12 "$TMP/wtB/f")"
+ln -sfn d2 "$TMP/wtB/dlnk"
+if escalates_on c12 "$WTB"; then pass "an untracked symlink retargeted between directories escalates"; else fail "directory symlink retarget not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+run "$(mk_start "$AUD" c13)"
+run "$(mk_read "$AUD" c13 "$TMP/wtB/f")"
+run "$(mk_verdict "$AUD" c13)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "an unchanged worktree with dirty symlinks passes"; else fail "unchanged symlink worktree did not pass (rc=$RC out=|$OUT| err=|$ERR|)"; fi
 
 # --- unverifiable fingerprint escalates --------------------------------------
 run "$(mk_read "$AUD" a9 "$TMP/wtA/f")"
