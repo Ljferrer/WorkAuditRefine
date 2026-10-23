@@ -68,10 +68,12 @@ AUD="work-audit-refine:war-auditor"
 EVA="work-audit-refine:war-evidence-auditor"
 
 # --- payload builders --------------------------------------------------------
-mk_start() { jq -nc --arg at "$1" --arg id "$2" --arg c "$MAIN" '{hook_event_name:"SubagentStart",agent_type:$at,agent_id:$id,cwd:$c}'; }
-mk_stop()  { jq -nc --arg at "$1" --arg id "$2" --arg c "$MAIN" '{hook_event_name:"SubagentStop",agent_type:$at,agent_id:$id,cwd:$c}'; }
+# PCWD is the payload cwd; a row that needs the cwd-fallback arm sets it.
+PCWD="$MAIN"
+mk_start() { jq -nc --arg at "$1" --arg id "$2" --arg c "$PCWD" '{hook_event_name:"SubagentStart",agent_type:$at,agent_id:$id,cwd:$c}'; }
+mk_stop()  { jq -nc --arg at "$1" --arg id "$2" --arg c "$PCWD" '{hook_event_name:"SubagentStop",agent_type:$at,agent_id:$id,cwd:$c}'; }
 # mk_tool <agent_type> <agent_id> <tool_name> <tool_input-json>
-mk_tool()  { jq -nc --arg at "$1" --arg id "$2" --arg tn "$3" --argjson ti "$4" --arg c "$MAIN" '{hook_event_name:"PreToolUse",agent_type:$at,agent_id:$id,tool_name:$tn,tool_input:$ti,cwd:$c}'; }
+mk_tool()  { jq -nc --arg at "$1" --arg id "$2" --arg tn "$3" --argjson ti "$4" --arg c "$PCWD" '{hook_event_name:"PreToolUse",agent_type:$at,agent_id:$id,tool_name:$tn,tool_input:$ti,cwd:$c}'; }
 mk_read()  { mk_tool "$1" "$2" Read "$(jq -nc --arg p "$3" '{file_path:$p}')"; }
 mk_glob()  { mk_tool "$1" "$2" Glob "$(jq -nc --arg p "$3" '{pattern:"**/*",path:$p}')"; }
 mk_bash()  { mk_tool "$1" "$2" Bash "$(jq -nc --arg c "$3" '{command:$c}')"; }
@@ -265,6 +267,76 @@ else
   fail "no-touch seat did not pass (rc=$RC out=|$OUT|)"
 fi
 
+# --- touched-set resolution arms ---------------------------------------------
+# An arm that dropped a worktree from the touched set would leave a tampered
+# worktree uncompared (the fail-open direction), so each arm has its own seat.
+# touched_is <agent_id> <expected touched-file content>
+touched_is() { [ "$(cat "$FP_ROOT/$1/touched" 2>/dev/null)" = "$2" ]; }
+run "$(mk_start "$AUD" t1)"
+run "$(mk_tool "$AUD" t1 Grep "$(jq -nc --arg p "$TMP/wtA" '{pattern:"base",path:$p}')")"
+if touched_is t1 "$WTA"; then pass "Grep path adds that worktree to the touched set"; else fail "Grep touch not recorded: |$(cat "$FP_ROOT/t1/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t2)"
+PCWD="$TMP/wtA"
+run "$(mk_tool "$AUD" t2 Glob '{"pattern":"**/*"}')"
+PCWD="$MAIN"
+if touched_is t2 "$WTA"; then pass "Glob with no path falls back to the payload cwd worktree"; else fail "Glob cwd fallback not recorded: |$(cat "$FP_ROOT/t2/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t3)"
+PCWD="$TMP/wtA"
+run "$(mk_bash "$AUD" t3 "git log -1")"
+PCWD="$MAIN"
+if touched_is t3 "$WTA"; then pass "Bash with no -C falls back to the payload cwd worktree"; else fail "Bash cwd fallback not recorded: |$(cat "$FP_ROOT/t3/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t4)"
+run "$(mk_bash "$AUD" t4 "git -C$TMP/wtB log")"
+if touched_is t4 "$WTB"; then pass "Bash attached -C<path> adds that worktree to the touched set"; else fail "attached -C touch not recorded: |$(cat "$FP_ROOT/t4/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t5)"
+run "$(mk_bash "$AUD" t5 "git -C '$TMP/wtB' log")"
+if touched_is t5 "$WTB"; then pass "Bash quoted -C '<path>' adds that worktree to the touched set"; else fail "quoted -C touch not recorded: |$(cat "$FP_ROOT/t5/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t6)"
+run "$(mk_read "$AUD" t6 "$TMP/wtC/../wtA/f")"
+if touched_is t6 "$WTA"; then pass "Read through a ..-segment path touches the worktree it reaches, not the one it names"; else fail "..-segment touch wrong: |$(cat "$FP_ROOT/t6/touched" 2>/dev/null)|"; fi
+# A glob in a -C token stays literal (set -f): wt[B] is not expanded to wtB.
+run "$(mk_start "$AUD" t8)"
+run "$(mk_bash "$AUD" t8 "git -C $TMP/wt[B] log")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t8/touched" ]; then pass "a glob in a Bash -C token is not expanded against the filesystem"; else fail "glob -C token expanded (rc=$RC touched=|$(cat "$FP_ROOT/t8/touched" 2>/dev/null)|)"; fi
+
+# --- content sensitivity: a second edit to an already-dirty path -------------
+# Each path below is dirty before the seat starts and edited once after, so
+# its status record is the same at verdict time; only the blob hash moves.
+# porcelain v1 C-quotes a path with a space, a double quote or a control byte
+# even under core.quotePath=false; the -z form carries it raw. A staged rename
+# record carries its source path as an extra -z field; its blob is the new
+# path's. A path with a newline is hashed outside the --stdin-paths batch.
+# escalates_on <agent_id> <worktree>: the seat's verdict names that worktree.
+escalates_on() {
+  run "$(mk_verdict "$AUD" $1)"
+  _v="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+  _r="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+  case "$_r" in "AUDIT-TAMPER: $2 changed during the audit round ("*) [ "$RC" = 0 ] && [ "$_v" = escalate ] ;; *) false ;; esac
+}
+printf 'one\n' > "$TMP/wtB/a b"
+run "$(mk_start "$AUD" c1)"
+run "$(mk_read "$AUD" c1 "$TMP/wtB/f")"
+printf 'two\n' > "$TMP/wtB/a b"
+if escalates_on c1 "$WTB"; then pass "a second edit to an untracked path with a space escalates (status record unchanged)"; else fail "space path edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+printf 'one\n' > "$TMP/wtB/q\"x"
+run "$(mk_start "$AUD" c2)"
+run "$(mk_read "$AUD" c2 "$TMP/wtB/f")"
+printf 'two\n' > "$TMP/wtB/q\"x"
+if escalates_on c2 "$WTB"; then pass "a second edit to an untracked path with a double quote escalates"; else fail "double-quote path edit not caught (rc=$RC out=|$OUT|)"; fi
+printf 'one\n' > "$TMP/wtB/n
+l"
+run "$(mk_start "$AUD" c3)"
+run "$(mk_read "$AUD" c3 "$TMP/wtB/f")"
+printf 'two\n' > "$TMP/wtB/n
+l"
+if escalates_on c3 "$WTB"; then pass "a second edit to an untracked path with a newline escalates"; else fail "newline path edit not caught (rc=$RC out=|$OUT|)"; fi
+git -C "$TMP/wtB" mv g g2
+printf 'r1\n' >> "$TMP/wtB/g2"
+run "$(mk_start "$AUD" c4)"
+run "$(mk_read "$AUD" c4 "$TMP/wtB/f")"
+printf 'r2\n' >> "$TMP/wtB/g2"
+if escalates_on c4 "$WTB"; then pass "a second edit to the new path of a staged rename escalates"; else fail "rename path edit not caught (rc=$RC out=|$OUT|)"; fi
+
 # --- unverifiable fingerprint escalates --------------------------------------
 run "$(mk_read "$AUD" a9 "$TMP/wtA/f")"
 run "$(mk_verdict "$AUD" a9)"
@@ -287,6 +359,17 @@ rm -f "$TMP/wtD/.git"
 run "$(mk_verdict "$AUD" a4)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
 case "$rsn" in "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTD)") pass "a git error on a touched worktree escalates as unverifiable" ;; *) fail "git error not caught: |$OUT| err=|$ERR|" ;; esac
+# A marked worktree whose start fingerprint fails (wtD, .git link gone) is
+# skipped by the start arm; a touch on it then has no start record.
+run "$(mk_start "$AUD" t7)"
+run "$(mk_read "$AUD" t7 "$TMP/wtD/f")"
+run "$(mk_verdict "$AUD" t7)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if [ -f "$FP_ROOT/t7/start" ] && ! grep -Fq " $WTD" "$FP_ROOT/t7/start" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (no start record for $WTD)" ]; then
+  pass "a touched worktree the start arm could not fingerprint escalates as no start record"
+else
+  fail "start-arm skip not caught: rsn=|$rsn| start=|$(cat "$FP_ROOT/t7/start" 2>/dev/null)|"
+fi
 
 # --- subagent stop records a mismatch without blocking -----------------------
 run "$(mk_start "$AUD" a5)"
@@ -311,7 +394,7 @@ fi
 
 # --- exit contract: 0 or 2 only -----------------------------------------------
 run '{not json'
-case "$ERR" in *WAR:*) m=1 ;; *) m=0 ;; esac
+case "$ERR" in *"WAR: audit tree fingerprint: payload is not JSON"*) m=1 ;; *) m=0 ;; esac
 if [ "$RC" = 2 ] && [ "$m" = 1 ]; then pass "payload not JSON -> exit 2 with a WAR: marker"; else fail "not-JSON payload rc=$RC err=|$ERR|"; fi
 run "$(jq -nc --arg at "$AUD" --arg c "$MAIN" '{hook_event_name:"PreToolUse",agent_type:$at,agent_id:"a1",tool_name:"Write",tool_input:{},cwd:$c}')"
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "an unmatched tool_name passes through"; else fail "unmatched tool rc=$RC out=|$OUT|"; fi

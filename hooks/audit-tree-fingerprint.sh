@@ -9,10 +9,13 @@
 #   keyed on the payload's `hook_event_name` and `tool_name`:
 #     (1) SubagentStart: record the fingerprint of every `.war-task` worktree
 #         (`git worktree list --porcelain`, marker present): HEAD sha plus the
-#         sha256 of `git status --porcelain=v1 -uall` joined with the blob hash
-#         (`git hash-object`, no write) of every path that status lists. The
-#         blob hashes make the fingerprint content-sensitive: a status line is
-#         the same before and after a second edit to an already-dirty file.
+#         sha256 of `git status --porcelain=v1 -z -uall` joined with the blob
+#         hash (`git hash-object`, no write) of every path that status lists.
+#         The blob hashes make the fingerprint content-sensitive: a status line
+#         is the same before and after a second edit to an already-dirty file.
+#         The -z form carries every path raw; the newline form C-quotes a path
+#         with a space, a double quote, a backslash or a control byte (even
+#         under core.quotePath=false), and such a path could not be hashed.
 #     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
 #         worktree the call reaches (a Read file_path, a Glob or Grep path, a
 #         Bash `git -C <path>`, else the payload cwd) and add it to the seat's
@@ -78,8 +81,14 @@
 #   Reads the payload via jq (already a hook dependency). sha256 via
 #   `sha256sum` or `shasum -a 256`, whichever is present.
 set -u
+# No pathname expansion: the Bash arm word-splits the payload command, and a
+# glob token there must never be expanded against this hook's filesystem.
+# (`case` patterns are unaffected; the script uses no globs of its own.)
+set -f
 # No optional locks on any git call below (see NON-INTERFERENCE above).
 export GIT_OPTIONAL_LOCKS=0
+NL='
+'
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
@@ -94,10 +103,11 @@ if ! command -v jq >/dev/null 2>&1; then
   fi
   exit 0
 fi
-printf '%s' "$input" | jq -e . >/dev/null 2>&1 || infra "payload is not JSON"
 get() { printf '%s' "$input" | jq -r "$1 // empty" 2>/dev/null; }
 
-atype="$(get '.agent_type')"
+# One jq pass both validates the payload (a parse error is the exit-2 arm) and
+# reads the agent type, so a pass-through call costs one spawn, not two.
+atype="$(printf '%s' "$input" | jq -r '.agent_type? // empty' 2>/dev/null)" || infra "payload is not JSON"
 case "$atype" in
   *war-auditor|*war-evidence-auditor) ;;
   *) exit 0 ;;
@@ -133,36 +143,67 @@ sha256_of_stdin() {
 # canon <dir> -> the physical path of an existing dir.
 canon() { (cd "$1" 2>/dev/null && pwd -P); }
 
-# blob_lines <worktree> <status-output> -> one `<blob> <path>` line per path
-# the status output lists (`absent` for a deleted path, `unreadable` when
-# hash-object fails). A rename row names its new path. Its own function, not
-# an inline loop: bash 3.2 misparses a `case` arm's `)` inside `$(...)`.
+# blob_lines <worktree> (the `status --porcelain=v1 -z -uall` records on
+# stdin) -> one `<blob> <path>` line per listed path, in record order
+# (`absent` for a deleted path, `unreadable` when hash-object fails). A rename
+# or copy record (R or C in either status column) carries its source path as
+# an extra NUL field, skipped here; the line names the new path. Every present
+# path goes to ONE `git hash-object --stdin-paths` call per worktree, never one
+# spawn per path; a path with a newline, which that reader cannot carry, gets
+# its own call. If the batch fails or returns the wrong line count, every
+# batched path is `unreadable`. Its own function, not an inline loop: bash 3.2
+# misparses a `case` arm's `)` inside `$(...)`.
 blob_lines() {
-  printf '%s\n' "$2" | while IFS= read -r _l; do
-    [ -n "$_l" ] || continue
+  _P=(); _O=(); _n=0; _nb=0; _skip=0; _batch=""
+  while IFS= read -r -d '' _l; do
+    if [ "$_skip" = 1 ]; then _skip=0; continue; fi
+    case "$_l" in [RC]?*|?[RC]*) _skip=1 ;; esac
     _p="${_l#???}"
-    case "$_p" in *" -> "*) _p="${_p##* -> }" ;; esac
-    if [ -f "$1/$_p" ]; then
-      _o="$(git -C "$1" hash-object -- "$_p" 2>/dev/null)" || _o="unreadable"
-      [ -n "$_o" ] || _o="unreadable"
+    _P[$_n]="$_p"
+    if [ ! -f "$1/$_p" ]; then
+      _O[$_n]="absent"
     else
-      _o="absent"
+      case "$_p" in
+        *"$NL"*) _o="$(git -C "$1" hash-object -- "$_p" 2>/dev/null)" && [ -n "$_o" ] || _o="unreadable"
+                 _O[$_n]="$_o" ;;
+        *) _O[$_n]=""; _batch="$_batch$_p$NL"; _nb=$((_nb + 1)) ;;
+      esac
     fi
-    printf '%s %s\n' "$_o" "$_p"
+    _n=$((_n + 1))
+  done
+  _hashes=""
+  if [ "$_nb" -gt 0 ]; then
+    _hashes="$(printf '%s' "$_batch" | git -C "$1" hash-object --stdin-paths 2>/dev/null)" || _hashes=""
+  fi
+  # set -f is on, so this split is on whitespace only (hashes are hex).
+  set -- $_hashes
+  [ "$#" = "$_nb" ] || set --
+  _i=0
+  while [ "$_i" -lt "$_n" ]; do
+    _o="${_O[$_i]}"
+    if [ -z "$_o" ]; then
+      if [ "$#" -gt 0 ]; then _o="$1"; shift; else _o="unreadable"; fi
+    fi
+    printf '%s %s\n' "$_o" "${_P[$_i]}"
+    _i=$((_i + 1))
   done
 }
 
 # fingerprint <worktree> -> prints "<head> <status-sha256>", or returns 1.
-# The sha256 covers the status output plus its blob_lines. quotePath is off
-# so a non-ASCII path reaches hash-object verbatim. Read-only: status runs
-# under the exported GIT_OPTIONAL_LOCKS=0, hash-object never writes.
+# The sha256 covers the raw -z status output plus its blob_lines. The status
+# bytes land in a temp file (a bash variable cannot hold NUL) that feeds both
+# the parse and the hash from ONE status run. Read-only on the worktree:
+# status runs under the exported GIT_OPTIONAL_LOCKS=0, hash-object never
+# writes.
 fingerprint() {
   _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
   [ -n "$_h" ] || return 1
-  _st="$(git -C "$1" -c core.quotePath=false status --porcelain=v1 -uall 2>/dev/null)" || return 1
-  _ch="$(blob_lines "$1" "$_st")"
-  _s="$(printf '%s\n%s' "$_st" "$_ch" | sha256_of_stdin)" || return 1
-  [ -n "$_s" ] || return 1
+  _z="$(mktemp 2>/dev/null)" && [ -n "$_z" ] || return 1
+  if ! git -C "$1" status --porcelain=v1 -z -uall > "$_z" 2>/dev/null; then rm -f "$_z"; return 1; fi
+  _ch="$(blob_lines "$1" < "$_z")"
+  _s="$({ cat "$_z"; printf '\n%s' "$_ch"; } | sha256_of_stdin)"; _rc=$?
+  rm -f "$_z"
+  [ "$_rc" = 0 ] && [ -n "$_s" ] || return 1
   printf '%s %s\n' "$_h" "$_s"
 }
 
@@ -285,7 +326,8 @@ case "$event" in
       Bash)
         # Every `-C <path>` (or `-C<path>`) token names a worktree the command
         # reaches; with none, the command runs in the payload cwd. Tokens are
-        # whitespace-split; a quoted path has its quotes stripped.
+        # whitespace-split only (set -f above: a glob token stays literal); a
+        # quoted path has its quotes stripped.
         _cmd="$(get '.tool_input.command')"
         _found=0; _want=0
         for _tok in $_cmd; do
