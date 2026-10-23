@@ -13,8 +13,11 @@
 # oracle over a staled index, with its own sensitivity row.
 #
 # FIXTURES: a throwaway repo with real worktrees under a mktemp dir, outside
-# any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo).
-# Payloads are built with jq --arg and fed on stdin.
+# any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo),
+# plus a declared submodule (path `sub dir`, a space in it) with a marked
+# worktree cut from inside the submodule, and a declared-but-never-initialized
+# submodule (`ghost`, the empty dir a plain clone leaves). Payloads are built
+# with jq --arg and fed on stdin.
 #
 # SEARCH-ROOT CONVENTION (guard-conventions.test.sh lint 2): every grep below
 # names its file (the hook, hooks.json, the recovery doc); no `find`, no `grep -r`.
@@ -57,10 +60,30 @@ printf 'marker\n' > "$TMP/wtA/.war-task"
 printf 'marker\n' > "$TMP/wtB/.war-task"
 printf 'marker\n' > "$TMP/wtD/.war-task"
 # wtC carries no marker: never fingerprinted.
+# A submodule task's worktree is cut cwd-scoped to the submodule path, so it
+# is registered in the submodule's git dir (.git/modules/<path>), not the
+# superproject's. The submodule path carries a space; `ghost` is declared in
+# .gitmodules but never initialized: an empty dir with no .git entry, where a
+# `git -C` would walk up to the superproject.
+git init -q "$TMP/subsrc"
+printf 'sb\n' > "$TMP/subsrc/s"
+git -C "$TMP/subsrc" add s
+git -C "$TMP/subsrc" commit -q -m sb
+git -C "$MAIN" -c protocol.file.allow=always submodule add -q "$TMP/subsrc" "sub dir"
+git -C "$MAIN" commit -q -m addsub
+git config -f "$MAIN/.gitmodules" submodule.ghost.path ghost
+mkdir -p "$MAIN/ghost"
+SUB="$MAIN/sub dir"
+git -C "$SUB" worktree add -q "$TMP/wtS" -b s
+printf 'marker\n' > "$TMP/wtS/.war-task"
+SUBGD="$(git -C "$SUB" rev-parse --path-format=absolute --git-common-dir)"
+mkdir -p "$SUBGD/info"
+printf '.war-task\n' >> "$SUBGD/info/exclude"
 WTA="$(cd "$TMP/wtA" && pwd -P)"
 WTB="$(cd "$TMP/wtB" && pwd -P)"
 WTC="$(cd "$TMP/wtC" && pwd -P)"
 WTD="$(cd "$TMP/wtD" && pwd -P)"
+WTS="$(cd "$TMP/wtS" && pwd -P)"
 FP_ROOT="$MAIN/.claude/war/audit-fingerprints"
 TAMPER_ROOT="$MAIN/.claude/war/audit-tamper"
 
@@ -117,8 +140,8 @@ else
   fail "SubagentStart wrote no start record (rc=$RC out=|$OUT| err=|$ERR|)"
 fi
 lines="$(grep -c . "$START" 2>/dev/null)"; [ -n "$lines" ] || lines=0
-if [ "$lines" = 3 ] && grep -Fq " $WTA" "$START" && grep -Fq " $WTB" "$START" && grep -Fq " $WTD" "$START" && ! grep -Fq " $WTC" "$START"; then
-  pass "start record lists every .war-task worktree and no unmarked worktree"
+if [ "$lines" = 4 ] && grep -Fq " $WTA" "$START" && grep -Fq " $WTB" "$START" && grep -Fq " $WTD" "$START" && grep -Fq " $WTS" "$START" && ! grep -Fq " $WTC" "$START"; then
+  pass "start record lists every .war-task worktree, the submodule's included, and no unmarked worktree"
 else
   fail "start record content wrong (lines=$lines): $(cat "$START" 2>/dev/null)"
 fi
@@ -265,6 +288,52 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ]; then
   pass "a seat that touched no worktree passes"
 else
   fail "no-touch seat did not pass (rc=$RC out=|$OUT|)"
+fi
+
+# --- submodule-task worktrees are recorded at start ---------------------------
+# The auditor card sends every seat of a submodule task to `git -C
+# <submodule-task-worktree> diff`. Oracle, independent of the hook: the
+# superproject's own worktree list never shows wtS and the submodule's does,
+# so a start arm that listed the cwd repository alone would record no line
+# for it and every such seat would escalate `no start record`.
+if ! git -C "$MAIN" worktree list --porcelain | grep -Fxq "worktree $WTS" \
+   && git -C "$SUB" worktree list --porcelain | grep -Fxq "worktree $WTS"; then
+  pass "oracle: the submodule worktree is listed by the submodule, never by the superproject"
+else
+  fail "oracle vacuous: superproject list=|$(git -C "$MAIN" worktree list --porcelain)| sub list=|$(git -C "$SUB" worktree list --porcelain)|"
+fi
+# The start arm reads .gitmodules from $MAIN, not from the payload cwd: a seat
+# whose cwd is a superproject worktree (no initialized submodule there) still
+# records wtS, and the never-initialized `ghost` entry is skipped (the exact
+# line count: a walk-up from its empty dir would list the superproject's
+# marked worktrees twice).
+PCWD="$TMP/wtA"
+run "$(mk_start "$AUD" s1)"
+PCWD="$MAIN"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && grep -Fq " $WTS" "$FP_ROOT/s1/start" && [ "$(grep -c . "$FP_ROOT/s1/start")" = 4 ]; then
+  pass "start from a superproject worktree cwd records the submodule worktree and skips the uninitialized ghost entry"
+else
+  fail "submodule worktree not recorded from a worktree cwd (rc=$RC out=|$OUT| err=|$ERR| start=|$(cat "$FP_ROOT/s1/start" 2>/dev/null)|)"
+fi
+run "$(mk_start "$AUD" s2)"
+run "$(mk_bash "$AUD" s2 "git -C $TMP/wtS diff")"
+run "$(mk_verdict "$AUD" s2)"
+if [ "$(cat "$FP_ROOT/s2/touched" 2>/dev/null)" = "$WTS" ] && [ "$RC" = 0 ] && [ -z "$OUT" ]; then
+  pass "an unchanged submodule-task worktree touched via git -C passes"
+else
+  fail "unchanged submodule worktree did not pass (rc=$RC out=|$OUT| err=|$ERR| touched=|$(cat "$FP_ROOT/s2/touched" 2>/dev/null)|)"
+fi
+run "$(mk_start "$AUD" s3)"
+run "$(mk_bash "$AUD" s3 "git -C $TMP/wtS diff")"
+printf 'sub tamper\n' >> "$TMP/wtS/s"
+run "$(mk_verdict "$AUD" s3)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: $WTS changed during the audit round ("*) p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ]; then
+  pass "an edit in a submodule-task worktree escalates as changed during the audit round"
+else
+  fail "submodule worktree edit not caught (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR|)"
 fi
 
 # --- touched-set resolution arms ---------------------------------------------

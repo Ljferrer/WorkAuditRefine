@@ -8,10 +8,14 @@
 #   read changed while the seat judged it. One script, three entry arms, all
 #   keyed on the payload's `hook_event_name` and `tool_name`:
 #     (1) SubagentStart: record the fingerprint of every `.war-task` worktree
-#         (`git worktree list --porcelain`, marker present): HEAD sha plus the
-#         sha256 of `git status --porcelain=v1 -z -uall` joined with the blob
-#         hash (`git hash-object --no-filters`, no write, no clean filter) of
-#         every path that status lists.
+#         (`git worktree list --porcelain`, marker present) of the payload
+#         cwd's repository and of every initialized submodule that
+#         `$MAIN/.gitmodules` declares (a submodule task's worktree is
+#         registered in the submodule's own git dir and never appears in the
+#         superproject's list): HEAD sha plus the sha256 of `git status
+#         --porcelain=v1 -z -uall` joined with the blob hash (`git hash-object
+#         --no-filters`, no write, no clean filter) of every path that status
+#         lists.
 #         The blob hashes make the fingerprint content-sensitive: a status line
 #         is the same before and after a second edit to an already-dirty file.
 #         The -z form carries every path raw; the newline form C-quotes a path
@@ -227,10 +231,10 @@ fingerprint() {
   printf '%s %s\n' "$_h" "$_s"
 }
 
-# task_worktrees -> every worktree of this repo that carries a .war-task
-# marker, one canonical path per line.
-task_worktrees() {
-  git -C "$cwd" worktree list --porcelain 2>/dev/null | while IFS= read -r _line; do
+# marked_worktrees_of <repo-dir> -> every worktree of that repository that
+# carries a .war-task marker, one canonical path per line.
+marked_worktrees_of() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | while IFS= read -r _line; do
     case "$_line" in
       "worktree "*)
         _wt="${_line#worktree }"
@@ -238,6 +242,30 @@ task_worktrees() {
         _c="$(canon "$_wt")" && [ -n "$_c" ] && printf '%s\n' "$_c" ;;
     esac
   done
+}
+
+# task_worktrees -> the marked worktrees of the payload cwd's repository, then
+# those of every initialized submodule `$MAIN/.gitmodules` declares. The
+# provision barrier cuts a submodule task's worktree cwd-scoped to the
+# submodule path, so it is registered under that submodule's git dir and the
+# superproject's `worktree list` never shows it; without this pass every
+# seat of a submodule task escalates `no start record`. The path is read from
+# `$MAIN`, not the cwd: a superproject worktree carries no initialized
+# submodule. A declared path with no `.git` entry (the empty dir a plain
+# clone leaves) is skipped: `git -C` there would walk up and list the
+# superproject's worktrees a second time. The config record is
+# `submodule.<name>.path`, a newline, the path, NUL (the -z form): the
+# default name IS the path, so a space-separated read would split
+# `submodule.sub dir.path sub dir` at the wrong space. A missing .gitmodules
+# is an empty read (stderr dropped), not an error.
+task_worktrees() {
+  marked_worktrees_of "$cwd"
+  git config -z -f "$MAIN/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null \
+  | while IFS= read -r -d '' _rec; do
+      _sp="${_rec#*"$NL"}"
+      [ -n "$_sp" ] && [ -e "$MAIN/$_sp/.git" ] || continue
+      marked_worktrees_of "$MAIN/$_sp"
+    done
 }
 
 # task_worktree_of <path> -> the canonical .war-task worktree root that holds
