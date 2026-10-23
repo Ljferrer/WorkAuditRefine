@@ -6,7 +6,8 @@
 // names these constants or carries the value behind a fixed lead-in that
 // target-artifacts.test.mjs extracts and compares to the export:
 //   TARGET_ARTIFACTS_MARKER — the block's marker line, verbatim.
-//   MANIFEST_PATH_TEMPLATE  — where a worker commits the digest manifest, on the task branch.
+//   MANIFEST_PATH_TEMPLATE  — where a worker commits a digest manifest, on the task branch: one
+//                             per cited artifact, `<sha12>` the first 12 hex of its declared sha256 (D23).
 //   MANIFEST_KEYS           — the only keys a manifest carries (G6); any other key is payload.
 // The grammar, the digest rule and the cite-only rule live in
 // skills/war-strategy/references/artifact-evidence.md, never here.
@@ -56,7 +57,7 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 export const TARGET_ARTIFACTS_MARKER = '**Target artifacts**'
-export const MANIFEST_PATH_TEMPLATE = 'docs/plans/evidence/<plan-slug>/<task-id>.manifest.json'
+export const MANIFEST_PATH_TEMPLATE = 'docs/plans/evidence/<plan-slug>/<task-id>.<sha12>.manifest.json'
 export const MANIFEST_KEYS = Object.freeze(['evidence_id', 'sha256', 'provider', 'tool', 'parameters', 'limitations'])
 
 const PART2_H2 = /^##\s+(?:(?:AI-)?Commander's Intent|Build order|Phase\b)/

@@ -47,9 +47,9 @@ owns the allow and deny sets.** Five parts follow.
   the record and states the conclusion in its own words.
 - Bundles live only under `$MAIN/.claude/war/evidence/<plan-slug>/`, written after
   `provision-worktrees.sh ensure-exclude $MAIN` has run. They are untracked, never committed.
-- A worker whose task cites artifact evidence commits a payload-free digest manifest on the task
-  branch, carrying only the keys `MANIFEST_KEYS` exports, at the path `MANIFEST_PATH_TEMPLATE`
-  names.
+- A worker whose task cites artifact evidence commits one payload-free digest manifest per cited
+  artifact on the task branch, carrying only the keys `MANIFEST_KEYS` exports, at the path
+  `MANIFEST_PATH_TEMPLATE` names.
 - Enforcement is the advisory lint (`rea-source-base`, `target-content-paste`) plus the red-team
   `untrusted-content` probe. It is never a merge floor and never a hard `/war` gate.
 
@@ -95,11 +95,12 @@ plan than this record.
   `WIDEN_BARRED_LENSES` member. `agents/war-auditor.md` lags by backstop B4. `README.md` and the
   `CONTEXT.md` lens-catalog note describe `RESERVED_LENSES` itself and stay untouched.
 - The seat measures for itself. Under [ADR 0041](0041-audit-evidence-precedence.md)'s amendment
-  row, the REA-reported subject sha256 matched against the digest manifest committed at
-  `audit_sha` is rung 1. The seat HOLDs only on a mismatch. Every other REA finding is SOFT, and REA
-  unreachable is `cannot-confirm`. A regular seat never re-measures a `rea:` claim and never holds
-  on one: `agents/war-auditor.md` is byte-untouched, and regular seats receive one gated dispatched
-  line that names `artifact-evidence.md` as its source.
+  row, the REA-reported subject sha256 matched against each cited artifact's digest manifest
+  committed at `audit_sha` is rung 1. The seat HOLDs only on a mismatch against any cited
+  artifact's manifest. Every other REA finding is SOFT, and REA unreachable is `cannot-confirm`.
+  A regular seat never re-measures a `rea:` claim and never holds on one: `agents/war-auditor.md`
+  is byte-untouched, and regular seats receive one gated dispatched line that names
+  `artifact-evidence.md` as its source.
 - Both existing guards deny the new type what they deny `war-auditor`: every write, and every
   non-git command.
 
@@ -159,3 +160,7 @@ plan than this record.
   (declining the war-room evidence offer turns run.evidence off, pinned by the presence test),
   #2406 (one cite-only constant, byte-equal to the card) · plan 2026-10-20-rea-artifact-evidence
   task 3.1
+- 2026-10-22 · operator rulings D23 (one manifest per cited artifact; `MANIFEST_PATH_TEMPLATE`
+  gains `<sha12>`, the first 12 hex of the declared sha256; `MANIFEST_KEYS` unchanged) and D24
+  (recon lane runs digest first; `<plan-slug>` is the plan basename without `.md`, defined in
+  `artifact-evidence.md`) · plan 2026-10-20-rea-artifact-evidence task 5.1
