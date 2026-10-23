@@ -1,6 +1,6 @@
 ---
 name: auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel
-description: "A live auditor seat may have no Grep/Glob tool while shell grep is guard-denied, leaving no search channel"
+description: "An auditor card can declare tools: Read, Grep, Glob, Bash, and both the guard denial and doctrine point a denied seat at 'the Grep/Glob tools' as the remedy for a metacharacter-refused shell grep — but a live seat session can have NO Grep/Glob tool provisioned at all, while shell grep/git grep are guard-denied, leaving zero search channel besides git log -S/-G, git blame -L, and whole-file Read."
 metadata: 
   node_type: memory
   type: project
@@ -24,7 +24,7 @@ metadata:
     - gate-audit
   created: 2026-08-15
   originSessionId: 8bae67aa-acfa-461e-acc9-278fc79ba6c1
-  modified: 2026-08-16T02:54:03.729Z
+  modified: 2026-10-23T09:44:55.725Z
 ---
 
 # An auditor seat can be dispatched with the Grep/Glob remedy stated, but the tools absent
@@ -66,4 +66,8 @@ point to was unavailable, forcing whole-file Reads.
 (~line 27) — verify still present before acting. `hooks/validate-auditor-git.sh` forbidden-char
 deny message (~line 91) names the same remedy.
 
-> archived 2026-08-25: resolved — moved to archive
+## Resolution by the guard (2026-10-23, plan 2026-10-20-rea-artifact-evidence, phase 6)
+
+The no-search-channel state recurred in this phase: audit seats reported no Grep tool while the installed guard still denied `git grep`. Plan D21 closed it from the guard side. ADR 0029 Amendment 2026-10-22 admits `git grep -F -e <token>` as the one search form when no Grep tool exists, and the auditor card, evidence card and dispatched contract name that fallback. Shell `grep` and every other `git grep` form stay denied. A guard change landed in a run cannot protect that same run, because the seats run the installed guard. The tool-provisioning observation above remains an unverified runtime fact. See [[admitting-a-risky-verb-to-a-read-only-guard-needs-default-deny-by-token-shape-with-cluster-expansion]]. Verify still present: the NARROW-FORM grep block in `hooks/validate-auditor-git.sh`, found at landed tip d66961d9 on `dev/2026-10-20-rea-artifact-evidence`.
+
+> archived 2026-08-17: resolved — moved to archive
