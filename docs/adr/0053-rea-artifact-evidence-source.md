@@ -97,9 +97,10 @@ plan than this record.
 - The seat measures for itself. Under [ADR 0041](0041-audit-evidence-precedence.md)'s amendment
   row, the REA-reported subject sha256 matched against each cited artifact's digest manifest
   committed at `audit_sha` is rung 1. The seat HOLDs only on a mismatch against any cited
-  artifact's manifest. Every other REA finding is SOFT, and REA unreachable is `cannot-confirm`. A regular seat never re-measures a `rea:` claim and never holds
-  on one: `agents/war-auditor.md` is byte-untouched, and regular seats receive one gated dispatched
-  line that names `artifact-evidence.md` as its source.
+  artifact's manifest. Every other REA finding is SOFT, and REA unreachable is `cannot-confirm`.
+  A regular seat never re-measures a `rea:` claim and never holds on one: `agents/war-auditor.md`
+  is byte-untouched, and regular seats receive one gated dispatched line that names
+  `artifact-evidence.md` as its source.
 - Both existing guards deny the new type what they deny `war-auditor`: every write, and every
   non-git command.
 
