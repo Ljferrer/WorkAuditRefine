@@ -47,15 +47,24 @@
 #   Claude Code kills a hook at its hooks.json `timeout` (600 s on every entry
 #   for this hook) and the verdict then passes unchecked. The hook keeps its
 #   own shorter deadline, 540 s by default or WAR_FINGERPRINT_DEADLINE_SECONDS
-#   when that is a non-negative integer (tests use 0), measured on bash's
-#   SECONDS from the hook's start and checked per worktree in the start and
-#   compare loops and per path in blob_lines. Past the deadline the hook stops
-#   hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
-#   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s)` and writes
-#   the tamper record with `"timeout": true`; the SubagentStop arm records the
-#   same; the SubagentStart arm writes `$STATE/timeout` (`<N> <worktree>`), so
-#   a verdict on a worktree it never recorded escalates with the timeout
-#   reason and never with `no start record`. The Lead's question on that
+#   when that is a non-negative integer below 600 (tests use 0; a value of 600
+#   or more is clamped back to 540, so the deadline is below the harness kill
+#   by construction), measured on bash's SECONDS from the hook's start and
+#   checked per worktree in the start and compare loops and per path in
+#   blob_lines. Past the deadline the hook stops hashing: the StructuredOutput
+#   arm escalates with `AUDIT-TAMPER: fingerprint timeout (<worktree> ...
+#   after <N>s, deadline <D>s)` and writes the tamper record with `"timeout":
+#   true`; the SubagentStop arm records the same; the SubagentStart arm writes
+#   `$STATE/timeout` (`<N> <D> <worktree>`: its elapsed seconds, its own
+#   deadline, the worktree it stopped at) and `$STATE/timeout-skipped` (that
+#   worktree and every later one in its list), so a verdict on a worktree the
+#   deadline skipped escalates with the timeout reason, printing the start
+#   arm's deadline, and never with `no start record`. A worktree the start arm
+#   skipped for a git error, or one created after it ran, is in neither file
+#   and keeps `no start record`, which only fails closed. A start-arm timeout
+#   yields to a provable failure on another touched worktree (a mismatch, a
+#   git error, an unresolved path): compare finishes its loop and reports the
+#   timeout only when nothing else failed. The Lead's question on the timeout
 #   reason (fail closed or fail open) is in resume-and-recovery.md.
 #
 # NON-INTERFERENCE
@@ -76,16 +85,18 @@
 #   agent type passes through with exit 0 and no output, before any git call.
 #
 # STATE
-#   `$MAIN/.claude/war/audit-fingerprints/<agent_id>/{start,touched}`, where
-#   `$MAIN` is the main checkout: dirname of `git rev-parse --git-common-dir`
-#   on the payload `cwd`, in the two-step failure-distinguishable form (a
-#   composed `dirname "$(git ...)"` yields "." on a failed probe). `.claude/`
-#   is already excluded from status by provision-worktrees.sh ensure-exclude.
-#   `start` lines are `<head> <status-sha256> <worktree>`; `touched` holds one
-#   canonical worktree path per line, or a literal `~<name>` Bash `-C` token
-#   the hook cannot expand (the verdict arm reports it as unresolved). Worktree
-#   paths are canonical (`pwd -P`) on both sides, so a symlinked temp dir
-#   compares equal to its real path.
+#   `$MAIN/.claude/war/audit-fingerprints/<agent_id>/{start,touched,timeout,
+#   timeout-skipped}`, where `$MAIN` is the main checkout: dirname of `git
+#   rev-parse --git-common-dir` on the payload `cwd`, in the two-step
+#   failure-distinguishable form (a composed `dirname "$(git ...)"` yields "."
+#   on a failed probe). `.claude/` is already excluded from status by
+#   provision-worktrees.sh ensure-exclude. `start` lines are `<head>
+#   <status-sha256> <worktree>`; `touched` holds one canonical worktree path
+#   per line, or a literal `~<name>` Bash `-C` token the hook cannot expand
+#   (the verdict arm reports it as unresolved); `timeout` and
+#   `timeout-skipped` are described under DEADLINE. Worktree paths are
+#   canonical (`pwd -P`) on both sides, so a symlinked temp dir compares equal
+#   to its real path.
 #
 # PAYLOAD CONTRACT
 #   `agent_id` and `agent_type` ride SubagentStart and SubagentStop (confirmed
@@ -120,9 +131,11 @@ CR="$(printf '\r')"
 
 # The hook's own deadline in seconds (see DEADLINE above). SECONDS is bash's
 # seconds-since-start counter: no spawn per check, so blob_lines can test it
-# per path.
+# per path. A value of 600 or more (or one too large for `[`) would let the
+# 600 s hooks.json kill fire first, so it falls back to the default.
 DEADLINE="${WAR_FINGERPRINT_DEADLINE_SECONDS-}"
 case "$DEADLINE" in ''|*[!0-9]*) DEADLINE=540 ;; esac
+[ "$DEADLINE" -lt 600 ] 2>/dev/null || DEADLINE=540
 expired() { [ "$SECONDS" -ge "$DEADLINE" ]; }
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
@@ -355,6 +368,18 @@ touch_c() {
   touch_path "$_base"
 }
 
+# start_timeout <worktree>: the SubagentStart arm hit the deadline before or
+# while hashing <worktree>. `timeout` is `<N> <D> <worktree>` (elapsed
+# seconds, this arm's deadline, the worktree). `timeout-skipped` lists that
+# worktree and every one still unread on the loop's stdin (the rest of the
+# task_worktrees list, drained by cat), one per line: compare gives the
+# timeout reason only to a worktree listed there, so a worktree the loop
+# skipped for a git error before the deadline keeps `no start record`.
+start_timeout() {
+  printf '%s %s %s\n' "$SECONDS" "$DEADLINE" "$1" > "$STATE/timeout"
+  { printf '%s\n' "$1"; cat; } > "$STATE/timeout-skipped"
+}
+
 # timeout_reason <worktree> <what>: sets REASON, T_WT and T_TIMEOUT for a
 # deadline hit on <worktree> (<what> says which step was cut short).
 timeout_reason() {
@@ -367,12 +392,20 @@ timeout_reason() {
 # per worktree so a failing record never carries the previous worktree's
 # values. A seat that touched nothing passes only when its start record
 # exists: a missing record means the start arm never ran, which is
-# unverifiable, not clean. A touched worktree with no start line after a start
-# arm that hit the deadline (`$STATE/timeout` present) is a timeout, named as
-# such, never `no start record`; a worktree the start arm did record before
-# the deadline is compared as usual.
+# unverifiable, not clean. A touched worktree with no start line that the
+# start arm's deadline skipped (`$STATE/timeout` present and the worktree
+# listed in `$STATE/timeout-skipped`) is a timeout, named as such, never `no
+# start record`. That timeout is held pending (P_WT, P_REASON) while the loop
+# goes on: a mismatch, a git error or an unresolved path on a later touched
+# worktree is provable and outranks it, and the pending reason applies only
+# after every other touched worktree passed. The reason prints the start
+# arm's own deadline from the marker, not this invocation's. A worktree with
+# no start line that is not listed (a git error at start, or a worktree
+# created after the start arm ran) is `no start record`, which only fails
+# closed; a worktree the start arm did record is compared as usual.
 REASON=""; T_WT=""; T_START=""; T_NOW=""; T_TIMEOUT=0
 compare() {
+  P_WT=""; P_REASON=""
   if [ -z "$aid" ]; then
     if [ -n "$aid_raw" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the hook payload)"
     else REASON="AUDIT-TAMPER: unverifiable fingerprint (no agent_id in the hook payload)"; fi
@@ -392,11 +425,14 @@ compare() {
               [ "$_p" = "$_wt" ] && { printf '%s\n' "$_l"; break; }
             done < "$STATE/start")"
     if [ -z "$_rec" ]; then
-      if [ -f "$STATE/timeout" ]; then
-        _m="$(head -n 1 "$STATE/timeout" 2>/dev/null)"
-        T_WT="$_wt"; T_TIMEOUT=1
-        REASON="AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at ${_m#* } after ${_m%% *}s, deadline ${DEADLINE}s; $_wt has no start fingerprint)"
-        return 0
+      if [ -f "$STATE/timeout" ] && grep -Fxq -- "$_wt" "$STATE/timeout-skipped" 2>/dev/null; then
+        if [ -z "$P_WT" ]; then
+          _m="$(head -n 1 "$STATE/timeout" 2>/dev/null)"
+          _mn="${_m%% *}"; _m="${_m#* }"; _md="${_m%% *}"
+          P_WT="$_wt"
+          P_REASON="AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at ${_m#* } after ${_mn}s, deadline ${_md}s; $_wt has no start fingerprint)"
+        fi
+        continue
       fi
       T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (no start record for $_wt)"; return 0
     fi
@@ -415,6 +451,7 @@ compare() {
     fi
   done < "$STATE/touched"
   T_WT=""; T_START=""; T_NOW=""
+  if [ -n "$P_WT" ]; then T_WT="$P_WT"; T_TIMEOUT=1; REASON="$P_REASON"; fi
 }
 
 # write_tamper_record <event>: `$MAIN/.claude/war/audit-tamper/<agent_id>.json`.
@@ -437,14 +474,15 @@ case "$event" in
     mkdir -p "$STATE" 2>/dev/null || exit 0
     : > "$STATE/start"
     : > "$STATE/touched"
-    rm -f "$STATE/timeout"
-    # Past the deadline the loop stops and `timeout` names the elapsed
-    # seconds and the first worktree left unrecorded (see DEADLINE above).
+    rm -f "$STATE/timeout" "$STATE/timeout-skipped"
+    # Past the deadline the loop stops: start_timeout names the elapsed
+    # seconds, this arm's deadline and every worktree left unrecorded (see
+    # DEADLINE above). A git error skips the worktree without a marker.
     task_worktrees | while IFS= read -r _wt; do
       [ -n "$_wt" ] || continue
-      if expired; then printf '%s %s\n' "$SECONDS" "$_wt" > "$STATE/timeout"; break; fi
+      if expired; then start_timeout "$_wt"; break; fi
       _fp="$(fingerprint "$_wt")"; _frc=$?
-      if [ "$_frc" = 3 ]; then printf '%s %s\n' "$SECONDS" "$_wt" > "$STATE/timeout"; break; fi
+      if [ "$_frc" = 3 ]; then start_timeout "$_wt"; break; fi
       [ "$_frc" = 0 ] || continue
       printf '%s %s\n' "$_fp" "$_wt" >> "$STATE/start"
     done
@@ -469,8 +507,13 @@ case "$event" in
         fi
         exit 0 ;;
       Bash)
-        # Every `-C <path>` (or `-C<path>`) token names a worktree the command
-        # reaches; with none, the command runs in the payload cwd. Tokens are
+        # Every global `-C <path>` (or `-C<path>`) token names a worktree the
+        # command reaches; with none, the command runs in the payload cwd.
+        # Global means before the subcommand word (the first token that is
+        # not `git`, `-C` or a `-C` value): validate-auditor-git.sh peels one
+        # leading `-C` and polices no diff flag, and after the subcommand
+        # `-C` is diff's copy-detection option (`-C`, `-C50%`), an ordinary
+        # token here that never moves the base. Tokens are
         # whitespace-split only (set -f above: a glob token stays literal); a
         # quoted path has its quotes stripped. An unquoted word-initial `~`
         # (admitted by validate-auditor-git.sh for HEAD~1) is expanded by the
@@ -493,7 +536,7 @@ case "$event" in
         # fallback is unchanged by an operand token: the command still runs
         # in the payload cwd.
         _cmd="$(get '.tool_input.command')"
-        _found=0; _want=0; _base="$cwd"
+        _found=0; _want=0; _sub=0; _base="$cwd"
         for _tok in $_cmd; do
           if [ "$_want" = 1 ]; then
             _want=0; _found=1
@@ -507,14 +550,18 @@ case "$event" in
             [ -n "$_tok" ] && touch_c "$_tok"
             continue
           fi
-          case "$_tok" in
-            -C) _want=1 ;;
-            -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t" ;;
-            *) unquote "$_tok"
-               case "$_t" in
-                 /*) touch_path "$_t" ;;
-                 ../*|./*) touch_path "$_base/$_t" ;;
-               esac ;;
+          if [ "$_sub" = 0 ]; then
+            case "$_tok" in
+              git) continue ;;
+              -C) _want=1; continue ;;
+              -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t"; continue ;;
+              *) _sub=1 ;;
+            esac
+          fi
+          unquote "$_tok"
+          case "$_t" in
+            /*) touch_path "$_t" ;;
+            ../*|./*) touch_path "$_base/$_t" ;;
           esac
         done
         [ "$_found" = 0 ] && touch_path "$cwd"
