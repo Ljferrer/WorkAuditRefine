@@ -13,7 +13,9 @@
 # oracle over a staled index, with its own sensitivity row. The hook keeps
 # its own deadline under the hooks.json timeout (Task 7.2): past it, the
 # verdict escalates with `AUDIT-TAMPER: fingerprint timeout` and the record
-# carries `timeout: true`; the rows set WAR_FINGERPRINT_DEADLINE_SECONDS=0.
+# carries `timeout: true`. The pre-check rows set
+# WAR_FINGERPRINT_DEADLINE_SECONDS=0; the mid-hash rows cross a deadline of 2
+# inside a `git status` slowed by a shim.
 #
 # FIXTURES: a throwaway repo with real worktrees under a mktemp dir, outside
 # any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo),
@@ -646,11 +648,12 @@ fi
 # --- the hook's own deadline (Task 7.2, ruling 2026-10-24) -------------------
 # Claude Code kills a hook at its hooks.json timeout and the verdict then
 # passes unchecked. The hook keeps a shorter deadline of its own (540 s by
-# default, WAR_FINGERPRINT_DEADLINE_SECONDS when set) and, on hitting it,
+# default; WAR_FINGERPRINT_DEADLINE_SECONDS overrides it) and, on hitting it,
 # stops hashing and escalates with a reason that starts `AUDIT-TAMPER:
-# fingerprint timeout`. A deadline of 0 expires before the first worktree.
-# The payload is built BEFORE the env override, so only the run under test
-# sees the variable.
+# fingerprint timeout`. A deadline of 0 expires before the first worktree, so
+# the d1 to d3 rows exercise the `expired` pre-checks only; the mid-hash rows
+# below them cross the deadline inside `fingerprint`. The payload is built
+# BEFORE the env override, so only the run under test sees the variable.
 run "$(mk_start "$AUD" d1)"
 run "$(mk_read "$AUD" d1 "$TMP/wtA/f")"
 _p="$(mk_verdict "$AUD" d1)"
@@ -706,11 +709,104 @@ if [ "$(jq -r '.timeout' "$TAMPER_ROOT/a1.json" 2>/dev/null)" = false ]; then
 else
   fail "plain mismatch record timeout field wrong: $(cat "$TAMPER_ROOT/a1.json" 2>/dev/null)"
 fi
-if grep -Fq 'WAR_FINGERPRINT_DEADLINE_SECONDS' "$HOOK" && grep -Eq '[^0-9]540[^0-9]' "$HOOK"; then
+# The 540 literal is anchored to the code line (`DEADLINE=540 ;;`), not to the
+# hook's header prose, which also says 540: a code default moved past the
+# 600 s hooks.json timeout must go red here. The env name is pinned by
+# behavior in rows d1 to d3, so its grep may match a comment.
+if grep -Fq 'WAR_FINGERPRINT_DEADLINE_SECONDS' "$HOOK" && grep -Fq 'DEADLINE=540 ;;' "$HOOK"; then
   pass "hook reads WAR_FINGERPRINT_DEADLINE_SECONDS and defaults to 540 seconds"
 else
   fail "hook deadline literal or env name missing"
 fi
+# A non-integer env value falls back to the default. Oracle: with the
+# fallback arm gone, DEADLINE stays `abc`, every `[ -ge ]` check writes
+# `integer expression expected` to stderr and never expires, and the verdict
+# still passes; so the row pins an empty stderr beside the clean pass.
+run "$(mk_start "$AUD" d7)"
+run "$(mk_read "$AUD" d7 "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d7)"
+export WAR_FINGERPRINT_DEADLINE_SECONDS=abc
+run "$_p"
+unset WAR_FINGERPRINT_DEADLINE_SECONDS
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ -z "$ERR" ]; then
+  pass "a non-integer WAR_FINGERPRINT_DEADLINE_SECONDS falls back to the default (clean pass, empty stderr)"
+else
+  fail "non-integer deadline fallback (rc=$RC out=|$OUT| err=|$ERR|)"
+fi
+
+# --- mid-hash deadline: the return-3 arms ------------------------------------
+# A deadline of 0 makes the `expired` pre-checks fire before any git call, so
+# `fingerprint` never returns 3, and the arms behind that return stay
+# unpinned: blob_lines' per-path check, compare's `still hashing` arm and the
+# SubagentStart marker write on a return of 3. These rows cross the deadline DURING hashing: a git shim
+# on PATH sleeps 3 s before a `status` call that names the worktree
+# WAR_T_SLOW holds (every other git call runs at speed), under a deadline of
+# 2. Not 1: bash's SECONDS ticks at the wall-clock second, so it can read 1
+# within milliseconds of the start, and the pre-check would fire first. The
+# slow worktree carries one untracked file so blob_lines has a record on which
+# to test the deadline. The shim, WAR_T_SLOW and the deadline ride only the
+# run under test; the payload is built with the real git and jq.
+REALGIT="$(command -v git)"
+SLOWSHIM="$(mktemp -d 2>/dev/null || mktemp -d -t atfpslow)"
+cat > "$SLOWSHIM/git" <<EOF
+#!/bin/bash
+if [ -n "\${WAR_T_SLOW-}" ]; then case "\$*" in *"\$WAR_T_SLOW"*status*) sleep 3 ;; esac; fi
+exec "$REALGIT" "\$@"
+EOF
+chmod +x "$SLOWSHIM/git"
+# run_slow <slow worktree> <payload>: `run` under the shim with a deadline of 2.
+run_slow() {
+  OUT="$(printf '%s' "$2" | WAR_T_SLOW="$1" WAR_FINGERPRINT_DEADLINE_SECONDS=2 PATH="$SLOWSHIM:$PATH" "$BASH" "$HOOK" 2>"$TMP/err")"; RC=$?
+  ERR="$(cat "$TMP/err")"
+}
+# compare's arm: the start record is complete, the verdict run hashes wtA
+# slowly, and blob_lines returns 3 on its first record. With that arm gone the
+# reason falls to `unverifiable fingerprint (git error ...)`, which skips the
+# Lead's fail-closed or fail-open question.
+printf 'slow\n' > "$TMP/wtA/slow"
+run "$(mk_start "$AUD" d5)"
+run "$(mk_read "$AUD" d5 "$TMP/wtA/f")"
+run_slow "$WTA" "$(mk_verdict "$AUD" d5)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+rec="$TAMPER_ROOT/d5.json"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ] && [ "$(jq -r '.worktree' "$rec" 2>/dev/null)" = "$WTA" ]; then
+  pass "a deadline crossed while hashing a touched worktree escalates as still hashing"
+else
+  fail "mid-hash verdict timeout (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$rec" 2>/dev/null))"
+fi
+rm -f "$TMP/wtA/slow"
+# The start arm's marker on a return of 3. wtS is the slow worktree because
+# task_worktrees lists it LAST (the submodule pass runs after the
+# superproject's): a start arm that `continue`d on return 3 would still write
+# the marker for a slow worktree with a successor (the next pre-check fires),
+# but on the last one it would write nothing and the verdict would say `no
+# start record`, the reason the ruling forbids. The fast worktrees before it
+# (wtA and wtB; wtD has had no .git link since the git-error row and is
+# skipped) must all be recorded.
+printf 'slow\n' > "$TMP/wtS/slow"
+run_slow "$WTS" "$(mk_start "$AUD" d6)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ -f "$FP_ROOT/d6/timeout" ] && grep -Fq " $WTS" "$FP_ROOT/d6/timeout" \
+   && grep -Fq " $WTA" "$FP_ROOT/d6/start" && grep -Fq " $WTB" "$FP_ROOT/d6/start" && ! grep -Fq " $WTS" "$FP_ROOT/d6/start"; then
+  pass "a start arm that crosses the deadline while hashing the last worktree writes the timeout marker naming it and records the worktrees before it"
+else
+  fail "mid-hash start marker (rc=$RC out=|$OUT| err=|$ERR| timeout=|$(cat "$FP_ROOT/d6/timeout" 2>/dev/null)| start=|$(cat "$FP_ROOT/d6/start" 2>/dev/null)|)"
+fi
+run "$(mk_read "$AUD" d6 "$TMP/wtS/s")"
+run "$(mk_verdict "$AUD" d6)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+rec="$TAMPER_ROOT/d6.json"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at $WTS after "[0-9]*"s, deadline "*"s; $WTS has no start fingerprint)") p=1 ;; *) p=0 ;; esac
+case "$rsn" in *"no start record"*) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
+  pass "a default-env verdict on the worktree a mid-hash start timeout skipped names the timeout, never no start record"
+else
+  fail "mid-hash start timeout verdict (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$rec" 2>/dev/null))"
+fi
+rm -f "$TMP/wtS/slow"
+rm -rf "$SLOWSHIM"
 
 # --- exit contract: 0 or 2 only -----------------------------------------------
 run '{not json'
@@ -768,7 +864,8 @@ for m in 'StructuredOutput' 'Read|Bash|Glob|Grep'; do
   esac
 done
 # Every hooks.json entry for the hook carries a timeout of at least 600 s, so
-# the hook's own 540 s deadline (above) always fires before the harness kills it.
+# the hook's default 540 s deadline (above) fires before the harness kills it
+# (an env override must stay below 600 s too; the hook does not clamp it).
 nreg="$(jq '[.hooks[][] | .hooks[] | select(.command | contains("audit-tree-fingerprint.sh"))] | length' "$HJSON" 2>/dev/null)"
 nlong="$(jq '[.hooks[][] | .hooks[] | select(.command | contains("audit-tree-fingerprint.sh")) | select((.timeout // 0) >= 600)] | length' "$HJSON" 2>/dev/null)"
 if [ -n "$nreg" ] && [ "$nreg" -ge 3 ] && [ "$nreg" = "$nlong" ]; then
