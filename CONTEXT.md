@@ -1606,9 +1606,9 @@ cwd is the committed tip (ground on the threaded landed-tip anchor via the groun
 **Committed-tree grounding**:
 Resolving an "already-done" / verify-and-close no-op claim against a pinned committed SHA
 (`git show <audit_sha>:<path>` for a blob, `git log -S/-G` for history) rather than the working tree, so
-a transient uncommitted edit cannot fabricate the verdict; the working-tree grep is advisory only. The
-auditor allowlist is **not** widened — `git grep` stays denied
-([ADR 0029](docs/adr/0029-capture-grounds-on-committed-tip.md)).
+a transient uncommitted edit cannot fabricate the verdict; the working-tree grep is advisory only.
+`git grep -F -e <token>` is the auditor's one admitted search form
+([ADR 0029](docs/adr/0029-capture-grounds-on-committed-tip.md), Amendment 2026-10-22).
 _Avoid_: grepping the dirty working tree as the sole basis (a reverted edit lies about the committed
 tree); assuming `git log -S` answers "is the token present at the path" (it answers "when did the count
 change").

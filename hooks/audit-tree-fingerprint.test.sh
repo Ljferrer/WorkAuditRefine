@@ -438,6 +438,40 @@ PCWD="$TMP/wtA/sub"
 run "$(mk_bash "$AUD" t18 "git -C ../../wtC diff ../wtD/f")"
 PCWD="$MAIN"
 if touched_is t18 "$WTD"; then pass "Bash relative operand after -C resolves from the -C directory, not the payload cwd"; else fail "relative operand after -C resolved wrong: |$(cat "$FP_ROOT/t18/touched" 2>/dev/null)|"; fi
+# A `./`-led operand escapes the same way (`./../wtB/f` from wtC reaches wtB);
+# the positive row, since from $MAIN a `./` operand touches nothing either way.
+run "$(mk_start "$AUD" t19)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" t19 "git diff ./../wtB/f ./../wtB/g")"
+PCWD="$MAIN"
+if touched_is t19 "$WTB"; then pass "a relative ./ operand escaping the cwd worktree is touched"; else fail "./ operand touch not recorded: |$(cat "$FP_ROOT/t19/touched" 2>/dev/null)|"; fi
+# A bare relative operand (no `./` or `../`) reaches a task worktree nested
+# under the cwd: task worktrees live under $MAIN/.claude/war-worktrees/, and
+# the guard admits `git diff --no-index <rel> /dev/null` (`.` and `/` are in
+# its character allowlist, no diff flag is policed). The nested marker dir is
+# never a registered worktree, so the start-record rows above are unaffected.
+mkdir -p "$MAIN/.claude/war-worktrees/r/wtN"
+printf 'marker\n' > "$MAIN/.claude/war-worktrees/r/wtN/.war-task"
+WTN="$(cd "$MAIN/.claude/war-worktrees/r/wtN" && pwd -P)"
+run "$(mk_start "$AUD" t20)"
+run "$(mk_bash "$AUD" t20 "git diff --no-index .claude/war-worktrees/r/wtN/f /dev/null")"
+if touched_is t20 "$WTN"; then pass "a bare relative operand into a nested task worktree is touched"; else fail "bare relative operand touch not recorded: |$(cat "$FP_ROOT/t20/touched" 2>/dev/null)|"; fi
+# A `--<opt>=<path>` token is classified by its value: the guard admits every
+# `--opt=value` form, and `git blame --contents=<file>` reads that file.
+run "$(mk_start "$AUD" t21)"
+run "$(mk_bash "$AUD" t21 "git blame --contents=$TMP/wtB/f HEAD -- f")"
+if touched_is t21 "$WTB"; then pass "a --opt=/abs/path value is touched"; else fail "--opt=/abs value touch not recorded: |$(cat "$FP_ROOT/t21/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t22)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" t22 "git blame --contents=../wtB/f HEAD -- f")"
+PCWD="$MAIN"
+if touched_is t22 "$WTB"; then pass "a --opt=../path value resolves against the base and is touched"; else fail "--opt=../ value touch not recorded: |$(cat "$FP_ROOT/t22/touched" 2>/dev/null)|"; fi
+# Negative control for the classifier: a slashless token (the subcommand, a
+# flag, HEAD~1) touches nothing beyond the cwd fallback, so from $MAIN the
+# touched set stays empty.
+run "$(mk_start "$AUD" t23)"
+run "$(mk_bash "$AUD" t23 "git log --oneline -1 HEAD~1 -- f")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t23/touched" ]; then pass "slashless Bash tokens touch nothing beyond the cwd fallback"; else fail "slashless token touched something (rc=$RC touched=|$(cat "$FP_ROOT/t23/touched" 2>/dev/null)|)"; fi
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -666,6 +700,26 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeou
 else
   fail "fingerprint timeout escalates with a timeout reason (rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
 fi
+# The rewrite replaces the seat's verdict in the tool input, so the record
+# keeps it: a fail-open ruling accepts `seat_verdict` as the round's verdict.
+if [ "$(jq -r '.seat_verdict' "$rec" 2>/dev/null)" = approve ] && [ "$(jq -r '.seat_escalate_reason' "$rec" 2>/dev/null)" = null ]; then
+  pass "a timeout record keeps the seat's own verdict as seat_verdict"
+else
+  fail "seat_verdict not kept on the timeout record: $(cat "$rec" 2>/dev/null)"
+fi
+# A seat that returned escalate itself keeps its verdict and its reason.
+run "$(mk_start "$AUD" d1b)"
+run "$(mk_read "$AUD" d1b "$TMP/wtA/f")"
+_p="$(mk_tool "$AUD" d1b StructuredOutput '{"verdict":"escalate","escalate_reason":"seat reason","findings":[]}')"
+export WAR_FINGERPRINT_DEADLINE_SECONDS=0
+run "$_p"
+unset WAR_FINGERPRINT_DEADLINE_SECONDS
+rec="$TAMPER_ROOT/d1b.json"
+if [ "$(jq -r '.seat_verdict' "$rec" 2>/dev/null)" = escalate ] && [ "$(jq -r '.seat_escalate_reason' "$rec" 2>/dev/null)" = "seat reason" ]; then
+  pass "a timeout record keeps a seat-authored escalate and its escalate_reason"
+else
+  fail "seat-authored escalate not kept: $(cat "$rec" 2>/dev/null)"
+fi
 # The stop arm records the same timeout and never blocks.
 run "$(mk_start "$AUD" d2)"
 run "$(mk_read "$AUD" d2 "$TMP/wtA/f")"
@@ -680,6 +734,11 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(jq -r '.event' "$rec" 2>/dev/null)" = 
 else
   fail "stop-arm timeout record wrong (rc=$RC out=|$OUT| rec=$(cat "$rec" 2>/dev/null))"
 fi
+if [ "$(jq -r '.seat_verdict' "$rec" 2>/dev/null)" = null ] && [ "$(jq -r '.seat_escalate_reason' "$rec" 2>/dev/null)" = null ]; then
+  pass "a stop record carries null seat_verdict and seat_escalate_reason (no tool input)"
+else
+  fail "stop record seat fields wrong: $(cat "$rec" 2>/dev/null)"
+fi
 # A start arm that hits the deadline leaves worktrees unrecorded. It writes a
 # start marker, so a later verdict on such a worktree names the timeout, never
 # `no start record`, and its record carries timeout: true.
@@ -692,12 +751,28 @@ run "$(mk_verdict "$AUD" d3)"
 ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
 rec="$TAMPER_ROOT/d3.json"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ("*"$WTA"*) p=1 ;; *) p=0 ;; esac
-case "$rsn" in *"no start record"*) p=0 ;; esac
+# The start ran under a deadline of 0 and the verdict under the default, so the
+# reason names the stored start-arm deadline (`deadline 0s;`), never 540.
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at $WTA after "[0-9]*"s, deadline 0s; $WTA has no start fingerprint)") p=1 ;; *) p=0 ;; esac
 if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
   pass "start timeout yields a timeout reason, not a missing record"
 else
   fail "start timeout yields a timeout reason, not a missing record (rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
+fi
+# A worktree listed after the stop point (wtB, never reached) gets the same
+# timeout reason, naming where the start arm stopped, never `no start record`.
+_p="$(mk_start "$AUD" d4)"
+export WAR_FINGERPRINT_DEADLINE_SECONDS=0
+run "$_p"
+unset WAR_FINGERPRINT_DEADLINE_SECONDS
+run "$(mk_read "$AUD" d4 "$TMP/wtB/f")"
+run "$(mk_verdict "$AUD" d4)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at $WTA after "[0-9]*"s, deadline 0s; $WTB has no start fingerprint)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d4.json" 2>/dev/null)" = true ]; then
+  pass "a worktree past the start arm's stop point yields the timeout reason, not a missing record"
+else
+  fail "later-worktree start timeout reason wrong (rc=$RC rsn=|$rsn| rec=$(cat "$TAMPER_ROOT/d4.json" 2>/dev/null))"
 fi
 # A tamper record from a non-timeout cause carries timeout: false, so the Lead
 # question in resume-and-recovery.md never fires on a plain mismatch.
@@ -787,10 +862,18 @@ if grep -Fq 'AUDIT-TAMPER:' "$DOC"; then
 else
   fail "resume-and-recovery.md has no AUDIT-TAMPER: bullet"
 fi
-if grep -Fq 'fingerprint timeout' "$DOC" && grep -Fq 'fail closed' "$DOC" && grep -Fq 'fail open' "$DOC"; then
-  pass "resume-and-recovery.md carries the fingerprint timeout Lead question (fail closed or fail open)"
+# The question lives in the AUDIT-TAMPER bullet itself (one line in that doc),
+# so the words are required inside that bullet, not anywhere in the file: fail
+# closed, fail open, the --afk hold, and seat_verdict as the fail-open value.
+_b="$(grep -F 'AUDIT-TAMPER: fingerprint timeout' "$DOC")"
+case "$_b" in *"fail closed"*) _c1=1 ;; *) _c1=0 ;; esac
+case "$_b" in *"fail open"*) _c2=1 ;; *) _c2=0 ;; esac
+case "$_b" in *"--afk"*) _c3=1 ;; *) _c3=0 ;; esac
+case "$_b" in *"seat_verdict"*) _c4=1 ;; *) _c4=0 ;; esac
+if [ -n "$_b" ] && [ "$_c1$_c2$_c3$_c4" = 1111 ]; then
+  pass "resume-and-recovery.md's AUDIT-TAMPER timeout bullet carries the Lead question (fail closed or fail open), the --afk hold and seat_verdict"
 else
-  fail "resume-and-recovery.md has no fingerprint timeout question"
+  fail "resume-and-recovery.md AUDIT-TAMPER timeout bullet incomplete (closed=$_c1 open=$_c2 afk=$_c3 seat_verdict=$_c4)"
 fi
 
 # ---------------------------------------------------------------------------
