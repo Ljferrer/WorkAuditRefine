@@ -13,7 +13,9 @@
 # oracle over a staled index, with its own sensitivity row. The hook keeps
 # its own deadline under the hooks.json timeout (Task 7.2): past it, the
 # verdict escalates with `AUDIT-TAMPER: fingerprint timeout` and the record
-# carries `timeout: true`; the rows set WAR_FINGERPRINT_DEADLINE_SECONDS=0.
+# carries `timeout: true`. The pre-check rows set
+# WAR_FINGERPRINT_DEADLINE_SECONDS=0; the mid-hash rows cross the shim
+# deadline (SLOW_DEADLINE below) inside a `git status` slowed by a shim.
 #
 # FIXTURES: a throwaway repo with real worktrees under a mktemp dir, outside
 # any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo),
@@ -401,8 +403,8 @@ run "$(mk_bash "$AUD" t14 "git -C ~nosuchuser/wtB log")"
 run "$(mk_verdict "$AUD" t14)"
 PCWD="$MAIN"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-if touched_is t14 "~nosuchuser/wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved -C path)" ]; then
-  pass "Bash unquoted -C ~<name>/<path> is recorded literal and escalates as an unresolved -C path"
+if touched_is t14 "~nosuchuser/wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved path ~nosuchuser/wtB)" ]; then
+  pass "Bash unquoted -C ~<name>/<path> is recorded literal and escalates as an unresolved path"
 else
   fail "tilde-name -C not escalated (touched=|$(cat "$FP_ROOT/t14/touched" 2>/dev/null)| rsn=|$rsn|)"
 fi
@@ -438,6 +440,70 @@ PCWD="$TMP/wtA/sub"
 run "$(mk_bash "$AUD" t18 "git -C ../../wtC diff ../wtD/f")"
 PCWD="$MAIN"
 if touched_is t18 "$WTD"; then pass "Bash relative operand after -C resolves from the -C directory, not the payload cwd"; else fail "relative operand after -C resolved wrong: |$(cat "$FP_ROOT/t18/touched" 2>/dev/null)|"; fi
+# After the subcommand, -C is diff's copy-detection option, not git's global
+# -C: the guard peels one leading -C only. A hook that read it as global would
+# move the base to wtC/../wtB/f and resolve ../wtD/f under wtB, so wtD would
+# be read but never touched.
+run "$(mk_start "$AUD" t19)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" t19 "git diff -C ../wtB/f ../wtD/f")"
+PCWD="$MAIN"
+if touched_is t19 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "Bash -C after the subcommand is an ordinary token, not a base move"; else fail "subcommand -C moved the base: |$(cat "$FP_ROOT/t19/touched" 2>/dev/null)|"; fi
+# The guard admits `~`, `=` and `/` and polices no diff or blame flag, so
+# more operand forms read a worktree: an unquoted `~/x` operand (the shell
+# expands it, git implies --no-index); a `--<opt>=<path>` value, which git
+# reads from the filesystem whatever its lead (absolute, or bare relative from
+# the main checkout into the nested `.claude/war-worktrees/<run>/<task>`
+# layout); the same value in its `--contents <path>` space form; a bare
+# relative operand under --no-index; and a bare operand of a command whose
+# base is outside every git work tree (the fixture dir, reached by one global
+# -C), where git implies --no-index too. Negative controls: the same bare
+# operand without --no-index from inside a work tree is a repository path and
+# touches nothing, and a non-path `--<opt>=<value>` adds no line beyond the
+# cwd worktree. An unquoted `~<name>` operand is recorded literal and
+# escalates as an unresolved path, as the -C form does in row t14.
+_home="$HOME"; HOME="$TMP"
+run "$(mk_start "$AUD" t20)"
+run "$(mk_bash "$AUD" t20 "git diff ~/wtB/f ~/wtB/g")"
+HOME="$_home"
+if touched_is t20 "$WTB"; then pass "Bash unquoted ~/<path> operands expand the tilde and touch that worktree"; else fail "tilde operand touch not recorded: |$(cat "$FP_ROOT/t20/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t21)"
+run "$(mk_bash "$AUD" t21 "git blame --contents=$TMP/wtB/f HEAD -- f")"
+if touched_is t21 "$WTB"; then pass "Bash --<opt>=/abs/path value touches the worktree it reaches"; else fail "--opt= value touch not recorded: |$(cat "$FP_ROOT/t21/touched" 2>/dev/null)|"; fi
+mkdir -p "$MAIN/.claude/war-worktrees/r/wtE"
+printf 'marker\n' > "$MAIN/.claude/war-worktrees/r/wtE/.war-task"
+WTE="$(cd "$MAIN/.claude/war-worktrees/r/wtE" && pwd -P)"
+run "$(mk_start "$AUD" t22)"
+run "$(mk_bash "$AUD" t22 "git diff --no-index .claude/war-worktrees/r/wtE/a .claude/war-worktrees/r/wtE/b")"
+if touched_is t22 "$WTE"; then pass "Bash bare relative operands under --no-index resolve from the cwd and touch that worktree"; else fail "--no-index bare operand touch not recorded: |$(cat "$FP_ROOT/t22/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t23)"
+run "$(mk_bash "$AUD" t23 "git diff .claude/war-worktrees/r/wtE/a")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t23/touched" ]; then pass "Bash bare relative operand without --no-index is a repository path and touches nothing"; else fail "bare operand touched without --no-index (rc=$RC touched=|$(cat "$FP_ROOT/t23/touched" 2>/dev/null)|)"; fi
+run "$(mk_start "$AUD" t24)"
+run "$(mk_bash "$AUD" t24 "git blame --contents=.claude/war-worktrees/r/wtE/f HEAD -- f")"
+if touched_is t24 "$WTE"; then pass "Bash --<opt>=<bare relative path> value touches the worktree it reaches"; else fail "--opt= bare relative value touch not recorded: |$(cat "$FP_ROOT/t24/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t25)"
+run "$(mk_bash "$AUD" t25 "git blame --contents .claude/war-worktrees/r/wtE/f HEAD -- f")"
+if touched_is t25 "$WTE"; then pass "Bash --contents <path> space form touches the worktree the value reaches"; else fail "--contents space-form touch not recorded: |$(cat "$FP_ROOT/t25/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t26)"
+PCWD="$TMP/wtA"
+run "$(mk_bash "$AUD" t26 "git log --pretty=format:%H -1")"
+PCWD="$MAIN"
+if touched_is t26 "$WTA"; then pass "Bash non-path --<opt>=<value> adds no line beyond the cwd worktree"; else fail "non-path --opt= value touched wrong: |$(cat "$FP_ROOT/t26/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t27)"
+run "$(mk_bash "$AUD" t27 "git -C $TMP diff wtB/f wtD/f")"
+if touched_is t27 "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "Bash bare operands of a command whose base is outside every work tree touch the worktrees they reach"; else fail "outside-work-tree bare operand touch not recorded: |$(cat "$FP_ROOT/t27/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t28)"
+PCWD="$TMP/wtA"
+run "$(mk_bash "$AUD" t28 "git diff ~nosuchuser/wtB/f")"
+run "$(mk_verdict "$AUD" t28)"
+PCWD="$MAIN"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if touched_is t28 "$(printf '%s\n%s' "~nosuchuser/wtB/f" "$WTA")" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved path ~nosuchuser/wtB/f)" ]; then
+  pass "Bash unquoted ~<name>/<path> operand is recorded literal and escalates as an unresolved path"
+else
+  fail "tilde-name operand not escalated (touched=|$(cat "$FP_ROOT/t28/touched" 2>/dev/null)| rsn=|$rsn|)"
+fi
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -646,11 +712,12 @@ fi
 # --- the hook's own deadline (Task 7.2, ruling 2026-10-24) -------------------
 # Claude Code kills a hook at its hooks.json timeout and the verdict then
 # passes unchecked. The hook keeps a shorter deadline of its own (540 s by
-# default, WAR_FINGERPRINT_DEADLINE_SECONDS when set) and, on hitting it,
+# default; WAR_FINGERPRINT_DEADLINE_SECONDS overrides it) and, on hitting it,
 # stops hashing and escalates with a reason that starts `AUDIT-TAMPER:
-# fingerprint timeout`. A deadline of 0 expires before the first worktree.
-# The payload is built BEFORE the env override, so only the run under test
-# sees the variable.
+# fingerprint timeout`. A deadline of 0 expires before the first worktree, so
+# the d1 to d3 rows exercise the `expired` pre-checks only; the mid-hash rows
+# below them cross the deadline inside `fingerprint`. The payload is built
+# BEFORE the env override, so only the run under test sees the variable.
 run "$(mk_start "$AUD" d1)"
 run "$(mk_read "$AUD" d1 "$TMP/wtA/f")"
 _p="$(mk_verdict "$AUD" d1)"
@@ -661,7 +728,9 @@ ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // e
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
 rec="$TAMPER_ROOT/d1.json"
 case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ("*"$WTA"*" after "[0-9]*"s"*) p=1 ;; *) p=0 ;; esac
-if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ] && [ "$(jq -r '.worktree' "$rec" 2>/dev/null)" = "$WTA" ]; then
+# The record keeps the seat's own verdict: the rewrite replaces it in the tool
+# input, and a fail-open ruling accepts the verdict the seat returned.
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ] && [ "$(jq -r '.worktree' "$rec" 2>/dev/null)" = "$WTA" ] && [ "$(jq -r '.seat_verdict' "$rec" 2>/dev/null)" = approve ]; then
   pass "fingerprint timeout escalates with a timeout reason"
 else
   fail "fingerprint timeout escalates with a timeout reason (rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
@@ -675,7 +744,7 @@ run "$_p"
 unset WAR_FINGERPRINT_DEADLINE_SECONDS
 rec="$TAMPER_ROOT/d2.json"
 if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(jq -r '.event' "$rec" 2>/dev/null)" = SubagentStop ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ] \
-   && [ "$(jq -r '.reason' "$rec" 2>/dev/null | cut -c1-33)" = "AUDIT-TAMPER: fingerprint timeout" ]; then
+   && [ "$(jq -r '.reason' "$rec" 2>/dev/null | cut -c1-33)" = "AUDIT-TAMPER: fingerprint timeout" ] && [ "$(jq -r '.seat_verdict' "$rec" 2>/dev/null)" = null ]; then
   pass "subagent stop records a fingerprint timeout without blocking"
 else
   fail "stop-arm timeout record wrong (rc=$RC out=|$OUT| rec=$(cat "$rec" 2>/dev/null))"
@@ -694,10 +763,26 @@ rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_rea
 rec="$TAMPER_ROOT/d3.json"
 case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ("*"$WTA"*) p=1 ;; *) p=0 ;; esac
 case "$rsn" in *"no start record"*) p=0 ;; esac
+# The reason prints the start arm's own deadline (0 here), stored in the
+# marker, never the verdict arm's default.
+case "$rsn" in *"deadline 0s;"*) ;; *) p=0 ;; esac
 if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
   pass "start timeout yields a timeout reason, not a missing record"
 else
   fail "start timeout yields a timeout reason, not a missing record (rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
+fi
+# A seat that itself returned escalate keeps its verdict and reason in the
+# record, so a fail-open ruling cannot infer an approve from the findings.
+run "$(mk_start "$AUD" d4)"
+run "$(mk_read "$AUD" d4 "$TMP/wtB/f")"
+printf 'escalating seat\n' >> "$TMP/wtB/f"
+run "$(mk_tool "$AUD" d4 StructuredOutput '{"verdict":"escalate","escalate_reason":"seat reason","findings":[]}')"
+rec="$TAMPER_ROOT/d4.json"
+if [ "$(jq -r '.seat_verdict' "$rec" 2>/dev/null)" = escalate ] && [ "$(jq -r '.seat_escalate_reason' "$rec" 2>/dev/null)" = "seat reason" ] \
+   && [ "$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null | cut -c1-13)" = "AUDIT-TAMPER:" ]; then
+  pass "tamper record keeps the seat's own escalate verdict and reason"
+else
+  fail "seat verdict not kept: rec=$(cat "$rec" 2>/dev/null) out=|$OUT|"
 fi
 # A tamper record from a non-timeout cause carries timeout: false, so the Lead
 # question in resume-and-recovery.md never fires on a plain mismatch.
@@ -706,11 +791,151 @@ if [ "$(jq -r '.timeout' "$TAMPER_ROOT/a1.json" 2>/dev/null)" = false ]; then
 else
   fail "plain mismatch record timeout field wrong: $(cat "$TAMPER_ROOT/a1.json" 2>/dev/null)"
 fi
-if grep -Fq 'WAR_FINGERPRINT_DEADLINE_SECONDS' "$HOOK" && grep -Eq '[^0-9]540[^0-9]' "$HOOK"; then
+# The 540 literal is anchored to the code line (`DEADLINE=540 ;;`), not to the
+# hook's header prose, which also says 540: a code default moved past the
+# 600 s hooks.json timeout must go red here. The env name is pinned by
+# behavior in rows d1 to d3, so its grep may match a comment.
+if grep -Fq 'WAR_FINGERPRINT_DEADLINE_SECONDS' "$HOOK" && grep -Fq 'DEADLINE=540 ;;' "$HOOK"; then
   pass "hook reads WAR_FINGERPRINT_DEADLINE_SECONDS and defaults to 540 seconds"
 else
   fail "hook deadline literal or env name missing"
 fi
+# A non-integer env value falls back to the default. Oracle: with the
+# fallback arm gone, DEADLINE stays `abc`, every `[ -ge ]` check writes
+# `integer expression expected` to stderr and never expires, and the verdict
+# still passes; so the row pins an empty stderr beside the clean pass.
+run "$(mk_start "$AUD" d7)"
+run "$(mk_read "$AUD" d7 "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d7)"
+export WAR_FINGERPRINT_DEADLINE_SECONDS=abc
+run "$_p"
+unset WAR_FINGERPRINT_DEADLINE_SECONDS
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ -z "$ERR" ]; then
+  pass "a non-integer WAR_FINGERPRINT_DEADLINE_SECONDS falls back to the default (clean pass, empty stderr)"
+else
+  fail "non-integer deadline fallback (rc=$RC out=|$OUT| err=|$ERR|)"
+fi
+
+# --- mid-hash deadline: the return-3 arms ------------------------------------
+# A deadline of 0 makes the `expired` pre-checks fire before any git call, so
+# `fingerprint` never returns 3, and the arms behind that return stay
+# unpinned: blob_lines' per-path check, compare's `still hashing` arm and the
+# SubagentStart marker write on a return of 3. These rows cross the deadline
+# DURING hashing: a git shim on PATH sleeps SLOW_SLEEP seconds before a
+# `status` call that names the worktree WAR_T_SLOW holds, and fails a `status`
+# call that names the worktree WAR_T_FAIL holds (every other git call runs at
+# speed), under a deadline of SLOW_DEADLINE. bash's SECONDS ticks at the
+# wall-clock second, so it can read 1 within milliseconds of the start: the
+# deadline leaves the fast worktrees room to record before it expires, and
+# the sleep outruns the deadline so the marker's elapsed field tells the
+# return-3 arm (at least SLOW_SLEEP) from an `expired` pre-check (below it).
+# The slow worktree carries one untracked file so blob_lines has a record on
+# which to test the deadline. The shim, its two env names and the deadline
+# ride only the run under test; the payload is built with the real git and jq.
+SLOW_DEADLINE=3
+SLOW_SLEEP=5
+REALGIT="$(command -v git)"
+SLOWSHIM="$(mktemp -d 2>/dev/null || mktemp -d -t atfpslow)"
+cat > "$SLOWSHIM/git" <<EOF
+#!/bin/bash
+if [ -n "\${WAR_T_SLOW-}" ]; then case "\$*" in *"\$WAR_T_SLOW"*status*) sleep $SLOW_SLEEP ;; esac; fi
+if [ -n "\${WAR_T_FAIL-}" ]; then case "\$*" in *"\$WAR_T_FAIL"*status*) exit 128 ;; esac; fi
+exec "$REALGIT" "\$@"
+EOF
+chmod +x "$SLOWSHIM/git"
+# run_slow <slow worktree> <payload> [<failing worktree>]: `run` under the
+# shim with a deadline of SLOW_DEADLINE.
+run_slow() {
+  OUT="$(printf '%s' "$2" | WAR_T_SLOW="$1" WAR_T_FAIL="${3-}" WAR_FINGERPRINT_DEADLINE_SECONDS="$SLOW_DEADLINE" PATH="$SLOWSHIM:$PATH" "$BASH" "$HOOK" 2>"$TMP/err")"; RC=$?
+  ERR="$(cat "$TMP/err")"
+}
+# compare's arm: the start record is complete, the verdict run hashes wtA
+# slowly, and blob_lines returns 3 on its first record. With that arm gone the
+# reason falls to `unverifiable fingerprint (git error ...)`, which skips the
+# Lead's fail-closed or fail-open question.
+printf 'slow\n' > "$TMP/wtA/slow"
+run "$(mk_start "$AUD" d5)"
+run "$(mk_read "$AUD" d5 "$TMP/wtA/f")"
+run_slow "$WTA" "$(mk_verdict "$AUD" d5)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+rec="$TAMPER_ROOT/d5.json"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline ${SLOW_DEADLINE}s)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ] && [ "$(jq -r '.worktree' "$rec" 2>/dev/null)" = "$WTA" ]; then
+  pass "a deadline crossed while hashing a touched worktree escalates as still hashing"
+else
+  fail "mid-hash verdict timeout (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$rec" 2>/dev/null))"
+fi
+rm -f "$TMP/wtA/slow"
+# The start arm's marker on a return of 3. wtS is the slow worktree because
+# task_worktrees lists it LAST (the submodule pass runs after the
+# superproject's): a start arm that `continue`d on return 3 would still write
+# the marker for a slow worktree with a successor (the next pre-check fires),
+# but on the last one it would write nothing and the verdict would say `no
+# start record`, the reason the ruling forbids. wtA and wtB record before it
+# (wtD has had no .git since row a4, so the start arm skips it). The marker is
+# `<elapsed> <deadline> <worktree>`: the elapsed field is at least SLOW_SLEEP
+# when the return-3 arm wrote it after the slow status, and exactly
+# SLOW_DEADLINE when an `expired` pre-check wrote it instead, so the field
+# proves which arm ran. `timeout-skipped` lists wtS alone: it is the last
+# worktree, and wtD's git-error skip is not a deadline skip.
+printf 'slow\n' > "$TMP/wtS/slow"
+run_slow "$WTS" "$(mk_start "$AUD" d6)"
+_m="$(head -n 1 "$FP_ROOT/d6/timeout" 2>/dev/null)"
+_mn="${_m%% *}"; _mr="${_m#* }"; _md="${_mr%% *}"; _mw="${_mr#* }"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$_mw" = "$WTS" ] && [ "$_md" = "$SLOW_DEADLINE" ] && [ "$_mn" -ge "$SLOW_SLEEP" ] 2>/dev/null \
+   && [ "$(cat "$FP_ROOT/d6/timeout-skipped" 2>/dev/null)" = "$WTS" ] \
+   && grep -Fq " $WTA" "$FP_ROOT/d6/start" && grep -Fq " $WTB" "$FP_ROOT/d6/start" && ! grep -Fq " $WTS" "$FP_ROOT/d6/start"; then
+  pass "a start arm that crosses the deadline while hashing the last worktree writes the timeout marker naming it, its deadline and an elapsed time past the slow status, lists it as skipped, and records the worktrees before it"
+else
+  fail "mid-hash start marker (rc=$RC out=|$OUT| err=|$ERR| timeout=|$(cat "$FP_ROOT/d6/timeout" 2>/dev/null)| skipped=|$(cat "$FP_ROOT/d6/timeout-skipped" 2>/dev/null)| start=|$(cat "$FP_ROOT/d6/start" 2>/dev/null)|)"
+fi
+# The verdict's reason prints the deadline the START arm ran under (the
+# marker's second field), not this default-env verdict run's 540.
+run "$(mk_read "$AUD" d6 "$TMP/wtS/s")"
+run "$(mk_verdict "$AUD" d6)"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+rec="$TAMPER_ROOT/d6.json"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at $WTS after "[0-9]*"s, deadline ${SLOW_DEADLINE}s; $WTS has no start fingerprint)") p=1 ;; *) p=0 ;; esac
+case "$rsn" in *"no start record"*) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
+  pass "a default-env verdict on the worktree a mid-hash start timeout skipped names the timeout and the start arm's deadline, never no start record"
+else
+  fail "mid-hash start timeout verdict (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$rec" 2>/dev/null))"
+fi
+# The pending start-arm timeout yields to a provable change: the same seat
+# then touches wtA (recorded at start), wtA changes, and the reason is the
+# wtA mismatch with timeout:false. The timeout has no fresh time budget here,
+# so nothing forces compare to return before it reaches wtA.
+run "$(mk_read "$AUD" d6 "$TMP/wtA/f")"
+printf 'pending timeout loses\n' >> "$TMP/wtA/f"
+run "$(mk_verdict "$AUD" d6)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: $WTA changed during the audit round ("*) p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = false ] && [ "$(jq -r '.worktree' "$rec" 2>/dev/null)" = "$WTA" ]; then
+  pass "a start-arm timeout yields to a provable mismatch on a later touched worktree"
+else
+  fail "start-arm timeout masked a mismatch (rc=$RC rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
+fi
+# A worktree the start arm skipped for a git error BEFORE the deadline (wtA,
+# whose status the shim fails) has no start line and is not in
+# `timeout-skipped`, so a verdict on it keeps `no start record`, which only
+# fails closed; the timeout reason, which opens the fail-open question, is
+# reserved for the worktrees the deadline skipped (wtS).
+run_slow "$WTS" "$(mk_start "$AUD" d8)" "$WTA"
+run "$(mk_read "$AUD" d8 "$TMP/wtA/f")"
+run "$(mk_verdict "$AUD" d8)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+rec="$TAMPER_ROOT/d8.json"
+if [ -f "$FP_ROOT/d8/timeout" ] && [ "$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)" = "$WTS" ] && ! grep -Fq " $WTA" "$FP_ROOT/d8/start" && grep -Fq " $WTB" "$FP_ROOT/d8/start" \
+   && [ "$RC" = 0 ] && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (no start record for $WTA)" ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = false ]; then
+  pass "a worktree skipped at start for a git error keeps no start record after a later start timeout, never the timeout reason"
+else
+  fail "git-error skip labeled as a timeout (rc=$RC rsn=|$rsn| timeout=|$(cat "$FP_ROOT/d8/timeout" 2>/dev/null)| skipped=|$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)| start=|$(cat "$FP_ROOT/d8/start" 2>/dev/null)| rec=$(cat "$rec" 2>/dev/null))"
+fi
+rm -f "$TMP/wtS/slow"
+rm -rf "$SLOWSHIM"
 
 # --- exit contract: 0 or 2 only -----------------------------------------------
 run '{not json'
@@ -768,7 +993,8 @@ for m in 'StructuredOutput' 'Read|Bash|Glob|Grep'; do
   esac
 done
 # Every hooks.json entry for the hook carries a timeout of at least 600 s, so
-# the hook's own 540 s deadline (above) always fires before the harness kills it.
+# the hook's default 540 s deadline (above) fires before the harness kills it
+# (an env override must stay below 600 s too; the hook does not clamp it).
 nreg="$(jq '[.hooks[][] | .hooks[] | select(.command | contains("audit-tree-fingerprint.sh"))] | length' "$HJSON" 2>/dev/null)"
 nlong="$(jq '[.hooks[][] | .hooks[] | select(.command | contains("audit-tree-fingerprint.sh")) | select((.timeout // 0) >= 600)] | length' "$HJSON" 2>/dev/null)"
 if [ -n "$nreg" ] && [ "$nreg" -ge 3 ] && [ "$nreg" = "$nlong" ]; then
