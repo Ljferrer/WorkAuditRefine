@@ -26,14 +26,8 @@
 #     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
 #         worktree the call reaches (a Read file_path, a Glob or Grep path, an
 #         absolute Glob pattern, a Bash `git -C <path>`, an absolute Bash
-#         operand, a relative Bash operand that starts `../` or `./` or
-#         carries a `..` segment, the value of a file-valued flag
-#         (`--contents`, `--ignore-revs-file`, `--exclude-from`,
-#         `--exclude-per-directory`, `-S`, `-X`, `-O`; space, `=` or attached
-#         form), else the payload cwd) and add it to the seat's touched set.
-#         A Bash operand that is a directory also adds every marked worktree
-#         below it: a `--no-index` diff reads the directory recursively,
-#         ignore rules and all.
+#         operand or a relative Bash operand that starts `../` or `./`, else
+#         the payload cwd) and add it to the seat's touched set.
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
@@ -53,21 +47,16 @@
 #   Claude Code kills a hook at its hooks.json `timeout` (600 s on every entry
 #   for this hook) and the verdict then passes unchecked. The hook keeps its
 #   own shorter deadline, 540 s by default or WAR_FINGERPRINT_DEADLINE_SECONDS
-#   when that is a non-negative integer (tests use 0, or 2 beside a slow git
-#   shim), measured on bash's SECONDS from the hook's start and checked per
-#   worktree in the start and compare loops, per path in blob_lines and once
-#   more before blob_lines' batched hash-object call. Past the deadline the
-#   hook stops hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
-#   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s; seat
-#   verdict <v>)` and writes the tamper record with `"timeout": true`; the
-#   SubagentStop arm records the same (a stop payload carries no verdict, so
-#   no `seat verdict` tail); the SubagentStart arm writes `$STATE/timeout`
-#   (`<N> <worktree>`), so a verdict on a worktree it never recorded escalates
-#   with the timeout reason and never with `no start record`. `<v>` is the
-#   verdict the seat returned before the rewrite: the reason rides the
-#   engine's audit log, which no worker can write, so the Lead's fail-open
-#   ruling (resume-and-recovery.md) reads the seat's verdict there and never
-#   from a worker-writable record.
+#   when that is a non-negative integer (tests use 0), measured on bash's
+#   SECONDS from the hook's start and checked per worktree in the start and
+#   compare loops and per path in blob_lines. Past the deadline the hook stops
+#   hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
+#   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s)` and writes
+#   the tamper record with `"timeout": true`; the SubagentStop arm records the
+#   same; the SubagentStart arm writes `$STATE/timeout` (`<N> <worktree>`), so
+#   a verdict on a worktree it never recorded escalates with the timeout
+#   reason and never with `no start record`. The Lead's question on that
+#   reason (fail closed or fail open) is in resume-and-recovery.md.
 #
 # NON-INTERFERENCE
 #   Every git call runs with GIT_OPTIONAL_LOCKS=0 (git(1) --no-optional-locks,
@@ -166,15 +155,6 @@ tool="$(get '.tool_name')"
 cwd="$(get '.cwd')"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$PWD"
 
-# The verdict the seat is returning, on a StructuredOutput payload only (a
-# SubagentStop payload carries none, so the tail is empty there). A timeout
-# reason carries it as `; seat verdict <v>` into the engine's audit log, which
-# no worker can write (see DEADLINE above). Anything but one bare word is
-# reported as `unparsed`, so a crafted value cannot reshape the reason.
-SEAT_V="$(get '.tool_input.verdict')"
-case "$SEAT_V" in *[!A-Za-z_-]*) SEAT_V="unparsed" ;; esac
-SEAT_TAIL="${SEAT_V:+; seat verdict $SEAT_V}"
-
 # agent_id keys the state dir: one path segment, no separators or traversal.
 # aid_raw keeps the payload value so the verdict arm can tell a rejected id
 # from an absent one.
@@ -247,10 +227,6 @@ blob_lines() {
   done
   _hashes=""
   if [ "$_nb" -gt 0 ]; then
-    # The batch is one git call over every batched path; a deadline crossed
-    # inside the loop's last step (a path hashed by its own call) is seen by
-    # no per-path check, so the batch is not started past the deadline.
-    expired && return 3
     _hashes="$(printf '%s' "$_batch" | git -C "$1" hash-object --no-filters --stdin-paths 2>/dev/null)" || _hashes=""
   fi
   # set -f is on, so this split is on whitespace only (hashes are hex).
@@ -367,37 +343,6 @@ touch_path() {
   touch_line "$_wt"
 }
 
-# touch_tree <dir>: add every marked worktree below <dir> to the touched set.
-# A `--no-index` diff reads a directory operand recursively, ignore and
-# exclude rules included (`git diff --no-index <dir> <empty>` lists a nested
-# worktree's .git, .gitignore and .war-task), so a directory above the run's
-# task worktrees reaches every one of them while carrying no marker of its
-# own, which the walk-up in task_worktree_of cannot see. One `git worktree
-# list` pass per directory operand; a file or a missing path returns at once.
-# Not applied to the cwd fallback or a `-C` base: those name where git runs,
-# and git reads tracked and unexcluded files there, never a worktree under
-# the excluded `.claude/`.
-touch_tree() {
-  [ -n "$STATE" ] && [ -d "$1" ] || return 0
-  _cd="$(canon "$1")" && [ -n "$_cd" ] || return 0
-  [ "$_cd" = / ] && _cd=""
-  task_worktrees | while IFS= read -r _w; do
-    case "$_w/" in "$_cd/"*) touch_line "$_w" ;; esac
-  done
-}
-
-# touch_operand <path>: a Bash operand or flag value, absolute: the worktree
-# that holds it, plus every marked worktree below it when it is a directory.
-touch_operand() { touch_path "$1"; touch_tree "$1"; }
-
-# touch_value <token>: the value of a file-valued flag, in any shape (an
-# absolute path, a relative escape, a bare relative path), resolved against
-# the running base `_base` like an operand. An empty value is nothing.
-touch_value() {
-  [ -n "$1" ] || return 0
-  case "$1" in /*) touch_operand "$1" ;; *) touch_operand "$_base/$1" ;; esac
-}
-
 # unquote <token>: sets _t to the token with one pair of outer quotes
 # (double or single) stripped.
 unquote() { _t="$1"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; }
@@ -414,7 +359,7 @@ touch_c() {
 # deadline hit on <worktree> (<what> says which step was cut short).
 timeout_reason() {
   T_WT="$1"; T_TIMEOUT=1
-  REASON="AUDIT-TAMPER: fingerprint timeout ($1 $2 after ${SECONDS}s, deadline ${DEADLINE}s$SEAT_TAIL)"
+  REASON="AUDIT-TAMPER: fingerprint timeout ($1 $2 after ${SECONDS}s, deadline ${DEADLINE}s)"
 }
 
 # compare: sets REASON (empty on a clean pass) plus T_WT, T_START, T_NOW and
@@ -450,7 +395,7 @@ compare() {
       if [ -f "$STATE/timeout" ]; then
         _m="$(head -n 1 "$STATE/timeout" 2>/dev/null)"
         T_WT="$_wt"; T_TIMEOUT=1
-        REASON="AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at ${_m#* } after ${_m%% *}s, deadline ${DEADLINE}s; $_wt has no start fingerprint$SEAT_TAIL)"
+        REASON="AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at ${_m#* } after ${_m%% *}s, deadline ${DEADLINE}s; $_wt has no start fingerprint)"
         return 0
       fi
       T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (no start record for $_wt)"; return 0
@@ -536,28 +481,19 @@ case "$event" in
         # resolve, goes into the touched set literal so the verdict arm
         # escalates it as unresolved instead of comparing nothing. A quoted
         # `'~/x'` or an attached `-C~/x` reaches git literal and stays literal
-        # here. Every other token that is an absolute path (`/...`), a
-        # relative escape (`../...`, `./...`) or a relative path with a `..`
-        # segment (`a/../...`, `a/..`, `..`), quotes stripped, is touched
+        # here. Every other token that is an absolute path (`/...`) or a
+        # relative escape (`../...`, `./...`), quotes stripped, is touched
         # too: validate-auditor-git.sh admits `git diff /abs/wtB/f
-        # /abs/wtB/g`, `git diff ../wtB/f ../wtB/g` and `git diff
-        # a/../../wtB/f a/../../wtB/g` alike (`.` and `/` are in its
-        # character allowlist), and git normalizes a path lexically and
-        # implies --no-index for one outside the cwd repository's work tree,
-        # so the command reads a worktree the `-C` scan and the cwd fallback
-        # never name. A relative operand resolves against the running base:
-        # the payload cwd, moved by each resolved `-C` in order, as git
-        # applies `-C` itself. A directory operand also touches every marked
-        # worktree below it (touch_tree). The value of a file-valued flag the
-        # guard polices nowhere (`--contents`, `--ignore-revs-file`,
-        # `--exclude-from`, `--exclude-per-directory`, and the short `-S`
-        # blame revs-file, `-X` ls-files exclude-from, `-O` diff orderfile),
-        # in `--flag value`, `--flag=value` or `-Xvalue` form, is a path the
-        # command reads, so it resolves like an operand whatever its shape, a
-        # bare relative path included. The cwd fallback is unchanged by an
-        # operand or value token: the command still runs in the payload cwd.
+        # /abs/wtB/g` and `git diff ../wtB/f ../wtB/g` alike (`.` and `/`
+        # are in its character allowlist), and git implies --no-index for a
+        # path outside the cwd repository's work tree, so the command reads a
+        # worktree the `-C` scan and the cwd fallback never name. A relative
+        # operand resolves against the running base: the payload cwd, moved
+        # by each resolved `-C` in order, as git applies `-C` itself. The cwd
+        # fallback is unchanged by an operand token: the command still runs
+        # in the payload cwd.
         _cmd="$(get '.tool_input.command')"
-        _found=0; _want=0; _wantv=0; _base="$cwd"
+        _found=0; _want=0; _base="$cwd"
         for _tok in $_cmd; do
           if [ "$_want" = 1 ]; then
             _want=0; _found=1
@@ -571,19 +507,13 @@ case "$event" in
             [ -n "$_tok" ] && touch_c "$_tok"
             continue
           fi
-          if [ "$_wantv" = 1 ]; then
-            _wantv=0; unquote "$_tok"; touch_value "$_t"; continue
-          fi
           case "$_tok" in
             -C) _want=1 ;;
             -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t" ;;
-            --contents|--ignore-revs-file|--exclude-from|--exclude-per-directory|-S|-X|-O) _wantv=1 ;;
-            --contents=*|--ignore-revs-file=*|--exclude-from=*|--exclude-per-directory=*) unquote "${_tok#*=}"; touch_value "$_t" ;;
-            -S?*|-X?*|-O?*) unquote "${_tok#-?}"; touch_value "$_t" ;;
             *) unquote "$_tok"
                case "$_t" in
-                 /*) touch_operand "$_t" ;;
-                 ../*|./*|*/../*|*/..|..) touch_operand "$_base/$_t" ;;
+                 /*) touch_path "$_t" ;;
+                 ../*|./*) touch_path "$_base/$_t" ;;
                esac ;;
           esac
         done

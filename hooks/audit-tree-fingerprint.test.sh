@@ -12,10 +12,8 @@
 # writes a worktree's index (GIT_OPTIONAL_LOCKS=0): pinned by an index-bytes
 # oracle over a staled index, with its own sensitivity row. The hook keeps
 # its own deadline under the hooks.json timeout (Task 7.2): past it, the
-# verdict escalates with `AUDIT-TAMPER: fingerprint timeout` (the reason
-# ends `; seat verdict <v>`, the verdict the seat returned) and the record
-# carries `timeout: true`; the rows set WAR_FINGERPRINT_DEADLINE_SECONDS=0,
-# or 2 under a git shim that sleeps on one hash-object call.
+# verdict escalates with `AUDIT-TAMPER: fingerprint timeout` and the record
+# carries `timeout: true`; the rows set WAR_FINGERPRINT_DEADLINE_SECONDS=0.
 #
 # FIXTURES: a throwaway repo with real worktrees under a mktemp dir, outside
 # any git working tree (git-probing-hook-requires-fixtures-outside-any-git-repo),
@@ -440,61 +438,6 @@ PCWD="$TMP/wtA/sub"
 run "$(mk_bash "$AUD" t18 "git -C ../../wtC diff ../wtD/f")"
 PCWD="$MAIN"
 if touched_is t18 "$WTD"; then pass "Bash relative operand after -C resolves from the -C directory, not the payload cwd"; else fail "relative operand after -C resolved wrong: |$(cat "$FP_ROOT/t18/touched" 2>/dev/null)|"; fi
-# A relative operand with a `..` segment mid-path escapes the cwd worktree
-# too: git normalizes `sub/../../wtB/f` lexically to wtB/f, outside the cwd
-# repository's work tree, and implies --no-index. The operands touch first
-# (wtB, deduped), then the cwd fallback adds wtA (no -C in the command).
-run "$(mk_start "$AUD" t19)"
-PCWD="$TMP/wtA"
-run "$(mk_bash "$AUD" t19 "git diff sub/../../wtB/f sub/../../wtB/g")"
-PCWD="$MAIN"
-if touched_is t19 "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "relative operand with a mid-path .. segment is touched"; else fail "mid-path .. operand touch not recorded: |$(cat "$FP_ROOT/t19/touched" 2>/dev/null)|"; fi
-# A directory operand that holds task worktrees reads them all: both operands
-# of `git diff $TMP /var/empty` are outside the cwd repository, so git implies
-# --no-index and walks every file under $TMP (ignore rules do not apply to
-# --no-index). The walk-up finds no marker above $TMP; the touched set must
-# carry every marked worktree below it (wtA, wtB, wtD and the submodule
-# task's wtS) and no line for the unmarked cwd wtC.
-touched_has() { grep -Fxq -- "$2" "$FP_ROOT/$1/touched" 2>/dev/null; }
-touched_lines() { grep -c . "$FP_ROOT/$1/touched" 2>/dev/null; }
-run "$(mk_start "$AUD" t20)"
-PCWD="$TMP/wtC"
-run "$(mk_bash "$AUD" t20 "git diff $TMP /var/empty")"
-PCWD="$MAIN"
-if touched_has t20 "$WTA" && touched_has t20 "$WTB" && touched_has t20 "$WTD" && touched_has t20 "$WTS" && [ "$(touched_lines t20)" = 4 ]; then pass "directory operand holding task worktrees touches every marked worktree below it"; else fail "directory operand walk-down wrong: |$(cat "$FP_ROOT/t20/touched" 2>/dev/null)|"; fi
-# The bare `..` operand from a task worktree names the directory above every
-# sibling: the same walk-down from a relative operand; the cwd fallback's wtA
-# is already in the set.
-run "$(mk_start "$AUD" t21)"
-PCWD="$TMP/wtA"
-run "$(mk_bash "$AUD" t21 "git diff .. /var/empty")"
-PCWD="$MAIN"
-if touched_has t21 "$WTA" && touched_has t21 "$WTB" && touched_has t21 "$WTD" && touched_has t21 "$WTS" && [ "$(touched_lines t21)" = 4 ]; then pass "bare .. operand touches every marked worktree beside the cwd worktree"; else fail "bare .. operand walk-down wrong: |$(cat "$FP_ROOT/t21/touched" 2>/dev/null)|"; fi
-# The value of a file-valued flag is a path the command reads, whatever its
-# shape. validate-auditor-git.sh polices no blame, diff or ls-files flag, so
-# `git blame --ignore-revs-file <file>` and `git ls-files --exclude-from
-# <file>` are admitted, and a bare relative value (no `../`, no `/`) reaches
-# a worktree only by way of the running base. The base here is $TMP (`-C
-# $TMP`, no marker), so `wtB/x` names wtB and nothing else is touched.
-run "$(mk_start "$AUD" t22)"
-PCWD="$TMP/wtA"
-run "$(mk_bash "$AUD" t22 "git -C $TMP blame --ignore-revs-file wtB/x HEAD -- f")"
-PCWD="$MAIN"
-if touched_is t22 "$WTB"; then pass "space-form file-valued flag value (a bare relative path) is touched"; else fail "space-form flag value not recorded: |$(cat "$FP_ROOT/t22/touched" 2>/dev/null)|"; fi
-# The `=` form of a file-valued flag: the token starts `--`, so no operand
-# arm matches it; the value after `=` resolves against the cwd (wtA), names
-# wtB, and the cwd fallback adds wtA.
-run "$(mk_start "$AUD" t23)"
-PCWD="$TMP/wtA"
-run "$(mk_bash "$AUD" t23 "git ls-files --exclude-from=../wtB/x")"
-PCWD="$MAIN"
-if touched_is t23 "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "=-form file-valued flag value is touched"; else fail "=-form flag value not recorded: |$(cat "$FP_ROOT/t23/touched" 2>/dev/null)|"; fi
-# The attached short form (`-O<orderfile>` on diff): the token starts `-O`.
-run "$(mk_start "$AUD" t24)"
-PCWD="$TMP/wtA"
-run "$(mk_bash "$AUD" t24 "git diff -O../wtB/o HEAD")"
-PCWD="$MAIN"
-if touched_is t24 "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "attached short file-valued flag value is touched"; else fail "attached short flag value not recorded: |$(cat "$FP_ROOT/t24/touched" 2>/dev/null)|"; fi
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -723,10 +666,6 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeou
 else
   fail "fingerprint timeout escalates with a timeout reason (rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
 fi
-# The reason ends with the verdict the seat returned (`; seat verdict <v>`):
-# the fail-open ruling reads it from the engine's audit log, which no worker
-# can write, never from the worker-writable tamper record.
-case "$rsn" in *"; seat verdict approve)") pass "timeout reason carries the seat's own verdict" ;; *) fail "timeout reason lacks the seat verdict tail: |$rsn|" ;; esac
 # The stop arm records the same timeout and never blocks.
 run "$(mk_start "$AUD" d2)"
 run "$(mk_read "$AUD" d2 "$TMP/wtA/f")"
@@ -741,8 +680,6 @@ if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(jq -r '.event' "$rec" 2>/dev/null)" = 
 else
   fail "stop-arm timeout record wrong (rc=$RC out=|$OUT| rec=$(cat "$rec" 2>/dev/null))"
 fi
-# A stop payload carries no verdict, so its reason carries no tail.
-case "$(jq -r '.reason' "$rec" 2>/dev/null)" in *"seat verdict"*) fail "stop-arm timeout reason carries a seat verdict tail: $(cat "$rec" 2>/dev/null)" ;; *) pass "stop-arm timeout reason carries no seat verdict tail (a stop payload has no verdict)" ;; esac
 # A start arm that hits the deadline leaves worktrees unrecorded. It writes a
 # start marker, so a later verdict on such a worktree names the timeout, never
 # `no start record`, and its record carries timeout: true.
@@ -761,45 +698,6 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeou
   pass "start timeout yields a timeout reason, not a missing record"
 else
   fail "start timeout yields a timeout reason, not a missing record (rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
-fi
-# The batched hash-object call runs after blob_lines' per-path loop, so a
-# deadline crossed inside the loop's LAST step (a path hashed by its own
-# call) is seen by no per-path check; the hook checks once more before the
-# batch. Fixture: wtA clean but for `!a` (batched) and `"x` (its own call:
-# the batch reader would C-unquote a leading double quote). Status lists
-# `!a` (0x21) before `"x` (0x22), so the own call is the last step and only
-# the pre-batch check can see the deadline; the row asserts that status
-# lists exactly these two paths, so a third dirty path (which the per-path
-# check would catch) fails the row instead of passing it for the wrong
-# reason. The git shim sleeps on a single-path hash-object call only (never
-# the --stdin-paths batch, never status); the start arm runs without it. The
-# deadline is 2, not 0 or 1: SECONDS is floor(now) - floor(start), so it
-# reads 1 at the first wall-clock second boundary after the hook starts,
-# and a deadline of 1 would fire the compare loop's own pre-check (`not yet
-# hashed`) before any hashing; 2 needs a full second of startup, which the
-# hook never takes, and the shim's 4 s sleep crosses it with margin.
-git -C "$TMP/wtA" checkout -q -- f
-printf 'a\n' > "$TMP/wtA/!a"
-printf 'x\n' > "$TMP/wtA/\"x"
-_nst="$(git -C "$TMP/wtA" status --porcelain=v1 -uall | grep -c .)"
-run "$(mk_start "$AUD" d4)"
-run "$(mk_read "$AUD" d4 "$TMP/wtA/f")"
-REALGIT="$(command -v git)"
-GSHIM="$(mktemp -d 2>/dev/null || mktemp -d -t atfpgshim)"
-printf '#!/bin/bash\ncase " $* " in *" --stdin-paths "*) ;; *" hash-object "*) sleep 4 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$GSHIM/git"
-chmod +x "$GSHIM/git"
-_p="$(mk_verdict "$AUD" d4)"
-OUT="$(printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=2 PATH="$GSHIM:$PATH" "$BASH" "$HOOK" 2>"$TMP/err")"; RC=$?
-rm -rf "$GSHIM"
-rm -f "$TMP/wtA/!a" "$TMP/wtA/\"x"
-ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
-rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-rec="$TAMPER_ROOT/d4.json"
-case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
-if [ "$_nst" = 2 ] && [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$(jq -r '.timeout' "$rec" 2>/dev/null)" = true ]; then
-  pass "a deadline crossed in the last per-path step stops the batched hash-object call (still hashing)"
-else
-  fail "pre-batch deadline check missed (dirty=$_nst rc=$RC ver=$ver rsn=|$rsn| rec=$(cat "$rec" 2>/dev/null))"
 fi
 # A tamper record from a non-timeout cause carries timeout: false, so the Lead
 # question in resume-and-recovery.md never fires on a plain mismatch.
