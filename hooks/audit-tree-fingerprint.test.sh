@@ -544,6 +544,12 @@ WTE="$(cd "$MAIN/.claude/war-worktrees/r/wtE" && pwd -P)"
 run "$(mk_start "$AUD" t31)"
 run "$(mk_bash "$AUD" t31 "git blame --contents=.claude/war-worktrees/r/wtE/f HEAD -- f")"
 if touched_is t31 "$WTE"; then pass "option value path inside a worktree is touched"; else fail "--opt=<bare relative> value not touched: |$(cat "$FP_ROOT/t31/touched" 2>/dev/null)|"; fi
+# An attached short-option file value: git reads `-O<orderfile>` (and
+# `-X<exclude-file>` on ls-files), so the text after the option letter is a
+# path, resolved against the base like a `--opt=<value>` value.
+run "$(mk_start "$AUD" t31b)"
+run "$(mk_bash "$AUD" t31b "git diff -O.claude/war-worktrees/r/wtE/f HEAD")"
+if touched_is t31b "$WTE"; then pass "an attached short-option file value inside a worktree is touched"; else fail "-O<bare relative> value not touched: |$(cat "$FP_ROOT/t31b/touched" 2>/dev/null)|"; fi
 # The space form of a file-valued flag: the value is the next token, resolved
 # against the base like every other operand.
 run "$(mk_start "$AUD" t32)"
@@ -593,9 +599,13 @@ run "$(mk_bash "$AUD" t37 "git diff --no-index . /dev/null")"
 if touched_is t37 "$WTQ"; then pass "an in-repo directory operand under --no-index touches the nested task worktree"; else fail "--no-index in-repo directory operand not walked: |$(cat "$FP_ROOT/t37/touched" 2>/dev/null)|"; fi
 # git implies --no-index when exactly two paths follow `diff` and EITHER is
 # outside the work tree (builtin/diff.c), so `git diff . /dev/null` from $MAIN
-# recurses `.` with no --no-index token: the nested worktree must be touched.
-# The oracle is git itself: the same command in the fixture exits 0 and names
-# no "outside repository" error, where a non-implied form (t41, t44) does.
+# runs with no --no-index token, and the hook walks `.` on the conservative
+# side: for a directory paired with a file git itself reads only `./null`
+# (diff-no-index fixup_paths), so the nested worktree is over-touched here.
+# The oracle is git itself: the same command in the fixture names no "outside
+# repository" error (it fails on the missing `./null` instead), where a
+# non-implied form (t41, t44) does. t39 is the row where git really recurses
+# the run directory.
 run "$(mk_start "$AUD" t38)"
 run "$(mk_bash "$AUD" t38 "git diff . /dev/null")"
 if touched_is t38 "$WTQ"; then pass "an in-repo directory operand under implied --no-index touches the nested task worktree"; else fail "implied --no-index in-repo directory operand not walked: |$(cat "$FP_ROOT/t38/touched" 2>/dev/null)|"; fi
@@ -1003,8 +1013,9 @@ fi
 # --- the per-call watchdog (Task 8.1, ruling A, 2026-10-24) ------------------
 # The deadline rows above expire at a pre-check. These rows cross the deadline
 # INSIDE a git call: a `git` shim runs the real git and then sleeps 5 s on the
-# status call whose arguments carry SHIM_SLOW (`<worktree> status`), or fails
-# before git runs when they carry SHIM_FAIL. The hook must kill the slow call
+# status call whose arguments carry SHIM_SLOW (`<worktree> status`), or on the
+# hash-object call whose arguments carry it (`<worktree> hash-object`), or
+# fails before git runs when they carry SHIM_FAIL. The hook must kill the slow call
 # at its deadline (2 s here) instead of waiting for it, so each row also
 # bounds its own wall time. The shim is on PATH for the run under test only;
 # the payload builders use the real jq and git.
@@ -1015,6 +1026,8 @@ cat > "$SHIMG/git" <<SHIM
 case " \$* " in
   *" status "*)
     if [ -n "\${SHIM_FAIL-}" ]; then case "\$*" in *"\$SHIM_FAIL"*) exit 128 ;; esac; fi
+    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
+  *" hash-object "*)
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
 esac
 exec "$REALGIT" "\$@"
@@ -1043,6 +1056,21 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ] && 
   pass "watchdog kills a slow git call at the deadline"
 else
   fail "watchdog kills a slow git call at the deadline (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$rec" 2>/dev/null))"
+fi
+# (1b) The hash-object watchdog: wtA's status is fast, and its modified `f`
+# goes to the batched `hash-object --stdin-paths` call, which the shim slows.
+# The kill lands inside blob_lines (bounded is shared, so a direct hash-object
+# call would wait the full 5 s), and the reason names the hashing step.
+run "$(mk_start "$AUD" d6b)"
+run "$(mk_read "$AUD" d6b "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d6b)"
+SHIM_SLOW="$WTA hash-object" run_shim "$_p"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ]; then
+  pass "watchdog kills a slow hash-object call at the deadline"
+else
+  fail "watchdog kills a slow hash-object call at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
 fi
 # (2) The start arm: wtA records before the deadline, wtB's slow status is
 # killed at it, and the marker names wtB with an elapsed value of at least the

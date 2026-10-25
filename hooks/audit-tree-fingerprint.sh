@@ -224,17 +224,24 @@ canon() { (cd "$1" 2>/dev/null && pwd -P); }
 # length is the whole remaining deadline, so a call that ends in time costs one
 # sleep spawn and one kill. No job control (`set -m`) on bash 3.2: the child
 # pid is the command itself (a simple command backgrounded is forked directly),
-# so the kill reaches git, never a wrapper shell. The git calls routed here
-# (`status`, `hash-object`) spawn no grandchild of their own. Stderr of both
-# children is dropped: a killed child's exit is read from `wait`, never from
-# bash's job report, which a non-interactive shell does not print.
+# so the kill reaches git, never a wrapper shell. A grandchild a killed git
+# spawned (a submodule `status`, an fsmonitor hook) is not killed, but it
+# writes only to the killed git's pipe, never to the hook's, so the hook never
+# waits on it. The watchdog and its sleep run with stdout AND stderr on
+# /dev/null: every bounded call sits inside a `$(...)` of the caller, and a
+# sleep left on that pipe (the cancel TERM landing between `sleep &` and
+# `_s=$!`) would hold the substitution open until the deadline. `_s` starts
+# empty so that early TERM kills nothing instead of failing under `set -u`.
+# Stderr of the git child is dropped too: a killed child's exit is read from
+# `wait`, never from bash's job report, which a non-interactive shell does
+# not print.
 bounded() {
   _bo="$1"; _bi="$2"; shift 2
   _left=$((DEADLINE - SECONDS))
   [ "$_left" -gt 0 ] || return 3
   "$@" < "$_bi" > "$_bo" 2>/dev/null &
   _cpid=$!
-  ( trap 'kill "$_s" 2>/dev/null; exit 0' TERM; sleep "$_left" & _s=$!; wait "$_s"; kill -TERM "$_cpid" 2>/dev/null ) 2>/dev/null &
+  ( _s=""; trap 'kill "$_s" 2>/dev/null; exit 0' TERM; sleep "$_left" & _s=$!; wait "$_s"; kill -TERM "$_cpid" 2>/dev/null ) >/dev/null 2>&1 &
   _kpid=$!
   wait "$_cpid" 2>/dev/null; _crc=$?
   kill -TERM "$_kpid" 2>/dev/null
@@ -458,10 +465,12 @@ outside_top() {
 # tokens have settled `_base`. Each of the two tokens is shell-expanded like
 # any operand (quotes stripped, `~` expanded); a `~<name>` token cannot be
 # resolved, so nothing is implied (its literal touched line already escalates
-# the verdict). A third token returns before any canon subshell runs.
+# the verdict). The two tokens are collected first and resolved only when
+# the count is exactly two: a one-token `diff A...B` or a third token
+# returns before any canon subshell (or base_top's rev-parse) runs.
 implied_noindex() {
   [ -n "$_base" ] || return 1
-  _ip=1; _ic=0; _iw=0; _il=1; _in=0; _io=0
+  _ip=1; _ic=0; _iw=0; _il=1; _in=0; _i1=""; _i2=""
   for _ia in $_cmd; do
     if [ "$_ip" = 1 ]; then _ip=0; continue; fi
     if [ "$_ic" = 1 ]; then _ic=0; continue; fi
@@ -475,10 +484,10 @@ implied_noindex() {
       _il=0
     fi
     _in=$((_in + 1))
-    [ "$_in" -le 2 ] || return 1
-    outside_top "$_t" && _io=1
+    case "$_in" in 1) _i1="$_t" ;; 2) _i2="$_t" ;; *) return 1 ;; esac
   done
-  [ "$_in" = 2 ] && [ "$_io" = 1 ]
+  [ "$_in" = 2 ] || return 1
+  outside_top "$_i1" || outside_top "$_i2"
 }
 
 # touch_operand <path>: touch_path, then, when <path> is a directory the
@@ -692,7 +701,11 @@ case "$event" in
         # classified as a path: an absolute one (`/...`) is touched as is, a
         # `--<opt>=<value>` token is classified by the value after its first
         # `=` (`--contents=/abs/f`, `--contents=../wtB/f`, `--contents=a/f`),
-        # a token that starts with `-` is a flag and costs no spawn, and EVERY
+        # an attached short-option value (`-O<orderfile>`, `-X<exclude-file>`:
+        # git reads those files) is classified by the text after its option
+        # letter (a non-path value such as `-n5` or `-M50%` resolves to the
+        # base, already touched), any other token that starts with `-` is a
+        # flag and costs no spawn, and EVERY
         # other token (`../wtB/f`, `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
         # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
         # against the running base: the payload cwd, moved by each resolved
@@ -762,6 +775,8 @@ case "$event" in
           case "$_t" in --*=*) _t="${_t#*=}" ;; esac
           case "$_t" in
             /*) touch_operand "$_t" ;;
+            -[!-]?*) _v="${_t#-?}"
+               case "$_v" in /*) touch_path "$_v" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v" ;; esac ;;
             -*) ;;
             *) [ -n "$_base" ] && touch_operand "$_base/$_t" ;;
           esac
