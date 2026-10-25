@@ -26,14 +26,14 @@
 #     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
 #         worktree the call reaches (a Read file_path, a Glob or Grep path, an
 #         absolute Glob pattern, a Bash `git -C <path>`, an absolute Bash
-#         operand, a relative Bash operand with a `/` in it, or the value
-#         after `=` of a Bash `--<opt>=<path>` token, else the payload cwd)
-#         and add it to the seat's touched set.
+#         operand, any relative Bash operand, or the value after `=` of a
+#         Bash `--<opt>=<path>` token, else the payload cwd) and add it to
+#         the seat's touched set.
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
 #         or an unsafe agent_id, no git common dir, a missing start record, a
-#         git error, an unresolved Bash `-C` path),
+#         git error, an unresolved Bash `~<name>` token),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
 #         `AUDIT-TAMPER: <worktree> changed during the audit round (<start> -> <now>)`
@@ -52,9 +52,12 @@
 #   Claude Code kills a hook at its hooks.json `timeout` (600 s on every entry
 #   for this hook) and the verdict then passes unchecked. The hook keeps its
 #   own shorter deadline, 540 s by default or WAR_FINGERPRINT_DEADLINE_SECONDS
-#   when that is a non-negative integer (tests use 0), measured on bash's
-#   SECONDS from the hook's start and checked per worktree in the start and
-#   compare loops and per path in blob_lines. Past the deadline the hook stops
+#   when that is a non-negative integer below 600 (tests use 0). Any other
+#   value, 600 or more included, falls back to 540: the override is clamped
+#   under the hooks.json timeout, so the hook always ends before Claude Code
+#   kills it. The deadline is measured on bash's SECONDS from the hook's
+#   start and checked per worktree in the start and compare loops and per
+#   path in blob_lines. Past the deadline the hook stops
 #   hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
 #   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s)` and writes
 #   the tamper record with `"timeout": true`; the SubagentStop arm records the
@@ -127,9 +130,11 @@ CR="$(printf '\r')"
 
 # The hook's own deadline in seconds (see DEADLINE above). SECONDS is bash's
 # seconds-since-start counter: no spawn per check, so blob_lines can test it
-# per path.
+# per path. The override must stay under the 600 s hooks.json timeout
+# (`[` fails on a non-numeric or oversized value, so that falls back too).
 DEADLINE="${WAR_FINGERPRINT_DEADLINE_SECONDS-}"
 case "$DEADLINE" in ''|*[!0-9]*) DEADLINE=540 ;; esac
+[ "$DEADLINE" -lt 600 ] 2>/dev/null || DEADLINE=540
 expired() { [ "$SECONDS" -ge "$DEADLINE" ]; }
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
@@ -354,6 +359,24 @@ touch_path() {
 # (double or single) stripped.
 unquote() { _t="$1"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; }
 
+# tilde <token>: sets _t to the token with an unquoted word-initial `~`
+# expanded as the seat's shell expands it before git runs: `~` and `~/x`
+# from HOME, `~+` and `~-` (`+` and `-` are admitted too) from the payload
+# cwd (the nearest reading of PWD and OLDPWD the payload offers). Returns 1
+# on a `~<name>` form, which only getpwnam can resolve: the caller records
+# the token literal so the verdict arm escalates it as unresolved instead of
+# comparing nothing.
+tilde() {
+  _t="$1"
+  case "$_t" in
+    "~"|"~/"*) [ -n "${HOME-}" ] && _t="$HOME${_t#\~}" ;;
+    "~+"|"~+/"*) _t="$cwd${_t#\~+}" ;;
+    "~-"|"~-/"*) _t="$cwd${_t#\~-}" ;;
+    "~"*) return 1 ;;
+  esac
+  return 0
+}
+
 # touch_c <path>: a resolved Bash `-C` token. Relative to the running base
 # `_base` (git applies each `-C` from the previous one), it moves the base
 # and touches the worktree it reaches.
@@ -392,7 +415,7 @@ compare() {
     [ -n "$_wt" ] || continue
     T_START=""; T_NOW=""
     case "$_wt" in /*) ;; *)
-      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved -C path)"; return 0 ;;
+      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
     esac
     _rec="$(while IFS= read -r _l; do
               _p="${_l#* }"; _p="${_p#* }"
@@ -493,43 +516,51 @@ case "$event" in
         # whitespace-split only (set -f above: a glob token stays literal); a
         # quoted path has its quotes stripped. An unquoted word-initial `~`
         # (admitted by validate-auditor-git.sh for HEAD~1) is expanded by the
-        # seat's shell before git sees it, so the hook expands that form too:
-        # `~` and `~/x` from HOME, `~+` and `~-` (`+` and `-` are admitted
-        # too) from the payload cwd (the nearest reading of PWD and OLDPWD the
-        # payload offers), and a `~<name>` form, which only getpwnam can
-        # resolve, goes into the touched set literal so the verdict arm
-        # escalates it as unresolved instead of comparing nothing. A quoted
-        # `'~/x'` or an attached `-C~/x` reaches git literal and stays literal
-        # here. Every other token that is an absolute path (`/...`) or a
-        # relative path with a `/` in it (`../wtB/f`, `./x/f`, `a/b/f`),
-        # quotes stripped, is touched too, and a `--<opt>=<value>` token is
-        # classified by the value after its first `=` (`--contents=/abs/f`,
-        # `--contents=../wtB/f`): validate-auditor-git.sh admits `git diff
-        # /abs/wtB/f /abs/wtB/g`, `git diff ../wtB/f ../wtB/g` and `git diff
-        # --no-index .claude/war-worktrees/R/T/f /dev/null` alike (`.`, `/`
-        # and `=` are in its character allowlist, and it polices no diff or
-        # blame flag), and git implies --no-index for a path outside the cwd
+        # seat's shell before git sees it, so the hook expands that form too
+        # (see tilde above), on a `-C` value and on an operand alike; a
+        # `~<name>` form goes into the touched set literal. A quoted `'~/x'`
+        # or an attached `-C~/x` reaches git literal and stays literal here.
+        # Every other token, quotes stripped, is classified as a path: an
+        # absolute one (`/...`) is touched as is, a `--<opt>=<value>` token
+        # is classified by the value after its first `=` (`--contents=/abs/f`,
+        # `--contents=../wtB/f`), a token that starts with `-` is a flag and
+        # costs no spawn, and EVERY other token (`../wtB/f`, `./x/f`, `a/b/f`,
+        # `wtB`, `diff`, `HEAD~1`) resolves against the running base: the
+        # payload cwd, moved by each resolved `-C` in order, as git applies
+        # `-C` itself. validate-auditor-git.sh admits `git diff /abs/wtB/f
+        # /abs/wtB/g`, `git diff ../wtB/f ../wtB/g`, `git diff --no-index
+        # .claude/war-worktrees/R/T/f /dev/null` and `git -C <run dir> diff
+        # --no-index T1 T2` alike (`.`, `/` and `=` are in its character
+        # allowlist, it peels one `-C <path>`, and it polices no diff or blame
+        # flag), and git implies --no-index for a path outside the cwd
         # repository's work tree, so the command reads a worktree the `-C`
-        # scan and the cwd fallback never name. A relative operand resolves
-        # against the running base: the payload cwd, moved by each resolved
-        # `-C` in order, as git applies `-C` itself. A token with no `/`
-        # (`diff`, `HEAD~1`, `--oneline`, a bare name) names the base
-        # directory or a direct child of it; a task worktree sits two levels
-        # under the main checkout, so such a token reaches no worktree the
-        # cwd fallback or the `-C` arm did not already touch, and it is
-        # skipped. The cwd fallback is unchanged by an operand token: the
-        # command still runs in the payload cwd.
+        # scan and the cwd fallback never name. A slashless operand is NOT
+        # skipped: after a `-C` into a run directory
+        # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
+        # task worktree. A token that names no directory (`diff`, `HEAD~1`)
+        # resolves to the base, which the `-C` arm or the cwd fallback
+        # touched already (touch_line dedupes), so over-touch costs one canon
+        # subshell and under-touch would leave a read worktree uncompared.
+        # The first token is the program name (`git`, the only one the guard
+        # admits) and names no path, so it is skipped: resolved against the
+        # payload cwd it would touch a worktree a `-C` command never reads.
+        # After an unresolved `~<name>` -C the base is unknown, so a later
+        # relative operand is not resolved; the literal line already makes
+        # the verdict arm escalate, so nothing is lost.
+        # Residual: an operand that names an ANCESTOR of task worktrees (the
+        # run directory itself) reaches every worktree under it through
+        # `diff --no-index` recursion and is not resolved to them. The cwd
+        # fallback is unchanged by an operand token: the command still runs
+        # in the payload cwd.
         _cmd="$(get '.tool_input.command')"
-        _found=0; _want=0; _base="$cwd"
+        _found=0; _want=0; _base="$cwd"; _first=1
         for _tok in $_cmd; do
+          if [ "$_first" = 1 ]; then _first=0; continue; fi
           if [ "$_want" = 1 ]; then
             _want=0; _found=1
             case "$_tok" in
               \"*|\'*) unquote "$_tok"; _tok="$_t" ;;
-              "~"|"~/"*) [ -n "${HOME-}" ] && _tok="$HOME${_tok#\~}" ;;
-              "~+"|"~+/"*) _tok="$cwd${_tok#\~+}" ;;
-              "~-"|"~-/"*) _tok="$cwd${_tok#\~-}" ;;
-              "~"*) touch_line "$_tok"; continue ;;
+              *) if tilde "$_tok"; then _tok="$_t"; else touch_line "$_tok"; _base=""; continue; fi ;;
             esac
             [ -n "$_tok" ] && touch_c "$_tok"
             continue
@@ -537,11 +568,15 @@ case "$event" in
           case "$_tok" in
             -C) _want=1 ;;
             -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t" ;;
-            *) unquote "$_tok"
+            *) case "$_tok" in
+                 \"*|\'*) unquote "$_tok" ;;
+                 *) if tilde "$_tok"; then :; else touch_line "$_tok"; continue; fi ;;
+               esac
                case "$_t" in --*=*) _t="${_t#*=}" ;; esac
                case "$_t" in
                  /*) touch_path "$_t" ;;
-                 */*) touch_path "$_base/$_t" ;;
+                 -*) ;;
+                 *) [ -n "$_base" ] && touch_path "$_base/$_t" ;;
                esac ;;
           esac
         done

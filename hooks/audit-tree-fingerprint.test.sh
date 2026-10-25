@@ -401,8 +401,8 @@ run "$(mk_bash "$AUD" t14 "git -C ~nosuchuser/wtB log")"
 run "$(mk_verdict "$AUD" t14)"
 PCWD="$MAIN"
 rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
-if touched_is t14 "~nosuchuser/wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved -C path)" ]; then
-  pass "Bash unquoted -C ~<name>/<path> is recorded literal and escalates as an unresolved -C path"
+if touched_is t14 "~nosuchuser/wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path ~nosuchuser/wtB)" ]; then
+  pass "Bash unquoted -C ~<name>/<path> is recorded literal and escalates as an unresolved Bash path"
 else
   fail "tilde-name -C not escalated (touched=|$(cat "$FP_ROOT/t14/touched" 2>/dev/null)| rsn=|$rsn|)"
 fi
@@ -466,12 +466,46 @@ PCWD="$TMP/wtC"
 run "$(mk_bash "$AUD" t22 "git blame --contents=../wtB/f HEAD -- f")"
 PCWD="$MAIN"
 if touched_is t22 "$WTB"; then pass "a --opt=../path value resolves against the base and is touched"; else fail "--opt=../ value touch not recorded: |$(cat "$FP_ROOT/t22/touched" 2>/dev/null)|"; fi
-# Negative control for the classifier: a slashless token (the subcommand, a
-# flag, HEAD~1) touches nothing beyond the cwd fallback, so from $MAIN the
-# touched set stays empty.
+# Negative control for the classifier: a slashless token that names no
+# worktree (the subcommand, a flag, HEAD~1, a plain file) resolves to the
+# base, so from $MAIN (no marker) the touched set stays empty.
 run "$(mk_start "$AUD" t23)"
 run "$(mk_bash "$AUD" t23 "git log --oneline -1 HEAD~1 -- f")"
 if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t23/touched" ]; then pass "slashless Bash tokens touch nothing beyond the cwd fallback"; else fail "slashless token touched something (rc=$RC touched=|$(cat "$FP_ROOT/t23/touched" 2>/dev/null)|)"; fi
+# A slashless operand IS routed: after a `-C` into the directory that holds
+# the task worktrees, a bare `wtA` names a whole worktree, and `diff
+# --no-index wtA wtB` recurses both. The guard admits the form (one `-C
+# <path>` peeled, no diff flag policed). The touched set must be exactly the
+# two worktrees: the -C dir ($TMP, no marker) and the `diff` and `--no-index`
+# tokens add no line. Red with the old `*/*` arm (both operands skipped).
+run "$(mk_start "$AUD" t24)"
+run "$(mk_bash "$AUD" t24 "git -C $TMP diff --no-index wtA wtB")"
+if touched_is t24 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "slashless operands after -C into the worktrees' parent touch exactly the worktrees they name"; else fail "slashless operands after -C not routed: |$(cat "$FP_ROOT/t24/touched" 2>/dev/null)|"; fi
+# The real layout: `-C $MAIN/.claude/war-worktrees/<run>` then a bare task
+# name, from the main checkout.
+run "$(mk_start "$AUD" t25)"
+run "$(mk_bash "$AUD" t25 "git -C $MAIN/.claude/war-worktrees/r diff --no-index wtN /dev/null")"
+if touched_is t25 "$WTN"; then pass "a bare task name after -C into the run directory touches that task worktree"; else fail "bare task name after -C into the run dir not touched: |$(cat "$FP_ROOT/t25/touched" 2>/dev/null)|"; fi
+# A HOME-relative operand: the seat's shell expands a word-initial `~/`
+# before git runs, so `git diff --no-index ~/wtB/f /dev/null` reads wtB. HOME
+# is the fixture dir, as in the -C tilde rows. Red without tilde expansion
+# on the operand arm (`$MAIN/~/wtB/f` resolves to $MAIN, no marker).
+_home="$HOME"; HOME="$TMP"
+run "$(mk_start "$AUD" t26)"
+run "$(mk_bash "$AUD" t26 "git diff --no-index ~/wtB/f /dev/null")"
+HOME="$_home"
+if touched_is t26 "$WTB"; then pass "a HOME-relative ~/ Bash operand expands the tilde and touches that worktree"; else fail "tilde operand not touched: |$(cat "$FP_ROOT/t26/touched" 2>/dev/null)|"; fi
+# A `~<name>` operand is recorded literal, like the -C form, and the verdict
+# arm escalates it as unresolved instead of comparing nothing.
+run "$(mk_start "$AUD" t27)"
+run "$(mk_bash "$AUD" t27 "git diff --no-index ~nosuchuser/wtB/f /dev/null")"
+run "$(mk_verdict "$AUD" t27)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if touched_is t27 "~nosuchuser/wtB/f" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path ~nosuchuser/wtB/f)" ]; then
+  pass "a ~<name> Bash operand is recorded literal and escalates as an unresolved Bash path"
+else
+  fail "tilde-name operand not escalated (touched=|$(cat "$FP_ROOT/t27/touched" 2>/dev/null)| rsn=|$rsn|)"
+fi
 
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
@@ -785,6 +819,22 @@ if grep -Fq 'WAR_FINGERPRINT_DEADLINE_SECONDS' "$HOOK" && grep -Eq '[^0-9]540[^0
   pass "hook reads WAR_FINGERPRINT_DEADLINE_SECONDS and defaults to 540 seconds"
 else
   fail "hook deadline literal or env name missing"
+fi
+# An override of 600 or more would let Claude Code kill the hook at the
+# hooks.json timeout and pass the verdict unchecked, so it falls back to 540.
+# SECONDS is inherited from the environment (bash counts on from the value),
+# so SECONDS=1000 expires any deadline and the reason names the one in force:
+# `deadline 540s` with the clamp, `deadline 900s` without it.
+run "$(mk_start "$AUD" d5)"
+run "$(mk_read "$AUD" d5 "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d5)"
+OUT="$(printf '%s' "$_p" | SECONDS=1000 WAR_FINGERPRINT_DEADLINE_SECONDS=900 bash "$HOOK" 2>/dev/null)"; RC=$?
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ("*", deadline 540s)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ]; then
+  pass "a deadline override of 600 or more falls back to 540 (clamped under the hooks.json timeout)"
+else
+  fail "deadline override not clamped (rc=$RC rsn=|$rsn|)"
 fi
 
 # --- exit contract: 0 or 2 only -----------------------------------------------
