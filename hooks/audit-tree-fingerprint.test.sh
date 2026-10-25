@@ -568,12 +568,13 @@ PCWD="$TMP/wtC"
 run "$(mk_bash "$AUD" t34 "git diff $TMP /dev/null")"
 PCWD="$MAIN"
 if touched_is t34 "$(printf '%s\n%s\n%s\n%s' "$WTA" "$WTB" "$WTD" "$WTS")"; then pass "directory operand holding worktrees touches each"; else fail "directory operand walk-down wrong: |$(cat "$FP_ROOT/t34/touched" 2>/dev/null)|"; fi
-# The walk-down is narrowed to a --no-index command or an operand outside the
-# base's work tree: an in-repo directory operand (`./` from $MAIN, no
-# --no-index) reads the repository's own tree and touches no task worktree.
-# A marked worktree nested under $MAIN (the real layout) is the oracle for
-# both this row and the two below; it is removed afterwards so the later
-# start-record line counts are unchanged.
+# The walk-down is narrowed to a --no-index command (explicit, or implied by
+# git for a two-path `diff` with either path outside the work tree) or an
+# operand outside the base's work tree: an in-repo directory operand (`./`
+# from $MAIN, three operands, so no implied --no-index) reads the repository's
+# own tree and touches no task worktree. A marked worktree nested under $MAIN
+# (the real layout) is the oracle for this row and the rows below it down to
+# its removal, which keeps the later start-record line counts unchanged.
 git -C "$MAIN" worktree add -q "$MAIN/.claude/wtQ" -b q
 printf 'marker\n' > "$MAIN/.claude/wtQ/.war-task"
 WTQ="$(cd "$MAIN/.claude/wtQ" && pwd -P)"
@@ -590,6 +591,49 @@ if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t36/touched" ]; then pass "the Bash cwd fal
 run "$(mk_start "$AUD" t37)"
 run "$(mk_bash "$AUD" t37 "git diff --no-index . /dev/null")"
 if touched_is t37 "$WTQ"; then pass "an in-repo directory operand under --no-index touches the nested task worktree"; else fail "--no-index in-repo directory operand not walked: |$(cat "$FP_ROOT/t37/touched" 2>/dev/null)|"; fi
+# git implies --no-index when exactly two paths follow `diff` and EITHER is
+# outside the work tree (builtin/diff.c), so `git diff . /dev/null` from $MAIN
+# recurses `.` with no --no-index token: the nested worktree must be touched.
+# The oracle is git itself: the same command in the fixture exits 0 and names
+# no "outside repository" error, where a non-implied form (t41, t44) does.
+run "$(mk_start "$AUD" t38)"
+run "$(mk_bash "$AUD" t38 "git diff . /dev/null")"
+if touched_is t38 "$WTQ"; then pass "an in-repo directory operand under implied --no-index touches the nested task worktree"; else fail "implied --no-index in-repo directory operand not walked: |$(cat "$FP_ROOT/t38/touched" 2>/dev/null)|"; fi
+git -C "$MAIN" diff --quiet . /dev/null 2>"$TMP/err"
+if ! grep -q 'outside repository' "$TMP/err"; then pass "git itself treats the two-path form with one outside path as --no-index"; else fail "git did not imply --no-index for 'diff . /dev/null': $(cat "$TMP/err")"; fi
+# The live layout: the run directory (`.claude` here) diffed against a
+# directory outside $MAIN, behind a leading flag git skips when it counts the
+# paths. $TMP/wtC is unmarked and holds no worktree, so only wtQ is touched.
+run "$(mk_start "$AUD" t39)"
+run "$(mk_bash "$AUD" t39 "git diff --stat .claude $TMP/wtC")"
+if touched_is t39 "$WTQ"; then pass "the run directory diffed against a directory outside the repo touches its nested task worktree"; else fail "run-directory operand under implied --no-index not walked: |$(cat "$FP_ROOT/t39/touched" 2>/dev/null)|"; fi
+# A `--` ends the leading options and is not counted as a path.
+run "$(mk_start "$AUD" t40)"
+run "$(mk_bash "$AUD" t40 "git diff -- . /dev/null")"
+if touched_is t40 "$WTQ"; then pass "a -- before the two paths still implies --no-index"; else fail "-- form of implied --no-index not walked: |$(cat "$FP_ROOT/t40/touched" 2>/dev/null)|"; fi
+# Three operands never imply --no-index (git refuses the outside path), so
+# the in-repo directory is not walked.
+run "$(mk_start "$AUD" t41)"
+run "$(mk_bash "$AUD" t41 "git diff HEAD . /dev/null")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t41/touched" ]; then pass "three operands never imply --no-index, so the in-repo directory is not walked"; else fail "three-operand diff walked down (rc=$RC touched=|$(cat "$FP_ROOT/t41/touched" 2>/dev/null)|)"; fi
+if ! git -C "$MAIN" diff --quiet HEAD . /dev/null 2>"$TMP/err" && grep -q 'outside repository' "$TMP/err"; then pass "git itself refuses the outside path when three operands follow diff"; else fail "git implied --no-index for 'diff HEAD . /dev/null': $(cat "$TMP/err")"; fi
+# Two in-repo paths imply nothing: `.` is not walked.
+run "$(mk_start "$AUD" t42)"
+run "$(mk_bash "$AUD" t42 "git diff . .claude")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t42/touched" ]; then pass "two in-repo paths imply no --no-index, so the in-repo directory is not walked"; else fail "two in-repo paths walked down (rc=$RC touched=|$(cat "$FP_ROOT/t42/touched" 2>/dev/null)|)"; fi
+# The paths resolve against the global -C base, not the payload cwd: from
+# wtC, `git -C $MAIN diff . /dev/null` reads $MAIN's `.`, so wtQ is touched
+# and nothing under wtC is.
+run "$(mk_start "$AUD" t43)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" t43 "git -C $MAIN diff . /dev/null")"
+PCWD="$MAIN"
+if touched_is t43 "$WTQ"; then pass "implied --no-index resolves its two paths against the global -C base"; else fail "implied --no-index under -C wrong: |$(cat "$FP_ROOT/t43/touched" 2>/dev/null)|"; fi
+# Only `diff` implies --no-index: `git log . /dev/null` refuses the outside
+# path and reads nothing under `.`.
+run "$(mk_start "$AUD" t44)"
+run "$(mk_bash "$AUD" t44 "git log . /dev/null")"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t44/touched" ]; then pass "a two-path non-diff command implies no --no-index"; else fail "non-diff two-path command walked down (rc=$RC touched=|$(cat "$FP_ROOT/t44/touched" 2>/dev/null)|)"; fi
 git -C "$MAIN" worktree remove --force "$MAIN/.claude/wtQ"
 git -C "$MAIN" branch -q -D q
 

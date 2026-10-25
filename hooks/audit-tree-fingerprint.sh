@@ -431,14 +431,66 @@ base_top() {
   [ -n "$_top" ] && _top="$(canon "$_top")"
 }
 
+# outside_top <path>: returns 0 when <path>, absolute or relative to the
+# running base `_base`, lies outside the base's work tree, or the base is in
+# no work tree. The path is resolved at its nearest existing directory
+# ancestor, since git normalizes an operand before it reads it (`/dev/null`
+# resolves at `/dev`, `a/missing` at `a`). Costs one canon subshell.
+outside_top() {
+  base_top
+  [ -n "$_top" ] || return 0
+  case "$1" in /*) _od="$1" ;; *) _od="$_base/$1" ;; esac
+  while [ ! -d "$_od" ]; do
+    _on="${_od%/*}"; [ -n "$_on" ] || _on=/
+    [ "$_on" = "$_od" ] && return 0
+    _od="$_on"
+  done
+  _od="$(canon "$_od")" && [ -n "$_od" ] || return 0
+  case "$_od/" in "$_top/"*) return 1 ;; esac
+  return 0
+}
+
+# implied_noindex: returns 0 when git implies --no-index for the Bash command
+# `_cmd`, by git's own rule (builtin/diff.c): exactly two tokens follow the
+# subcommand word's leading `-` options (a `--` ends them and is skipped), and
+# either token is outside the base's work tree (outside_top). The caller
+# checks that the subcommand word is `diff` and calls once the global `-C`
+# tokens have settled `_base`. Each of the two tokens is shell-expanded like
+# any operand (quotes stripped, `~` expanded); a `~<name>` token cannot be
+# resolved, so nothing is implied (its literal touched line already escalates
+# the verdict). A third token returns before any canon subshell runs.
+implied_noindex() {
+  [ -n "$_base" ] || return 1
+  _ip=1; _ic=0; _iw=0; _il=1; _in=0; _io=0
+  for _ia in $_cmd; do
+    if [ "$_ip" = 1 ]; then _ip=0; continue; fi
+    if [ "$_ic" = 1 ]; then _ic=0; continue; fi
+    if [ "$_iw" = 0 ]; then
+      case "$_ia" in -C) _ic=1; continue ;; -C?*) continue ;; esac
+      _iw=1; continue
+    fi
+    case "$_ia" in \"*|\'*) unquote "$_ia" ;; *) tilde "$_ia" || return 1 ;; esac
+    if [ "$_il" = 1 ]; then
+      case "$_t" in --) _il=0; continue ;; -*) continue ;; esac
+      _il=0
+    fi
+    _in=$((_in + 1))
+    [ "$_in" -le 2 ] || return 1
+    outside_top "$_t" && _io=1
+  done
+  [ "$_in" = 2 ] && [ "$_io" = 1 ]
+}
+
 # touch_operand <path>: touch_path, then, when <path> is a directory the
 # command reads recursively, every marked worktree below it. `git diff
-# --no-index <dir> <x>`, and `git diff <dir> <x>` with <dir> outside the base's
-# work tree (git implies --no-index), recurse into every task worktree under
-# <dir>, which touch_path alone never names (the run directory is the live
-# case). An in-repo directory operand without --no-index reads the
-# repository's own tree only, so it is not walked (git ignores a nested
-# worktree's content). Costs one `git worktree list` per walked directory.
+# --no-index <dir> <x>`, and a two-path `git diff <dir> <x>` with either path
+# outside the base's work tree (git implies --no-index: implied_noindex sets
+# `_noindex` before any operand is touched), recurse into every task worktree
+# under <dir>, which touch_path alone never names (the run directory under
+# $MAIN, diffed against a path outside $MAIN, is the live case). An in-repo
+# directory operand with neither form of --no-index reads the repository's own
+# tree only, so it is not walked (git ignores a nested worktree's content).
+# Costs one `git worktree list` per walked directory.
 touch_operand() {
   touch_path "$1"
   [ -d "$1" ] || return 0
@@ -649,9 +701,10 @@ case "$event" in
         # --no-index .claude/war-worktrees/R/T/f /dev/null` and `git -C <run
         # dir> diff --no-index T1 T2` alike (`.`, `/` and `=` are in its
         # character allowlist, it peels one `-C <path>`, and it polices no
-        # diff or blame flag), and git implies --no-index for a path outside
-        # the cwd repository's work tree, so the command reads a worktree the
-        # `-C` scan and the cwd fallback never name. A slashless operand is
+        # diff or blame flag), and git implies --no-index for a two-path
+        # `diff` with either path outside the cwd repository's work tree, so
+        # the command reads a worktree the `-C` scan and the cwd fallback
+        # never name. A slashless operand is
         # NOT skipped: after a `-C` into a run directory
         # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
         # task worktree. A token that names no directory (`diff`, `HEAD~1`)
@@ -662,7 +715,9 @@ case "$event" in
         # holds task worktrees (the run directory, `$TMP`, `.` under
         # --no-index) adds each of them when the command recurses into them.
         # `_noindex` is pre-scanned over the whole command, since git reads
-        # the flag wherever it stands. The first token is the program name
+        # the flag wherever it stands, and set again at the subcommand word
+        # when git implies the flag (implied_noindex: a two-path `diff` with
+        # either path outside the base's work tree). The first token is the program name
         # (`git`, the only one the guard admits) and names no path, so it is
         # skipped: resolved against the payload cwd it would touch a worktree
         # a `-C` command never reads. After an unresolved `~<name>` -C the
@@ -693,6 +748,12 @@ case "$event" in
               -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t"; continue ;;
             esac
             _sub=1
+            # The subcommand word is known and every global `-C` has moved
+            # `_base`, so git's implied --no-index is decided here.
+            if [ "$_noindex" != 1 ]; then
+              unquote "$_tok"
+              [ "$_t" = diff ] && implied_noindex && _noindex=1
+            fi
           fi
           case "$_tok" in
             \"*|\'*) unquote "$_tok" ;;
