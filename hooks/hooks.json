@@ -24,13 +24,13 @@
       {
         "matcher": "Read|Bash|Glob|Grep",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh", "timeout": 600 }
         ]
       },
       {
         "matcher": "StructuredOutput",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh", "timeout": 600 }
         ]
       }
     ],
@@ -75,7 +75,7 @@
       {
         "matcher": "^work-audit-refine:war-(evidence-)?auditor$",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh", "timeout": 600 }
         ]
       }
     ],
@@ -89,7 +89,7 @@
       {
         "matcher": "^work-audit-refine:war-(evidence-)?auditor$",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh" }
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh", "timeout": 600 }
         ]
       }
     ]

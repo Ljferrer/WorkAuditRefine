@@ -25,22 +25,48 @@
 #         blob_lines): a path that reader would rewrite gets its own call.
 #     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
 #         worktree the call reaches (a Read file_path, a Glob or Grep path, an
-#         absolute Glob pattern, a Bash `git -C <path>` or an absolute Bash
-#         operand, else the payload cwd) and add it to the seat's touched set.
+#         absolute Glob pattern, a Bash `git -C <path>`, an absolute Bash
+#         operand, any relative Bash operand, or the value after `=` of a
+#         Bash `--<opt>=<path>` token, else the payload cwd) and add it to
+#         the seat's touched set.
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
 #         or an unsafe agent_id, no git common dir, a missing start record, a
-#         git error, an unresolved Bash `-C` path),
+#         git error, an unresolved Bash `~<name>` token),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
 #         `AUDIT-TAMPER: <worktree> changed during the audit round (<start> -> <now>)`
 #         or `AUDIT-TAMPER: unverifiable fingerprint (<cause>)`, and writes a
-#         record to `$MAIN/.claude/war/audit-tamper/<agent_id>.json`.
+#         record to `$MAIN/.claude/war/audit-tamper/<agent_id>.json`. The
+#         record keeps the seat's own `verdict` and `escalate_reason` as
+#         `seat_verdict` and `seat_escalate_reason` (null on the Subagent
+#         arms, which carry no tool input): the rewrite replaces both in the
+#         tool input, and a fail-open ruling on a timeout accepts them.
 #     (4) SubagentStop: the same comparison, record only, never a block, and
 #         never over a record the StructuredOutput arm wrote for the seat.
 #   A worktree the seat never touched is never compared, so concurrent workers
 #   in sibling worktrees cannot trip it.
+#
+# DEADLINE (Task 7.2, ruling 2026-10-24)
+#   Claude Code kills a hook at its hooks.json `timeout` (600 s on every entry
+#   for this hook) and the verdict then passes unchecked. The hook keeps its
+#   own shorter deadline, 540 s by default or WAR_FINGERPRINT_DEADLINE_SECONDS
+#   when that is a non-negative integer below 600 (tests use 0). Any other
+#   value, 600 or more included, falls back to 540: the override is clamped
+#   under the hooks.json timeout, so the hook always ends before Claude Code
+#   kills it. The deadline is measured on bash's SECONDS from the hook's
+#   start and checked per worktree in the start and compare loops and per
+#   path in blob_lines. Past the deadline the hook stops
+#   hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
+#   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s)` and writes
+#   the tamper record with `"timeout": true`; the SubagentStop arm records the
+#   same; the SubagentStart arm writes `$STATE/timeout` (`<N> <D> <worktree>`:
+#   the elapsed seconds, the start arm's own deadline and the first worktree
+#   left unrecorded), so a verdict on a worktree it never recorded escalates
+#   with the timeout reason, naming that stored deadline (the verdict arm may
+#   run under another), and never with `no start record`. The Lead's question
+#   on that reason (fail closed or fail open) is in resume-and-recovery.md.
 #
 # NON-INTERFERENCE
 #   Every git call runs with GIT_OPTIONAL_LOCKS=0 (git(1) --no-optional-locks,
@@ -101,6 +127,15 @@ export GIT_OPTIONAL_LOCKS=0
 NL='
 '
 CR="$(printf '\r')"
+
+# The hook's own deadline in seconds (see DEADLINE above). SECONDS is bash's
+# seconds-since-start counter: no spawn per check, so blob_lines can test it
+# per path. The override must stay under the 600 s hooks.json timeout
+# (`[` fails on a non-numeric or oversized value, so that falls back too).
+DEADLINE="${WAR_FINGERPRINT_DEADLINE_SECONDS-}"
+case "$DEADLINE" in ''|*[!0-9]*) DEADLINE=540 ;; esac
+[ "$DEADLINE" -lt 600 ] 2>/dev/null || DEADLINE=540
+expired() { [ "$SECONDS" -ge "$DEADLINE" ]; }
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
@@ -178,10 +213,12 @@ canon() { (cd "$1" 2>/dev/null && pwd -P); }
 # slow target, or a same-content file a retarget would hide), while git
 # itself stores a symlink as its link text. The `-L` test comes before `-f`
 # because `-f` follows the link too. Its own function, not an inline loop:
-# bash 3.2 misparses a `case` arm's `)` inside `$(...)`.
+# bash 3.2 misparses a `case` arm's `)` inside `$(...)`. Returns 3 when the
+# deadline passes mid-list (the caller stops hashing), else 0.
 blob_lines() {
   _P=(); _O=(); _n=0; _nb=0; _skip=0; _batch=""
   while IFS= read -r -d '' _l; do
+    expired && return 3
     if [ "$_skip" = 1 ]; then _skip=0; continue; fi
     case "$_l" in [RC]?*|?[RC]*) _skip=1 ;; esac
     _p="${_l#???}"
@@ -216,9 +253,11 @@ blob_lines() {
     printf '%s %s\n' "$_o" "${_P[$_i]}"
     _i=$((_i + 1))
   done
+  return 0
 }
 
-# fingerprint <worktree> -> prints "<head> <status-sha256>", or returns 1.
+# fingerprint <worktree> -> prints "<head> <status-sha256>", returns 1 on a
+# git error, or returns 3 when the deadline passed before or during hashing.
 # The sha256 covers the raw -z status output plus its blob_lines. The status
 # bytes land in a temp file (a bash variable cannot hold NUL) that feeds both
 # the parse and the hash from ONE status run. Read-only on the worktree:
@@ -227,11 +266,13 @@ blob_lines() {
 # git-lfs filter writes under .git/lfs; an eol filter would hide a
 # line-ending-only edit).
 fingerprint() {
+  expired && return 3
   _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
   [ -n "$_h" ] || return 1
   _z="$(mktemp 2>/dev/null)" && [ -n "$_z" ] || return 1
   if ! git -C "$1" status --porcelain=v1 -z -uall > "$_z" 2>/dev/null; then rm -f "$_z"; return 1; fi
-  _ch="$(blob_lines "$1" < "$_z")"
+  _ch="$(blob_lines "$1" < "$_z")"; _rc=$?
+  if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
   _s="$({ cat "$_z"; printf '\n%s' "$_ch"; } | sha256_of_stdin)"; _rc=$?
   rm -f "$_z"
   [ "$_rc" = 0 ] && [ -n "$_s" ] || return 1
@@ -314,13 +355,53 @@ touch_path() {
   touch_line "$_wt"
 }
 
-# compare: sets REASON (empty on a clean pass) plus T_WT, T_START, T_NOW.
-# The first failing worktree wins, and T_START and T_NOW are reset per
-# worktree so a failing record never carries the previous worktree's values.
-# A seat that touched nothing passes only when its start record exists: a
-# missing record means the start arm never ran, which is unverifiable, not
-# clean.
-REASON=""; T_WT=""; T_START=""; T_NOW=""
+# unquote <token>: sets _t to the token with one pair of outer quotes
+# (double or single) stripped.
+unquote() { _t="$1"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; }
+
+# tilde <token>: sets _t to the token with an unquoted word-initial `~`
+# expanded as the seat's shell expands it before git runs: `~` and `~/x`
+# from HOME, `~+` and `~-` (`+` and `-` are admitted too) from the payload
+# cwd (the nearest reading of PWD and OLDPWD the payload offers). Returns 1
+# on a `~<name>` form, which only getpwnam can resolve: the caller records
+# the token literal so the verdict arm escalates it as unresolved instead of
+# comparing nothing.
+tilde() {
+  _t="$1"
+  case "$_t" in
+    "~"|"~/"*) [ -n "${HOME-}" ] && _t="$HOME${_t#\~}" ;;
+    "~+"|"~+/"*) _t="$cwd${_t#\~+}" ;;
+    "~-"|"~-/"*) _t="$cwd${_t#\~-}" ;;
+    "~"*) return 1 ;;
+  esac
+  return 0
+}
+
+# touch_c <path>: a resolved Bash `-C` token. Relative to the running base
+# `_base` (git applies each `-C` from the previous one), it moves the base
+# and touches the worktree it reaches.
+touch_c() {
+  case "$1" in /*) _base="$1" ;; *) _base="$_base/$1" ;; esac
+  touch_path "$_base"
+}
+
+# timeout_reason <worktree> <what>: sets REASON, T_WT and T_TIMEOUT for a
+# deadline hit on <worktree> (<what> says which step was cut short).
+timeout_reason() {
+  T_WT="$1"; T_TIMEOUT=1
+  REASON="AUDIT-TAMPER: fingerprint timeout ($1 $2 after ${SECONDS}s, deadline ${DEADLINE}s)"
+}
+
+# compare: sets REASON (empty on a clean pass) plus T_WT, T_START, T_NOW and
+# T_TIMEOUT. The first failing worktree wins, and T_START and T_NOW are reset
+# per worktree so a failing record never carries the previous worktree's
+# values. A seat that touched nothing passes only when its start record
+# exists: a missing record means the start arm never ran, which is
+# unverifiable, not clean. A touched worktree with no start line after a start
+# arm that hit the deadline (`$STATE/timeout` present) is a timeout, named as
+# such, never `no start record`; a worktree the start arm did record before
+# the deadline is compared as usual.
+REASON=""; T_WT=""; T_START=""; T_NOW=""; T_TIMEOUT=0
 compare() {
   if [ -z "$aid" ]; then
     if [ -n "$aid_raw" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the hook payload)"
@@ -334,18 +415,30 @@ compare() {
     [ -n "$_wt" ] || continue
     T_START=""; T_NOW=""
     case "$_wt" in /*) ;; *)
-      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved -C path)"; return 0 ;;
+      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
     esac
     _rec="$(while IFS= read -r _l; do
               _p="${_l#* }"; _p="${_p#* }"
               [ "$_p" = "$_wt" ] && { printf '%s\n' "$_l"; break; }
             done < "$STATE/start")"
     if [ -z "$_rec" ]; then
+      if [ -f "$STATE/timeout" ]; then
+        # The marker is `<N> <D> <worktree>` (see DEADLINE above): the start
+        # arm's own deadline is printed, never this run's.
+        _m="$(head -n 1 "$STATE/timeout" 2>/dev/null)"
+        _mn="${_m%% *}"; _m="${_m#* }"; _md="${_m%% *}"
+        T_WT="$_wt"; T_TIMEOUT=1
+        REASON="AUDIT-TAMPER: fingerprint timeout (SubagentStart stopped at ${_m#* } after ${_mn}s, deadline ${_md}s; $_wt has no start fingerprint)"
+        return 0
+      fi
       T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (no start record for $_wt)"; return 0
     fi
     _sh="${_rec%% *}"; _rest="${_rec#* }"; _ss="${_rest%% *}"
     T_START="$_sh:$_ss"
-    if ! _now="$(fingerprint "$_wt")"; then
+    if expired; then timeout_reason "$_wt" "not yet hashed"; return 0; fi
+    _now="$(fingerprint "$_wt")"; _frc=$?
+    if [ "$_frc" = 3 ]; then timeout_reason "$_wt" "still hashing"; return 0; fi
+    if [ "$_frc" != 0 ]; then
       T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (git error on $_wt)"; return 0
     fi
     _nh="${_now%% *}"; _ns="${_now#* }"
@@ -358,14 +451,22 @@ compare() {
 }
 
 # write_tamper_record <event>: `$MAIN/.claude/war/audit-tamper/<agent_id>.json`.
+# `seat_verdict` and `seat_escalate_reason` are the seat's own values from the
+# StructuredOutput tool input, kept here because the rewrite replaces both
+# (null on a SubagentStop record, which carries no tool input): a fail-open
+# ruling on a fingerprint timeout accepts `seat_verdict` as the round's verdict
+# (resume-and-recovery.md, the AUDIT-TAMPER bullet).
 write_tamper_record() {
   [ -n "$MAIN" ] && [ -n "$aid" ] || return 0
   _dir="$MAIN/.claude/war/audit-tamper"
   mkdir -p "$_dir" 2>/dev/null || return 0
   jq -nc --arg aid "$aid" --arg at "$atype" --arg ev "$1" --arg wt "$T_WT" \
-    --arg s "$T_START" --arg n "$T_NOW" --arg r "$REASON" \
+    --arg s "$T_START" --arg n "$T_NOW" --arg r "$REASON" --arg to "$T_TIMEOUT" \
+    --arg sv "$(get '.tool_input.verdict')" --arg sr "$(get '.tool_input.escalate_reason')" \
     --arg when "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{agent_id:$aid, agent_type:$at, event:$ev, worktree:$wt, start:$s, now:$n, reason:$r, recorded_at:$when}' \
+    '{agent_id:$aid, agent_type:$at, event:$ev, worktree:$wt, start:$s, now:$n, reason:$r, timeout:($to == "1"),
+      seat_verdict:(if $sv == "" then null else $sv end), seat_escalate_reason:(if $sr == "" then null else $sr end),
+      recorded_at:$when}' \
     > "$_dir/$aid.json" 2>/dev/null || true
 }
 
@@ -377,9 +478,16 @@ case "$event" in
     mkdir -p "$STATE" 2>/dev/null || exit 0
     : > "$STATE/start"
     : > "$STATE/touched"
+    rm -f "$STATE/timeout"
+    # Past the deadline the loop stops and `timeout` names the elapsed
+    # seconds, this arm's deadline and the first worktree left unrecorded
+    # (see DEADLINE above).
     task_worktrees | while IFS= read -r _wt; do
       [ -n "$_wt" ] || continue
-      _fp="$(fingerprint "$_wt")" || continue
+      if expired; then printf '%s %s %s\n' "$SECONDS" "$DEADLINE" "$_wt" > "$STATE/timeout"; break; fi
+      _fp="$(fingerprint "$_wt")"; _frc=$?
+      if [ "$_frc" = 3 ]; then printf '%s %s %s\n' "$SECONDS" "$DEADLINE" "$_wt" > "$STATE/timeout"; break; fi
+      [ "$_frc" = 0 ] || continue
       printf '%s %s\n' "$_fp" "$_wt" >> "$STATE/start"
     done
     exit 0 ;;
@@ -408,38 +516,68 @@ case "$event" in
         # whitespace-split only (set -f above: a glob token stays literal); a
         # quoted path has its quotes stripped. An unquoted word-initial `~`
         # (admitted by validate-auditor-git.sh for HEAD~1) is expanded by the
-        # seat's shell before git sees it, so the hook expands that form too:
-        # `~` and `~/x` from HOME, `~+` and `~-` (`+` and `-` are admitted
-        # too) from the payload cwd (the nearest reading of PWD and OLDPWD the
-        # payload offers), and a `~<name>` form, which only getpwnam can
-        # resolve, goes into the touched set literal so the verdict arm
-        # escalates it as unresolved instead of comparing nothing. A quoted
-        # `'~/x'` or an attached `-C~/x` reaches git literal and stays literal
-        # here. Every absolute token (`/...`, quotes stripped) is touched too:
-        # validate-auditor-git.sh admits `git diff /abs/wtB/f /abs/wtB/g`,
-        # and git implies --no-index for a path outside the cwd repository,
-        # so the command reads a worktree the `-C` scan and the cwd fallback
-        # never name. The cwd fallback is unchanged by such a token: the
-        # command still runs in the payload cwd.
+        # seat's shell before git sees it, so the hook expands that form too
+        # (see tilde above), on a `-C` value and on an operand alike; a
+        # `~<name>` form goes into the touched set literal. A quoted `'~/x'`
+        # or an attached `-C~/x` reaches git literal and stays literal here.
+        # Every other token, quotes stripped, is classified as a path: an
+        # absolute one (`/...`) is touched as is, a `--<opt>=<value>` token
+        # is classified by the value after its first `=` (`--contents=/abs/f`,
+        # `--contents=../wtB/f`), a token that starts with `-` is a flag and
+        # costs no spawn, and EVERY other token (`../wtB/f`, `./x/f`, `a/b/f`,
+        # `wtB`, `diff`, `HEAD~1`) resolves against the running base: the
+        # payload cwd, moved by each resolved `-C` in order, as git applies
+        # `-C` itself. validate-auditor-git.sh admits `git diff /abs/wtB/f
+        # /abs/wtB/g`, `git diff ../wtB/f ../wtB/g`, `git diff --no-index
+        # .claude/war-worktrees/R/T/f /dev/null` and `git -C <run dir> diff
+        # --no-index T1 T2` alike (`.`, `/` and `=` are in its character
+        # allowlist, it peels one `-C <path>`, and it polices no diff or blame
+        # flag), and git implies --no-index for a path outside the cwd
+        # repository's work tree, so the command reads a worktree the `-C`
+        # scan and the cwd fallback never name. A slashless operand is NOT
+        # skipped: after a `-C` into a run directory
+        # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
+        # task worktree. A token that names no directory (`diff`, `HEAD~1`)
+        # resolves to the base, which the `-C` arm or the cwd fallback
+        # touched already (touch_line dedupes), so over-touch costs one canon
+        # subshell and under-touch would leave a read worktree uncompared.
+        # The first token is the program name (`git`, the only one the guard
+        # admits) and names no path, so it is skipped: resolved against the
+        # payload cwd it would touch a worktree a `-C` command never reads.
+        # After an unresolved `~<name>` -C the base is unknown, so a later
+        # relative operand is not resolved; the literal line already makes
+        # the verdict arm escalate, so nothing is lost.
+        # Residual: an operand that names an ANCESTOR of task worktrees (the
+        # run directory itself) reaches every worktree under it through
+        # `diff --no-index` recursion and is not resolved to them. The cwd
+        # fallback is unchanged by an operand token: the command still runs
+        # in the payload cwd.
         _cmd="$(get '.tool_input.command')"
-        _found=0; _want=0
+        _found=0; _want=0; _base="$cwd"; _first=1
         for _tok in $_cmd; do
+          if [ "$_first" = 1 ]; then _first=0; continue; fi
           if [ "$_want" = 1 ]; then
             _want=0; _found=1
             case "$_tok" in
-              \"*|\'*) _tok="${_tok#\"}"; _tok="${_tok%\"}"; _tok="${_tok#\'}"; _tok="${_tok%\'}" ;;
-              "~"|"~/"*) [ -n "${HOME-}" ] && _tok="$HOME${_tok#\~}" ;;
-              "~+"|"~+/"*) _tok="$cwd${_tok#\~+}" ;;
-              "~-"|"~-/"*) _tok="$cwd${_tok#\~-}" ;;
-              "~"*) touch_line "$_tok"; continue ;;
+              \"*|\'*) unquote "$_tok"; _tok="$_t" ;;
+              *) if tilde "$_tok"; then _tok="$_t"; else touch_line "$_tok"; _base=""; continue; fi ;;
             esac
-            [ -n "$_tok" ] && touch_path "$_tok"
+            [ -n "$_tok" ] && touch_c "$_tok"
             continue
           fi
           case "$_tok" in
             -C) _want=1 ;;
-            -C?*) _found=1; _t="${_tok#-C}"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; touch_path "$_t" ;;
-            /*|\"/*|\'/*) _t="${_tok#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; touch_path "$_t" ;;
+            -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t" ;;
+            *) case "$_tok" in
+                 \"*|\'*) unquote "$_tok" ;;
+                 *) if tilde "$_tok"; then :; else touch_line "$_tok"; continue; fi ;;
+               esac
+               case "$_t" in --*=*) _t="${_t#*=}" ;; esac
+               case "$_t" in
+                 /*) touch_path "$_t" ;;
+                 -*) ;;
+                 *) [ -n "$_base" ] && touch_path "$_base/$_t" ;;
+               esac ;;
           esac
         done
         [ "$_found" = 0 ] && touch_path "$cwd"
