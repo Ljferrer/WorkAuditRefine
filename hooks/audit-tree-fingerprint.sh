@@ -153,10 +153,13 @@ CR="$(printf '\r')"
 # seconds-since-start counter: no spawn per check, so blob_lines can test it
 # per path. The override is clamped under the 600 s hooks.json timeout: 600
 # or more falls back to 540 (`[` fails on an oversized value, so that falls
-# back too).
+# back too). The digit check and `[` read decimal, so `08` passes both, but
+# bounded's `$((DEADLINE - SECONDS))` would read a leading 0 as octal and
+# fail on 8 or 9. The `10#` line strips the leading zeros once, here.
 DEADLINE="${WAR_FINGERPRINT_DEADLINE_SECONDS-}"
 case "$DEADLINE" in ''|*[!0-9]*) DEADLINE=540 ;; esac
 [ "$DEADLINE" -lt 600 ] 2>/dev/null || DEADLINE=540
+DEADLINE=$((10#$DEADLINE))
 expired() { [ "$SECONDS" -ge "$DEADLINE" ]; }
 
 infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }

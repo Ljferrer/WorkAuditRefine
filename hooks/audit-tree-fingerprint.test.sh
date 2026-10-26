@@ -1035,6 +1035,26 @@ if [ "$RC" = 0 ] && [ "$p" = 1 ]; then
 else
   fail "deadline override not clamped (rc=$RC rsn=|$rsn|)"
 fi
+# A leading-zero override passes the digit check and the decimal clamp, but
+# bounded's arithmetic would read `08` as octal and fail, so the hook strips
+# the zeros once after the clamp. Two arms: an untouched worktree still passes
+# under `08`, and an expired `09` names the stripped value in the reason.
+run "$(mk_start "$AUD" d5b)"
+run "$(mk_read "$AUD" d5b "$TMP/wtB/f")"
+_p="$(mk_verdict "$AUD" d5b)"
+OUT="$(printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=08 bash "$HOOK" 2>/dev/null)"; RC=$?
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "a leading-zero deadline override passes an untouched worktree"; else fail "leading-zero override not tolerated (rc=$RC out=|$OUT|)"; fi
+run "$(mk_start "$AUD" d5c)"
+run "$(mk_read "$AUD" d5c "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d5c)"
+OUT="$(printf '%s' "$_p" | SECONDS=1000 WAR_FINGERPRINT_DEADLINE_SECONDS=09 bash "$HOOK" 2>/dev/null)"; RC=$?
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ("*", deadline 9s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ]; then
+  pass "a leading-zero deadline override is read as decimal in the timeout reason"
+else
+  fail "leading-zero override not read as decimal (rc=$RC rsn=|$rsn|)"
+fi
 # --- the per-call watchdog (Task 8.1, ruling A, 2026-10-24) ------------------
 # The deadline rows above expire at a pre-check. These rows cross the deadline
 # INSIDE a git call: a `git` shim runs the real git and then sleeps 5 s on the
