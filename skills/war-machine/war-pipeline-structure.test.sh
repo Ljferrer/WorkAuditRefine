@@ -499,6 +499,12 @@ has   "$MACHINE" 'plan-interview.md'
 has_i "$MACHINE" 'falsifier probes'
 has_i "$MACHINE" 'provenance scan'
 has_i "$MACHINE" 'in a throwaway sandbox'
+# Fork trials and pair beats (2026-10-26, D5 · PIN-5, Task 1.5): the drafter and the grill
+# consume the fork-trial doctrine by pointer — fact trials run unattended, on a pair beat the
+# drafter authors both candidates and picks, and the grill refutes the pick as an armed arm-2
+# beat. The path literal never re-cases (has); the duty clause is prose (has_i).
+has   "$MACHINE" 'fork-trials.md'
+has_i "$MACHINE" 'refutes the pick as an armed arm-2 beat'
 # Old-absent, ANY casing (End state 4's mirror pin): the training-memory question-tree grill
 # sentence stays retired, and the superseded author-the-war-shaped-plan conversion-doctrine
 # quote stays gone. Each old-absent pin is paired both-ways with its new-present twin (the
@@ -545,6 +551,14 @@ fi
 # match — the [[misattribution-pairing-spanning-two-lines-defeats-line-based-repo-grep]] shape).
 has_i "$MACHINE_AFK" 'carries a per-row `AI-declared`'
 has_i "$MACHINE_AFK" 'per-row `AI-declared` markers'
+# AFK trials (2026-10-26, D5 · PIN-5, Task 1.5): the one sentence the drafter reads — every
+# TRIAL row is AI-declared, and a pair pick's Source cell carries the frozen-criteria form. The
+# cell literal is pinned up to the dash so the pin sits on one physical line (the
+# [[misattribution-pairing-spanning-two-lines-defeats-line-based-repo-grep]] shape); the path
+# literal never re-cases.
+has "$MACHINE_AFK" 'fork-trials.md'
+has "$MACHINE_AFK" 'AI-declared [assumed: picked on the frozen criteria, TRIAL-n'
+has "$MACHINE_AFK" '`AI-declared` on every `TRIAL-<n>` row'
 # Survey-corps claim tagging (End state 10; ADR 0025 guard-split — this pin's fact is authored
 # by the survey-corps task, deps-edged onto it): the spec-synthesis step tags every synthesized
 # claim per D4/D11.
@@ -686,6 +700,12 @@ has   "$SURVEY" '`## Evidence artifacts`'
 # from doctrine-authored plans' WAIVE-<n> rows, n/a when none in scope.
 has_i "$WAR_REVIEW" 'waive-rate per arming arm'
 has   "$WAR_REVIEW" '`WAIVE-<n>`'
+# Fork trials (2026-10-26, D9 · PIN-9, Task 1.5): the trials-per-merged-plan row, read from
+# each doctrine-authored plan's `**Trials run**` block, n/a when none in scope — the
+# waive-rate row's sibling.
+has_i "$WAR_REVIEW" 'trials per merged plan'
+has   "$WAR_REVIEW" '`**Trials run**`'
+has_i "$WAR_REVIEW" 'settled / inconclusive / infra-failed / declined'
 
 printf '\n# Ask-disposition (Task 2.6) — war-review telemetry row pins\n'
 # ask-disposition Task 2.6 (D3 · PIN-4 · PIN-11) — pins over Task 2.5's two war-review
@@ -709,10 +729,12 @@ has_i "$WAR_REVIEW" 'never to a silent "no grinding"'
 
 printf '\n# war-review flip pairs (Task 5, #1656) — OLD-absent + NEW-present twins\n'
 # The three→four ratified-rows flip (dbca140, the waive-rate row's arrival) landed with a
-# presence pin only, and this suite is its only possible host. Both halves are case-insensitive:
-# the retirement needle is PROSE, and a case-sensitive absence assert silently passes on a
-# benign re-casing ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]).
-has_i   "$WAR_REVIEW" 'four ratified rows'
+# presence pin only, and this suite is its only possible host; the four→five flip (2026-10-26,
+# the trials-per-merged-plan row's arrival, Task 1.5) retires 'four' the same way. Both halves
+# are case-insensitive: the retirement needle is PROSE, and a case-sensitive absence assert
+# silently passes on a benign re-casing ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]).
+has_i   "$WAR_REVIEW" 'five ratified rows'
+lacks_i "$WAR_REVIEW" 'four ratified rows'
 lacks_i "$WAR_REVIEW" 'three ratified rows'
 # Survey-derived correction from the same hand-scan of this block: the grind row's coarseness
 # split (7b56c12) retired the over-claim "every source is a per-task terminal read" and also
