@@ -93,6 +93,37 @@ expect "war-worker outside any worktree denied" \
 expect "war-auditor write denied (read-only)" \
   2 "$(run "$(mk 'war-auditor' "$INSIDE_WT")")"
 
+# 3b: war-evidence-auditor anywhere -> 2 (hard-deny, read-only). Its own arm:
+# `*war-auditor` does not capture it, so without the arm this fell to the
+# fail-open default (0). Plan 2026-10-20-rea-artifact-evidence Task 2.2 exact
+# label: `war-evidence-auditor write denied`.
+expect "war-evidence-auditor write denied" \
+  2 "$(run "$(mk 'war-evidence-auditor' "$INSIDE_WT")")"
+
+# 3c: exact dispatched shape work-audit-refine:war-evidence-auditor -> 2
+# (deny-side under-capture guard: falling to the default arm would be 0).
+expect "exact-shape :war-evidence-auditor write denied (deny-side under-capture guard)" \
+  2 "$(run "$(mk 'work-audit-refine:war-evidence-auditor' "$INSIDE_WT")")"
+
+# 3c-msg: the evidence-seat deny names its own rule on stderr (guard
+# specificity: the arm's message, not only its exit code). Both the `WAR:`
+# marker and the rule substring must appear. Delete-the-feature: a generic
+# `deny` text, or the arm falling to another exit-2 path, fails this row.
+ev_deny="$(printf '%s' "$(mk 'work-audit-refine:war-evidence-auditor' "$INSIDE_WT")" | bash "$HOOK" 2>&1 >/dev/null)"
+n=$((n + 1))
+case "$ev_deny" in
+  *"WAR:"*"the evidence seat is read-only"*)
+    printf 'ok %d - evidence-seat deny message names its rule (WAR: + the evidence seat is read-only)\n' "$n" ;;
+  *)
+    printf 'FAIL %d - evidence-seat deny message lacks WAR: or the rule substring (got: %s)\n' "$n" "$ev_deny"
+    fails=$((fails + 1)) ;;
+esac
+
+# 3d: trailing-junk :war-evidence-auditor-helper is not captured by the
+# suffix-anchored arm -> fail-open default arm (0).
+expect "trailing-junk :war-evidence-auditor-helper falls to fail-open default arm" \
+  0 "$(run "$(mk 'work-audit-refine:war-evidence-auditor-helper' "$INSIDE_WT")")"
+
 # 4a: war-servitor under .../.claude/projects/<p>/memory/x.md, with HOME pinned
 # so the path sits under the servitor's own $HOME anchor (#810 retrofit) -> 0.
 expect "war-servitor memory path under pinned \$HOME allowed" \

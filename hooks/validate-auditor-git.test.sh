@@ -3,9 +3,11 @@
 # hooks/validate-auditor-git.sh
 #
 # This guard is FAIL-CLOSED: for agent_type suffix-anchored to war-auditor
-# (case pattern `*war-auditor`), it allows
+# (case pattern `*war-auditor`) or to war-evidence-auditor (its own arm
+# `*war-evidence-auditor`, same deny set — group O), it allows
 # ONLY a single git read-subcommand (diff/log/show/merge-base/rev-parse/status/
-# ls-files/ls-tree/cat-file/blame, plus read-form branch) with no shell
+# ls-files/ls-tree/cat-file/blame, plus read-form branch, plus the one narrow
+# grep form `git grep -F -e <token>` — group P) with no shell
 # metacharacters. Anything else → DENY
 # (exit 2). Non-auditor agent types → exit 0 (pass-through).
 #
@@ -474,19 +476,131 @@ expect_deny "G4: git stash → denied (write op)" \
 expect_deny "G5: git fetch → denied (not in read allowlist)" \
   "$(auditor_cmd "git fetch")"
 
-# G6: git grep — NOT in the read allowlist and stays denied. The committed-grounding clause
-# (spec §8 / ADR 0029) deliberately does NOT widen the allowlist to add a grep verb: blob
-# reads go through `git show`, history through `git log -S/-G`. This case is the mechanical
-# record of that non-widening — flipping it to expect_allow would signal a widened allowlist.
-# D3 re-ratification (2026-07-22 auditor-guard-ergonomics spec §3): the char/verb widening
-# admitted ~/%, ls-tree and read-form branch but DECLINED `git grep` — the unrestricted Grep
-# tool is the sanctioned repo-wide sweep channel (named in the unlisted-verb deny's micro-teach).
-# D2 THIRD ratification (2026-07-26 auditor-guard-policy-and-mirror-truth spec §3, after ADR 0029's
-# rejected-and-deferred grep-verb option and the 2026-07-22 spec's D3): still no — admitting the verb
-# would also open an execution hole (git grep -O<cmd> runs an arbitrary pager command the fail-closed
-# char allowlist cannot tell from a benign search). See ADR 0029's Amendment (2026-07-26).
-expect_deny "G6: git grep token → denied (grep verb NOT admitted; allowlist unwidened)" \
-  "$(auditor_cmd "git grep token")"
+# G6: git grep — admitted in ONE narrow form only: `-F` (or `--fixed-strings`) plus exactly one
+# `-e <token>`. This row was the mechanical record of three grep-verb rejections (ADR 0029's
+# rejected-and-deferred option, the 2026-07-22 spec's D3, the 2026-07-26 spec's D2). The
+# 2026-10-22 ruling (plan 2026-10-20-rea-artifact-evidence D21, ADR 0029's Amendment
+# 2026-10-22) reverses the "still no" for this fixed-string form only: on Claude Code 2.1.304
+# no auditor seat had the Grep tool, so the sanctioned sweep channel did not exist at dispatch.
+# The `-O` execution hole the 2026-07-26 ratification named stays closed by per-flag policing
+# (group P), and the audit tree fingerprint hook is the compensating control. Flipping this row
+# back to expect_deny, or widening it past `-F -e <token>`, contradicts that amendment.
+expect_allow "G6: git grep -F -e token allowed (the one admitted grep form; ADR 0029 Amendment 2026-10-22)" \
+  "$(auditor_cmd "git grep -F -e token")"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP P: the narrow `git grep -F -e <token>` grammar (D21, ADR 0029
+# Amendment 2026-10-22). The guard parses the grep tokens itself: `-F` (or
+# `--fixed-strings`) is required, exactly one `-e <token>` is required, the
+# optional read flags are `-n -i -l -w -c` (bare or in a short cluster parsed
+# letter by letter), at most one bare revision, and an optional `-- <pathspec>...`
+# (glob bytes already deny at the residue rule). Every other flag denies by
+# default: `-O`/`--open-files-in-pager` (runs a pager command) in any spelling
+# or cluster, `-f`/`--file`, `--no-index`, `--recurse-submodules`, and the
+# regex selectors `-E -G -P --extended-regexp --basic-regexp --perl-regexp`.
+# P1-P9 carry the plan's exact labels. Deny rows pin the grep-grammar deny
+# message substring so a crash cannot pass as a deny.
+# ---------------------------------------------------------------------------
+expect_allow "P1: git grep -F -e token allowed" \
+  "$(auditor_cmd "git grep -F -e token")"
+
+expect_deny_teach "P2: git grep without -F denied" \
+  "$(auditor_cmd "git grep -e token")" "git grep admits one form only"
+
+expect_deny_teach "P3: git grep -O denied" \
+  "$(auditor_cmd "git grep -F -e token -O")" "-O runs a pager command"
+
+expect_deny_teach "P4: git grep -nO cluster denied" \
+  "$(auditor_cmd "git grep -nO -F -e token")" "-O runs a pager command"
+
+expect_deny_teach "P5: git grep --open-files-in-pager denied" \
+  "$(auditor_cmd "git grep -F -e token --open-files-in-pager=less")" "git grep admits one form only"
+
+expect_deny_teach "P6: git grep -E denied" \
+  "$(auditor_cmd "git grep -E -F -e token")" "git grep admits one form only"
+
+# P7/P22 carry a full `-F -e token` so ONLY the -f/--file rule can deny: a
+# payload without -e would still deny at the closing exactly-one-`-e` check,
+# so the row could not see a regression that admits -f. Each pins the
+# rule-specific substring, not the shared opening fragment.
+expect_deny_teach "P7: git grep -f denied" \
+  "$(auditor_cmd "git grep -F -e token -f /etc/passwd")" "carries -f"
+
+expect_deny_teach "P8: git grep --no-index denied" \
+  "$(auditor_cmd "git grep -F -e token --no-index")" "git grep admits one form only"
+
+# P9: a quoted pattern denies at the residue rule, BEFORE the grep grammar runs
+# (quotes are outside the char allowlist) — the metacharacter rule names the
+# narrow form as the fallback. Built with jq -nc (C11's rationale).
+expect_deny_teach "P9: git grep -F with quoted pattern denied" \
+  "$(jq -nc --arg c "git grep -F -e 'a b'" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
+  "git grep -F -e <token>"
+
+# P10-P15: the admitted grammar's optional parts, each allowed on its own.
+expect_allow "P10: git grep --fixed-strings -e token → allowed (long -F spelling)" \
+  "$(auditor_cmd "git grep --fixed-strings -e token")"
+
+expect_allow "P11: git grep -nF -e token → allowed (short cluster parsed letter by letter)" \
+  "$(auditor_cmd "git grep -nF -e token")"
+
+expect_allow "P12: git grep -F -n -i -l -w -c -e token → allowed (every optional read flag)" \
+  "$(auditor_cmd "git grep -F -n -i -l -w -c -e token")"
+
+expect_allow "P13: git grep -F -e token HEAD~1 → allowed (one revision)" \
+  "$(auditor_cmd "git grep -F -e token HEAD~1")"
+
+expect_allow "P14: git grep -F -e token -- hooks/ skills/war → allowed (-- pathspec)" \
+  "$(auditor_cmd "git grep -F -e token -- hooks/ skills/war")"
+
+expect_allow "P15: work-audit-refine:war-evidence-auditor git grep -F -e token → allowed (evidence seat, same grammar)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "git grep -F -e token")"
+
+# P16-P27: default-deny by token shape for the rest of the grep option space.
+expect_deny_teach "P16: git grep -F token → denied (pattern must ride -e)" \
+  "$(auditor_cmd "git grep -F token")" "git grep admits one form only"
+
+expect_deny_teach "P17: git grep -F -e a -e b → denied (exactly one -e)" \
+  "$(auditor_cmd "git grep -F -e a -e b")" "git grep admits one form only"
+
+expect_deny_teach "P18: git grep -F -e → denied (dangling -e)" \
+  "$(auditor_cmd "git grep -F -e")" "git grep admits one form only"
+
+expect_deny_teach "P19: git grep -Ovim -F -e token → denied (-O with attached pager, cluster spelling)" \
+  "$(auditor_cmd "git grep -Ovim -F -e token")" "-O runs a pager command"
+
+expect_deny_teach "P20: git grep -F -e token --open-files-in-pager → denied (bare long spelling)" \
+  "$(auditor_cmd "git grep -F -e token --open-files-in-pager")" "git grep admits one form only"
+
+expect_deny_teach "P21: git grep -F -e token --recurse-submodules → denied" \
+  "$(auditor_cmd "git grep -F -e token --recurse-submodules")" "git grep admits one form only"
+
+expect_deny_teach "P22: git grep -F -e token --file=pats → denied (long -f spelling)" \
+  "$(auditor_cmd "git grep -F -e token --file=pats")" "'--file=pats' is not part of that form"
+
+expect_deny_teach "P23: git grep -F -e token HEAD HEAD~1 → denied (at most one revision)" \
+  "$(auditor_cmd "git grep -F -e token HEAD HEAD~1")" "git grep admits one form only"
+
+expect_deny_teach "P24: git grep -nFe token → denied (-e never rides a cluster)" \
+  "$(auditor_cmd "git grep -nFe token")" "git grep admits one form only"
+
+expect_deny_teach "P25: git grep -F -P -e token → denied (--perl-regexp short spelling)" \
+  "$(auditor_cmd "git grep -F -P -e token")" "git grep admits one form only"
+
+expect_deny_teach "P26: git grep -F -e token --extended-regexp → denied (long regex selector)" \
+  "$(auditor_cmd "git grep -F -e token --extended-regexp")" "git grep admits one form only"
+
+expect_deny_teach "P27: git grep -F -e token -o → denied (-o stays out of the grammar)" \
+  "$(auditor_cmd "git grep -F -e token -o")" "git grep admits one form only"
+
+# P28/P29: the unlisted-verb deny and the not-a-git deny name the narrow
+# fallback beside the Grep tool (D21: deny messages that pointed only at the
+# Grep tool also name git grep -F -e <token>; the metacharacter deny is P9).
+expect_deny_teach "P28: git fetch → denied + unlisted-verb teach names the git grep -F -e <token> fallback" \
+  "$(auditor_cmd "git fetch")" "git grep -F -e <token>"
+
+expect_deny_teach "P29: grep -n tok path → denied + not-a-git teach names the git grep -F -e <token> fallback" \
+  "$(auditor_cmd "grep -n tok path")" "git grep -F -e <token>"
 
 # ---------------------------------------------------------------------------
 # CASE GROUP H: read-only global -C <path>
@@ -553,7 +667,7 @@ expect_allow "H6: git -C -C rev-parse HEAD → allowed (first -C peeled; rest = 
 
 # ---------------------------------------------------------------------------
 # CASE GROUP I: suffix-anchored agent-type arm (#810)
-# The "Only gate war-auditor agents" arm is suffix-anchored (`*war-auditor`),
+# The "Only gate war-auditor and war-evidence-auditor agents" block's auditor arm is suffix-anchored (`*war-auditor`),
 # capturing the dispatched `work-audit-refine:war-auditor` but NOT a longer
 # `...war-auditor-helper` decoration. I1/I2 are a delete-the-feature pair:
 # revert the anchor to a substring arm and I1 flips to deny (over-capture)
@@ -693,10 +807,11 @@ expect_deny "K4: git blame -L 1,+5; rm -rf . → denied (semicolon composition s
 
 # K5/K6/K7/K8: the D3 forbidden-char micro-teach, asserted four times on one payload —
 # one per contract element, so no element can be trimmed away silently.
-# SITE-PINNED BY ROUTING, not merely by substring: the char check is the first check
-# after the empty-command guard, so "git diff HEAD && git log" can only exit at the
-# forbidden-char deny site — a future teach-vocabulary overlap at another deny site
-# cannot make any of these assertions pass vacuously.
+# SITE-PINNED BY ROUTING, not merely by substring: the char checks (the #1828 newline
+# pre-check, then the residue allowlist) are the first checks after the empty-command
+# guard, and this payload carries no newline, so "git diff HEAD && git log" can only
+# exit at the forbidden-char deny site — a future teach-vocabulary overlap at another
+# deny site cannot make any of these assertions pass vacuously.
 # K5 pins the prefix tail "forbidden character(s):" plus the 20-char residue echo at
 # the front (the leading "command contains" fragment rides along, unpinned by itself).
 expect_deny_teach "K5: git diff HEAD && git log → denied + byte-preserved prefix and residue echo" \
@@ -727,14 +842,15 @@ expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain tea
 # glob/alternation/expansion metacharacters are refused outright — with the
 # Grep-tool (glob:/type: filters) remedy (since #1435 that clause lives on the
 # non-chain residue branch; group M pins the classification). Message text ONLY: the deny
-# DECISION is byte-unchanged (exit 2, char check still fires first, verb set
-# untouched — #1412 fix 2's grep-verb widening is deliberately NOT taken, cf.
-# G6), and K5–K8 stay green on their frozen substrings.
+# DECISION is byte-unchanged (exit 2, char check still fires first; the verb set
+# later admitted the narrow `git grep -F -e <token>` form, cf. G6 and group P,
+# which a quoted payload never reaches), and K5–K8 stay green on their frozen substrings.
 # L1/L2 assert on a representative denied search: git grep with an alternation
-# \| — the exact #1412 shape. Routing-pinned like K5–K8: the char check is the
-# first check after the empty-command guard, so this payload can only exit at
-# the forbidden-char deny site (never at G6's unlisted-verb site — the \| and
-# quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
+# \| — the exact #1412 shape. Routing-pinned like K5–K8: the char checks (the
+# #1828 newline pre-check, then the residue allowlist) are the first checks
+# after the empty-command guard, and this payload carries no newline, so it can
+# only exit at the forbidden-char deny site (never at group P's grep-grammar site —
+# the \| and quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
 # rationale: \| is an invalid JSON escape, so auditor_cmd's printf would emit
 # unparseable JSON, the guard's jq read of .agent_type would return empty, and
 # the non-auditor `*) exit 0` pass-through would exit 0 with empty stderr —
@@ -762,13 +878,15 @@ expect_deny_teach "L2: git grep 'a\\|b' → denied + Grep-tool filters remedy" \
 # ---------------------------------------------------------------------------
 # CASE GROUP M: residue-classified deny — chain-operator vs metacharacter (#1435)
 # The forbidden-char deny now classifies the residue BEFORE composing the
-# message: a residue of ONLY chain/control operators (& ; | newline) names the
+# message: a residue of ONLY chain/control operators (& ; |) names the
 # chain-operator rule (one bare git command per Bash call, with the #1421(b)
 # split-the-chain + Read/Grep/Glob ergonomics retained on that branch — K6/K7/K8
 # keep their frozen substrings there); any other residue byte names the
 # metacharacter rule (L1/L2's branch). Message-only: allowlist, decision, and
 # exit codes byte-unchanged — every group C/E/H5/K case above stays green
-# unmodified, and M5 pins the allow path untouched.
+# unmodified, and M5 pins the allow path untouched. An embedded newline never
+# reaches this classifier: the hook's pre-check on `$cmd` denies it before the
+# residue assignment (#1828) — group N owns those rows.
 # ---------------------------------------------------------------------------
 
 # M1: chain-operator denial names the chain-operator rule (End state 13). The &&
@@ -837,6 +955,96 @@ expect_deny "M6: >64KB all-forbidden-char payload → still exit 2 (no SIGPIPE f
   "$(jq -nc --arg c "git log $_oversized_pad" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')"
 unset _oversized_pad
+
+# ---------------------------------------------------------------------------
+# CASE GROUP N: newline-deny — the embedded-newline pre-check (#1828, #1830)
+# A newline is outside the char allowlist, but the $(...) at the residue
+# assignment strips trailing newlines, so a payload whose ONLY out-of-allowlist
+# byte is a newline used to reach the verb parser with an EMPTY residue and
+# pass: `git diff HEAD<newline>echo pwned` exited 0 (a read-only sandbox
+# escape). The hook now matches `$cmd` itself for a newline BEFORE the residue
+# assignment and denies with the chain-operator arm's text. Payloads use the
+# JSON-escaped `\n` shape: auditor_cmd's printf '%s' passes the two bytes
+# through verbatim, and the hook's jq read decodes them to a real newline, so
+# each case asserts against the bytes the hook actually parses.
+# ---------------------------------------------------------------------------
+
+# N1: newline-joined WRITE git command — `log HEAD` satisfies the `log\ *` verb
+# arm, so the allowlist never sees `push` (allowed at base, exit 0). The space
+# after `log` is load-bearing: `git log` + newline + `git push` was already
+# denied at base by the first-word parse, so it would prove nothing. (A BARE
+# trailing newline is not a row here: the hook's own `cmd="$(get …)"` read
+# strips it before the pre-check can see it, so `git diff HEAD` + newline runs
+# as one bare read command — no bypass.)
+expect_deny_teach "N1 newline-deny: git log HEAD + newline + git push → denied + chain-operator rule named" \
+  "$(auditor_cmd 'git log HEAD\ngit push')" \
+  "the chain-operator rule fired"
+
+# N2: mid-command newline followed by allowlisted bytes — still a newline-only
+# residue, still stripped to empty without the pre-check.
+expect_deny_teach "N2 newline-deny: git diff HEAD + newline + -- path → denied + chain-operator rule named" \
+  "$(auditor_cmd 'git diff HEAD\n-- path')" \
+  "the chain-operator rule fired"
+
+# N3: the #1828 bypass itself — newline-joined second command.
+expect_deny_teach "N3 newline-deny: git diff HEAD + newline + echo pwned → denied + chain-operator rule named" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "the chain-operator rule fired"
+
+# N3b: the pre-check routes to the chain-operator arm ONLY — the metacharacter
+# clause must be absent (same absence pin as M1b/M2b).
+expect_deny_lacks "N3b newline-deny: git diff HEAD + newline + echo pwned → metacharacter rule NOT named" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "the metacharacter rule fired"
+
+# N4/N5/N6: the pre-check's deny text is a hand copy of the classifier's
+# chain-operator literal (the slice keeps the classifier byte-unchanged, so no
+# shared variable). N1-N3 pin only the rule name, and K6/K7/K8 pin the teach
+# elements on the classifier copy only, so a trimmed pre-check copy would go
+# unnoticed. These three rows pin each teach element on the pre-check copy.
+expect_deny_teach "N4 newline-deny: git diff HEAD + newline + echo pwned → denied + one-bare-git-command teach" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "one bare git command per Bash call"
+
+expect_deny_teach "N5 newline-deny: git diff HEAD + newline + echo pwned → denied + split-the-chain teach element" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "split && / ; chains"
+
+expect_deny_teach "N6 newline-deny: git diff HEAD + newline + echo pwned → denied + Read/Grep/Glob teach element" \
+  "$(auditor_cmd 'git diff HEAD\necho pwned')" \
+  "Read/Grep/Glob tools"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP O: the evidence seat arm (plan 2026-10-20-rea-artifact-evidence
+# Task 2.2, D3). `*war-evidence-auditor` is its own suffix-anchored arm with
+# the same deny set as `*war-auditor`: the `*war-auditor` pattern does not
+# capture `<ns>:war-evidence-auditor`, so before the arm the seat fell to the
+# pass-through `*) exit 0` (delete-the-feature: remove the arm and O1-O3 flip
+# to exit 0). O1 carries the plan's exact label. The seat's MCP tools are gated
+# by validate-evidence-auditor-mcp.sh, not here.
+# ---------------------------------------------------------------------------
+
+# O1: non-git command → denied (exact plan label).
+expect_deny "war-evidence-auditor non-git command denied" \
+  "$(typed_cmd "war-evidence-auditor" "cat /etc/passwd")"
+
+# O2: exact dispatched shape (namespaced) → still captured → non-git denied.
+# Deny-side under-capture guard on the live default string.
+expect_deny "exact-shape :war-evidence-auditor non-git command denied (deny-side under-capture guard)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "ls /tmp")"
+
+# O3: a write verb is gated for the seat exactly as for war-auditor (B1 parity).
+expect_deny "O3: work-audit-refine:war-evidence-auditor git push → denied (same verb gate as war-auditor)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "git push")"
+
+# O4: the read verb the card names for the manifest read is admitted.
+expect_allow "O4: work-audit-refine:war-evidence-auditor git show abc1234:docs/plans/evidence/x.manifest.json → allowed" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor" "git show abc1234:docs/plans/evidence/x.manifest.json")"
+
+# O5: trailing-junk decoration → the suffix-anchored arm no longer captures →
+# pass-through (I1 parity).
+expect_allow "O5: work-audit-refine:war-evidence-auditor-helper cat x → exit 0 (arm no longer captures)" \
+  "$(typed_cmd "work-audit-refine:war-evidence-auditor-helper" "cat x")"
 
 # ---------------------------------------------------------------------------
 # Summary
