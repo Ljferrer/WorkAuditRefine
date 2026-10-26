@@ -10,7 +10,7 @@ holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (wave 4). Prose
 temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
-same way. **Coldness criterion** (one standing criterion; selections through wave 3 are recorded in
+same way. **Coldness criterion** (one standing criterion; selections for waves 1-3 and 5 are recorded in
 the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
 CONTEXT.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
 carrying no live drift-guard key): a term qualifies when it names a
