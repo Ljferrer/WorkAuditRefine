@@ -83,14 +83,23 @@ un-triaged, or any exit 2, also stamps `infra-failed — guard unsettled`. Such 
 only `[assumed:]`. The header line `escape-guard:` of the Trials block reads `clean` only
 when every trial's guard settled.
 
-**Base attestation.** Read the base from the clone, never from the checkout:
+**Base attestation.** Before the clone, and after any convert-mode WIP commit, read the
+checkout's sha (in convert mode, the WIP commit):
+
+```
+git -C <repo> rev-parse HEAD
+```
+
+After the clone, read the base from the clone, never from the checkout:
 
 ```
 git -C <scratchpad>/trial-<n> rev-parse HEAD
 ```
 
-The row records it as `base: <sha>`. A sha that differs from the base the plan's claims
-cite is `infra-failed — base mismatch`.
+The row records the clone sha as `base: <sha>`, and a settled claim cites it as
+`(verified: TRIAL-n at <base>)`. A clone sha that differs from the checkout's sha is
+`infra-failed — base mismatch`. A plan's earlier measurement base is never the comparand:
+a checkout ahead of it, or a convert-mode WIP commit, is a valid base.
 
 **Removal attestation.** After the baseline, `rm -rf` the clone and record `removed:
 <path>` on the row. A row without `removed:` is open.
