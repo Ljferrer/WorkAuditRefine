@@ -1814,7 +1814,7 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every evicted term and, since wave 5, the born-cold terms too, not one plan's five. Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned) and, since wave 5, the born-cold terms too, not one plan's five. Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while CONTEXT.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
