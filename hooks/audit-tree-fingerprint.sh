@@ -232,8 +232,9 @@ canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
 # watchdog's kill only when the deadline has passed (the sleep is the whole
 # remaining deadline in whole seconds, so SECONDS >= DEADLINE at the kill). A
 # SIGTERM from elsewhere before the deadline (a worker-set core.fsmonitor
-# helper that kills its parent) returns 143, which the caller reads as a git
-# error, never as the timeout reason the Lead may rule fail-open. The
+# helper that kills its parent) returns 143, which fingerprint reads as a git
+# error and blob_lines as an `unreadable` blob (a later mismatch), never as
+# the timeout reason the Lead may rule fail-open. The
 # watchdog is a subshell whose own `sleep` is a background child it kills
 # from a TERM trap, so cancelling the watchdog after a fast call leaves no
 # orphan sleep. The sleep
