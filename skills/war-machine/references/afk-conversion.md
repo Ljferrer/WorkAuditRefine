@@ -20,3 +20,8 @@
    `## Assumptions ledger` row it carries forward or retires, an End state it synthesizes, a
    triad survivor it self-adjudicates into the deviations log — carries a per-row `AI-declared`
    marker inline, so no AI-invented row is ever read as operator-ratified.
+
+   **Trials under `--afk` (D5, [`fork-trials.md`](../../war-strategy/references/fork-trials.md) §AFK):**
+   the drafter writes `AI-declared` on every `TRIAL-<n>` row, and a pair-beat pick's Source cell reads
+   `PIN-n · AI-declared [assumed: picked on the frozen criteria, TRIAL-n — if wrong: <losing candidate>]`
+   with no pipe character inside the cell.
