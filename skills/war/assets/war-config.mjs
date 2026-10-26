@@ -60,6 +60,12 @@ export const DEFAULTS = {
     // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Defaulted here;
     // a preset may re-pin it (see PRESETS).
     snipe:    { model: 'opus',   effort: 'high' },
+    // trial: the model/effort of the subagent that runs a fork trial in /war-strategy's plan
+    // interview (D18). Read fail-open by /war-strategy's fork-trial subagent dispatch, exactly as
+    // /red-team reads agents.redteam. NOT a phase role (never in ROLES/agentMatrix) and no
+    // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
+    // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
+    trial:    { model: 'opus',   effort: 'default' },
   },
   audit: {
     roster: [
@@ -105,6 +111,14 @@ export const DEFAULTS = {
   // .claude/war/vale/.vale.ini written by the /war-room interview (fail-open to the
   // default when absent). Subordinate to valeMarkdown: when that is false, nothing runs.
   hooks: { replyStandard: true, valeMarkdown: true, valeStyle: 'workAuditRefine' },
+  // interview.*: the fork-trial bounds /war-strategy's plan interview reads fail-open (D7, D11):
+  // trialWallSeconds is the wall cap per trial, commandTimeoutSeconds the per-command timeout inside
+  // the sweep, excerptLines the fenced-excerpt cap. Each a positive integer; an explicit null reads as
+  // unset (the run.maxParallel `!= null` idiom) and the interview falls back to this value per key.
+  // No preset sets the section and nothing threads it into Workflow args — the phase engine never
+  // reads it, so no workflow-template.js mirror. The retry rule (one retry, on infra-failed only) is
+  // doctrine in fork-trials.md, never a key here (PIN-11: exactly three keys).
+  interview: { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20 },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -131,6 +145,7 @@ export const PRESETS = {
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
       snipe:    { model: 'fable',  effort: 'default' },
+      trial:    { model: 'fable',  effort: 'default' },
     },
     // 5-lens pool: under rosterPolicy 'auto' the Lead seeds 1–5 seats per task from it.
     audit: {
@@ -145,8 +160,8 @@ export const PRESETS = {
   },
   economy: {
     profile: 'economy',
-    // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers and the
-    // auditor, refiner, servitor and red-team seats, roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
+    // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers, the
+    // auditor, refiner, servitor and red-team seats, the trial tier (A9), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
     // autoEscalate widening fallback, the phase-close polish panel, and the terminal-pass seat source,
     // never a per-task seat count.
@@ -157,6 +172,7 @@ export const PRESETS = {
       refiner:  { model: 'sonnet', effort: 'high' },
       servitor: { model: 'sonnet', effort: 'high' },
       redteam:  { model: 'sonnet', effort: 'default' },
+      trial:    { model: 'sonnet', effort: 'high' },
     },
     audit: {
       roster: [
@@ -225,8 +241,9 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam and the agents.worker.docs/fix tiers: validated exactly like a phase role, but
-// none of them is itself a ROLE (redteam feeds /red-team; the tiers refine worker dispatch).
+// for agents.redteam, agents.snipe, agents.trial and the agents.worker.docs/fix tiers: validated exactly
+// like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
+// trial feeds /war-strategy's fork-trial subagent; the worker tiers refine worker dispatch).
 function validateAgentTier(block, path, errors) {
   if (!isObj(block)) { errors.push(`${path} must be an object { model, effort }`); return }
   if (!MODELS.includes(block.model)) errors.push(`${path}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(block.model)})`)
@@ -265,7 +282,10 @@ export function validate(input) {
   // agents.snipe — /snipe's one-shot seat tier (#1920), validated like redteam when present and
   // non-null (explicit null = unset: snipeTier falls back to agents.auditor).
   if (c.agents.snipe != null) validateAgentTier(c.agents.snipe, 'agents.snipe', errors)
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe']
+  // agents.trial — the fork-trial subagent tier (D18), validated in the redteam idiom (present ⇒ a
+  // tier; a present null is rejected). /war-strategy's plan interview reads it fail-open.
+  if (Object.prototype.hasOwnProperty.call(c.agents, 'trial')) validateAgentTier(c.agents.trial, 'agents.trial', errors)
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial']
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }
@@ -328,6 +348,23 @@ export function validate(input) {
     if (hk.valeStyle !== null && !VALE_STYLES.includes(hk.valeStyle)) errors.push(`hooks.valeStyle must be one of ${VALE_STYLES.join('|')} or null`)
     for (const k of Object.keys(hk)) {
       if (!['replyStandard', 'valeMarkdown', 'valeStyle'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard|valeMarkdown|valeStyle) — run /war-room to regenerate the config`)
+    }
+  }
+
+  // interview.* — the fork-trial bounds (D7, D11), defaulted in DEFAULTS. Consumed fail-open by
+  // /war-strategy's plan interview, never by the phase engine — no workflow-template.js mirror.
+  // The hooks/memory shape: isObj guard, each key a positive integer, unknown keys courtesy errors.
+  // An explicit null key is unset (the run.maxParallel `!= null` idiom, never hooks' `!== null`):
+  // the interview falls back to DEFAULTS.interview per key.
+  const iv = c.interview
+  if (!isObj(iv)) { errors.push('interview must be an object') }
+  else {
+    const INTERVIEW_KEYS = ['trialWallSeconds', 'commandTimeoutSeconds', 'excerptLines']
+    for (const k of INTERVIEW_KEYS) {
+      if (iv[k] != null && (!Number.isInteger(iv[k]) || iv[k] < 1)) errors.push(`interview.${k} must be an integer >= 1 when set (got ${JSON.stringify(iv[k])})`)
+    }
+    for (const k of Object.keys(iv)) {
+      if (!INTERVIEW_KEYS.includes(k)) errors.push(`interview.${k} is not a known key (${INTERVIEW_KEYS.join('|')}) — run /war-room to regenerate the config`)
     }
   }
 
