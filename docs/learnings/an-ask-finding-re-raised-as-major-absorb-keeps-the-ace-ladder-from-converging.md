@@ -15,7 +15,7 @@ metadata:
     - round limit
   provenance: agent-unverified
   slug: an-ask-finding-re-raised-as-major-absorb-keeps-the-ace-ladder-from-converging
-  phase: 2026-10-20-rea-artifact-evidence/phase-7 task 7.2
+  phase: 2026-10-20-rea-artifact-evidence/phase-7 task 7.2, outcome noted at phase-8
   tags:
     - war
     - audit
@@ -24,7 +24,7 @@ metadata:
     - ask-unruled
   created: 2026-10-24
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-25T00:57:10.285Z
+  modified: 2026-10-26T21:25:39.498Z
 ---
 
 # Rule it early: one defect, three dispositions, six reverted rounds
@@ -40,6 +40,8 @@ metadata:
 - The audit log carries `escalations: []`. No operator ruling on the per-call question exists in it.
 
 **Hypothesis (agent-unverified).** The ladder could not converge because the fork was never ruled. A defect the fixer will not take under its subset cannot reach approval. A seat that sees it as a fixable bug will keep blocking. A seat that sees it as an operator decision will keep filing an `ask`. An operator ruling on the round-0 `ask` (bound each call, or accept the 60 s margin and document it) would have ended the loop in round 1.
+
+**Outcome in phase 8 (agent-unverified, audit-log reading).** The operator ruled the fork on 2026-10-24, and phase 8 ("Ruled asks") built the rulings into task 8.1. The bounded-call defect did not come back as a flipping finding. Task 8.1 still took eight commits on one branch, but later rounds each raised a new defect: implied `--no-index`, attached short options, a leading-zero deadline, a bare exit 143, physical against lexical paths. No ace commit was forward-reverted. The p8-polish queue drained in two rounds, and the terminal round approved with only a Nit. This supports the hypothesis. It is one run, and the log does not rule out other causes.
 
 **How to apply.**
 - When one finding title recurs across ace rounds with a flipping disposition, stop the ladder and put the round-0 `ask` to the operator. Do not raise the round cap: it is a safety control ([[bounded-fix-and-ace-rounds-are-a-safety-precaution-plan-defect-exit-discloses-at-round-5]]).
