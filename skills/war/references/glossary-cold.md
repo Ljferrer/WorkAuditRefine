@@ -1,10 +1,12 @@
-# Glossary cold home — evicted CONTEXT.md entries
+# Glossary cold home — evicted and born-cold CONTEXT.md entries
 
-The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for evicted
-`CONTEXT.md` glossary bodies. Each body below was byte-identical to its pre-eviction `CONTEXT.md`
-text **at eviction time** (only repo-root-relative links were re-anchored for this file's depth),
-moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
-one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`). One
+The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) for evicted and
+born-cold `CONTEXT.md` glossary bodies. Each evicted body below was byte-identical to its pre-eviction
+`CONTEXT.md` text **at eviction time** (only repo-root-relative links were re-anchored for this file's
+depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
+one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
+A born-cold body is authored here first and has no pre-eviction text to match (wave 5): `CONTEXT.md`
+holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (wave 4). Prose
 temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
@@ -494,3 +496,65 @@ fresh window after compaction — the code-enforced half of survival (paired wit
 checkpoint** prompt directive). Silent and harmless in any session not running a campaign.
 _Avoid_: `PreCompact` blocking or summary-shaping to steer compaction — rejected (no trigger, no sensor,
 blocking rides into the ceiling); see the ADR.
+
+## Executor gate
+
+The final silent gate before the merged plan file is written: *could `/war` decompose-dispatch this,
+and `/red-team` attack it, with zero operator questions?* A "no" reopens the interview while question
+budget remains; otherwise the residue is default-and-tagged and recorded in the ledger. Runs beside the
+provenance gate (the untagged-claim scan — an untagged claim of fact is a bug).
+_Avoid_: the run-time **gate command** / gate-audit (those gate merges and lands; this gates
+authoring completeness).
+
+## Decisive slot
+
+One row of the interview doctrine's decisive-slots table: an interview extract hard-linked to where it
+lands in the merged plan and which consumer reads it there (validation criteria → tagged End states;
+constraints → `## Pivotal constraints`; file footprints → per-task `Files:`; assumptions → the ledger;
+new terms → this glossary). The interview's completion bar: an interview with an unfilled decisive slot
+has not finished.
+_Avoid_: treating a slot as an optional heading; filling one in free prose where its consumer never
+reads.
+
+## Fork trial
+
+A bounded throwaway experiment the interviewer runs itself to settle a Stage 1b fact fork before the
+operator ratifies a design. The question, its outcome branches and its `bound:` are pre-registered
+before the run; the run happens in a `git clone --no-hardlinks` sandbox with the escape guard
+snapshot before and baseline after it; the result lands as one `TRIAL-<n> · fact` row in the
+**Trials run block**. Outcomes: `settled` · `inconclusive` · `infra-failed`, with one retry only on
+`infra-failed`. A fork trial costs no question of the budget. Doctrine: `fork-trials.md`.
+_Avoid_: a preference fork (that is a question to the operator, never a trial); plan prose as
+evidence that a design works; `cp -R` or `git worktree add` as the sandbox; a trial that executes a
+shipped artifact (the REA lane or `/red-team`); an exploratory run with no prior row minting a
+settlement (it may mint a fork or an `[assumed:]`).
+
+## Pair beat
+
+The interview beat that settles a consequential interface by comparing two structurally different
+candidate designs drawn from one frozen brief (problem, constraints, evidence, the caller's usage,
+3–6 criteria named before any candidate). It fires on three triggers: a new or reshaped exported
+contract; a new or reshaped artifact grammar with two or more consumers; a mechanism floored into
+`Binding guardrails:` with two or more non-equivalent realizations. Two candidates by default, three
+at most, one reframe on wild divergence; the beat costs one question of `Qk/14`. The operator may
+decline by bare assent, and the row then records `chosen: <design> (user) — pair declined: <reason>`.
+Under `--afk` the drafter authors both candidates and picks; the grill refutes the pick. Doctrine:
+`fork-trials.md`.
+_Avoid_: a WAIVE row for a declined pair; two shapes that differ only in naming (the necessity twin
+makes that a verifier beat); a candidate authored before the brief is frozen; a suppressed pair beat
+under `--afk`.
+
+## Trials run block
+
+The one Part 1 block, labelled `**Trials run** — one row per trial:`, that records every fork trial,
+pair beat and sweep an interview ran: a header carrying the bounds and their config source, the
+trial tier, token and wall-time use and the escape-guard state, then one
+`- TRIAL-<n> · fact | pair | sweep · <fields>` row per trial, with `command` and `observed` in a
+nested fence. `TRIAL-<n>` reuses the PIN token grammar (digits-only, right-delimited). Placement
+latitude anywhere in Part 1 outside `## Context`, inheriting the Evidence consumed block's law by
+name; `None — no fork qualified` when nothing qualified. Only a pre-registered `settled` row backs a
+`(verified: TRIAL-n at <base>)` citation; an inconclusive row backs an Assumptions-ledger row whose
+Check is the trial's replay command. Grammar: `fork-trials.md`.
+_Avoid_: a new required H2 for the block; a `(verified:)` citation of an inconclusive or
+infra-failed row; the word "validated" on a sweep row; a column-0 `## `, `### ` or `- Files:` line
+inside a fence.
