@@ -217,8 +217,12 @@ sha256_of_stdin() {
   fi
 }
 
-# canon <dir> -> the physical path of an existing dir.
-canon() { (cd "$1" 2>/dev/null && pwd -P); }
+# canon <dir> -> the physical path of an existing dir. `cd -P` resolves a
+# `..` after a symlink physically (`lnk/..` is the parent of the link TARGET),
+# as the kernel and git resolve it. bash's default `-L` mode removes `lnk/..`
+# lexically before it follows the link, so a worktree-planted
+# `lnk -> <other worktree>/sub` would resolve to the wrong worktree.
+canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
 
 # bounded <outfile> <infile> <cmd...>: runs <cmd> as a background child with
 # stdin from <infile> and stdout to <outfile>, under a watchdog that kills it
@@ -284,11 +288,14 @@ bounded() {
 # call runs under the deadline watchdog (bounded). Returns 3 when the deadline
 # passes mid-list or kills a hash-object call (the caller stops hashing),
 # else 0.
-# hfrm: drop blob_lines' hash-output temp file (never the /dev/null fallback).
-hfrm() { [ "$_hf" = /dev/null ] || rm -f "$_hf"; }
+# hfnew: make blob_lines' hash-output temp file on the first hash-object
+# call, so a clean worktree (empty status, no call) spawns no mktemp and no
+# rm. hfrm: drop that file (a no-op when none was made, or on the /dev/null
+# fallback).
+hfnew() { [ -n "$_hf" ] || { _hf="$(mktemp 2>/dev/null)"; [ -n "$_hf" ] || _hf=/dev/null; }; }
+hfrm() { [ -z "$_hf" ] || [ "$_hf" = /dev/null ] || rm -f "$_hf"; }
 blob_lines() {
-  _P=(); _O=(); _n=0; _nb=0; _skip=0; _batch=""
-  _hf="$(mktemp 2>/dev/null)"; [ -n "$_hf" ] || _hf=/dev/null
+  _P=(); _O=(); _n=0; _nb=0; _skip=0; _batch=""; _hf=""
   while IFS= read -r -d '' _l; do
     expired && { hfrm; return 3; }
     if [ "$_skip" = 1 ]; then _skip=0; continue; fi
@@ -302,6 +309,7 @@ blob_lines() {
     else
       case "$_p" in
         *"$NL"*|\"*|*"$CR")
+           hfnew
            bounded "$_hf" /dev/null git -C "$1" hash-object --no-filters -- "$_p"; _brc=$?
            if [ "$_brc" = 3 ]; then hfrm; return 3; fi
            _o=""; [ "$_brc" = 0 ] && _o="$(head -n 1 "$_hf" 2>/dev/null)"
@@ -316,6 +324,7 @@ blob_lines() {
   if [ "$_nb" -gt 0 ]; then
     _bf="$(mktemp 2>/dev/null)"; [ -n "$_bf" ] || _bf=/dev/null
     printf '%s' "$_batch" > "$_bf" 2>/dev/null
+    hfnew
     bounded "$_hf" "$_bf" git -C "$1" hash-object --no-filters --stdin-paths; _brc=$?
     [ "$_bf" = /dev/null ] || rm -f "$_bf"
     if [ "$_brc" = 3 ]; then hfrm; return 3; fi

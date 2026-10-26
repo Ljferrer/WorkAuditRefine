@@ -535,6 +535,27 @@ PCWD="$TMP/wtA"
 run "$(mk_bash "$AUD" t30 "git diff sub/../../wtB/f sub/../../wtB/g")"
 PCWD="$MAIN"
 if touched_is t30 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "mid-path dotdot operand is touched"; else fail "mid-path .. operand not touched: |$(cat "$FP_ROOT/t30/touched" 2>/dev/null)|"; fi
+# A `..` after a symlink resolves PHYSICALLY: wtA holds `lnk -> wtB/sub`, so
+# `lnk/../f` is wtB/f to the kernel and to git (`git diff --no-index lnk/../f
+# /dev/null` from wtA reads wtB/f, verified on git 2.54). bash's default `-L`
+# cd would remove `lnk/..` lexically and resolve it to wtA, so the row goes
+# red when canon drops `-P`. Both arms of the operand: relative from wtA
+# (`diff` and the cwd resolve to wtA, so the set is wtA then wtB), then
+# absolute from $MAIN (no marker, so wtB is the only line). The link and
+# wtB/sub are removed after the rows, so later wtA and wtB fingerprints are
+# unchanged.
+mkdir -p "$TMP/wtB/sub"
+ln -s "$TMP/wtB/sub" "$TMP/wtA/lnk"
+run "$(mk_start "$AUD" t30b)"
+PCWD="$TMP/wtA"
+run "$(mk_bash "$AUD" t30b "git diff --no-index lnk/../f /dev/null")"
+PCWD="$MAIN"
+if touched_is t30b "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "symlink-then-dotdot operand is touched at the link target's parent"; else fail "symlink then .. resolved lexically: |$(cat "$FP_ROOT/t30b/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t30c)"
+run "$(mk_bash "$AUD" t30c "git diff --no-index $TMP/wtA/lnk/../f /dev/null")"
+if touched_is t30c "$WTB"; then pass "absolute symlink-then-dotdot operand is touched at the link target's parent"; else fail "absolute symlink then .. resolved lexically: |$(cat "$FP_ROOT/t30c/touched" 2>/dev/null)|"; fi
+rm "$TMP/wtA/lnk"
+rmdir "$TMP/wtB/sub"
 # A `--<opt>=<value>` whose value is a bare relative path (no `./`, no `../`)
 # into a nested task worktree: `git blame --contents=<file>` reads that file.
 # `HEAD`, `--` and `f` resolve to $MAIN (no marker), so wtE is the only line.
@@ -1211,6 +1232,27 @@ if [ "$_m" = "${_m%% *} 2 $WTS" ] && [ "$(cat "$FP_ROOT/d8/timeout-skipped" 2>/d
 else
   fail "git-error skip labelled wrong (marker=|$_m| skipped=|$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)| rsn=|$rsn| start=|$(cat "$FP_ROOT/d8/start" 2>/dev/null)|)"
 fi
+# A clean worktree spawns one temp file per fingerprint (the status output),
+# never a second for hash output: blob_lines makes that file on its first
+# hash-object call, and a clean worktree makes none. A `mktemp` shim counts
+# the calls the verdict arm makes on a fresh marked worktree (wtF, clean:
+# .war-task is excluded) that one Read touched. The row goes red (count 2)
+# when the file is made on entry again.
+REALMKTEMP="$(command -v mktemp)"
+printf '#!/bin/bash\nprintf x >> "%s"\nexec "%s" "$@"\n' "$TMP/mtcount" "$REALMKTEMP" > "$SHIMG/mktemp"
+chmod +x "$SHIMG/mktemp"
+git -C "$MAIN" worktree add -q "$TMP/wtF" -b fclean
+printf 'marker\n' > "$TMP/wtF/.war-task"
+PCWD="$TMP/wtF"
+run "$(mk_start "$AUD" d9)"
+run "$(mk_read "$AUD" d9 "$TMP/wtF/f")"
+: > "$TMP/mtcount"
+_p="$(mk_verdict "$AUD" d9)"
+run_shim "$_p"
+PCWD="$MAIN"
+_mt="$(wc -c < "$TMP/mtcount" | tr -d ' ')"
+if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$_mt" = 1 ]; then pass "a clean worktree's fingerprint makes one temp file (no hash-output file before a hash-object call)"; else fail "clean worktree temp files: mktemp calls=$_mt rc=$RC out=|$OUT| err=|$ERR|"; fi
+git -C "$MAIN" worktree remove --force "$TMP/wtF"
 rm -rf "$SHIMG"
 
 # --- exit contract: 0 or 2 only -----------------------------------------------
