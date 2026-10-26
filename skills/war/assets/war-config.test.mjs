@@ -952,10 +952,14 @@ test('interview: object guard, unknown key rejected, positive integers, null key
   // never threaded into Workflow args
   assert.equal(readDoc('skills/war/assets/workflow-template.js').includes('args.interview'), false,
     'the phase engine never reads interview.*')
-  // presence pins: /war-room step 2 names each key in its interview bullet
+  // presence pins: /war-room step 2 names each key in its interview bullet. Anchor the bullet line
+  // by shape first (the DEMIRRORED agents.trial idiom) so a mention elsewhere in the file cannot
+  // satisfy the pins once the bullet leaves step 2; then check each key on that line only.
   const warRoom = readDoc('skills/war-room/SKILL.md')
+  const bullet = warRoom.match(/^\s*- `interview\.trialWallSeconds` \/ `interview\.commandTimeoutSeconds` \/ `interview\.excerptLines`[^\n]*$/m)
+  assert.ok(bullet, '/war-room step 2 must carry the interview bullet line')
   for (const key of ['interview.trialWallSeconds', 'interview.commandTimeoutSeconds', 'interview.excerptLines']) {
-    assert.ok(warRoom.includes(`\`${key}\``), `/war-room step 2 must name ${key}`)
+    assert.ok(bullet[0].includes(`\`${key}\``), `/war-room step 2 interview bullet must name ${key}`)
   }
 })
 
