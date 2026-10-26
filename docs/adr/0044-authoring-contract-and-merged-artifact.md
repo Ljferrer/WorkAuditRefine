@@ -361,7 +361,7 @@ Two funding moves ride the same plan. The three new glossary terms (**Fork trial
 beat**, **Trials run block**) are born cold in `skills/war/references/glossary-cold.md`, with
 pointer residues in `CONTEXT.md`; the bytes are funded by moving the `Executor gate` and
 `Decisive slot` bodies to the same cold file byte-identically, each bound by a D32 row. The
-`[assumed]`-first probe wording that named a `/red-team` lens that does not exist is retired on
+`[assumed]`-first probe wording that named a `/red-team` probe that does not exist is retired on
 the live surfaces and kept, frozen, in the 2026-08-04 design spec under ADR 0046's posterity rule.
 
 ### The verifier-flow record
@@ -378,8 +378,9 @@ into the launch precondition at Q6. The config beat armed, was amended (presence
 fallback, the hooks block), re-armed, forked on header provenance and was ruled at Q11. The
 red-team row armed, forked and was ruled at Q10. The trial tier (Q15) needed no new dispatch:
 the config verifier's first pass had already named the `agents.*` shape. No `WAIVE-<n>` row was
-uttered. The interview also ran its own trials under the doctrine it was ratifying: one pair
-trial (three candidate shapes, three judging lenses), three fact trials and one sweep. The
+uttered. The interview also ran its own trials while ratifying the doctrine: one pair trial
+(three candidate shapes, three judging lenses), three fact trials and one sweep. They are
+exploratory records, exempt from replay (backstop B1). The
 rejected candidates, chartered trial seats and a shared executor on the red-team scaffold, are
 recorded on the pair row with the grafts each contributed.
 
