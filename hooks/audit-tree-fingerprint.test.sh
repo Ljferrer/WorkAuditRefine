@@ -535,15 +535,21 @@ PCWD="$TMP/wtA"
 run "$(mk_bash "$AUD" t30 "git diff sub/../../wtB/f sub/../../wtB/g")"
 PCWD="$MAIN"
 if touched_is t30 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "mid-path dotdot operand is touched"; else fail "mid-path .. operand not touched: |$(cat "$FP_ROOT/t30/touched" 2>/dev/null)|"; fi
-# A `..` after a symlink resolves PHYSICALLY: wtA holds `lnk -> wtB/sub`, so
-# `lnk/../f` is wtB/f to the kernel and to git (`git diff --no-index lnk/../f
-# /dev/null` from wtA reads wtB/f, verified on git 2.54). bash's default `-L`
-# cd would remove `lnk/..` lexically and resolve it to wtA, so the row goes
-# red when canon drops `-P`. Both arms of the operand: relative from wtA
-# (`diff` and the cwd resolve to wtA, so the set is wtA then wtB), then
-# absolute from $MAIN (no marker, so wtB is the only line). The link and
-# wtB/sub are removed after the rows, so later wtA and wtB fingerprints are
-# unchanged.
+# A `..` after a symlink resolves PHYSICALLY for git's --no-index open: wtA
+# holds `lnk -> wtB/sub`, so `lnk/../f` is wtB/f to the kernel and to git
+# (`git diff --no-index lnk/../f /dev/null` from wtA reads wtB/f, verified on
+# git 2.54). bash's default `-L` cd would remove `lnk/..` lexically and
+# resolve it to wtA, so the rows go red when canon drops `-P`. Both arms of
+# the operand: relative from wtA (`diff` and the cwd resolve to wtA, so the
+# set is wtA then wtB), then absolute from $MAIN (no marker there, so the
+# operand alone gives the set: wtB physically, then wtA lexically, the
+# fail-closed over-touch). The Read tool and git's in-repo rule read the SAME path
+# LEXICALLY (Read of `/var/../private/etc/hosts` opens, while the physical
+# `/private/private/etc/hosts` does not exist), so the Read and Glob arms,
+# which have no base fallback, must touch wtA as well: task_worktree_of
+# takes both resolutions (physical first), and rows t30d and t30e go red
+# when the canon_l arm is dropped. The link and wtB/sub are removed after
+# the rows, so later wtA and wtB fingerprints are unchanged.
 mkdir -p "$TMP/wtB/sub"
 ln -s "$TMP/wtB/sub" "$TMP/wtA/lnk"
 run "$(mk_start "$AUD" t30b)"
@@ -553,7 +559,13 @@ PCWD="$MAIN"
 if touched_is t30b "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "symlink-then-dotdot operand is touched at the link target's parent"; else fail "symlink then .. resolved lexically: |$(cat "$FP_ROOT/t30b/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" t30c)"
 run "$(mk_bash "$AUD" t30c "git diff --no-index $TMP/wtA/lnk/../f /dev/null")"
-if touched_is t30c "$WTB"; then pass "absolute symlink-then-dotdot operand is touched at the link target's parent"; else fail "absolute symlink then .. resolved lexically: |$(cat "$FP_ROOT/t30c/touched" 2>/dev/null)|"; fi
+if touched_is t30c "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "absolute symlink-then-dotdot operand is touched at the link target's parent"; else fail "absolute symlink then .. missed a reading: |$(cat "$FP_ROOT/t30c/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t30d)"
+run "$(mk_read "$AUD" t30d "$TMP/wtA/lnk/../f")"
+if touched_is t30d "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "symlink-then-dotdot Read touches the lexical worktree as well as the physical one"; else fail "symlink then .. Read missed a reading: |$(cat "$FP_ROOT/t30d/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t30e)"
+run "$(mk_glob "$AUD" t30e "$TMP/wtA/lnk/..")"
+if touched_is t30e "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "symlink-then-dotdot Glob path touches the lexical worktree as well as the physical one"; else fail "symlink then .. Glob missed a reading: |$(cat "$FP_ROOT/t30e/touched" 2>/dev/null)|"; fi
 rm "$TMP/wtA/lnk"
 rmdir "$TMP/wtB/sub"
 # A `--<opt>=<value>` whose value is a bare relative path (no `./`, no `../`)

@@ -219,10 +219,20 @@ sha256_of_stdin() {
 
 # canon <dir> -> the physical path of an existing dir. `cd -P` resolves a
 # `..` after a symlink physically (`lnk/..` is the parent of the link TARGET),
-# as the kernel and git resolve it. bash's default `-L` mode removes `lnk/..`
-# lexically before it follows the link, so a worktree-planted
-# `lnk -> <other worktree>/sub` would resolve to the wrong worktree.
+# as the kernel reads it and as git opens a `--no-index` operand.
+# canon_l <dir> -> the physical path of the dir a LEXICAL reading of <dir>
+# names: `cd -L` removes `lnk/..` before it follows the link, so
+# `<wt>/lnk/..` is <wt> itself. The Read tool resolves `..` lexically
+# (`/var/../private/etc/hosts` opens; the physical `/private/private/...`
+# does not exist), and git's in-repo operand rule (path_inside_repo,
+# normalize_path_copy) is lexical too. The two readings disagree only across
+# a worktree-planted `lnk -> <other worktree>/sub`; every resolver that
+# stands in for a reader takes BOTH (task_worktree_of, outside_top), so a
+# planted link cannot point the touch away from the worktree either reader
+# reaches. The walk-down of touch_operand reads only canon: it runs for the
+# `--no-index` forms, which git opens physically.
 canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
+canon_l() { (cd -L -- "$1" 2>/dev/null && pwd -P); }
 
 # bounded <outfile> <infile> <cmd...>: runs <cmd> as a background child with
 # stdin from <infile> and stdout to <outfile>, under a watchdog that kills it
@@ -410,11 +420,26 @@ task_worktrees() {
     done
 }
 
-# task_worktree_of <path> -> the canonical .war-task worktree root that holds
-# <path>, or nothing. A relative path resolves against the payload cwd. The
-# walk runs on the canonical path of the nearest existing ancestor, so a `..`
-# segment or a symlink cannot name a different worktree than it reaches. The
-# parent step is a parameter expansion, not a dirname spawn per level.
+# marker_root_of <canonical dir> -> the .war-task worktree root that holds
+# the dir, or nothing. The parent step is a parameter expansion, not a
+# dirname spawn per level.
+marker_root_of() {
+  _d="$1"
+  while :; do
+    if [ -e "$_d/.war-task" ]; then printf '%s\n' "$_d"; return 0; fi
+    _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
+    [ "$_nd" = "$_d" ] && return 0
+    _d="$_nd"
+  done
+}
+
+# task_worktree_of <path> -> every canonical .war-task worktree root that
+# holds <path>, one per line, or nothing. A relative path resolves against
+# the payload cwd. The walk runs on the nearest existing ancestor, resolved
+# both physically (canon) and lexically (canon_l): across a planted
+# `lnk -> <other worktree>/sub` the two name different worktrees, and the
+# reader the hook stands in for may follow either rule, so both roots are
+# printed (deduped when the two resolutions agree).
 task_worktree_of() {
   _p="$1"
   case "$_p" in /*) ;; *) _p="$cwd/$_p" ;; esac
@@ -424,13 +449,11 @@ task_worktree_of() {
     [ "$_nd" = "$_d" ] && return 0
     _d="$_nd"
   done
-  _d="$(canon "$_d")" || return 0
-  while :; do
-    if [ -e "$_d/.war-task" ]; then printf '%s\n' "$_d"; return 0; fi
-    _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
-    [ "$_nd" = "$_d" ] && return 0
-    _d="$_nd"
-  done
+  _dp="$(canon "$_d")" || _dp=""
+  _dl="$(canon_l "$_d")" || _dl=""
+  [ -n "$_dp" ] && marker_root_of "$_dp"
+  [ -n "$_dl" ] && [ "$_dl" != "$_dp" ] && marker_root_of "$_dl"
+  return 0
 }
 
 # touch_line <line>: add one line to the touched set (deduped).
@@ -441,12 +464,14 @@ touch_line() {
   printf '%s\n' "$1" >> "$STATE/touched"
 }
 
-# touch_path <path>: add the worktree <path> reaches to the touched set.
+# touch_path <path>: add every worktree <path> reaches (task_worktree_of:
+# the physical and the lexical reading) to the touched set.
 touch_path() {
   [ -n "$STATE" ] || return 0
-  _wt="$(task_worktree_of "$1")"
-  [ -n "$_wt" ] || return 0
-  touch_line "$_wt"
+  task_worktree_of "$1" | while IFS= read -r _wt; do
+    [ -n "$_wt" ] && touch_line "$_wt"
+  done
+  return 0
 }
 
 # base_top: sets _top once per Bash call to the canonical work tree of the
@@ -464,7 +489,11 @@ base_top() {
 # running base `_base`, lies outside the base's work tree, or the base is in
 # no work tree. The path is resolved at its nearest existing directory
 # ancestor, since git normalizes an operand before it reads it (`/dev/null`
-# resolves at `/dev`, `a/missing` at `a`). Costs one canon subshell.
+# resolves at `/dev`, `a/missing` at `a`). git's own rule is lexical
+# (normalize_path_copy); the ancestor is resolved both ways (canon and
+# canon_l) and either resolution outside the top reports outside, so a
+# divergence over a planted link fails closed (an over-implied --no-index
+# only widens the walk-down). Costs two canon subshells.
 outside_top() {
   base_top
   [ -n "$_top" ] || return 0
@@ -474,9 +503,11 @@ outside_top() {
     [ "$_on" = "$_od" ] && return 0
     _od="$_on"
   done
-  _od="$(canon "$_od")" && [ -n "$_od" ] || return 0
-  case "$_od/" in "$_top/"*) return 1 ;; esac
-  return 0
+  _odp="$(canon "$_od")" && [ -n "$_odp" ] || return 0
+  _odl="$(canon_l "$_od")" && [ -n "$_odl" ] || return 0
+  case "$_odp/" in "$_top/"*) ;; *) return 0 ;; esac
+  case "$_odl/" in "$_top/"*) ;; *) return 0 ;; esac
+  return 1
 }
 
 # implied_noindex: returns 0 when git implies --no-index for the Bash command
