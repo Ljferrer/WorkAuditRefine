@@ -7,6 +7,7 @@ import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
   DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
+  SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
@@ -531,6 +532,31 @@ test('maxParallel: null is unset', () => {
   assert.equal(r.valid, true, r.errors.join('\n'))
   assert.equal(r.errors.some(e => /run\.maxParallel/.test(e)), false)
   assert.equal(fillDefaults({ run: { maxParallel: null } }).run.maxParallel, null)
+})
+
+// --- run.evidence (REA artifact evidence D8, End state 1) ----------------------
+// Modeled on run.maxParallel: no DEFAULTS.run entry, `!= null` guard, boolean only, no preset value.
+test('run.evidence: absent is off, null is unset, non-boolean rejected, no preset sets it', () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(DEFAULTS.run, 'evidence'), false,
+    'run.evidence must NOT be defaulted — absence is the off path')
+  assert.equal(fillDefaults({}).run.evidence, undefined)
+  const absent = validate({})
+  assert.equal(absent.valid, true)
+  assert.equal(absent.errors.some(e => /run\.evidence/.test(e)), false)
+  const nul = validate({ run: { evidence: null } })
+  assert.equal(nul.valid, true, 'explicit null is unset (the overrides.* null-as-unset convention)')
+  assert.equal(fillDefaults({ run: { evidence: null } }).run.evidence, null)
+  assert.equal(validate({ run: { evidence: true } }).valid, true)
+  assert.equal(validate({ run: { evidence: false } }).valid, true)
+  for (const bad of ['true', 1, 0, 'on', {}, []]) {
+    const r = validate({ run: { evidence: bad } })
+    assert.equal(r.valid, false, `run.evidence ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /run\.evidence must be a boolean when set/)
+  }
+  for (const name of Object.keys(PRESETS)) {
+    assert.equal(Object.prototype.hasOwnProperty.call(PRESETS[name].run || {}, 'evidence'), false, `preset ${name} must not set run.evidence`)
+    assert.equal(presetConfig(name).run.evidence, undefined, `presetConfig(${name}) must leave run.evidence unset`)
+  }
 })
 
 test('maxParallel absent passes and has no DEFAULTS.run entry', () => {
@@ -1317,7 +1343,8 @@ test('resolveWidenSource: non-array (string) → default fallback', () => {
 
 test('resolveWidenSource: own-lens nomination is legal — widenRoster dedupes it (lone seat kept once)', () => {
   // A lone `correctness` seat nominating `correctness` + `security`: resolveWidenSource accepts it
-  // (distinct, non-reserved), and feeding the result through widenRoster dedupes the seat's own lens.
+  // (distinct, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member (exports in `war-config.mjs`)),
+  // and feeding the result through widenRoster dedupes the seat's own lens.
   const { seats } = resolveWidenSource(['correctness', 'security'], DEF)
   const widened = widenRoster([{ lens: 'correctness', depth: 'neighbors' }], seats)
   assert.deepEqual(widened.map(s => s.lens), ['correctness', 'security'])
@@ -2432,32 +2459,64 @@ test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — m
 // spawnOpts/validateRoster/widenRoster marker covers all three mirrors
 // ---------------------------------------------------------------------------
 
-const VR_EXTRACT = /const validateRoster\s*=\s*roster\s*=>\s*\{([\s\S]*?)\n\}/
+// validateRoster takes (roster, evidence) — the run.evidence knob — and references the inline
+// SEAT_AGENT_TYPES array, so extract BOTH and inject the array into the new Function (the
+// RESERVED_LENSES precedent below): a drift in EITHER the inline literal or the logic bites.
+const VR_EXTRACT = /const validateRoster\s*=\s*\(roster,\s*evidence\)\s*=>\s*\{([\s\S]*?)\n\}/
+const SAT_INLINE_EXTRACT = /const\s+SEAT_AGENT_TYPES\s*=\s*(\[[^\]]*\])/
 const WR_EXTRACT = /const widenRoster\s*=\s*\(roster,\s*defaultRoster\)\s*=>\s*\{([\s\S]*?)\n\}/
-
-test('drift-guard(F07): inline validateRoster mirror equals canonical validateRoster across accept/reject cases', () => {
+// inlineValidateRoster(): the LIVE inline validateRoster, closed over the LIVE inline SEAT_AGENT_TYPES.
+const inlineValidateRoster = () => {
   const match = templateText.match(VR_EXTRACT)
   assert.ok(match, 'inline validateRoster arrow not found in workflow-template.js')
-  const inline = new Function('roster', match[1])
-  const cases = [
-    [{ lens: 'correctness' }],
-    [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }],
-    DEFAULTS.audit.roster,
-    [],
-    undefined,
-    'not-an-array',
-    ['a', 'b', 'c', 'd', 'e', 'f'].map(l => ({ lens: l })),
-    [{ lens: 'x' }, { lens: 'x' }],
-    [{ lens: '' }],
-    [{ lens: 42 }],
-    [{ lens: 'ok', depth: 'shallow' }],
-    ['just-a-string'],
-    [null],
-  ]
-  for (const c of cases) {
-    assert.deepEqual(inline(c), validateRoster(c),
-      `inline validateRoster diverges from canonical for case ${JSON.stringify(c)}`)
+  const satMatch = templateText.match(SAT_INLINE_EXTRACT)
+  assert.ok(satMatch, 'inline SEAT_AGENT_TYPES literal not found in workflow-template.js')
+  const inlineTypes = JSON.parse(satMatch[1].replace(/'/g, '"'))
+  const fn = new Function('roster', 'evidence', 'SEAT_AGENT_TYPES', match[1])
+  return Object.assign((roster, evidence) => fn(roster, evidence, inlineTypes), { inlineTypes })
+}
+const EVIDENCE_SEAT = { lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }
+const plainSeats = n => Array.from({ length: n }, (_, i) => ({ lens: `plain-${i}` }))
+// [roster, evidence] pairs: the pre-knob cases ride with evidence undefined; the agentType cases cover a
+// plain type, an unknown type, the evidence seat under every knob reading, and the cap-4 bound.
+const VR_CASES = [
+  [[{ lens: 'correctness' }], undefined],
+  [[{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }], undefined],
+  [DEFAULTS.audit.roster, undefined],
+  [[], undefined],
+  [undefined, undefined],
+  ['not-an-array', undefined],
+  [['a', 'b', 'c', 'd', 'e', 'f'].map(l => ({ lens: l })), undefined],
+  [[{ lens: 'x' }, { lens: 'x' }], undefined],
+  [[{ lens: '' }], undefined],
+  [[{ lens: 42 }], undefined],
+  [[{ lens: 'ok', depth: 'shallow' }], undefined],
+  [['just-a-string'], undefined],
+  [[null], undefined],
+  [[{ lens: 'correctness', agentType: 'war-auditor' }], undefined],      // plain agentType, knob absent
+  [[{ lens: 'correctness', agentType: 'bogus' }], true],                  // unknown agentType
+  [[{ lens: 'correctness', agentType: 42 }], true],                       // non-string agentType
+  [[EVIDENCE_SEAT], true],                                                // evidence seat, knob on
+  [[EVIDENCE_SEAT], false],                                               // evidence seat, knob off
+  [[EVIDENCE_SEAT], undefined],                                           // evidence seat, knob absent
+  [[EVIDENCE_SEAT], null],                                                // evidence seat, knob null
+  [[EVIDENCE_SEAT], 'true'],                                              // evidence seat, string is not on
+  [[...plainSeats(4), EVIDENCE_SEAT], true],                              // 4 + evidence = 5: valid
+  [[...plainSeats(5), EVIDENCE_SEAT], true],                              // 5 + evidence: cap-4 refusal
+  [[...plainSeats(5), EVIDENCE_SEAT], false],                             // cap-4 refusal fires before the knob
+  [[...plainSeats(5)], true],                                             // 5 plain, knob on: valid
+  [[...plainSeats(6)], true],                                             // 6 plain: the 1-5 bound, no cap message
+]
+
+test('drift-guard(F07): inline validateRoster mirror equals canonical validateRoster across accept/reject cases', () => {
+  const inline = inlineValidateRoster()
+  for (const [roster, evidence] of VR_CASES) {
+    assert.deepEqual(inline(roster, evidence), validateRoster(roster, evidence),
+      `inline validateRoster diverges from canonical for case ${JSON.stringify([roster, evidence])}`)
   }
+  // The inline SEAT_AGENT_TYPES literal must itself equal the canonical export (guards a stale inline copy).
+  assert.deepEqual(inline.inlineTypes, SEAT_AGENT_TYPES,
+    'inline SEAT_AGENT_TYPES literal in workflow-template.js diverges from canonical SEAT_AGENT_TYPES export')
 })
 
 test('drift-guard(F07): inline widenRoster mirror equals canonical widenRoster across union/dedupe/cap cases', () => {
@@ -2481,21 +2540,29 @@ test('drift-guard(F07): inline widenRoster mirror equals canonical widenRoster a
 })
 
 // resolveWidenSource (D4) lives under the same combined spawnOpts/validateRoster/widenRoster/resolveWidenSource
-// marker. Its inline arrow references the inline RESERVED_LENSES array, so extract BOTH and inject the
-// array into the new Function (mirroring the decideLand extract-and-inject pattern) — this way a drift in
-// EITHER the inline RESERVED_LENSES literal or the inline validation logic bites.
+// marker. Its inline arrow references the inline RESERVED_LENSES and WIDEN_BARRED_LENSES arrays, so extract
+// ALL THREE and inject the arrays into the new Function (mirroring the decideLand extract-and-inject pattern)
+// — this way a drift in EITHER inline literal or the inline validation logic bites.
 const RWS_EXTRACT = /const resolveWidenSource\s*=\s*\(nominated,\s*defaultRoster\)\s*=>\s*\{([\s\S]*?)\n\}/
 const RL_INLINE_EXTRACT = /const\s+RESERVED_LENSES\s*=\s*(\[[^\]]*\])/
-
-test('drift-guard(F07): inline resolveWidenSource mirror equals canonical resolveWidenSource across nominated/fallback cases', () => {
+const WBL_INLINE_EXTRACT = /const\s+WIDEN_BARRED_LENSES\s*=\s*(\[[^\]]*\])/
+// inlineResolveWidenSource(): the LIVE inline resolveWidenSource, closed over BOTH live inline arrays.
+const inlineResolveWidenSource = () => {
   const rwsMatch = templateText.match(RWS_EXTRACT)
   assert.ok(rwsMatch, 'inline resolveWidenSource arrow not found in workflow-template.js')
   const rlMatch = templateText.match(RL_INLINE_EXTRACT)
   assert.ok(rlMatch, 'inline RESERVED_LENSES literal not found in workflow-template.js')
+  const wblMatch = templateText.match(WBL_INLINE_EXTRACT)
+  assert.ok(wblMatch, 'inline WIDEN_BARRED_LENSES literal not found in workflow-template.js')
   const inlineReserved = JSON.parse(rlMatch[1].replace(/'/g, '"'))
-  // The extracted body references RESERVED_LENSES; inject it as a parameter so the closure resolves.
-  const inline = new Function('nominated', 'defaultRoster', 'RESERVED_LENSES', rwsMatch[1])
-  const call = (nominated, def) => inline(nominated, def, inlineReserved)
+  const inlineBarred = JSON.parse(wblMatch[1].replace(/'/g, '"'))
+  // The extracted body references both arrays; inject them as parameters so the closure resolves.
+  const fn = new Function('nominated', 'defaultRoster', 'RESERVED_LENSES', 'WIDEN_BARRED_LENSES', rwsMatch[1])
+  return Object.assign((nominated, def) => fn(nominated, def, inlineReserved, inlineBarred), { inlineReserved, inlineBarred })
+}
+
+test('drift-guard(F07): inline resolveWidenSource mirror equals canonical resolveWidenSource across nominated/fallback cases', () => {
+  const call = inlineResolveWidenSource()
 
   const DEF = DEFAULTS.audit.roster
   const cases = [
@@ -2503,6 +2570,8 @@ test('drift-guard(F07): inline resolveWidenSource mirror equals canonical resolv
     [['usability'], DEF],                      // valid single
     [['execution-evidence'], DEF],             // reserved → fallback
     [['security', 'pin-validity'], DEF],       // reserved among valid → whole-field fallback
+    [[EVIDENCE_LENS], DEF],                    // widen-barred → fallback
+    [['security', EVIDENCE_LENS], DEF],        // widen-barred among valid → whole-field fallback
     [['security', 'security'], DEF],           // duplicate → fallback
     [['security', ''], DEF],                   // empty string → fallback
     [['security', 42], DEF],                   // non-string → fallback
@@ -2516,9 +2585,103 @@ test('drift-guard(F07): inline resolveWidenSource mirror equals canonical resolv
       `inline resolveWidenSource diverges from canonical for case ${JSON.stringify([nominated, def])}`)
   }
 
-  // The inline RESERVED_LENSES literal must itself equal the canonical export (guards a stale inline copy).
-  assert.deepEqual(inlineReserved, RESERVED_LENSES,
+  // Each inline literal must itself equal the canonical export (guards a stale inline copy).
+  assert.deepEqual(call.inlineReserved, RESERVED_LENSES,
     'inline RESERVED_LENSES literal in workflow-template.js diverges from canonical RESERVED_LENSES export')
+  assert.deepEqual(call.inlineBarred, WIDEN_BARRED_LENSES,
+    'inline WIDEN_BARRED_LENSES literal in workflow-template.js diverges from canonical WIDEN_BARRED_LENSES export')
+})
+
+// End state 12 (REA artifact evidence D3/D12/D19): the agentType and widen-bar contract, proven on BOTH
+// copies (canonical export and the live inline mirror) and through validate(), which threads run.evidence.
+test('validateRoster and resolveWidenSource: unknown agentType rejected; evidence seat row rejected unless run.evidence is on; artifact-evidence never a widen nominee; non-evidence seats cap at 4 beside an evidence seat', () => {
+  const DEF = DEFAULTS.audit.roster
+  const copies = [
+    ['canonical', validateRoster, resolveWidenSource],
+    ['inline', inlineValidateRoster(), inlineResolveWidenSource()],
+  ]
+  for (const [copy, vr, rws] of copies) {
+    // unknown agentType → rejected, naming the row and the allowlist; a plain known type passes with the knob absent
+    const unk = vr([{ lens: 'correctness', agentType: 'bogus' }], true)
+    assert.equal(unk.valid, false, `${copy}: unknown agentType is rejected`)
+    assert.match(unk.errors.join('\n'), /roster\[0\]\.agentType must be one of war-auditor\|war-evidence-auditor/, `${copy}: the refusal names the SEAT_AGENT_TYPES members`)
+    assert.equal(vr([{ lens: 'correctness', agentType: 'war-auditor' }], undefined).valid, true, `${copy}: the plain type needs no knob`)
+    // evidence seat row → valid only when the knob is exactly true
+    assert.equal(vr([EVIDENCE_SEAT], true).valid, true, `${copy}: the evidence seat is admitted with run.evidence on`)
+    for (const off of [false, undefined, null, 'true', 1]) {
+      const r = vr([EVIDENCE_SEAT], off)
+      assert.equal(r.valid, false, `${copy}: the evidence seat is refused with run.evidence ${JSON.stringify(off)}`)
+      assert.match(r.errors.join('\n'), /needs run\.evidence: true/, `${copy}: the refusal names the knob`)
+    }
+    // artifact-evidence is never a widen nominee (whole-field refusal); a plain nomination still wins
+    assert.equal(rws([EVIDENCE_LENS], DEF).source, 'default', `${copy}: a lone ${EVIDENCE_LENS} nomination falls back`)
+    assert.equal(rws(['security', EVIDENCE_LENS], DEF).source, 'default', `${copy}: ${EVIDENCE_LENS} among valid lenses falls back whole-field`)
+    assert.equal(rws(['security'], DEF).source, 'nominated', `${copy}: a plain nomination is still honored`)
+    // non-evidence seats cap at 4 ONLY beside an evidence seat; every other roster keeps the 1-5 bound
+    assert.equal(vr([...plainSeats(4), EVIDENCE_SEAT], true).valid, true, `${copy}: 4 plain + the evidence seat is valid`)
+    const cap = vr([...plainSeats(5), EVIDENCE_SEAT], true)
+    assert.equal(cap.valid, false, `${copy}: 5 plain + the evidence seat is refused`)
+    assert.match(cap.errors.join('\n'), /5 non-evidence seats beside an evidence seat \(max 4/, `${copy}: the refusal names the cap`)
+    assert.equal(vr(plainSeats(5), true).valid, true, `${copy}: 5 plain seats stay valid with the knob on`)
+    const six = vr(plainSeats(6), true)
+    assert.equal(six.valid, false)
+    assert.match(six.errors.join('\n'), /1-5 seats/, `${copy}: a 6-plain roster hits the plain bound`)
+    assert.doesNotMatch(six.errors.join('\n'), /non-evidence/, `${copy}: the cap message never fires without an evidence seat`)
+  }
+  // validate() threads the knob: one roster, the knob alone flips the verdict
+  const cfg = run => ({ run, audit: { roster: [EVIDENCE_SEAT] } })
+  assert.equal(validate(cfg({ evidence: true })).valid, true)
+  const off = validate(cfg({ evidence: false }))
+  assert.equal(off.valid, false)
+  assert.match(off.errors.join('\n'), /audit\.roster\[0\]\.agentType "war-evidence-auditor" needs run\.evidence: true/)
+  assert.equal(validate(cfg({})).valid, false, 'an absent knob refuses the evidence seat too')
+  // the exports: the widen bar holds exactly the evidence lens, and the evidence type is a SEAT_AGENT_TYPES member
+  assert.deepEqual(WIDEN_BARRED_LENSES, [EVIDENCE_LENS])
+  assert.ok(SEAT_AGENT_TYPES.includes(EVIDENCE_SEAT.agentType))
+})
+
+// Seat-shape de-mirror (PIN-15/PIN-16): the war-room seat row and the schemas.md roster row carry the seat
+// shape validateRoster itself names in its refusal message (extracted from code, never restated here), name
+// SEAT_AGENT_TYPES by export, and point the seat bound, the depth enum and the depth default at validateRoster.
+const seatShapeRow = (rel, anchor) => {
+  const text = readDoc(rel)
+  const at = text.indexOf(anchor)
+  assert.ok(at >= 0, `${rel}: seat row anchor ${JSON.stringify(anchor)} not found`)
+  const lineEnd = text.indexOf('\n', at)
+  return text.slice(at, lineEnd === -1 ? text.length : lineEnd)
+}
+test('seat-shape de-mirror: war-room SKILL.md and schemas.md roster rows carry validateRoster\'s seat shape and name SEAT_AGENT_TYPES by export (extraction + equality)', () => {
+  const shape = validateRoster([42]).errors[0].match(/\{ [^}]* \}/)
+  assert.ok(shape, 'validateRoster names the seat shape in its non-object refusal')
+  // schemas.md carries two roster rows (the per-task args roster and the config audit.roster); every line
+  // that opens a roster literal is a row here (default-deny: a third row would join the check unasked).
+  const schemasRows = readDoc('skills/war/references/schemas.md').split('\n').filter(l => l.includes('roster: [ { lens: "correctness"'))
+  assert.equal(schemasRows.length, 2, 'schemas.md carries the two roster rows (task args + config audit.roster)')
+  const rows = [
+    seatShapeRow('skills/war-room/SKILL.md', '- `audit.roster`'),
+    ...schemasRows,
+  ]
+  for (const row of rows) {
+    assert.ok(row.includes(shape[0]), `the row must carry the code's seat shape ${shape[0]}: ${row.slice(0, 120)}`)
+    assert.match(row, /\bSEAT_AGENT_TYPES\b/, 'the row must name the agentType allowlist by export')
+    assert.match(row, /per `validateRoster`/, 'the seat bound, the depth enum and the depth default point at validateRoster')
+    assert.doesNotMatch(row, /1[–-]5/, 'the seat bound is not restated')
+    assert.doesNotMatch(row, /neighbors/, 'the depth enum is not restated')
+    assert.doesNotMatch(row, /omitted → /, 'the depth default is not restated')
+  }
+  // run.evidence rows (the war-room step-2 whitelist and the schemas.md run key list) de-mirror like maxParallel.
+  const warRoomRow = seatShapeRow('skills/war-room/SKILL.md', '- `run.evidence`')
+  assert.match(warRoomRow, /never restated here/)
+  assert.match(warRoomRow, /no preset sets it/)
+  assert.match(warRoomRow, /\bSEAT_AGENT_TYPES\b/, 'the gate names the evidence seat by export')
+  assert.doesNotMatch(warRoomRow, /war-evidence-auditor/, 'the evidence member is not restated')
+  const schemasKeys = seatShapeRow('skills/war/references/schemas.md', 'run: { roundLimit')
+  assert.match(schemasKeys, /\bevidence\b/, 'evidence joins the schemas.md run key list')
+  const schemasRow = seatShapeRow('skills/war/references/schemas.md', '// evidence —')
+  assert.match(schemasRow, /per war-config\.mjs validate\(\) — never restated here/)
+  assert.match(schemasRow, /no preset sets it/)
+  assert.match(schemasRow, /\bSEAT_AGENT_TYPES\b/, 'the gate names the evidence seat by export')
+  assert.doesNotMatch(schemasRow, /war-evidence-auditor/, 'the evidence member is not restated')
 })
 
 // resolveGate (ADR 0036): the inline gate-composition mirror. Extract the arrow body + its own detector

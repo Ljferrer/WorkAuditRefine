@@ -26,8 +26,7 @@ You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **f
 - **No pipes, chaining, redirects, quotes, globs, braces, or substitution** — compose nothing. Filter and search the output with the Read/Grep/Glob tools instead.
 - **Non-git shell reads** (`ls`, `cat`, `wc`, …) always deny — use Read/Glob, or `git ls-files` / `git ls-tree` to list tree contents.
 - **`branch` admits read forms only**, in two arms — value-carrying flags `=`-attached (`--contains=<rev>`, `--no-contains=<rev>`, `--merged=<rev>`, `--no-merged=<rev>`, `--points-at=<rev>`, `--sort=<key>`), and bare read flags (`--list`, `--all`, `-a`, `--remotes`, `-r`, `--show-current`, `--verbose`, `-v`, `-vv`). A bare name, a space-form value (`--contains <rev>`), or any write flag denies.
-- **`git grep` stays denied** — the Grep tool is the sweep channel for repo-wide search.
-- **Search with the Grep/Glob tools, never shell `grep`/`git grep`** — the git guard refuses glob/alternation metacharacters (`*`, `\|`), not just command chains.
+- **The Grep tool first; with no Grep tool, `git grep -F -e <token>`** — the Grep tool is the sweep channel; the guard admits `git grep` only as `-F` plus one `-e <token>` (optional `-n`/`-i`/`-l`/`-w`/`-c`, one revision, `-- <pathspec>`), denies `-O`, `-f`, `--no-index` and every regex flag, and refuses glob/alternation metacharacters (`*`, `\|`), not just command chains; shell `grep` always denies.
 - **Avoid `@{}` reflog** (braces are denied) — use `git log -g` instead.
 
 If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.
@@ -61,7 +60,7 @@ Domain lenses (clinical safety, auth/PHI, etc.) are minted per run — see the o
 
 Always verify the **mapped acceptance-criteria tests EXIST and are not weakened or skipped** (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the **refiner runs the gate** and returns its output. Your job is to confirm tests are present in the diff and uncompromised, not to assert they passed.
 
-**Committed-tree grounding for no-op claims.** A verify-and-close or already-done claim — the diff is a no-op because the base tree already covers the requirement — must be grounded against the pinned `audit_sha`, **not** the mutable working tree: read the blob with `git show <audit_sha>:<path>` (an allowlisted read verb), and for history-shaped questions ("when did this count change?", "was this token ever removed?") use `git log -S<token>` / `git log -G<regex>` — pick the verb per claim shape (`-S` answers "when did the occurrence count change", **not** "is the token present at the path" — for presence at the tip use `git show`). A working-tree grep is **advisory only**, never the sole basis for approving a no-op claim (the tree may carry uncommitted edits). The auditor git allowlist is **not** widened for this: `git show` and `git log` are already read-only allowlisted, `git grep` is not and stays denied.
+**Committed-tree grounding for no-op claims.** A verify-and-close or already-done claim — the diff is a no-op because the base tree already covers the requirement — must be grounded against the pinned `audit_sha`, **not** the mutable working tree: read the blob with `git show <audit_sha>:<path>` (an allowlisted read verb), and for history-shaped questions ("when did this count change?", "was this token ever removed?") use `git log -S<token>` / `git log -G<regex>` — pick the verb per claim shape (`-S` answers "when did the occurrence count change", **not** "is the token present at the path" — for presence at the tip use `git show`). A working-tree grep is **advisory only**, never the sole basis for approving a no-op claim (the tree may carry uncommitted edits). `git show` and `git log` are read-only allowlisted; `git grep -F -e <token>` is the one admitted search form (D21, ADR 0029 Amendment 2026-10-22).
 
 ### `execution-evidence` gate-audit checklist (reserved lens)
 
@@ -147,10 +146,8 @@ No approval — yours or a transferred one — is ever accounted at a SHA the ta
 
 ## Widening nomination (`widen`, D4)
 When your verdict carries a **Critical** finding or `confidence: 'low'` **and you are a lone seat**, you MAY set the optional `widen` field to name the catalog lenses your finding calls for — e.g. `widen: ["security", "cascading-impact"]` ("this touches a trust boundary; convene those"). The orchestrator then re-audits with the nominated lenses (each at `deep`, joined to your seat, deduped, capped at 5):
-- **A valid nomination** is a **non-empty array of distinct, non-empty lens names, none reserved** (`execution-evidence`/`pin-validity` are never nominable — they are built-in passes). Validity is strict **whole-field**: one bad entry rejects the whole nomination (no partial salvage).
-- **Absent or invalid → the default roster's lenses** (the default-roster-union fallback) — so omitting `widen` is always safe.
-- **Honored only on a lone seat.** On a multi-seat roster `widen` is ignored (a roster the human approved is not second-guessed), so you need not set it there.
-- Naming your own seat's lens is legal — the union dedupes it.
+- **A valid nomination** is a **non-empty array of distinct, non-empty lens names, never a `RESERVED_LENSES` or `WIDEN_BARRED_LENSES` member** (exports in `war-config.mjs`). Validity is strict **whole-field**: one bad entry rejects the whole nomination (no partial salvage).
+- When you set `widen`, read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Widening nomination details): the fallback, lone-seat and own-lens rules moved there byte-identical (ADR 0042).
 
 ## Return
 Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason, endStateAttestations? }` — `escalate_reason` is required when `verdict` is `escalate` (non-empty, naming the missing plan decision) and omitted otherwise; `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist in `gate-audit-checklist.md`); ordinary roster seats never carry it.
