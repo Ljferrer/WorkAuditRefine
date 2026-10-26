@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
@@ -111,6 +111,7 @@ test('thorough preset', () => {
     servitor: { model: 'opus',   effort: 'high' },
     redteam:  { model: 'fable',  effort: 'default' },
     snipe:    { model: 'fable',  effort: 'default' },
+    trial:    { model: 'fable',  effort: 'default' },
   }, 'thorough agents literal (worker absent = inherited)')
   assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
@@ -120,7 +121,7 @@ test('thorough preset', () => {
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset (sonnet review seats, opus workers, a 4-round fix budget; roster policy, ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
+test('economy preset (sonnet review seats and trial tier, opus workers, a 4-round fix budget; roster policy, ace, absorbRounds, commitLearnings inherit DEFAULTS)', () => {
   const c = presetConfig('economy')
   assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'default')
@@ -138,7 +139,8 @@ test('economy preset (sonnet review seats, opus workers, a 4-round fix budget; r
     refiner:  { model: 'sonnet', effort: 'high' },
     servitor: { model: 'sonnet', effort: 'high' },
     redteam:  { model: 'sonnet', effort: 'default' },
-  }, 'economy agents literal (fix and snipe absent = inherited)')
+    trial:    { model: 'sonnet', effort: 'high' },
+  }, 'economy agents literal (fix and snipe absent = inherited; trial pinned, A9)')
   // ADR 0050: the four-lens roster is the widening fallback under inherited 'auto', not a seat count.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
@@ -908,6 +910,88 @@ test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
   assert.match(rTypo.errors.join('\n'), /hooks\.replyStandart is not a known key/)
 })
 
+// --- interview.* (fork-trial bounds, D7 / D11; PIN-7, PIN-11) ---------------------------------
+// The hooks/memory validate() shape: isObj guard, unknown-key loop, each key a positive integer, an
+// explicit null key read as unset via `!= null` (the run.maxParallel idiom, never hooks' `!== null`).
+// Exactly three keys, no preset sets the section, nothing threads it into Workflow args (the
+// phase engine never reads it). Delete-the-feature: drop DEFAULTS.interview or the validate()
+// block → the deepEqual, the rejections and the war-room presence pins go red.
+test('interview: object guard, unknown key rejected, positive integers, null key unset, no preset', () => {
+  assert.deepEqual(DEFAULTS.interview, { trialWallSeconds: 600, commandTimeoutSeconds: 120, excerptLines: 20 },
+    'DEFAULTS.interview carries exactly the three ratified keys at the D7 bounds')
+  // valid
+  assert.equal(validate({}).valid, true)
+  assert.equal(validate({ interview: { trialWallSeconds: 60, commandTimeoutSeconds: 30, excerptLines: 5 } }).valid, true)
+  for (const key of Object.keys(DEFAULTS.interview)) {
+    // string value, negative, zero, non-integer: each rejected with an error naming the key
+    for (const bad of ['600', -1, 0, 1.5]) {
+      const r = validate({ interview: { [key]: bad } })
+      assert.equal(r.valid, false, `interview.${key} ${JSON.stringify(bad)} must be rejected`)
+      assert.match(r.errors.join('\n'), new RegExp(`interview\\.${key} must be an integer >= 1 when set`))
+    }
+    // null key unset: validates, and the filled config keeps the null for the reader's per-key fallback
+    const nul = validate({ interview: { [key]: null } })
+    assert.equal(nul.valid, true, `interview.${key}: null is unset, never rejected`)
+    assert.equal(fillDefaults({ interview: { [key]: null } }).interview[key], null)
+  }
+  // unknown key: a courtesy error naming the key and /war-room (the memory.* precedent)
+  const typo = validate({ interview: { trialWallSecond: 600 } })
+  assert.equal(typo.valid, false)
+  assert.match(typo.errors.join('\n'), /interview\.trialWallSecond is not a known key \(trialWallSeconds\|commandTimeoutSeconds\|excerptLines\)/)
+  // null section rejected: the isObj guard, byte-named like hooks/memory
+  for (const bad of [null, 'x', 7, []]) {
+    const r = validate({ interview: bad })
+    assert.equal(r.valid, false, `interview ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /^interview must be an object$/m)
+  }
+  // no preset carries the section
+  for (const name of Object.keys(PRESETS)) {
+    assert.equal(Object.prototype.hasOwnProperty.call(PRESETS[name], 'interview'), false, `preset ${name} must not set interview`)
+    assert.deepEqual(presetConfig(name).interview, DEFAULTS.interview, `presetConfig(${name}) must inherit DEFAULTS.interview`)
+  }
+  // never threaded into Workflow args
+  assert.equal(readDoc('skills/war/assets/workflow-template.js').includes('args.interview'), false,
+    'the phase engine never reads interview.*')
+  // presence pins: /war-room step 2 names each key in its interview bullet
+  const warRoom = readDoc('skills/war-room/SKILL.md')
+  for (const key of ['interview.trialWallSeconds', 'interview.commandTimeoutSeconds', 'interview.excerptLines']) {
+    assert.ok(warRoom.includes(`\`${key}\``), `/war-room step 2 must name ${key}`)
+  }
+})
+
+// --- agents.trial (the fork-trial subagent tier, D18; PIN-12) --------------------------------
+// A validated tier beside agents.redteam and agents.snipe, read fail-open by /war-strategy's plan
+// interview. Defaulted in DEFAULTS and re-pinned by every preset (A9); no agents/*.md card.
+// Delete-the-feature: drop the DEFAULTS block, a preset pin or the KNOWN_AGENT_KEYS entry → red.
+test('agents.trial: a validated tier, present in DEFAULTS and every preset', () => {
+  assert.deepEqual(DEFAULTS.agents.trial, { model: 'opus', effort: 'default' }, 'DEFAULTS (balanced) trial tier')
+  const TRIAL = { balanced: { model: 'opus', effort: 'default' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'sonnet', effort: 'high' } }
+  assert.deepEqual(Object.keys(TRIAL).sort(), Object.keys(PRESETS).sort(), 'the per-preset table covers every preset')
+  for (const [preset, expected] of Object.entries(TRIAL)) {
+    assert.deepEqual(presetConfig(preset).agents.trial, expected, `${preset} preset trial tier must be ${JSON.stringify(expected)}`)
+    if (preset !== 'balanced') assert.deepEqual(PRESETS[preset].agents.trial, expected, `${preset} preset must re-pin agents.trial itself`)
+  }
+  // validateAgentTier applies unchanged: enums, unknown sub-keys, non-object
+  assert.equal(validate({ agents: { trial: { model: 'haiku', effort: 'low' } } }).valid, true)
+  const bad = validate({ agents: { trial: { model: 'gpt', effort: 'high' } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.trial\.model must be one of/)
+  const extra = validate({ agents: { trial: { model: 'opus', effort: 'default', depth: 'deep' } } })
+  assert.equal(extra.valid, false, 'unknown sub-keys rejected like any tier')
+  assert.match(extra.errors.join('\n'), /agents\.trial\.depth is not a known key/)
+  const nul = validate({ agents: { trial: null } })
+  assert.equal(nul.valid, false, 'the redteam idiom: a present non-object is rejected')
+  assert.match(nul.errors.join('\n'), /agents\.trial must be an object/)
+  // trial is a known agent key; a genuine unknown key is still rejected
+  const ok = validate({ agents: { trial: { model: 'sonnet', effort: 'high' } } })
+  assert.equal(ok.errors.some(e => /agents\.trial is not a known agent key/.test(e)), false)
+  const unknown = validate({ agents: { planner: { model: 'opus', effort: 'high' } } })
+  assert.match(unknown.errors.join('\n'), /agents\.planner is not a known agent key \([^)]*\btrial\b[^)]*\)/)
+  // not a phase role, and no agent card
+  assert.equal(ROLES.includes('trial'), false)
+  assert.equal(existsSync(join(REPO_ROOT, 'agents', 'war-trial.md')), false, 'no agents/war-trial.md card is created')
+})
+
 // --- Doc-claim drift guard (Task 3.1 / End-state 6): no surface reasserts the retired ------------
 // commitLearnings default-`true` claim, and every documented default stays bound to the canonical
 // DEFAULTS value. Two extraction+equality clauses pin the STRUCTURED "default <value>" surfaces
@@ -1487,7 +1571,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
 // compared. The relation is non-strict, so an equal-rank move stays green by design.
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe']
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial']
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1536,7 +1620,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {
@@ -1580,6 +1664,7 @@ const DEMIRRORED = [
   ['skills/war/SKILL.md', /runs its worker on the \*\*docs\*\* tier \([^\n]*$/m],
   ['skills/snipe/SKILL.md', /resolved from the WAR config ladder \([^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*redteam\?: \{ model, effort \},[^\n]*$/m],
+  ['skills/war/references/schemas.md', /^\s*trial\?: \{ model, effort \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*snipe\?: \{ model, effort \} \},[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.docs \{ model, effort \}[^\n]*$/m],
   ['skills/war/references/schemas.md', /^\s*\/\/\s+agents\.worker\.fix\s+\{ model, effort \}[^\n]*$/m],
@@ -1587,6 +1672,7 @@ const DEMIRRORED = [
   ['skills/war-room/SKILL.md', /^\s*- `agents\.worker\.fix` \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /\*\*every preset sets it\*\* \([^\n]*$/m],
   ['skills/war-room/SKILL.md', /Not a phase role; preset-populated \([^\n]*$/m],
+  ['skills/war-room/SKILL.md', /^\s*- `agents\.trial\.model` \/ `agents\.trial\.effort`[^\n]*$/m],
   // ADR 0050's economy paragraph describes the preset by MODEL_RANK relation and pointer, never by value.
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /\*\*`economy` means cheaper models[\s\S]*?inherit `DEFAULTS`\./],
 ]
