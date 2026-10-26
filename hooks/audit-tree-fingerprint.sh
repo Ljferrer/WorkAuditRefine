@@ -23,8 +23,10 @@
 #         under core.quotePath=false), and such a path could not be hashed.
 #         The hash-object batch reader has line rules of its own (see
 #         blob_lines): a path that reader would rewrite gets its own call.
-#     (2) PreToolUse on Read, Bash, Glob, Grep: resolve the `.war-task`
-#         worktree the call reaches (a Read file_path, a Glob or Grep path, an
+#     (2) PreToolUse on Read, Bash, Glob, Grep: resolve every `.war-task`
+#         worktree the call reaches (a `..` after a symlink read both
+#         physically and lexically, see task_worktree_of) through its path
+#         (a Read file_path, a Glob or Grep path, an
 #         absolute Glob pattern, a Bash `git -C <path>` before the subcommand
 #         word, an absolute Bash operand, any relative Bash operand (`../x`,
 #         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x`, `~+/x` or
@@ -32,8 +34,8 @@
 #         the text after the option letter of an attached short-option value
 #         (`-O<file>`, `-X<file>`), or after the first file-valued letter (O,
 #         X, S) of a short-option cluster (`-pO<file>`), or the next token of
-#         a space-form file-valued flag, else the payload cwd) and add it to
-#         the seat's touched set. A directory
+#         a space-form file-valued flag, else the payload cwd) and add each
+#         to the seat's touched set. A directory
 #         operand that holds task worktrees adds each of them when the
 #         command reads them (see touch_operand).
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
@@ -220,19 +222,45 @@ sha256_of_stdin() {
 # canon <dir> -> the physical path of an existing dir. `cd -P` resolves a
 # `..` after a symlink physically (`lnk/..` is the parent of the link TARGET),
 # as the kernel reads it and as git opens a `--no-index` operand.
-# canon_l <dir> -> the physical path of the dir a LEXICAL reading of <dir>
-# names: `cd -L` removes `lnk/..` before it follows the link, so
-# `<wt>/lnk/..` is <wt> itself. The Read tool resolves `..` lexically
-# (`/var/../private/etc/hosts` opens; the physical `/private/private/...`
-# does not exist), and git's in-repo operand rule (path_inside_repo,
-# normalize_path_copy) is lexical too. The two readings disagree only across
-# a worktree-planted `lnk -> <other worktree>/sub`; every resolver that
-# stands in for a reader takes BOTH (task_worktree_of, outside_top), so a
-# planted link cannot point the touch away from the worktree either reader
-# reaches. The walk-down of touch_operand reads only canon: it runs for the
-# `--no-index` forms, which git opens physically.
+# lexical_dir <absolute path> -> the physical path of the nearest existing
+# directory on the LEXICAL reading of <path>. The Read tool resolves `..`
+# lexically (`/var/../private/etc/hosts` opens; the physical
+# `/private/private/...` does not exist), and git's in-repo operand rule
+# (path_inside_repo, normalize_path_copy) is lexical too: `.` and `..`
+# segments are folded as text before any component is opened, so
+# `<wt>/lnk/..` is <wt> itself, `<wt>/lnk/../../<other>/f` is <other>/f,
+# and `<wt>/nosuch/../../<other>/f` is <other>/f although `nosuch` does
+# not exist. The fold here is a parameter-expansion loop (no spawn, bash
+# 3.2); only then is the folded path walked up to its nearest existing
+# directory and canon'd, so a symlink not followed by `..` is still
+# followed forward, as the reader follows it. The two readings disagree
+# only across a `..` after a worktree-planted `lnk -> <other worktree>/sub`
+# or a `..` after a missing component; every resolver that stands in for a
+# reader takes BOTH (task_worktree_of, outside_top), so neither shape can
+# point the touch away from the worktree either reader reaches. The
+# walk-down of touch_operand reads only canon: it runs for the `--no-index`
+# forms, which git opens physically.
 canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
-canon_l() { (cd -L -- "$1" 2>/dev/null && pwd -P); }
+lexical_dir() {
+  _lr="$1"; _lo=""
+  while [ -n "$_lr" ]; do
+    _lr="${_lr#/}"
+    _lseg="${_lr%%/*}"
+    case "$_lr" in */*) _lr="${_lr#*/}" ;; *) _lr="" ;; esac
+    case "$_lseg" in
+      ''|.) ;;
+      ..) _lo="${_lo%/*}" ;;
+      *) _lo="$_lo/$_lseg" ;;
+    esac
+  done
+  [ -n "$_lo" ] || _lo=/
+  while [ ! -d "$_lo" ]; do
+    _ln="${_lo%/*}"; [ -n "$_ln" ] || _ln=/
+    [ "$_ln" = "$_lo" ] && return 0
+    _lo="$_ln"
+  done
+  canon "$_lo"
+}
 
 # bounded <outfile> <infile> <cmd...>: runs <cmd> as a background child with
 # stdin from <infile> and stdout to <outfile>, under a watchdog that kills it
@@ -435,22 +463,26 @@ marker_root_of() {
 
 # task_worktree_of <path> -> every canonical .war-task worktree root that
 # holds <path>, one per line, or nothing. A relative path resolves against
-# the payload cwd. The walk runs on the nearest existing ancestor, resolved
-# both physically (canon) and lexically (canon_l): across a planted
-# `lnk -> <other worktree>/sub` the two name different worktrees, and the
-# reader the hook stands in for may follow either rule, so both roots are
-# printed (deduped when the two resolutions agree).
+# the payload cwd. Two readings, each at its own nearest existing ancestor:
+# the physical one walks the raw path up by kernel existence and canon's it
+# (`..` after a planted `lnk -> <other worktree>/sub` lands in the other
+# worktree, as git opens a `--no-index` operand); the lexical one folds the
+# `..` as text first (lexical_dir: that same `lnk/..` is the link's own
+# parent, and `nosuch/../../x` is `x` although nosuch is missing), as the
+# Read tool and git's in-repo rule read it. The reader the hook stands in
+# for may follow either rule, so both roots are printed, physical first
+# (deduped when the two ancestors agree; touch_line dedupes a shared root).
 task_worktree_of() {
   _p="$1"
   case "$_p" in /*) ;; *) _p="$cwd/$_p" ;; esac
   _d="$_p"
   while [ ! -d "$_d" ]; do
     _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
-    [ "$_nd" = "$_d" ] && return 0
+    [ "$_nd" = "$_d" ] && break
     _d="$_nd"
   done
-  _dp="$(canon "$_d")" || _dp=""
-  _dl="$(canon_l "$_d")" || _dl=""
+  _dp=""; [ -d "$_d" ] && { _dp="$(canon "$_d")" || _dp=""; }
+  _dl="$(lexical_dir "$_p")" || _dl=""
   [ -n "$_dp" ] && marker_root_of "$_dp"
   [ -n "$_dl" ] && [ "$_dl" != "$_dp" ] && marker_root_of "$_dl"
   return 0
@@ -490,21 +522,24 @@ base_top() {
 # no work tree. The path is resolved at its nearest existing directory
 # ancestor, since git normalizes an operand before it reads it (`/dev/null`
 # resolves at `/dev`, `a/missing` at `a`). git's own rule is lexical
-# (normalize_path_copy); the ancestor is resolved both ways (canon and
-# canon_l) and either resolution outside the top reports outside, so a
-# divergence over a planted link fails closed (an over-implied --no-index
-# only widens the walk-down). Costs two canon subshells.
+# (normalize_path_copy); the path is resolved both ways (the raw path's
+# existing ancestor through canon, the folded path's through lexical_dir)
+# and either resolution outside the top reports outside, so a divergence
+# over a planted link or a missing component fails closed (an over-implied
+# --no-index only widens the walk-down). Costs a canon and a lexical_dir
+# subshell.
 outside_top() {
   base_top
   [ -n "$_top" ] || return 0
   case "$1" in /*) _od="$1" ;; *) _od="$_base/$1" ;; esac
+  _oraw="$_od"
   while [ ! -d "$_od" ]; do
     _on="${_od%/*}"; [ -n "$_on" ] || _on=/
     [ "$_on" = "$_od" ] && return 0
     _od="$_on"
   done
   _odp="$(canon "$_od")" && [ -n "$_odp" ] || return 0
-  _odl="$(canon_l "$_od")" && [ -n "$_odl" ] || return 0
+  _odl="$(lexical_dir "$_oraw")" && [ -n "$_odl" ] || return 0
   case "$_odp/" in "$_top/"*) ;; *) return 0 ;; esac
   case "$_odl/" in "$_top/"*) ;; *) return 0 ;; esac
   return 1
@@ -782,8 +817,9 @@ case "$event" in
         # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
         # task worktree. A token that names no directory (`diff`, `HEAD~1`)
         # resolves to the base, which the `-C` arm or the cwd fallback
-        # touched already (touch_line dedupes), so over-touch costs one canon
-        # subshell and under-touch would leave a read worktree uncompared.
+        # touched already (touch_line dedupes), so over-touch costs
+        # task_worktree_of's canon and lexical_dir subshells and under-touch
+        # would leave a read worktree uncompared.
         # Every operand goes through touch_operand: a directory operand that
         # holds task worktrees (the run directory, `$TMP`, `.` under
         # --no-index) adds each of them when the command recurses into them.

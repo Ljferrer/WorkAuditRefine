@@ -547,9 +547,10 @@ if touched_is t30 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "mid-path dotdot
 # LEXICALLY (Read of `/var/../private/etc/hosts` opens, while the physical
 # `/private/private/etc/hosts` does not exist), so the Read and Glob arms,
 # which have no base fallback, must touch wtA as well: task_worktree_of
-# takes both resolutions (physical first), and rows t30d and t30e go red
-# when the canon_l arm is dropped. The link and wtB/sub are removed after
-# the rows, so later wtA and wtB fingerprints are unchanged.
+# takes both resolutions (physical first), and rows t30c, t30d and t30e go
+# red when the lexical arm (lexical_dir) is dropped. The link and wtB/sub
+# are removed after the rows, so later wtA and wtB fingerprints are
+# unchanged.
 mkdir -p "$TMP/wtB/sub"
 ln -s "$TMP/wtB/sub" "$TMP/wtA/lnk"
 run "$(mk_start "$AUD" t30b)"
@@ -566,6 +567,25 @@ if touched_is t30d "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "symlink-then-d
 run "$(mk_start "$AUD" t30e)"
 run "$(mk_glob "$AUD" t30e "$TMP/wtA/lnk/..")"
 if touched_is t30e "$(printf '%s\n%s' "$WTB" "$WTA")"; then pass "symlink-then-dotdot Glob path touches the lexical worktree as well as the physical one"; else fail "symlink then .. Glob missed a reading: |$(cat "$FP_ROOT/t30e/touched" 2>/dev/null)|"; fi
+# Two paths only the LEXICAL reading reaches, both Read from $MAIN. A
+# multi-`..` path through a planted link: `wtA/lnk2 -> wtB/sub/deeper`, so
+# `wtA/lnk2/../../wtD/f` is wtB/wtD/f to the kernel (no such dir: the
+# physical walk stops at wtB) and wtD/f to the Read tool (verified
+# 2026-10-26: the Read tool opened it as wtD/f while `cat` failed on it),
+# so the set is wtB then wtD. A mid-path `..` over a missing component,
+# no link at all: `wtC/nosuch/../../wtB/f` stops the physical walk at wtC
+# (no marker) and is wtB/f to the Read tool, so the set is wtB alone. Both
+# rows go red when the lexical arm of task_worktree_of is replaced by `:`.
+mkdir -p "$TMP/wtB/sub/deeper"
+ln -s "$TMP/wtB/sub/deeper" "$TMP/wtA/lnk2"
+run "$(mk_start "$AUD" t30f)"
+run "$(mk_read "$AUD" t30f "$TMP/wtA/lnk2/../../wtD/f")"
+if touched_is t30f "$(printf '%s\n%s' "$WTB" "$WTD")"; then pass "multi-dotdot Read through a planted link touches the worktree the lexical reading reaches"; else fail "multi-dotdot Read through a link missed the lexical worktree: |$(cat "$FP_ROOT/t30f/touched" 2>/dev/null)|"; fi
+rm "$TMP/wtA/lnk2"
+rmdir "$TMP/wtB/sub/deeper"
+run "$(mk_start "$AUD" t30g)"
+run "$(mk_read "$AUD" t30g "$TMP/wtC/nosuch/../../wtB/f")"
+if touched_is t30g "$WTB"; then pass "mid-path dotdot Read over a missing component touches the worktree the lexical reading reaches"; else fail "mid-path .. over a missing component missed the lexical worktree: |$(cat "$FP_ROOT/t30g/touched" 2>/dev/null)|"; fi
 rm "$TMP/wtA/lnk"
 rmdir "$TMP/wtB/sub"
 # A `--<opt>=<value>` whose value is a bare relative path (no `./`, no `../`)
