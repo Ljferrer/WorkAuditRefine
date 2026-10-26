@@ -74,7 +74,9 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/red-team/assets/assert-no-repo-escape.sh --rep
 ```
 
 The guard is fail-closed on the row, never on the interview. Snapshot exit 1 naming a
-dirty tree is the dirty-tree rule above. Any other exit 1 is triaged by action-provenance:
+dirty tree is the dirty-tree rule above. Snapshot exit 1 naming a pre-run junk ref writes
+no snapshot, so the trial never runs: the row reads `infra-failed — guard unsettled` and
+names the ref. A baseline exit 1 is triaged by action-provenance:
 re-read each named delta (a ref, or an ignored file written inside the window) and ask
 whether this trial authored it. A delta another session, worktree or IDE wrote is
 **foreign**: record it on the row and proceed. A delta this trial wrote is an escape:
@@ -113,7 +115,10 @@ is never retried: it backs a ledger row instead (`## Provenance`).
 
 **Clone-root-relative commands.** Every fenced `command` on a row is written relative to
 the clone root, with no scratchpad path, no absolute path and no `cd`. The replay runner
-reads the fence and runs it in a fresh clone.
+reads the fence and runs it in a fresh clone. Run each command from the clone root in the
+same Bash call that defines the cap, e.g. `cd <scratchpad>/trial-<n> && cap <s> bash -c
+'<command>'`; the Bash cwd resets between calls, so a separate `cd` lands the next command
+in the real checkout.
 
 **The per-command cap.** Each command runs under the per-command timeout from `## Bounds`.
 A host with `timeout` may use `timeout <s> <command>`. This host has none, so the portable
@@ -270,20 +275,22 @@ reads `agents.redteam`:
 node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs <repo>/.claude/war/config.json --fill-defaults
 ```
 
-A zero exit whose output carries an `interview` section supplies each key; a key the
-section lacks falls back to the default read above, per key. A nonzero exit (missing file,
-invalid JSON, a config that fails validation) falls back to the defaults for every key and
-never stops the interview. The header records which case held: `config: <path> (section
-present | absent | unreadable)`.
+A nonzero exit (missing file, invalid JSON, a config that fails validation) is
+`unreadable`: every key falls back to the default read above, and the interview never
+stops. On a zero exit, read `present` or `absent` from the raw file's top-level `interview`
+key, never from the output, because `--fill-defaults` always fills the section. A key that
+is missing or null in the raw section falls back to the default, per key. The header
+records which case held: `config: <path> (section present | absent | unreadable)`.
 
 **Operator overrides.** An operator may raise or lower a bound for one interview, on the
 record. The override is a `(user)` fact in the header, `overrides: <key>=<value> (user)
 Q<k>`, and is never written back to `config.json`; `/war-room` owns that file.
 
 **The trial tier (D18).** The model and effort of the ad hoc subagent that runs a trial
-come from `agents.trial { model, effort }` by the same fail-open read. A zero exit with
-the block present supplies both; anything else inherits the session. The header records
-`trial tier: <model>/<effort> (config, or default)`. The trial subagent is a
+come from `agents.trial { model, effort }` by the same fail-open read. A zero exit
+supplies both; anything else inherits the session. The header records
+`trial tier: <model>/<effort> (config, or default)`, reading `config` only when the raw
+file carries the block. The trial subagent is a
 general-purpose agent instructed by this file; no `agents/*.md` card exists for it.
 
 ## AFK
