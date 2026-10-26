@@ -28,9 +28,12 @@
 #         absolute Glob pattern, a Bash `git -C <path>` before the subcommand
 #         word, an absolute Bash operand, any relative Bash operand (`../x`,
 #         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x`, `~+/x` or
-#         `~-/x` operand, the value after `=` of a Bash `--<opt>=<path>` token
-#         or the next token of a space-form file-valued flag, else the
-#         payload cwd) and add it to the seat's touched set. A directory
+#         `~-/x` operand, the value after `=` of a Bash `--<opt>=<path>` token,
+#         the text after the option letter of an attached short-option value
+#         (`-O<file>`, `-X<file>`), or after the first file-valued letter (O,
+#         X, S) of a short-option cluster (`-pO<file>`), or the next token of
+#         a space-form file-valued flag, else the payload cwd) and add it to
+#         the seat's touched set. A directory
 #         operand that holds task worktrees adds each of them when the
 #         command reads them (see touch_operand).
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
@@ -711,10 +714,9 @@ case "$event" in
         # orderfile, `X` exclude file, `S` blame revs file) is classified as
         # a path as well; the cluster arm is skipped when the first letter is
         # itself file-valued, since the plain arm has that token (a non-path
-        # tail resolves to the base), any other token that starts with `-`
-        # is a
-        # flag and costs no spawn, and EVERY
-        # other token (`../wtB/f`, `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
+        # tail resolves to the base), any other token that starts with `-` is
+        # a flag and costs no spawn, and EVERY other token (`../wtB/f`,
+        # `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
         # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
         # against the running base: the payload cwd, moved by each resolved
         # global `-C` in order. validate-auditor-git.sh admits `git diff

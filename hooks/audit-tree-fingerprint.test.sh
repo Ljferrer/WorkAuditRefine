@@ -565,6 +565,16 @@ if touched_is t31d "$WTE"; then pass "an attached file value inside a short-opti
 run "$(mk_start "$AUD" t31e)"
 run "$(mk_bash "$AUD" t31e "git diff -pO$MAIN/.claude/war-worktrees/r/wtE/f HEAD")"
 if touched_is t31e "$WTE"; then pass "an attached absolute file value inside a short-option cluster is touched"; else fail "-pO</abs> cluster value not touched: |$(cat "$FP_ROOT/t31e/touched" 2>/dev/null)|"; fi
+# The cluster value is the text after the FIRST file-valued letter, so a
+# value that itself holds a later `O`, `X` or `S` (`wtE/OX`) must stay whole:
+# a longest-prefix cut would resolve it to the base or to `/`, and the
+# touched set would miss wtE. Both arms again: bare relative, then absolute.
+run "$(mk_start "$AUD" t31f)"
+run "$(mk_bash "$AUD" t31f "git diff -pO.claude/war-worktrees/r/wtE/OX HEAD")"
+if touched_is t31f "$WTE"; then pass "a cluster value holding a later file-valued letter is touched whole"; else fail "-pO<bare relative with a later O/X> cluster value not touched: |$(cat "$FP_ROOT/t31f/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t31g)"
+run "$(mk_bash "$AUD" t31g "git diff -pO$MAIN/.claude/war-worktrees/r/wtE/OX HEAD")"
+if touched_is t31g "$WTE"; then pass "an absolute cluster value holding a later file-valued letter is touched whole"; else fail "-pO</abs with a later O/X> cluster value not touched: |$(cat "$FP_ROOT/t31g/touched" 2>/dev/null)|"; fi
 # The space form of a file-valued flag: the value is the next token, resolved
 # against the base like every other operand.
 run "$(mk_start "$AUD" t32)"
