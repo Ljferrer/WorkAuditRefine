@@ -1060,7 +1060,8 @@ fi
 # INSIDE a git call: a `git` shim runs the real git and then sleeps 5 s on the
 # status call whose arguments carry SHIM_SLOW (`<worktree> status`), or on the
 # hash-object call whose arguments carry it (`<worktree> hash-object`), or
-# fails before git runs when they carry SHIM_FAIL. The hook must kill the slow call
+# fails before git runs when they carry SHIM_FAIL, or kills itself with
+# SIGTERM before git runs when they carry SHIM_TERM. The hook must kill the slow call
 # at its deadline (2 s here) instead of waiting for it, so each row also
 # bounds its own wall time. The shim is on PATH for the run under test only;
 # the payload builders use the real jq and git.
@@ -1071,6 +1072,7 @@ cat > "$SHIMG/git" <<SHIM
 case " \$* " in
   *" status "*)
     if [ -n "\${SHIM_FAIL-}" ]; then case "\$*" in *"\$SHIM_FAIL"*) exit 128 ;; esac; fi
+    if [ -n "\${SHIM_TERM-}" ]; then case "\$*" in *"\$SHIM_TERM"*) kill -TERM \$\$; sleep 5; exit 1 ;; esac; fi
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
   *" hash-object "*)
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
@@ -1135,6 +1137,23 @@ if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ]; then
   pass "watchdog kills a slow single-path hash-object call at the deadline"
 else
   fail "watchdog kills a slow single-path hash-object call at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
+fi
+# (1d) A SIGTERM that is not the watchdog's: the shim kills itself on wtA's
+# status before the deadline. The hook reads that as a git error (the
+# `unverifiable fingerprint (git error on ...)` reason, `timeout: false`),
+# never as the timeout reason, which offers the Lead a fail-open ruling.
+# Oracle, independent of the hook: the row's wall time stays under the 2 s
+# deadline, so no watchdog could have fired.
+run "$(mk_start "$AUD" d6d)"
+run "$(mk_read "$AUD" d6d "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d6d)"
+SHIM_TERM="$WTA status" run_shim "$_p"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTA)" ] && [ "$EL" -lt 2 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6d.json" 2>/dev/null)" = false ]; then
+  pass "a SIGTERM before the deadline is a git error, never the timeout reason"
+else
+  fail "a SIGTERM before the deadline is a git error, never the timeout reason (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6d.json" 2>/dev/null))"
 fi
 # (2) The start arm: wtA records before the deadline, wtB's slow status is
 # killed at it, and the marker names wtB with an elapsed value of at least the

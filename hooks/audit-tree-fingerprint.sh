@@ -224,9 +224,15 @@ canon() { (cd "$1" 2>/dev/null && pwd -P); }
 # stdin from <infile> and stdout to <outfile>, under a watchdog that kills it
 # (SIGTERM) when the remaining deadline runs out, and waits on it. Returns the
 # child's exit code, or 3 when the deadline passed before the call or the
-# watchdog killed it (wait reports 143 for SIGTERM). The watchdog is a subshell
-# whose own `sleep` is a background child it kills from a TERM trap, so
-# cancelling the watchdog after a fast call leaves no orphan sleep. The sleep
+# watchdog killed it: wait reports 143 for SIGTERM, and a 143 counts as the
+# watchdog's kill only when the deadline has passed (the sleep is the whole
+# remaining deadline in whole seconds, so SECONDS >= DEADLINE at the kill). A
+# SIGTERM from elsewhere before the deadline (a worker-set core.fsmonitor
+# helper that kills its parent) returns 143, which the caller reads as a git
+# error, never as the timeout reason the Lead may rule fail-open. The
+# watchdog is a subshell whose own `sleep` is a background child it kills
+# from a TERM trap, so cancelling the watchdog after a fast call leaves no
+# orphan sleep. The sleep
 # length is the whole remaining deadline, so a call that ends in time costs one
 # sleep spawn and one kill. No job control (`set -m`) on bash 3.2: the child
 # pid is the command itself (a simple command backgrounded is forked directly),
@@ -252,7 +258,7 @@ bounded() {
   wait "$_cpid" 2>/dev/null; _crc=$?
   kill -TERM "$_kpid" 2>/dev/null
   wait "$_kpid" 2>/dev/null
-  [ "$_crc" = 143 ] && return 3
+  [ "$_crc" = 143 ] && expired && return 3
   return "$_crc"
 }
 
@@ -728,9 +734,9 @@ case "$event" in
         # dir> diff --no-index T1 T2` alike (`.`, `/` and `=` are in its
         # character allowlist, it peels one `-C <path>`, and it polices no
         # diff or blame flag), and git implies --no-index for a two-path
-        # `diff` with either path outside the cwd repository's work tree, so
-        # the command reads a worktree the `-C` scan and the cwd fallback
-        # never name. A slashless operand is
+        # `diff` with either path outside the base's work tree (the payload
+        # cwd, moved by each global -C), so the command reads a worktree the
+        # `-C` scan and the cwd fallback never name. A slashless operand is
         # NOT skipped: after a `-C` into a run directory
         # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
         # task worktree. A token that names no directory (`diff`, `HEAD~1`)
