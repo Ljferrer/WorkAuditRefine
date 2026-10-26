@@ -550,6 +550,21 @@ if touched_is t31 "$WTE"; then pass "option value path inside a worktree is touc
 run "$(mk_start "$AUD" t31b)"
 run "$(mk_bash "$AUD" t31b "git diff -O.claude/war-worktrees/r/wtE/f HEAD")"
 if touched_is t31b "$WTE"; then pass "an attached short-option file value inside a worktree is touched"; else fail "-O<bare relative> value not touched: |$(cat "$FP_ROOT/t31b/touched" 2>/dev/null)|"; fi
+# The absolute arm of the same value: `-O/abs/<file>` is touched as is.
+run "$(mk_start "$AUD" t31c)"
+run "$(mk_bash "$AUD" t31c "git diff -O$MAIN/.claude/war-worktrees/r/wtE/f HEAD")"
+if touched_is t31c "$WTE"; then pass "an attached short-option absolute file value inside a worktree is touched"; else fail "-O</abs> value not touched: |$(cat "$FP_ROOT/t31c/touched" 2>/dev/null)|"; fi
+# A file-valued letter inside a short-option cluster: git's parse_options
+# reads `-pO<orderfile>` letter by letter, so the text after `O` is the
+# orderfile (git 2.54 fails on a missing one: "failed to read orderfile").
+# The guard admits the cluster (`-p` after the subcommand is local). Both
+# arms of the value: bare relative, then absolute.
+run "$(mk_start "$AUD" t31d)"
+run "$(mk_bash "$AUD" t31d "git diff -pO.claude/war-worktrees/r/wtE/f HEAD")"
+if touched_is t31d "$WTE"; then pass "an attached file value inside a short-option cluster is touched"; else fail "-pO<bare relative> cluster value not touched: |$(cat "$FP_ROOT/t31d/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" t31e)"
+run "$(mk_bash "$AUD" t31e "git diff -pO$MAIN/.claude/war-worktrees/r/wtE/f HEAD")"
+if touched_is t31e "$WTE"; then pass "an attached absolute file value inside a short-option cluster is touched"; else fail "-pO</abs> cluster value not touched: |$(cat "$FP_ROOT/t31e/touched" 2>/dev/null)|"; fi
 # The space form of a file-valued flag: the value is the next token, resolved
 # against the base like every other operand.
 run "$(mk_start "$AUD" t32)"
@@ -1071,6 +1086,25 @@ if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ]; then
   pass "watchdog kills a slow hash-object call at the deadline"
 else
   fail "watchdog kills a slow hash-object call at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
+fi
+# (1c) The single-path hash-object arm: an untracked name ending in CR in wtA
+# gets its own `hash-object -- <path>` call, which runs inside the record
+# loop before the batch (wtA's modified `f` is still queued for it). The shim
+# slows that call, the kill lands in the single-path arm, and the hook
+# returns in under 5 s. The CR name is removed afterwards so the rows below
+# see wtA as before.
+printf 'cr\n' > "$TMP/wtA/$CRN"
+run "$(mk_start "$AUD" d6c)"
+run "$(mk_read "$AUD" d6c "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d6c)"
+SHIM_SLOW="$WTA hash-object" run_shim "$_p"
+rm -f "$TMP/wtA/$CRN"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ]; then
+  pass "watchdog kills a slow single-path hash-object call at the deadline"
+else
+  fail "watchdog kills a slow single-path hash-object call at the deadline (rc=$RC el=${EL}s rsn=|$rsn| err=|$ERR|)"
 fi
 # (2) The start arm: wtA records before the deadline, wtB's slow status is
 # killed at it, and the marker names wtB with an elapsed value of at least the

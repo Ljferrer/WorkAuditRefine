@@ -704,7 +704,15 @@ case "$event" in
         # an attached short-option value (`-O<orderfile>`, `-X<exclude-file>`:
         # git reads those files) is classified by the text after its option
         # letter (a non-path value such as `-n5` or `-M50%` resolves to the
-        # base, already touched), any other token that starts with `-` is a
+        # base, already touched), and when that token is a short-option
+        # cluster (git's parse_options reads a cluster letter by letter, so
+        # `-pO<orderfile>` and `-tX<exclude-file>` read the file too) the
+        # text after the first file-valued letter in the cluster (`O`
+        # orderfile, `X` exclude file, `S` blame revs file) is classified as
+        # a path as well; the cluster arm is skipped when the first letter is
+        # itself file-valued, since the plain arm has that token (a non-path
+        # tail resolves to the base), any other token that starts with `-`
+        # is a
         # flag and costs no spawn, and EVERY
         # other token (`../wtB/f`, `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
         # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
@@ -776,7 +784,10 @@ case "$event" in
           case "$_t" in
             /*) touch_operand "$_t" ;;
             -[!-]?*) _v="${_t#-?}"
-               case "$_v" in /*) touch_path "$_v" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v" ;; esac ;;
+               case "$_v" in /*) touch_path "$_v" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v" ;; esac
+               case "$_t" in -[!OXS]*[OXS]?*) _v2="${_t#-*[OXS]}"
+                 case "$_v2" in /*) touch_path "$_v2" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v2" ;; esac ;;
+               esac ;;
             -*) ;;
             *) [ -n "$_base" ] && touch_operand "$_base/$_t" ;;
           esac
