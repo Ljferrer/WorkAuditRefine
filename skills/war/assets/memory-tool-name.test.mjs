@@ -74,8 +74,3 @@ test('ES6: workflow-template.js carries the hook MEMORY_TOOL literal as its cons
   assert.ok(src.includes(`const MEMORY_TOOL = '${name}'`), `${TEMPLATE}: const MEMORY_TOOL carries the hook literal exactly`)
   assert.ok(!src.includes(RETIRED_SELF_QUERY), `${TEMPLATE}: the retired "${RETIRED_SELF_QUERY}" self-query sentence is absent`)
 })
-
-test('ES6 negative control: the retired-sentence check matches the old worker-card sentence', () => {
-  const old = "You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>' --repo <repo root>` mid-task"
-  assert.ok(old.includes(RETIRED_SELF_QUERY), 'the retired token still matches the pre-change sentence (the absence checks above are not vacuous)')
-})

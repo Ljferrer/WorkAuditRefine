@@ -5067,7 +5067,7 @@ test('memory: empty/absent map ⇒ prompts byte-identical to a memory-less run (
 // The literal is extracted from the hook (the canonical home, PIN-8), never restated here.
 const MEMORY_TOOL_LITERAL = (() => {
   const hook = readFileSync(join(here, '../../../hooks/validate-evidence-auditor-mcp.sh'), 'utf8')
-  const rows = hook.split('\n').map(l => /^MEMORY_TOOL='([^']+)'$/.exec(l)).filter(Boolean)
+  const rows = hook.split('\n').map(l => /^MEMORY_TOOL='([^'$]+)'$/.exec(l)).filter(Boolean)
   assert.equal(rows.length, 1, 'the hook carries exactly one MEMORY_TOOL= line')
   return rows[0][1]
 })()
@@ -5142,6 +5142,29 @@ test('memory_query seat line is omitted from every seat prompt when memoryLocalR
     assert.ok(!memoryQueryLineOf(c.prompt), who + ': no MEMORY QUERY line when memoryLocalRoot is absent')
     assert.ok(!String(c.prompt).includes(MEMORY_TOOL_LITERAL), who + ': the tool literal is absent when memoryLocalRoot is absent')
   }
+})
+
+test('memory_query seat line: the FIX_NEEDED fix-worker prompt carries the line too (the worker card reads an absent line as memory disabled)', async () => {
+  // Block-then-approve the sole seat so a FIX_NEEDED fix-worker is dispatched.
+  let auditN = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return ++auditN <= 1
+      ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+          findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
+      : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    return defaultImpl(prompt, opts)
+  }
+  const { calls } = await runPhase(PROVISION_ARGS({ learningsTarget: '/abs/repo/docs/learnings', tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const fix = calls.find(isFixWorker)
+  assert.ok(fix, 'a fix-worker was dispatched on the blocking finding (presence guard)')
+  const line = memoryQueryLineOf(fix.prompt)
+  assert.ok(line && line.includes(MEMORY_TOOL_LITERAL), 'FIX_NEEDED prompt carries the MEMORY QUERY line naming the hook MEMORY_TOOL literal')
+  assert.ok(line.includes('local: /abs/memory-local') && line.includes(' repo: /abs/repo/docs/learnings'), 'the FIX_NEEDED line names the threaded local and repo roots')
 })
 
 test('criterion 11 — ServitorResult schema no longer carries memory_index_updated', async () => {

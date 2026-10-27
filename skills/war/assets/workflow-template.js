@@ -2495,7 +2495,9 @@ const workerIntentClause = intent
 // args.memory, so the byte-identical-empty-map property (criterion 10) still holds. The full tool name
 // is the hook's MEMORY_TOOL literal (PIN-8: hooks/validate-evidence-auditor-mcp.sh owns it;
 // memory-tool-name.test.mjs guards this copy and the four cards against it). The worker card's
-// Prior-lessons sentence mirrors the duty on the standing surface.
+// Prior-lessons sentence mirrors the duty on the standing surface, and it reads an absent line as
+// memory disabled, so EVERY war-worker dispatch (primary, FIX_NEEDED, the floor family, the three
+// ace prompts, the phase-close sweep and the terminal pass) carries the line, not only the primary.
 const MEMORY_TOOL = 'mcp__plugin_work-audit-refine_war-memory__memory_query'
 const memoryQueryRepoArg = (typeof learningsTarget === 'string' && learningsTarget) ? `, repo: ${learningsTarget}` : ''
 const MEMORY_QUERY_TOOL_LINE = memoryLocalRoot
@@ -3745,7 +3747,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + FIX_ROUND_DOCTRINE_CLAUSE
         + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
-        + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause + reaClauseOf(r.task),
+        + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
         { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('fix') })
       // A subset worker death (D21) reads through deathOf FIRST — the site-named cause becomes the
       // existing abandon reason below, never a hold and never a content verdict.
@@ -3862,7 +3864,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + FIX_ROUND_DOCTRINE_CLAUSE
         + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
-        + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause + reaClauseOf(r.task),
+        + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
         { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('fix') })
       const rwWhy = deathOf(rw) || blockedReason(rw)   // a re-entry worker death (D21) takes the existing abandon arm, site-named
       if (rwWhy || typeof rw.head_sha !== 'string' || !rw.head_sha) {
@@ -4040,7 +4042,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + aceable.map(aceFindingRow).join('\n') + '\n'
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits it at the new sha; on regression it is forward-reverted). Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
-          + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + provisionClause + reaClauseOf(r.task),
+          + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('fix') })
         const aceWhy = deathOf(ace) || blockedReason(ace)   // an ace worker death (D21) takes the existing failed-attempt arm, site-named
         // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — no worker result carries `.sha`).
@@ -4323,7 +4325,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${indentLines(f.rationale ?? '')}${f.suggested_fix ? pt`\n      → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + FIX_ROUND_DOCTRINE_CLAUSE
           + chainFixClause(task, chainRound, 'FIX_NEEDED', b.map(relationTagOf))
-          + taskProvenanceClause(task) + workerMemClause(task.id) + provisionClause + reaClauseOf(task),
+          + taskProvenanceClause(task) + workerMemClause(task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
         lastFixKeys = new Set(b.map(blockerKey))   // PIN-29: what this fix round was dispatched on
@@ -4757,7 +4759,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // definition (a floor correction threads no audit finding and no relation tag) — ONE
             // prompt-build site emitting the four labels below.
             + chainFixClause(r.task, correctiveRoundOf('floor', r.task), 'floor family (add-test, make-pass, cite-budget, package-it)', [])
-            + workerMemClause(r.task.id) + provisionClause + reaClauseOf(r.task),
+            + workerMemClause(r.task.id) + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
             { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -5732,7 +5734,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // Backward chain (PIN-6): the sweep is a fix-applying build — it spawns a worker agent (spawn('worker'),
       // non-tiered) — and carries the fixer block at corrective round 1 by definition.
       + chainFixClause(polishTask, correctiveRoundOf('sweep', polishTask), 'phase-close sweep', [])
-      + provisionClause + reaClause,
+      + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
       // never agents.worker.fix. (The four fix-follow-up classes — fix:/ace:/add-test:|package-it:/terminal: — are
@@ -5894,7 +5896,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // is the only landed-row check) — a prompt never asks for a field nothing reads.
           // Backward chain (PIN-6): the terminal pass carries the fixer block at corrective round 1 by definition.
           + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
-          + provisionClause + reaClause,
+          + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
           { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('fix') })
         } catch (err) {
           const c = infraDeathCause(err)
