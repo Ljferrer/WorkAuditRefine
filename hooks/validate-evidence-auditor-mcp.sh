@@ -6,13 +6,34 @@
 #   The MCP arm of the capability-first confinement (ADR 0002). Keyed on
 #   `agent_type` from the hook payload, suffix-anchored (`*war-<role>`, never
 #   `*war-<role>*`, so a `war-<role>-helper` decoration falls through):
-#     - war-auditor, war-servitor, war-refiner : DENY every MCP tool.
-#     - war-evidence-auditor, war-worker       : ALLOW only the REA allowlist
-#                                               below, and only when any output
-#                                               path it names sits under an
-#                                               evidence dir; DENY anything else.
+#     - war-refiner                      : DENY every MCP tool (PIN-7).
+#     - war-auditor, war-servitor        : ALLOW only the memory query tool
+#                                         (MEMORY_TOOL below, exact full-name
+#                                         compare), under the `local` fence;
+#                                         DENY every other MCP tool.
+#     - war-evidence-auditor, war-worker : ALLOW the memory query tool under
+#                                         the `local` fence, and the REA
+#                                         allowlist below, the latter only when
+#                                         any output path it names sits under
+#                                         an evidence dir; DENY anything else.
 #     - every other agent_type (the main session with no agent_type, any
-#       non-WAR agent)                         : pass-through, exit 0.
+#       non-WAR agent)                   : pass-through, exit 0.
+#
+# MEMORY TOOL (plan 2026-10-27-memory-query-mcp-tool; PIN-4, PIN-8, PIN-10)
+#   This file OWNS the full tool-name literal of the plugin's memory query
+#   tool, on the single-quoted `MEMORY_TOOL=` line below (outside the
+#   REA_ALLOWLIST block; the cards and workflow-template.js are guarded
+#   against it by memory-tool-name.test.mjs). The name is the one a live
+#   `claude --plugin-dir .` session listed for the `war-memory` server
+#   registered in .claude-plugin/plugin.json. The compare is exact
+#   (`[ "$tool" = "$MEMORY_TOOL" ]`), never a prefix or suffix glob, and it
+#   runs before the REA suffix path, so no canary line prints for it.
+#   `local` fence: when `tool_input.local` is present it must be a non-empty
+#   string whose value matches `*/.claude/projects/*/memory` (a trailing `/`
+#   tolerated) and carries no `..` segment, else DENY. The value itself must
+#   match: a path beneath the memory dir is denied too, because the server
+#   appends the query log into `local` itself. An absent key passes; `repo`
+#   is not fenced (the server only reads it).
 #
 # RESIDUAL (accepted)
 #   This guard sees only tool calls whose name matches the hooks.json matcher
@@ -106,13 +127,54 @@ get() { printf '%s' "$input" | jq -r "$1 // empty"; }
 atype="$(get '.agent_type')"
 tool="$(get '.tool_name')"
 
-# Route by agent type first: the three MCP-less roles deny before any tool
-# parsing (the deny holds whatever the tool name is), the two allowlisted
-# roles fall through to the suffix check, everything else passes through.
+# ---------------------------------------------------------------------------
+# Memory query tool: the full name, one single-quoted line, owned here (see
+# MEMORY TOOL in the header). Extraction contract: `^MEMORY_TOOL='<name>'$`.
+# ---------------------------------------------------------------------------
+MEMORY_TOOL='mcp__plugin_work-audit-refine_war-memory__memory_query'
+
+# memory_fence: the `local` fence for an exact MEMORY_TOOL match (PIN-4). A
+# tool_input that is neither absent nor an object is denied. A present `local`
+# is read by presence (`has`), never by value: it must be a non-empty string
+# (null, false, a number, an array or an object is denied), carry no `..`
+# segment (the value is wrapped in `/` so a leading or trailing `..` is a
+# segment too), and itself match `*/.claude/projects/*/memory`, with one
+# trailing `/` tolerated. Returns on pass; the caller exits 0.
+memory_fence() {
+  mf_type="$(printf '%s' "$input" | jq -r '.tool_input | type')"
+  case "$mf_type" in
+    null|object) ;;
+    *) deny "tool '$tool' carries a tool_input of type $mf_type, not an object, for agent type '$atype'." ;;
+  esac
+  if printf '%s' "$input" | jq -e '(.tool_input|type)=="object" and (.tool_input|has("local"))' >/dev/null; then
+    mf_vtype="$(printf '%s' "$input" | jq -r '.tool_input.local | type')"
+    mf_val="$(printf '%s' "$input" | jq -r '.tool_input.local')"
+    if [ "$mf_vtype" != "string" ] || [ -z "$mf_val" ]; then
+      deny "tool '$tool' names local with a $mf_vtype value that is not a non-empty path string (a memory root matching */.claude/projects/*/memory only; PIN-4) for agent type '$atype'."
+    fi
+    case "/$mf_val/" in
+      *"/../"*) deny "tool '$tool' names local '$mf_val' with a .. segment (PIN-4) for agent type '$atype'." ;;
+    esac
+    case "$mf_val" in
+      */.claude/projects/*/memory|*/.claude/projects/*/memory/) ;;
+      *) deny "tool '$tool' names local '$mf_val' outside a memory root (the value must match */.claude/projects/*/memory; PIN-4) for agent type '$atype'." ;;
+    esac
+  fi
+}
+
+# Route by agent type first: the refiner denies before any tool parsing (the
+# deny holds whatever the tool name is); the auditor and servitor admit the
+# memory tool by exact compare and deny everything else; the two REA roles
+# admit the memory tool the same way and otherwise fall through to the suffix
+# check; everything else passes through.
 case "$atype" in
-  *war-auditor|*war-servitor|*war-refiner)
-    deny "agent type '$atype' reaches no MCP tool (capability-first confinement, ADR 0002); refusing '$tool'." ;;
-  *war-evidence-auditor|*war-worker) ;;
+  *war-refiner)
+    deny "agent type '$atype' reaches no MCP tool (capability-first confinement, ADR 0002; PIN-7); refusing '$tool'." ;;
+  *war-auditor|*war-servitor)
+    if [ "$tool" = "$MEMORY_TOOL" ]; then memory_fence; exit 0; fi
+    deny "agent type '$atype' reaches no MCP tool other than the memory query tool $MEMORY_TOOL (capability-first confinement, ADR 0002); refusing '$tool'." ;;
+  *war-evidence-auditor|*war-worker)
+    if [ "$tool" = "$MEMORY_TOOL" ]; then memory_fence; exit 0; fi ;;
   *) exit 0 ;;
 esac
 

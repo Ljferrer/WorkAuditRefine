@@ -3,9 +3,13 @@
 # Plan 2026-10-20-rea-artifact-evidence Task 2.2 (D3, D14, D18; PIN-11, PIN-15).
 #
 # The guard is FAIL-CLOSED on matcher `mcp__.*`:
-#   - war-auditor / war-servitor / war-refiner : every MCP tool denied (exit 2).
-#   - war-evidence-auditor / war-worker        : allowed only when the tool-name
-#     suffix (after the second `__`) is on the hook's REA allowlist; a server
+#   - war-refiner                       : every MCP tool denied (exit 2).
+#   - war-auditor / war-servitor        : only the memory query tool (the
+#     hook's MEMORY_TOOL literal, exact full-name compare) under the `local`
+#     fence; every other MCP tool denied (Group A, Group H).
+#   - war-evidence-auditor / war-worker : the memory query tool under the
+#     `local` fence (Group H), else allowed only when the tool-name suffix
+#     (after the second `__`) is on the hook's REA allowlist; a server
 #     registered under another prefix still matches by suffix and prints a
 #     one-line canary on stdout. A member's `tool_input.output_directory` (or
 #     `destination`) must sit under `/.claude/war/evidence/` with no `..`
@@ -81,7 +85,8 @@ OTHER_SERVER_MEMBER="mcp__rea-local__binary_session" # another server prefix, sa
 OTHER_SERVER_NON="mcp__rea-local__gdb_console"
 
 # ---------------------------------------------------------------------------
-# Group A: the three MCP-less roles deny EVERY MCP tool, member or not.
+# Group A: the three non-REA roles deny every REA or foreign MCP tool, member
+# or not (the auditor and servitor admit only the memory tool, Group H).
 # The labels `war-auditor mcp tool denied` / `war-servitor mcp tool denied` /
 # `war-refiner mcp tool denied` are the plan's exact TAP labels.
 # ---------------------------------------------------------------------------
@@ -425,6 +430,170 @@ if grep -qE '\*war-[a-z-]*\*' "$HOOK"; then
 else
   pass "hook agent-type arms are suffix-anchored (no trailing star)"
 fi
+
+# ---------------------------------------------------------------------------
+# Group H: the memory query tool (plan 2026-10-27-memory-query-mcp-tool Task
+# 1.2; PIN-4, PIN-7, PIN-8, PIN-10). The hook OWNS the full tool-name literal
+# on one `MEMORY_TOOL='...'` line outside the REA_ALLOWLIST block. The rows
+# build their payloads from the extracted literal, so a renamed server cannot
+# leave them vacuous; the shape rows pin the literal's form against the server
+# registered in plugin.json. The compare is exact: a proper prefix, an
+# extension, a foreign server with the same suffix, or a glob character is
+# denied for every role.
+#   - war-auditor / war-servitor        : the memory tool is their ONLY MCP tool.
+#   - war-evidence-auditor / war-worker : the memory tool beside the REA allowlist.
+#   - war-refiner                       : still denied every MCP tool.
+#   - `tool_input.local`, when present, must be a non-empty string that
+#     matches `*/.claude/projects/*/memory` (a trailing `/` tolerated) and
+#     carries no `..` segment, else deny; an absent key passes; `repo` is
+#     not fenced.
+# ---------------------------------------------------------------------------
+PLUGIN_JSON="$HERE/../.claude-plugin/plugin.json"
+MEMORY_TOOL="$(sed -n "s/^MEMORY_TOOL='\([^']*\)'\$/\1/p" "$HOOK")"
+_mt_lines="$(grep -c '^MEMORY_TOOL=' "$HOOK")"
+if [ "$_mt_lines" = "1" ] && [ -n "$MEMORY_TOOL" ]; then
+  pass "hook carries exactly one single-quoted MEMORY_TOOL= line ($MEMORY_TOOL)"
+else
+  fail "hook MEMORY_TOOL= line count $_mt_lines, extracted |$MEMORY_TOOL| (expected one single-quoted line)"
+fi
+case "$MEMORY_TOOL" in
+  mcp__?*__memory_query) pass "MEMORY_TOOL has the mcp__<server>__memory_query shape" ;;
+  *) fail "MEMORY_TOOL |$MEMORY_TOOL| is not mcp__<server>__memory_query" ;;
+esac
+_mt_rest="${MEMORY_TOOL#mcp__}"; _mt_server="${_mt_rest%%__*}"
+_reg_server="$(jq -r '.mcpServers | keys[0] // empty' "$PLUGIN_JSON" 2>/dev/null)"
+if [ -n "$_reg_server" ]; then
+  case "$_mt_server" in
+    *"$_reg_server"*) pass "MEMORY_TOOL server part '$_mt_server' names the registered server '$_reg_server'" ;;
+    *) fail "MEMORY_TOOL server part '$_mt_server' omits the registered server '$_reg_server'" ;;
+  esac
+else
+  fail "plugin.json registers no mcpServers entry (MEMORY_TOOL server row vacuous)"
+fi
+if printf '%s\n' "$hook_block" | grep -Fxq "$MEMORY_TOOL"; then
+  fail "MEMORY_TOOL sits inside the REA_ALLOWLIST block (it must be its own line outside it)"
+else
+  pass "MEMORY_TOOL is outside the REA_ALLOWLIST block"
+fi
+
+# Allow rows: each of the four roles, bare and namespaced.
+expect_allow "war-auditor memory tool allowed" \
+  "$(mk 'war-auditor' "$MEMORY_TOOL")"
+expect_allow "exact-shape :war-auditor memory tool allowed" \
+  "$(mk 'work-audit-refine:war-auditor' "$MEMORY_TOOL")"
+expect_allow "war-servitor memory tool allowed" \
+  "$(mk 'war-servitor' "$MEMORY_TOOL")"
+expect_allow "exact-shape :war-servitor memory tool allowed" \
+  "$(mk 'work-audit-refine:war-servitor' "$MEMORY_TOOL")"
+expect_allow "war-evidence-auditor memory tool allowed" \
+  "$(mk 'war-evidence-auditor' "$MEMORY_TOOL")"
+expect_allow "exact-shape :war-evidence-auditor memory tool allowed" \
+  "$(mk 'work-audit-refine:war-evidence-auditor' "$MEMORY_TOOL")"
+expect_allow "war-worker memory tool allowed" \
+  "$(mk 'war-worker' "$MEMORY_TOOL")"
+expect_allow "exact-shape :war-worker memory tool allowed" \
+  "$(mk 'work-audit-refine:war-worker' "$MEMORY_TOOL")"
+# No canary: the memory tool's server prefix is not `rea`, but the exact
+# compare decides before the REA suffix path, so no canary line prints.
+_out="$(stdout_of "$(mk 'war-worker' "$MEMORY_TOOL")")"
+case "$_out" in
+  *canary*) fail "memory tool printed the REA canary (stdout=|$_out|)" ;;
+  *) pass "memory tool prints no canary line" ;;
+esac
+
+# Refiner: denied the memory tool too (PIN-7).
+expect_deny "war-refiner memory tool denied" \
+  "$(mk 'war-refiner' "$MEMORY_TOOL")" "reaches no MCP tool"
+expect_deny "exact-shape :war-refiner memory tool denied" \
+  "$(mk 'work-audit-refine:war-refiner' "$MEMORY_TOOL")" "reaches no MCP tool"
+
+# Auditor and servitor: every OTHER MCP tool stays denied, including near
+# misses of the literal. A prefix glob admits the extension, a suffix glob
+# admits the foreign server, an unquoted compare admits the `*` name, and a
+# substring compare admits the proper prefix.
+MEMORY_TOOL_EXT="${MEMORY_TOOL}_extra"
+MEMORY_TOOL_PREFIX="${MEMORY_TOOL%?}"
+MEMORY_TOOL_FOREIGN="mcp__other__memory_query"
+MEMORY_TOOL_GLOB="mcp__${_mt_server}__*"
+expect_deny "war-auditor other mcp tool still denied" \
+  "$(mk 'war-auditor' "$PRESENCE_TOOL")" "reaches no MCP tool"
+expect_deny "war-servitor other mcp tool still denied" \
+  "$(mk 'war-servitor' 'mcp__github__get_issue')" "reaches no MCP tool"
+expect_deny "war-auditor memory tool extension denied (exact compare)" \
+  "$(mk 'war-auditor' "$MEMORY_TOOL_EXT")" "reaches no MCP tool"
+expect_deny "war-auditor memory tool proper prefix denied (exact compare)" \
+  "$(mk 'war-auditor' "$MEMORY_TOOL_PREFIX")" "reaches no MCP tool"
+expect_deny "war-auditor foreign server memory_query denied (no suffix keying)" \
+  "$(mk 'war-auditor' "$MEMORY_TOOL_FOREIGN")" "reaches no MCP tool"
+expect_deny "war-servitor foreign server memory_query denied (no suffix keying)" \
+  "$(mk 'war-servitor' "$MEMORY_TOOL_FOREIGN")" "reaches no MCP tool"
+expect_deny "war-auditor glob-char memory tool name denied (literal compare)" \
+  "$(mk 'war-auditor' "$MEMORY_TOOL_GLOB")" "reaches no MCP tool"
+expect_deny "war-servitor newline-spliced memory tool name denied" \
+  "$(mk 'war-servitor' "$MEMORY_TOOL"$'\n'"$MEMORY_TOOL")" "reaches no MCP tool"
+
+# Evidence auditor and worker: REA still allowed beside the memory tool
+# (PIN-10), and a near miss of the memory literal falls to the REA allowlist
+# deny, never through.
+expect_allow "war-evidence-auditor REA member still allowed beside the memory tool" \
+  "$(mk 'war-evidence-auditor' "$PRESENCE_TOOL")"
+expect_allow "war-worker REA member still allowed beside the memory tool" \
+  "$(mk 'war-worker' "$PRESENCE_TOOL")"
+expect_deny "war-evidence-auditor foreign server memory_query denied (no suffix keying)" \
+  "$(mk 'war-evidence-auditor' "$MEMORY_TOOL_FOREIGN")" "not on the REA allowlist"
+expect_deny "war-worker memory tool extension denied (exact compare)" \
+  "$(mk 'war-worker' "$MEMORY_TOOL_EXT")" "not on the REA allowlist"
+expect_deny "war-worker memory tool proper prefix denied (exact compare)" \
+  "$(mk 'war-worker' "$MEMORY_TOOL_PREFIX")" "not on the REA allowlist"
+
+# `local` fence (PIN-4). The value itself must match the memory-root glob: a
+# path beneath the memory dir is denied too, because the server appends the
+# query log into `local` itself.
+MEM_ROOT="/Users/x/.claude/projects/-Users-x-repo/memory"
+# mk_local <agent_type> <local> -> a memory-tool payload whose tool_input.local
+# is that string (jq --arg: bytes verbatim; no `\"`-escaped comma inside
+# `"$(...)"`, which bash 3.2 mis-parses).
+mk_local() { jq -nc --arg at "$1" --arg tn "$MEMORY_TOOL" --arg l "$2" '{"agent_type":$at,"tool_name":$tn,"tool_input":{"query":"q","local":$l}}'; }
+expect_allow "memory tool local under a memory root allowed" \
+  "$(mk_local 'war-auditor' "$MEM_ROOT")"
+expect_allow "memory tool local with trailing slash allowed" \
+  "$(mk_local 'war-servitor' "$MEM_ROOT/")"
+expect_allow "memory tool local absent allowed" \
+  "$(mk_in 'war-auditor' "$MEMORY_TOOL" '{"query":"q","repo":"/Users/x/repo/docs/learnings"}')"
+expect_allow "memory tool with no tool_input key allowed" \
+  "$(jq -nc --arg tn "$MEMORY_TOOL" '{"agent_type":"war-servitor","tool_name":$tn}')"
+expect_allow "memory tool repo outside the memory root allowed (only local is fenced)" \
+  "$(mk_in 'war-worker' "$MEMORY_TOOL" '{"query":"q","repo":"/tmp/anywhere"}')"
+expect_deny "memory tool local outside the memory root denied" \
+  "$(mk_local 'war-auditor' "/Users/x/repo/docs/learnings")" "outside"
+expect_deny "memory tool local beneath the memory root denied" \
+  "$(mk_local 'war-auditor' "$MEM_ROOT/archive")" "outside"
+expect_deny "memory tool local with the bare dir name but no projects segment denied" \
+  "$(mk_local 'war-auditor' "/Users/x/memory")" "outside"
+expect_deny "memory tool relative local denied" \
+  "$(mk_local 'war-auditor' ".claude/projects/s/memory")" "outside"
+# A `..` inside the matching glob span is still a segment: the row goes red
+# when the `..` arm is deleted, because the glob alone admits it.
+expect_deny "memory tool local with .. denied" \
+  "$(mk_local 'war-auditor' "/Users/x/.claude/projects/../projects/s/memory")" ".. segment"
+expect_deny "memory tool local with trailing .. denied" \
+  "$(mk_local 'war-servitor' "$MEM_ROOT/..")" ".. segment"
+expect_deny "memory tool local empty string denied" \
+  "$(mk_local 'war-auditor' "")" "not a non-empty path string"
+expect_deny "memory tool local null denied" \
+  "$(mk_in 'war-auditor' "$MEMORY_TOOL" '{"query":"q","local":null}')" "not a non-empty path string"
+ARRAY_LOCAL="{\"query\":\"q\",\"local\":[\"$MEM_ROOT\",\"/tmp/evil\"]}"
+expect_deny "memory tool local non-string denied" \
+  "$(mk_in 'war-auditor' "$MEMORY_TOOL" "$ARRAY_LOCAL")" "not a non-empty path string"
+expect_deny "memory tool tool_input non-object denied" \
+  "$(jq -nc --arg tn "$MEMORY_TOOL" '{"agent_type":"war-auditor","tool_name":$tn,"tool_input":"q"}')" "not an object"
+# The fence binds every admitted role, not only the auditor.
+expect_deny "war-worker memory tool local outside the memory root denied" \
+  "$(mk_local 'war-worker' "/Users/x/repo/.claude/war-worktrees/p1")" "outside"
+expect_deny "war-evidence-auditor memory tool local with .. denied" \
+  "$(mk_local 'war-evidence-auditor' "$MEM_ROOT/../x/memory")" ".. segment"
+expect_deny "war-servitor memory tool local outside the memory root denied" \
+  "$(mk_local 'war-servitor' "/tmp/memory")" "outside"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
