@@ -129,6 +129,15 @@ carries `metadata.seededFrom` (it *came from* the seed set — nominating it bac
 slug already appears in **either** `seed-manifest.json` tier (`seed` or `archive`), or its slug is
 already carried by an **open or closed** `seed-candidate` issue on `Ljferrer/WorkAuditRefine`.
 
+**Scrub before packing or filing (#2349).** The rubric excludes a product-internal lesson, but a
+lesson with a portable kernel and product-internal examples passes it. Scrub every candidate before
+it is packed or filed: another repo's paths, product names, handler or module names, and PR or issue
+numbers become generic tags (`<repo>/<pkg>/<handler>.py`, `<shared_helper>()`, `#<issue>`), and
+`[[wikilinks]]` become plain text. Strip session and run bookkeeping from the frontmatter
+(`originSessionId`, `promoted`, `phase`, `modified`). `seed-pack.mjs pack` and `verify` refuse a
+member that still carries `originSessionId` or `promoted`. The redaction lint does not catch a
+downstream repo's own names, so the scrub is a reading pass, not a lint.
+
 ### Inside `WorkAuditRefine`
 
 One operator gate, then a direct re-pack:
@@ -212,7 +221,9 @@ authoritative marker.
 **Per issue, in order:**
 
 1. Extract the **first** fenced code block in the body; ignore any later ones.
-2. Temp-file lint the extraction — the same `lint <tmpfile>` discipline as `## Nominate`.
+2. Scrub the extraction per `## Nominate`'s scrub step, then temp-file lint the scrubbed copy — the
+   same `lint <tmpfile>` discipline as `## Nominate`. The scrubbed, linted copy is the extraction
+   that step 6 stages.
 3. **Manifest dedup** — check the extracted slug against **both** `seed-manifest.json` tiers
    (`seed` and `archive`).
 4. **Malformed check** — any of: no fence at all; the fence does not parse to a lesson
