@@ -118,7 +118,8 @@ name on its `MEMORY_TOOL=` line; every other surface points at that literal and 
 - **No-seat-write rule.** The seat itself never writes. The server appends one query-log line only
   into an existing directory named by `local`, and never creates one. A query over `repo` only reads.
 - **The `local` anchor.** When a call carries `local`, the hook denies it unless the value is an
-  absolute path under `*/.claude/projects/*/memory` with no `..` segment. An absent `local` passes,
+  absolute path that itself matches `*/.claude/projects/*/memory` (one trailing `/` tolerated) with
+  no `..` segment. An absent `local` passes,
   and the server then writes nothing. The server never guesses a root from cwd: the Lead threads the
   resolved roots into each seat prompt.
 - **Refiner exclusion.** `war-refiner` stays denied every MCP tool, the memory query tool included.
