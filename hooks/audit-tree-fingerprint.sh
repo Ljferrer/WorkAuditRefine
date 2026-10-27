@@ -38,20 +38,25 @@
 #         (a Read file_path, a Glob or Grep path, an
 #         absolute Glob pattern, a Bash `git -C <path>` before the subcommand
 #         word, an absolute Bash operand, any relative Bash operand (`../x`,
-#         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x`, `~+/x` or
-#         `~-/x` operand, the value after `=` of a Bash `--<opt>=<path>` token,
+#         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x` or `~+/x`
+#         operand, the value after `=` of a Bash `--<opt>=<path>` token,
 #         the text after the option letter of an attached short-option value
 #         (`-O<file>`, `-X<file>`), or after the first file-valued letter (O,
 #         X, S) of a short-option cluster (`-pO<file>`), or the next token of
 #         a space-form file-valued flag, else the payload cwd) and add each
-#         to the seat's touched set. A directory
+#         to the seat's touched set. An unquoted `~-` or `~<name>` Bash token
+#         (`-C` value or operand) is unresolved: the payload carries no
+#         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
+#         touched set literal (see tilde). A directory
 #         operand that holds task worktrees adds each of them when the
-#         command reads them (see touch_operand).
+#         command reads them (see touch_operand). A Grep whose search root
+#         is a directory adds each task worktree below it that ripgrep
+#         enters (see grep_walk); Glob stays walk-up only.
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
 #         or an unsafe agent_id, no git common dir, a missing start record, a
-#         git error, an unresolved Bash `~<name>` token),
+#         git error, an unresolved Bash `~-` or `~<name>` token),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
 #         `AUDIT-TAMPER: <worktree> changed during the audit round (<start> -> <now>)`
@@ -129,8 +134,9 @@
 #   composed `dirname "$(git ...)"` yields "." on a failed probe). `.claude/`
 #   is already excluded from status by provision-worktrees.sh ensure-exclude.
 #   `start` lines are `<head> <status-sha256> <worktree>`; `touched` holds one
-#   canonical worktree path per line, or a literal `~<name>` Bash `-C` token
-#   the hook cannot expand (the verdict arm reports it as unresolved). Worktree
+#   canonical worktree path per line, or a literal `~-` or `~<name>` Bash token
+#   (a `-C` value or an operand) the hook cannot expand (the verdict arm
+#   reports it as unresolved). Worktree
 #   paths are canonical (`pwd -P`) on both sides, so a symlinked temp dir
 #   compares equal to its real path.
 #
@@ -249,11 +255,12 @@ sha256_of_stdin() {
 # directory and canon'd, so a symlink not followed by `..` is still
 # followed forward, as the reader follows it. The two readings disagree
 # only across a `..` after a worktree-planted `lnk -> <other worktree>/sub`
-# or a `..` after a missing component; every resolver that stands in for a
-# reader takes BOTH (task_worktree_of, outside_top), so neither shape can
-# point the touch away from the worktree either reader reaches. The
-# walk-down of touch_operand reads only canon: it runs for the `--no-index`
-# forms, which git opens physically.
+# or a `..` after a missing or non-directory component; every resolver that
+# stands in for a reader takes BOTH (task_worktree_of, outside_top), so
+# neither shape can point the touch away from the worktree either reader
+# reaches. The walk-down of touch_operand reads only canon: it runs for the
+# `--no-index` forms, which git opens physically. grep_walk reads only canon
+# too: ripgrep opens its search root through the kernel.
 canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
 lexical_dir() {
   _lr="$1"; _lo=""
@@ -599,9 +606,9 @@ outside_top() {
 # either token is outside the base's work tree (outside_top). The caller
 # checks that the subcommand word is `diff` and calls once the global `-C`
 # tokens have settled `_base`. Each of the two tokens is shell-expanded like
-# any operand (quotes stripped, `~` expanded); a `~<name>` token cannot be
-# resolved, so nothing is implied (its literal touched line already escalates
-# the verdict). The two tokens are collected first and resolved only when
+# any operand (quotes stripped, `~` expanded); a `~-` or `~<name>` token
+# cannot be resolved, so nothing is implied (its literal touched line already
+# escalates the verdict). The two tokens are collected first and resolved only when
 # the count is exactly two: a one-token `diff A...B` or a third token
 # returns before any canon subshell (or base_top's rev-parse) runs.
 implied_noindex() {
@@ -649,23 +656,90 @@ touch_operand() {
   done
 }
 
+# ignored_dir <canonical dir>: returns 0 when the repository that holds <dir>
+# ignores it by pattern, the way ripgrep decides it: `check-ignore
+# --no-index`, never plain `check-ignore`, which reads the index and calls a
+# dir with any tracked file under it not ignored (this repo tracks
+# .claude/war/config.json), although ripgrep still skips it. The question is
+# asked from the dir's parent with a `./<name>/` operand (the `./` keeps a
+# leading `:` from reading as pathspec magic, the `/` makes a `dir/` pattern
+# match), so it is answered by the repository that holds <dir>, and git's
+# leading-directory check makes a dir under an ignored dir ignored too. A dir
+# with a `.git` entry is a repository root: never ignored, and no spawn. Any
+# other non-zero exit is "not ignored", so the walk marks: a dir no work tree
+# holds (git's "not a git repository" exit, where ripgrep enters, D4) and a
+# git error inside a work tree (when unsure, over-touch, PIN-6) alike. Runs
+# with `-c core.fsmonitor=false` (PIN-1); `--no-index` never reads an index.
+ignored_dir() {
+  [ -e "$1/.git" ] && return 1
+  _gq="${1%/*}"; [ -n "$_gq" ] || _gq=/
+  _gn="${1##*/}"
+  [ -n "$_gn" ] || return 1
+  git -c core.fsmonitor=false -C "$_gq" check-ignore -q --no-index -- "./$_gn/" >/dev/null 2>&1
+}
+
+# grep_walk <search root>: for a Grep whose search root R (its `path`, else
+# the payload cwd; a relative R resolves against the cwd) is a directory,
+# touch every marked task worktree W strictly below R that the Grep tool's
+# ripgrep enters (D4, PIN-4). That ripgrep runs with `--hidden` and no
+# `--no-ignore`, so it skips a folder the repository holding it ignores, but
+# never applies an ignore rule to an explicit search root or below it. So:
+# when R is at or under an ignored dir (ignored_dir R), every W below R is
+# touched; else W is touched unless a folder strictly below R on the path
+# down to W, W included, is ignored. A no-path Grep from the main checkout
+# meets `.claude` first, which provision-worktrees.sh ensure-exclude
+# excludes, so busy sibling worktrees under the run dir are never touched
+# (no false AUDIT-TAMPER). ripgrep honors more ignore files than git
+# (`.ignore`, `.rgignore`, global excludes); the gap errs toward over-touch.
+# The walk primitive is task_worktrees, as in touch_operand. R is read
+# physically (canon). Each folder's answer is cached for the call, so the
+# worktrees under one ignored dir cost one check-ignore spawn.
+grep_walk() {
+  [ -n "$STATE" ] || return 0
+  case "$1" in /*) _gr="$1" ;; *) _gr="$cwd/$1" ;; esac
+  [ -d "$_gr" ] || return 0
+  _gr="$(canon "$_gr")" && [ -n "$_gr" ] || return 0
+  _gall=0; ignored_dir "$_gr" && _gall=1
+  _gpre="${_gr%/}"
+  task_worktrees | {
+    _gyes=""; _gno=""
+    while IFS= read -r _w; do
+      case "$_w" in "$_gpre"/?*) ;; *) continue ;; esac
+      if [ "$_gall" = 0 ]; then
+        _gf="$_gpre"; _grest="${_w#"$_gpre"/}"; _gskip=0
+        while [ -n "$_grest" ]; do
+          _gf="$_gf/${_grest%%/*}"
+          case "$_grest" in */*) _grest="${_grest#*/}" ;; *) _grest="" ;; esac
+          case "$NL$_gno" in *"$NL$_gf$NL"*) continue ;; esac
+          case "$NL$_gyes" in *"$NL$_gf$NL"*) _gskip=1; break ;; esac
+          if ignored_dir "$_gf"; then _gyes="$_gyes$_gf$NL"; _gskip=1; break; fi
+          _gno="$_gno$_gf$NL"
+        done
+        [ "$_gskip" = 1 ] && continue
+      fi
+      touch_line "$_w"
+    done
+  }
+  return 0
+}
+
 # unquote <token>: sets _t to the token with one pair of outer quotes
 # (double or single) stripped.
 unquote() { _t="$1"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; }
 
 # tilde <token>: sets _t to the token with an unquoted word-initial `~`
 # expanded as the seat's shell expands it before git runs: `~` and `~/x`
-# from HOME, `~+` and `~-` (`+` and `-` are admitted too) from the payload
-# cwd (the nearest reading of PWD and OLDPWD the payload offers). Returns 1
-# on a `~<name>` form, which only getpwnam can resolve: the caller records
-# the token literal so the verdict arm escalates it as unresolved instead of
-# comparing nothing.
+# from HOME, `~+` (`+` is admitted too) from the payload cwd, which is the
+# seat's PWD. Returns 1 on a `~-` or `~-/x` form, which the shell expands
+# from OLDPWD (the payload carries none, and the hook never reads its own:
+# PIN-7), and on a `~<name>` form, which only getpwnam can resolve: the
+# caller records the token literal so the verdict arm escalates it as
+# unresolved instead of comparing nothing.
 tilde() {
   _t="$1"
   case "$_t" in
     "~"|"~/"*) [ -n "${HOME-}" ] && _t="$HOME${_t#\~}" ;;
     "~+"|"~+/"*) _t="$cwd${_t#\~+}" ;;
-    "~-"|"~-/"*) _t="$cwd${_t#\~-}" ;;
     "~"*) return 1 ;;
   esac
   return 0
@@ -810,6 +884,13 @@ case "$event" in
         _p="$(get '.tool_input.path')"
         [ -n "$_p" ] || _p="$cwd"
         touch_path "$_p"
+        # A Grep also walks down into the task worktrees its ripgrep enters
+        # (see grep_walk). Glob does not (D5, PIN-5): its default flags
+        # recurse into every folder, so a walk would touch every sibling
+        # worktree on each Glob from the main checkout, and Glob returns
+        # names only (a later Read or Grep of a listed file touches its
+        # worktree).
+        [ "$tool" = Grep ] && grep_walk "$_p"
         # An absolute Glob pattern reaches its own tree whatever `path` says:
         # touch the prefix up to the first glob metacharacter (`*`, `?`, `[`,
         # `{`), the literal directory the pattern walks.
@@ -831,8 +912,8 @@ case "$event" in
         # An unquoted word-initial `~` (admitted by validate-auditor-git.sh
         # for HEAD~1) is expanded by the seat's shell before git sees it, so
         # the hook expands that form too (see tilde above), on a `-C` value
-        # and on an operand alike; a `~<name>` form goes into the touched set
-        # literal. A quoted `'~/x'` or an attached `-C~/x` reaches git literal
+        # and on an operand alike; a `~-` or `~<name>` form goes into the
+        # touched set literal. A quoted `'~/x'` or an attached `-C~/x` reaches git literal
         # and stays literal here. Every other token, quotes stripped, is
         # classified as a path: an absolute one (`/...`) is touched as is, a
         # `--<opt>=<value>` token is classified by the value after its first
@@ -877,7 +958,7 @@ case "$event" in
         # either path outside the base's work tree). The first token is the program name
         # (`git`, the only one the guard admits) and names no path, so it is
         # skipped: resolved against the payload cwd it would touch a worktree
-        # a `-C` command never reads. After an unresolved `~<name>` -C the
+        # a `-C` command never reads. After an unresolved `~-` or `~<name>` -C the
         # base is unknown, so a later relative operand is not resolved; the
         # literal line already makes the verdict arm escalate, so nothing is
         # lost. The cwd fallback is unchanged by an operand token: the
