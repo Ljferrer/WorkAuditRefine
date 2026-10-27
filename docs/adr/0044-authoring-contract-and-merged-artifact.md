@@ -2,7 +2,8 @@
 
 **Status:** accepted (design ratified 2026-08-04; implemented by the spec and plan below;
 amended 2026-08-24 — authoring-side verification: the interviewer gains its adversarial
-counterweight; see the amendment below)
+counterweight; amended 2026-10-26 — fork trials and the pair beat: the interviewer runs the
+experiment; see the amendments below)
 
 The WAR pipeline's front door was its only stage with no ratified discipline. The README named
 Grill Me a "Required Auxiliary Plugin" and attributed to `/grill-with-docs` a design-tree walk
@@ -262,3 +263,159 @@ runs armed-by-rule, unwaived — the counterweight is not an interactive-only pr
   documents), `skills/war-machine/SKILL.md` (merged-output directive + grill charter),
   `skills/red-team/SKILL.md` Step 1 (the merged arm).
 - Originating task issue: #1314.
+
+## Amendment (2026-10-26): fork trials and the pair beat — the interviewer runs the experiment
+
+**Status:** accepted (2026-10-26 — ratified in the fork-trials interview, Q1–Q15; plan:
+[`docs/plans/2026-10-26-interview-fork-trials-and-pair-beats.md`](../plans/2026-10-26-interview-fork-trials-and-pair-beats.md);
+red-team record:
+[`docs/red-team/2026-10-26-interview-fork-trials-and-pair-beats.md`](../red-team/2026-10-26-interview-fork-trials-and-pair-beats.md),
+ADJUDICATED per [ADR 0043](0043-adjudicated-clear-distinct-terminal-verdict.md); token-use
+tracking: issue #2436).
+
+The 2026-08-24 amendment gave the interviewer a refuter. The refuter reads and reasons. It runs
+nothing. The first time a plan claim is executed is `/red-team`, after the operator has ratified
+the design. This amendment moves the experiment forward: the interviewer settles a fact fork by
+running a bounded throwaway trial, settles a consequential interface by comparing two
+structurally different designs, and records both in the plan before the operator ratifies
+either. Plan prose is never evidence that a design works. The amendment records the decision;
+the operative duties live in one cold references file,
+[`skills/war-strategy/references/fork-trials.md`](../../skills/war-strategy/references/fork-trials.md),
+reached by `when <trigger>, read` pointers from `plan-interview.md` Stage 1b and Stage 2, from
+`skills/war-strategy/SKILL.md` §4, and from the `/war-machine` grill charter and
+`afk-conversion.md`.
+
+### The gap, measured
+
+- **De facto probes already existed.** The REA plan's interview
+  (`docs/plans/2026-10-20-rea-artifact-evidence.md`) ran executed probes and recorded them as a
+  single Evidence consumed row, "Probes this interview ran". The practice had no doctrine, no
+  record grammar, no sandbox rule and no provenance rule. That row is grandfathered as legacy.
+- **The ADJUDICATED census.** Of the 12 newest plans at `dd837332`, 10 carried a red-team
+  report: 9 ended ADJUDICATED, 1 BLOCKED, 0 CLEARED. In the four newest reports about 5% of
+  Critical/Major findings were checks green at the base, about 5% were checks red by
+  construction, and about 2% were false ledger rows. About 88% lay outside what a red-at-base
+  sweep can reach (the sweep verifier's census; a dated snapshot).
+- **Two REA red-team facts a one-command probe settles.** A guard described as "extracts the
+  first bold literal" was red by construction on three surfaces (Major ×4), and ledger row A1
+  was false because the exports lived in `~/.zshrc`. Both were observable facts. Neither was
+  observed before ratification.
+
+### The seven mechanisms
+
+1. **The fork trial.** A Stage 1b fork is classified before it is asked: an observable fact
+   becomes a fork trial, a consequential interface becomes a pair beat, a preference stays a
+   question. The interviewer runs the trial itself, inline or in one ad hoc subagent, in one
+   sandbox form, `git clone --no-hardlinks` into the scratchpad, never `cp -R` and never
+   `git worktree add`. The escape guard (ADR 0033) runs snapshot before and baseline after each
+   trial. The guard is fail-closed on the `TRIAL` row, never on the interview: an un-triaged
+   exit 1 or an exit 2 stamps the row `infra-failed — guard unsettled`, which backs only
+   `[assumed:]`. The trial's base is the sha observed in the clone; a mismatch is
+   `infra-failed — base mismatch`. A trial that must execute a shipped artifact is out of scope
+   (the REA lane or `/red-team`). Outcomes are `settled`, `inconclusive` or `infra-failed`, with
+   one retry only on `infra-failed`. A fork trial costs zero questions.
+2. **The sweep row.** Reachability step 3 (`backward-chain-plan.md`) stays the author's duty,
+   untouched. The `TRIAL-<n> · sweep` row is its bounded, recorded run: base sha, sandbox, wall
+   cap, per-command timeout, each End-state check's red, green or transport failure, the step-4
+   reach walk, and `partial — ran k of m` on cap. Each End-state line keeps its step-5 result. A
+   green check at base reopens the End state. The row never says "validated".
+3. **The pair beat.** Mandatory on three triggers: a new or reshaped exported contract; a new or
+   reshaped artifact grammar with two or more consumers; a mechanism floored into
+   `Binding guardrails:` with two or more non-equivalent realizations. The necessity twin: name
+   two structurally different shapes, or it is a verifier beat. One frozen brief (problem,
+   constraints, evidence, the caller's usage, 3–6 criteria) precedes any candidate. Two
+   candidates by default, three at most, one reframe on wild divergence. The operator may decline
+   by bare assent: the row records `chosen: <design> (user) — pair declined: <reason>`, never a
+   `WAIVE-<n>` row. A pair beat costs one question.
+4. **The Trials run block.** Every trial lands as one row, `- TRIAL-<n> · fact | pair | sweep ·
+   <fields>`, in one Part 1 `**Trials run**` block. `TRIAL-<n>` reuses the `PIN-<n>` token
+   grammar: digits-only, right-delimited. The block is placement latitude, never a new required
+   H2: the extraction-compatibility hard bound of the 2026-08-04 decision is untouched, and the
+   block inherits the Evidence consumed block's law by name. `command` and `observed` ride a
+   nested fence under the bullet, with no column-0 `## `, `### ` or `- Files:` inside it. The
+   header carries the bounds, their config provenance, the trial tier, the token and wall cost,
+   and the escape-guard result. `None — no fork qualified` is a valid block. Gate 1 enumerates
+   the block aloud beside the Evidence consumed block.
+5. **The provenance rule.** Only a pre-registered `settled` row backs
+   `(verified: TRIAL-n at <base>)` in the design tree. An inconclusive or infra-failed row backs
+   only `[assumed:]`, and an inconclusive trial backs an Assumptions-ledger row whose Check is the
+   trial's clone-root-relative replay command. An assumption a trial confirms is retired with the
+   reason `settled by TRIAL-n`. An exploratory run with no prior row may mint a fork or an
+   `[assumed:]`, never a settlement.
+6. **The config section and the trial tier.** `DEFAULTS.interview` in `war-config.mjs` carries
+   exactly three keys: `trialWallSeconds` (600), `commandTimeoutSeconds` (120) and
+   `excerptLines` (20), validated in the hooks/memory shape, set by no preset and never threaded
+   into Workflow args. The retry rule is doctrine, fixed at 1. The bounds are a safety precaution
+   (ADR 0052 §4): every trial carries a wall cap written in its row before the run, and Stage 3
+   reads the trial count and wall time aloud. The trial subagent's model and effort live at
+   `agents.trial`, a validated tier beside `agents.redteam`, read fail-open; no new `agents/*.md`
+   card exists. `/war-room` names the three keys and the tier, and an interview may override a
+   bound on the record as a `(user)` fact in the Trials header, never written back.
+7. **The AFK shape.** Under `/war-machine --afk` fact trials run unattended with `AI-declared`
+   rows. For a pair beat the drafter authors both candidates from one frozen brief and picks; the
+   Source cell reads `PIN-n · AI-declared [assumed: picked on the frozen criteria, TRIAL-n — if
+   wrong: <losing candidate>]`, and the grill refutes the pick as an armed arm-2 beat. No pair
+   beat is suppressed. A `WAIVE-<n>` row in an AFK plan stays a defect.
+
+Two funding moves ride the same plan. The three new glossary terms (**Fork trial**, **Pair
+beat**, **Trials run block**) are born cold in `skills/war/references/glossary-cold.md`, with
+pointer residues in `CONTEXT.md`; the bytes are funded by moving the `Executor gate` and
+`Decisive slot` bodies to the same cold file byte-identically, each bound by a D32 row. The
+`[assumed]`-first probe wording that named a `/red-team` probe that does not exist is retired on
+the live surfaces and kept, frozen, in the 2026-08-04 design spec under ADR 0046's posterity rule.
+
+### The verifier-flow record
+
+The interview ran under the 2026-08-24 counterweight. Fourteen verifier passes rode their beats.
+The executor beat armed, was amended (a per-trial guard, one sandbox form, scratchpad staging),
+re-armed, forked on the dirty-tree case and was ruled at Q1. The sweep beat armed, was amended
+(the requires-red rule dropped), re-armed, forked on step 3 and was ruled at Q2. The base beat
+armed, forked and was ruled at Q4. The funding beat armed, was amended (pair eviction, born-cold
+`_Avoid_` lines, a measured landing size), re-armed and survived. The AFK beat armed, was amended
+(the Source cell form), re-armed, forked and was ruled at Q5. The release beat armed, was amended
+(the precedent Done when, no version literal, the CHANGELOG twin), re-armed, forked and folded
+into the launch precondition at Q6. The config beat armed, was amended (presence pins, per-key
+fallback, the hooks block), re-armed, forked on header provenance and was ruled at Q11. The
+red-team row armed, forked and was ruled at Q10. The trial tier (Q15) needed no new dispatch:
+the config verifier's first pass had already named the `agents.*` shape. No `WAIVE-<n>` row was
+uttered. The interview also ran its own trials while ratifying the doctrine: one pair trial
+(three candidate shapes, three judging lenses), three fact trials and one sweep. They are
+exploratory records, exempt from replay (backstop B1). The
+rejected candidates, chartered trial seats and a shared executor on the red-team scaffold, are
+recorded on the pair row with the grafts each contributed.
+
+### Accepted residuals
+
+- **A misspelled `interview` section passes `validate()`.** `validate()` has no top-level
+  unknown-key loop. The interview falls back to the defaults silently; the Trials header's
+  `config: (section absent)` is the only tell. The #2436 knob task is the natural fixer.
+- **Born-cold header truth is unguarded.** The cold glossary's header sentence admits born-cold
+  bodies while keeping `at eviction time`. Only the `at eviction time` clause is machine-checked;
+  a fixed-string header pin guards the new clause's presence, not its truth.
+- **The row grammar has no lint yet.** An advisory `plan-literal-lint.mjs` rule for the
+  `TRIAL-<n>` row waits for the first drift class (backstop B2).
+- **Replay at red-team is a follow-up.** This plan changes no `/red-team` file. Settled rows are
+  replayed by the first `/red-team` on a later plan that carries a `**Trials run**` block
+  (backstop B1); the mandatory `trial-replay` catalog row is a war-followup issue filed at the
+  land Checkpoint. Until then the no-prose-evidence clause is guarded by that backstop alone.
+
+### Relationship to prior ADRs
+
+- [ADR 0013](0013-commanders-intent-and-disposition-routing.md): a fork trial settles a fact. It
+  never writes Purpose, Method or an End state. Intent stays operator-ratified, never
+  agent-invented.
+- [ADR 0017](0017-packaging-floor-docker-gate-ratified-backstops.md): the two deferred
+  validations (replay at red-team, the row-grammar lint) are ratified backstop rows, not prose
+  waivers.
+- [ADR 0025](0025-drift-guard-discipline.md): the evicted glossary bodies are bound by D32
+  extraction-and-equality rows; the doctrine phrases on the three authoring surfaces and the
+  nine `fork-trials.md` headings are pinned by the structure test.
+- [ADR 0033](0033-executed-probes-behind-escape-guard.md): the interview's executed trials sit
+  behind the same escape guard and its exit contract. The guard is fail-closed on the row; exit
+  codes and triage are read from the guard header, never restated.
+- [ADR 0042](0042-prompt-surface-budgets.md): the doctrine lands cold in one references file;
+  the pointers carry triggers; both glossary evictions are byte-identical and the `CONTEXT.md`
+  hard line is never raised.
+- [ADR 0052](0052-backward-chain-doctrine-and-corrective-round-disclosure.md): reachability step
+  3 is untouched, and the sweep row is its record. The trial bounds are a safety precaution in
+  the §4 sense, not a cost budget.

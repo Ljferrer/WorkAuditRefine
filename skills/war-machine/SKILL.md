@@ -100,7 +100,11 @@ file footprints of the plans already authored (honest contention).
    analysis alone; consumes the strategy-verifier charter,
    [`strategy-verifier.md`](../war-strategy/references/strategy-verifier.md) — the AFK
    authoring path reads the same arming rule and counterweight duties the live interview
-   does, armed-by-rule and unwaived under `--afk`). **Fresh context per spec** — ten specs never share one bloated window.
+   does, armed-by-rule and unwaived under `--afk`). Both agents consume the fork-trial
+   doctrine, [`fork-trials.md`](../war-strategy/references/fork-trials.md), by pointer: fact
+   trials run unattended; on a pair beat the drafter authors both candidates from one frozen
+   brief and picks, and the grill refutes the pick as an armed arm-2 beat (D5, PIN-5).
+   **Fresh context per spec** — ten specs never share one bloated window.
 2. The drafter answers the grill's questions from the spec + codebase. Questions that survive
    unresolved are classified by the **ADR triad** — raised to the operator only if **hard to
    reverse**, **surprising without context**, or a **genuine trade-off**. Everything else is
