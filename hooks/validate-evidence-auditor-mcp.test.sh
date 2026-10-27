@@ -106,13 +106,14 @@ expect_deny "exact-shape :war-servitor mcp tool denied" \
 expect_deny "exact-shape :war-refiner mcp tool denied" \
   "$(mk 'work-audit-refine:war-refiner' "$PRESENCE_TOOL")" "reaches no MCP tool"
 
-# A non-REA MCP tool is denied for these roles too (the deny is every MCP tool,
-# not just REA).
+# A non-REA, non-memory MCP tool is denied for these roles too (Group H covers
+# the memory tool).
 expect_deny "war-auditor non-rea mcp tool denied" \
   "$(mk 'war-auditor' 'mcp__github__get_issue')" "reaches no MCP tool"
 
 # ---------------------------------------------------------------------------
-# Group B: war-evidence-auditor and war-worker — allowlist only.
+# Group B: war-evidence-auditor and war-worker: the REA allowlist (the memory
+# tool is Group H).
 # ---------------------------------------------------------------------------
 expect_allow "war-evidence-auditor allowlist member allowed" \
   "$(mk 'war-evidence-auditor' "$PRESENCE_TOOL")"
@@ -301,8 +302,8 @@ expect_deny "war-worker empty server prefix -> exit 2" \
 # byte verbatim.
 expect_deny "war-evidence-auditor newline-spliced tool_name -> exit 2 (delimiter never matched)" \
   "$(mk 'war-evidence-auditor' $'mcp__rea__binary_overview\nmcp__rea__binary_session')" "carries a newline"
-# The deny roles report a missing tool_name as the deny (they reach no MCP tool
-# at all), still exit 2.
+# The auditor and servitor deny a missing tool_name through their deny arm,
+# still exit 2.
 expect_deny "war-auditor empty tool_name -> still exit 2" \
   "$(mk 'war-auditor' '')" "reaches no MCP tool"
 
@@ -547,8 +548,9 @@ expect_deny "war-worker memory tool proper prefix denied (exact compare)" \
   "$(mk 'war-worker' "$MEMORY_TOOL_PREFIX")" "not on the REA allowlist"
 
 # `local` fence (PIN-4). The value itself must match the memory-root glob: a
-# path beneath the memory dir is denied too, because the server appends the
-# query log into `local` itself.
+# path beneath the memory dir is denied unless its last segment is again
+# `memory` (the glob's `*` spans `/`), because the server appends the query
+# log into `local` itself.
 MEM_ROOT="/Users/x/.claude/projects/-Users-x-repo/memory"
 # mk_local <agent_type> <local> -> a memory-tool payload whose tool_input.local
 # is that string (jq --arg: bytes verbatim; no `\"`-escaped comma inside

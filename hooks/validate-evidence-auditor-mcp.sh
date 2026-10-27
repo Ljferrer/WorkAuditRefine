@@ -31,9 +31,10 @@
 #   `local` fence: when `tool_input.local` is present it must be a non-empty
 #   string whose value matches `*/.claude/projects/*/memory` (a trailing `/`
 #   tolerated) and carries no `..` segment, else DENY. The value itself must
-#   match: a path beneath the memory dir is denied too, because the server
-#   appends the query log into `local` itself. An absent key passes; `repo`
-#   is not fenced (the server only reads it).
+#   match: a path beneath the memory dir is denied unless its last segment is
+#   again `memory` (the glob's `*` spans `/`), because the server appends the
+#   query log into `local` itself. An absent key passes; `repo` is not fenced
+#   (the server only reads it).
 #
 # RESIDUAL (accepted)
 #   This guard sees only tool calls whose name matches the hooks.json matcher
