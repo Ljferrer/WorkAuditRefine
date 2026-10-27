@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Tests for the WAR audit tree fingerprint hook (hooks/audit-tree-fingerprint.sh).
 # Plan 2026-10-20-rea-artifact-evidence Task 6.2 (D22), Task 7.2 (deadline)
-# and Task 8.1 (the per-call watchdog, every operand form the guard admits).
+# and Task 8.1 (the per-call watchdog, every operand form the guard admits);
+# plan 2026-10-26-fingerprint-hook-followups Task 1.1 (fsmonitor and the
+# untracked cache off, assume-unchanged and skip-worktree paths hashed, the
+# ls-files watchdog) and Task 2.1 (the Grep walk-down where ripgrep recurses,
+# the pinned Glob non-walk, `~-` unresolved).
 #
 # The hook acts only for agent types ending `war-auditor` or
 # `war-evidence-auditor`. SubagentStart records every `.war-task` worktree's
@@ -388,17 +392,26 @@ run "$(mk_start "$AUD" t11)"
 run "$(mk_bash "$AUD" t11 "git -C~/wtB log")"
 if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t11/touched" ]; then pass "Bash attached -C~/<path> stays literal and touches nothing"; else fail "attached tilde expanded (rc=$RC touched=|$(cat "$FP_ROOT/t11/touched" 2>/dev/null)|)"; fi
 HOME="$_home"
-# `~+` and `~-` are admitted too and the seat's shell expands them (PWD and
-# OLDPWD); the hook reads both from the payload cwd (wtA here, so `~+/../wtB`
-# reaches wtB). A `~<name>` form needs getpwnam, so the hook records it
-# literal and the verdict arm escalates it.
+# `~+` is admitted too and the seat's shell expands it from PWD, which the
+# hook reads from the payload cwd (wtA here, so `~+/../wtB` reaches wtB). `~-`
+# is admitted too, but the seat's shell expands it from OLDPWD, which the
+# payload does not carry, and a `~<name>` form needs getpwnam: the hook
+# records either form literal and the verdict arm escalates it as an
+# unresolved Bash path (PIN-7). Row t13 runs from wtA, so a payload-cwd
+# reading of `~-/../wtB` would touch wtB instead.
 PCWD="$TMP/wtA"
 run "$(mk_start "$AUD" t12)"
 run "$(mk_bash "$AUD" t12 "git -C ~+/../wtB log")"
 if touched_is t12 "$WTB"; then pass "Bash unquoted -C ~+/<path> resolves from the payload cwd and touches that worktree"; else fail "tilde-plus -C touch not recorded: |$(cat "$FP_ROOT/t12/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" t13)"
 run "$(mk_bash "$AUD" t13 "git -C ~-/../wtB log")"
-if touched_is t13 "$WTB"; then pass "Bash unquoted -C ~-/<path> resolves from the payload cwd and touches that worktree"; else fail "tilde-minus -C touch not recorded: |$(cat "$FP_ROOT/t13/touched" 2>/dev/null)|"; fi
+run "$(mk_verdict "$AUD" t13)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if touched_is t13 "~-/../wtB" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path ~-/../wtB)" ]; then
+  pass "Bash unquoted -C ~-/<path> is recorded literal: tilde-minus -C escalates as unresolved (OLDPWD is not in the payload)"
+else
+  fail "tilde-minus -C not escalated (touched=|$(cat "$FP_ROOT/t13/touched" 2>/dev/null)| rsn=|$rsn|)"
+fi
 run "$(mk_start "$AUD" t14)"
 run "$(mk_bash "$AUD" t14 "git -C ~nosuchuser/wtB log")"
 run "$(mk_verdict "$AUD" t14)"
@@ -508,6 +521,20 @@ if touched_is t27 "~nosuchuser/wtB/f" && [ "$rsn" = "AUDIT-TAMPER: unverifiable 
   pass "a ~<name> Bash operand is recorded literal and escalates as an unresolved Bash path"
 else
   fail "tilde-name operand not escalated (touched=|$(cat "$FP_ROOT/t27/touched" 2>/dev/null)| rsn=|$rsn|)"
+fi
+# A `~-` operand is unresolved too (PIN-7): the payload carries no OLDPWD. The
+# cwd is wtC (unmarked), so a payload-cwd reading of `~-/../wtB/f` would touch
+# wtB; the hook records the token literal and the verdict escalates it.
+run "$(mk_start "$AUD" t27b)"
+PCWD="$TMP/wtC"
+run "$(mk_bash "$AUD" t27b "git diff --no-index ~-/../wtB/f /dev/null")"
+run "$(mk_verdict "$AUD" t27b)"
+PCWD="$MAIN"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if touched_is t27b "~-/../wtB/f" && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path ~-/../wtB/f)" ]; then
+  pass "a ~-/<path> Bash operand is recorded literal: tilde-minus operand escalates as unresolved"
+else
+  fail "tilde-minus operand not escalated (touched=|$(cat "$FP_ROOT/t27b/touched" 2>/dev/null)| rsn=|$rsn|)"
 fi
 # --- Task 8.1 operand forms (ruling B, 2026-10-24) ---------------------------
 # A `-C` after the subcommand word is git's copy-detection flag (diff, log,
@@ -725,6 +752,120 @@ if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/t44/touched" ]; then pass "a two-path non-d
 git -C "$MAIN" worktree remove --force "$MAIN/.claude/wtQ"
 git -C "$MAIN" branch -q -D q
 
+# --- Grep walk-down where ripgrep recurses; the Glob non-walk (#2439) ---------
+# The Grep tool runs ripgrep with --hidden and no --no-ignore, so ripgrep
+# enters every folder below the search root R except one that the repo
+# holding it ignores by pattern; at or under an explicit R that is itself
+# ignored, it enters everything (D4). The hook stands in for that walk with
+# `check-ignore --no-index` per folder. The Glob arm stays walk-up only (D5).
+# Fixture: `.claude/` appended to $MAIN's info/exclude (as
+# provision-worktrees.sh ensure-exclude writes), a marked worktree wtR
+# registered under the run dir `.claude/war-worktrees/r`, and a marked
+# worktree wtP under the plain non-repo folders `$TMP/plain/mid`. Both are
+# added here and removed at the end of this window, so the start-record line
+# counts and skip lists of the other rows keep their exact content. Each
+# negative row first asserts that wtR is in the seat's start record, so the
+# row can fail.
+printf '.claude/\n' >> "$MAIN/.git/info/exclude"
+git -C "$MAIN" worktree add -q "$MAIN/.claude/war-worktrees/r/wtR" -b rwalk
+printf 'marker\n' > "$MAIN/.claude/war-worktrees/r/wtR/.war-task"
+WTR="$(cd "$MAIN/.claude/war-worktrees/r/wtR" && pwd -P)"
+mkdir -p "$TMP/plain/mid"
+git -C "$MAIN" worktree add -q "$TMP/plain/mid/wtP" -b pwalk
+printf 'marker\n' > "$TMP/plain/mid/wtP/.war-task"
+WTP="$(cd "$TMP/plain/mid/wtP" && pwd -P)"
+mk_grep() { mk_tool "$1" "$2" Grep "$(jq -nc --arg p "$3" '{pattern:"base",path:$p}')"; }
+# in_start <agent_id> <worktree>: the seat's start record carries the worktree.
+in_start() { grep -Fq " $2" "$FP_ROOT/$1/start" 2>/dev/null; }
+# touched_has <agent_id> <line>: the seat's touched set carries the line.
+touched_has() { grep -Fxq -- "$2" "$FP_ROOT/$1/touched" 2>/dev/null; }
+# Oracle, independent of the hook: git calls the run dir ignored by pattern.
+if git -C "$MAIN" check-ignore -q --no-index -- .claude/war-worktrees/r/; then
+  pass "oracle: the run dir under the excluded .claude/ is ignored by pattern"
+else
+  fail "oracle vacuous: check-ignore --no-index does not ignore the run dir"
+fi
+# End state 6: R is the run dir, at or under the ignored `.claude`, so ripgrep
+# enters every folder below it and the hook marks every worktree below R. A
+# second seat searches one level up (`.claude/war-worktrees`), so the folder
+# `r` lies between R and wtR: git calls `r` ignored (its leading dir
+# `.claude` is), and only the at-or-under rule on R itself marks wtR.
+run "$(mk_start "$AUD" gw1)"
+run "$(mk_grep "$AUD" gw1 "$MAIN/.claude/war-worktrees/r")"
+run "$(mk_start "$AUD" gw1b)"
+run "$(mk_grep "$AUD" gw1b "$MAIN/.claude/war-worktrees")"
+if touched_is gw1 "$WTR" && touched_is gw1b "$WTR"; then pass "Grep path under the excluded dir walks down into the task worktree below it (the run dir and its parent)"; else fail "Grep under the excluded dir did not walk down: run dir |$(cat "$FP_ROOT/gw1/touched" 2>/dev/null)| parent |$(cat "$FP_ROOT/gw1b/touched" 2>/dev/null)|"; fi
+# End state 7: R is a plain dir; `mid` is a folder no work tree holds (git's
+# "not a git repository" exit there is no error) and wtP is a repo root, so
+# neither is ignored and wtP is marked.
+run "$(mk_start "$AUD" gw2)"
+run "$(mk_grep "$AUD" gw2 "$TMP/plain")"
+if touched_is gw2 "$WTP"; then pass "Grep path at a plain dir walks down through a folder no work tree holds"; else fail "Grep at a plain dir did not walk down: |$(cat "$FP_ROOT/gw2/touched" 2>/dev/null)|"; fi
+# End state 8: a no-path Grep from the main checkout cwd, and a Grep whose
+# path is the main checkout, reach `.claude` first, which $MAIN ignores, so
+# wtR is never marked (no false AUDIT-TAMPER from a sibling worktree).
+run "$(mk_start "$AUD" gw3)"
+_gw3s=0; in_start gw3 "$WTR" && _gw3s=1
+run "$(mk_tool "$AUD" gw3 Grep '{"pattern":"base"}')"
+run "$(mk_grep "$AUD" gw3 "$MAIN")"
+if [ "$_gw3s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/gw3/touched" ]; then pass "Grep from the main checkout walks no excluded worktree (no path, and path = the main checkout)"; else fail "Grep from the main checkout walked an excluded worktree (in-start=$_gw3s rc=$RC touched=|$(cat "$FP_ROOT/gw3/touched" 2>/dev/null)|)"; fi
+# End state 9: the Glob arm never walks down, even at the run dir, where the
+# Grep arm does (D5).
+run "$(mk_start "$AUD" gw4)"
+_gw4s=0; in_start gw4 "$WTR" && _gw4s=1
+run "$(mk_glob "$AUD" gw4 "$MAIN/.claude/war-worktrees/r")"
+if [ "$_gw4s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/gw4/touched" ]; then pass "Glob path walks no nested worktree (the run dir: walk-up only)"; else fail "Glob path walked down (in-start=$_gw4s rc=$RC touched=|$(cat "$FP_ROOT/gw4/touched" 2>/dev/null)|)"; fi
+# End state 19: from the main checkout's parent ($TMP), ripgrep enters the
+# repo root $MAIN and then applies $MAIN's exclude to `.claude`, so wtR is not
+# marked; the sibling worktrees beside $MAIN are repo roots and are marked,
+# which shows the walk ran.
+run "$(mk_start "$AUD" gw5)"
+_gw5s=0; in_start gw5 "$WTR" && _gw5s=1
+run "$(mk_grep "$AUD" gw5 "$TMP")"
+if [ "$_gw5s" = 1 ] && ! touched_has gw5 "$WTR" && touched_has gw5 "$WTA" && touched_has gw5 "$WTP"; then pass "Grep path at the main checkout's parent walks no excluded worktree"; else fail "Grep at the main checkout's parent walked wrong (in-start=$_gw5s touched=|$(cat "$FP_ROOT/gw5/touched" 2>/dev/null)|)"; fi
+# PIN-6: when the ignore test errors for a folder inside a work tree, the hook
+# marks (over-touch, never under-touch). A git shim fails every check-ignore,
+# so a Grep with path = the main checkout marks wtR.
+SHIMCI="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimci)"
+printf '#!/bin/bash\ncase " $* " in *" check-ignore "*) exit 128 ;; esac\nexec "%s" "$@"\n' "$(command -v git)" > "$SHIMCI/git"
+chmod +x "$SHIMCI/git"
+run "$(mk_start "$AUD" gw7)"
+_p="$(mk_grep "$AUD" gw7 "$MAIN")"
+OUT="$(printf '%s' "$_p" | PATH="$SHIMCI:$PATH" bash "$HOOK" 2>/dev/null)"; RC=$?
+rm -rf "$SHIMCI"
+if [ "$RC" = 0 ] && touched_is gw7 "$WTR"; then pass "a check-ignore error inside a work tree marks the worktree below (over-touch)"; else fail "a check-ignore error did not mark (rc=$RC touched=|$(cat "$FP_ROOT/gw7/touched" 2>/dev/null)|)"; fi
+# End state 18: once a file under `.claude/` is tracked (off the walk path, as
+# this repo tracks .claude/war/config.json), plain `check-ignore` calls
+# `.claude` not ignored while it still calls `.claude/war-worktrees` ignored,
+# so a hook on plain check-ignore would skip wtR. `--no-index` still calls
+# `.claude` ignored, as ripgrep does, so a Grep at `.claude` marks wtR.
+printf '{}\n' > "$MAIN/.claude/war/config.json"
+git -C "$MAIN" add -f .claude/war/config.json
+git -C "$MAIN" commit -q -m 'track a file under .claude'
+if ! git -C "$MAIN" check-ignore -q -- .claude/ && git -C "$MAIN" check-ignore -q -- .claude/war-worktrees/ \
+   && git -C "$MAIN" check-ignore -q --no-index -- .claude/; then
+  pass "oracle: with tracked content, plain check-ignore calls .claude not ignored and --no-index calls it ignored"
+else
+  fail "oracle vacuous: plain and --no-index check-ignore agree on .claude with tracked content"
+fi
+run "$(mk_start "$AUD" gw6)"
+run "$(mk_grep "$AUD" gw6 "$MAIN/.claude")"
+if touched_is gw6 "$WTR"; then pass "Grep path at the excluded dir with tracked content walks down"; else fail "Grep at the excluded dir with tracked content did not walk down: |$(cat "$FP_ROOT/gw6/touched" 2>/dev/null)|"; fi
+# End state 20: `--no-index` never reads the index, so no behavior row can
+# show it; every code line that runs check-ignore carries both flags.
+_ci="$(grep -E '^[^#]*git .*check-ignore' "$HOOK")"
+_cin="$(printf '%s\n' "$_ci" | grep -c .)"
+_ciok="$(printf '%s\n' "$_ci" | grep -F -e '-c core.fsmonitor=false' | grep -cF -e '--no-index')"
+if [ -n "$_ci" ] && [ "$_cin" = "$_ciok" ]; then
+  pass "check-ignore calls are pattern-only (structural: --no-index and core.fsmonitor=false on every check-ignore call)"
+else
+  fail "a check-ignore call reads the index or runs fsmonitor: |$_ci|"
+fi
+git -C "$MAIN" worktree remove --force "$MAIN/.claude/war-worktrees/r/wtR"
+git -C "$MAIN" branch -q -D rwalk
+git -C "$MAIN" worktree remove --force "$TMP/plain/mid/wtP"
+git -C "$MAIN" branch -q -D pwalk
+
 # --- content sensitivity: a second edit to an already-dirty path -------------
 # Each path below is dirty before the seat starts and edited once after, so
 # its status record is the same at verdict time; only the blob hash moves.
@@ -837,6 +978,147 @@ run "$(mk_read "$AUD" c14 "$TMP/wtB/f")"
 printf 'o2\n' >> "$TMP/outside"
 run "$(mk_verdict "$AUD" c14)"
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "a symlink whose out-of-worktree target changes passes (symlink target is never read)"; else fail "symlink target was read (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+
+# --- git's own change detection off; flagged paths hashed (#2438) -------------
+# `git status` never reports a worktree edit to a path flagged assume-unchanged
+# or skip-worktree (a staged change to one is still listed), so the hook hashes
+# every path `git ls-files -v` flags
+# (a lowercase tag, or `S`) as if it were dirty, with the flagged set in the
+# hashed data. A worker-set `core.fsmonitor` command runs under a plain
+# `git status` or `git ls-files`, GIT_OPTIONAL_LOCKS=0 or not, so both calls
+# run with `-c core.fsmonitor=false`. The rows use a fresh marked worktree
+# (wtG), added here and removed at the end of the section, so the start-record
+# line counts and skip lists of the other rows keep their exact content.
+git -C "$MAIN" worktree add -q "$TMP/wtG" -b gflag
+printf 'marker\n' > "$TMP/wtG/.war-task"
+WTG="$(cd "$TMP/wtG" && pwd -P)"
+GDG="$(git -C "$TMP/wtG" rev-parse --path-format=absolute --git-dir)"
+printf 'au1\n' > "$TMP/wtG/au"
+printf 'sw1\n' > "$TMP/wtG/sw"
+printf 'fl1\n' > "$TMP/wtG/fl"
+printf 'bo1\n' > "$TMP/wtG/bo"
+printf 'qz1\n' > "$TMP/wtG/q\"z"
+git -C "$TMP/wtG" add au sw fl bo 'q"z'
+git -C "$TMP/wtG" commit -q -m flags
+git -C "$TMP/wtG" update-index --assume-unchanged au
+git -C "$TMP/wtG" update-index --skip-worktree sw
+git -C "$TMP/wtG" update-index --assume-unchanged bo
+git -C "$TMP/wtG" update-index --skip-worktree bo
+git -C "$TMP/wtG" update-index --assume-unchanged 'q"z'
+# Oracle, independent of the hook: after an edit to each flagged file, git
+# status lists neither, so a status-only fingerprint cannot see the edits.
+printf 'au2\n' >> "$TMP/wtG/au"
+printf 'sw2\n' >> "$TMP/wtG/sw"
+if [ -z "$(git -C "$TMP/wtG" status --porcelain=v1 -uall)" ] \
+   && [ "$(git -C "$TMP/wtG" ls-files -v au sw)" = "$(printf 'h au\nS sw')" ]; then
+  pass "oracle: git status lists no edited assume-unchanged or skip-worktree path"
+else
+  fail "oracle vacuous: status=|$(git -C "$TMP/wtG" status --porcelain=v1 -uall)| ls-files=|$(git -C "$TMP/wtG" ls-files -v au sw)|"
+fi
+run "$(mk_start "$AUD" g1)"
+run "$(mk_read "$AUD" g1 "$TMP/wtG/au")"
+printf 'au3\n' >> "$TMP/wtG/au"
+if escalates_on g1 "$WTG"; then pass "an assume-unchanged edit escalates as changed during the audit round"; else fail "assume-unchanged edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+run "$(mk_start "$AUD" g2)"
+run "$(mk_read "$AUD" g2 "$TMP/wtG/sw")"
+printf 'sw3\n' >> "$TMP/wtG/sw"
+if escalates_on g2 "$WTG"; then pass "a skip-worktree edit escalates as changed during the audit round"; else fail "skip-worktree edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# Both flags on one path: ls-files -v tags it `s` (lowercase S), caught by
+# the `[[:lower:]]` class, not the `S` arm. Oracle first, so the row cannot
+# pass through the `h` or `S` tag alone.
+if [ "$(git -C "$TMP/wtG" ls-files -v bo)" = "s bo" ]; then
+  pass "oracle: a path with both flags is tagged s"
+else
+  fail "oracle vacuous: ls-files=|$(git -C "$TMP/wtG" ls-files -v bo)|"
+fi
+run "$(mk_start "$AUD" g2b)"
+run "$(mk_read "$AUD" g2b "$TMP/wtG/bo")"
+printf 'bo2\n' >> "$TMP/wtG/bo"
+if escalates_on g2b "$WTG"; then pass "a both-flags (assume-unchanged and skip-worktree) edit escalates"; else fail "both-flags edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# A flagged path whose name needs C-quoting: plain `ls-files -v` prints it
+# as `h "q\"z"`, so a newline-mode read would hash a name that does not
+# exist and the real path would escape the flagged set. The hook's
+# `ls-files -v -z` carries the name raw. Oracle first, so the row cannot
+# pass on a name plain output leaves untouched.
+if git -C "$TMP/wtG" ls-files -v | grep -Fxq 'h "q\"z"'; then
+  pass "oracle: plain ls-files -v C-quotes a flagged path with a double quote"
+else
+  fail "oracle vacuous: ls-files=|$(git -C "$TMP/wtG" ls-files -v)|"
+fi
+run "$(mk_start "$AUD" g2c)"
+run "$(mk_read "$AUD" g2c "$TMP/wtG/au")"
+printf 'qz2\n' >> "$TMP/wtG/q\"z"
+if escalates_on g2c "$WTG"; then pass "an edit to a flagged path whose name needs C-quoting escalates (ls-files -z carries it raw)"; else fail "C-quoted flagged path edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# A flag set mid-round, with no edit, changes the fingerprint too: the flagged
+# set is inside the hashed data, so a writer cannot flag a file between the
+# start and the verdict arm and edit it unseen afterwards.
+run "$(mk_start "$AUD" g3)"
+run "$(mk_read "$AUD" g3 "$TMP/wtG/fl")"
+git -C "$TMP/wtG" update-index --assume-unchanged fl
+if escalates_on g3 "$WTG"; then pass "a flag set mid-round escalates (the flagged set is hashed)"; else fail "mid-round flag not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# Negative control: the flagged and edited paths stay as they are, nothing
+# moves, and the verdict passes, so the rows above fail on the edit or the
+# flag alone.
+run "$(mk_start "$AUD" g4)"
+run "$(mk_read "$AUD" g4 "$TMP/wtG/au")"
+run "$(mk_verdict "$AUD" g4)"
+if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "an unchanged worktree with flagged paths passes"; else fail "unchanged flagged worktree did not pass (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# A fsmonitor hook that writes a sentinel, configured for the marked worktrees
+# (the repository config they share, set and unset in this window). One fixture
+# `git status` with fsmonitor on and optional locks allowed (unset at the top)
+# runs the hook and writes the fsmonitor extension (`FSMN`) into wtG's index,
+# which still carries the flagged paths, so the hook's `ls-files` call is
+# reached with every input that would run the command. The hook script lives
+# in the fixture's mktemp dir. Red without `-c core.fsmonitor=false` on the
+# status call or on the ls-files call.
+FSMON="$TMP/fsmon-hook"
+cat > "$FSMON" <<FSM
+#!/bin/sh
+printf 'ran %s\n' "\$*" >> "$TMP/fsmon-ran"
+printf 'tok\0/\0'
+FSM
+chmod +x "$FSMON"
+git -C "$MAIN" config core.fsmonitor "$FSMON"
+rm -f "$TMP/fsmon-ran"
+git -C "$TMP/wtG" status --porcelain=v1 >/dev/null 2>&1
+_fsmon_status=$([ -s "$TMP/fsmon-ran" ] && echo yes || echo no)
+# A plain ls-files (no override) must run the hook too, or row g5 could not
+# go red on a missing override on the hook's ls-files call. ls-files writes
+# no index, so row g5 sees the same index and sentinel state either way.
+rm -f "$TMP/fsmon-ran"
+git -C "$TMP/wtG" ls-files -v >/dev/null 2>&1
+_fsmon_lsfiles=$([ -s "$TMP/fsmon-ran" ] && echo yes || echo no)
+if [ "$_fsmon_status" = yes ] && [ "$_fsmon_lsfiles" = yes ] && LC_ALL=C grep -aq FSMN "$GDG/index" \
+   && git -C "$TMP/wtG" -c core.fsmonitor=false ls-files -v | grep -q '^[[:lower:]] '; then
+  pass "oracle: the fixture fsmonitor hook runs under a plain git status and under a plain git ls-files, and wtG's index carries an fsmonitor extension and a flagged path"
+else
+  fail "oracle vacuous: status-ran=$_fsmon_status ls-files-ran=$_fsmon_lsfiles fsmn=$(LC_ALL=C grep -ac FSMN "$GDG/index") ls-files=|$(git -C "$TMP/wtG" -c core.fsmonitor=false ls-files -v)|"
+fi
+rm -f "$TMP/fsmon-ran"
+run "$(mk_start "$AUD" g5)"
+_g5s="$RC"
+run "$(mk_read "$AUD" g5 "$TMP/wtG/au")"
+run "$(mk_verdict "$AUD" g5)"
+if [ "$_g5s" = 0 ] && [ "$RC" = 0 ] && [ -z "$OUT" ] && grep -Fq " $WTG" "$FP_ROOT/g5/start" && [ ! -e "$TMP/fsmon-ran" ]; then
+  pass "a configured fsmonitor hook never runs during the start or verdict arm"
+else
+  fail "fsmonitor hook ran or the round failed (start rc=$_g5s rc=$RC out=|$OUT| ran=|$(cat "$TMP/fsmon-ran" 2>/dev/null)| start=|$(cat "$FP_ROOT/g5/start" 2>/dev/null)|)"
+fi
+git -C "$MAIN" config --unset core.fsmonitor
+git -C "$MAIN" worktree remove --force "$TMP/wtG"
+git -C "$MAIN" branch -q -D gflag
+# The untracked cache is git's own change detection for untracked files: a
+# stale cache can hide a new file from status. A4: a structural row on the
+# status call is the expected form (a hide needs a non-default config stack).
+# Every code line that runs `status --porcelain` carries both overrides.
+_st="$(grep -E '^[^#]*git .*status --porcelain' "$HOOK")"
+_stn="$(printf '%s\n' "$_st" | grep -c .)"
+_stok="$(printf '%s\n' "$_st" | grep -F -e '-c core.fsmonitor=false' | grep -cF -e '-c core.untrackedCache=false')"
+if [ -n "$_st" ] && [ "$_stn" = "$_stok" ]; then
+  pass "the status scan runs with the untracked cache off (structural: core.untrackedCache=false and core.fsmonitor=false on every status call)"
+else
+  fail "a status call runs with the untracked cache or fsmonitor on: |$_st|"
+fi
 
 # --- unverifiable fingerprint escalates --------------------------------------
 run "$(mk_read "$AUD" a9 "$TMP/wtA/f")"
@@ -1112,7 +1394,8 @@ fi
 # The deadline rows above expire at a pre-check. These rows cross the deadline
 # INSIDE a git call: a `git` shim runs the real git and then sleeps 5 s on the
 # status call whose arguments carry SHIM_SLOW (`<worktree> status`), or on the
-# hash-object call whose arguments carry it (`<worktree> hash-object`), or
+# hash-object or ls-files call whose arguments carry it (`<worktree>
+# hash-object`, `<worktree> ls-files`), or
 # fails before git runs when they carry SHIM_FAIL, or kills itself with
 # SIGTERM before git runs when they carry SHIM_TERM. The hook must kill the slow call
 # at its deadline (2 s here) instead of waiting for it, so each row also
@@ -1128,6 +1411,9 @@ case " \$* " in
     if [ -n "\${SHIM_TERM-}" ]; then case "\$*" in *"\$SHIM_TERM"*) kill -TERM \$\$; sleep 5; exit 1 ;; esac; fi
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
   *" hash-object "*)
+    if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
+  *" ls-files "*)
+    if [ -n "\${SHIM_FAIL-}" ]; then case "\$*" in *"\$SHIM_FAIL"*) exit 128 ;; esac; fi
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
 esac
 exec "$REALGIT" "\$@"
@@ -1208,6 +1494,37 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifia
 else
   fail "a SIGTERM before the deadline is a git error, never the timeout reason (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6d.json" 2>/dev/null))"
 fi
+# (1e) The ls-files watchdog: the flagged-path scan (`ls-files -v -z`) runs
+# under bounded like status and hash-object, so a slow ls-files on wtA is
+# killed at the deadline, the hook returns in under 5 s, and the reason is
+# the fingerprint timeout naming the hashing step.
+run "$(mk_start "$AUD" d6e)"
+run "$(mk_read "$AUD" d6e "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d6e)"
+SHIM_SLOW="$WTA ls-files" run_shim "$_p"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+case "$rsn" in "AUDIT-TAMPER: fingerprint timeout ($WTA still hashing after "[0-9]*"s, deadline 2s; seat verdict approve)") p=1 ;; *) p=0 ;; esac
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6e.json" 2>/dev/null)" = true ]; then
+  pass "ls-files watchdog kills a slow git ls-files call at the deadline"
+else
+  fail "ls-files watchdog kills a slow git ls-files call at the deadline (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6e.json" 2>/dev/null))"
+fi
+# (1f) A non-timeout ls-files failure: the shim fails wtA's ls-files call
+# before git runs, so fingerprint returns 1 and the verdict escalates with
+# the git-error reason (`timeout: false`), never an empty flagged set that
+# would hash a status-only fingerprint and read as unchanged.
+run "$(mk_start "$AUD" d6f)"
+run "$(mk_read "$AUD" d6f "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d6f)"
+SHIM_FAIL="$WTA ls-files" run_shim "$_p"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTA)" ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6f.json" 2>/dev/null)" = false ]; then
+  pass "a failing git ls-files call is a git error, never an empty flagged set"
+else
+  fail "a failing git ls-files call is a git error, never an empty flagged set (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6f.json" 2>/dev/null))"
+fi
 # (2) The start arm: wtA records before the deadline, wtB's slow status is
 # killed at it, and the marker names wtB with an elapsed value of at least the
 # deadline (so it came from the killed call, not a pre-check at 0 s). The
@@ -1264,8 +1581,9 @@ if [ "$_m" = "${_m%% *} 2 $WTS" ] && [ "$(cat "$FP_ROOT/d8/timeout-skipped" 2>/d
 else
   fail "git-error skip labelled wrong (marker=|$_m| skipped=|$(cat "$FP_ROOT/d8/timeout-skipped" 2>/dev/null)| rsn=|$rsn| start=|$(cat "$FP_ROOT/d8/start" 2>/dev/null)|)"
 fi
-# A clean worktree spawns one temp file per fingerprint (the status output),
-# never a second for hash output: blob_lines makes that file on its first
+# A clean worktree spawns one temp file per fingerprint (the ls-files output,
+# then the status output, in the same file), never a second for hash output
+# or for the flagged paths: blob_lines makes its file on its first
 # hash-object call, and a clean worktree makes none. A `mktemp` shim counts
 # the calls the verdict arm makes on a fresh marked worktree (wtF, clean:
 # .war-task is excluded) that one Read touched. The row goes red (count 2)
