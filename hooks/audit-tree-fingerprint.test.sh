@@ -943,11 +943,18 @@ chmod +x "$FSMON"
 git -C "$MAIN" config core.fsmonitor "$FSMON"
 rm -f "$TMP/fsmon-ran"
 git -C "$TMP/wtG" status --porcelain=v1 >/dev/null 2>&1
-if [ -s "$TMP/fsmon-ran" ] && LC_ALL=C grep -aq FSMN "$GDG/index" \
+_fsmon_status=$([ -s "$TMP/fsmon-ran" ] && echo yes || echo no)
+# A plain ls-files (no override) must run the hook too, or row g5 could not
+# go red on a missing override on the hook's ls-files call. ls-files writes
+# no index, so row g5 sees the same index and sentinel state either way.
+rm -f "$TMP/fsmon-ran"
+git -C "$TMP/wtG" ls-files -v >/dev/null 2>&1
+_fsmon_lsfiles=$([ -s "$TMP/fsmon-ran" ] && echo yes || echo no)
+if [ "$_fsmon_status" = yes ] && [ "$_fsmon_lsfiles" = yes ] && LC_ALL=C grep -aq FSMN "$GDG/index" \
    && git -C "$TMP/wtG" -c core.fsmonitor=false ls-files -v | grep -q '^[[:lower:]] '; then
-  pass "oracle: the fixture fsmonitor hook runs under a plain git status, and wtG's index carries an fsmonitor extension and a flagged path"
+  pass "oracle: the fixture fsmonitor hook runs under a plain git status and under a plain git ls-files, and wtG's index carries an fsmonitor extension and a flagged path"
 else
-  fail "oracle vacuous: ran=$([ -s "$TMP/fsmon-ran" ] && echo yes || echo no) fsmn=$(LC_ALL=C grep -ac FSMN "$GDG/index") ls-files=|$(git -C "$TMP/wtG" -c core.fsmonitor=false ls-files -v)|"
+  fail "oracle vacuous: status-ran=$_fsmon_status ls-files-ran=$_fsmon_lsfiles fsmn=$(LC_ALL=C grep -ac FSMN "$GDG/index") ls-files=|$(git -C "$TMP/wtG" -c core.fsmonitor=false ls-files -v)|"
 fi
 rm -f "$TMP/fsmon-ran"
 run "$(mk_start "$AUD" g5)"
