@@ -5,9 +5,9 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-12
+  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-14
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +23 recurrences (latest 2026-09-06-engine-and-audit-verdict-integrity/phase-14 task phase-14-end-state)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +24 recurrences (latest 2026-10-26-interview-fork-trials-and-pair-beats/phase-2 task phase-2-end-state)"
   keywords:
     - artifact predates tip commits
     - post-release commits land after gate capture
@@ -66,6 +66,8 @@ metadata:
     - GATE_LOG_READ_RULE
     - refiner-agent compliance
     - coded fix still not followed
+    - gate-only End state no endstate artifact
+    - backstop-owned End state out-of-scope note
   tags:
     - audit-pipeline
     - gate-audit
@@ -75,7 +77,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-09-08
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-09-09T04:38:38.776Z
+  modified: 2026-10-27T03:54:11.363Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -886,3 +888,33 @@ carries it three phases later, including on the plan's own terminal Release phas
 should treat this as strong evidence the gap is a refiner-invocation/tooling default, not a
 per-phase fluke — worth escalating out of the recurring-Nit lane per Recurrence 10's original
 recommendation.
+
+## Recurrence 23 (2026-10-26, plan `2026-10-26-interview-fork-trials-and-pair-beats`, phase 2
+"Release", task `phase-2-end-state` gate-audit) — twenty-fourth occurrence, still open at 0.21.18,
+seven weeks after Recurrence 22, plus a gate-only and a backstop-owned End state in one dispatch
+
+The `phase-2-end-state` gate-audit (`gateEvidence:true`, `gate-audit:approve`, `hard:false`, auditSha
+`ed3a9e0cf90b2ceb2e9954429c91164c14823b41`) attested End state 10 ("the whole gate is green at the
+integrated tip · gate: `resolveGate`") `unverified`: "gate_log_path is unthreaded on this prompt and
+no integrated-tip gate artifact was supplied." Nit, `disposition: note`, no hold.
+
+**The path existed upstream of the dispatch.** The same audit log's `merge:2.1` entry reports a
+`gate_log_path` and says the gate ran at the tip with exit 0 ("All 10 checks passed"), and the
+`land:phase-2` entry reports another. The Lead-side records held the paths. The end-state dispatch did
+not receive one.
+
+**Contrast, same dispatch.** End state 11 is a `check:` command. It got a captured artifact,
+`_refinery/.war/endstate-2-2.log`, with `tip_sha:` on the first line and `exit_code: 0` on the last
+line, and attested `met`. `code-verified` at the landed tip `acfd20c5e6fa7f5115315a69b7eccde39d823156`
+(rung 2: the run-scoped `_refinery` worktree's `HEAD` equals that SHA): `.war/` holds
+`endstate-2-2.cmd`, `.log` and `.expected` for phase 2 and no `endstate-2-1` or `endstate-2-3`. A
+gate-only End state (10) and a backstop-owned one (12) get no end-state artifact, so a gate-only
+End state depends on the threaded `gate_log_path` alone.
+
+**New small shape.** End state 12 ("settled TRIAL rows ... replayed at that plan's red-team ·
+backstop: row B1") attested `unverified` with a second Nit, "out-of-scope: backstop B1 runs at a
+later plan's red-team". No artifact of the phase can discharge a backstop-owned End state. Expect this
+note on every phase that lists one. It is information, not a defect.
+
+**Confirms:** the SOFT-never-hold family is unaffected. **Signal:** the gap is still live on
+2026-10-26, so Recurrence 22's recommendation to take it out of the recurring-Nit lane stands.

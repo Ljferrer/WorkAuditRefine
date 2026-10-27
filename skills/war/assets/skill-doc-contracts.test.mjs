@@ -1814,7 +1814,7 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every evicted term, not one plan's five. Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned) and, since wave 5, the born-cold terms too, not one plan's five. Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while CONTEXT.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
@@ -1856,6 +1856,17 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     // Never a ceiling raise; these rows are the lock-step re-anchor the eviction owes.
     ['Retired-token sweep', '## Retired-token sweep'],
     ['done-unmet route', '## done-unmet route'],
+    // Wave 5 — the 2026-10-26 interview-fork-trials plan's Task 1.4 (D14, #2449) funded three
+    // born-cold glossary terms by a byte-identical eviction of two authoring-side entries, each
+    // fully narrated in its own operative home (plan-interview.md's Stage 5 gates and its
+    // decisive-slots table). The three born-cold bodies were authored in glossary-cold.md first:
+    // CONTEXT.md never held them, so it carries only their pointer residues, in the same shape.
+    // Never a ceiling raise; these rows are the lock-step re-anchor the funding owes.
+    ['Executor gate', '## Executor gate'],
+    ['Decisive slot', '## Decisive slot'],
+    ['Fork trial', '## Fork trial'],
+    ['Pair beat', '## Pair beat'],
+    ['Trials run block', '## Trials run block'],
   ]) {
     // Mirror D26's idiom: escape the term before building the pattern.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -1914,6 +1925,33 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
         'truncated or the moved body lost its tail',
     )
   }
+})
+
+// (D32 companion) BORN-COLD HEADER TRUTH — glossary-cold.md's header claims every evicted body
+// was byte-identical to its CONTEXT.md text "at eviction time" (reference-link-integrity Arm 3
+// pins that qualifier). Wave 5 added three bodies CONTEXT.md never held, so the header gained a
+// born-cold clause admitting them; without that clause the header's byte-identity claim is
+// false for three of its own sections (the fork-trials plan's ledger row A5). A FIXED-STRING
+// pin, read from the header region (the text before the first `## ` heading, never a
+// whole-file substring that body prose could satisfy), kept on one source line so the pin
+// needs no whitespace folding.
+test('D32 companion — glossary-cold.md\'s header admits born-cold bodies beside its at-eviction-time claim (#2449)', () => {
+  const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  const firstHeading = glossaryColdMd.indexOf('\n## ')
+  assert.ok(firstHeading > 0, 'glossary-cold.md has no `## ` heading — the header region cannot be scoped')
+  const header = glossaryColdMd.slice(0, firstHeading)
+  const BORN_COLD_CLAUSE =
+    'A born-cold body is authored here first and has no pre-eviction text to match'
+  assert.ok(
+    header.includes(BORN_COLD_CLAUSE),
+    `glossary-cold.md's header region lost the born-cold clause ${JSON.stringify(BORN_COLD_CLAUSE)} — ` +
+      'the byte-identity claim is false for the born-cold bodies without it; restore the clause',
+  )
+  assert.match(
+    header,
+    /at\s+eviction\s+time/i,
+    'the born-cold clause must sit beside, never replace, the "at eviction time" qualifier',
+  )
 })
 
 // ---- Task 1 non-vacuity census (plan 2026-08-02-structural-test-nonvacuity) ----

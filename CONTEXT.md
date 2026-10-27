@@ -49,7 +49,7 @@ an untagged claim of fact (a bug, per the provenance gate).
 The one required `## Assumptions ledger` section in a merged plan's Part 1 — one row per live
 assumption: assumption · basis · blast radius if wrong · check; explicit `None` allowed (the ADR 0017
 required-section vehicle). Conversion and AFK paths carry rows forward or retire each with a stated
-reason. The first target of `/red-team`'s `[assumed]`-first probes.
+reason. The first target of `/red-team`'s `dependency-feasibility` lens and its `dep-resolves` probe.
 _Avoid_: multiple ledgers; retiring a row silently; parking an assumption in prose where no probe reads
 it.
 
@@ -62,21 +62,10 @@ _Avoid_: a prose promise where a command belongs; a check that still passes with
 (vacuous — the delete-the-feature probe); minting a fifth End-state tag.
 
 **Decisive slot**:
-One row of the interview doctrine's decisive-slots table: an interview extract hard-linked to where it
-lands in the merged plan and which consumer reads it there (validation criteria → tagged End states;
-constraints → `## Pivotal constraints`; file footprints → per-task `Files:`; assumptions → the ledger;
-new terms → this glossary). The interview's completion bar: an interview with an unfilled decisive slot
-has not finished.
-_Avoid_: treating a slot as an optional heading; filling one in free prose where its consumer never
-reads.
+when checking an interview is complete, read skills/war/references/glossary-cold.md
 
 **Executor gate** (authoring):
-The final silent gate before the merged plan file is written: *could `/war` decompose-dispatch this,
-and `/red-team` attack it, with zero operator questions?* A "no" reopens the interview while question
-budget remains; otherwise the residue is default-and-tagged and recorded in the ledger. Runs beside the
-provenance gate (the untagged-claim scan — an untagged claim of fact is a bug).
-_Avoid_: the run-time **gate command** / gate-audit (those gate merges and lands; this gates
-authoring completeness).
+when writing the plan file, read skills/war/references/glossary-cold.md
 
 **Run-history recon lane**:
 The Stage-0 interview recon lane (`skills/war-strategy/references/plan-interview.md`) that reads the
@@ -155,6 +144,15 @@ token in addition to exit status; the advisory lint's single-signal-oracle rule 
 form.
 _Avoid_: exit status alone as the oracle on a vacuously-greenable command; the delete-the-feature
 probe (that judges whether the check can fail at all — not the form of its success signal).
+
+**Fork trial**:
+when a fact fork needs a bounded trial, read skills/war/references/glossary-cold.md
+
+**Pair beat**:
+when an interface fork hits a pair trigger, read skills/war/references/glossary-cold.md
+
+**Trials run block**:
+when a trial needs a Part 1 row, read skills/war/references/glossary-cold.md
 
 ### Worktree provisioning
 

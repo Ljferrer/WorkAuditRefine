@@ -304,6 +304,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     refiner:  { model, effort },
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session
+    trial?: { model, effort },               // not a phase role — the fork-trial subagent tier (D18) `/war-strategy`'s plan interview reads fail-open like redteam; defaulted in `war-config.mjs` DEFAULTS and re-pinned by every preset; validated like redteam; no `agents/*.md` card
     snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), defaulted in `war-config.mjs` DEFAULTS, presets may re-pin it; explicit null = unset (falls back to the auditor tier); validated like redteam
   //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (defaulted in DEFAULTS; presets may re-pin it)
   //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config
@@ -334,6 +335,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
   hooks: { replyStandard,                      // toggles the plugin's Reply Standard hook family — the UserPromptSubmit card + Stop meter and the WAR-seat SubagentStart card + SubagentStop meter — (bool, default true) — read fail-open by hooks/reply-standard/gate.py in the project the session runs in, never by the phase engine; only an explicit false disables
            valeMarkdown,                       // toggles the plugin's advisory Vale Markdown lint (bool, default true) — read fail-open by hooks/vale-md/vale-md.py itself, never by the phase engine; only an explicit false disables
            valeStyle },                        // vale-md profile selector (enum VALE_STYLES, default 'workAuditRefine' — the repo's tuned fork) — house | workAuditRefine | google (raw upstream) | microsoftFork | writeGood | proselint | alex | readability | redhat | custom ('custom' reads the project-side .claude/war/vale/.vale.ini); subordinate to valeMarkdown
+  interview: { trialWallSeconds, commandTimeoutSeconds, excerptLines },  // the fork-trial bounds (D7, D11) read fail-open by `/war-strategy`'s plan interview — the wall cap per trial, the per-command timeout inside the sweep, the fenced-excerpt cap; shape and defaults per `war-config.mjs` `validate()` and `DEFAULTS.interview` — never restated here; a null key = unset (the interview falls back to `DEFAULTS.interview` per key); no preset sets it; never threaded into Workflow args (the phase engine never reads it)
   overrides: { gate, workingBranch, landingBranch, learningsTarget, testPattern, ghUser } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends

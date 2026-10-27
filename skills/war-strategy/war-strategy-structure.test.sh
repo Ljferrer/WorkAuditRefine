@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Structure test for skills/war-strategy/SKILL.md + references/plan-interview.md +
-# references/strategy-verifier.md: locks all
+# references/strategy-verifier.md + references/fork-trials.md: locks all
 # five sections, the three inline templates (merged plan / spec input shape / roadmap), the
 # merged-template internals ratified by the 2026-08-04 interview-and-authoring-contract plan
 # (Task 1), the #1431 latitude pins (the two optional intent sub-bullet slots — Mechanism
@@ -17,7 +17,14 @@
 # charter content pins via $CHARTER, the SKILL-side pin-column / Evidence-consumed /
 # oracle-duality template law, the #1494 fence Done-when connective convergence, the #1505
 # HANDOFF latitude clause, the #1602 trichotomy-token pins, and the #1604 gap-review-clause
-# pin), the interview doctrine's
+# pin), the 2026-10-26 fork-trials pins (#2447: references/fork-trials.md exists with its
+# nine ratified headings via $TRIALS / trial_x, the Stage-1b classify sentence + its three
+# mappings + pointer,
+# the Stage-2 pair-beat bullet + the `Trials: t` status line, the Stage-3 read-aloud, the
+# Stage-4 sweep row + Trials-block enumeration, the Terminal-state usage-comment duty, the
+# two new decisive-slot rows, the SKILL-side Trials-run-block template law + §4 sentence +
+# HANDOFF classify clause, and a lacks_doc_i OLD-absent twin on the retired
+# `[assumed]`-first consumer wording), the interview doctrine's
 # ratified internals, the doctrine's Evidence + slot law
 # section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
 # D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
@@ -41,6 +48,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SKILL="$HERE/SKILL.md"
 DOCTRINE="$HERE/references/plan-interview.md"
 CHARTER="$HERE/references/strategy-verifier.md"
+TRIALS="$HERE/references/fork-trials.md"
 
 fails=0
 # All helpers pass the pattern via `-e` + `--` so anchors that START with `-` (the separate
@@ -93,6 +101,23 @@ char_f() { # fixed string (vs references/strategy-verifier.md)
     printf 'ok - charter :: %s\n' "$1"
   else
     printf 'not ok - charter missing: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+trial_f() { # fixed string (vs references/fork-trials.md)
+  if grep -qF -e "$1" -- "$TRIALS"; then
+    printf 'ok - fork-trials :: %s\n' "$1"
+  else
+    printf 'not ok - fork-trials missing: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+trial_x() { # fixed string, EXACT whole line (vs references/fork-trials.md) — the check_x twin:
+  # a backticked prose mention of a heading (`## Provenance`, `## Bounds`) never satisfies it
+  if grep -qxF -e "$1" -- "$TRIALS"; then
+    printf 'ok - fork-trials exact line: %s\n' "$1"
+  else
+    printf 'not ok - fork-trials missing exact line: %s\n' "$1"
     fails=$((fails + 1))
   fi
 }
@@ -465,6 +490,79 @@ char_f '‡-marked pins'
 char_f 'six-beat incident table'
 
 # ---------------------------------------------------------------------------------------
+# Fork trials + the pair beat (plan 2026-10-26-interview-fork-trials-and-pair-beats, #2447;
+# D2, D3, D7, D9, D12, D13). The doctrine home is references/fork-trials.md, reached by
+# `when <trigger>, read` pointers (ADR 0042); reference-link-integrity never scans this
+# directory, so the file-exists check below is the only guard on the pointer target.
+if [ -f "$TRIALS" ]; then
+  printf 'ok - references/fork-trials.md exists\n'
+else
+  printf 'not ok - references/fork-trials.md is MISSING\n'
+  fails=$((fails + 1))
+fi
+# The nine ratified section headings (End state 1), each a verbatim heading line — exact
+# whole-line (trial_x), since the file also names `## Provenance` and `## Bounds` in prose.
+trial_x '## When a fork qualifies'
+trial_x '## Running a fork trial'
+trial_x '## The sweep row'
+trial_x '## The pair beat'
+trial_x '## The Trials run block'
+trial_x '## Provenance'
+trial_x '## Bounds'
+trial_x '## AFK'
+trial_x '## Grandfather and reporting'
+# The doctrine phrases the two hot surfaces point at, pinned on the cold home too.
+trial_f 'git clone --no-hardlinks'
+trial_f '**Trials run** — one row per trial:'
+trial_f '`chosen: <design> (user) — pair declined: <reason>`'
+trial_f 'None — no fork qualified'
+trial_f '`TRIAL-1` never matches'
+trial_f 'Only a pre-registered `settled` row backs'
+# Doctrine side (plan-interview.md). Stage 1b: the classify sentence (fact → fork trial,
+# interface → pair beat, preference → ask) and the pointer in the sibling link form.
+doc_f 'Classify every fork that passes:'
+# Each category binds to its own clause: the head pin ties the category word to its
+# parenthetical, the tail pin ties that parenthetical's close to the route.
+doc_f 'a **fact** (observable by running'
+doc_f 'something) → a fork trial, zero questions'
+doc_f 'a consequential **interface** (an exported'
+doc_f 'a floored mechanism) → a pair beat, one question'
+doc_f '**preference** → ask it as an ordinary Stage 2 question'
+doc_f 'a Stage 1b fork is an observable fact or a consequential interface, read [references/fork-trials.md](fork-trials.md)'
+# Stage 2: the pair-beat bullet — the three triggers by name, the one-question cost, the
+# decline-on-the-row rule (never a WAIVE row), and its pointer — plus the status line.
+doc_f '- **the pair beat** — mandatory on three triggers'
+doc_f '**exported contract**'
+doc_f '**artifact grammar with two or more consumers**'
+doc_f '**`Binding guardrails:` with two or more non-equivalent realizations**'
+doc_f 'beat costs **one question**'
+doc_f '`chosen: <design> (user) — pair declined: <reason>`, never as a `WAIVE-<n>` row'
+doc_f 'a beat hits a pair trigger, read [references/fork-trials.md](fork-trials.md)'
+doc_f '`Locked: <n> · Open forks: <m> · Qk/14 · Trials: t`'
+# Stage 3: the count + wall time read aloud (D7). Stage 4: the sweep row runs here and
+# after any check edit, and the Trials block is enumerated beside the Evidence block.
+doc_f 'Read the trial count and the trial wall time aloud'
+doc_f 'run the `TRIAL-<n> · sweep` row here and again after any check edit'
+doc_f 'with the Trials run block beside it'
+# Terminal state: the #2436 usage comment follows the written file (D9); Stage 5 keeps
+# its two silent pre-write gates.
+doc_f 'After the file is written, post the usage comment on #2436'
+doc_f 'Stage 5 stays the two'
+# The decisive-slots table: the assumptions row names the real red-team lens + probe, and
+# the two new rows route fork trials and pair beats to their consumers.
+doc_f "\`/red-team\`'s \`dependency-feasibility\` lens and \`dep-resolves\` probe"
+doc_f '| fork trials (fact forks, Stage 1b) |'
+doc_f '| pair beats (interface forks, the three triggers) |'
+# SKILL side: the §2 Trials-run-block template law, the §4 bare-invoke sentence, and the
+# HANDOFF DIRECTIVE's classify clause.
+check_f '- **Trials run block:**'
+check_f 'carries a **Trials run** block'
+check_f '`TRIAL-<n>` reuses the `PIN-<n>` token law'
+check_f '`None — no fork qualified`'
+check_f 'interview runs fork trials and pair beats itself, per `references/fork-trials.md`'
+check_f '**Classify every fork:** a fact → a fork trial, a consequential'
+
+# ---------------------------------------------------------------------------------------
 # Mirror-equality block (#1307, D3–D6). The plan-authoring law is stated on BOTH reading
 # surfaces — SKILL.md §2's law-statement bullets (canonical) and the doctrine's
 # `## Evidence + slot law (shared with the template)` section (mirror). Per atom: a
@@ -654,6 +752,12 @@ lacks_char_i "$r8a$r8b"
 r9a='duty-class '
 r9b='twice-read'
 lacks_char_i "$r9a$r9b"
+# r10 (#2447): the decisive-slots table's retired assumptions-row consumer wording — the
+# live value (the `dependency-feasibility` lens + `dep-resolves` probe) is pinned present
+# above (paired positive), so a revert to the old consumer reds here.
+r10a='[assumed]`'
+r10b='-first probes'
+lacks_doc_i "$r10a$r10b"
 
 # Positive controls for each assembled absence pattern (#1308, D8/D11). The assembled
 # literals are unfindable by any grep, so a one-character fragment typo would leave a
@@ -711,6 +815,9 @@ ctl 8 "$f8a$f8b" "$r8a$r8b" lacks_doc_i/lacks_char_i
 f9a='Duty-Class '
 f9b='Twice-Read'
 ctl 9 "$f9a$f9b" "$r9a$r9b" lacks_char_i
+f10a='[Assumed]`'
+f10b='-First Probes'
+ctl 10 "$f10a$f10b" "$r10a$r10b" lacks_doc_i
 
 # Commander's Intent sits BEFORE ## Build order inside the merged plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template
