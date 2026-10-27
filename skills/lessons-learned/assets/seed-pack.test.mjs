@@ -208,6 +208,28 @@ test('pack exits non-zero on a [[wikilink]] member', () => {
   assert.match(out(p), /wikilink/i);
 });
 
+for (const key of ['originSessionId', 'promoted']) {
+  test(`pack refuses a member whose frontmatter carries ${key} (#2349)`, () => {
+    const src = tmp('seed-pack-src-');
+    writeLesson(src, 'booked.md', { slug: 'booked', description: 'Carries run bookkeeping' });
+    const file = join(src, 'booked.md');
+    writeFileSync(file, readFileSync(file, 'utf8').replace('metadata:\n', `metadata:\n  ${key}: abc123\n`));
+    const dest = tmp('seed-pack-out-');
+    const p = run(['pack', src, '--out', dest]);
+    assert.equal(p.status, 1, out(p));
+    assert.match(out(p), /booked\.md/);
+    assert.match(out(p), new RegExp(key));
+  });
+}
+
+test('pack accepts a body that only mentions originSessionId outside the frontmatter', () => {
+  const src = tmp('seed-pack-src-');
+  writeLesson(src, 'mentions.md', { slug: 'mentions', description: 'Names the key in prose', body: 'Strip the originSessionId: field before seeding.' });
+  const dest = tmp('seed-pack-out-');
+  const p = run(['pack', src, '--out', dest]);
+  assert.equal(p.status, 0, out(p));
+});
+
 // =============================================================================
 // refusal set: empty / duplicate slug / description-less (each exit 1, named)
 // =============================================================================

@@ -2,8 +2,8 @@
   "seed": [
     {
       "slug": "a-both-ways-proof-can-be-vacuous-twice-over-normalized-extraction-and-a-wrapped-literal",
-      "bytes": 2343,
-      "sha256": "dbdbef14f54607a7a2d767650782afe42d60ba986c166e6bcc27f0f083c063da",
+      "bytes": 2236,
+      "sha256": "ff135bccc7b108bf180c3325064bdd98c494df1f8bbada5ca64cbff31af8aec9",
       "description": "A construct-scoped assert extracted from norm()-joined text silently yields '', and a scratch-deletion proof whose literal wraps across a source line is a no-op — either one turns a both-ways proof into theatre",
       "type": "project",
       "provenance": "code-verified"
@@ -34,16 +34,16 @@
     },
     {
       "slug": "cli-main-guard-equality-check-silently-noops-under-relative-invocation",
-      "bytes": 3347,
-      "sha256": "4a151cd66c931f5002ab8a80bcb071027f28568895565c266ecf8c2f03b83d41",
+      "bytes": 2862,
+      "sha256": "bb74849456bb53d83b31e370a204393160633a0a650bcb87182dcfca6f9ab154",
       "description": "RESOLVED (realpathSync normalization + symlink-invocation regression tests, 2026-07-23): all three run-as-CLI guards now realpath before comparing; the real trigger was symlink invocation, not relative paths",
       "type": "project",
       "provenance": "code-verified"
     },
     {
       "slug": "compound-tap-helper-label-can-superset-match-a-sibling-labels-count-grep",
-      "bytes": 5042,
-      "sha256": "add50de5a3c8c2c749c0aed0646bc8c07a2474009053ba1d4aa3d3e1d3f0f36b",
+      "bytes": 4782,
+      "sha256": "59a13bdd1c7bcd7421a673914a7f227a8724460c0d1b69c17c58c36751d287ae",
       "description": "A parameterized TAP helper's compound label text can substring-match a sibling label's future grep-count check",
       "type": "project",
       "provenance": "code-verified"
@@ -58,9 +58,9 @@
     },
     {
       "slug": "consolidate-exts-v2-timeout",
-      "bytes": 5566,
-      "sha256": "2faa578b85a5284a396497b3b3a7d56d652b690c1a33b0298a7bcfdcb347e25e",
-      "description": "Why ConsolidateExtsV2Handler times out at 900s on big cases, why redrives eventually succeed, and the Phase-1 fix (run_parallel fan-out + SFN retry) that landed",
+      "bytes": 2668,
+      "sha256": "1effdd4642a0501397f967554efb82e35681ec0b4136fa06bca2a55162b043ed",
+      "description": "A handler that fetches items one at a time can pass its timeout only on a retry, because per-type checkpoints shrink each attempt; fan the fetch out and add a retry",
       "type": "project",
       "provenance": "agent-unverified"
     },
@@ -98,8 +98,8 @@
     },
     {
       "slug": "die-process-exit-inside-try-skips-finally-cleanup",
-      "bytes": 3612,
-      "sha256": "e4bb561860f89ff7bca826263e7961747a6774a4b9c18bb3b01c0ceedcfe07fc",
+      "bytes": 3252,
+      "sha256": "51160bb87989126f5d085b1512a13605fd0baa1af717aff7348cfd485ed2cb66",
       "description": "RESOLVED (memory-tooling-hardening/1.3, #1079, landed 2026-07-26): die() now throws a tagged Error and main() alone calls process.exit after every finally has unwound. Was: a die()/process.exit() helper called from inside a try block terminates the process without unwinding the stack, so the enclosing try/finally cleanup never runs — scratch dirs leaked on every error path",
       "type": "project",
       "provenance": "code-verified"
@@ -154,8 +154,8 @@
     },
     {
       "slug": "failed-cd-in-a-compound-command-runs-the-rest-in-the-main-checkout",
-      "bytes": 2983,
-      "sha256": "08a7a11d865b66560f32a9ea7151cba1d248d3c1149fcba81af343fe471693d7",
+      "bytes": 2890,
+      "sha256": "b9cca8e0ab71058447f55ab4c4f792c5a795812c188bc37b3e4610482fe29a9f",
       "description": "A failed `git worktree add` followed by `cd \\'$P\\'` does NOT stop a compound shell command",
       "type": "feedback",
       "provenance": "user-confirmed"
@@ -186,8 +186,8 @@
     },
     {
       "slug": "git-plain-pathspec-cwd-relative-vs-git-show-blob-top-of-tree-relative",
-      "bytes": 4200,
-      "sha256": "2de8d2ae8b19d707073ca3b7f7786b1253ad85db45d030b4d3f73d29e7f79e9c",
+      "bytes": 3970,
+      "sha256": "53429563262827ecd69fba0a67060e71224dcca78bdd307569451f8f329f4070",
       "description": "A shell floor script that both `git diff -- <path>` filters AND `git show <rev>:<path>` blob-reads the SAME repo-root-relative path string is inconsistent unless the diff pathspec is top-anchored (`:(top)<path>`) — git resolves a plain pathspec against the CURRENT DIRECTORY prefix, while a `rev:path` blob read is always top-of-tree relative, so a subdirectory invocation silently matches nothing on the diff side and the floor exits 0 (bypassed) though the show side would have worked fine",
       "type": "project",
       "provenance": "code-verified"
@@ -418,8 +418,8 @@
     },
     {
       "slug": "semaphore-peak-assertion-alone-cannot-catch-a-leaked-permit-need-drain-plus-callsite-census",
-      "bytes": 4334,
-      "sha256": "bbbb56e64eac6b7fad32652dd8f470c8010aaad01e1e1cc8e353dd9564fd9689",
+      "bytes": 4087,
+      "sha256": "0ed5667ddfd0586a0446cb17331f9490e1f449a16efcd2cee5efc7bc0e5c0516",
       "description": "Testing a counting semaphore needs a drain assertion after rejected dispatches, plus a default-deny call-site census — a peak-only assertion cannot catch a leaked permit, because a leak lowers the peak instead of raising it",
       "type": "project",
       "provenance": "code-verified"
@@ -466,8 +466,8 @@
     },
     {
       "slug": "shell-digit-only-value-extraction-truncates-legal-js-numeric-literal-forms",
-      "bytes": 4410,
-      "sha256": "73f56dc2d71a9a332a58463b8979d5e8377fa683d95b3d06367ce37abe189a99",
+      "bytes": 4180,
+      "sha256": "ff458a83446375528ac9fd66672036a319e615df68a2e9101614c8e2cbeb41dd",
       "description": "A shell floor's numeric-value extraction via `[0-9]+`-only regex (grep/sed) silently truncates at the first non-digit character — a legal JS numeric literal the guarded file may contain (numeric separator `100_000`, hex `0x13880`, exponent `1e5`) reads as only its leading digit run, so a raise that changes trailing digits after the separator/marker is invisible to the comparison and a ceiling-raise floor fails open",
       "type": "project",
       "provenance": "code-verified"
@@ -482,8 +482,8 @@
     },
     {
       "slug": "sigpipe-safe-drain-awk-idiom-fix-does-not-propagate-to-sibling-helpers-sharing-the-same-early-exit-pipeline",
-      "bytes": 4139,
-      "sha256": "065c9cfd920ae9ddbdfc67d573b2c932cd0451dae92259acaa726a168cbc6c84",
+      "bytes": 3954,
+      "sha256": "2a178893f3c1b1842be1f6059010ff47b16c1ee94f69e522898c8d0ad1b14530",
       "description": "Fixing one SIGPIPE-fragile `cmd | grep -Fxq` pipeline under `set -o pipefail` (converting it to a draining awk idiom — a flag var + END-block exit, no early return) does not fix a sibling helper built on the identical `git ... | grep -Fxq` shape reading the same corpus; under pipefail a large-enough output makes grep's early exit SIGPIPE the upstream git, the pipeline returns 141, and an `if helper; then` caller reads that as a false negative rather than a git error — multiple auditor seats independently re-flagged the same untouched sibling across a phase without it being fixed, since it sits outside the plan's swept scope.",
       "type": "project",
       "provenance": "code-verified"
@@ -498,8 +498,8 @@
     },
     {
       "slug": "stranded-upstream-makes-safe-branch-d-refuse-a-merged-branch",
-      "bytes": 3694,
-      "sha256": "3376b8178e1122e137f448a49262b7b0d31540a06a700bacba0bbcbcb394fe32",
+      "bytes": 3565,
+      "sha256": "84c850ad39e837283b0b1a2f58ac34c81afb583274666b0bf290b4a62cc3ea17",
       "description": "A stranded remote tip makes `git branch -d` refuse a local branch that IS merged into master — unset the upstream, don't escalate to -D",
       "type": "project",
       "provenance": "code-verified"
@@ -514,9 +514,9 @@
     },
     {
       "slug": "war-normalize-extraction-shadow-bake",
-      "bytes": 5569,
-      "sha256": "38d12fbdb165270b05294a9da940b2ee283e8156164291126b6bcf2de06b6371",
-      "description": "durable mechanics from WAR phase-1 of the normalize_extraction migration — the shadow/bake pattern, the MetricFilter gate, and the recurring stale-tip gate-audit gotcha; reuse for the remaining per-site swaps",
+      "bytes": 2631,
+      "sha256": "f60824fff56dfdcc58b98a53da2c770e696427063259f62773e4bc1c8ec830bc",
+      "description": "A per-site swap to a new shared function goes shadow, then bake, then cleanup; gate the bake on a log MetricFilter, and give container-image Lambdas a symlink for each new shared module",
       "type": "project",
       "provenance": "agent-unverified"
     },
@@ -530,8 +530,8 @@
     },
     {
       "slug": "weak-test-assertion-passes-without-feature-being-exercised",
-      "bytes": 7387,
-      "sha256": "60a475c551296a88fd160de08dbea9e839a5c2ae6298da3bfa9dae37937fcccd",
+      "bytes": 7350,
+      "sha256": "8ae9ded6aff991132bcda1a5a334525bc47c79cf4b6b2dfe3cadddcc3e3215ab",
       "description": "Delete feature mentally; assert must fail w/o it",
       "type": "project",
       "provenance": "agent-unverified"
@@ -546,8 +546,8 @@
     },
     {
       "slug": "zsh-parameter-modifiers-mangle-sha-colon-path-git-expansions",
-      "bytes": 2092,
-      "sha256": "5cf51a6f1f2e637fd2f6ad1498f4e18fbe00d32e1ab065e892c2da9fcc5fd36d",
+      "bytes": 1999,
+      "sha256": "57b7334d178000495e4c30825c6debf071c13a9c7479b50db369b0691c751012",
       "description": "In zsh, `$T:hooks/...`-style git <sha>:<path> arguments trigger parameter modifiers (`:h` dirname, `:s` substitute) — the command silently gets a mangled path or errors, and a grep floor piped from it reports 0 on EMPTY input: a vacuous pass. Always brace: `\\\"${T}:path\\\"`.",
       "type": "feedback",
       "provenance": "code-verified"

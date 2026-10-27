@@ -265,9 +265,18 @@ function readMembers(dir) {
   return out;
 }
 
+// Session/run bookkeeping keys a seed member must never carry (#2349): a Claude session id or a
+// local promotion branch means nobody scrubbed the member before it entered the portable corpus.
+const BOOKKEEPING_KEY_RE = /^\s*(originSessionId|promoted)\s*:/m;
+function bookkeepingKey(content) {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
+  const m = fm && BOOKKEEPING_KEY_RE.exec(fm[1]);
+  return m ? m[1] : null;
+}
+
 // Resolve one raw member into a manifest-ready row (+ its content + a lessonRecord for ranking).
 // Fail-closed gates, in order: redaction lint (criterion 3), wikilink rejection (criterion 4),
-// empty description after the description -> metadata.title fallback (the manifest row is the
+// session/run bookkeeping keys (#2349), empty description after the description -> metadata.title fallback (the manifest row is the
 // design's sole review surface and the nomination issue title). Dies on any hit.
 function resolveMember(name, content) {
   const hits = lint(content);
@@ -277,6 +286,10 @@ function resolveMember(name, content) {
   }
   if (content.includes('[[')) {
     die(EXIT_REFUSE, `seed-pack pack: '${name}': contains a [[wikilink]] — seeds must be standalone`);
+  }
+  const bk = bookkeepingKey(content);
+  if (bk) {
+    die(EXIT_REFUSE, `seed-pack pack: '${name}': frontmatter carries '${bk}' — strip session/run bookkeeping before seeding`);
   }
   const rec = lessonRecord(parseFrontmatter(content), {
     root: 'seed',
@@ -450,7 +463,7 @@ function verifyTier(tarball, rows, tier, maxMembers, maxBytes) {
       if (!rowSlugs.has(s)) die(EXIT_VERIFY, `seed-pack verify: ${tier} member '${s}' is in the tarball but missing from the manifest`);
     }
 
-    // Per-member bytes + sha256 + lint + wikilink.
+    // Per-member bytes + sha256 + lint + wikilink + bookkeeping keys.
     for (const r of rows) {
       const buf = contentBySlug.get(r.slug);
       if (buf.byteLength !== r.bytes) {
@@ -467,6 +480,10 @@ function verifyTier(tarball, rows, tier, maxMembers, maxBytes) {
       }
       if (text.includes('[[')) {
         die(EXIT_VERIFY, `seed-pack verify: ${tier} member '${r.slug}' contains a [[wikilink]]`);
+      }
+      const bk = bookkeepingKey(text);
+      if (bk) {
+        die(EXIT_VERIFY, `seed-pack verify: ${tier} member '${r.slug}' frontmatter carries '${bk}'`);
       }
     }
   } finally {
