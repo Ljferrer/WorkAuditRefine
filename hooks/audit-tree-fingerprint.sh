@@ -74,7 +74,7 @@
 #   under the hooks.json timeout, so the deadline itself always falls before
 #   Claude Code's kill. The deadline is measured on bash's SECONDS from the
 #   hook's start and checked per worktree in the start and compare loops, per
-#   flagged-path record in fingerprint and per path in blob_lines. Each `git
+#   ls-files record in fingerprint and per path in blob_lines. Each `git
 #   status`, `git ls-files` and `git hash-object` call runs under a watchdog
 #   (see bounded) that kills it when the remaining deadline runs out, so one
 #   slow call cannot carry the hook past the deadline (Task 8.1, ruling A); a
@@ -82,9 +82,9 @@
 #   ls-files calls run with the `-c core.fsmonitor=false` override (status
 #   with `-c core.untrackedCache=false` too), so no configured fsmonitor
 #   command runs inside a bounded call. Past the deadline the hook stops
-#   hashing: the
-#   StructuredOutput arm escalates with `AUDIT-TAMPER: fingerprint timeout
-#   (<worktree> ... after <N>s, deadline <D>s; seat verdict <v>)` (<v> is the
+#   hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
+#   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s; seat
+#   verdict <v>)` (<v> is the
 #   seat's own verdict when it is one of the schema's three, else `unparsed`:
 #   the reason rides the engine's audit log, which no worker can write, so
 #   the Lead can cross-check the tamper record's `seat_verdict`) and writes
@@ -343,9 +343,9 @@ bounded() {
 # passes mid-list or kills a hash-object call (the caller stops hashing),
 # else 0.
 # hfnew: make blob_lines' hash-output temp file on the first hash-object
-# call, so a clean worktree (empty status, no call) spawns no mktemp and no
-# rm. hfrm: drop that file (a no-op when none was made, or on the /dev/null
-# fallback).
+# call, so a clean worktree (empty status and no flagged path, no call)
+# spawns no mktemp and no rm. hfrm: drop that file (a no-op when none was
+# made, or on the /dev/null fallback).
 hfnew() { [ -n "$_hf" ] || { _hf="$(mktemp 2>/dev/null)"; [ -n "$_hf" ] || _hf=/dev/null; }; }
 hfrm() { [ -z "$_hf" ] || [ "$_hf" = /dev/null ] || rm -f "$_hf"; }
 blob_lines() {

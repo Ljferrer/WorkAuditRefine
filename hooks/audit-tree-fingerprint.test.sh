@@ -857,10 +857,13 @@ GDG="$(git -C "$TMP/wtG" rev-parse --path-format=absolute --git-dir)"
 printf 'au1\n' > "$TMP/wtG/au"
 printf 'sw1\n' > "$TMP/wtG/sw"
 printf 'fl1\n' > "$TMP/wtG/fl"
-git -C "$TMP/wtG" add au sw fl
+printf 'bo1\n' > "$TMP/wtG/bo"
+git -C "$TMP/wtG" add au sw fl bo
 git -C "$TMP/wtG" commit -q -m flags
 git -C "$TMP/wtG" update-index --assume-unchanged au
 git -C "$TMP/wtG" update-index --skip-worktree sw
+git -C "$TMP/wtG" update-index --assume-unchanged bo
+git -C "$TMP/wtG" update-index --skip-worktree bo
 # Oracle, independent of the hook: after an edit to each flagged file, git
 # status lists neither, so a status-only fingerprint cannot see the edits.
 printf 'au2\n' >> "$TMP/wtG/au"
@@ -879,6 +882,18 @@ run "$(mk_start "$AUD" g2)"
 run "$(mk_read "$AUD" g2 "$TMP/wtG/sw")"
 printf 'sw3\n' >> "$TMP/wtG/sw"
 if escalates_on g2 "$WTG"; then pass "a skip-worktree edit escalates as changed during the audit round"; else fail "skip-worktree edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# Both flags on one path: ls-files -v tags it `s` (lowercase S), caught by
+# the `[[:lower:]]` class, not the `S` arm. Oracle first, so the row cannot
+# pass through the `h` or `S` tag alone.
+if [ "$(git -C "$TMP/wtG" ls-files -v bo)" = "s bo" ]; then
+  pass "oracle: a path with both flags is tagged s"
+else
+  fail "oracle vacuous: ls-files=|$(git -C "$TMP/wtG" ls-files -v bo)|"
+fi
+run "$(mk_start "$AUD" g2b)"
+run "$(mk_read "$AUD" g2b "$TMP/wtG/bo")"
+printf 'bo2\n' >> "$TMP/wtG/bo"
+if escalates_on g2b "$WTG"; then pass "a both-flags (assume-unchanged and skip-worktree) edit escalates"; else fail "both-flags edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
 # A flag set mid-round, with no edit, changes the fingerprint too: the flagged
 # set is inside the hashed data, so a writer cannot flag a file between the
 # start and the verdict arm and edit it unseen afterwards.
@@ -1236,6 +1251,7 @@ case " \$* " in
   *" hash-object "*)
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
   *" ls-files "*)
+    if [ -n "\${SHIM_FAIL-}" ]; then case "\$*" in *"\$SHIM_FAIL"*) exit 128 ;; esac; fi
     if [ -n "\${SHIM_SLOW-}" ]; then case "\$*" in *"\$SHIM_SLOW"*) "$REALGIT" "\$@"; _rc=\$?; sleep 5; exit \$_rc ;; esac; fi ;;
 esac
 exec "$REALGIT" "\$@"
@@ -1331,6 +1347,21 @@ if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$p" = 1 ] && [ "$EL" -lt 5 ] && 
   pass "ls-files watchdog kills a slow git ls-files call at the deadline"
 else
   fail "ls-files watchdog kills a slow git ls-files call at the deadline (rc=$RC ver=$ver el=${EL}s rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6e.json" 2>/dev/null))"
+fi
+# (1f) A non-timeout ls-files failure: the shim fails wtA's ls-files call
+# before git runs, so fingerprint returns 1 and the verdict escalates with
+# the git-error reason (`timeout: false`), never an empty flagged set that
+# would hash a status-only fingerprint and read as unchanged.
+run "$(mk_start "$AUD" d6f)"
+run "$(mk_read "$AUD" d6f "$TMP/wtA/f")"
+_p="$(mk_verdict "$AUD" d6f)"
+SHIM_FAIL="$WTA ls-files" run_shim "$_p"
+ver="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.verdict // empty' 2>/dev/null)"
+rsn="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.updatedInput.escalate_reason // empty' 2>/dev/null)"
+if [ "$RC" = 0 ] && [ "$ver" = escalate ] && [ "$rsn" = "AUDIT-TAMPER: unverifiable fingerprint (git error on $WTA)" ] && [ "$(jq -r '.timeout' "$TAMPER_ROOT/d6f.json" 2>/dev/null)" = false ]; then
+  pass "a failing git ls-files call is a git error, never an empty flagged set"
+else
+  fail "a failing git ls-files call is a git error, never an empty flagged set (rc=$RC ver=$ver rsn=|$rsn| err=|$ERR| rec=$(cat "$TAMPER_ROOT/d6f.json" 2>/dev/null))"
 fi
 # (2) The start arm: wtA records before the deadline, wtB's slow status is
 # killed at it, and the marker names wtB with an elapsed value of at least the
