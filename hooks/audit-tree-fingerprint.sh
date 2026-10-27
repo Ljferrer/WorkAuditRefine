@@ -13,9 +13,17 @@
 #         `$MAIN/.gitmodules` declares (a submodule task's worktree is
 #         registered in the submodule's own git dir and never appears in the
 #         superproject's list): HEAD sha plus the sha256 of `git status
-#         --porcelain=v1 -z -uall` joined with the blob hash (`git hash-object
-#         --no-filters`, no write, no clean filter) of every path that status
-#         lists.
+#         --porcelain=v1 -z -uall`, run with `-c core.fsmonitor=false -c
+#         core.untrackedCache=false` (git's own change detection off: a
+#         configured fsmonitor command would run inside the hook, and either
+#         cache could hide a change), joined with one `~<tag> <path>` record
+#         per path that `git -c core.fsmonitor=false ls-files -v -z` flags
+#         assume-unchanged (a lowercase tag) or skip-worktree (`S`, `s`), and
+#         with the blob hash (`git hash-object --no-filters`, no write, no
+#         clean filter) of every path that status lists or ls-files flags.
+#         Status never lists a flagged path, even after an edit, so each one
+#         is hashed as if dirty, and the flagged set itself is hashed data: a
+#         flag set mid-round changes the fingerprint (see fingerprint).
 #         The blob hashes make the fingerprint content-sensitive: a status line
 #         is the same before and after a second edit to an already-dirty file.
 #         The -z form carries every path raw; the newline form C-quotes a path
@@ -65,11 +73,16 @@
 #   value, 600 or more included, falls back to 540: the override is clamped
 #   under the hooks.json timeout, so the deadline itself always falls before
 #   Claude Code's kill. The deadline is measured on bash's SECONDS from the
-#   hook's start and checked per worktree in the start and compare loops and
-#   per path in blob_lines. Each `git status` and `git hash-object` call runs
-#   under a watchdog (see bounded) that kills it when the remaining deadline
-#   runs out, so one slow call cannot carry the hook past the deadline (Task
-#   8.1, ruling A). Past the deadline the hook stops hashing: the
+#   hook's start and checked per worktree in the start and compare loops, per
+#   flagged-path record in fingerprint and per path in blob_lines. Each `git
+#   status`, `git ls-files` and `git hash-object` call runs under a watchdog
+#   (see bounded) that kills it when the remaining deadline runs out, so one
+#   slow call cannot carry the hook past the deadline (Task 8.1, ruling A); a
+#   deadline hit in any of them returns 3, the timeout. The status and
+#   ls-files calls run with the `-c core.fsmonitor=false` override (status
+#   with `-c core.untrackedCache=false` too), so no configured fsmonitor
+#   command runs inside a bounded call. Past the deadline the hook stops
+#   hashing: the
 #   StructuredOutput arm escalates with `AUDIT-TAMPER: fingerprint timeout
 #   (<worktree> ... after <N>s, deadline <D>s; seat verdict <v>)` (<v> is the
 #   seat's own verdict when it is one of the schema's three, else `unparsed`:
@@ -269,10 +282,11 @@ lexical_dir() {
 # watchdog killed it: wait reports 143 for SIGTERM, and a 143 counts as the
 # watchdog's kill only when the deadline has passed (the sleep is the whole
 # remaining deadline in whole seconds, so SECONDS >= DEADLINE at the kill). A
-# SIGTERM from elsewhere before the deadline (a worker-set core.fsmonitor
-# helper that kills its parent) returns 143, which fingerprint reads as a git
-# error and blob_lines as an `unreadable` blob (a later mismatch), never as
-# the timeout reason the Lead may rule fail-open. The
+# SIGTERM from elsewhere before the deadline (any process outside the
+# watchdog; a worker-set core.fsmonitor helper never runs here, since status
+# and ls-files carry the fsmonitor override) returns 143, which fingerprint
+# reads as a git error and blob_lines as an `unreadable` blob (a later
+# mismatch), never as the timeout reason the Lead may rule fail-open. The
 # watchdog is a subshell whose own `sleep` is a background child it kills
 # from a TERM trap, so cancelling the watchdog after a fast call leaves no
 # orphan sleep. The sleep
@@ -280,7 +294,7 @@ lexical_dir() {
 # sleep spawn and one kill. No job control (`set -m`) on bash 3.2: the child
 # pid is the command itself (a simple command backgrounded is forked directly),
 # so the kill reaches git, never a wrapper shell. A grandchild a killed git
-# spawned (a submodule `status`, an fsmonitor hook) is not killed, but it
+# spawned (a submodule `status`) is not killed, but it
 # writes only to the killed git's pipe, never to the hook's, so the hook never
 # waits on it. The watchdog and its sleep run with stdout AND stderr on
 # /dev/null: every bounded call sits inside a `$(...)` of the caller, and a
@@ -305,8 +319,9 @@ bounded() {
   return "$_crc"
 }
 
-# blob_lines <worktree> (the `status --porcelain=v1 -z -uall` records on
-# stdin) -> one `<blob> <path>` line per listed path, in record order
+# blob_lines <worktree> (the `status --porcelain=v1 -z -uall` records, then
+# fingerprint's synthesized `~<tag> <path>` flagged-path records, on stdin)
+# -> one `<blob> <path>` line per listed path, in record order
 # (`absent` for a deleted path, `unreadable` when hash-object fails). A rename
 # or copy record (R or C in either status column) carries its source path as
 # an extra NUL field, skipped here; the line names the new path. Every present
@@ -387,22 +402,52 @@ blob_lines() {
 
 # fingerprint <worktree> -> prints "<head> <status-sha256>", returns 1 on a
 # git error, or returns 3 when the deadline passed before or during hashing.
-# The sha256 covers the raw -z status output plus its blob_lines. The status
-# bytes land in a temp file (a bash variable cannot hold NUL) that feeds both
-# the parse and the hash from ONE status run, under the deadline watchdog
-# (bounded: a status killed at the deadline is 3). Read-only on the worktree:
-# status runs under the exported GIT_OPTIONAL_LOCKS=0, and hash-object runs
-# with --no-filters, so it hashes raw bytes and never runs a clean filter (a
-# git-lfs filter writes under .git/lfs; an eol filter would hide a
-# line-ending-only edit).
+# The sha256 covers the raw -z status output, one synthesized `~<tag> <path>`
+# record per flagged path, and the blob_lines of both. A flagged path is one
+# `git ls-files -v -z` tags assume-unchanged (a lowercase tag) or
+# skip-worktree (`S`; `s` is both): git status never lists such a path, even
+# after an edit, so it is hashed as if dirty, and its record puts the flagged
+# set itself in the hashed data (a flag set mid-round changes the
+# fingerprint). `~` is never a status column, so a synthesized record cannot
+# collide with a status record, and blob_lines strips its three leading bytes
+# like any other. Both git calls run with `-c core.fsmonitor=false` (a
+# configured fsmonitor command runs under a plain status or ls-files, inside
+# the hook process, GIT_OPTIONAL_LOCKS=0 or not), and status runs with `-c
+# core.untrackedCache=false` too: git's own change detection is off, so every
+# path is read by stat and content. Each `-c` stands before `-C <worktree>`,
+# so `-C <worktree>` stays next to the subcommand word. Both calls write ONE
+# temp file (a bash variable cannot hold NUL): ls-files first, its flagged
+# records kept in a bash array, then status over the same file, with the
+# synthesized records appended, so the file feeds both the parse and the hash
+# and a clean worktree costs one mktemp. Both run under the deadline watchdog
+# (bounded: a call killed at the deadline is 3), and the deadline is checked
+# per ls-files record. Read-only on the worktree: both run under the exported
+# GIT_OPTIONAL_LOCKS=0, and hash-object runs with --no-filters, so it hashes
+# raw bytes and never runs a clean filter (a git-lfs filter writes under
+# .git/lfs; an eol filter would hide a line-ending-only edit).
 fingerprint() {
   expired && return 3
   _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
   [ -n "$_h" ] || return 1
   _z="$(mktemp 2>/dev/null)" && [ -n "$_z" ] || return 1
-  bounded "$_z" /dev/null git -C "$1" status --porcelain=v1 -z -uall; _rc=$?
+  bounded "$_z" /dev/null git -c core.fsmonitor=false -C "$1" ls-files -v -z; _rc=$?
   if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
   if [ "$_rc" != 0 ]; then rm -f "$_z"; return 1; fi
+  _F=(); _nf=0
+  while IFS= read -r -d '' _fl; do
+    expired && { rm -f "$_z"; return 3; }
+    case "$_fl" in [[:lower:]]\ *|S\ *) _F[$_nf]="$_fl"; _nf=$((_nf + 1)) ;; esac
+  done < "$_z"
+  bounded "$_z" /dev/null git -c core.fsmonitor=false -c core.untrackedCache=false -C "$1" status --porcelain=v1 -z -uall; _rc=$?
+  if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
+  if [ "$_rc" != 0 ]; then rm -f "$_z"; return 1; fi
+  if [ "$_nf" -gt 0 ]; then
+    _fi=0
+    while [ "$_fi" -lt "$_nf" ]; do
+      printf '~%s\0' "${_F[$_fi]}"
+      _fi=$((_fi + 1))
+    done >> "$_z"
+  fi
   _ch="$(blob_lines "$1" < "$_z")"; _rc=$?
   if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
   _s="$({ cat "$_z"; printf '\n%s' "$_ch"; } | sha256_of_stdin)"; _rc=$?
