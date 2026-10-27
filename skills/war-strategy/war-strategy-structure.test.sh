@@ -521,8 +521,12 @@ trial_f 'Only a pre-registered `settled` row backs'
 # Doctrine side (plan-interview.md). Stage 1b: the classify sentence (fact → fork trial,
 # interface → pair beat, preference → ask) and the pointer in the sibling link form.
 doc_f 'Classify every fork that passes:'
-doc_f '→ a fork trial, zero questions'
-doc_f '→ a pair beat, one question'
+# Each category binds to its own clause: the head pin ties the category word to its
+# parenthetical, the tail pin ties that parenthetical's close to the route.
+doc_f 'a **fact** (observable by running'
+doc_f 'something) → a fork trial, zero questions'
+doc_f 'a consequential **interface** (an exported'
+doc_f 'a floored mechanism) → a pair beat, one question'
 doc_f '**preference** → ask it as an ordinary Stage 2 question'
 doc_f 'a Stage 1b fork is an observable fact or a consequential interface, read [references/fork-trials.md](fork-trials.md)'
 # Stage 2: the pair-beat bullet — the three triggers by name, the one-question cost, the
