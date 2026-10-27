@@ -222,7 +222,8 @@ expect "war-worker relative path denies (no infinite loop)" \
 # Structural assertion: war-servitor.md frontmatter tools allowlist (F01 D1)
 #
 # The servitor must have a `tools:` line in its YAML frontmatter that explicitly
-# lists exactly Read, Grep, Glob, Write, Edit — and must NOT grant Bash.
+# lists exactly Read, Grep, Glob, Write, Edit plus the read-only memory query
+# tool — and must NOT grant Bash.
 # This pins the capability-allowlist contract so the harness can enforce it.
 # ---------------------------------------------------------------------------
 SERVITOR_MD="$HERE/../agents/war-servitor.md"

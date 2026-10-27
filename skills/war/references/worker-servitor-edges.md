@@ -49,7 +49,7 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 
 Trigger: you need the rationale for the servitor's write confinement — e.g. a scope-hook denial cites it, or you are reasoning about why the memory phase cannot touch your branches.
 
-The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md).
+The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit plus the read-only memory query tool — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md).
 
 ## Archived lessons (servitor)
 

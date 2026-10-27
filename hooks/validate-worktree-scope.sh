@@ -40,7 +40,7 @@
 #
 # A write with no file_path (e.g. a tool_input without a path) is always
 # allowed. Note: the servitor no longer holds Bash (capability allowlist:
-# Read, Grep, Glob, Write, Edit only — F01 D1), so Bash can only slip through
+# Read, Grep, Glob, Write, Edit plus the read-only memory query tool — F01 D1), so Bash can only slip through
 # this hook for the worker or refiner, not the servitor.
 #
 # Constraints: must run on macOS bash 3.2.57 — no globstar, no associative

@@ -70,6 +70,9 @@ cited artifact (backstop B2), each recorded in the plan's backstops section.
 | `war-evidence-auditor` | the allowlist only |
 | `war-worker` | the allowlist only |
 
+The same hook also admits the plugin's memory query tool for the auditor, servitor, evidence
+auditor and worker, recorded in the ADR 0002 amendment (2026-10-27).
+
 The allowlist holds the tools that pass the effect predicate: never `mutatesTarget`,
 `executesForeignCode`, `mutatesDevice` or `destructive`, derived at the REA version measured at
 land. The owner of the allow and deny sets is the evidence-auditor MCP hook, under the PreToolUse
