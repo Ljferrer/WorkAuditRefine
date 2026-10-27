@@ -1583,8 +1583,15 @@ The Lead-side retrieval step at phase launch: one query per prospective seat (ta
 seat's role/lens), each result capped and injected into that agent's spawn prompt. Per-seat queries
 mean different auditor lenses receive different lessons. Fails open — a phase without memory runs
 lesson-less, logged.
-_Avoid_: agents querying at spawn time (only workers may, mid-task, as an extra); a shared identical
+_Avoid_: agents querying at spawn time (seats may, mid-task, as an extra); a shared identical
 memory block for all seats.
+
+**Memory query tool**:
+The plugin's one MCP tool (`memory_query`; its full name is the `MEMORY_TOOL=` line of
+`hooks/validate-evidence-auditor-mcp.sh`). It searches hot and archived lessons in both roots. The
+Lead threads `local` and `repo` into each seat prompt; the server never guesses a root from cwd. The
+seat never writes: the server appends one query-log line into an existing `local` dir, or nothing.
+_Avoid_: the Bash `war-memory.mjs query` line in a seat prompt (retired); restating the full name.
 
 **Graduation candidate**, **Concept hub**, **Link trichotomy (HOT / COLD / MISSING)**,
 **Non-destructive default (`--candidates`)**:

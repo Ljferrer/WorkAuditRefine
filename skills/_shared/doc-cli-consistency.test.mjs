@@ -225,6 +225,10 @@ const VERB_SCAN_EXCLUSIONS = [
   // byte-identical from agents/war-auditor.md (in-band-absorb-default D16, ADR 0042); its only
   // command prose is read-only git (`cat-file -t` / `rev-parse`) — no scanned-module verb.
   'skills/war/references/gate-audit-checklist.md',
+  // pin-transfer.md holds the `## Pin transfer (#1913)` body evicted byte-identical from
+  // agents/war-auditor.md (2026-10-27-memory-query-mcp-tool Task 1.3, ADR 0042); its only command
+  // prose is read-only git (`git diff --name-only`, `git patch-id --stable`) — no scanned-module verb.
+  'skills/war/references/pin-transfer.md',
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund
