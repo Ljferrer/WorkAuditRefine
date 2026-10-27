@@ -103,3 +103,26 @@ Lead's `memoryLocalRoot` derives from the *same* `~` expansion as `$HOME`, so th
 `file_path` normally shares that spelling. A realpath'd-vs-spelled mismatch (e.g. `/private/var` vs
 `/Users`) surfaces as the named servitor deny, whose message states both the anchored expectation and
 the fallback condition. **One-line rollback:** revert the servitor case pattern to the bare shape glob.
+
+## Amendment (2026-10-27): the memory query tool
+
+Plan `docs/plans/2026-10-27-memory-query-mcp-tool.md` widens the MCP arm of the capability-first
+confinement (`hooks/validate-evidence-auditor-mcp.sh`) by one tool: the plugin's memory query tool
+(`memory_query`, server `war-memory` in `.claude-plugin/plugin.json`). The hook owns the tool's full
+name on its `MEMORY_TOOL=` line; every other surface points at that literal and never restates it.
+
+- **Admission by role.** For `war-auditor` and `war-servitor` the memory query tool is the **only**
+  MCP tool the hook allows; every other MCP tool stays denied. For `war-evidence-auditor` and
+  `war-worker` the hook allows it **beside the unchanged REA allowlist**. The compare is an exact
+  full-name match, never a prefix or suffix glob.
+- **No-seat-write rule.** The seat itself never writes. The server appends one query-log line only
+  into an existing directory named by `local`, and never creates one. A query over `repo` only reads.
+- **The `local` anchor.** When a call carries `local`, the hook denies it unless the value is an
+  absolute path under `*/.claude/projects/*/memory` with no `..` segment. An absent `local` passes,
+  and the server then writes nothing. The server never guesses a root from cwd: the Lead threads the
+  resolved roots into each seat prompt.
+- **Refiner exclusion.** `war-refiner` stays denied every MCP tool, the memory query tool included.
+  The refiner reads lessons only through the Lead's prefetch.
+
+The posture is unchanged: the capability allowlist stays the primary confinement, and the hook is
+the MCP arm of the same `agent_type`-keyed, suffix-anchored structural guard.
