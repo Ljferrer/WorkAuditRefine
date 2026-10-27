@@ -266,6 +266,49 @@ test('ES2: one slug with several copies yields one hit: hot beats archived, repo
   }
 });
 
+// ES2-adjacent: the collapse judges every copy in the walked corpus, not only the copies the
+// query matched. Twins drift apart (a tighten pass shortens one copy's text), so a copy can miss
+// every query term while its twin matches. Slugs here carry no query term: name is indexed, so a
+// slug sharing a term would make every copy match and the row could not reach the case.
+test('collapse over drifted twins: an unmatched hot copy still beats a matched archived twin, an unmatched repo copy still beats a matched local copy, and a slug with no matched copy is no hit', async () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  const hit = { type: 'project', provenance: 'code-verified', keywords: ['gitlink', 'bump'] };
+  const miss = { type: 'project', provenance: 'code-verified', keywords: ['other'] };
+  // local hot copy misses the query; repo archived twin matches → the hot file, no (archived)
+  lessonFile(local, 'drifted-twin', { description: 'short hot text', meta: miss });
+  lessonFile(join(repo, 'archive'), 'drifted-twin', { description: 'gitlink bump long archived text', meta: hit });
+  // both hot: repo copy misses, local copy matches → the repo file still wins at the same state
+  lessonFile(repo, 'drifted-roots', { description: 'short repo text', meta: miss });
+  lessonFile(local, 'drifted-roots', { description: 'gitlink bump local text', meta: hit });
+  // boundary: no copy matches → the slug never appears, whatever its copies' state
+  lessonFile(local, 'never-matched', { description: 'short hot text', meta: miss });
+  lessonFile(join(repo, 'archive'), 'never-matched', { description: 'short archived text', meta: miss });
+  const s = startServer();
+  try {
+    await handshake(s);
+    const { text } = await query(s, { query: 'gitlink bump', local, repo, topK: 20 });
+    const lines = text.split('\n').filter((l) => l.startsWith('- ['));
+    const only = (slug) => {
+      const rows = lines.filter((l) => l.startsWith(`- [${slug}]`));
+      assert.equal(rows.length, 1, `${slug}: one hit\n${text}`);
+      return rows[0];
+    };
+    const twin = only('drifted-twin');
+    assert.ok(!twin.includes('(archived)'), `an unmatched hot copy exists, so no (archived): ${twin}`);
+    assert.ok(twin.includes(join(local, 'drifted-twin.md')), `the unmatched hot copy's file: ${twin}`);
+    assert.ok(twin.includes('short hot text'), `the hot copy's own description: ${twin}`);
+    const roots = only('drifted-roots');
+    assert.ok(!roots.includes('(archived)'), roots);
+    assert.ok(roots.includes(join(repo, 'drifted-roots.md')), `the unmatched repo copy's file: ${roots}`);
+    assert.ok(!text.includes('[never-matched]'), `no matched copy → no hit:\n${text}`);
+  } finally {
+    await s.close();
+    rmSync(local, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // ES3 — query log: only into an existing `local`; never a cwd root; never mkdir
 // ---------------------------------------------------------------------------
