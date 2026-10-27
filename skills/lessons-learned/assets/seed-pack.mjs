@@ -42,7 +42,7 @@ import {
 // matching the plan's literal 1,500,000-B seed cap. Dual-axis on BOTH tiers: overflow on
 // EITHER count or bytes. Exported so the tests assert against the constant, not a magic number.
 // ---------------------------------------------------------------------------
-export const SEED_MAX_MEMBERS = 50;
+export const SEED_MAX_MEMBERS = 100;
 export const SEED_MAX_BYTES = 1_500_000;
 export const ARCHIVE_MAX_MEMBERS = 500;
 export const ARCHIVE_MAX_BYTES = 100_000_000;

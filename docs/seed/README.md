@@ -33,7 +33,7 @@ itself, so it reports a sidecar on every platform.
 
 Overflow on **either** axis; nothing is ever auto-deleted.
 
-- **Seed tier:** ≤ 50 members **and** ≤ 1,500,000 B uncompressed. Overflow refuses the pack with a
+- **Seed tier:** ≤ 100 members **and** ≤ 1,500,000 B uncompressed. Overflow refuses the pack with a
   ranked eviction proposal (near-dupe → largest bytes → oldest date); the operator gates the
   strike list, then `evict` moves members to the archive tier.
 - **Archive tier:** ≤ 500 members **and** ≤ 100,000,000 B (100 MB). Archive overflow refuses the

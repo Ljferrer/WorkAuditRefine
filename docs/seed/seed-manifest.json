@@ -9,12 +9,28 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "ast-one-home-guard-needs-load-context-not-just-call",
+      "bytes": 1723,
+      "sha256": "062815c074c0972b6a94aeb7af2c352fab61e3d6cd59b5183f0197a7054389d7",
+      "description": "An AST one-home guard must flag every Load-context name, attribute and ImportFrom of the helper, not only ast.Call",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "case-glob-star-crosses-slash-prefix-needs-root-plus-nested",
       "bytes": 2236,
       "sha256": "ad76fe0410c20c809b796d49916cfb849d87ba150348acf7c2a29aabe05c4ec8",
       "description": "case fnmatch: * crosses /, **/ misses root; need the token pair",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "cdk-closed-set-and-conjunct-isolation-test-pattern",
+      "bytes": 2268,
+      "sha256": "66c2d1c257e073fbaa7e0c06a3617f188b59b2c3d17b3abeca441d75622965b5",
+      "description": "a CDK synth test needs an exact closed-set pin and one test per alarm-gate conjunct",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "cli-main-guard-equality-check-silently-noops-under-relative-invocation",
@@ -33,12 +49,44 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "config-switch-guard-list-holders-no-standing-value-pin",
+      "bytes": 1805,
+      "sha256": "5a445aac54df9ec650f292f06cc3cff9a3eaec0f513daca5f5b4ab3ac0be87ca",
+      "description": "A guard for a config switch holds its holders in a list and pins no flippable value",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "consolidate-exts-v2-timeout",
       "bytes": 5566,
       "sha256": "2faa578b85a5284a396497b3b3a7d56d652b690c1a33b0298a7bcfdcb347e25e",
       "description": "Why ConsolidateExtsV2Handler times out at 900s on big cases, why redrives eventually succeed, and the Phase-1 fix (run_parallel fan-out + SFN retry) that landed",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "container-insights-family-metrics-are-per-task-datapoints",
+      "bytes": 1877,
+      "sha256": "1ee0659a0258ce59afd0c97f44bddb29d31750e851085e3b1696313763df351d",
+      "description": "Container Insights family metrics are one datapoint per task per minute: use Sum or SampleCount, never Average",
+      "type": "project",
+      "provenance": "code-verified (Sept 2026: a Sum integration matched the daily ECS cost line; Average undercounted roughly 30x)"
+    },
+    {
+      "slug": "cross-process-hash-probe-seeded-children-timeout-salted-job-name",
+      "bytes": 2086,
+      "sha256": "f570906dd8c85bbaac6b3cbbd86524f2a4996618a5ceabacfef4c88f45079777",
+      "description": "A cross-process request_hash test runs children under distinct PYTHONHASHSEED values with a timeout and expects the job_name to differ",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "dedup-fixture-docstring-memory-slug-unresolvable",
+      "bytes": 1234,
+      "sha256": "5da3388d4378d55d76ff877d70a3962598aeb35abc945d1177fccd7bb2f9db0b",
+      "description": "A checked-in docstring that cites a private memory slug by name gives a repo reader no way to resolve it",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "default-flip-must-audit-all-doc-surfaces",
@@ -63,6 +111,22 @@
       "description": "Drift matrix stated vs covered cells",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "dup-grouping-alarm-token-split-pattern",
+      "bytes": 2531,
+      "sha256": "883b6e75e641a66ff705d53892f3f2868632e5d5ada89477f347961476bbf05c",
+      "description": "Never-raises handlers: split log tokens by meaning, keep them non-substring for MetricFilters, mirror across files",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "dynamodb-free-name-claim-uses-attribute-type-null",
+      "bytes": 1591,
+      "sha256": "c1a76272b4d2b6daac298b7d717e6c54b6e8af606cf54f2e91a953dec3f64327",
+      "description": "A DynamoDB conditional claim that treats an absent or NULL attribute as free must use attribute_type(..., NULL), not an equality test",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "ensure-origin-swallows-stderr-unlike-sibling-subcommands",
@@ -95,6 +159,14 @@
       "description": "A failed `git worktree add` followed by `cd \\'$P\\'` does NOT stop a compound shell command",
       "type": "feedback",
       "provenance": "user-confirmed"
+    },
+    {
+      "slug": "failure-injection-hook-result-must-be-asserted",
+      "bytes": 1662,
+      "sha256": "961bf519713897e7529ba7cee2a389ea774859b6422858460cd671e163c93d05",
+      "description": "A failure-injection test must assert that its injection hook fired, or the race path goes untested while the outcome asserts stay green",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit",
@@ -161,6 +233,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "lambda-layer-wheels-built-native-to-arm-synth-host",
+      "bytes": 1852,
+      "sha256": "3146fb7a5f943bfe2a68630715941f452a81fb7afb8a25adfb94c5a1076422f9",
+      "description": "Lambda layers bundled with a native pip on an arm64 build host ship aarch64 wheels to x86_64 Lambdas; cross-install for the declared architecture",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "land-advance-push-first-cas-rejected-token",
       "bytes": 1815,
       "sha256": "c91d7e0602fd9cc390117eca8fd3347d628171f4c48835f60afcaa2569ce8a81",
@@ -169,12 +249,52 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "llm-caller-response-type-based-text-extraction",
+      "bytes": 2543,
+      "sha256": "403e4dcb5e209117f8dc1a73acc7b9cd763062c3c1ca34a06bf211913f574e09",
+      "description": "Read an Anthropic response's text from the first type=='text' block, not content[0]; positional content[0]['text'] readers break on thinking-first replies",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "mechanical-tag-sweep-can-corrupt-backtick-quoted-comment-tokens",
       "bytes": 2711,
       "sha256": "54fa7678be71243946c41899ad40f4c76e5381567eaa023b6dd4234fc2d0559e",
       "description": "Mechanical tag sweep can corrupt backtick tokens in // comments",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "mlp-run-parallel-static-args-not-shared-across-processes",
+      "bytes": 2797,
+      "sha256": "41ffb8ad313e055502e2681cbbe3e48b72705edbcd1d3090fb3f45c46c2cf50a",
+      "description": "A fork-per-item parallel helper copies static_args dicts, so child mutations never reach parent or siblings",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "negative-grep-guard-can-trip-on-prose-comment",
+      "bytes": 1673,
+      "sha256": "feb8ab369b0a20525cd1932724e650333e4e826d009c1531ff4b699b945ebcda",
+      "description": "A negative-grep drift guard can trip on a prose comment with the same literal; reword the comment, keep the guard",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "never-raises-fixture-runner-needs-degraded-sentinel",
+      "bytes": 1582,
+      "sha256": "73d7b5a894a2325a84df7cca39cbffb93011c2917abbfc2b706c6f159dd213d8",
+      "description": "a never-raises fixture entrypoint needs a degraded sentinel for a partial parse failure",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "no-fixture-fires-guard-test-calls-the-guards-own-functions-in-harness-run",
+      "bytes": 2207,
+      "sha256": "2c8915a9d11fe5ade364025754482eec6ffdfb079ab4ad9a9b4389dcd1116e33",
+      "description": "A test that no fixture fires a degrade token must call the guard's own functions in the shared harness and opt in per token",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "non-discriminating-test-can-still-be-plan-faithful",
@@ -209,6 +329,30 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "pytest-cross-file-test-import-collection-order-gate-blindspot",
+      "bytes": 2188,
+      "sha256": "886904d28f13def664de2f82daa0c901918a6d09f0e2d433a00974546ad97393",
+      "description": "A module-level import between two test files can pass the gate on collection order alone, and each file's own task check command misses it",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "pytest-sys-modules-stub-monkeypatch-setitem-pattern",
+      "bytes": 2187,
+      "sha256": "553aedf099637f30d0fc729126a54fe51c974503749de637f9f949bec52df1b1",
+      "description": "Stub Lambda-layer deps into sys.modules via monkeypatch.setitem, not a bare assignment, or the stub leaks past the test into later by-path handler imports in the same pytest session",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "readme-demirror-guard-intersects-backticked-spans-with-ast-constants",
+      "bytes": 2282,
+      "sha256": "99fe3486767d52444895e18f07dff424173a99cb107dd7cff1620fb5e072936f",
+      "description": "A README de-mirror guard intersects backticked spans with module constants read by AST",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "reclaim-empty-orphan-proof-swallows-git-log-error-as-empty",
       "bytes": 2618,
       "sha256": "6416ce248866a81cdf6f9f9183935466eda860d03e9aec7f52588c46849fd9d4",
@@ -225,12 +369,36 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "reduce-checker-reply-cap-must-scale-with-numbered-items",
+      "bytes": 2096,
+      "sha256": "e579116a963bfb645a6c81345e171d1630fa9d5ddaf5de07e6c60fd96a009236",
+      "description": "An LLM reply that answers per numbered item needs max_tokens sized to the item count, not a fixed 1024",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "relative-path-test-needs-clean-cwd",
       "bytes": 2637,
       "sha256": "cd7765808dd915ace24b7b1a1b637d5afa40a0c15e13dfca55a0f08779997edd",
       "description": "rel_guard false-allow from dirty cwd; use clean dir",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "run-parallel-poll-budget-fanout-breach",
+      "bytes": 2202,
+      "sha256": "97cb335e4dc3e2e02aaae2e1e1c5cc162375a25a3e6e21fbcbb85309c131da7c",
+      "description": "A per-call poll budget holds for one call; a fan-out helper with cap P runs N calls in ceil(N/P) waves",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "s3-absent-object-detection-conflates-transient-and-denied",
+      "bytes": 2329,
+      "sha256": "a60b4984202317c98790dfe01ae5e3ec3e25b5d769f0cd1b790a742e205fd2cc",
+      "description": "A shared S3 helper returns None on any ClientError, and GetObject-only IAM gives AccessDenied for a missing key",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "scope-hook-relative-path-loop-hang",
@@ -241,12 +409,60 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "seed-ecs-config-or-true-swallows-write-failures",
+      "bytes": 1789,
+      "sha256": "0460651b14dad5aecb6bd34e77d2c8963cfab160cce5088ec910b32174cc3b4c",
+      "description": "A `func || true` under set -e hides real write failures inside func, so the script can report false success",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "semaphore-peak-assertion-alone-cannot-catch-a-leaked-permit-need-drain-plus-callsite-census",
       "bytes": 4334,
       "sha256": "bbbb56e64eac6b7fad32652dd8f470c8010aaad01e1e1cc8e353dd9564fd9689",
       "description": "Testing a counting semaphore needs a drain assertion after rejected dispatches, plus a default-deny call-site census — a peak-only assertion cannot catch a leaked permit, because a leak lowers the peak instead of raising it",
       "type": "project",
       "provenance": "code-verified"
+    },
+    {
+      "slug": "sfn-catch-into-rebuilt-pass-drops-untracked-keys",
+      "bytes": 2227,
+      "sha256": "0ac717f5ab72553dd08cc8c52371866054e3b37a63b452059106578e5c2e4a5d",
+      "description": "A Step Functions Catch landing past a Parameters-rebuilding Pass with no ResultPath silently drops any key that Pass omits",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "sfn-maxattempts-zero-retrier-routes-to-catch-ahead-of-caller-retry",
+      "bytes": 2049,
+      "sha256": "03214e5126a245aef8d08b855e19ba08120978b371b41d9e4cbee66e2e912793",
+      "description": "A leading MaxAttempts: 0 retrier makes Catch fire at once, ahead of a later States.ALL retrier",
+      "type": "project",
+      "provenance": "code-verified (throwaway synth, Sept 2026; rendered Retry [(<fallback-errors>, 0), (States.ALL, 5)] and Catch <fallback-errors> -> on-demand twin)"
+    },
+    {
+      "slug": "shape-suite-absence-assert-needs-positive-sensitivity-control",
+      "bytes": 2194,
+      "sha256": "9e60f8ce4c47c25f2c2fb4a821b2589b79c29c58163d4131531481f8e45a8e61",
+      "description": "Pair every synth-test absence assert with a positive control, or it passes vacuously when the template changes",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "shared-deadline-test-first-stage-must-spend-part-of-the-budget",
+      "bytes": 1976,
+      "sha256": "c134e4c1e66b2497f662a8c0345c7bf5a40edd409374803e7f13ac28590fcb80",
+      "description": "A shared-deadline regression passes vacuously if stage one is served at once, so make stage one spend part of the budget",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "shared-manifest-rewrite-fail-loud-on-unreadable-read",
+      "bytes": 2037,
+      "sha256": "b9ffb9ef2e8ef8eba6f703fe36594d8aa90ef8eb53db5c2985d6d43b662e8cd2",
+      "description": "Falling back to {} on a failed read before rewriting a shared JSON blob silently deletes the keys other writers own",
+      "type": "project",
+      "provenance": "agent-unverified"
     },
     {
       "slug": "shell-digit-only-value-extraction-truncates-legal-js-numeric-literal-forms",
@@ -269,6 +485,14 @@
       "bytes": 4139,
       "sha256": "065c9cfd920ae9ddbdfc67d573b2c932cd0451dae92259acaa726a168cbc6c84",
       "description": "Fixing one SIGPIPE-fragile `cmd | grep -Fxq` pipeline under `set -o pipefail` (converting it to a draining awk idiom — a flag var + END-block exit, no early return) does not fix a sibling helper built on the identical `git ... | grep -Fxq` shape reading the same corpus; under pipefail a large-enough output makes grep's early exit SIGPIPE the upstream git, the pipeline returns 141, and an `if helper; then` caller reads that as a false negative rather than a git error — multiple auditor seats independently re-flagged the same untouched sibling across a phase without it being fixed, since it sits outside the plan's swept scope.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "stop-class-ok-masks-refusal-and-content-filter",
+      "bytes": 1785,
+      "sha256": "c932add7092a967ed5b95a6ce2567e069b7cae50dafa24cb6d4a727fe4f930c9",
+      "description": "A binary truncated/ok classifier over an LLM finish_reason maps refusals and content filters to 'ok', so a retry keyed on 'ok' misses them",
       "type": "project",
       "provenance": "code-verified"
     },

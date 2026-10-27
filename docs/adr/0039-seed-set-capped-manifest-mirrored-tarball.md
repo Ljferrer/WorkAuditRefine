@@ -84,6 +84,14 @@ never a byte-level hash of the archive itself.**
   replacement for it — [ADR 0015](0015-files-canonical-memory-with-derived-index.md) is untouched, and
   both per-repo memory roots stay loose Markdown files.
 
+## Amendment (2026-10-26): seed-tier member cap raised from 50 to 100
+
+The operator raised the seed-tier member cap from 50 to 100 (`SEED_MAX_MEMBERS` in
+`skills/lessons-learned/assets/seed-pack.mjs`). The first `seed-candidate` ingest sweep accepted
+28 lessons into a 41-member corpus. At 50, the pack proposed evicting 19 current members, among
+them a member that three new lessons name. The byte cap (1,500,000 B) and the archive-tier caps are
+unchanged. The cap stays dual-axis and eviction stays operator-gated.
+
 ## References
 
 - Design spec: [`docs/specs/2026-07-22-lessons-learned-seed-design.md`](../specs/2026-07-22-lessons-learned-seed-design.md)
