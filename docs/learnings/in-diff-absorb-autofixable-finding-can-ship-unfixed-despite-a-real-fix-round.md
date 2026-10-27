@@ -2,12 +2,12 @@
 name: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
 description: "A Minor/Nit finding disposed absorb + autoFixable:true, inside the task's own Files diff, can still ship unfixed once the task's verdict reaches approve"
 metadata: 
-  promoted: dev/2026-09-06-engine-and-audit-verdict-integrity@phase-12
+  promoted: dev/2026-09-11-backward-chain-doctrine@phase-3
   node_type: memory
   type: project
   provenance: code-verified
   slug: in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round
-  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +5 recurrences (phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99; phase-11 task 11.1, landed 8927103891fdc7902f15a498203f7eaeedd74823; phase-12 task 12.2, landed 48a7120616627a35ecf2a05e76e34d15dcf985a3, all on dev/2026-09-06-engine-and-audit-verdict-integrity; 2026-09-11-backward-chain-doctrine/phase-3 task p3-polish, landed b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b on dev/2026-09-11-backward-chain-doctrine, 2026-09-12 — sharpest form: a real fix round moved the pinned sha twice, yet one finding of the batch shipped unfixed)"
+  phase: "2026-09-06-engine-and-audit-verdict-integrity/phase-5 (task 5.1), landed fc9cf8c1099156f551c414ef99d34d277451da25 on dev/2026-09-06-engine-and-audit-verdict-integrity +5 recurrences (phase-7 task 7.1, landed 2694f617c02b8ae0a527086792355331c5cc5a79; phase-9 task 9.1, landed b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99; phase-11 task 11.1, landed 8927103891fdc7902f15a498203f7eaeedd74823; phase-12 task 12.2, landed 48a7120616627a35ecf2a05e76e34d15dcf985a3, all on dev/2026-09-06-engine-and-audit-verdict-integrity; 2026-09-11-backward-chain-doctrine/phase-3 task p3-polish, landed b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b on dev/2026-09-11-backward-chain-doctrine, 2026-09-12 — sharpest form: a real fix round moved the pinned sha twice, yet one finding of the batch shipped unfixed; 2026-10-26-interview-fork-trials-and-pair-beats/phase-1 task 1.1, landed adb270b166190652e1289f8076ef43141e778f9a on dev/2026-10-26-interview-fork-trials-and-pair-beats, 2026-10-26 — Recurrence 7: a three-seat Nit shipped unfixed beside a fixed Major)"
   keywords: 
     - absorb disposition
     - autoFixable
@@ -44,6 +44,10 @@ metadata:
     - ace fixer row stamped one round lower
     - moving pinned sha not proof of per-finding fix
     - correctiveRoundOf
+    - This host has none
+    - fork-trials.md per-command cap
+    - three seats flagged the same nit
+    - host-specific fact in a references file
   tags: 
     - war
     - audit-findings
@@ -51,7 +55,7 @@ metadata:
     - workflow-template
   created: 2026-09-07
   originSessionId: a2a576b1-d8af-4c79-ad1a-af3d3e5c5c91
-  modified: 2026-09-13T02:55:01.687Z
+  modified: 2026-10-27T02:34:12.158Z
 ---
 
 # An in-diff `absorb`/`autoFixable:true` finding can ship unfixed even after a real fix round ran
@@ -244,6 +248,24 @@ THIS finding's diff happened — the round may have fixed the OTHER finding in t
 a sibling "Worker rule 1" finding in the identical audit-pin:resolved entry) and let this one ride
 through to `approve` unfixed. Never infer per-finding completion from the batch's `verdict` or
 `headSha` transition; re-Read each named construct individually.
+
+**Recurrence 7 (code-verified — landed tip `adb270b166190652e1289f8076ef43141e778f9a` on
+`dev/2026-10-26-interview-fork-trials-and-pair-beats`, phase 1 "Doctrine, config, glossary, pointers,
+record", task 1.1, read via the run-scoped `_refinery` worktree, rung 2 of the grounding ladder:
+`<repo-root>/.claude/war-worktrees/a3638493-09c0-47c2-b623-58b5edc9dd74/_refinery/`. Its `HEAD` is the
+phase-1 integration tip `7189418a760c592f73e0ba8e04cdee0d66db9e85`, the second parent of the landed
+merge; the land merged an ancestor base, so the trees match).** A real fix round ran (`fixRounds: 1`,
+pinned sha moved `5a4f36eb` to `dc724749` to `046bfdd6`). It closed the round-1 Major (the base
+attestation comparand) and three Minors (fill-defaults presence, trial cwd, snapshot junk ref). It
+skipped one Nit from the same batch: "Doctrine states the authoring host lacks timeout"
+(`disposition: absorb`, `autoFixable: true`, with the replacement sentence supplied). All three
+seats (correctness, plan-faithfulness, cascading-impact) raised it independently. Still present at
+the tip: `skills/war-strategy/references/fork-trials.md`, the `**The per-command cap.**` paragraph,
+search "This host has none" — "A host with `timeout` may use `timeout <s> <command>`. This host has
+none, so the portable form is a process-group kill". The reference file is read on every host, so
+the sentence is a snapshot of one machine. The later approve rounds praised the other fixes and did
+not re-raise it. **Sharpens the pattern again:** three-seat agreement on a Nit does not make the
+fix round take it. Nit never blocks, so the round fixes what blocks plus what it chooses.
 
 **Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
 much larger, heavily-recurring instance of this same root fact for **terminal/polish** tasks
