@@ -18,7 +18,8 @@
 # oracle-duality template law, the #1494 fence Done-when connective convergence, the #1505
 # HANDOFF latitude clause, the #1602 trichotomy-token pins, and the #1604 gap-review-clause
 # pin), the 2026-10-26 fork-trials pins (#2447: references/fork-trials.md exists with its
-# nine ratified headings via $TRIALS / trial_f, the Stage-1b classify sentence + pointer,
+# nine ratified headings via $TRIALS / trial_x, the Stage-1b classify sentence + its three
+# mappings + pointer,
 # the Stage-2 pair-beat bullet + the `Trials: t` status line, the Stage-3 read-aloud, the
 # Stage-4 sweep row + Trials-block enumeration, the Terminal-state usage-comment duty, the
 # two new decisive-slot rows, the SKILL-side Trials-run-block template law + §4 sentence +
@@ -108,6 +109,15 @@ trial_f() { # fixed string (vs references/fork-trials.md)
     printf 'ok - fork-trials :: %s\n' "$1"
   else
     printf 'not ok - fork-trials missing: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+trial_x() { # fixed string, EXACT whole line (vs references/fork-trials.md) — the check_x twin:
+  # a backticked prose mention of a heading (`## Provenance`, `## Bounds`) never satisfies it
+  if grep -qxF -e "$1" -- "$TRIALS"; then
+    printf 'ok - fork-trials exact line: %s\n' "$1"
+  else
+    printf 'not ok - fork-trials missing exact line: %s\n' "$1"
     fails=$((fails + 1))
   fi
 }
@@ -490,16 +500,17 @@ else
   printf 'not ok - references/fork-trials.md is MISSING\n'
   fails=$((fails + 1))
 fi
-# The nine ratified section headings (End state 1), each a verbatim heading line.
-trial_f '## When a fork qualifies'
-trial_f '## Running a fork trial'
-trial_f '## The sweep row'
-trial_f '## The pair beat'
-trial_f '## The Trials run block'
-trial_f '## Provenance'
-trial_f '## Bounds'
-trial_f '## AFK'
-trial_f '## Grandfather and reporting'
+# The nine ratified section headings (End state 1), each a verbatim heading line — exact
+# whole-line (trial_x), since the file also names `## Provenance` and `## Bounds` in prose.
+trial_x '## When a fork qualifies'
+trial_x '## Running a fork trial'
+trial_x '## The sweep row'
+trial_x '## The pair beat'
+trial_x '## The Trials run block'
+trial_x '## Provenance'
+trial_x '## Bounds'
+trial_x '## AFK'
+trial_x '## Grandfather and reporting'
 # The doctrine phrases the two hot surfaces point at, pinned on the cold home too.
 trial_f 'git clone --no-hardlinks'
 trial_f '**Trials run** — one row per trial:'
@@ -510,6 +521,9 @@ trial_f 'Only a pre-registered `settled` row backs'
 # Doctrine side (plan-interview.md). Stage 1b: the classify sentence (fact → fork trial,
 # interface → pair beat, preference → ask) and the pointer in the sibling link form.
 doc_f 'Classify every fork that passes:'
+doc_f '→ a fork trial, zero questions'
+doc_f '→ a pair beat, one question'
+doc_f '**preference** → ask it as an ordinary Stage 2 question'
 doc_f 'a Stage 1b fork is an observable fact or a consequential interface, read [references/fork-trials.md](fork-trials.md)'
 # Stage 2: the pair-beat bullet — the three triggers by name, the one-question cost, the
 # decline-on-the-row rule (never a WAIVE row), and its pointer — plus the status line.

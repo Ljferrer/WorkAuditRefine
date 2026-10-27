@@ -130,7 +130,8 @@ the tag grammar, the digest rule, the cite-only rule and the block law live ther
 
 **Stage 3 — mid-budget checkpoint.** Once, near the budget's midpoint: surface the riskiest
 still-live assumption and ask it directly. Read the trial count and the trial wall time aloud
-in the same turn (D7): `Trials: t` so far, `<m> min` of wall time spent on them.
+in the same turn (bounds per [references/fork-trials.md](fork-trials.md) `## Bounds`):
+`Trials: t` so far, `<m> min` of wall time spent on them.
 
 **Stage 4 — coverage sweep + two echo-backs.** Sweep the decisive slots (table below) for
 unfilled rows, run the omittability probe over the drafted End-state enumeration (an
