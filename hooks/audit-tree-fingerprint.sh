@@ -21,8 +21,9 @@
 #         assume-unchanged (a lowercase tag) or skip-worktree (`S`, `s`), and
 #         with the blob hash (`git hash-object --no-filters`, no write, no
 #         clean filter) of every path that status lists or ls-files flags.
-#         Status never lists a flagged path, even after an edit, so each one
-#         is hashed as if dirty, and the flagged set itself is hashed data: a
+#         Status never reports a worktree edit to a flagged path (a staged
+#         change to one is still listed), so each one is hashed as if dirty,
+#         and the flagged set itself is hashed data: a
 #         flag set mid-round changes the fingerprint (see fingerprint).
 #         The blob hashes make the fingerprint content-sensitive: a status line
 #         is the same before and after a second edit to an already-dirty file.
@@ -405,8 +406,10 @@ blob_lines() {
 # The sha256 covers the raw -z status output, one synthesized `~<tag> <path>`
 # record per flagged path, and the blob_lines of both. A flagged path is one
 # `git ls-files -v -z` tags assume-unchanged (a lowercase tag) or
-# skip-worktree (`S`; `s` is both): git status never lists such a path, even
-# after an edit, so it is hashed as if dirty, and its record puts the flagged
+# skip-worktree (`S`; `s` is both): git status never reports a worktree edit
+# to such a path (the flags suppress only the worktree-versus-index
+# comparison, so a staged change to one is still listed), so it is hashed as
+# if dirty, and its record puts the flagged
 # set itself in the hashed data (a flag set mid-round changes the
 # fingerprint). `~` is never a status column, so a synthesized record cannot
 # collide with a status record, and blob_lines strips its three leading bytes

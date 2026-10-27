@@ -842,8 +842,9 @@ run "$(mk_verdict "$AUD" c14)"
 if [ "$RC" = 0 ] && [ -z "$OUT" ]; then pass "a symlink whose out-of-worktree target changes passes (symlink target is never read)"; else fail "symlink target was read (rc=$RC out=|$OUT| err=|$ERR|)"; fi
 
 # --- git's own change detection off; flagged paths hashed (#2438) -------------
-# `git status` never lists a path flagged assume-unchanged or skip-worktree,
-# even after an edit, so the hook hashes every path `git ls-files -v` flags
+# `git status` never reports a worktree edit to a path flagged assume-unchanged
+# or skip-worktree (a staged change to one is still listed), so the hook hashes
+# every path `git ls-files -v` flags
 # (a lowercase tag, or `S`) as if it were dirty, with the flagged set in the
 # hashed data. A worker-set `core.fsmonitor` command runs under a plain
 # `git status` or `git ls-files`, GIT_OPTIONAL_LOCKS=0 or not, so both calls
@@ -858,12 +859,14 @@ printf 'au1\n' > "$TMP/wtG/au"
 printf 'sw1\n' > "$TMP/wtG/sw"
 printf 'fl1\n' > "$TMP/wtG/fl"
 printf 'bo1\n' > "$TMP/wtG/bo"
-git -C "$TMP/wtG" add au sw fl bo
+printf 'qz1\n' > "$TMP/wtG/q\"z"
+git -C "$TMP/wtG" add au sw fl bo 'q"z'
 git -C "$TMP/wtG" commit -q -m flags
 git -C "$TMP/wtG" update-index --assume-unchanged au
 git -C "$TMP/wtG" update-index --skip-worktree sw
 git -C "$TMP/wtG" update-index --assume-unchanged bo
 git -C "$TMP/wtG" update-index --skip-worktree bo
+git -C "$TMP/wtG" update-index --assume-unchanged 'q"z'
 # Oracle, independent of the hook: after an edit to each flagged file, git
 # status lists neither, so a status-only fingerprint cannot see the edits.
 printf 'au2\n' >> "$TMP/wtG/au"
@@ -894,6 +897,20 @@ run "$(mk_start "$AUD" g2b)"
 run "$(mk_read "$AUD" g2b "$TMP/wtG/bo")"
 printf 'bo2\n' >> "$TMP/wtG/bo"
 if escalates_on g2b "$WTG"; then pass "a both-flags (assume-unchanged and skip-worktree) edit escalates"; else fail "both-flags edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
+# A flagged path whose name needs C-quoting: plain `ls-files -v` prints it
+# as `h "q\"z"`, so a newline-mode read would hash a name that does not
+# exist and the real path would escape the flagged set. The hook's
+# `ls-files -v -z` carries the name raw. Oracle first, so the row cannot
+# pass on a name plain output leaves untouched.
+if git -C "$TMP/wtG" ls-files -v | grep -Fxq 'h "q\"z"'; then
+  pass "oracle: plain ls-files -v C-quotes a flagged path with a double quote"
+else
+  fail "oracle vacuous: ls-files=|$(git -C "$TMP/wtG" ls-files -v)|"
+fi
+run "$(mk_start "$AUD" g2c)"
+run "$(mk_read "$AUD" g2c "$TMP/wtG/au")"
+printf 'qz2\n' >> "$TMP/wtG/q\"z"
+if escalates_on g2c "$WTG"; then pass "an edit to a flagged path whose name needs C-quoting escalates (ls-files -z carries it raw)"; else fail "C-quoted flagged path edit not caught (rc=$RC out=|$OUT| err=|$ERR|)"; fi
 # A flag set mid-round, with no edit, changes the fingerprint too: the flagged
 # set is inside the hashed data, so a writer cannot flag a file between the
 # start and the verdict arm and edit it unseen afterwards.
