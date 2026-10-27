@@ -63,7 +63,7 @@ const TOOL = {
       query: { type: 'string', description: 'Search terms (significant words are OR-joined).' },
       local: { type: 'string', description: 'Absolute path of the local memory root (optional).' },
       repo: { type: 'string', description: 'Absolute path of the repo memory root, e.g. <repo>/docs/learnings (optional).' },
-      topK: { type: 'integer', minimum: 1, description: 'Max hits after collapsing copies (default 10).' },
+      topK: { type: 'integer', minimum: 1, description: 'Max hits after collapsing copies (default 10); output is also capped near 4 KB.' },
     },
     required: ['query'],
     additionalProperties: false,
@@ -263,4 +263,3 @@ rl.on('line', (line) => {
 });
 // No process.exit here: on macOS pipes stdout writes are async, and an explicit exit could drop
 // a queued reply. Once stdin ends no handle remains, so the process exits after stdout drains.
-rl.on('close', () => { process.exitCode = 0; });

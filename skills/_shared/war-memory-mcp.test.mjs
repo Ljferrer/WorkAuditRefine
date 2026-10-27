@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { walkCorpus, renderPromptBlock } from './war-memory.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, 'war-memory-mcp.mjs');
@@ -116,6 +117,8 @@ test('protocol: initialize answers with serverInfo and a tools capability; tools
     const schema = list.result.tools[0].inputSchema;
     assert.deepEqual(schema.required, ['query']);
     assert.deepEqual(Object.keys(schema.properties).sort(), ['local', 'query', 'repo', 'topK']);
+    // the byte budget (war-memory.mjs DEFAULT_BUDGET) cuts hits below topK; the schema says so
+    assert.match(schema.properties.topK.description, /output is also capped near 4 KB/);
   } finally { await s.close(); }
 });
 
@@ -161,6 +164,39 @@ test('protocol: after stdin closes with replies still queued, the process exits 
   const list = await replies;
   assert.equal(list.length, N);
   for (const r of list) assert.deepEqual(r.result.tools.map((t) => t.name), ['memory_query']);
+});
+
+// Line-shape binding: the server hand-copies the CLI's formatLessonLine shape (not exported). This
+// row pins the two shapes together: a hit line is the CLI's prompt-block line, with ` (archived)`
+// spliced between `)` and `:` when every copy is archived, plus ` · <file>`.
+test('hit line shape: a server hit equals the CLI prompt-block line plus the (archived) tag and the file path', async () => {
+  const local = tmpDir();
+  lessonFile(local, 'shape-hot', {
+    description: 'shape binding hot lesson',
+    meta: { type: 'project', provenance: 'code-verified', phase: 3, keywords: ['shape', 'binding'] },
+  });
+  lessonFile(join(local, 'archive'), 'shape-cold', {
+    description: 'shape binding archived lesson',
+    meta: { type: 'project', provenance: 'agent-unverified', keywords: ['shape', 'binding'] },
+  });
+  const records = walkCorpus({ local });
+  const cliLine = (slug) => {
+    const rec = records.find((r) => r.slug === slug);
+    return { line: renderPromptBlock([rec]).split('\n')[1], file: rec.file };
+  };
+  const s = startServer();
+  try {
+    await handshake(s);
+    const { text } = await query(s, { query: 'shape binding', local });
+    const lines = text.split('\n').filter((l) => l.startsWith('- ['));
+    assert.equal(lines.length, 2, text);
+    const hot = cliLine('shape-hot');
+    assert.ok(lines.includes(`${hot.line} · ${hot.file}`), `hot hit = CLI line + file:\n${text}`);
+    const cold = cliLine('shape-cold');
+    assert.ok(cold.line.includes('): '), cold.line);
+    const taggedCold = cold.line.replace('): ', ') (archived): ');
+    assert.ok(lines.includes(`${taggedCold} · ${cold.file}`), `archived hit = CLI line + tag + file:\n${text}`);
+  } finally { await s.close(); rmSync(local, { recursive: true, force: true }); }
 });
 
 // ---------------------------------------------------------------------------
