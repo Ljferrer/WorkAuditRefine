@@ -29,12 +29,19 @@
 #   (`[ "$tool" = "$MEMORY_TOOL" ]`), never a prefix or suffix glob, and it
 #   runs before the REA suffix path, so no canary line prints for it.
 #   `local` fence: when `tool_input.local` is present it must be a non-empty
-#   string whose value matches `*/.claude/projects/*/memory` (a trailing `/`
-#   tolerated) and carries no `..` segment, else DENY. The value itself must
-#   match: a path beneath the memory dir is denied unless its last segment is
-#   again `memory` (the glob's `*` spans `/`), because the server appends the
-#   query log into `local` itself. An absent key passes; `repo` is not fenced
-#   (the server only reads it).
+#   string that starts with `/` (an absolute path; the glob's leading `*`
+#   would otherwise admit `x/.claude/projects/s/memory`), carries no `..`
+#   segment, and matches `*/.claude/projects/*/memory` (a trailing `/`
+#   tolerated), else DENY. The value itself must match: a path beneath the
+#   memory dir is denied unless its last segment is again `memory` (the
+#   glob's `*` spans `/`), because the server appends the query log into
+#   `local` itself. An absent key passes; `repo` is not fenced (the server
+#   only reads it). The `local` fence is a string glob, like the output-path
+#   check under RESIDUAL: it admits a memory-shaped path under any root
+#   (another repo's, /tmp/x/.claude/projects/s/memory) and cannot see a
+#   symlink at that path. The residual is accepted for the same reason: the
+#   hook cannot know `$MAIN`, and the server only appends one query-log line
+#   into an existing directory there.
 #
 # RESIDUAL (accepted)
 #   This guard sees only tool calls whose name matches the hooks.json matcher
@@ -139,8 +146,10 @@ MEMORY_TOOL='mcp__plugin_work-audit-refine_war-memory__memory_query'
 # is read by presence (`has`), never by value: it must be a non-empty string
 # (null, false, a number, an array or an object is denied), carry no `..`
 # segment (the value is wrapped in `/` so a leading or trailing `..` is a
-# segment too), and itself match `*/.claude/projects/*/memory`, with one
-# trailing `/` tolerated. Returns on pass; the caller exits 0.
+# segment too), start with `/` (an absolute path: the glob's leading `*`
+# alone would match a leading component such as `x/`), and itself match
+# `*/.claude/projects/*/memory`, with one trailing `/` tolerated. Returns on
+# pass; the caller exits 0.
 memory_fence() {
   mf_type="$(printf '%s' "$input" | jq -r '.tool_input | type')"
   case "$mf_type" in
@@ -155,6 +164,10 @@ memory_fence() {
     fi
     case "/$mf_val/" in
       *"/../"*) deny "tool '$tool' names local '$mf_val' with a .. segment (PIN-4) for agent type '$atype'." ;;
+    esac
+    case "$mf_val" in
+      /*) ;;
+      *) deny "tool '$tool' names local '$mf_val' that is not an absolute path (PIN-4) for agent type '$atype'." ;;
     esac
     case "$mf_val" in
       */.claude/projects/*/memory|*/.claude/projects/*/memory/) ;;

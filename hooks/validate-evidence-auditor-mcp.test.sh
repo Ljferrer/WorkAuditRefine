@@ -445,9 +445,9 @@ fi
 #   - war-evidence-auditor / war-worker : the memory tool beside the REA allowlist.
 #   - war-refiner                       : still denied every MCP tool.
 #   - `tool_input.local`, when present, must be a non-empty string that
-#     matches `*/.claude/projects/*/memory` (a trailing `/` tolerated) and
-#     carries no `..` segment, else deny; an absent key passes; `repo` is
-#     not fenced.
+#     starts with `/`, matches `*/.claude/projects/*/memory` (a trailing `/`
+#     tolerated) and carries no `..` segment, else deny; an absent key
+#     passes; `repo` is not fenced.
 # ---------------------------------------------------------------------------
 PLUGIN_JSON="$HERE/../.claude-plugin/plugin.json"
 MEMORY_TOOL="$(sed -n "s/^MEMORY_TOOL='\([^']*\)'\$/\1/p" "$HOOK")"
@@ -572,8 +572,15 @@ expect_deny "memory tool local beneath the memory root denied" \
   "$(mk_local 'war-auditor' "$MEM_ROOT/archive")" "outside"
 expect_deny "memory tool local with the bare dir name but no projects segment denied" \
   "$(mk_local 'war-auditor' "/Users/x/memory")" "outside"
+# A relative value is denied by the absolute arm, before the glob: the
+# leading-component row goes red when that arm is deleted, because the
+# glob's leading `*` alone matches `x`.
 expect_deny "memory tool relative local denied" \
-  "$(mk_local 'war-auditor' ".claude/projects/s/memory")" "outside"
+  "$(mk_local 'war-auditor' ".claude/projects/s/memory")" "not an absolute path"
+expect_deny "memory tool relative local with a leading component denied" \
+  "$(mk_local 'war-auditor' "x/.claude/projects/s/memory")" "not an absolute path"
+expect_deny "war-worker memory tool relative local with a leading component denied" \
+  "$(mk_local 'war-worker' "x/.claude/projects/s/memory/")" "not an absolute path"
 # A `..` inside the matching glob span is still a segment: the row goes red
 # when the `..` arm is deleted, because the glob alone admits it.
 expect_deny "memory tool local with .. denied" \
