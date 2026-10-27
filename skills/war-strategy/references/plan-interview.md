@@ -83,8 +83,14 @@ privately, every slot filled and tagged (evidence tags, D4). Bin every unknown:
 serves the intent) · **default-and-tag** (pick a default, tag it
 `[assumed: <default> — if wrong: <consequence>]`) · **fork** (ask the operator). Necessity
 test for a fork: name the two different plans the answer forks between — if you cannot, it
-is not a question. Intent material (Purpose / Method / End states) is **never**
-default-and-tagged: it is asked, or it is absent (ADR 0013).
+is not a question. Classify every fork that passes: a **fact** (observable by running
+something) → a fork trial, zero questions; a consequential **interface** (an exported
+contract, an artifact grammar, a floored mechanism) → a pair beat, one question; a
+**preference** → ask it as an ordinary Stage 2 question.
+When a Stage 1b fork is an observable fact or a consequential interface, read [references/fork-trials.md](fork-trials.md):
+the sandbox form, the escape guard, the pre-registration rule and the `TRIAL-<n>` row grammar live there, never here.
+Intent material (Purpose / Method / End states) is **never**
+default-and-tagged and never settled by a trial: it is asked, or it is absent (ADR 0013).
 When the End states are drafted, read [references/backward-chain-plan.md](backward-chain-plan.md):
 the chain from each one orders Part 2, and the file boundary carves it.
 When the artifact recon lane fires (Stage 0 or mid-interview), read [references/artifact-evidence.md](artifact-evidence.md):
@@ -92,8 +98,9 @@ the tag grammar, the digest rule, the cite-only rule and the block law live ther
 
 **Stage 2 — the interview.** Run under the question contract:
 
-- a status line opens every turn: `Locked: <n> · Open forks: <m> · Qk/14` (question budget
-  default 14, visible in the status line, operator-raisable — D8);
+- a status line opens every turn: `Locked: <n> · Open forks: <m> · Qk/14 · Trials: t` (question
+  budget default 14, visible in the status line, operator-raisable — D8; `t` counts the
+  `TRIAL-<n>` rows run so far);
 - **one question per turn**, the highest-value open fork first;
 - every question ships `Recommended: <option> — <basis>` with the basis graded (verified /
   prior-lesson / assumption);
@@ -106,6 +113,14 @@ the tag grammar, the digest rule, the cite-only rule and the block law live ther
   as the intent's optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets
   ([SKILL.md §2](../SKILL.md)). Default posture: mechanisms named in Method are reference
   realizations unless promoted into the guardrails list;
+- **the pair beat** — mandatory on three triggers: a new or reshaped **exported contract**,
+  a new or reshaped **artifact grammar with two or more consumers**, or a mechanism
+  floored into **`Binding guardrails:` with two or more non-equivalent realizations**. Two
+  structurally different candidates from one frozen brief, scored on named criteria; the
+  beat costs **one question** of the budget. The operator may decline the pair by bare
+  assent or by naming a reason: the decline lands on the `TRIAL-<n>` row as
+  `chosen: <design> (user) — pair declined: <reason>`, never as a `WAIVE-<n>` row.
+  When a beat hits a pair trigger, read [references/fork-trials.md](fork-trials.md);
 - **the strategy-verifier** — the arming principle:
   **arm any beat whose wrong branch surfaces only at run time** (four arms, enumerated in
   the charter's arming checklist); arming is by rule, dispatch-without-asking — skips flow
@@ -114,13 +129,18 @@ the tag grammar, the digest rule, the cite-only rule and the block law live ther
   [references/strategy-verifier.md](strategy-verifier.md).
 
 **Stage 3 — mid-budget checkpoint.** Once, near the budget's midpoint: surface the riskiest
-still-live assumption and ask it directly.
+still-live assumption and ask it directly. Read the trial count and the trial wall time aloud
+in the same turn (D7): `Trials: t` so far, `<m> min` of wall time spent on them.
 
 **Stage 4 — coverage sweep + two echo-backs.** Sweep the decisive slots (table below) for
 unfilled rows, run the omittability probe over the drafted End-state enumeration (an
-outcome no row covers gets a row, a backstop, or a non-goal — never silence), and
+outcome no row covers gets a row, a backstop, or a non-goal — never silence),
+run the `TRIAL-<n> · sweep` row here and again after any check edit (every End-state check
+red at the base, each End-state line keeping its own result — the sweep row's law lives in
+[references/fork-trials.md](fork-trials.md)), and
 enumerate the Evidence consumed block aloud (every linked artifact read or
-unread-with-reason), then close with **two echo-backs**, each requiring an explicit
+unread-with-reason) with the Trials run block beside it (every `TRIAL-<n>` row, or
+`None — no fork qualified`), then close with **two echo-backs**, each requiring an explicit
 confirm:
 
 1. the **decision record** (Part 1) — including the Defaulted-decisions recap: every
@@ -187,6 +207,10 @@ template) — the roadmap layer models the split, never a file split of a single
 decision record from its phases. Stop rules: saturation (no live forks left) · completion
 bar (every decisive slot filled) · budget exhaustion (default-and-tag the rest, recap them
 in echo-back 1) · operator exit.
+After the file is written, post the usage comment on #2436 (the template and the duty live in
+[references/fork-trials.md](fork-trials.md) `## Grandfather and reporting`). It is the one
+network write the interview makes, and it follows the written file: Stage 5 stays the two
+silent pre-write gates.
 
 ## The decisive-slots table
 
@@ -202,7 +226,9 @@ interview that leaves a row unfilled has not finished:
 | deferred-validation candidates | `## Deferred validations (backstops)` | land-time surfacing (ADR 0017) |
 | target repos | per-task `target repo:` | decomposition rule 3 |
 | mirrors / default-flips / guard-splits / touched-doc facts | task carve-outs per the drift-guard rules 5–8 | drift-guard floors · `/red-team` spine probes |
-| assumptions | `## Assumptions ledger` | `/red-team`'s `[assumed]`-first probes |
+| assumptions | `## Assumptions ledger` | `/red-team`'s `dependency-feasibility` lens and `dep-resolves` probe |
+| fork trials (fact forks, Stage 1b) | the `**Trials run**` block — one `TRIAL-<n>` row per trial, Part 1 placement latitude | `/red-team` replay of settled rows · gate 1 enumerate-aloud |
+| pair beats (interface forks, the three triggers) | the design-tree Source cell (`(user) Q<k>, after TRIAL-<n>`) and the Trials pair row | `/red-team` coverage of the chosen and rejected shapes |
 | new domain terms | `## New domain terms · Recommended ADRs` | CONTEXT.md glossary |
 | choices passing the ADR triad (hard to reverse · surprising without context · a genuine trade-off) | ADR recommendations | `docs/adr/` |
 

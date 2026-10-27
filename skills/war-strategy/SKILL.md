@@ -127,6 +127,12 @@ ledger's `extractFiles` all run unmodified against it).
 - **Evidence consumed block:** a plan authored under the interview carries an **Evidence consumed**
   block — one row per linked evidence artifact, read or unread-with-reason — with placement latitude
   anywhere in Part 1 and **never a new required H2** (the extraction surfaces stay untouched).
+- **Trials run block:** a plan authored under the interview carries a **Trials run** block — one
+  `TRIAL-<n>` row per fork trial, pair beat or sweep (grammar in `references/fork-trials.md`) — with the
+  Evidence consumed block's placement latitude anywhere in Part 1 and **never a new required H2**.
+  `TRIAL-<n>` reuses the `PIN-<n>` token law: digits-only, right-delimited, numbered in run order, never
+  re-minted. A plan whose interview ran no trial carries the block with the single row
+  `None — no fork qualified`.
 
 **Backstop heading:** the operator-ratified form is `## Deferred validations (backstops)`. A plan authored
 by `/war-machine --afk` has no operator to ratify, so its drafter uses the AI-declared variant
@@ -454,7 +460,10 @@ two closing gates).
 ### Bare invoke — run the interview
 
 Run the plan interview yourself, per `references/plan-interview.md`: one interview to completion,
-terminating only on one merged plan at `docs/plans/YYYY-MM-DD-<slug>.md` (§2's merged template). When §1
+terminating only on one merged plan at `docs/plans/YYYY-MM-DD-<slug>.md` (§2's merged template). The
+interview runs fork trials and pair beats itself, per `references/fork-trials.md`: a fact fork is settled by
+a bounded sandbox trial, a consequential interface by a pair beat, and every trial lands as a `TRIAL-<n>`
+row of the plan's Trials run block. When §1
 finds the Grill Me family installed and the operator prefers that front door, route the interview through
 it and ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes it:
 
@@ -463,7 +472,9 @@ it and ship this **HANDOFF DIRECTIVE** with the route — the authoring skill ex
 > mechanisms named in Method are implementer's choice, and what is the actual floor —
 > so the optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets land from answers, not
 > inference, then echo the drafted block back, and get an
-> **explicit confirm** before moving on. **Author into the merged template:** the deliverable is one merged
+> **explicit confirm** before moving on. **Classify every fork:** a fact → a fork trial, a consequential
+> interface → a pair beat, a preference → a question (per `references/fork-trials.md`; every trial lands as
+> a `TRIAL-<n>` row). **Author into the merged template:** the deliverable is one merged
 > plan per war-strategy §2 — Part 1 decision record (every claim evidence-tagged, one `## Assumptions
 > ledger`) + Part 2 decomposed phases — at `docs/plans/YYYY-MM-DD-<slug>.md`, never a spec + plan pair.
 
