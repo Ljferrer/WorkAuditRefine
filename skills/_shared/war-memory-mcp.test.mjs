@@ -63,7 +63,6 @@ function startServer({ env = {}, cwd } = {}) {
     call(method, params) {
       const id = nextId++;
       return new Promise((resolve, reject) => {
-        pending.set(id, resolve);
         const t = setTimeout(() => { pending.delete(id); reject(new Error(`timeout: ${method}\n${stderr}`)); }, 15_000);
         pending.set(id, (msg) => { clearTimeout(t); resolve(msg); });
         child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
@@ -140,7 +139,28 @@ test('protocol: unknown method is -32601, malformed JSON is -32700, unknown tool
     const badTopK = await s.call('tools/call', { name: 'memory_query', arguments: { query: 'x', topK: 0 } });
     assert.equal(badTopK.result.isError, true);
     assert.match(badTopK.result.content[0].text, /topK/);
+    // a relative root would resolve against the server cwd (PIN-2): refused for local and repo alike
+    const relLocal = await s.call('tools/call', { name: 'memory_query', arguments: { query: 'x', local: 'x/.claude/projects/y/memory' } });
+    assert.equal(relLocal.result.isError, true);
+    assert.match(relLocal.result.content[0].text, /`local` must be an absolute path/);
+    const relRepo = await s.call('tools/call', { name: 'memory_query', arguments: { query: 'x', repo: 'docs/learnings' } });
+    assert.equal(relRepo.result.isError, true);
+    assert.match(relRepo.result.content[0].text, /`repo` must be an absolute path/);
   } finally { await s.close(); }
+});
+
+test('protocol: after stdin closes with replies still queued, the process exits 0 on its own and every reply arrives', async () => {
+  // Pipe repro of the async-stdout case: a burst of requests overfills the stdout pipe, then stdin
+  // closes at once. With process.exit in the close handler, most of the queued replies are lost
+  // (74 of 500 arrived on macOS); without it the process drains stdout and then exits by itself.
+  const N = 500;
+  const s = startServer();
+  const replies = Promise.all(Array.from({ length: N }, () => s.call('tools/list', {})));
+  const exit = await s.close();
+  assert.equal(exit.code, 0, `exit ${JSON.stringify(exit)}\n${s.stderr()}`);
+  const list = await replies;
+  assert.equal(list.length, N);
+  for (const r of list) assert.deepEqual(r.result.tools.map((t) => t.name), ['memory_query']);
 });
 
 // ---------------------------------------------------------------------------

@@ -12,9 +12,10 @@
 // result and the server keeps serving initialize / tools/list / tools/call.
 //
 // Roots come ONLY from the call's `local` / `repo` arguments (PIN-2): no cwd guess, no env
-// fallback. The query log is appended only when `local` names an existing directory, and this
-// server never creates a directory (PIN-4). The hook (hooks/validate-evidence-auditor-mcp.sh)
-// owns the `local` anchor check and the full tool-name literal; this file never restates them.
+// fallback, and a relative root is refused so Node never resolves it against cwd. The query log
+// is appended only when `local` names an existing directory, and this server never creates a
+// directory (PIN-4). The hook (hooks/validate-evidence-auditor-mcp.sh) owns the `local` anchor
+// check and the full tool-name literal; this file never restates them.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -80,7 +81,7 @@ function copyRank(r) {
   return (r.temperature === 'hot' ? 0 : 10) + (ROOT_RANK[r.root] ?? 5);
 }
 
-export function collapseBySlug(ranked) {
+function collapseBySlug(ranked) {
   const bySlug = new Map();
   const order = [];
   for (const r of ranked) {
@@ -101,7 +102,7 @@ export function collapseBySlug(ranked) {
 
 // One rendered hit: the CLI's prompt-block line shape plus the (archived) tag and the file path,
 // so a seat can open the full lesson.
-export function formatHit(r) {
+function formatHit(r) {
   const phase = r.phase ? `, phase ${r.phase}` : '';
   const archived = r.archived ? ' (archived)' : '';
   const desc = r.description || r.title || '';
@@ -131,31 +132,34 @@ function textResult(text, isError = false) {
   return out;
 }
 
-function optionalString(args, key) {
+// An optional root argument: absent/empty → null; a relative path is refused (PIN-2).
+function optionalRoot(args, key) {
   const v = args[key];
   if (v === undefined || v === null) return null;
   if (typeof v !== 'string') throw new Error(`\`${key}\` must be a string`);
-  return v.length ? v : null;
+  if (!v.length) return null;
+  if (!path.isAbsolute(v)) throw new Error(`\`${key}\` must be an absolute path`);
+  return v;
 }
 
 function runMemoryQuery(args) {
+  // Disabled runtime first: after a failed probe EVERY call answers with the disabled text.
+  if (!mem) return textResult(DISABLED_TEXT);
   if (!args || typeof args !== 'object') return textResult('arguments must be an object', true);
   if (typeof args.query !== 'string' || !args.query.trim()) {
     return textResult('`query` is required and must be a non-empty string', true);
   }
   let local, repo;
   try {
-    local = optionalString(args, 'local');
-    repo = optionalString(args, 'repo');
+    local = optionalRoot(args, 'local');
+    repo = optionalRoot(args, 'repo');
   } catch (err) {
     return textResult(err.message, true);
   }
-  let topK = mem ? mem.DEFAULT_TOP_K : 10;
-  if (args.topK !== undefined) {
-    if (!Number.isInteger(args.topK) || args.topK < 1) return textResult('`topK` must be a positive integer', true);
-    topK = args.topK;
+  if (args.topK !== undefined && (!Number.isInteger(args.topK) || args.topK < 1)) {
+    return textResult('`topK` must be a positive integer', true);
   }
-  if (!mem) return textResult(DISABLED_TEXT);
+  const topK = args.topK ?? mem.DEFAULT_TOP_K;
 
   const roots = {};
   if (repo) roots.repo = repo; // repo first: ties in the index favor neither; collapse decides
@@ -165,7 +169,12 @@ function runMemoryQuery(args) {
   }
   const records = mem.walkCorpus(roots);
   const db = mem.buildIndex(records);
-  const ranked = mem.rankRecords(db, records, args.query);
+  let ranked;
+  try {
+    ranked = mem.rankRecords(db, records, args.query);
+  } finally {
+    db.close(); // per-call in-memory database: free it now, never wait for GC
+  }
   const collapsed = collapseBySlug(ranked);
   const selected = mem.selectForBudget(collapsed, { topK });
   appendQueryLogIfPresent(local, {
@@ -252,4 +261,6 @@ rl.on('line', (line) => {
   }
   handle(msg);
 });
-rl.on('close', () => process.exit(0));
+// No process.exit here: on macOS pipes stdout writes are async, and an explicit exit could drop
+// a queued reply. Once stdin ends no handle remains, so the process exits after stdout drains.
+rl.on('close', () => { process.exitCode = 0; });
