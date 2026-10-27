@@ -46,7 +46,7 @@ export const meta = {
 //                                     // OTHER present type is refused at intake by the same TASK-FIELD class, never coerced).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
 //                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
-//     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
+//     learningsTarget,                // read-path resolved repo root — the seats' memory_query `repo` value AND
 //                                     // the Lead's Gate-2 promotion destination. NOT a servitor write path.
 //     memoryLocalRoot,                // absolute local memory root — the servitor's ONLY writable path;
 //                                     // OMITTED when Setup's memory probe reported memory disabled ⇒ Wrap-up skipped
@@ -619,7 +619,7 @@ async function dispatch(prompt, opts) {
 const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
 // memoryLocalRoot (spec §4, decision B): the absolute local memory root — the servitor's ONLY writable
 // path (learningsTarget is retained above untouched as the read-path repo root feeding
-// workerSelfQueryRepoFlag + the Lead's Gate-2 promotion, NOT a servitor write path). Threaded like
+// the memory_query line's repo value + the Lead's Gate-2 promotion, NOT a servitor write path). Threaded like
 // intent/testPattern. null/absent ⇒ Setup's memory probe reported memory disabled ⇒ the Wrap-up
 // self-skips with a logged line (fail-open, never a dispatch at an unanchored target).
 const memoryLocalRoot = (typeof A.memoryLocalRoot === 'string' && A.memoryLocalRoot) ? A.memoryLocalRoot : null
@@ -2487,16 +2487,20 @@ const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gi
 const workerIntentClause = intent
   ? intentClause + pt`Use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, a mechanism substitution that satisfies the binding guardrails and the End states is in-band work, not a deviation to note for adjudication and never a follow-up issue; note the substitution in your result like any other in-band call.\n`
   : ''
-// Worker self-query line (spec §4.5): workers alone gain a standing license to query the memory CLI
-// mid-task when they hit something unfamiliar (they have Bash; no other role gains anything). ONE
-// canonical sentence, mirrored in agents/war-worker.md (standing surface) — always present (not
-// intent/memory-gated), so it does NOT threaten the byte-identical-empty-map property.
-// Read-path repo root (learnings-read-path plan T1): when the run threads a repo root (learningsTarget,
-// the Lead's resolved repo root when commitLearnings is on), the example invocation carries
-// `--repo <root>` so a worker's self-query walks the published corpus, not just the local root. Absent
-// a threaded root the fragment is '' ⇒ the line stays byte-identical to a memory-less run (criterion 10).
-const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
-const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
+// Memory query tool line (2026-10-27-memory-query-mcp-tool D1, PIN-1): the worker, auditor, evidence
+// auditor and servitor prompts each carry ONE line naming the plugin's read-only MCP tool with the
+// threaded roots — `local` from memoryLocalRoot and `repo` from learningsTarget (the Lead's resolved
+// repo root; the fragment is '' when absent). The line is emitted ONLY when memoryLocalRoot is threaded
+// (memory disabled ⇒ '' ⇒ every prompt byte-identical to a memory-less run), and it is not gated by
+// args.memory, so the byte-identical-empty-map property (criterion 10) still holds. The full tool name
+// is the hook's MEMORY_TOOL literal (PIN-8: hooks/validate-evidence-auditor-mcp.sh owns it;
+// memory-tool-name.test.mjs guards this copy and the four cards against it). The worker card's
+// Prior-lessons sentence mirrors the duty on the standing surface.
+const MEMORY_TOOL = 'mcp__plugin_work-audit-refine_war-memory__memory_query'
+const memoryQueryRepoArg = (typeof learningsTarget === 'string' && learningsTarget) ? `, repo: ${learningsTarget}` : ''
+const MEMORY_QUERY_TOOL_LINE = memoryLocalRoot
+  ? pt`\nMEMORY QUERY: you MAY call the MCP tool \`${MEMORY_TOOL}\` ({query, local?, repo?, topK?}) mid-task when you hit something unfamiliar — it searches hot and archived lessons in both memory roots and never writes a lesson. Call it with local: ${memoryLocalRoot}${memoryQueryRepoArg} (the server never guesses a root from the cwd; only local gets a query-log line).\n`
+  : ''
 // Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
 // command rides the six TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
 // five fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, MAKE_DONE_PASS, ace) — as a `Done when:` line beside the
@@ -3011,7 +3015,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // the both-surfaces test anchors a mid-sentence phrase from each on both. This clause ALSO rides the
     // three gate-audit-family seats directly (see their sites below), not only the standing card.
     // Empty/absent adjudications ⇒ '' ⇒ byte-identical to today.
-    + intentClause + adjudicationClause + auditorMemClause(task.id, lens)
+    + intentClause + adjudicationClause + auditorMemClause(task.id, lens) + MEMORY_QUERY_TOOL_LINE
     // EVIDENCE SEAT SKELETON / D12 LINE (REA artifact evidence D3, G7/G8; PIN-7): the evidence seat
     // (agentType 'war-evidence-auditor') gets the ADR 0041 rung and the HOLD-only-on-mismatch rule worded
     // IDENTICAL to agents/war-evidence-auditor.md (the End-state 22 test compares both passages
@@ -4178,7 +4182,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // deliberately BARE — it is the pinned in-thunk pt-throw trigger (criterion 3's fixture) and a
         // registered member of the remaining-bare-interpolation census.
         + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice ?? '<unset>'}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
-        + taskProvenanceClause(task) + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + reaClauseOf(task) + workerExtraCtx
+        + taskProvenanceClause(task) + MEMORY_QUERY_TOOL_LINE + workerMemClause(task.id) + provisionClause + reaClauseOf(task) + workerExtraCtx
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE
         // BACKWARD-CHAIN WORK (D1/D5): the worker `## The rules` block rides the work: build ONLY.
         + BACKWARD_CHAIN_WORK_CLAUSE,
@@ -5273,7 +5277,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + claimedIdsLine
       // adjudicationClause rides this seat directly (Task 1.1): a gate-time ruling reaches the gate-audit
       // pass, so a pre-adjudicated delta is a confirmation note here too. Empty set ⇒ '' ⇒ byte-identical.
-      + endStateBlock + intentClause + adjudicationClause
+      + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
       // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
       // — this seat sits outside auditPrompt(); the five-surface registry row anchors it here.
       + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
@@ -5394,7 +5398,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`Dep-crossing tasks' acceptance criteria:\n${authCriteria}\n`
       + pt`Integrated-tip gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${integratedTip.gate_output}\n`
       // adjudicationClause rides this seat directly (Task 1.1) — same reason as the per-task seat above.
-      + endStateBlock + intentClause + adjudicationClause
+      + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
       // Evidence-precedence skeleton (ADR 0041) rides this AUTHORITATIVE seat directly, same as
       // adjudicationClause — outside auditPrompt(); the five-surface registry row anchors it here.
       + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
@@ -5443,7 +5447,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`If the command cannot run, every condition below is unverifiable — SOFT notes only, never a hold.\n`
     + pt`In any cannot-confirm case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (a finding-less escalate is a HARD hold, reserved for a wrong/underspecified plan; it must never signal an unconfirmable tip).\n`
     // adjudicationClause rides this seat directly (Task 1.1) — same reason as the two seats above.
-    + endStateBlock + intentClause + adjudicationClause
+    + endStateBlock + intentClause + adjudicationClause + MEMORY_QUERY_TOOL_LINE
     // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
     // — outside auditPrompt(); the five-surface registry row anchors it here.
     + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
@@ -6300,7 +6304,7 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     + pt`Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + pt`Escalations: ${JSON.stringify(escalated)}\n`
     + pt`Noted findings (disposition 'note' — MEMORY CANDIDATES, not issues; weigh each against the admission checklist below): ${JSON.stringify(notes)}\n`
-    + intentClause + servitorMemClause()
+    + intentClause + servitorMemClause() + MEMORY_QUERY_TOOL_LINE
     + pt`Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
     + pt`\n`
     // Prompt-surface simplification (Task 5.1): the five discipline blocks below are TOKEN SKELETONS —

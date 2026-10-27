@@ -5056,47 +5056,92 @@ test('memory: empty/absent map ⇒ prompts byte-identical to a memory-less run (
   for (let i = 0; i < absent.length; i++) {
     assert.equal(stableGatePrompt(absent[i].prompt), stableGatePrompt(emptyMap[i].prompt), `prompt #${i} byte-identical between memory-absent and empty-map`)
   }
-  // And the always-present worker self-query line does not by itself introduce a memory block.
+  // And the memory_query line (emitted on memoryLocalRoot, never on args.memory) does not by itself introduce a memory block.
   const w = absent.find(isWorker)
   assert.ok(w && !w.prompt.includes('PRIOR-LESSONS'), 'memory-absent worker prompt carries no lesson block')
 })
 
-test('memory: worker self-query line present in dispatched prompt AND mirrored in war-worker.md (both surfaces)', async () => {
+// 2026-10-27-memory-query-mcp-tool D1 (PIN-1): the Bash self-query line is retired. Each seat prompt
+// (worker, auditor, evidence auditor, servitor) carries ONE memory_query line naming the hook's
+// MEMORY_TOOL literal with the threaded roots, emitted only when memoryLocalRoot is threaded.
+// The literal is extracted from the hook (the canonical home, PIN-8), never restated here.
+const MEMORY_TOOL_LITERAL = (() => {
+  const hook = readFileSync(join(here, '../../../hooks/validate-evidence-auditor-mcp.sh'), 'utf8')
+  const rows = hook.split('\n').map(l => /^MEMORY_TOOL='([^']+)'$/.exec(l)).filter(Boolean)
+  assert.equal(rows.length, 1, 'the hook carries exactly one MEMORY_TOOL= line')
+  return rows[0][1]
+})()
+const memoryQueryLineOf = (prompt) => String(prompt).split('\n').find(l => l.startsWith('MEMORY QUERY:'))
+const isMemoryEvidenceSeat = c => seatOf(c.opts) === 'war-evidence-auditor'
+const MQ_SEAT_TASKS = [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+  roster: [{ lens: 'correctness' }, { lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }] }]
+
+test('memory_query seat line: present in the dispatched worker prompt AND mirrored in war-worker.md (both surfaces)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const w = calls.find(isWorker)
   assert.ok(w, 'worker dispatched (presence guard)')
-  // The canonical self-query sentence — same core clause in both surfaces.
-  const CORE = "skills/_shared/war-memory.mjs query '<terms>'"
-  assert.ok(w.prompt.includes(CORE), 'dispatched worker prompt carries the may-run-CLI self-query line')
+  const line = memoryQueryLineOf(w.prompt)
+  assert.ok(line && line.includes(MEMORY_TOOL_LITERAL), 'dispatched worker prompt carries the memory_query line naming the hook MEMORY_TOOL literal')
   const workerMd = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
-  assert.ok(workerMd.includes(CORE), 'agents/war-worker.md mirrors the self-query line (standing surface)')
-  // The self-query line is NOT gated by intent/memory — it is byte-stable regardless of args.memory.
+  const start = workerMd.indexOf('## Prior lessons')
+  assert.ok(start >= 0, 'agents/war-worker.md carries the Prior lessons heading')
+  const section = workerMd.slice(start).split('\n## ')[0]
+  assert.ok(section.includes(MEMORY_TOOL_LITERAL), 'agents/war-worker.md Prior-lessons sentence names the tool (standing surface)')
+  assert.ok(!workerMd.includes('war-memory.mjs query'), 'the worker card no longer carries the Bash self-query sentence')
+  assert.ok(!w.prompt.includes('war-memory.mjs query'), 'the dispatched worker prompt no longer carries the Bash self-query sentence')
 })
 
-// learnings-read-path plan T1: the worker self-query example carries `--repo <resolved repo root>`
-// when the run threads a repo root (learningsTarget), so a worker's mid-task query walks the published
-// corpus and not just the local root. Absent a threaded root the line stays byte-identical to today.
-test('memory: worker self-query line carries --repo <resolved root> when a repo root is threaded (T1)', async () => {
+test('memory_query seat line carries local and repo <resolved roots> when both are threaded (T1)', async () => {
   const REPO_ROOT = '/abs/repo/docs/learnings'
   const { calls } = await runPhase(PROVISION_ARGS({ learningsTarget: REPO_ROOT }), defaultImpl)
   const w = calls.find(isWorker)
   assert.ok(w, 'worker dispatched (presence guard)')
-  // (a) the resolved root appears via the --repo flag on the self-query invocation.
-  assert.ok(w.prompt.includes(`query '<terms>' --repo ${REPO_ROOT}`),
-    'dispatched worker self-query line interpolates --repo <resolved repo root>')
-  // Delete-the-feature: dropping the interpolation (fragment always '') makes the exact --repo
-  // substring vanish, so this assertion is what fails if the emission is reverted.
+  const line = memoryQueryLineOf(w.prompt)
+  assert.ok(line, 'worker prompt carries the MEMORY QUERY line')
+  assert.ok(line.includes('local: /abs/memory-local'), 'the line names the threaded memoryLocalRoot as local')
+  assert.ok(line.includes(' repo: ' + REPO_ROOT), 'the line names the threaded learningsTarget as repo')
+  // Delete-the-feature: dropping the repo interpolation (fragment always '') makes the exact
+  // ` repo: <root>` substring vanish, so this assertion is what fails if the emission is reverted.
 })
 
-test('memory: worker self-query line is byte-identical to the pre-feature baseline when no repo root is threaded (T1)', async () => {
-  // (b) learningsTarget absent (null) ⇒ no --repo fragment, and the sentence equals the canonical form.
+test('memory_query seat line omits repo when no repo root is threaded (T1)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS({ learningsTarget: null }), defaultImpl)
   const w = calls.find(isWorker)
   assert.ok(w, 'worker dispatched (presence guard)')
-  assert.ok(!w.prompt.includes('--repo'), 'no --repo fragment when no repo root is threaded')
-  const CANONICAL = "You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when you hit something unfamiliar — it never writes a lesson, and without a `--local` root it appends no query log (the CLI never guesses one from the cwd)."
-  assert.ok(w.prompt.includes(CANONICAL),
-    'absent a repo root the self-query line is byte-identical to the pre-feature sentence')
+  const line = memoryQueryLineOf(w.prompt)
+  assert.ok(line && line.includes('local: /abs/memory-local'), 'the line still names local')
+  assert.ok(!line.includes(' repo:'), 'no repo fragment when no repo root is threaded')
+})
+
+test('memory_query seat line: each of the four seats (worker, auditor, evidence auditor, servitor) names the tool with the threaded local and repo values (End state 9)', async () => {
+  const REPO_ROOT = '/abs/repo/docs/learnings'
+  const args = PROVISION_ARGS({ learningsTarget: REPO_ROOT, tasks: MQ_SEAT_TASKS, run: { evidence: true }, evidence: true })
+  const { calls } = await runPhase(args, defaultImpl)
+  const seats = [
+    ['worker', calls.find(isWorker)],
+    ['auditor', calls.find(c => isAuditor(c) && (c.opts.label || '') === 'audit:t1:correctness')],
+    ['evidence auditor', calls.find(isMemoryEvidenceSeat)],
+    ['servitor', calls.find(isServitor)],
+  ]
+  for (const [name, c] of seats) {
+    assert.ok(c, name + ' dispatched (presence guard)')
+    const line = memoryQueryLineOf(c.prompt)
+    assert.ok(line, name + ' prompt carries the MEMORY QUERY line')
+    assert.ok(line.includes(MEMORY_TOOL_LITERAL), name + ' line names the hook MEMORY_TOOL literal')
+    assert.ok(line.includes('local: /abs/memory-local'), name + ' line names the threaded local root')
+    assert.ok(line.includes(' repo: ' + REPO_ROOT), name + ' line names the threaded repo root')
+  }
+})
+
+test('memory_query seat line is omitted from every seat prompt when memoryLocalRoot is not threaded (End state 9)', async () => {
+  const args = PROVISION_ARGS({ memoryLocalRoot: null, learningsTarget: '/abs/repo/docs/learnings', tasks: MQ_SEAT_TASKS, run: { evidence: true }, evidence: true })
+  const { calls } = await runPhase(args, defaultImpl)
+  assert.ok(calls.find(isWorker) && calls.find(isAuditor) && calls.find(isMemoryEvidenceSeat), 'worker, auditor and evidence seats dispatched (presence guard)')
+  for (const c of calls) {
+    const who = c.opts.label || seatOf(c.opts)
+    assert.ok(!memoryQueryLineOf(c.prompt), who + ': no MEMORY QUERY line when memoryLocalRoot is absent')
+    assert.ok(!String(c.prompt).includes(MEMORY_TOOL_LITERAL), who + ': the tool literal is absent when memoryLocalRoot is absent')
+  }
 })
 
 test('criterion 11 — ServitorResult schema no longer carries memory_index_updated', async () => {
@@ -11165,7 +11210,7 @@ const scanTemplateLiterals = (text = src) => {
 //   • git/shell command & flag builders — spliced into an already-`pt`-tagged carrier that guards the
 //     spliced VALUE; every interpolation here is ternary-guarded or derived-and-validated, so no
 //     undefined can render (the `pt` carrier is the prompt-safety boundary) — e.g. testPatternArg,
-//     the resolveGate discovery/composition mirror (ADR 0036, untouchable), workerSelfQueryRepoFlag,
+//     the resolveGate discovery/composition mirror (ADR 0036, untouchable), memoryQueryRepoArg,
 //     owned, the ensure-worktree list, the phaseBaseCmd merge-base;
 //   • label / branch / worktree / path / verdict / reason builders — opts.label, t.branch, t.worktree,
 //     the `${worktreeRoot || '<worktreeRoot>'}/…` path family (the merge loop's block-scoped
@@ -11207,7 +11252,7 @@ const LITERAL_REGISTRY = [
   ["Disposition demotion: [${f.severity}] \"${f.t"],
   ["worker path-contract violation: reported fil", 2],
   ["Task ${taskId}: normalized main-checkout-roo"],
-  [" --repo ${learningsTarget}` : ''\nconst WORKE"],
+  [", repo: ${learningsTarget}` : ''\nconst MEMOR"],
   ["baseline gate debt: ${idset.join(', ') || '("],
   ["audit:${task.id}:${seat.lens}${peers ? ':reb"],
   ["Phase ${ph.id} \"${ph.title}\": ${tasks.length"],
@@ -12645,7 +12690,12 @@ const BARE_INTERPOLATION_CENSUS = [
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
   'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'trailer',
-  'workerIntentClause', 'workerSelfQueryRepoFlag', 'working',
+  'workerIntentClause', 'working',
+  // MEMORY_TOOL / memoryQueryRepoArg (2026-10-27-memory-query-mcp-tool D1): the hook's tool-name literal
+  // (a plain-string module const) and the `, repo: <root>` fragment (a ternary with an explicit '' arm) —
+  // both construction-guaranteed strings; the enclosing MEMORY_QUERY_TOOL_LINE renders only when
+  // memoryLocalRoot is threaded (its own ternary), so memoryLocalRoot's existing row covers that span.
+  'MEMORY_TOOL', 'memoryQueryRepoArg',
   // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the four
   // pt-built module consts (GATE_LOG_STAMP / PARTIAL_LOG_RULE / GATE_LOG_READ_RULE / GATE_LOG_UNTHREADED)
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
