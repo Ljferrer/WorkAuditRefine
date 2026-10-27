@@ -173,7 +173,7 @@ test('pack exits 4 past the uncompressed byte cap', () => {
   const src = tmp('seed-pack-src-');
   // Spaced prose, not a solid char run: a long run of characters in the lint email pattern's
   // class makes its greedy `+@` backtrack at O(n^2). Real seeds are small spaced prose; keep the
-  // fixture representative. 3 x ~630 KB > 1,500,000 B with count 3 <= 50 -> byte axis only.
+  // fixture representative. 3 x ~630 KB > 1,500,000 B with count 3 <= 100 -> byte axis only.
   const big = 'portable lesson filler prose token '.repeat(18_000);
   for (let i = 0; i < 3; i++) {
     const slug = `bulky-${i}`;

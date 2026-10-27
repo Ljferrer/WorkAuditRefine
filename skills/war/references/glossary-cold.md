@@ -409,7 +409,7 @@ whole ranked set); assuming `--candidates` alone still moves files.
 
 The capped, manifest-mirrored portable-lesson corpus shipped at `docs/seed/seed.tar.gz` — the initial 29
 scrubbed war-game lessons, each redaction-lint-clean and free of `[[wikilinks]]`. Packed, verified, and
-evicted by `seed-pack.mjs`; capped on both axes at ≤ 50 members and ≤ 1,500,000 B uncompressed
+evicted by `seed-pack.mjs`; capped on both axes at ≤ 100 members and ≤ 1,500,000 B uncompressed
 ([ADR 0039](../../../docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md)). A portable, plugin-shipped
 source corpus, not a per-repo store — distinct from either **Memory root**.
 _Avoid_: seed render (the Phase-0 `MEMORY.md` projection of lessons a repo already has); "corpus" left

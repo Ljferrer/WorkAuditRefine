@@ -403,11 +403,11 @@ test('doc-contract: seeding.md ## Seed lint-gates the repo-root placement fail-c
 })
 
 // (26) README documents the seed verb, behaviors, and BOTH caps as thresholds (never layout literals).
-test('doc-contract: README documents the seed verb, warm-seed + contribution behaviors, and the ≤ 50 / ≤ 1,500,000 caps', () => {
+test('doc-contract: README documents the seed verb, warm-seed + contribution behaviors, and the ≤ 100 / ≤ 1,500,000 caps', () => {
   assert.match(readme, /\/lessons-learned seed/, 'README must mention the /lessons-learned seed verb')
   assert.match(readme, /warm-seed/i, 'README must describe the warm-seed behavior')
   assert.match(readme, /seed-candidate/, 'README must document the seed-candidate contribution flow')
-  assert.match(readme, /50 members/, 'README must state the ≤ 50-member seed cap (threshold, not layout)')
+  assert.match(readme, /100 members/, 'README must state the ≤ 100-member seed cap (threshold, not layout)')
   assert.match(readme, /1,500,000/, 'README must state the ≤ 1,500,000 B seed byte cap (threshold, not layout)')
 })
 
