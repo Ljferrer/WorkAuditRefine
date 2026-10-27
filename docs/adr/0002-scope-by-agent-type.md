@@ -123,7 +123,7 @@ name on its `MEMORY_TOOL=` line; every other surface points at that literal and 
   and the server then writes nothing. The server never guesses a root from cwd: the Lead threads the
   resolved roots into each seat prompt.
 - **Refiner exclusion.** `war-refiner` stays denied every MCP tool, the memory query tool included.
-  The refiner reads lessons only through the Lead's prefetch.
+  The refiner has no memory channel: it gets no prefetch block and no memory query tool.
 
 The posture is unchanged: the capability allowlist stays the primary confinement, and the hook is
 the MCP arm of the same `agent_type`-keyed, suffix-anchored structural guard.
