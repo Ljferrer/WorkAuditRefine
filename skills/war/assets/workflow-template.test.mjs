@@ -100,6 +100,28 @@ const NEW_SEAT_DEFAULTS = {
   'merge-snapshot': { base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), remote_sha: '1'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40) },
   'merge-reconcile': { source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40), outcome: 'unmerged', base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '1'.repeat(40), remote_sha: '1'.repeat(40) },
 
+  // tip-probe (#2485 D2, PIN-2): the read-only refiner read of the branch tip after every ace
+  // dispatch. The harness keeps a tiny Git world (see runPhase): an ace-family worker that returns
+  // `implemented` with a usable head_sha moved its branch one commit to that sha, with the files it
+  // reported in ace_diff_files; anything else (blocked, no sha, a death) left the tip unchanged. So
+  // every pre-#2485 fixture keeps its old arm. A fixture that wants a moved tip behind a blocked
+  // result answers this seat itself.
+  'tip-probe': (prompt, opts, world) => {
+    const pre = (String(prompt).match(/PRE=(\S+) \(the pre-dispatch tip\)/) || [])[1]
+    const approved = (String(prompt).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
+    const preSha = isHexSha(pre) ? pre : FIXTURE_REF_TIP   // a ref name (the terminal site's integration branch) resolves to one fixed tip
+    const approvedSha = isHexSha(approved) ? approved : preSha
+    const w = world && world.ace.get(branchOfPrompt(prompt))
+    return w && w.status === 'implemented' && isHexSha(w.head_sha)
+      ? { tip_sha: w.head_sha, tip_tree: fixtureTree('ace:' + w.head_sha), pre_sha: preSha, approved_tree: fixtureTree(approvedSha), count: 1, pre_is_ancestor: true, files: Array.isArray(w.ace_diff_files) ? w.ace_diff_files : [] }
+      : { tip_sha: preSha, tip_tree: fixtureTree(approvedSha), pre_sha: preSha, approved_tree: fixtureTree(approvedSha), count: 0, pre_is_ancestor: true, files: [] }
+  },
+  // ace-revert (#2485 D17, PIN-17): the refiner range revert before a subset or re-entry worker. It
+  // reports the revert commit, whose tree is the approved tree.
+  'ace-revert': prompt => {
+    const approved = (String(prompt).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
+    return { ok: true, tip_sha: createHash('sha1').update('revert:' + approved).digest('hex') }
+  },
   // diff-probe (in-band-absorb-default D4): the per-task refiner probe between the worker's green
   // return and the seat convene. The neutral default is an ABSENT probe (no diff_files) — the
   // fail-open arm: dispositionOf keeps the old severity default and the intake floor skips, so
@@ -112,11 +134,18 @@ const NEW_SEAT_DEFAULTS = {
 // existing fixtures answer "any Refine-phase refiner" with a MergeResult (several by COUNTING merge
 // calls); routing the new seats through them would feed a shape they cannot read and consume their
 // counters. The dispatches are still recorded in `calls`, so ordering and prompt assertions see them.
-const answerNewSeat = (seats, prompt, opts) => {
+const answerNewSeat = (seats, prompt, opts, world) => {
   const o = seats[opts.dispatchKind]
   const r = o ?? NEW_SEAT_DEFAULTS[opts.dispatchKind]
-  return typeof r === 'function' ? r(prompt, opts) : r
+  return typeof r === 'function' ? r(prompt, opts, world) : r
 }
+// The #2485 harness Git world: hex test, a deterministic fixture tree per name, the branch a prompt
+// names, and the fixed tip a ref-named PRE resolves to.
+const isHexSha = s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)
+const fixtureTree = name => createHash('sha1').update('tree:' + name).digest('hex')
+const branchOfPrompt = prompt => (String(prompt).match(/\(branch ([^,)\s]+)/) || [])[1] || null
+const FIXTURE_REF_TIP = 'feed0000'.padEnd(40, '0')
+const NEW_SEAT_KINDS = ['ace-gate', 'pin-transfer', 'diff-probe', 'pin-confirm', 'pin-snapshot', 'target-reconcile', 'merge-confirm', 'merge-snapshot', 'merge-reconcile', 'audit-pin', 'tip-probe', 'ace-revert']
 
 // Scripted Git proof for neutral flow fixtures; real Git integrity tests supply their own
 // independent resolver and raw responses. This helper never changes worker/auditor responses.
@@ -147,10 +176,16 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const calls = []
   const logs = []
   const fn = build(source)
+  // world.ace: branch → the last ace-family worker result on it (reset BEFORE each such dispatch, so
+  // a death leaves no stale entry). Keyed by branch because sibling tasks ace concurrently.
+  const world = { ace: new Map() }
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
-    if (opts.dispatchKind === 'ace-gate' || opts.dispatchKind === 'pin-transfer' || opts.dispatchKind === 'diff-probe' || opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat(seats, prompt, opts)
+    if (NEW_SEAT_KINDS.includes(opts.dispatchKind)) return answerNewSeat(seats, prompt, opts, world)
+    const aceWorker = seatOf(opts) === 'war-worker' && /^(ace|terminal):/.test(opts.label || '')
+    if (aceWorker) world.ace.delete(branchOfPrompt(prompt))
     let result = await agentImpl(prompt, opts)
+    if (aceWorker) world.ace.set(branchOfPrompt(prompt), result)
     if (!seats.rawMergeResults) result = completeMergeFixture(opts, result)
     return seats.rawTaskAuditPins ? result : completeAuditFixture(prompt, opts, result)
   }
@@ -166,7 +201,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
 
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
-  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin') return answerNewSeat({}, prompt, opts)
+  if (opts.dispatchKind === 'pin-confirm' || opts.dispatchKind === 'pin-snapshot' || opts.dispatchKind === 'target-reconcile' || opts.dispatchKind === 'merge-confirm' || opts.dispatchKind === 'merge-snapshot' || opts.dispatchKind === 'merge-reconcile' || opts.dispatchKind === 'audit-pin' || opts.dispatchKind === 'tip-probe' || opts.dispatchKind === 'ace-revert') return answerNewSeat({}, prompt, opts)
   const seat = seatOf(opts)
   // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
   // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
@@ -21149,4 +21184,63 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
     assert.match(bad.out.workflowError.message, re, `${JSON.stringify(over)}: the refusal names the key`)
     assert.equal(bad.calls.length, 0, `${JSON.stringify(over)}: zero spawns`)
   }
+})
+
+// ---------------------------------------------------------------------------
+// #2485 — blocked aces never reach the merge slot unjudged (plan 2026-10-28-blocked-ace-and-merge-provenance,
+// Task 1.1). Every End-state fixture below is a flat top-level test whose literal name carries the exact
+// `2485/ES<n> ` prefix: the End-state checks anchor on that prefix and count the names.
+// ---------------------------------------------------------------------------
+
+// The field shape (TRIAL-1, A5): the ace worker committed and pushed ACE_TIP, then returned blocked.
+// The pin snapshot keys its source_sha on that tip and the pin-confirm trees key on the real
+// commits, so the approved tree and the tip tree differ the way they do in Git.
+const ACE_TIP = 'ace00001'.padEnd(40, '0')
+const blockedAce = (over = {}) => ({ task_id: 't1', status: 'blocked', head_sha: ACE_TIP, blocked_reason: 'the Ace-Charge trailer sits in a non-final paragraph, so git cannot parse it', ...over })
+const blockedAceImpl = (aceResult = blockedAce()) => (prompt, opts) =>
+  seatOf(opts) === 'war-worker' && /^ace:/.test(opts.label || '') ? aceResult : aceBase([nit()])(prompt, opts)
+const keyedPinSeats = (over = {}) => ({
+  'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], source_sha: ACE_TIP },
+  'pin-confirm': p => {
+    const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p)
+    return { ...proof, approved_tree: fixtureTree(proof.pins[0]), content_tree: fixtureTree(proof.content_sha) }
+  },
+  ...over,
+})
+// A tip probe whose pre-dispatch tip is not an ancestor of the branch tip (a rewritten branch).
+const nonDescendantProbe = p => {
+  const approved = (String(p).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
+  return { tip_sha: ACE_TIP, tip_tree: fixtureTree(ACE_TIP), pre_sha: approved.padEnd(40, '0'), approved_tree: fixtureTree(approved.padEnd(40, '0')), count: 0, pre_is_ancestor: false, files: [] }
+}
+
+test('2485/ES5 keyed tree-only pin failure makes one attempt and escalates with the named note and a distinct verdict', async () => {
+  const { out, calls } = await runPhase(ACE_ARGS(), blockedAceImpl(), keyedPinSeats({ 'tip-probe': nonDescendantProbe }))
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'pin-confirm').length, 1,
+    'a well-formed proof that fails only the tree clause is a deterministic fact: one attempt, never roundLimit retries')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalates')
+  assert.equal(esc.reason, 'escalate', 'the pin reason stays escalate (PIN-27)')
+  assert.equal(esc.detail.note, 'branch tip carries content committed after approval')
+  assert.ok(esc.detail.probe && esc.detail.probe.status === 'error', 'detail carries the pin-transfer probe')
+  assert.ok(esc.detail.tipProbe && esc.detail.tipProbe.tip_sha === ACE_TIP && esc.detail.tipProbe.pre_is_ancestor === false, 'detail carries the tip-probe result')
+  const verdicts = (out.auditLog || []).filter(e => e && e.task === 't1').map(e => e.verdict)
+  assert.ok(verdicts.includes('pin-transfer:tree-mismatch'), 'a distinct auditLog verdict names the tree-only failure')
+  assert.ok(!verdicts.includes('pin-transfer:unverified'), 'the tree-only failure never reads as unverified')
+  assert.ok(!out.landed.includes('t1') && !calls.some(isMergeTask), 'nothing merges')
+})
+
+test('2485/ES5 malformed-proof regression guard: a malformed proof still retries and reads pin-transfer:unverified', async () => {
+  const { out, calls } = await runPhase(ACE_ARGS(), blockedAceImpl(), keyedPinSeats({
+    'tip-probe': nonDescendantProbe,
+    'pin-confirm': p => {
+      const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p)
+      return { ...proof, pins: proof.pins.slice(0, 3), approved_tree: fixtureTree(proof.pins[0]), content_tree: fixtureTree(proof.content_sha) }
+    },
+  }))
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'pin-confirm').length, 6, 'a malformed proof retries up to roundLimit')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.equal(esc.reason, 'escalate')
+  assert.equal(esc.detail.note, 'pin transfer has no independent Git proof of the approved content and reported destination')
+  const verdicts = (out.auditLog || []).filter(e => e && e.task === 't1').map(e => e.verdict)
+  assert.ok(verdicts.includes('pin-transfer:unverified') && !verdicts.includes('pin-transfer:tree-mismatch'), 'malformed reads pin-transfer:unverified')
 })
