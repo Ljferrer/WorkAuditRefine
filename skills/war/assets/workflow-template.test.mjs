@@ -16335,8 +16335,8 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   for (const t of ['bisection abandoned, remaining subsets demote', 'absorb requires --ace']) {
     assert.ok(!n.includes(t), `retired demote text absent: ${t}`)
   }
-  assert.ok(src.includes("tipWhy(aceClass, aceProbe, aceWhy, 'ace',") && src.includes("routeToSweep(f, 'failed absorb — ' + why)"), 'the dead ace worker routes to the sweep (the one tipWhy helper names the arm)')
-  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("tipWhy(reClass, reProbe, rwWhy, 're-entry',") && src.includes("site + ' worker returned no usable head_sha'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line; the no-head_sha arm lives in tipWhy)')
+  assert.ok(src.includes("tipWhy(aceClass, aceProbe, aceWhy, 'ace')") && src.includes("routeToSweep(f, 'failed absorb — ' + why)"), 'the dead ace worker routes to the sweep (the one tipWhy helper names the arm)')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("tipWhy(reClass, reProbe, rwWhy, 're-entry')") && src.includes("site + ' worker returned no usable head_sha'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line; the no-head_sha arm lives in tipWhy)')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip"), 'the red ace gate routes to the sweep')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched '"), 'the untouched-file row routes to the sweep')
 })
@@ -21508,9 +21508,10 @@ test('2485/ES3 dead ace dispatch with an unchanged tip takes failed-absorb', asy
 })
 
 test('2485/ES3 unusable probe after an implemented result lands reverted', async () => {
-  const { out, calls } = await runPhase(ACE_ARGS(), blockedAceImpl(() => ({ task_id: 't1', status: 'implemented', head_sha: ACE_TIP })),
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(() => ({ task_id: 't1', status: 'implemented', head_sha: ACE_TIP })),
     revertAwarePinSeats(ACE_TIP, { 'tip-probe': { tip_sha: 'not-a-sha' } }))
   assert.ok(!calls.some(c => isAceGate(c)), 'an unread tip is never re-audited on the worker report')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('the tip probe after the ace dispatch was dead or unusable, so the range above the approved tip is forward-reverted at the merge slot')), 'the sweep route names the merge-slot revert: tipWhy places it from the site, no per-arm literal')
   assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the range above the approved tip is reverted at the merge slot')
   assertLandedReverted(out, 'unusable probe')
 })
@@ -21884,6 +21885,18 @@ test('terminal-pass — a net-zero terminal pair (commits above the post-polish 
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('returned no usable head_sha')), 'never the missing-head_sha text: the engine never reads head_sha (PIN-2)')
   assert.ok(carriedOf(out, 'polish-panel absorb'), 'the row carries')
   assert.ok(!calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit on an approved-equal tree')
+  assert.equal(terminalCalls(calls).length, 1, 'never a second pass')
+})
+
+test('terminal-pass — an unusable tip probe after the terminal dispatch names the in-place revert (never the merge slot: the terminal range never merges) and the terminal revert runs', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }),
+    { 'tip-probe': probeAt('terminal', () => ({ tip_sha: 'not-a-sha' })) })
+  const line = logs.find(l => typeof l === 'string' && l.includes('no terminal commit (the tip probe after the terminal dispatch was dead or unusable, so the range above the approved tip is forward-reverted)'))
+  assert.ok(line, 'the terminal unusable arm ends at forward-reverted')
+  assert.ok(!line.includes('at the merge slot'), 'the terminal arm never names the merge slot')
+  const rv = calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
+  assert.ok(rv && /FORWARD-REVERT the terminal-pass range[^\n]*the tip probe after the terminal dispatch was dead or unusable/.test(rv.prompt), 'the terminal revert runs on an unusable probe, with the probe fact as its reason')
+  assert.ok(carriedOf(out, 'polish-panel absorb'), 'non-final: the row carries')
   assert.equal(terminalCalls(calls).length, 1, 'never a second pass')
 })
 

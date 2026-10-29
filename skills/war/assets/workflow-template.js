@@ -2345,14 +2345,14 @@ const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probeP
 // 'unchanged' (no commit above the pre-dispatch tip, or the approved tree) · 'moved' (a net change).
 const tipClass = p => !p ? 'unusable' : !p.pre_is_ancestor ? 'non-descendant' : (p.count === 0 || p.tip_tree === p.approved_tree) ? 'unchanged' : 'moved'
 // tipWhy: the one reason text for a tip class that is not 'moved', shared by the subset, re-entry,
-// polish (`ace`) and terminal arms. `site` names the dispatch; `revertWhere` is the arm's own literal
-// (the terminal arm reverts in place, the other arms at the merge slot). A non-descendant tip takes one
+// polish (`ace`) and terminal arms. `site` names the dispatch and places the unusable arm's revert:
+// the terminal arm reverts in place, every other arm at the merge slot. A non-descendant tip takes one
 // in-helper literal at every arm: the probe's PRE is the pre-dispatch tip at every site (the approved
 // tip at the polish site, the post-polish tip at the terminal site). A worker reason wins over every
 // arm but 'unusable', which prefixes it. An unchanged tip with commits above the pre-dispatch tip (a
 // net-zero pair) is named as such, never as a missing head_sha: the engine never reads head_sha (PIN-2).
-const tipWhy = (cls, probe, workerWhy, site, revertWhere) => cls === 'unusable'
-  ? (workerWhy ? workerWhy + '; ' : '') + 'the tip probe after the ' + site + ' dispatch was dead or unusable, so the range ' + revertWhere
+const tipWhy = (cls, probe, workerWhy, site) => cls === 'unusable'
+  ? (workerWhy ? workerWhy + '; ' : '') + 'the tip probe after the ' + site + ' dispatch was dead or unusable, so the range above the approved tip is forward-reverted' + (site === 'terminal' ? '' : ' at the merge slot')
   : workerWhy || (cls === 'non-descendant' ? 'the branch tip does not descend from the pre-dispatch tip' : probe.count > 0 ? 'the ' + site + ' range carries no net change above the approved tree' : site + ' worker returned no usable head_sha')
 // ACE_REVERT (#2485 D17): the refiner range revert run BEFORE a subset or re-entry worker (it used to
 // ride the worker prompt). It reports the post-revert tip read from Git.
@@ -3898,7 +3898,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // unusable probe leaves the tip unread, so the range registers for the merge-slot revert
         // (PIN-5); a non-descendant tip leaves the merge-slot tree clause as the backstop.
         if (subClass === 'unusable') pendingRevert = true
-        const why = tipWhy(subClass, subProbe, swWhy, 'subset', 'is forward-reverted at the merge slot')
+        const why = tipWhy(subClass, subProbe, swWhy, 'subset')
         for (const q of [sub, ...queue.splice(0)])
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
         break
@@ -4031,7 +4031,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // sweep (a failed ATTEMPT, D13 — the rows stay absorbs; routeToSweep re-stamps queuedKeys). A
         // dead or unusable probe registers the range for the merge-slot revert (PIN-5).
         if (reClass === 'unusable') pendingRevert = true
-        const why = tipWhy(reClass, reProbe, rwWhy, 're-entry', 'is forward-reverted at the merge slot')
+        const why = tipWhy(reClass, reProbe, rwWhy, 're-entry')
         for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
           queuedKeys.delete(remintKey(f))
           routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')
@@ -4287,7 +4287,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // detail carries r.tipProbe. Either way a failed ATTEMPT routes the rows to the sweep as
           // absorbs (D13), never a follow-up.
           if (aceClass === 'unusable') registerRangeRevert(r, null)
-          const why = tipWhy(aceClass, aceProbe, aceWhy, 'ace', 'above the approved tip is forward-reverted at the merge slot')
+          const why = tipWhy(aceClass, aceProbe, aceWhy, 'ace')
           for (const f of aceable) routeToSweep(f, 'failed absorb — ' + why)
         }
       } else if (aceable.length && openBlockers === 0) {
@@ -6128,7 +6128,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           return rv
         }
         if (tClass !== 'moved') {
-          const why = tipWhy(tClass, tProbe, twWhy, 'terminal', 'is forward-reverted')
+          const why = tipWhy(tClass, tProbe, twWhy, 'terminal')
           log('terminal pass: phase ' + ph.id + ' — no terminal commit (' + why + '); the pass is spent (one hop per phase, never a second); ' + terminalRows.length + ' row(s) ' + (finalPhase ? 'demote' : 'carry') + '.')
           if (tClass === 'unusable') await terminalRevert('the tip probe after the terminal dispatch was dead or unusable')
           for (const f of terminalRows) {
