@@ -440,11 +440,15 @@ cmd_ensure_integration() {
 #   work, not this run's partial phase -> die EX_FOREIGN.
 # Proof 2 (procedural, sanction): print the `git log --oneline <base>..<branch>`
 #   ahead-commits to stdout BEFORE recording, so the invocation is an INFORMED
-#   sanction. Deliberately PROSE-ADJUDICATED, not mechanized: task merges land
-#   under fast-forward topology (plus phase-close sweep polish merges), so a
-#   second-parent/merge-shape classifier would false-refuse legitimate histories.
-#   The Lead's standing duty (SKILL.md runbook) is to map every listed commit to
-#   a merged task before invoking; an unexplained commit halts recovery (ADR 0008).
+#   sanction. Deliberately PROSE-ADJUDICATED, not mechanized: each task lands as
+#   a `--no-ff` merge commit carrying its exact `WAR-Task` trailer, but the
+#   phase-close sweep polish and terminal-pass merges stay fast-forward, so a
+#   classifier that demands a task merge commit for every first-parent commit
+#   would false-refuse legitimate histories. The Lead's standing duty (SKILL.md
+#   runbook) is to map every listed commit to a merged task before invoking:
+#   each task merge commit names its task in its WAR-Task trailer, and the
+#   commits under its second parent belong to that task; an unexplained commit
+#   halts recovery (ADR 0008).
 # On both proofs: append <branch> via record_owned_file — idempotent
 #   (already-recorded is a no-op, exit 0; it mkdir -p's the ledger dir, so a
 #   not-yet-existing new-run ledger is fine).
