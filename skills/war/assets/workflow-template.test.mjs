@@ -107,7 +107,8 @@ const NEW_SEAT_DEFAULTS = {
   // `implemented` with a usable head_sha moved its branch one commit to that sha, with the files it
   // reported in ace_diff_files; anything else (blocked, no sha, a death) left the tip unchanged. So
   // every pre-#2485 fixture keeps its old arm. A fixture that wants a moved tip behind a blocked
-  // result answers this seat itself.
+  // result answers this seat itself. Every builder reports pre_tree as the approved tree: in an honest
+  // run the pre-dispatch tip (the approved tip, or the refiner revert) carries the approved tree.
   'tip-probe': (prompt, opts, world) => {
     const pre = (String(prompt).match(/PRE=(\S+) \(the pre-dispatch tip\)/) || [])[1]
     const approved = (String(prompt).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
@@ -115,8 +116,8 @@ const NEW_SEAT_DEFAULTS = {
     const approvedSha = isHexSha(approved) ? approved : preSha
     const w = world && world.ace.get(branchOfPrompt(prompt))
     return w && w.status === 'implemented' && isHexSha(w.head_sha)
-      ? { tip_sha: w.head_sha, tip_tree: fixtureTree('ace:' + w.head_sha), pre_sha: preSha, approved_tree: fixtureTree(approvedSha), count: 1, pre_is_ancestor: true, files: Array.isArray(w.ace_diff_files) ? w.ace_diff_files : [] }
-      : { tip_sha: preSha, tip_tree: fixtureTree(approvedSha), pre_sha: preSha, approved_tree: fixtureTree(approvedSha), count: 0, pre_is_ancestor: true, files: [] }
+      ? { tip_sha: w.head_sha, tip_tree: fixtureTree('ace:' + w.head_sha), pre_sha: preSha, pre_tree: fixtureTree(approvedSha), approved_tree: fixtureTree(approvedSha), count: 1, pre_is_ancestor: true, files: Array.isArray(w.ace_diff_files) ? w.ace_diff_files : [] }
+      : { tip_sha: preSha, tip_tree: fixtureTree(approvedSha), pre_sha: preSha, pre_tree: fixtureTree(approvedSha), approved_tree: fixtureTree(approvedSha), count: 0, pre_is_ancestor: true, files: [] }
   },
   // ace-revert (#2485 D17, PIN-17): the refiner range revert before a subset or re-entry worker. It
   // reports the revert commit, whose tree is the approved tree.
@@ -21279,9 +21280,12 @@ test('rea absent path: evidence off with targetArtifacts present logs one loud l
 // The pin snapshot keys its source_sha on that tip and the pin-confirm trees key on the real
 // commits, so the approved tree and the tip tree differ the way they do in Git.
 const ACE_TIP = 'ace00001'.padEnd(40, '0')
-const blockedAce = (over = {}) => ({ task_id: 't1', status: 'blocked', head_sha: ACE_TIP, blocked_reason: 'the Ace-Charge trailer sits in a non-final paragraph, so git cannot parse it', ...over })
-const blockedAceImpl = (aceResult = blockedAce()) => (prompt, opts) =>
-  seatOf(opts) === 'war-worker' && /^ace:/.test(opts.label || '') ? aceResult : aceBase([nit()])(prompt, opts)
+const blockedWith = (head_sha, task_id = 't1') => ({ task_id, status: 'blocked', head_sha, blocked_reason: 'the trailer sits in a non-final paragraph' })
+const INFRA = () => { throw new Error('socket hang up') }
+// The ace-arm router: `result` is a thunk the ace worker dispatch calls (a blocked result at ACE_TIP by
+// default, INFRA for a dead dispatch, an implemented result for a moved tip); every other seat takes aceBase.
+const blockedAceImpl = (result = () => blockedWith(ACE_TIP)) => (prompt, opts) =>
+  seatOf(opts) === 'war-worker' && /^ace:/.test(opts.label || '') ? result() : aceBase([nit()])(prompt, opts)
 const keyedPinSeats = (over = {}) => ({
   'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], source_sha: ACE_TIP },
   'pin-confirm': p => {
@@ -21293,7 +21297,7 @@ const keyedPinSeats = (over = {}) => ({
 // A tip probe whose pre-dispatch tip is not an ancestor of the branch tip (a rewritten branch).
 const nonDescendantProbe = p => {
   const approved = (String(p).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
-  return { tip_sha: ACE_TIP, tip_tree: fixtureTree(ACE_TIP), pre_sha: approved.padEnd(40, '0'), approved_tree: fixtureTree(approved.padEnd(40, '0')), count: 0, pre_is_ancestor: false, files: [] }
+  return { tip_sha: ACE_TIP, tip_tree: fixtureTree(ACE_TIP), pre_sha: approved.padEnd(40, '0'), pre_tree: fixtureTree(approved.padEnd(40, '0')), approved_tree: fixtureTree(approved.padEnd(40, '0')), count: 0, pre_is_ancestor: false, files: [] }
 }
 
 test('2485/ES5 keyed tree-only pin failure makes one attempt and escalates with the named note and a distinct verdict', async () => {
@@ -21337,12 +21341,12 @@ const probeShas = p => {
 }
 const movedProbe = (tip, { files = [ACE_FILE], count = 1 } = {}) => p => {
   const { pre, approved } = probeShas(p)
-  return { tip_sha: tip, tip_tree: fixtureTree(tip), pre_sha: pre, approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files }
+  return { tip_sha: tip, tip_tree: fixtureTree(tip), pre_sha: pre, pre_tree: fixtureTree(approved), approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files }
 }
 // A tip whose tree equals the approved tree (a self-revert pair, or a range that is only a revert).
 const approvedTreeProbe = (tip, count) => p => {
   const { pre, approved } = probeShas(p)
-  return { tip_sha: tip, tip_tree: fixtureTree(approved), pre_sha: pre, approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files: [] }
+  return { tip_sha: tip, tip_tree: fixtureTree(approved), pre_sha: pre, pre_tree: fixtureTree(approved), approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files: [] }
 }
 const probeAt = (site, fn) => (p, o, w) => (o.label || '').startsWith('tip-probe:' + site + ':') ? fn(p, o, w) : NEW_SEAT_DEFAULTS['tip-probe'](p, o, w)
 const labelIdx = (calls, label) => calls.findIndex(c => c.opts.label === label)
@@ -21377,8 +21381,6 @@ const assertLandedReverted = (out, label) => {
 const RANGE_TIP = 'ace00002'.padEnd(40, '0')
 const SUB_TIP = 'cab00001'.padEnd(40, '0')
 const RE_TIP = 'cab00002'.padEnd(40, '0')
-const blockedWith = (head_sha, task_id = 't1') => ({ task_id, status: 'blocked', head_sha, blocked_reason: 'the trailer sits in a non-final paragraph' })
-const INFRA = () => { throw new Error('socket hang up') }
 
 test('2485/ES1 polish site: a blocked batch ace whose tip moved is probed, then re-audited at the probed tip, and lands', async () => {
   const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] }, blockedAceImpl())
@@ -21486,8 +21488,7 @@ test('2485/ES3 self-revert pair: a blocked batch ace whose two commits net to th
 })
 
 test('2485/ES3 dead ace dispatch with a moved descendant tip is probed and re-audited', async () => {
-  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] },
-    (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? INFRA() : aceBase([nit()])(p, o))
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] }, blockedAceImpl(INFRA))
   const { out, calls } = await runPhase(ACE_ARGS(), impl, keyedPinSeats({ 'tip-probe': movedProbe(ACE_TIP) }))
   const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
   assert.ok(probe > labelIdx(calls, 'ace:polish:t1:a1'), 'a dead dispatch still takes the probe')
@@ -21497,7 +21498,7 @@ test('2485/ES3 dead ace dispatch with a moved descendant tip is probed and re-au
 })
 
 test('2485/ES3 dead ace dispatch with an unchanged tip takes failed-absorb', async () => {
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? INFRA() : aceBase([nit()])(p, o))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(INFRA))
   const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
   assert.ok(probe > labelIdx(calls, 'ace:polish:t1:a1'), 'a dead dispatch still takes the probe')
   assert.ok(!calls.slice(probe + 1).some(c => isAceGate(c)), 'no re-audit after an unchanged tip')
@@ -21507,7 +21508,7 @@ test('2485/ES3 dead ace dispatch with an unchanged tip takes failed-absorb', asy
 })
 
 test('2485/ES3 unusable probe after an implemented result lands reverted', async () => {
-  const { out, calls } = await runPhase(ACE_ARGS(), (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? { task_id: 't1', status: 'implemented', head_sha: ACE_TIP } : aceBase([nit()])(p, o),
+  const { out, calls } = await runPhase(ACE_ARGS(), blockedAceImpl(() => ({ task_id: 't1', status: 'implemented', head_sha: ACE_TIP })),
     revertAwarePinSeats(ACE_TIP, { 'tip-probe': { tip_sha: 'not-a-sha' } }))
   assert.ok(!calls.some(c => isAceGate(c)), 'an unread tip is never re-audited on the worker report')
   assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the range above the approved tip is reverted at the merge slot')
@@ -21519,6 +21520,31 @@ test('2485/ES3 dead probe after a blocked result lands reverted', async () => {
   assert.ok(calls.some(c => c.opts.label === 'tip-probe:polish:t1:a1'), 'the probe was dispatched')
   assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)/, 'the pin-transfer probe carries the range revert')
   assertLandedReverted(out, 'dead probe')
+})
+
+// The aceStage catch (PIN-5): a non-infra throw after an ace dispatch, which dispatchSite rethrows,
+// registers the range above the approved tip, so the merge slot forward-reverts whatever the ace
+// worker committed and the approved work lands, never the D6 hold.
+test('2485/ES3 engine throw at the tip probe after a blocked result: the ace stage catch registers the range revert and t1 lands reverted', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(), revertAwarePinSeats(ACE_TIP, { 'tip-probe': () => { throw new Error('schema mismatch: count is not an integer') } }))
+  assert.ok(calls.some(c => c.opts.label === 'tip-probe:polish:t1:a1'), 'the probe was dispatched')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-stage t1: engine error') && l.includes('schema mismatch') && l.includes('forward-reverted at the merge slot')), 'the catch logs the verbatim cause and the merge-slot revert')
+  assert.ok(!calls.some(c => isAceGate(c)), 'nothing is judged on the worker report')
+  assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the pin-transfer probe carries the range revert with no Git-read tip')
+  assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT \(--ace\)/, 'the merge dispatch carries the range revert')
+  assertLandedReverted(out, 'thrown probe')
+})
+
+// The mirror arm: the probe read a moved tip and a later ace dispatch (the gate check) threw, so the
+// catch registers the range after the charge; nothing judges the ace tip and nothing is aced.
+test('2485/ES3 engine throw at the ace gate after a moved tip: the ace stage catch registers the range revert and t1 lands reverted', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(() => aceOk({ head_sha: ACE_TIP })), revertAwarePinSeats(ACE_TIP, { 'ace-gate': () => { throw new Error('schema mismatch: gate_green is not a boolean') } }))
+  const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
+  assert.ok(probe >= 0 && calls.slice(probe + 1).some(isAceGate), 'the probe read a moved tip and the gate check was dispatched')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-stage t1: engine error') && l.includes('schema mismatch') && l.includes('forward-reverted at the merge slot')), 'the catch logs the verbatim cause and the merge-slot revert')
+  assert.ok(!calls.some(c => isAuditor(c) && c.prompt.includes(ACE_TIP)) && !(out.aced || []).length, 'nothing judged the ace tip and nothing is aced')
+  assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)/, 'the pin-transfer probe carries the range revert')
+  assertLandedReverted(out, 'thrown gate check')
 })
 
 test('2485/ES3 dead probe after a blocked result that made no commit lands the approved tip through the empty-range arm in real git', async () => {
@@ -21670,6 +21696,37 @@ test('2485/ES4 a worker file list that disagrees with the tip probe is a cross-c
   assert.ok(logs.some(l => typeof l === 'string' && l.includes("the worker's ace_diff_files cross-check disagrees with the tip probe's git-derived ace file list")), 'the cross-check is named')
 })
 
+// Delta-scale base tree (task 1.1, PIN-17): the subset and re-entry seats diff only pre..tip, so
+// aceScope narrows the panel only when the probe's pre_tree equals approved_tree. A refiner revert
+// reported ok:true whose tip does not carry the approved tree gets the full panel and no transfer.
+// The control arm (pre_tree equal) keeps the subset transfer, so the tree test alone flips the mode.
+test('delta-scale base tree: a revert reported ok whose PRE tree is not the approved tree forces the full panel at the subset tip and transfers no approval', async () => {
+  const Y = 'skills/war/assets/y.js'
+  const fa = nit({ title: 'culprit nit', file: ACE_FILE }), fb = nit({ title: 'salvaged nit', file: Y })
+  const regress = (lens, sha) => sha === 'ace00001' && lens === 'correctness'
+    ? { verdict: 'request_changes', findings: [{ severity: 'Major', title: 'batch broke it', file: ACE_FILE, rationale: 'regressed' }] } : {}
+  const subsetProbe = preTreeOf => p => {
+    const { pre, approved } = probeShas(p)
+    return { tip_sha: SUB_TIP, tip_tree: fixtureTree(SUB_TIP), pre_sha: pre, pre_tree: preTreeOf(pre, approved), approved_tree: fixtureTree(approved), count: 1, pre_is_ancestor: true, files: [Y] }
+  }
+  const run = preTreeOf => runPhase(PT_ARGS(), ptImpl([fa, fb], aceOk({ ace_diff_files: undefined, files_changed: undefined }), { seatOver: regress }),
+    { 'tip-probe': probeAt('subset', subsetProbe(preTreeOf)) })
+  // Control: the honest revert tip carries the approved tree, so only the originating seat re-runs.
+  const honest = await run((pre, approved) => fixtureTree(approved))
+  assert.ok(honest.calls.some(isAceRevert), 'control: the refiner revert ran before the subset')
+  const honestRow = (honest.out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.sha === SUB_TIP)
+  assert.equal(honestRow && honestRow.mode, 'subset', 'control: an approved-tree base keeps the subset transfer')
+  assert.deepEqual([...new Set(lensesOf(honest.calls, SUB_TIP))], ['correctness'], 'control: only the originating seat re-runs')
+  // The gap: the revert reply said ok:true, but the PRE tree is not the approved tree.
+  const smuggled = await run(pre => fixtureTree('smuggled:' + pre))
+  assert.ok(smuggled.calls.some(isAceRevert), 'the refiner revert ran before the subset')
+  const row = (smuggled.out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.sha === SUB_TIP)
+  assert.equal(row && row.mode, 'full-panel', 'a base without the approved tree never narrows the panel')
+  assert.ok(row.why.includes('the pre-dispatch tip does not carry the approved tree'), 'the row names the tree test')
+  assert.ok(!row.seats.some(s => s.outcome === 'transferred'), 'no approval transfers')
+  assert.deepEqual([...new Set(lensesOf(smuggled.calls, SUB_TIP))].sort(), ['correctness', 'security'], 'the full panel re-runs at the subset tip')
+})
+
 test('2485/ES11 card mirror: worker card step 5, the four ace prompts and the chain clause carry the one trailer-block sentence verbatim', async () => {
   const step5 = workerMd.split('\n').find(l => l.startsWith('5. Commit'))
   assert.ok(step5 && step5.includes(TRAILER_BLOCK_RULE), 'agents/war-worker.md step 5 carries the sentence verbatim')
@@ -21722,7 +21779,7 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
   }, {
     'tip-probe': p => {
       const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], tip = git('rev-parse', 'task')
-      return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), approved_tree: git('rev-parse', approved + '^{tree}'),
+      return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), pre_tree: git('rev-parse', pre + '^{tree}'), approved_tree: git('rev-parse', approved + '^{tree}'),
         count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n') }
     },
     'ace-gate': { gate_green: false, gate_output: 'red' },
