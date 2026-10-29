@@ -228,7 +228,8 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // gate_sha (#2485 D12, PIN-12): the rebased task tip the merge-task gate ran at — the task merge
   // commit's second parent. integration_sha is the --no-ff merge commit itself (D8), so the two differ
   // on every task merge: landMerged reads gateHeadSha from gate_sha and the lastLandedTip tracker from
-  // integration_sha. merge-task only, OPTIONAL (absent ⇒ the pinOrSentinel sentinel, SOFT cannot-confirm).
+  // integration_sha. merge-task only, OPTIONAL (absent, or not a prefix of Git's second merge parent per
+  // gitBoundGateSha ⇒ the pinOrSentinel sentinel, SOFT cannot-confirm).
   gate_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' },
   // gate_failure_class (spec §6 / ADR 0019): the on-failure classification the refiner returns
@@ -2292,7 +2293,7 @@ const mergeGitMatches = (proof, before, context) => fullSha(proof.local_sha) && 
     : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true)
 // MERGE_FACTS_RULE: the base_is_ancestor read and the task-merge facts that both the confirmation and
 // the reconciliation prompt ask for — one sentence, so the two arms cannot drift apart.
-const MERGE_FACTS_RULE = 'base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <X> (true ONLY on exit 0), where X is the current source branch for a task merge (context kind task) and the local target otherwise. For a task merge also return parents (git show -s --format=%P <local target>), tree { target: <local target>^{tree}, source: <current source>^{tree} } as full SHAs, and trailer: the raw unedited output of git show -s --format=%(trailers:key=WAR-Task) <local target>.'
+const MERGE_FACTS_RULE = 'base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <X> (true ONLY on exit 0), where X is the current source branch for a task merge (context kind task) and the local target otherwise. For a task merge also return parents (git show -s --format=%P <local target>), tree { target: <local target>^{tree}, source: <current source>^{tree} } as full SHAs, and trailer: the raw unedited output of git show -s --format=\'%(trailers:key=WAR-Task)\' <local target>.'
 // NEVER_MOVE_MERGED (#2485 D11, PIN-11 ‡): the one never-move sentence carried verbatim by the
 // pin-transfer probe step (2), all four merge-task step (a) copies and the refiner card step 1 (ES9).
 const NEVER_MOVE_MERGED = 'A task branch whose tip is already an ancestor of the integration tip is merged: never rebase, move or re-merge it, and report it merged.'
@@ -2476,7 +2477,18 @@ Read local target and source branch tips with git rev-parse --verify <ref>^{comm
     ? mergeGitMatches(proof, before, context) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
     : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && proof.remote_sha === before.remote_sha && sourceGitMatches(proof, before, context.land))
   auditLog.push({ task: context.task, verdict: confirmed ? 'git-confirmed:' + result.status : 'git-confirmation:unresolved', findings: [], site: opts.label, reported: result, before, after: proof })
-  return confirmed
+  return confirmed && proof // the Git proof (truthy) on confirmation, so the caller can bind the gated tip to its parents
+}
+// gitBoundGateSha (#2485 D12, PIN-12): gate_sha is a refiner report, so a confirmed task merge keeps it
+// only when Git's second merge parent (the gated task tip taskMergeMatches pins to source_tip) starts
+// with it. Otherwise it is dropped and landMerged records the pinOrSentinel sentinel (SOFT
+// cannot-confirm). The task never holds on this check.
+const gitBoundGateSha = (result, proof, context) => {
+  const gated = result && result.gate_sha, second = proof && Array.isArray(proof.parents) ? proof.parents[1] : null
+  if (context.kind !== 'task' || !result || result.status !== 'merged' || gated === undefined ||
+      (typeof gated === 'string' && /^[0-9a-f]{7,40}$/.test(gated) && fullSha(second) && second.startsWith(gated))) return result
+  const { gate_sha: dropped, ...rest } = result
+  return rest
 }
 const reconcileMerge = async (original, opts, context, before, lost) => {
   const cause = deathOf(lost) || 'missing or error merge response'
@@ -2508,7 +2520,7 @@ ORIGINAL OPERATION (all requirements still apply):
         gateLogPathOf(recovered.result.gate_log_path) &&
         (recovered.local_sha !== before.base_sha || context.land && recovered.local_sha === before.remote_sha)) {
       auditLog.push({ task: context.task, verdict: 'git-reconciled:' + success, findings: [], site: opts.label, before, after: recovered })
-      return recovered.result
+      return gitBoundGateSha(recovered.result, recovered, context)
     }
     if (recovered.outcome === 'unmerged' && recovered.local_sha === before.base_sha && recovered.remote_sha === before.remote_sha && sourceGitMatches(recovered, before, context.land) &&
         (!recovered.result || (recovered.result.mode === mode && !['merged', 'landed'].includes(recovered.result.status)))) {
@@ -2527,8 +2539,10 @@ const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => 
   let result, thrown
   try {
     result = admitGateResult(await invoke(body, opts, capture), capture)
-    if (!uncertainMerge(result) && !await confirmMerge(result, opts, context, before)) {
-      result = { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
+    if (!uncertainMerge(result)) {
+      const proof = await confirmMerge(result, opts, context, before)
+      result = proof ? gitBoundGateSha(result, proof, context)
+        : { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
     }
   }
   catch (err) { thrown = err; result = { mode: context.land ? 'land-phase' : 'merge-task', status: 'error', detail: 'lost merge dispatch: ' + String(err && err.message || err) } }
@@ -6742,8 +6756,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // candidate rows so each filed issue can carry its `## Evidence artifacts` section (the issue-side
   // evidence duty, ADR 0044 amendment) — all read from the auditLog already in hand at filing time:
   // the audit round from the task's audit-verdict entry's fixRounds, the pinned sha from its
-  // post-merge gate-audit entry's gateHeadSha (the engine-stamped integration tip the task's gate
-  // ran at — the landed tree that still carries the unabsorbed finding). A merged requiresTest:false
+  // post-merge gate-audit entry's gateHeadSha (the gated task tip, the task merge commit's second
+  // parent, whose tree is the landed tree that still carries the unabsorbed finding). A merged requiresTest:false
   // task has NO gate-audit entry (the D7 skip) — its pinned sha falls back to the landedShaByTask
   // retention landMerged stamped (its real landed integration tip), so a merged task never renders
   // 'unrecorded' (Phase 5 Task 1). Fail-open: a task with neither (e.g. a never-merged task filing
