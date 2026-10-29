@@ -39,7 +39,7 @@ Never file that finding before this tier: at rounds 2 to 4 a class that keeps re
 
 ## Variants
 
-- Delta-scaled re-audit: the seat re-runs `git diff --name-only <sha>^ <sha>` itself and chains only over the files the ace commit touched; a changed file outside the claimed set is `scopeBreach: true` and the full panel re-runs. The `relation:` tag is still owed on every re-block.
+- Delta-scaled re-audit: the seat re-runs the `git diff --no-renames --name-only <pre> <sha>` its prompt names and chains only over the files the ace range touched; a changed file outside the claimed set is `scopeBreach: true` and the full panel re-runs. The `relation:` tag is still owed on every re-block.
 - Pin-content re-audit: the seat judges the pinned content against the approved tree, with no threaded findings and no corrective round; it is round 1 by definition and carries no backward-chain clause.
 
 ## Worked examples

@@ -172,8 +172,8 @@ history holds after the bounded attempts; Git remains available for the next age
 
 The pin-transfer mutator has separate read-only `pin-snapshot` and `pin-confirm` dispatches.
 Follow the engine's `PIN_GIT_PROOF` prompt to resolve reported pins independently, compare the
-approved Git tree to the pre-rebase content (the first parent for a known regressed tip being
-forward-reverted), and recompute actual dispatch base, patch IDs and cherry matches. A transfer
+approved Git tree to the pre-rebase content (the approved commit, pin[0], when the context names
+`revert_range` and pin[0] is an ancestor of the snapshot source), and recompute actual dispatch base, patch IDs and cherry matches. A transfer
 requires actual nonempty equal patches, equal exact content identities and target ancestry. Completion by `already_upstream`
 also requires actual task/local/origin tip equality, empty post-rebase content, positive task
 count and the complete unique matched **non-merge** task commit set that Git lists. Check coverage
@@ -273,8 +273,9 @@ require a full re-audit, even when a textual rebase was conflict-free. Empty dif
 Git hash of the empty byte stream; they are not missing evidence. Existing nonempty-patch
 requirements and the already-upstream complete-tree check remain independent obligations.
 
-Snapshots compute the identity for the expected task diff (using the approved parent when
-performing a known forward-revert). Pin confirmation independently computes both pre/post
+Snapshots compute the identity for the expected task diff (using the task diff up to the approved
+commit, `git diff <merge-base target approved>..<approved>`, when the context names `revert_range`
+and that commit is an ancestor of the source). Pin confirmation independently computes both pre/post
 identities. Normal task confirmation and task recovery recompute it against the captured
 base and current source, never echo the snapshot. Both equal patch IDs and equal exact
 identities are required before preserving approval or recording task merge completion.
