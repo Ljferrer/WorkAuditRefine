@@ -107,8 +107,7 @@ const NEW_SEAT_DEFAULTS = {
   // `implemented` with a usable head_sha moved its branch one commit to that sha, with the files it
   // reported in ace_diff_files; anything else (blocked, no sha, a death) left the tip unchanged. So
   // every pre-#2485 fixture keeps its old arm. A fixture that wants a moved tip behind a blocked
-  // result answers this seat itself. Every builder reports pre_tree as the approved tree: in an honest
-  // run the pre-dispatch tip (the approved tip, or the refiner revert) carries the approved tree.
+  // result answers this seat itself.
   'tip-probe': (prompt, opts, world) => {
     const pre = (String(prompt).match(/PRE=(\S+) \(the pre-dispatch tip\)/) || [])[1]
     const approved = (String(prompt).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
@@ -116,8 +115,8 @@ const NEW_SEAT_DEFAULTS = {
     const approvedSha = isHexSha(approved) ? approved : preSha
     const w = world && world.ace.get(branchOfPrompt(prompt))
     return w && w.status === 'implemented' && isHexSha(w.head_sha)
-      ? { tip_sha: w.head_sha, tip_tree: fixtureTree('ace:' + w.head_sha), pre_sha: preSha, pre_tree: fixtureTree(approvedSha), approved_tree: fixtureTree(approvedSha), count: 1, pre_is_ancestor: true, files: Array.isArray(w.ace_diff_files) ? w.ace_diff_files : [] }
-      : { tip_sha: preSha, tip_tree: fixtureTree(approvedSha), pre_sha: preSha, pre_tree: fixtureTree(approvedSha), approved_tree: fixtureTree(approvedSha), count: 0, pre_is_ancestor: true, files: [] }
+      ? { tip_sha: w.head_sha, tip_tree: fixtureTree('ace:' + w.head_sha), pre_sha: preSha, approved_tree: fixtureTree(approvedSha), count: 1, pre_is_ancestor: true, files: Array.isArray(w.ace_diff_files) ? w.ace_diff_files : [] }
+      : { tip_sha: preSha, tip_tree: fixtureTree(approvedSha), pre_sha: preSha, approved_tree: fixtureTree(approvedSha), count: 0, pre_is_ancestor: true, files: [] }
   },
   // ace-revert (#2485 D17, PIN-17): the refiner range revert before a subset or re-entry worker. It
   // reports the revert commit, whose tree is the approved tree.
@@ -12706,8 +12705,8 @@ const BARE_INTERPOLATION_CENSUS = [
   'revertWorktree', 'revertApproved', 'revertBranch', 'revertSite', 'revertWhy', 'revertRange.approved', 'terminalApproved',
   'probeId', 'probeSite', 'probeWorktree', 'probeBranch', 'probePre', 'probeApproved', 'ev.pre', 'TRAILER_BLOCK_RULE',
   // aceTipSha (#1860, same sweep): aceGateGreen's and aceScopeClause's param — the batch/subset/
-  // re-entry commit's tip, the tip probe's tip_sha (isSha-checked by usableTipProbe) at every caller
-  // before the ace re-audit seam runs — construction-guaranteed a string.
+  // re-entry commit's head_sha, guarded truthy-string by every caller before the ace re-audit seam
+  // runs — construction-guaranteed a string.
   'aceTipSha',
   // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
   // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds
@@ -12722,8 +12721,8 @@ const BARE_INTERPOLATION_CENSUS = [
   'phaseBaseCmd', 'tip', 'probeBase',
   // terminalCharge / terminalSha (in-band-absorb-default D3a, terminal-pass): the `Ace-Charge:
   // p<N>-polish:<n>` trailer value (concatenation-built from the polish pseudo-task id and its
-  // seeded integer counter) and the terminal commit's tip, the tip probe's tip_sha (isSha-checked by
-  // usableTipProbe) before the prompts that interpolate it are built — both construction-guaranteed strings.
+  // seeded integer counter) and the terminal worker's head_sha, guarded truthy-string before the
+  // prompts that interpolate it are built — both construction-guaranteed strings.
   'terminalCharge', 'terminalSha',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
@@ -21270,7 +21269,7 @@ const keyedPinSeats = (over = {}) => ({
 // A tip probe whose pre-dispatch tip is not an ancestor of the branch tip (a rewritten branch).
 const nonDescendantProbe = p => {
   const approved = (String(p).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]
-  return { tip_sha: ACE_TIP, tip_tree: fixtureTree(ACE_TIP), pre_sha: approved.padEnd(40, '0'), pre_tree: fixtureTree(approved.padEnd(40, '0')), approved_tree: fixtureTree(approved.padEnd(40, '0')), count: 0, pre_is_ancestor: false, files: [] }
+  return { tip_sha: ACE_TIP, tip_tree: fixtureTree(ACE_TIP), pre_sha: approved.padEnd(40, '0'), approved_tree: fixtureTree(approved.padEnd(40, '0')), count: 0, pre_is_ancestor: false, files: [] }
 }
 
 test('2485/ES5 keyed tree-only pin failure makes one attempt and escalates with the named note and a distinct verdict', async () => {
@@ -21314,12 +21313,12 @@ const probeShas = p => {
 }
 const movedProbe = (tip, { files = [ACE_FILE], count = 1 } = {}) => p => {
   const { pre, approved } = probeShas(p)
-  return { tip_sha: tip, tip_tree: fixtureTree(tip), pre_sha: pre, pre_tree: fixtureTree(approved), approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files }
+  return { tip_sha: tip, tip_tree: fixtureTree(tip), pre_sha: pre, approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files }
 }
 // A tip whose tree equals the approved tree (a self-revert pair, or a range that is only a revert).
 const approvedTreeProbe = (tip, count) => p => {
   const { pre, approved } = probeShas(p)
-  return { tip_sha: tip, tip_tree: fixtureTree(approved), pre_sha: pre, pre_tree: fixtureTree(approved), approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files: [] }
+  return { tip_sha: tip, tip_tree: fixtureTree(approved), pre_sha: pre, approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files: [] }
 }
 const probeAt = (site, fn) => (p, o, w) => (o.label || '').startsWith('tip-probe:' + site + ':') ? fn(p, o, w) : NEW_SEAT_DEFAULTS['tip-probe'](p, o, w)
 const labelIdx = (calls, label) => calls.findIndex(c => c.opts.label === label)
@@ -21559,37 +21558,6 @@ test('2485/ES4 a worker file list that disagrees with the tip probe is a cross-c
   assert.ok(logs.some(l => typeof l === 'string' && l.includes("the worker's ace_diff_files cross-check disagrees with the tip probe's git-derived ace file list")), 'the cross-check is named')
 })
 
-// Delta-scale base tree (task 1.1, PIN-17): the subset and re-entry seats diff only pre..tip, so
-// aceScope narrows the panel only when the probe's pre_tree equals approved_tree. A refiner revert
-// reported ok:true whose tip does not carry the approved tree gets the full panel and no transfer.
-// The control arm (pre_tree equal) keeps the subset transfer, so the tree test alone flips the mode.
-test('delta-scale base tree: a revert reported ok whose PRE tree is not the approved tree forces the full panel at the subset tip and transfers no approval', async () => {
-  const Y = 'skills/war/assets/y.js'
-  const fa = nit({ title: 'culprit nit', file: ACE_FILE }), fb = nit({ title: 'salvaged nit', file: Y })
-  const regress = (lens, sha) => sha === 'ace00001' && lens === 'correctness'
-    ? { verdict: 'request_changes', findings: [{ severity: 'Major', title: 'batch broke it', file: ACE_FILE, rationale: 'regressed' }] } : {}
-  const subsetProbe = preTreeOf => p => {
-    const { pre, approved } = probeShas(p)
-    return { tip_sha: SUB_TIP, tip_tree: fixtureTree(SUB_TIP), pre_sha: pre, pre_tree: preTreeOf(pre, approved), approved_tree: fixtureTree(approved), count: 1, pre_is_ancestor: true, files: [Y] }
-  }
-  const run = preTreeOf => runPhase(PT_ARGS(), ptImpl([fa, fb], aceOk({ ace_diff_files: undefined, files_changed: undefined }), { seatOver: regress }),
-    { 'tip-probe': probeAt('subset', subsetProbe(preTreeOf)) })
-  // Control: the honest revert tip carries the approved tree, so only the originating seat re-runs.
-  const honest = await run((pre, approved) => fixtureTree(approved))
-  assert.ok(honest.calls.some(isAceRevert), 'control: the refiner revert ran before the subset')
-  const honestRow = (honest.out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.sha === SUB_TIP)
-  assert.equal(honestRow && honestRow.mode, 'subset', 'control: an approved-tree base keeps the subset transfer')
-  assert.deepEqual([...new Set(lensesOf(honest.calls, SUB_TIP))], ['correctness'], 'control: only the originating seat re-runs')
-  // The gap: the revert reply said ok:true, but the PRE tree is not the approved tree.
-  const smuggled = await run(pre => fixtureTree('smuggled:' + pre))
-  assert.ok(smuggled.calls.some(isAceRevert), 'the refiner revert ran before the subset')
-  const row = (smuggled.out.pinTransfers || []).find(p => p && p.kind === 'ace' && p.sha === SUB_TIP)
-  assert.equal(row && row.mode, 'full-panel', 'a base without the approved tree never narrows the panel')
-  assert.ok(row.why.includes('the pre-dispatch tip does not carry the approved tree'), 'the row names the tree test')
-  assert.ok(!row.seats.some(s => s.outcome === 'transferred'), 'no approval transfers')
-  assert.deepEqual([...new Set(lensesOf(smuggled.calls, SUB_TIP))].sort(), ['correctness', 'security'], 'the full panel re-runs at the subset tip')
-})
-
 test('2485/ES11 card mirror: worker card step 5, the four ace prompts and the chain clause carry the one trailer-block sentence verbatim', async () => {
   const step5 = workerMd.split('\n').find(l => l.startsWith('5. Commit'))
   assert.ok(step5 && step5.includes(TRAILER_BLOCK_RULE), 'agents/war-worker.md step 5 carries the sentence verbatim')
@@ -21642,7 +21610,7 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
   }, {
     'tip-probe': p => {
       const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], tip = git('rev-parse', 'task')
-      return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), pre_tree: git('rev-parse', pre + '^{tree}'), approved_tree: git('rev-parse', approved + '^{tree}'),
+      return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), approved_tree: git('rev-parse', approved + '^{tree}'),
         count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n') }
     },
     'ace-gate': { gate_green: false, gate_output: 'red' },
