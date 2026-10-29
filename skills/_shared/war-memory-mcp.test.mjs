@@ -347,11 +347,13 @@ test('ES3: query log appends one line into an existing local dir; absent local w
     assert.deepEqual(readdirSync(cwd, { recursive: true }).sort(), cwdBefore, 'nothing written under cwd');
     assert.ok(!existsSync(join(repo, QUERY_LOG)), 'no log in the repo root');
     assert.equal(readFileSync(logFile, 'utf8').split('\n').filter(Boolean).length, 1, 'the local log did not grow');
-    // (c) local names a missing dir → no directory created, the query still answers
-    const missing = join(local, 'no-such-dir');
+    // (c) local names a missing dir that passes the anchor → the stat-missing branch runs,
+    // no directory is created (not the leaf, not its parent), the query still answers
+    const missing = join(localBase, '.claude', 'projects', 'y', 'memory');
     const c = await query(s, { query: 'floor exit code', local: missing, repo });
     assert.match(c.text, /\[floor-exit-repo\]/);
     assert.ok(!existsSync(missing), 'a missing local dir is never created');
+    assert.ok(!existsSync(join(localBase, '.claude', 'projects', 'y')), 'no parent dir is created either');
   } finally {
     await s.close();
     for (const d of [localBase, repo, cwd]) rmSync(d, { recursive: true, force: true });
