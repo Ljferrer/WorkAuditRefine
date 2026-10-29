@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-08-05-precision-chain-and-loop-breaker@phase-5
   slug: engine-change-landed-this-run-cannot-exercise-itself-same-run
   phase: "precision-chain-and-loop-breaker/5.5 (gate-audit note, confirmed against CLAUDE.md's plugin-iteration doctrine)"
   keywords: 
@@ -21,6 +22,8 @@ metadata:
     - version unknown
     - _refinery endstate log
     - gate-audit self-reference
+    - fast-forward despite no-ff
+    - merge topology change
   tags: 
     - war-engine
     - self-hosting
@@ -28,7 +31,7 @@ metadata:
     - process
   created: 2026-08-05
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-07T00:17:43.932Z
+  modified: 2026-10-29T19:15:21.503Z
 ---
 
 # A phase that lands a WAR engine change cannot exercise it within its own run
@@ -72,5 +75,15 @@ If a claimed End state cites a `check:` artifact that a phase's OWN plan just in
 teeing-mechanism for, verify whether that mechanism's dispatch code landed in an EARLIER phase of
 the same run (in which case it should be live) or in the run's OWN active phase-set (in which case
 it cannot be live until reload) before treating an absent artifact as a defect.
+
+## Recurrence: 2026-10-28-blocked-ace-and-merge-provenance/phase-2 (landed tip 9bcc4fa6)
+
+Task 2.1 landed `--no-ff` task merge commits with a `WAR-Task` trailer (`taskMergeMatches` in
+`skills/war/assets/workflow-template.js` now requires two parents).
+The same phase still merged tasks 2.1, 2.2 and the polish by fast-forward.
+The refiner reports say "fast-forward", and the git-confirmed proofs in the audit log carry no `parents` field.
+So the run's own task history has no `WAR-Task` merge commits.
+A later proof over this branch that expects merge commits (for example, `skills/war/assets/task-integrated.sh` after plan Task 3.1, whose End state 7 makes it refuse a fast-forward-only branch) will not find them for these tasks.
+The plan accepts this through PIN-22: the run and any recovery relaunch use the installed plugin version.
 
 > archived 2026-08-15: resolved — moved to archive
