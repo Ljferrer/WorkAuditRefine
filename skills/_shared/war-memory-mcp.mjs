@@ -13,9 +13,11 @@
 //
 // Roots come ONLY from the call's `local` / `repo` arguments (PIN-2): no cwd guess, no env
 // fallback, and a relative root is refused so Node never resolves it against cwd. The query log
-// is appended only when `local` names an existing directory, and this server never creates a
-// directory (PIN-4). The hook (hooks/validate-evidence-auditor-mcp.sh) owns the `local` anchor
-// check and the full tool-name literal; this file never restates them.
+// is appended only when `local` names an existing directory that passes the `local` anchor, and
+// this server never creates a directory (PIN-4). Both the hook (hooks/validate-evidence-auditor-mcp.sh,
+// its memory_fence) and this server check the anchor: the hook denies the call for the seats it
+// routes, and the server refuses the append for every caller, the main session included. The
+// hook owns the full tool-name literal; this file never restates it.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -114,9 +116,19 @@ function formatHit(r) {
   return `- [${r.slug}] (${r.provenance}${phase})${archived}: ${desc} · ${r.file}`;
 }
 
-// Query log (PIN-4): append one line only when `local` IS an existing directory. Never mkdir.
+// The `local` anchor, the same string rule as the hook's memory_fence: absolute, no `..` segment,
+// and a match for the glob */.claude/projects/*/memory (its `*` spans `/`), one trailing `/` tolerated.
+// The `s` flag lets `.` match line terminators too, as the bash glob `*` does.
+const LOCAL_ANCHOR = /^.*\/\.claude\/projects\/.*\/memory\/?$/s;
+function localPassesAnchor(local) {
+  return local.startsWith('/') && !`/${local}/`.includes('/../') && LOCAL_ANCHOR.test(local);
+}
+
+// Query log (PIN-4): append one line only when `local` passes the anchor AND is an existing
+// directory. Never mkdir. A refused append never fails the query: the hits still return.
 function appendQueryLogIfPresent(local, entry) {
   if (!local) return;
+  if (!localPassesAnchor(local)) return;
   let st;
   try {
     st = fs.statSync(local);

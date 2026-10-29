@@ -314,7 +314,10 @@ test('collapse over drifted twins: an unmatched hot copy still beats a matched a
 // ---------------------------------------------------------------------------
 
 test('ES3: query log appends one line into an existing local dir; absent local writes nothing and walks no cwd root; a missing local dir is never created', async () => {
-  const local = tmpDir();
+  // local sits under the server-side anchor */.claude/projects/*/memory so the append is allowed
+  const localBase = tmpDir();
+  const local = join(localBase, '.claude', 'projects', 'x', 'memory');
+  mkdirSync(local, { recursive: true });
   const repo = tmpDir();
   const cwd = tmpDir();
   const meta = { type: 'project', provenance: 'code-verified', keywords: ['floor', 'exit', 'code'] };
@@ -344,14 +347,53 @@ test('ES3: query log appends one line into an existing local dir; absent local w
     assert.deepEqual(readdirSync(cwd, { recursive: true }).sort(), cwdBefore, 'nothing written under cwd');
     assert.ok(!existsSync(join(repo, QUERY_LOG)), 'no log in the repo root');
     assert.equal(readFileSync(logFile, 'utf8').split('\n').filter(Boolean).length, 1, 'the local log did not grow');
-    // (c) local names a missing dir → no directory created, the query still answers
-    const missing = join(local, 'no-such-dir');
+    // (c) local names a missing dir that passes the anchor → the stat-missing branch runs,
+    // no directory is created (not the leaf, not its parent), the query still answers
+    const missing = join(localBase, '.claude', 'projects', 'y', 'memory');
     const c = await query(s, { query: 'floor exit code', local: missing, repo });
     assert.match(c.text, /\[floor-exit-repo\]/);
     assert.ok(!existsSync(missing), 'a missing local dir is never created');
+    assert.ok(!existsSync(join(localBase, '.claude', 'projects', 'y')), 'no parent dir is created either');
   } finally {
     await s.close();
-    for (const d of [local, repo, cwd]) rmSync(d, { recursive: true, force: true });
+    for (const d of [localBase, repo, cwd]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// RA1 — server-side local anchor: the append mirrors the hook's memory_fence
+// ---------------------------------------------------------------------------
+
+test('RA1: the server appends the query log only under */.claude/projects/*/memory with no .. segment; a refused append still returns hits', async () => {
+  const meta = { type: 'project', provenance: 'code-verified', keywords: ['anchor', 'fence'] };
+  // (a) an existing directory outside the anchor
+  const outside = tmpDir();
+  lessonFile(outside, 'anchor-outside', { description: 'anchor fence outside lesson', meta });
+  // (b) a path with a `..` segment that resolves to a directory inside the anchor
+  const base = tmpDir();
+  const inside = join(base, '.claude', 'projects', 'x', 'memory');
+  lessonFile(inside, 'anchor-inside', { description: 'anchor fence inside lesson', meta });
+  const dotdot = `${inside}/../memory`;
+  const s = startServer();
+  try {
+    await handshake(s);
+    const a = await query(s, { query: 'anchor fence', local: outside });
+    assert.match(a.text, /\[anchor-outside\]/, 'hits return though the append is refused');
+    assert.ok(!existsSync(join(outside, QUERY_LOG)), 'no log outside the anchor');
+    const b = await query(s, { query: 'anchor fence', local: dotdot });
+    assert.match(b.text, /\[anchor-inside\]/, 'hits return though the append is refused');
+    assert.ok(!existsSync(join(inside, QUERY_LOG)), 'no log through a .. segment');
+    // (c) a directory inside the anchor gets one log line
+    const c = await query(s, { query: 'anchor fence', local: inside });
+    assert.match(c.text, /\[anchor-inside\]/);
+    const lines = readFileSync(join(inside, QUERY_LOG), 'utf8').split('\n').filter(Boolean);
+    assert.equal(lines.length, 1);
+    // (d) one trailing `/` is tolerated, like the hook
+    await query(s, { query: 'anchor fence', local: `${inside}/` });
+    assert.equal(readFileSync(join(inside, QUERY_LOG), 'utf8').split('\n').filter(Boolean).length, 2);
+  } finally {
+    await s.close();
+    for (const d of [outside, base]) rmSync(d, { recursive: true, force: true });
   }
 });
 
@@ -360,7 +402,9 @@ test('ES3: query log appends one line into an existing local dir; absent local w
 // ---------------------------------------------------------------------------
 
 test('ES4: with node:sqlite forced unavailable, memory_query returns a memory disabled result and the same process still answers tools/list', async () => {
-  const local = tmpDir();
+  // `local` sits under the anchor, so the no-log assertion fails if the disabled path appends.
+  const base = tmpDir();
+  const local = join(base, '.claude', 'projects', 'x', 'memory');
   lessonFile(local, 'any-lesson', { description: 'any lesson text', meta: { keywords: ['any'] } });
   // Test seam: the server probes the module named by this env var in place of node:sqlite.
   const s = startServer({ env: { WAR_MEMORY_MCP_SQLITE_MODULE: 'node:no-such-builtin-for-this-test' } });
@@ -373,7 +417,7 @@ test('ES4: with node:sqlite forced unavailable, memory_query returns a memory di
     const list = await s.call('tools/list', {});
     assert.deepEqual(list.result.tools.map((t) => t.name), ['memory_query']);
     assert.ok(!existsSync(join(local, QUERY_LOG)), 'no query log when memory is disabled');
-  } finally { await s.close(); rmSync(local, { recursive: true, force: true }); }
+  } finally { await s.close(); rmSync(base, { recursive: true, force: true }); }
 });
 
 test('sqlite seam: with the env var unset the server loads the real node:sqlite and answers a query', async () => {

@@ -117,6 +117,8 @@ name on its `MEMORY_TOOL=` line; every other surface points at that literal and 
   full-name match, never a prefix or suffix glob.
 - **No-seat-write rule.** The seat itself never writes. The server appends one query-log line only
   into an existing directory named by `local`, and never creates one. A query over `repo` only reads.
+  The server applies the same `local` anchor before it appends, so a caller the hook does not route
+  (the main session) also cannot log outside a memory root.
 - **The `local` anchor.** When a call carries `local`, the hook denies it unless the value is an
   absolute path that itself matches `*/.claude/projects/*/memory` (one trailing `/` tolerated) with
   no `..` segment. An absent `local` passes,
