@@ -100,8 +100,8 @@ run today (PIN-3).
 
 - **No approval is ever accounted at a SHA the task gate did not pass.** The gate runs at the ace
   tip before any re-audit or transfer; a red gate forward-reverts the ace range, the task merges
-  its approved pre-ace tip, and findings demote per their dispositions — never a hold (PIN-12,
-  PIN-2).
+  its approved pre-ace tip, and the rows route to the phase-close sweep as absorbs (a failed
+  attempt, never a demotion) — never a hold (PIN-12, PIN-2).
 - **Unanimity survives in transferred form.** The `pinTransfers` ledger names every seat as
   transferred or re-ran, with its own SHA (PIN-10).
 - **No soft markers.** A pin-transfer outcome never rides an in-band field on a hard-escalating

@@ -1643,10 +1643,12 @@ const parkAsk = f => {
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
 // exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set). A
-// FAILED ATTEMPT never demotes: an untouched-file ace row, a dead ace/subset/re-entry worker's rows,
-// and a red gate at an ace-family tip route to the sweep (routeToSweep, phaseClose:true) — the ace
-// attempt did not happen, so the sweep is the next rung. A FRESH absorb born at a re-audit re-enters
-// the ladder (routeReauditMinors → aceReentry, absorb-budget-bounded) or routes phaseClose:true to
+// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip after any ace dispatch
+// (dead, blocked or unchanged, #2485 D2), a red gate at an ace-family tip, and a regressed
+// multi-commit range at the polish, subset or re-entry arm (#2485 D4) route to the sweep
+// (routeToSweep, phaseClose:true) — the ace attempt did not happen, so the sweep is the next rung. A
+// FRESH absorb born at a re-audit re-enters the ladder (routeReauditMinors → aceReentry,
+// absorb-budget-bounded) or routes phaseClose:true to
 // the sweep when the budget is spent (D1/D2, #1731); with run.ace off every defaulted absorb routes
 // phaseClose:true to the sweep (D14, PIN-16) — the old ace-off demotion is retired.
 // RUNTIME PREFIX VALIDATION (D13, PIN-15): every follow-up reason must lead with a DEMOTE_REASONS
@@ -1833,7 +1835,9 @@ const recordAced = (f, sha, extra) => {
 }
 // Sweep routing (D2 ladder rung; in-band-absorb-default D13/D14/D15): the phase-close sweep is the
 // vehicle when the ace ladder cannot dispatch (spent budget, ace off, a failed attempt — an untouched
-// file, a dead worker, a red gate at the ace tip), for an out-of-diff absorb, and for the gate-audit
+// file, a non-moved tip after any ace dispatch (dead, blocked or unchanged, #2485 D2), a red gate at
+// the ace tip, a regressed multi-commit range at the polish, subset or re-entry arm (#2485 D4)), for
+// an out-of-diff absorb, and for the gate-audit
 // family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
 // downstream. Release-slot rows never enter here (demoteReleaseSlot at birth, PIN-11).
 const routeToSweep = (f, why) => {
@@ -3623,9 +3627,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // The task-site tip probe (#2485 D2): one read of r.task.branch after an ace dispatch, carried on r
   // to the merge slot (null when the probe died or was unusable).
   const aceTipProbe = async (r, site, pre) => {
-    r.tipProbe = await tipProbe({ probeId: 'WAR task ' + r.task.id, probeSite: site, probeWorktree: r.task.worktree, probeBranch: r.task.branch, probePre: pre, probeApproved: approvedShaOf(r),
-      label: 'tip-probe:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1) })
-    return r.tipProbe
+    const label = 'tip-probe:' + site + ':' + r.task.id + ':a' + (r.task.absorbRounds + 1)
+    const p = await tipProbe({ probeId: 'WAR task ' + r.task.id, probeSite: site, probeWorktree: r.task.worktree, probeBranch: r.task.branch, probePre: pre, probeApproved: approvedShaOf(r), label })
+    // The echoed pre_sha is EVIDENCE, not decoration (the #1935 echoed-sha precedent): the delta-scaled
+    // seats diff ev.pre..tip themselves, so a probe that echoes a pre_sha other than the engine's own
+    // PRE is unusable — the tip is unread and the PIN-5 range-revert arms apply. pinMismatch compares
+    // abbreviated-vs-full as equal and fails open on a malformed side (usableTipProbe already
+    // isSha-checked pre_sha).
+    if (p && pinMismatch(p.pre_sha, pre)) { log(label + ': the tip probe echoed pre_sha ' + p.pre_sha + ', not the engine\'s PRE ' + pre + ' — the branch tip is unread (PIN-5).'); r.tipProbe = null; return null }
+    r.tipProbe = p
+    return p
   }
   // aceEvidence: the delta-scale input (#2485 D7) — the tip probe's git-derived file list and range,
   // plus the PRE and approved trees aceScope compares before it narrows the panel (the delta-scaled
@@ -3910,6 +3921,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // the merge-slot revert (PIN-5); a non-descendant tip leaves the merge-slot tree clause as the
         // backstop.
         pendingRevert = tipStranded(subClass, subProbe)
+        if (isSha(pendingRevert)) log('ace-bisect ' + r.task.id + ': the unchanged tip ' + pendingRevert + ' does not carry the approved tree — the range registers for the merge-slot forward-revert (PIN-5).')
         const why = tipWhy(subClass, subProbe, swWhy, 'subset')
         for (const q of [sub, ...queue.splice(0)])
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
@@ -4051,6 +4063,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // tipStranded registers the range an unread tip, or an unchanged tip without the approved tree,
         // leaves for the merge-slot revert (PIN-5).
         pendingRevert = tipStranded(reClass, reProbe)
+        if (isSha(pendingRevert)) log('ace-reentry ' + r.task.id + ': the unchanged tip ' + pendingRevert + ' does not carry the approved tree — the range registers for the merge-slot forward-revert (PIN-5).')
         const why = tipWhy(reClass, reProbe, rwWhy, 're-entry')
         for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
           queuedKeys.delete(remintKey(f))
@@ -4280,17 +4293,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             routeReauditMinors(r, reSeats)
           } else {
             aceSha = null
+            if (aceProbe.count > 1) {
+              // A regressed multi-commit range (#2485 D4): no commit-level culprit to bisect, so the
+              // WHOLE range forward-reverts and the rows route to the sweep (a failed ATTEMPT, D13)
+              // BEFORE the fold below, so queuedKeys refuses a re-raise of them — the one order at
+              // the polish, subset and re-entry arms.
+              registerRangeRevert(r, aceProbe.tip_sha)
+              for (const f of aceable) routeToSweep(f, multiRegressWhy('ace', aceProbe.count))
+            }
             // Fold (#1694): the REGRESSED re-audit round's OWN Minor/Nits route by disposition too,
             // mirroring the approved arm — an ask parks, never drops; a fresh absorb queues for
             // budget-bounded re-entry (D1, #1731). Blocking findings stay
-            // untouched: they are the ladder's culprit-attribution input below.
+            // untouched: they are the ladder's culprit-attribution input below. On the single-commit
+            // arm the fold still precedes aceBisect: the drain-time revertedKeys re-check in aceReentry
+            // depends on that order.
             routeReauditMinors(r, reSeats)
-            if (aceProbe.count > 1) {
-              // A regressed multi-commit range (#2485 D4): no commit-level culprit to bisect, so the
-              // WHOLE range forward-reverts and the rows route to the sweep (a failed ATTEMPT, D13).
-              registerRangeRevert(r, aceProbe.tip_sha)
-              for (const f of aceable) routeToSweep(f, multiRegressWhy('ace', aceProbe.count))
-            } else {
+            if (aceProbe.count <= 1) {
               // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
               // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.
               await aceBisect(r, aceable, aceProbe.tip_sha, reSeats)

@@ -12710,9 +12710,9 @@ const BARE_INTERPOLATION_CENSUS = [
   // TRAILER_BLOCK_RULE is a plain-string module const (the NEVER_MOVE_LITERAL precedent).
   'revertWorktree', 'revertApproved', 'revertBranch', 'revertSite', 'revertWhy', 'revertRange.approved', 'terminalApproved',
   'probeId', 'probeSite', 'probeWorktree', 'probeBranch', 'probePre', 'probeApproved', 'ev.pre', 'TRAILER_BLOCK_RULE',
-  // aceTipSha (#1860, same sweep): aceGateGreen's and aceScopeClause's param — the batch/subset/
-  // re-entry commit's head_sha, guarded truthy-string by every caller before the ace re-audit seam
-  // runs — construction-guaranteed a string.
+  // aceTipSha (#1860, same sweep): aceGateGreen's and aceScopeClause's param: the probed batch/subset/
+  // re-entry tip (the tip probe's tip_sha, isSha-checked by usableTipProbe), construction-guaranteed
+  // a string.
   'aceTipSha',
   // aceCharge (absorb-budget, D5): the `Ace-Charge: <task>:<n>` trailer value at the three ace-side
   // commit prompts — concatenation-built from r.task.id (entry-validated) and r.task.absorbRounds
@@ -12727,8 +12727,8 @@ const BARE_INTERPOLATION_CENSUS = [
   'phaseBaseCmd', 'tip', 'probeBase',
   // terminalCharge / terminalSha (in-band-absorb-default D3a, terminal-pass): the `Ace-Charge:
   // p<N>-polish:<n>` trailer value (concatenation-built from the polish pseudo-task id and its
-  // seeded integer counter) and the terminal worker's head_sha, guarded truthy-string before the
-  // prompts that interpolate it are built — both construction-guaranteed strings.
+  // seeded integer counter) and the terminal tip probe's tip_sha (isSha-checked by usableTipProbe)
+  // before the prompts that interpolate it are built — both construction-guaranteed strings.
   'terminalCharge', 'terminalSha',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
@@ -21512,6 +21512,7 @@ test('tip probe — an unchanged subset tip without the approved tree registers 
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': strayTreeAt('tip-probe:subset:t1:a2', seen) })
   assert.ok(isHexSha(seen.tip), 'the subset probe read the post-revert tip')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('salvaged nit') && l.includes('bisection abandoned')), 'the failed-absorb arm routes the row to the sweep')
+  assert.ok(logs.some(l => l === 'ace-bisect t1: the unchanged tip ' + seen.tip + ' does not carry the approved tree — the range registers for the merge-slot forward-revert (PIN-5).'), 'the stray-tree registration is logged at the subset arm, never silent (PIN-2)')
   assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(seen.tip), 'the stray-tree tip registers for the merge-slot revert')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
@@ -21529,7 +21530,67 @@ test('tip probe — an unchanged re-entry tip without the approved tree register
   assert.ok(calls.some(isAceRevert), 'a refiner revert ran before the second re-entry worker')
   assert.ok(isHexSha(seen.tip), 'the second re-entry probe read the post-revert tip')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('"third"') && l.includes('re-entry abandoned')), 'the failed-absorb arm routes the row to the sweep')
+  assert.ok(logs.some(l => l === 'ace-reentry t1: the unchanged tip ' + seen.tip + ' does not carry the approved tree — the range registers for the merge-slot forward-revert (PIN-5).'), 'the stray-tree registration is logged at the re-entry arm, never silent (PIN-2)')
   assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(seen.tip), 'the stray-tree tip registers for the merge-slot revert')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+// The D4 route-first order at the polish arm (the subset and re-entry arms' order): a two-commit polish
+// ace whose regressed re-audit re-raises one aceable row as a content-identical Minor absorb. The sweep
+// route stamps queuedKeys BEFORE the fold, so the re-raise is refused at queue time and no re-entry
+// batch carries it; the original row routes to the sweep once. Fold-first (the pre-terminal order)
+// pushed the re-raise onto r.reentryQueue and aceReentry dispatched it, so the first two rows go red.
+test('2485/ES2 a two-commit polish ace whose regressed re-audit re-raises an aceable row refuses the re-entry: the row routes to the sweep once', async () => {
+  const batchNit = nit({ file: ACE_FILE })
+  const regress = (lens, sha) => sha === RANGE_TIP && lens === 'correctness'
+    ? { verdict: 'request_changes', findings: [{ severity: 'Major', title: 'range broke it', file: ACE_FILE, rationale: 'regressed' }, { ...batchNit, severity: 'Minor' }] } : {}
+  const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([batchNit], blockedWith(RANGE_TIP), { seatOver: regress }),
+    revertAwarePinSeats(RANGE_TIP, { 'tip-probe': movedProbe(RANGE_TIP, { count: 2 }) }))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('"' + batchNit.title + '"') && l.includes('never re-queued')), 'the content-identical re-raise is refused at queue time, named (never silent)')
+  assert.ok(!calls.some(c => /^ace:reentry:t1:/.test(c.opts.label || '')), 'no re-entry batch follows the regressed multi-commit range')
+  assert.ok(!calls.some(c => /^ace:reentry:/.test(c.opts.label || '') && c.prompt.includes(batchNit.title)), 'no re-entry dispatch carries the re-raised nit')
+  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('"' + batchNit.title + '"')).length, 1, 'the row routes to the sweep exactly once')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('the ace range of 2 commits regressed on re-audit')), 'the sweep route names the range')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'the merge forward-reverts the whole range')
+  assertLandedReverted(out, 'route-first regression')
+})
+
+// Both surfaces of the pin-transfer claimant: the standing auditor card and the dispatched delta-scaled
+// seat prompt name the tip probe as the claimant and the --no-renames diff; the card never names the
+// retired rename-blind single-commit diff. A card edit alone, or a prompt edit alone, reds this.
+test('2485/ES4 the auditor card and the delta-scaled seat prompt both name the tip probe as the claimant and the --no-renames diff', async () => {
+  assert.ok(auditorMd.includes('the tip probe CLAIMS the ace range touched'), 'the card names the tip probe as the claimant')
+  assert.ok(auditorMd.includes('`git diff --no-renames --name-only`'), 'the card names the --no-renames diff')
+  assert.ok(!auditorMd.includes('git diff --name-only <sha>^ <sha>'), 'the card never names the retired rename-blind single-commit diff')
+  const { calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk({ ace_diff_files: undefined, files_changed: undefined })),
+    { 'tip-probe': movedProbe('ace00001', { files: [ACE_FILE] }) })
+  const seat = calls.find(c => isAuditor(c) && c.prompt.includes('DELTA-SCALED RE-AUDIT'))
+  assert.ok(seat, 'a delta-scaled seat dispatched')
+  assert.ok(seat.prompt.includes('The tip probe CLAIMS') && seat.prompt.includes('diff --no-renames --name-only'), 'the dispatched prompt names the same claimant and the same diff')
+})
+
+// The echoed pre_sha is evidence (the #1935 echoed-sha precedent): the delta-scaled seats diff
+// ev.pre..tip themselves, so a probe that echoes a pre_sha other than the engine's own PRE is
+// unusable. The tip is unread, the row takes the unusable arm and the merge slot forward-reverts the
+// range above the approved tip. Deleting the compare in aceTipProbe reads the probe as 'moved' and
+// gates the mis-based tip, so the mis-echo row and the no-gate row go red.
+test('2485/ES3 a moved subset probe whose echoed pre_sha is not the engine\'s PRE is unusable: the tip is unread and the merge slot forward-reverts the range', async () => {
+  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker(SUB_TIP)],
+  }, aceBase([fa, fb]))
+  const FOREIGN = 'feedface'.padEnd(40, '0')
+  const seen = {}
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl,
+    { 'tip-probe': probeAt('subset', p => { seen.pre = probeShas(p).pre; return { ...movedProbe(SUB_TIP, { files: ['skills/b.js'] })(p), pre_sha: FOREIGN } }) })
+  assert.ok(isHexSha(seen.pre) && seen.pre !== FOREIGN, 'the engine named its own PRE and the probe echoed a foreign commit')
+  assert.ok(logs.some(l => l === 'tip-probe:subset:t1:a2: the tip probe echoed pre_sha ' + FOREIGN + ', not the engine\'s PRE ' + seen.pre + ' — the branch tip is unread (PIN-5).'), 'the mis-echo is named, with both shas')
+  assert.ok(!calls.some(c => (isAceGate(c) || isAuditor(c)) && c.prompt.includes(SUB_TIP)), 'no gate check and no re-audit at the mis-based tip')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('salvaged nit') && l.includes('the tip probe after the subset dispatch was dead or unusable, so the range above the approved tip is forward-reverted at the merge slot')), 'the row takes the unusable arm to the sweep')
+  assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the merge slot forward-reverts the range above the approved tip (no tip was read)')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'never a hold')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
@@ -21958,7 +22019,7 @@ test('terminal-pass — a net-zero terminal pair (commits above the post-polish 
   const { out, calls, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }),
     { 'tip-probe': probeAt('terminal', approvedTreeProbe('7e4a1a10', 2)) })
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('no terminal commit (the terminal range carries no net change above the approved tree)')), 'the count > 0 arm names the net-zero range')
-  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('returned no usable head_sha')), 'never the missing-head_sha text: the engine never reads head_sha (PIN-2)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('terminal dispatch left no commit above the pre-dispatch tip')), 'never the count-0 arm: a net-zero pair is named from Git as no net change, never as a dispatch that left no commit (PIN-2)')
   assert.ok(carriedOf(out, 'polish-panel absorb'), 'the row carries')
   assert.ok(!calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit on an approved-equal tree')
   assert.equal(terminalCalls(calls).length, 1, 'never a second pass')

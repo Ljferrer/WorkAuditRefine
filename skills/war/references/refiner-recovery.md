@@ -273,8 +273,9 @@ require a full re-audit, even when a textual rebase was conflict-free. Empty dif
 Git hash of the empty byte stream; they are not missing evidence. Existing nonempty-patch
 requirements and the already-upstream complete-tree check remain independent obligations.
 
-Snapshots compute the identity for the expected task diff (using the approved commit's own diff
-when the context names `revert_range` and that commit is an ancestor of the source). Pin confirmation independently computes both pre/post
+Snapshots compute the identity for the expected task diff (using the task diff up to the approved
+commit, `git diff <merge-base target approved>..<approved>`, when the context names `revert_range`
+and that commit is an ancestor of the source). Pin confirmation independently computes both pre/post
 identities. Normal task confirmation and task recovery recompute it against the captured
 base and current source, never echo the snapshot. Both equal patch IDs and equal exact
 identities are required before preserving approval or recording task merge completion.
