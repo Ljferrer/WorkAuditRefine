@@ -3742,7 +3742,7 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const merge = calls.find(isMergeTask)
   assert.match(merge.prompt, mergeRangeRevert('5ab00002'), 'the merge revert clause names the final failed subset tip')
-  assert.ok(merge.prompt.includes('rev-parse HEAD^{tree}') && merge.prompt.includes('RANGE-CLEAN'), 'the merge revert is tree-guarded (idempotent — a range already at the approved tree is never reverted twice)')
+  assert.ok(merge.prompt.includes('rev-parse --verify -q HEAD^{tree}') && merge.prompt.includes('RANGE-CLEAN'), 'the merge revert is tree-guarded (idempotent — a range already at the approved tree is never reverted twice)')
   assert.ok(merge.prompt.includes('the last approved tip 5ab00001 ') && merge.prompt.includes('revert --no-commit 5ab00001..HEAD'),
     'the range starts at the approved half (in-loop reverts already handled the batch; the approved half is never reverted)')
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'the approved half stays aced — the merge runs on a tip whose failed subsets are reverted')
@@ -16329,8 +16329,8 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   for (const t of ['bisection abandoned, remaining subsets demote', 'absorb requires --ace']) {
     assert.ok(!n.includes(t), `retired demote text absent: ${t}`)
   }
-  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (aceWhy || (aceClass === 'non-descendant'"), 'the dead ace worker routes to the sweep')
-  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("'re-entry worker returned no usable head_sha'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line)')
+  assert.ok(src.includes("tipWhy(aceClass, aceProbe, aceWhy, 'ace',") && src.includes("routeToSweep(f, 'failed absorb — ' + why)"), 'the dead ace worker routes to the sweep (the one tipWhy helper names the arm)')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("tipWhy(reClass, reProbe, rwWhy, 're-entry',") && src.includes("site + ' worker returned no usable head_sha'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line; the no-head_sha arm lives in tipWhy)')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip"), 'the red ace gate routes to the sweep')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched '"), 'the untouched-file row routes to the sweep')
 })
@@ -21611,7 +21611,7 @@ const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
     'tip-probe': p => {
       const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], tip = git('rev-parse', 'task')
       return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), approved_tree: git('rev-parse', approved + '^{tree}'),
-        count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--name-only', pre, tip).split('\n') }
+        count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--no-renames', '--name-only', pre, tip).split('\n') }
     },
     'ace-gate': { gate_green: false, gate_output: 'red' },
     'pin-transfer': p => { scripts.push(rangeRevertScriptOf(p)); return { status: 'error' } },
@@ -21704,5 +21704,28 @@ test('2485/ES12 real git: a non-descendant tip reads NOT-DESCENDANT before any i
     // The replay without the shim: the staged revert result is refused, never blindly committed.
     run = runScript()
     assert.match(run.stdout, /INDEX-DIRTY/); assert.doesNotMatch(run.stdout, /RANGE-REVERTED/); assert.equal(git('rev-parse', 'HEAD'), preRevertTip)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// Mirror fixtures for the tipWhy helper and the guarded RANGE-CLEAN arm (the ace polish of task 1.1).
+test('terminal-pass — a net-zero terminal pair (commits above the post-polish tip, approved tree) is named as no net change, never as a missing head_sha', async () => {
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }),
+    { 'tip-probe': probeAt('terminal', approvedTreeProbe('7e4a1a10', 2)) })
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('no terminal commit (the terminal range carries no net change above the approved tree)')), 'the count > 0 arm names the net-zero range')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('returned no usable head_sha')), 'never the missing-head_sha text: the engine never reads head_sha (PIN-2)')
+  assert.ok(carriedOf(out, 'polish-panel absorb'), 'the row carries')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit on an approved-equal tree')
+  assert.equal(terminalCalls(calls).length, 1, 'never a second pass')
+})
+
+test('range revert real git: a missing worktree never prints RANGE-CLEAN — the first arm needs a non-empty HEAD tree read, so two failed reads are not a success', async () => {
+  const repo = rangeRevertRepo(), { dir } = repo
+  try {
+    const { script } = await captureRangeRevertScript(repo)
+    const gone = join(dir, 'gone')
+    assert.ok(script.includes(dir) && !script.includes(gone))
+    const run = spawnSync('bash', ['-c', script.split(dir).join(gone)], { cwd: dir, encoding: 'utf8' })
+    assert.doesNotMatch(run.stdout, /RANGE-CLEAN|RANGE-REVERTED/, 'an unreadable HEAD tree is never a success token')
+    assert.match(run.stdout, /NOT-DESCENDANT/, 'the history arm reports the unreadable worktree as not-ok')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

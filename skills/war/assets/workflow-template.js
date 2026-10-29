@@ -190,7 +190,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
   // widen (D4): optional catalog lenses a lone seat nominates for auto-escalate widening; honored only
   // on the lone-seat trigger (resolveWidenSource validates whole-field), ignored elsewhere. Not required.
   widen: { type: 'array', items: { type: 'string' } },
-  // scopeBreach (#1913, PIN-18): a delta-scaled re-audit seat re-ran `git diff --name-only` itself and
+  // scopeBreach (#1913, PIN-18): a delta-scaled re-audit seat re-ran `git diff --no-renames --name-only` itself and
   // found a changed file OUTSIDE the claimed ace file list (the tip probe's Git read, #2485 D7). Optional,
   // absent by default. It refuses the seat-approval transfer and re-runs the FULL panel — it is never a
   // finding severity and never a status; the seat re-runs the diff itself, so it is the independent
@@ -2303,10 +2303,13 @@ const approvedShaOf = r => r.aceSha || (r.seats || []).map(s => s.audit_sha).fin
 // panel never judged would ride into the engine commit — INDEX-DIRTY refuses before the revert, and
 // the commit runs only when `write-tree` (the index the commit would record) equals the approved tree,
 // else TREE-MISMATCH. Neither makes a commit; a replay after TREE-MISMATCH reads INDEX-DIRTY (the
-// reverted index is staged), never a blind commit. Every consumer maps the five tokens: RANGE-REVERTED
-// and RANGE-CLEAN are the success pair; NOT-DESCENDANT, INDEX-DIRTY and TREE-MISMATCH are not-ok.
+// reverted index is staged), never a blind commit. The RANGE-CLEAN arm first requires a non-empty HEAD
+// tree read: two failed reads (a missing worktree) compare empty to empty, and the engine refuses an
+// empty-equals-empty success everywhere else (the empty patch-id rule). Every consumer maps the five
+// tokens: RANGE-REVERTED and RANGE-CLEAN are the success pair; NOT-DESCENDANT, INDEX-DIRTY and
+// TREE-MISMATCH are not-ok.
 const rangeRevertScript = (revertWorktree, revertApproved, revertBranch) =>
-  pt`if [ "$(git -C ${revertWorktree} rev-parse HEAD^{tree})" = "$(git -C ${revertWorktree} rev-parse ${revertApproved}^{tree})" ]; then echo RANGE-CLEAN; `
+  pt`if [ -n "$(git -C ${revertWorktree} rev-parse --verify -q HEAD^{tree})" ] && [ "$(git -C ${revertWorktree} rev-parse --verify -q HEAD^{tree})" = "$(git -C ${revertWorktree} rev-parse --verify -q ${revertApproved}^{tree})" ]; then echo RANGE-CLEAN; `
   + pt`elif ! git -C ${revertWorktree} merge-base --is-ancestor ${revertApproved} HEAD; then echo NOT-DESCENDANT; `
   + pt`elif ! git -C ${revertWorktree} diff --cached --quiet HEAD; then echo INDEX-DIRTY; `
   + pt`else git -C ${revertWorktree} -c core.hooksPath=/dev/null revert --no-commit ${revertApproved}..HEAD && if [ "$(git -C ${revertWorktree} write-tree)" = "$(git -C ${revertWorktree} rev-parse ${revertApproved}^{tree})" ]; then git -C ${revertWorktree} -c core.hooksPath=/dev/null commit -q -m "Forward-revert ${revertApproved}..HEAD to the last approved tree" --trailer "WAR-Task: ${revertBranch}" && echo RANGE-REVERTED; else echo TREE-MISMATCH; fi; fi`
@@ -2330,7 +2333,7 @@ const usableTipProbe = p => !!p && isSha(p.tip_sha) && isSha(p.tip_tree) && isSh
 const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probePre, probeApproved, label }) => {
   const p = await dispatchSite(
     pt`TIP PROBE (read-only) for ${probeId} after its ${probeSite} ace dispatch, in the worktree ${probeWorktree} (branch ${probeBranch}). Read Git only: never commit, revert, push, rebase or run the gate, and never use a worker report.\n`
-    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Let TIP=\`git -C ${probeWorktree} rev-parse --verify refs/heads/${probeBranch}^{commit}\`. Return tip_sha=TIP, tip_tree=TIP^{tree}, pre_sha=\`rev-parse --verify PRE^{commit}\`, approved_tree=APPROVED^{tree}, and pre_is_ancestor: true ONLY when \`git -C ${probeWorktree} merge-base --is-ancestor PRE TIP\` exits 0. When pre_is_ancestor is true, also return count=\`git rev-list --count PRE..TIP\` and files=\`git diff --name-only PRE TIP\` (one repo-relative path per entry); otherwise count 0 and files []. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`,
+    + pt`PRE=${probePre} (the pre-dispatch tip) and APPROVED=${probeApproved} (the last approved tip). Let TIP=\`git -C ${probeWorktree} rev-parse --verify refs/heads/${probeBranch}^{commit}\`. Return tip_sha=TIP, tip_tree=TIP^{tree}, pre_sha=\`rev-parse --verify PRE^{commit}\`, approved_tree=APPROVED^{tree}, and pre_is_ancestor: true ONLY when \`git -C ${probeWorktree} merge-base --is-ancestor PRE TIP\` exits 0. When pre_is_ancestor is true, also return count=\`git rev-list --count PRE..TIP\` and files=\`git diff --no-renames --name-only PRE TIP\` (one repo-relative path per entry); otherwise count 0 and files []. Every SHA is a full 40-hex Git object name. Any Git error: return {} — never an invented value.`,
     { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'tip-probe', label, schema: TIP_PROBE, ...spawn('refiner') })
   if (deathOf(p)) return null      // dispatchDied already logged the site-named death
   if (!usableTipProbe(p)) { log(label + ': the tip probe returned no usable Git read — the branch tip is unread (PIN-5: the range forward-reverts, never a hold).'); return null }
@@ -2339,6 +2342,14 @@ const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probeP
 // tipClass: 'unusable' (null probe) · 'non-descendant' (the pre-dispatch tip is not an ancestor) ·
 // 'unchanged' (no commit above the pre-dispatch tip, or the approved tree) · 'moved' (a net change).
 const tipClass = p => !p ? 'unusable' : !p.pre_is_ancestor ? 'non-descendant' : (p.count === 0 || p.tip_tree === p.approved_tree) ? 'unchanged' : 'moved'
+// tipWhy: the one reason text for a tip class that is not 'moved', shared by the subset, re-entry,
+// polish (`ace`) and terminal arms. `site` names the dispatch; `revertWhere` and `descentWhy` are the
+// arm's own literals (the log asserts pin them). A worker reason wins over every arm but 'unusable',
+// which prefixes it. An unchanged tip with commits above the pre-dispatch tip (a net-zero pair) is
+// named as such, never as a missing head_sha: the engine never reads head_sha (PIN-2).
+const tipWhy = (cls, probe, workerWhy, site, revertWhere, descentWhy) => cls === 'unusable'
+  ? (workerWhy ? workerWhy + '; ' : '') + 'the tip probe after the ' + site + ' dispatch was dead or unusable, so the range ' + revertWhere
+  : workerWhy || (cls === 'non-descendant' ? descentWhy : probe.count > 0 ? 'the ' + site + ' range carries no net change above the approved tree' : site + ' worker returned no usable head_sha')
 // ACE_REVERT (#2485 D17): the refiner range revert run BEFORE a subset or re-entry worker (it used to
 // ride the worker prompt). It reports the post-revert tip read from Git.
 const ACE_REVERT = { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean' }, tip_sha: { type: 'string' }, detail: { type: 'string' } } }
@@ -2374,13 +2385,15 @@ Resolve every reported pin separately with git rev-parse --verify --end-of-optio
         !fullSha(proof.pins[0]) ||
         proof.content_sha !== (range && proof.approved_ancestor === true ? proof.pins[0] : before.source_sha) ||
         typeof proof.pre_patch_id !== 'string' || typeof proof.post_patch_id !== 'string') continue
+    // A moved integration target is the Git-reconciliation stop, read before the tree clause so the D6
+    // reason names a tree-only fact on an unchanged target.
+    if (proof.local_sha !== before.base_sha || proof.remote_sha !== before.remote_sha) throw new Error('Pin transfer changed the integration target; Git reconciliation required before land for ' + r.task.id)
     // The tree clause, never relaxed (PIN-25). A well-formed proof that fails only here is a fact Git
     // will repeat on every retry: one attempt, a typed reason, never roundLimit retries.
     if (proof.approved_tree !== proof.content_tree) {
       auditLog.push({ task: r.task.id, verdict: 'pin-transfer:tree-mismatch', findings: [], before, after: proof, reported: probe })
       return { [PIN_REASON]: 'tree-mismatch', proof }
     }
-    if (proof.local_sha !== before.base_sha || proof.remote_sha !== before.remote_sha) throw new Error('Pin transfer changed the integration target; Git reconciliation required before land for ' + r.task.id)
     auditLog.push({ task: r.task.id, verdict: 'pin-transfer:git-verified', findings: [], before, after: proof, reported: probe })
     return proof
   }
@@ -3606,7 +3619,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // Shared ace-diff-files charge (#1913, D3/PIN-18): every ace-family worker prompt asks for the
   // git-derived changed-file list of its single commit. Since #2485 D7 it is a cross-check against the
   // tip probe's own Git read, never the delta-scale source.
-  const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It cross-checks the engine's own Git read of your commit (that read scales the re-audit: a diff confined to the findings' own files re-runs only the seats that raised them), so report it from git, never from memory. A list that disagrees with that read re-runs the full panel.`
+  const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --no-renames --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It cross-checks the engine's own Git read of your commit (that read scales the re-audit: a diff confined to the findings' own files re-runs only the seats that raised them), so report it from git, never from memory. A list that disagrees with that read re-runs the full panel.`
   // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into the enumerated
   // fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE
   // RE-ENTRY BATCH prompt (the extract-on-the-second-copy rule of the block, applied to the block itself). The batch ace
@@ -3731,7 +3744,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // checker is the re-audit seat — it re-runs the diff itself (read-only git, inside the auditor guard)
   // and flags scopeBreach when anything falls outside the claimed set.
   const aceScopeClause = (scope, ev, r, aceTipSha) => scope.roster
-    ? pt`\nDELTA-SCALED RE-AUDIT (pin transfer, PIN-18): only the seat(s) that raised the findings this ace commit resolved are re-running; every other seat's approval transfers to ${aceTipSha} unchanged. The tip probe CLAIMS the ace range changed exactly these files: ${[...aceRelSet(ev && ev.files)].sort().join(', ')}. Run \`git -C ${r.task.worktree} diff --name-only ${ev.pre} ${aceTipSha}\` YOURSELF and compare (the range is one commit above the pre-ace tip ${ev.pre}) — never widen the claimed set on trust. If ANY changed file falls outside that claimed set, set \`scopeBreach: true\` on your verdict and name the file: the transfer is refused and the FULL panel re-runs.`
+    ? pt`\nDELTA-SCALED RE-AUDIT (pin transfer, PIN-18): only the seat(s) that raised the findings this ace commit resolved are re-running; every other seat's approval transfers to ${aceTipSha} unchanged. The tip probe CLAIMS the ace range changed exactly these files: ${[...aceRelSet(ev && ev.files)].sort().join(', ')}. Run \`git -C ${r.task.worktree} diff --no-renames --name-only ${ev.pre} ${aceTipSha}\` YOURSELF and compare (the range is one commit above the pre-ace tip ${ev.pre}) — never widen the claimed set on trust. If ANY changed file falls outside that claimed set, set \`scopeBreach: true\` on your verdict and name the file: the transfer is refused and the FULL panel re-runs.`
     : ''
   const aceSeatRows = (ran, carried, sha) => [
     ...ran.map(s => ({ seat: s.seat, lens: s.lens, outcome: 're-ran', sha: auditShaOrSentinel(s.audit_sha) })),
@@ -3873,8 +3886,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // unusable probe leaves the tip unread, so the range registers for the merge-slot revert
         // (PIN-5); a non-descendant tip leaves the merge-slot tree clause as the backstop.
         if (subClass === 'unusable') pendingRevert = true
-        const why = subClass === 'unusable' ? (swWhy ? swWhy + '; ' : '') + 'the tip probe after the subset dispatch was dead or unusable, so the range is forward-reverted at the merge slot'
-          : swWhy || (subClass === 'non-descendant' ? 'the branch tip does not descend from the pre-dispatch tip' : subProbe.count > 0 ? 'the subset range carries no net change above the approved tree' : 'subset worker returned no usable head_sha')
+        const why = tipWhy(subClass, subProbe, swWhy, 'subset', 'is forward-reverted at the merge slot', 'the branch tip does not descend from the pre-dispatch tip')
         for (const q of [sub, ...queue.splice(0)])
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
         break
@@ -3938,7 +3950,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // soundness, and on approval the aced record carries the citation.
   const aceReentry = async (r) => {
     // Take over any not-yet-reverted failed range: its pre-revert tip, or true when no Git read placed it.
-    let pendingRevert = rangeRevertOf(r) ? (rangeRevertOf(r).tip || true) : null
+    const takenRange = rangeRevertOf(r)
+    let pendingRevert = takenRange ? (takenRange.tip || true) : null
     if (pendingRevert) r.aceReverted = null
     while ((r.reentryQueue || []).length) {
       if (r.task.absorbRounds >= absorbRounds) {
@@ -4006,8 +4019,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // sweep (a failed ATTEMPT, D13 — the rows stay absorbs; routeToSweep re-stamps queuedKeys). A
         // dead or unusable probe registers the range for the merge-slot revert (PIN-5).
         if (reClass === 'unusable') pendingRevert = true
-        const why = reClass === 'unusable' ? (rwWhy ? rwWhy + '; ' : '') + 'the tip probe after the re-entry dispatch was dead or unusable, so the range is forward-reverted at the merge slot'
-          : rwWhy || (reClass === 'non-descendant' ? 'the branch tip does not descend from the pre-dispatch tip' : reProbe.count > 0 ? 'the re-entry range carries no net change above the approved tree' : 're-entry worker returned no usable head_sha')
+        const why = tipWhy(reClass, reProbe, rwWhy, 're-entry', 'is forward-reverted at the merge slot', 'the branch tip does not descend from the pre-dispatch tip')
         for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
           queuedKeys.delete(remintKey(f))
           routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')
@@ -4250,18 +4262,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // r.reentryQueue — the ladder re-opens for them here, after the batch/bisection resolved,
           // while absorbRounds < run.absorbRounds (the absorb budget is the sole bound, D5).
           if (r.reentryQueue && r.reentryQueue.length) await aceReentry(r)
-        } else if (aceClass === 'unusable') {
+        } else {
           // A dead or unusable tip probe (PIN-5): the branch tip is unread, so the merge slot reverts
           // whatever sits above the approved tip (its HEAD read from Git; an unmoved tip skips) and the
-          // approved work lands — never a hold. The rows route to the sweep (D13).
-          registerRangeRevert(r, null)
-          for (const f of aceable) routeToSweep(f, 'failed absorb — ' + (aceWhy ? aceWhy + '; ' : '') + 'the tip probe after the ace dispatch was dead or unusable, so the range above the approved tip is forward-reverted at the merge slot')
-        } else {
-          // No net change above the approved tip, or a tip that does not descend from it: fall through
-          // to the normal merge (never hold). A failed ATTEMPT routes the rows to the sweep as absorbs
-          // (D13), never a follow-up. A non-descendant tip leaves the merge-slot tree clause as the
-          // one backstop (PIN-5): its detail carries r.tipProbe.
-          for (const f of aceable) routeToSweep(f, 'failed absorb — ' + (aceWhy || (aceClass === 'non-descendant' ? 'the branch tip does not descend from the approved tip' : aceProbe.count > 0 ? 'the ace range carries no net change above the approved tree' : 'ace worker returned no usable head_sha')))
+          // approved work lands — never a hold. Otherwise no net change above the approved tip, or a
+          // tip that does not descend from it: fall through to the normal merge (never hold); a
+          // non-descendant tip leaves the merge-slot tree clause as the one backstop (PIN-5): its
+          // detail carries r.tipProbe. Either way a failed ATTEMPT routes the rows to the sweep as
+          // absorbs (D13), never a follow-up.
+          if (aceClass === 'unusable') registerRangeRevert(r, null)
+          const why = tipWhy(aceClass, aceProbe, aceWhy, 'ace', 'above the approved tip is forward-reverted at the merge slot', 'the branch tip does not descend from the approved tip')
+          for (const f of aceable) routeToSweep(f, 'failed absorb — ' + why)
         }
       } else if (aceable.length && openBlockers === 0) {
         // Spent absorb budget, no open blockers (D5): the aceable rows ride to the phase-close sweep
@@ -6089,8 +6100,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           return rv
         }
         if (tClass !== 'moved') {
-          const why = tClass === 'unusable' ? (twWhy ? twWhy + '; ' : '') + 'the tip probe after the terminal dispatch was dead or unusable, so the range is forward-reverted'
-            : twWhy || (tClass === 'non-descendant' ? 'the polish branch tip does not descend from the post-polish tip' : 'terminal worker returned no usable head_sha')
+          const why = tipWhy(tClass, tProbe, twWhy, 'terminal', 'is forward-reverted', 'the polish branch tip does not descend from the post-polish tip')
           log('terminal pass: phase ' + ph.id + ' — no terminal commit (' + why + '); the pass is spent (one hop per phase, never a second); ' + terminalRows.length + ' row(s) ' + (finalPhase ? 'demote' : 'carry') + '.')
           if (tClass === 'unusable') await terminalRevert('the tip probe after the terminal dispatch was dead or unusable')
           for (const f of terminalRows) {
