@@ -35,6 +35,8 @@ const fileFollowupsMd = readFileSync(join(here, '../references/file-followups.md
 // tier>=2 blocks from the cards into this reference file — every OLD-absent key over the card scans it too.
 const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
+// #2485 D16: the one trailer-layout sentence, read from its single engine home.
+const TRAILER_BLOCK_RULE = src.match(/^const TRAILER_BLOCK_RULE = '([^']+)'$/m)[1]
 // Execute the canonical read-only recipe; fixtures independently assert the actual Git contents.
 const exactGitDiffRecipe = refinerRecoveryMd.match(/## Exact Git diff identity[^]*?```bash\n([^]*?)```/)[1]
 const fixtureContentId = (repo, base, tip) => {
@@ -3208,6 +3210,12 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
 // ---------------------------------------------------------------------------
 
 const isAce = (c) => seatOf(c.opts) === 'war-worker' && /^ace:/.test(c.opts.label || '')
+// #2485 D17: the in-loop forward-revert is a refiner range revert dispatch (dispatchKind 'ace-revert')
+// run BEFORE the next subset or re-entry worker. revertBetween: does one sit between calls a and b?
+const isAceRevert = (c) => c.opts.dispatchKind === 'ace-revert'
+const revertBetween = (calls, a, b) => calls.slice(calls.indexOf(a) + 1, calls.indexOf(b)).some(isAceRevert)
+// The merge-slot range revert clause naming the pre-revert tip `tip` (the #2485 range spelling).
+const mergeRangeRevert = tip => new RegExp('FORWARD-REVERT \\(--ace\\)[^\\n]*the pre-revert tip ' + tip + '\\)[^\\n]*-c core\\.hooksPath=/dev/null revert --no-commit [0-9a-f]{7,40}\\.\\.HEAD')
 // A single-task phase (no deps) so the ace sub-loop path is the only thing under test.
 const ACE_ARGS = (over = {}) => PROVISION_ARGS({
   tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
@@ -3291,7 +3299,8 @@ test('Task 3 — re-audit at the new sha: after a successful ace-fix a fresh aud
 
 test('Task 3 — never blocks a land via forward-revert: a regressing ace re-audit ⇒ merge prompt carries git revert, task lands, NOT escalated', async () => {
   // Re-audit round 2 returns a NEW Major (regression). The task must still land its approved work:
-  // the merge dispatch prepends `git revert --no-edit <aceSha>` and the task appears in landed[],
+  // the merge dispatch prepends the range revert `revert --no-commit <approved>..HEAD` (#2485 D17)
+  // and the task appears in landed[],
   // in neither escalated[] nor with any hard reason.
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]),
@@ -3301,8 +3310,8 @@ test('Task 3 — never blocks a land via forward-revert: a regressing ace re-aud
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const merge = calls.find(isMergeTask)
   assert.ok(merge, 'a merge-task dispatch still happens (the approved work still lands)')
-  assert.match(merge.prompt, /git\s+-C\b[^\n]*revert\s+--no-edit\s+deadbeef/,
-    'the merge prompt prepends `git -C <worktree> revert --no-edit <aceSha>` on regression')
+  assert.match(merge.prompt, mergeRangeRevert('deadbeef'),
+    'the merge prompt prepends the range revert of the ace commits above the approved tip on regression')
   assert.ok(out.landed.includes('t1'), 'the task still lands its originally-approved work')
   assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 't1 is NOT in escalated (never blocks a land)')
   assert.notEqual(out.landDecision, 'held:escalation', 'the ace regression does NOT hold the land')
@@ -3436,7 +3445,7 @@ test('ace-reentry (End state 1, forward-revert posture): a REGRESSING re-entry b
   assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'second'),
     'the reverted finding never lands in aced — aced and minorsFiled stay disjoint (End state 6)')
   const merge = calls.find(isMergeTask)
-  assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/,
+  assert.match(merge.prompt, mergeRangeRevert('deadbeef'),
     'the final failed re-entry tip rides the merge dispatch revert clause (forward-revert posture verbatim)')
   assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
 })
@@ -3515,7 +3524,7 @@ test('regressed arm: single filing (D12, #1862) — a batch finding re-raised as
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('demotion CORROBORATES') && l.includes('first')),
     'the demote consult logs the corroboration (never silent)')
   assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'first'), 'aced ∩ minorsFiled = ∅ (End state 6)')
-  assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the failed batch tip still rides the merge revert clause (the oscillation registry still stamps)')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert('ace00001'), 'the failed batch tip still rides the merge revert clause (the oscillation registry still stamps)')
   assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
 })
 
@@ -3602,7 +3611,8 @@ test('bisection — culprit-first excision: a named culprit demotes, the remaind
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('culprit-first excision')), 'the culprit demotion is logged with the excision reason')
   assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === '5ab00001'),
     'the salvaged remainder aces at its subset sha')
-  assert.match(aces[1].prompt, /revert --no-edit ace00001/, 'the subset dispatch forward-reverts the failed batch commit at the tip (in-loop)')
+  assert.ok(revertBetween(calls, aces[0], aces[1]), 'a refiner range revert of the failed batch commit runs before the subset worker (in-loop, #2485 D17)')
+  assert.ok(!/revert --no-edit/.test(aces[1].prompt), 'the subset worker prompt carries no revert step any more')
   const merge = calls.find(isMergeTask)
   assert.ok(!merge.prompt.includes('FORWARD-REVERT'), 'the merge carries NO revert clause — the failed batch was already reverted in-loop (no sha reverted twice)')
   assert.ok(out.landed.includes('t1'), 't1 lands')
@@ -3618,7 +3628,7 @@ test('bisection — all findings named culprits: nothing to salvage, the whole b
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   assert.equal(calls.filter(isAce).length, 1, 'no subset dispatch — total culprit attribution leaves nothing to salvage')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'a nit'), 'the culprit batch demotes to follow-up')
-  assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the merge reverts the final failed batch tip')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert('ace00001'), 'the merge reverts the final failed batch tip')
 })
 
 test('bisection — ambiguous attribution blind-halves: serial subsets at the tip, round-encoded distinct ace labels, Ace-Subset trailer + bisection-range preflight + worktree-local dirt clause on every subset dispatch (End state 2)', async () => {
@@ -3654,8 +3664,8 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   // both halves approved ⇒ both aced at their own shas (handoff grouping by sha still works)
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'half 1 aced at its sha')
   assert.ok((out.aced || []).some(a => a.finding.title === 'fb nit' && a.sha === '5ab00002'), 'half 2 aced at its sha')
-  // half 2's dispatch carries NO revert step (half 1 approved — nothing pending)
-  assert.ok(!/revert --no-edit 5ab00001/.test(aces[2].prompt), 'an approved subset is never reverted')
+  // no range revert dispatch precedes half 2 (half 1 approved — nothing pending)
+  assert.ok(revertBetween(calls, aces[0], aces[1]) && !revertBetween(calls, aces[1], aces[2]), 'an approved subset is never reverted')
   assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'no merge revert clause — the final tip is approved')
 })
 
@@ -3695,8 +3705,8 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
   assert.ok(aces[2].prompt.includes('f1 nit') && aces[2].prompt.includes('f2 nit') && !aces[2].prompt.includes('f3 nit'),
     'the regressing depth-1 subset split into [f1,f2] and [f3]')
   // in-loop reverts: [f1,f2]'s dispatch reverts the failed [f1,f2,f3] commit; [f3]'s dispatch reverts the failed [f1,f2] commit
-  assert.match(aces[2].prompt, /revert --no-edit 5ab00001/, 'the next dispatch reverts the failed depth-1 subset at the tip')
-  assert.match(aces[3].prompt, /revert --no-edit 5ab00002/, 'the next dispatch reverts the failed depth-2 subset at the tip')
+  assert.ok(revertBetween(calls, aces[1], aces[2]), 'a range revert runs before the next dispatch, reverting the failed depth-1 subset at the tip')
+  assert.ok(revertBetween(calls, aces[2], aces[3]), 'a range revert runs before the next dispatch, reverting the failed depth-2 subset at the tip')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing depth-2 subset demotes (f1)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f2 nit'), 'the finally-failing depth-2 subset demotes (f2)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('f1 nit') && l.includes('depth/split floor')),
@@ -3708,7 +3718,7 @@ test('bisection — depth cap 2 and only finally-failing subsets demote: a regre
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
-test('bisection — a final failed tip not yet reverted in-loop rides the merge revert clause, exactly once, HEAD-guarded', async () => {
+test('bisection — a final failed tip not yet reverted in-loop rides the merge revert clause, exactly once, tree-guarded', async () => {
   const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
@@ -3719,10 +3729,10 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   }, aceBase([fa, fb]))
   const { out, calls } = await runPhase(ACE_ARGS(), impl)
   const merge = calls.find(isMergeTask)
-  assert.match(merge.prompt, /revert\s+--no-edit\s+5ab00002/, 'the merge revert clause names the final failed subset tip')
-  assert.ok(merge.prompt.includes('rev-parse HEAD'), 'the merge revert is HEAD-guarded (idempotent — a sha is never reverted twice)')
-  assert.ok(!merge.prompt.includes('revert --no-edit ace00001') && !merge.prompt.includes('revert --no-edit 5ab00001'),
-    'no other sha rides the merge revert clause (in-loop reverts already handled the batch; the approved half is never reverted)')
+  assert.match(merge.prompt, mergeRangeRevert('5ab00002'), 'the merge revert clause names the final failed subset tip')
+  assert.ok(merge.prompt.includes('rev-parse HEAD^{tree}') && merge.prompt.includes('RANGE-CLEAN'), 'the merge revert is tree-guarded (idempotent — a range already at the approved tree is never reverted twice)')
+  assert.ok(merge.prompt.includes('the last approved tip 5ab00001 ') && merge.prompt.includes('revert --no-commit 5ab00001..HEAD'),
+    'the range starts at the approved half (in-loop reverts already handled the batch; the approved half is never reverted)')
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'the approved half stays aced — the merge runs on a tip whose failed subsets are reverted')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the finally-failing half demotes')
   assert.ok(out.landed.includes('t1'), 't1 lands')
@@ -3770,7 +3780,7 @@ test('bisection — same-file findings never split across subsets (D3): two find
   assert.equal(atomic.calls.filter(isAce).length, 1, 'no subset dispatch — a single file group cannot split (D3)')
   assert.ok(['same one', 'same two'].every(t => (atomic.out.minorsFiled || []).some(m => m && m.title === t)),
     'the atomic batch demotes whole')
-  assert.match(atomic.calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the merge reverts the atomic failed batch')
+  assert.match(atomic.calls.find(isMergeTask).prompt, mergeRangeRevert('ace00001'), 'the merge reverts the atomic failed batch')
   // Grouped arm: two same-file findings + one other file ⇒ halves are [same,same] and [other].
   const o1 = nit({ title: 'other one', file: 'skills/other.js' })
   const groupedImpl = buildSeqImpl({
@@ -3800,8 +3810,10 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
   assert.ok(['fa nit', 'fb nit'].every(t => (out.minorsFiled || []).some(m => m && m.title === t)),
     'the blocked subset AND the queued remainder demote to follow-up')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('bisection abandoned')), 'the abandonment demotion is logged')
-  assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/,
-    'the failed batch tip (never reverted in-loop — the blocked dispatch proves nothing) rides the HEAD-guarded merge revert clause')
+  const aces = calls.filter(isAce)
+  assert.ok(revertBetween(calls, aces[0], aces[1]), 'the failed batch tip is range-reverted by the refiner BEFORE the subset worker (#2485 D17)')
+  assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'),
+    'the blocked subset left the tip unchanged (its tip probe read no commit), so nothing is left for the merge to revert')
   assert.ok(out.landed.includes('t1'), 't1 lands — the ladder never blocks a land')
   assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 't1 is not escalated')
 })
@@ -3810,12 +3822,12 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
 // ace-trailer regression rows (Phase 7 Task 2, End state 11 — D12 trailer equality,
 // culprit-path normalization, the D5 absorb-budget stop, #1694 fold):
 // the PREFLIGHT/commit mandates are prompt-enforced (the subset worker performs the
-// compare), so the exact-equality and final-paragraph rows pin the dispatched prompt
+// compare), so the exact-equality and final-trailer-block rows pin the dispatched prompt
 // literals against a fixture whose sibling trailers ARE in strict-prefix relation;
 // path attribution and the absorb-budget boundary are engine behavior and get functional rows.
 // ---------------------------------------------------------------------------
 
-test('bisection ace-trailer — a sibling strict-prefix trailer pair never matches under exact-value comparison: every subset dispatch mandates EXACT whole-string equality (never prefix/substring) and the final-paragraph trailer block', async () => {
+test('bisection ace-trailer — a sibling strict-prefix trailer pair never matches under exact-value comparison: every subset dispatch mandates EXACT whole-string equality (never prefix/substring) and the one final trailer block', async () => {
   // Files chosen so the two halves' deterministic trailer values are in STRICT-PREFIX relation
   // ('t1:skills/aa.js' vs 't1:skills/aa.js.bak') — the exact collision class a prefix/substring
   // preflight compare would false-hit on resume.
@@ -3842,8 +3854,8 @@ test('bisection ace-trailer — a sibling strict-prefix trailer pair never match
       'the PREFLIGHT mandates exact whole-string trailer-value equality (D12)')
     assert.ok(c.prompt.includes('never a prefix or substring match'),
       'the PREFLIGHT forbids prefix/substring trailer matching — a strict-prefix sibling never matches')
-    assert.ok(c.prompt.includes('OWN final paragraph, separated from the body by a blank line'),
-      'the commit instruction mandates the Ace-Subset trailer as its own blank-line-separated final paragraph (git parses trailers only in a distinct final block)')
+    assert.ok(c.prompt.includes('` in one final trailer block. ' + TRAILER_BLOCK_RULE),
+      'the commit instruction mandates the Ace-Subset trailer inside one final trailer block that holds every trailer (git parses trailers only from the last paragraph)')
   }
   // Both halves ace at their own shas — the strict-prefix pair resolved to distinct commits.
   assert.ok((out.aced || []).some(a => a.finding.title === 'aa nit' && a.sha === '5ab00001'), 'half 1 aced at its sha')
@@ -12646,16 +12658,24 @@ const BARE_INTERPOLATION_CENSUS = [
   'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
   'nearMissDiag', 'owned', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
   'ph.title', 'ph.workingBranch', 'pin', 'pinEvidence', 'pinStatus', 'pinStatusLine', 'plan.gate',
-  'polishBranch', 'polishWorktree', 'provisionSource', 'r.aceReverted', 'r.check', 'r.condition',
+  'polishBranch', 'polishWorktree', 'provisionSource', 'r.check', 'r.condition',
   'r.fence', 'r.n',
   // r.reentryBase (in-run-finding-resolution Task 1.1): ternary-gated at its single site (the
   // re-entry PREFLIGHT range falls back to HEAD~30..HEAD when absent) — construction-guaranteed.
-  // reentryRange is that ternary's pt-built product (always a string). revertSha/revertWorktree are
-  // the aceRevertStep helper's params (#1860 — named so the bare generic `sha`/`worktree` never sit
-  // in this default-deny list): revertSha is the truthiness gate itself (the clause renders only
-  // when set) and revertWorktree is r.task.worktree (entry-validated) at both call sites — the old
-  // inline 'pendingRevert' row relocated into the helper.
-  'r.reentryBase', 'reentryRange', 'revertSha', 'revertWorktree',
+  // reentryRange is that ternary's pt-built product (always a string).
+  'r.reentryBase', 'reentryRange',
+  // The #2485 range revert and tip probe (Task 1.1). revertWorktree / revertApproved / revertBranch are
+  // rangeRevertScript's params (#1860 — named so the bare generic `worktree`/`branch` never sit in this
+  // default-deny list): r.task.worktree / r.task.branch (entry-validated) or the polish worktree and
+  // branch, and an approved sha gated isSha by rangeRevertOf, or the terminal's terminalApproved (the
+  // probe's pre_sha, else ph.integrationBranch). revertSite is a literal at both aceRevertDispatch
+  // callers and revertApproved its approvedShaOf local; revertWhy is a string at both terminalRevert
+  // callers. revertRange.approved is gated by rangeRevertOf. The probe* names are tipProbe's
+  // destructured params: literals, entry-validated task/phase fields, or approvedShaOf at both callers.
+  // ev.pre is aceEvidence's copy of a usable probe's pre_sha (isSha-checked by usableTipProbe).
+  // TRAILER_BLOCK_RULE is a plain-string module const (the NEVER_MOVE_LITERAL precedent).
+  'revertWorktree', 'revertApproved', 'revertBranch', 'revertSite', 'revertWhy', 'revertRange.approved', 'terminalApproved',
+  'probeId', 'probeSite', 'probeWorktree', 'probeBranch', 'probePre', 'probeApproved', 'ev.pre', 'TRAILER_BLOCK_RULE',
   // aceTipSha (#1860, same sweep): aceGateGreen's and aceScopeClause's param — the batch/subset/
   // re-entry commit's head_sha, guarded truthy-string by every caller before the ace re-audit seam
   // runs — construction-guaranteed a string.
@@ -13953,7 +13973,7 @@ test('citation-unsound (End state 5, mode-split pair — #1879 addition 2): the 
     assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
       `[${mode}] the unsound citation finding demotes to follow-up (never a silent drop)`)
     const merge = calls.find(isMergeTask)
-    assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/, `[${mode}] the unsound batch is forward-reverted at the merge (blocking ⇒ revert)`)
+    assert.match(merge.prompt, mergeRangeRevert('deadbeef'), `[${mode}] the unsound batch is forward-reverted at the merge (blocking ⇒ revert)`)
     assert.equal((out.asks || []).length, 1, `[${mode}] the parked ask SURVIVES an unsound execution — the question returns to the operator, never silently resolved${mode === 'afk' ? ' (decisive: afk unpark is live and the revert pre-empts it)' : ''}`)
     if (mode === 'interactive') assert.ok(!out.asks[0].citationPrefill,
       'an unsound (reverted) execution attaches NO prefill — recordAced never fired for the reverted batch')
@@ -14911,7 +14931,7 @@ test('#1935/#1951 — the ace gate-check licenses only a green gate whose echoed
 })
 
 test('#1944 / demote-census — recordAcedTouched records aced only what the ace commit touched, and routes the rest to the sweep (a failed ATTEMPT never files, D13)', () => {
-  const m = src.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
+  const m = src.match(/const recordAcedTouched = \(findings, sha, ev\) => \{[\s\S]*?\n  \}/)
   assert.ok(m, 'src must contain the recordAcedTouched helper (#1944)')
   const relPath = src.match(/const aceRelPath = (p => [^\n]+)/)
   const relSet = src.match(/const aceRelSet = (arr => [^\n]+)/)
@@ -14936,7 +14956,7 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   {
     const { fn, aced, demoted } = build()
     const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
-    fn([hit, miss], SHA, { ace_diff_files: ['./a.js'] })
+    fn([hit, miss], SHA, { files: ['./a.js'] })
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'], 'only the touched finding is recorded aced')
     assert.deepEqual(demoted.map(x => x.f.title), ['untouched'], 'the untouched finding routes to the sweep instead')
     assert.equal(demoted[0].to, 'sweep', 'it rides routeToSweep (phaseClose:true, the row stays an absorb) — never a follow-up, never dropped')
@@ -14946,7 +14966,7 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   // Evidence gate: demotion needs POSITIVE proof, never a missing git set.
   {
     const { fn, aced, demoted } = build()
-    fn([{ title: 'x', file: 'a.js' }], SHA, { ace_diff_files: [] })
+    fn([{ title: 'x', file: 'a.js' }], SHA, { files: [] })
     assert.equal(demoted.length, 0, 'an EMPTY git set is missing evidence, not proof of a miss')
     assert.equal(aced.length, 1, 'so the finding keeps the pre-#1944 behaviour')
   }
@@ -14958,34 +14978,34 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   }
   {
     const { fn, aced, demoted } = build()
-    fn([{ title: 'fileless' }], SHA, { ace_diff_files: ['a.js'] })
+    fn([{ title: 'fileless' }], SHA, { files: ['a.js'] })
     assert.equal(demoted.length, 0, 'a FILELESS finding cannot be checked against a file set')
     assert.equal(aced.length, 1, 'it keeps its own ladder rung (a fileless absorb takes its severity default)')
   }
   // ./-normalisation must not manufacture a false miss.
   {
     const { fn, demoted } = build()
-    fn([{ title: 'x', file: './a.js' }], SHA, { ace_diff_files: ['a.js'] })
+    fn([{ title: 'x', file: './a.js' }], SHA, { files: ['a.js'] })
     assert.equal(demoted.length, 0, 'aceRelPath normalises both sides — ./a.js and a.js are the same file')
   }
   // Subset gate (snipe seats correctness + test-fidelity): outside the footprint the full panel
   // already re-ran, and demotion there manufactures follow-ups for done work.
   {
     const { fn, aced, demoted } = build()
-    fn([{ title: 'dialect', file: 'a.js' }], SHA, { ace_diff_files: ['/abs/other/a.js'] })
+    fn([{ title: 'dialect', file: 'a.js' }], SHA, { files: ['/abs/other/a.js'] })
     assert.equal(demoted.length, 0, 'a path-DIALECT disagreement (disjoint git set) is not proof of a miss — the whole batch keeps aced')
     assert.equal(aced.length, 1)
   }
   {
     const { fn, aced, demoted } = build()
-    fn([{ title: 'cross-file', file: 'a.js' }], SHA, { ace_diff_files: ['b.js'] })
+    fn([{ title: 'cross-file', file: 'a.js' }], SHA, { files: ['b.js'] })
     assert.equal(demoted.length, 0, 'a legitimate CROSS-FILE fix (finding on a.js, fix in b.js) never demotes — the full panel re-ran and approved it')
     assert.equal(aced.length, 1)
   }
   {
     const { fn, aced, demoted } = build()
     const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'b.js' }
-    fn([hit, miss], SHA, { ace_diff_files: ['a.js'] })
+    fn([hit, miss], SHA, { files: ['a.js'] })
     assert.equal(demoted.length, 1, 'INSIDE the footprint, the genuine partial miss still routes to the sweep')
     assert.equal(demoted[0].f.title, 'untouched')
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'])
@@ -14995,7 +15015,7 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   {
     const { fn, aced, demoted } = build()
     const hit = { title: 'fixed', file: 'a.js' }, miss = { title: 'untouched', file: 'c.js' }
-    fn([hit, miss], SHA, { ace_diff_files: ['a.js', 'b.js'] })
+    fn([hit, miss], SHA, { files: ['a.js', 'b.js'] })
     assert.equal(demoted.length, 1, 'a non-empty intersection is evidence — the untouched finding demotes (#1954)')
     assert.equal(demoted[0].f.title, 'untouched')
     assert.deepEqual(aced.map(x => x.f.title), ['fixed'], 'the reached finding still aces')
@@ -15006,7 +15026,7 @@ test('#1944 / demote-census — recordAcedTouched records aced only what the ace
   {
     const { fn, aced, demoted } = build()
     const inPlace = { title: 'fixed in place', file: 'a.js' }, crossFile = { title: 'fixed in companion', file: 'c.js' }
-    fn([inPlace, crossFile], SHA, { ace_diff_files: ['a.js', 'b.js'] })
+    fn([inPlace, crossFile], SHA, { files: ['a.js', 'b.js'] })
     assert.deepEqual(demoted.map(x => x.f.title), ['fixed in companion'],
       'the mixed cross-file fix demotes — the RULED false positive, a follow-up rather than a silent ace')
     assert.deepEqual(aced.map(x => x.f.title), ['fixed in place'])
@@ -15023,7 +15043,7 @@ test('#1944 — recordAced call-site census: every occurrence is a NAMED legitim
   const code = src.replace(/^\s*\/\/.*$/gm, '')
   const total = (code.match(/recordAced\(/g) || []).length
   assert.equal(total, 3, 'exactly 3 recordAced( occurrences — the recordAcedTouched interior, the sweep polish arm, and the terminal-pass merged arm; a new one must be ruled here')
-  const helper = code.match(/const recordAcedTouched = \(findings, sha, w\) => \{[\s\S]*?\n  \}/)
+  const helper = code.match(/const recordAcedTouched = \(findings, sha, ev\) => \{[\s\S]*?\n  \}/)
   assert.ok(helper, 'the recordAcedTouched helper exists')
   assert.equal((helper[0].match(/recordAced\(/g) || []).length, 1, 'site 1 sits INSIDE recordAcedTouched — the touched-file-gated path')
   assert.match(code, /for \(const f of phaseCloseQueue\.splice\(0\)\) \{[\s\S]{0,900}?recordAced\(f, polishSha, citationExtra\(f\)\)/,
@@ -15416,7 +15436,7 @@ test('absorb-budget (End state 4, Lead override): args.absorbCharges wins over t
   assert.equal((calls.find(isAce) || {}).opts.label, 'ace:polish:t1:a3', 'the override seed drives the next slot')
 })
 
-test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt pins `Ace-Charge: <id>:<int>` as its own final-paragraph trailer; the forward-revert clause carries no charge trailer', async () => {
+test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt pins `Ace-Charge: <id>:<int>` inside one final trailer block; the forward-revert clause carries no charge trailer', async () => {
   const grammar = /`Ace-Charge: ([A-Za-z0-9._-]+):(\d+)`/
   // batch + re-entry (reentryImpl): both dispatches carry the trailer, indices 1 and 2.
   const { calls } = await runPhase(ACE_ARGS(), reentryImpl())
@@ -15427,7 +15447,7 @@ test('absorb-budget (End state 4, trailer grammar): every ace-side commit prompt
     assert.ok(m, `ace dispatch ${i + 1} carries the Ace-Charge trailer in the pinned grammar`)
     assert.equal(m[1], 't1', 'the trailer names the task id')
     assert.equal(Number(m[2]), i + 1, 'the index is absorbRounds after the charge')
-    assert.match(c.prompt, /as its OWN final paragraph, separated from the body by a blank line/, 'the trailer is mandated as a distinct final block (git parses trailers only there)')
+    assert.ok(c.prompt.includes('` in one final trailer block. ' + TRAILER_BLOCK_RULE), 'the trailer is mandated inside one final trailer block (git parses trailers only there)')
   }
   assert.match(aces[1].prompt, /`Ace-Subset: t1:reentry:a2:skills\/second\.js` and `Ace-Charge: t1:2`/, 'the re-entry commit carries BOTH trailers')
   // Reverts excluded: the merge dispatch's FORWARD-REVERT clause (a red-gate ace tip) names no charge.
@@ -16281,8 +16301,8 @@ test('demote-census — every demote() site whose disposition can be follow-up l
   for (const t of ['bisection abandoned, remaining subsets demote', 'absorb requires --ace']) {
     assert.ok(!n.includes(t), `retired demote text absent: ${t}`)
   }
-  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (aceWhy || 'ace worker returned no usable head_sha'))"), 'the dead ace worker routes to the sweep')
-  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (rwWhy || 're-entry worker returned no usable head_sha')"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line)')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + (aceWhy || (aceClass === 'non-descendant'"), 'the dead ace worker routes to the sweep')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("'re-entry worker returned no usable head_sha'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line)')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip"), 'the red ace gate routes to the sweep')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched '"), 'the untouched-file row routes to the sweep')
 })
@@ -16564,6 +16584,9 @@ test('gate-audit-route — a gate-audit re-mint of a finding the roster panel al
 // approve with `terminalFindings` by default); the terminal worker returns `terminalWorker`
 // (head_sha '7e4a1a10'); the terminal merge returns `terminalMerge` (merged). `sweepWorker`
 // overrides the polish worker's result (e.g. a files_changed report).
+// #2485 D17: the terminal revert is the shared range revert of the polish branch above the post-polish
+// tip (the harness resolves the integration-branch ref to FIXTURE_REF_TIP), naming the terminal sha.
+const TERMINAL_RANGE_REVERT = new RegExp('FORWARD-REVERT the terminal-pass range[^\\n]*7e4a1a10[^\\n]*-c core\\.hooksPath=/dev/null revert --no-commit ' + FIXTURE_REF_TIP + '\\.\\.HEAD')
 const terminalImpl = ({ queued = [queuedAbsorb()], polishFindings = [{ severity: 'Minor', title: 'polish-panel absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }],
   terminalSeat = null, terminalFindings = [], terminalWorker = null, terminalMerge = null, sweepWorker = null, terminalRevert = null,
   terminalSeatDrop = false, terminalSeatThrow = null, terminalThrow = null } = {}) => {
@@ -16695,7 +16718,7 @@ test('terminal-pass — a re-audit regression forward-reverts the terminal commi
     findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
   const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected }))
   const rv = nonFinal.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
-  assert.ok(rv && /revert --no-edit 7e4a1a10/.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the forward-revert of the terminal sha is dispatched')
+  assert.ok(rv && TERMINAL_RANGE_REVERT.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the range forward-revert above the post-polish tip is dispatched for the terminal sha')
   assert.ok(!nonFinal.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'a regressed terminal commit never merges')
   assert.equal(terminalCalls(nonFinal.calls).length, 1, 'never a second pass')
   assert.ok(carriedOf(nonFinal.out, 'polish-panel absorb'), 'non-final: the row carries')
@@ -16714,7 +16737,7 @@ test('terminal-pass — a re-audit regression forward-reverts the terminal commi
 test('terminal-pass — a terminal re-audit seat that returns no verdict (dropped after auditRound\'s retries) still forward-reverts, but demotes demote:terminal-pass with the no-verdict wording, never demote:absorb-regressed', async () => {
   const final = await runPhase(SWEEP_ARGS({ finalPhase: true }), terminalImpl({ terminalSeatDrop: true }))
   const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
-  assert.ok(rv && /revert --no-edit 7e4a1a10/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
+  assert.ok(rv && TERMINAL_RANGE_REVERT.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the no-verdict path')
   assert.ok(!final.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'an unjudged terminal commit never merges')
   assert.ok(final.logs.some(l => typeof l === 'string' && l.includes('the terminal re-audit seat returned no verdict') && l.includes('7e4a1a10')), 'the no-verdict outcome is logged by name')
   assert.ok(!final.logs.some(l => typeof l === 'string' && l.includes('REGRESSED on the correctness re-audit at 7e4a1a10')), 'no seat judged a regression, so none is logged')
@@ -16755,7 +16778,7 @@ test('terminal-pass — a terminal re-audit seat that dies post-spawn records ve
   assert.match(String(tEntry.blocked), /^audit:p3-polish:correctness dispatch died post-spawn \(env-died\): /, 'the row carries the site-named cause under blocked')
   assert.ok(!(final.out.auditLog || []).some(e => e && e.terminal === true && e.verdict === 'terminal-rejected'), 'no terminal-rejected row is recorded for the dead seat')
   const rv = final.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
-  assert.ok(rv && /revert --no-edit 7e4a1a10/.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the dead-seat path')
+  assert.ok(rv && TERMINAL_RANGE_REVERT.test(rv.prompt), 'the forward-revert still runs (fail-closed) on the dead-seat path')
   const d = demotionOf(final.out, 'polish-panel absorb')
   assert.ok(d && /^demote:terminal-pass/.test(d.demoteReason) && d.demoteReason.includes('died'), 'final: demotes demote:terminal-pass naming the death')
 })
@@ -16831,7 +16854,7 @@ test('terminal-pass — a terminal commit that does not merge, or a terminal wor
   assert.ok(carriedOf(noSha.out, 'polish-panel absorb'), 'and the row carries')
   const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
   const badRevert = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected, terminalRevert: { ok: false, stderrTail: 'boom' } }))
-  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of 7e4a1a10 did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
+  assert.ok(badRevert.logs.some(l => typeof l === 'string' && l.includes('forward-revert of the range above ' + FIXTURE_REF_TIP + ' did NOT confirm (boom)')), 'a failed revert is logged, fail-open')
   assert.ok(carriedOf(badRevert.out, 'polish-panel absorb'), 'the row still carries')
   assert.equal(terminalCalls(badRevert.calls).length, 1, 'never a second pass')
 })
@@ -19574,7 +19597,7 @@ test('Git reconciliation: exhausted snapshot death stays soft and an independent
 
 // The mutator's claims and the verifier's Git observations are deliberately separate here.
 // These tests do not use the synthetic pin-confirm projection in the legacy fixture harness.
-for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace-unknown', 'whitespace-missing', 'whitespace-contradiction', 'whitespace-approved', 'upstream', 'forged-patches', 'forged-pre', 'forged-tip', 'forged-upstream', 'forged-cherry', 'error-unchanged', 'error-changed', 'changed-approved', 'changed-target', 'unknown-changed', 'missing-changed', 'known-revert', 'wrong-revert-parent', 'nonfull-revert-content']) {
+for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace-unknown', 'whitespace-missing', 'whitespace-contradiction', 'whitespace-approved', 'upstream', 'forged-patches', 'forged-pre', 'forged-tip', 'forged-upstream', 'forged-cherry', 'error-unchanged', 'error-changed', 'changed-approved', 'changed-target', 'unknown-changed', 'missing-changed', 'known-revert', 'wrong-revert-content', 'nonfull-revert-content']) {
   test('pin transfer Git boundary: real ' + kind, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'war-pin-boundary-'))
     const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
@@ -19593,7 +19616,7 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
       git('push', 'origin', 'integration'); const targetBefore = git('rev-parse', 'integration')
       const snapshot = () => ({ base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(git('merge-base', 'integration', 'task'), 'task'), content_id: fixtureContentId(dir, git('merge-base', 'integration', 'task'), 'task') })
       let audits = 0, rebased = null, failedAce = null
-      const reverts = ['known-revert', 'wrong-revert-parent', 'nonfull-revert-content'].includes(kind)
+      const reverts = ['known-revert', 'wrong-revert-content', 'nonfull-revert-content'].includes(kind)
       const accepted = ['transferred', 'upstream', 'error-unchanged', 'changed-approved', 'whitespace-approved', 'known-revert'].includes(kind)
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2, ace: reverts } }), (p, o) => {
         if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
@@ -19611,10 +19634,15 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
         'ace-gate': p => reverts ? { gate_green: false, gate_output: 'regressed ace' } : NEW_SEAT_DEFAULTS['ace-gate'](p),
         'audit-pin': p => ({ head_sha: git('rev-parse', 'task'), pins: fixturePinRequest(p).map(resolve) }),
         'pin-snapshot': snapshot,
-        'pin-transfer': () => {
+        'pin-transfer': p => {
           const pre = patch(base, approved)
           git('checkout', 'task')
-          if (reverts) { assert.ok(failedAce, 'the gate-red ace exists'); git('revert', '--no-edit', failedAce) }
+          if (reverts) {
+            // #2485 D17: run the engine's own range revert spelling, extracted from the dispatched probe.
+            assert.ok(failedAce, 'the gate-red ace exists')
+            const rv = spawnSync('bash', ['-c', p.match(/run exactly: `([^`]+)`/)[1]], { cwd: dir, encoding: 'utf8' })
+            assert.equal(rv.status, 0, rv.stderr); assert.match(rv.stdout, /RANGE-REVERTED/)
+          }
           if (kind === 'forged-upstream') git('rebase', '--onto', 'integration', 'task')
           else git('rebase', 'integration')
           if (['forged-patches', 'forged-pre', 'error-changed', 'changed-approved', 'unknown-changed', 'missing-changed'].includes(kind)) { writeFileSync(join(dir, 'deliverable.test.js'), 'changed after approval'); git('add', 'deliverable.test.js'); git('commit', '-m', 'post-audit change') }
@@ -19633,16 +19661,18 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
         },
         'pin-confirm': p => {
           const before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1]), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve)
-          const content = pins[3] === before.source_sha ? git('rev-parse', before.source_sha + '^') : before.source_sha
+          const ctx = JSON.parse(p.match(/Context: (\{.*?\})\. Immutable BEFORE:/)[1])
+          const approvedAncestor = ctx.revert_range && pins[0] ? run('merge-base', '--is-ancestor', pins[0], before.source_sha).status === 0 : undefined
+          const content = ctx.revert_range && approvedAncestor ? pins[0] : before.source_sha
           const ownBase = git('merge-base', before.base_sha, content)
           const lines = git('cherry', before.base_sha, content)
-          const result = { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, source_parent_sha: reverts ? content : undefined,
+          const result = { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, approved_ancestor: approvedAncestor,
             head_tree: git('rev-parse', 'task^{tree}'), approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
             pre_content_id: fixtureContentId(dir, ownBase, content), post_content_id: fixtureContentId(dir, 'integration', 'task'), pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
             post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
             cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
-          if (kind === 'wrong-revert-parent') result.source_parent_sha = before.source_sha
-          if (kind === 'nonfull-revert-content') result.source_parent_sha = result.content_sha = 'bad'
+          if (kind === 'wrong-revert-content') result.content_sha = before.source_sha
+          if (kind === 'nonfull-revert-content') result.content_sha = 'bad'
           return result
         },
         'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
@@ -21243,4 +21273,331 @@ test('2485/ES5 malformed-proof regression guard: a malformed proof still retries
   assert.equal(esc.detail.note, 'pin transfer has no independent Git proof of the approved content and reported destination')
   const verdicts = (out.auditLog || []).filter(e => e && e.task === 't1').map(e => e.verdict)
   assert.ok(verdicts.includes('pin-transfer:unverified') && !verdicts.includes('pin-transfer:tree-mismatch'), 'malformed reads pin-transfer:unverified')
+})
+
+// Probe builders: the engine names PRE and APPROVED in the probe prompt; a moved probe reports a
+// descendant tip with `count` commits and a tree that differs from the approved tree.
+const probeShas = p => {
+  const full = x => isHexSha(x) ? x.padEnd(40, '0') : FIXTURE_REF_TIP
+  return { pre: full((String(p).match(/PRE=(\S+) \(the pre-dispatch tip\)/) || [])[1]),
+    approved: full((String(p).match(/APPROVED=(\S+) \(the last approved tip\)/) || [])[1]) }
+}
+const movedProbe = (tip, { files = [ACE_FILE], count = 1 } = {}) => p => {
+  const { pre, approved } = probeShas(p)
+  return { tip_sha: tip, tip_tree: fixtureTree(tip), pre_sha: pre, approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files }
+}
+// A tip whose tree equals the approved tree (a self-revert pair, or a range that is only a revert).
+const approvedTreeProbe = (tip, count) => p => {
+  const { pre, approved } = probeShas(p)
+  return { tip_sha: tip, tip_tree: fixtureTree(approved), pre_sha: pre, approved_tree: fixtureTree(approved), count, pre_is_ancestor: true, files: [] }
+}
+const probeAt = (site, fn) => (p, o, w) => (o.label || '').startsWith('tip-probe:' + site + ':') ? fn(p, o, w) : NEW_SEAT_DEFAULTS['tip-probe'](p, o, w)
+const labelIdx = (calls, label) => calls.findIndex(c => c.opts.label === label)
+// A Git world that tracks the merge-slot revert: the pin-transfer probe that carries the range revert
+// clause leaves the task head at the approved tree; without it the head keeps the moved tip's tree.
+// pin-confirm reports the post-revert head_tree, so a test can assert it equals the approved tree.
+const revertAwarePinSeats = (tip, over = {}) => {
+  let reverted = false
+  return {
+    'pin-snapshot': { ...NEW_SEAT_DEFAULTS['pin-snapshot'], source_sha: tip },
+    'pin-transfer': p => { reverted = /FORWARD-REVERT \(--ace\)/.test(p); return { status: 'error' } },
+    'pin-confirm': p => {
+      const proof = NEW_SEAT_DEFAULTS['pin-confirm'](p)
+      const range = JSON.parse(p.match(/Context: (\{.*?\})\. Immutable BEFORE:/)[1]).revert_range
+      const content = range ? proof.pins[0] : proof.content_sha
+      return { ...proof, approved_ancestor: range ? true : undefined, content_sha: content,
+        approved_tree: fixtureTree(proof.pins[0]), content_tree: fixtureTree(content), head_tree: fixtureTree(reverted ? proof.pins[0] : tip) }
+    },
+    ...over,
+  }
+}
+// The deciding assertions for a reverted range: the task lands through git-confirmed:landed, never
+// the D6 escalation, and the approved tree equals the post-revert tree pin-confirm read.
+const assertLandedReverted = (out, label) => {
+  assert.ok(out.landed.includes('t1'), label + ': t1 lands')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), label + ': never a hold')
+  assert.ok((out.auditLog || []).some(e => e && e.verdict === 'git-confirmed:landed'), label + ': the land is git-confirmed')
+  assert.ok(!(out.auditLog || []).some(e => e && e.verdict === 'pin-transfer:tree-mismatch'), label + ': never the D6 escalation')
+  const proof = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'pin-transfer:git-verified').after
+  assert.equal(proof.approved_tree, proof.head_tree, label + ': the approved tree equals the post-revert tree')
+}
+const RANGE_TIP = 'ace00002'.padEnd(40, '0')
+const SUB_TIP = 'cab00001'.padEnd(40, '0')
+const RE_TIP = 'cab00002'.padEnd(40, '0')
+const blockedWith = (head_sha, task_id = 't1') => ({ task_id, status: 'blocked', head_sha, blocked_reason: 'the trailer sits in a non-final paragraph' })
+const INFRA = () => { throw new Error('socket hang up') }
+
+test('2485/ES1 polish site: a blocked batch ace whose tip moved is probed, then re-audited at the probed tip, and lands', async () => {
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] }, blockedAceImpl())
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, keyedPinSeats({ 'tip-probe': movedProbe(ACE_TIP) }))
+  const ace = labelIdx(calls, 'ace:polish:t1:a1'), probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
+  const reaudit = calls.findIndex((c, i) => i > probe && isAuditor(c) && c.prompt.includes(ACE_TIP))
+  assert.ok(ace >= 0 && probe > ace && reaudit > probe, 'the probe label, then a re-audit label, follow the blocked result')
+  assert.equal(calls[probe].opts.dispatchKind, 'tip-probe'); assert.equal(calls[probe].opts.phase, 'Audit'); assert.equal(seatOf(calls[probe].opts), 'war-refiner')
+  assert.ok(calls.some(c => isAceGate(c) && c.prompt.includes(ACE_TIP)), 'the gate runs at the probed tip first')
+  assert.ok((out.aced || []).some(a => a.sha === ACE_TIP && a.finding.title === 'tidy import'), 'aced at the probed tip')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('never left unjudged')), 'the reported-blocked, Git-moved case is logged')
+  assert.ok(out.landed.includes('t1') && !(out.escalated || []).some(e => e && e.task === 't1'), 't1 lands')
+})
+
+test('2485/ES1 subset site: a blocked bisection subset whose tip moved is probed, then re-audited at the probed tip', async () => {
+  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js'), bApprove()],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [blockedWith(SUB_TIP)],
+  }, aceBase([fa, fb]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': probeAt('subset', movedProbe(SUB_TIP, { files: ['skills/b.js'] })) })
+  const sub = labelIdx(calls, 'ace:subset:t1:a2'), probe = labelIdx(calls, 'tip-probe:subset:t1:a2')
+  const reaudit = calls.findIndex((c, i) => i > probe && (isAceGate(c) || isAuditor(c)) && c.prompt.includes(SUB_TIP))
+  assert.ok(sub >= 0 && probe > sub && reaudit > probe, 'the probe label, then a re-audit label, follow the blocked subset result')
+  assert.ok((out.aced || []).some(a => a.sha === SUB_TIP && a.finding.title === 'salvaged nit'), 'aced at the probed subset tip')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('2485/ES1 re-entry site: a blocked re-entry batch whose tip moved is probed, then re-audited at the probed tip', async () => {
+  const first = nit({ title: 'first', file: 'skills/first.js' }), second = nit({ title: 'second', file: 'skills/second.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [approveWith('audit:t1:correctness', [first]), approveWith('audit:t1:correctness', [second]), approveWith('audit:t1:correctness', [])],
+    'ace:reentry:t1:a2': [blockedWith(RE_TIP)],
+  }, aceBase([first]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': probeAt('reentry', movedProbe(RE_TIP, { files: ['skills/second.js'] })) })
+  const re = labelIdx(calls, 'ace:reentry:t1:a2'), probe = labelIdx(calls, 'tip-probe:reentry:t1:a2')
+  const reaudit = calls.findIndex((c, i) => i > probe && (isAceGate(c) || isAuditor(c)) && c.prompt.includes(RE_TIP))
+  assert.ok(re >= 0 && probe > re && reaudit > probe, 'the probe label, then a re-audit label, follow the blocked re-entry result')
+  assert.ok((out.aced || []).some(a => a.sha === RE_TIP && a.finding.title === 'second'), 'aced at the probed re-entry tip')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('2485/ES1 terminal site: a blocked terminal pass whose polish tip moved is probed, judged by its one seat, and merged', async () => {
+  const impl = terminalImpl({ terminalWorker: blockedWith('7e4a1a10', 'p3-polish') })
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl, { 'tip-probe': probeAt('terminal', movedProbe('7e4a1a10', { files: ['docs/y.md'] })) })
+  const tw = labelIdx(calls, 'terminal:phase-3'), probe = labelIdx(calls, 'tip-probe:terminal:phase-3')
+  const seat = calls.findIndex((c, i) => i > probe && (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10'))
+  assert.ok(tw >= 0 && probe > tw && seat > probe, 'the probe label, then the one re-audit seat, follow the blocked terminal result')
+  assert.ok(calls.some(c => c.opts.label === 'merge:p3-terminal'), 'the judged terminal commit merges — never orphaned on the polish branch')
+  assert.ok((out.aced || []).some(a => a.sha === '7e4a1a10' && a.finding.title === 'polish-panel absorb'), 'aced at the probed terminal tip')
+})
+
+test('2485/ES2 a two-commit move with a red gate forward-reverts the whole range, routes the rows to the sweep and never bisects', async () => {
+  const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], blockedWith(RANGE_TIP)),
+    revertAwarePinSeats(RANGE_TIP, { 'tip-probe': movedProbe(RANGE_TIP, { count: 2 }), 'ace-gate': { gate_green: false, gate_output: 'red' } }))
+  assert.ok(!calls.some(c => /^ace:subset:/.test(c.opts.label || '') || isAceRevert(c)), 'no bisection runs on the range')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'the merge forward-reverts the whole range')
+  assert.match(calls.find(isPinTransfer).prompt, mergeRangeRevert(RANGE_TIP), 'the pin-transfer probe reverts before it rebases')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('task gate was RED')), 'the rows route to the sweep')
+  assert.ok(!(out.aced || []).length, 'nothing is aced')
+  assertLandedReverted(out, 'red gate')
+})
+
+test('2485/ES2 a two-commit move with a regression gets the full panel, forward-reverts the whole range and never bisects', async () => {
+  const regress = (lens, sha) => sha === RANGE_TIP && lens === 'correctness'
+    ? { verdict: 'request_changes', findings: [{ severity: 'Major', title: 'range broke it', file: ACE_FILE, rationale: 'regressed' }] } : {}
+  const { out, calls, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], blockedWith(RANGE_TIP), { seatOver: regress }),
+    revertAwarePinSeats(RANGE_TIP, { 'tip-probe': movedProbe(RANGE_TIP, { count: 2 }) }))
+  assert.deepEqual([...new Set(lensesOf(calls, RANGE_TIP))].sort(), ['correctness', 'security'], 'more than one commit forces the full panel')
+  assert.ok(!calls.some(c => /^ace:subset:/.test(c.opts.label || '') || isAceRevert(c)), 'no bisection runs on a multi-commit move')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'the merge forward-reverts the whole range')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('the ace range of 2 commits regressed on re-audit')), 'the rows route to the sweep, naming the range')
+  assertLandedReverted(out, 'regression')
+})
+
+test('2485/ES3 dispatched revert only: a blocked subset over the refiner revert has the approved tree, takes failed-absorb, no charge, no aced record, no re-audit', async () => {
+  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'nothing to commit' }],
+  }, aceBase([fa, fb]))
+  const revertTip = createHash('sha1').update('revert:deadbeef').digest('hex')
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': probeAt('subset', approvedTreeProbe(revertTip, 0)) })
+  const probe = labelIdx(calls, 'tip-probe:subset:t1:a2')
+  assert.ok(probe > labelIdx(calls, 'ace:subset:t1:a2') && revertBetween(calls, calls[labelIdx(calls, 'ace:polish:t1:a1')], calls[labelIdx(calls, 'ace:subset:t1:a2')]), 'the revert dispatch, the subset, then the probe')
+  assert.ok(!calls.slice(probe + 1).some(c => isAceGate(c) || (isAuditor(c) && c.prompt.includes(revertTip))), 'no re-audit label after the probe')
+  assert.ok(!(out.aced || []).some(a => a.finding.title === 'salvaged nit'), 'no aced record')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('salvaged nit') && l.includes('bisection abandoned')), 'the failed-absorb arm routes the row to the sweep')
+  assert.ok(!calls.some(c => /:a3$/.test(c.opts.label || '')), 'no charge: no later dispatch reads absorbRounds 2')
+  assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'nothing is left to revert at the merge')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('2485/ES3 self-revert pair: a blocked batch ace whose two commits net to the approved tree takes failed-absorb, no charge, no aced record, no re-audit', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(), { 'tip-probe': approvedTreeProbe(ACE_TIP, 2) })
+  const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
+  assert.ok(probe > labelIdx(calls, 'ace:polish:t1:a1'), 'the probe label follows the blocked result')
+  assert.ok(!calls.slice(probe + 1).some(c => isAceGate(c) || (isAuditor(c) && c.prompt.includes(ACE_TIP))), 'no re-audit label after the probe')
+  assert.ok(!(out.aced || []).length, 'no aced record')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('tidy import')), 'the failed-absorb arm routes the row to the sweep')
+  assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'no revert: the tree is already the approved tree')
+  assert.ok(out.landed.includes('t1'), 't1 lands on the approved tree')
+})
+
+test('2485/ES3 dead ace dispatch with a moved descendant tip is probed and re-audited', async () => {
+  const impl = buildSeqImpl({ 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] },
+    (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? INFRA() : aceBase([nit()])(p, o))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl, keyedPinSeats({ 'tip-probe': movedProbe(ACE_TIP) }))
+  const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
+  assert.ok(probe > labelIdx(calls, 'ace:polish:t1:a1'), 'a dead dispatch still takes the probe')
+  assert.ok(calls.slice(probe + 1).some(c => isAuditor(c) && c.prompt.includes(ACE_TIP)), 'the moved tip is re-audited')
+  assert.ok((out.aced || []).some(a => a.sha === ACE_TIP), 'aced at the probed tip')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('2485/ES3 dead ace dispatch with an unchanged tip takes failed-absorb', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? INFRA() : aceBase([nit()])(p, o))
+  const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
+  assert.ok(probe > labelIdx(calls, 'ace:polish:t1:a1'), 'a dead dispatch still takes the probe')
+  assert.ok(!calls.slice(probe + 1).some(c => isAceGate(c)), 'no re-audit after an unchanged tip')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('dispatch died post-spawn')), 'the failed-absorb arm names the death')
+  assert.ok(!(out.aced || []).length && !calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'nothing aced, nothing to revert')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('2485/ES3 unusable probe after an implemented result lands reverted', async () => {
+  const { out, calls } = await runPhase(ACE_ARGS(), (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? { task_id: 't1', status: 'implemented', head_sha: ACE_TIP } : aceBase([nit()])(p, o),
+    revertAwarePinSeats(ACE_TIP, { 'tip-probe': { tip_sha: 'not-a-sha' } }))
+  assert.ok(!calls.some(c => isAceGate(c)), 'an unread tip is never re-audited on the worker report')
+  assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the range above the approved tip is reverted at the merge slot')
+  assertLandedReverted(out, 'unusable probe')
+})
+
+test('2485/ES3 dead probe after a blocked result lands reverted', async () => {
+  const { out, calls } = await runPhase(ACE_ARGS(), blockedAceImpl(), revertAwarePinSeats(ACE_TIP, { 'tip-probe': INFRA }))
+  assert.ok(calls.some(c => c.opts.label === 'tip-probe:polish:t1:a1'), 'the probe was dispatched')
+  assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)/, 'the pin-transfer probe carries the range revert')
+  assertLandedReverted(out, 'dead probe')
+})
+
+test('2485/ES3 dead probe after a blocked result that made no commit lands the approved tip through the empty-range arm in real git', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-2485-empty-range-'))
+  const git = (...a) => { const r = spawnSync('git', a, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    git('init', '-q', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'x.js'), 'approved'); git('add', 'x.js'); git('commit', '-q', '-m', 'approved task')
+    const approved = git('rev-parse', 'HEAD')
+    let script = null
+    const { out } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { ace: true } }), (p, o) => {
+      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
+      if (seatOf(o) === 'war-worker') return { task_id: 't1', status: 'blocked', blocked_reason: 'made no commit' }
+      if (o.label === 'audit:t1:correctness') return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: approved, findings: [nit({ file: 'x.js' })], confidence: 'high' }
+      return defaultImpl(p, o)
+    }, { 'tip-probe': INFRA, 'pin-transfer': p => { script = p.match(/run exactly: `([^`]+)`/)[1]; return { status: 'error' } } })
+    assert.ok(script, 'the dead probe registered a range revert on the pin-transfer probe')
+    const run = spawnSync('bash', ['-c', script], { cwd: dir, encoding: 'utf8' })
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stdout, /RANGE-CLEAN/, 'HEAD equals the approved tip: the revert and the commit are skipped')
+    assert.equal(git('rev-parse', 'HEAD'), approved, 'the tip is unchanged — the approved tip lands')
+    assert.ok(out.landed.includes('t1') && !(out.escalated || []).some(e => e && e.task === 't1'), 't1 lands, never a hold')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES3 non-descendant tip end-to-end: failed-absorb at the ace arm, then the one merge-slot hold with the named note and the detail payload', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(), keyedPinSeats({ 'tip-probe': nonDescendantProbe }))
+  const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
+  assert.ok(probe > labelIdx(calls, 'ace:polish:t1:a1') && !calls.slice(probe + 1).some(c => isAceGate(c)), 'probed, never re-audited')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('tidy import')), 'the failed-absorb arm routes the row to the sweep')
+  assert.ok(!calls.find(isPinTransfer).prompt.includes('FORWARD-REVERT'), 'an undefined range is never reverted, and no branch is reset')
+  const esc = out.escalated.find(e => e && e.task === 't1')
+  assert.equal(esc.reason, 'escalate'); assert.equal(esc.detail.note, 'branch tip carries content committed after approval')
+  assert.ok(esc.detail.tipProbe && esc.detail.probe, 'the detail carries the tip-probe result and the pin-transfer probe')
+  assert.equal(out.landDecision, 'held:escalation', 'the one backstop hold')
+})
+
+test('2485/ES3 dead revert-bearing pin-transfer probe reads env-died', async () => {
+  const { out, calls } = await runPhase(ACE_ARGS(), aceBase([nit()]), { 'ace-gate': { gate_green: false, gate_output: 'red' }, 'pin-transfer': INFRA })
+  assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)/, 'the dead probe carried the range revert')
+  const esc = out.escalated.find(e => e && e.task === 't1')
+  assert.equal(esc.reason, 'env-died', 'today\'s soft env-died merge death')
+  assert.ok(!calls.some(isMergeTask), 'no merge runs')
+})
+
+test('2485/ES4 the delta-scale input is the tip probe\'s git file list: a worker that reports no files still scales to the originating seat', async () => {
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk({ ace_diff_files: undefined, files_changed: undefined })),
+    { 'tip-probe': movedProbe('ace00001', { files: [ACE_FILE] }) })
+  assert.deepEqual(lensesOf(calls, 'ace00001'), ['correctness'], 'only the originating seat re-runs on the probe\'s file list')
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace')
+  assert.equal(row.mode, 'subset', 'the subset transfer rides the git-derived list')
+  const seat = calls.find(c => isAuditor(c) && c.prompt.includes('DELTA-SCALED RE-AUDIT'))
+  assert.ok(seat.prompt.includes('The tip probe CLAIMS the ace range changed exactly these files: ' + ACE_FILE), 'the seat checks the probe\'s list')
+})
+
+test('2485/ES4 a worker file list that disagrees with the tip probe is a cross-check: the full panel re-runs', async () => {
+  const { out, logs } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk({ ace_diff_files: [ACE_FILE, 'skills/war/assets/other.js'], files_changed: undefined })),
+    { 'tip-probe': movedProbe('ace00001', { files: [ACE_FILE] }) })
+  const row = (out.pinTransfers || []).find(p => p && p.kind === 'ace')
+  assert.equal(row.mode, 'full-panel', 'a disagreeing worker list never narrows the panel')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes("the worker's ace_diff_files cross-check disagrees with the tip probe's git-derived ace file list")), 'the cross-check is named')
+})
+
+test('2485/ES11 card mirror: worker card step 5, the four ace prompts and the chain clause carry the one trailer-block sentence verbatim', async () => {
+  const step5 = workerMd.split('\n').find(l => l.startsWith('5. Commit'))
+  assert.ok(step5 && step5.includes(TRAILER_BLOCK_RULE), 'agents/war-worker.md step 5 carries the sentence verbatim')
+  assert.ok(TRAILER_BLOCK_RULE.includes('one final trailer block') && /attribution lines included/.test(TRAILER_BLOCK_RULE), 'the sentence names one final trailer block holding attribution lines')
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' }), fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const bis = await runPhase(ACE_ARGS(), buildSeqImpl({ 'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bApprove()],
+    'ace:polish:t1:a1': [bWorker('ace00001')], 'ace:subset:t1:a2': [bWorker('5ab00001')], 'ace:subset:t1:a3': [bWorker('5ab00002')] }, aceBase([fa, fb])))
+  const re = await runPhase(ACE_ARGS(), reentryImpl())
+  const term = await runPhase(SWEEP_ARGS(), terminalImpl())
+  const prompts = {
+    polish: bis.calls.find(c => c.opts.label === 'ace:polish:t1:a1'),
+    subset: bis.calls.find(c => c.opts.label === 'ace:subset:t1:a2'),
+    reentry: re.calls.find(c => /^ace:reentry:/.test(c.opts.label || '')),
+    terminal: term.calls.find(c => c.opts.label === 'terminal:phase-3'),
+  }
+  for (const [site, c] of Object.entries(prompts)) {
+    assert.ok(c, site + ': the ace dispatch ran')
+    assert.ok(c.prompt.includes('` in one final trailer block. ' + TRAILER_BLOCK_RULE), site + ': the ace prompt carries the sentence verbatim')
+    assert.ok(!/own final paragraph/i.test(c.prompt), site + ': the retired wording is gone')
+  }
+  assert.ok(prompts.polish.prompt.includes('which close the message in one final trailer block. ' + TRAILER_BLOCK_RULE), 'the chain clause carries it too')
+  assert.ok(!/trailer paragraph/i.test(prompts.subset.prompt), 'the chain clause no longer names a trailer paragraph')
+})
+
+test('2485/ES12 real git: the engine range revert carries a parsed WAR-Task trailer, its tree equals the approved tree, and no target-repo hook alters it', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-2485-range-revert-'))
+  const git = (...a) => { const r = spawnSync('git', a, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  try {
+    git('init', '-q', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'x.js'), 'approved'); git('add', 'x.js'); git('commit', '-q', '-m', 'approved task')
+    const approved = git('rev-parse', 'HEAD')
+    // Target-repo hooks that would alter or observe a commit: none may touch the engine revert.
+    const hooks = join(dir, '.git', 'hooks')
+    writeFileSync(join(hooks, 'prepare-commit-msg'), '#!/bin/sh\necho HOOK-PREPARE >> "$1"\n', { mode: 0o755 })
+    writeFileSync(join(hooks, 'commit-msg'), '#!/bin/sh\nprintf "\\nHook-Trailer: injected\\n" >> "$1"\n', { mode: 0o755 })
+    writeFileSync(join(hooks, 'post-commit'), '#!/bin/sh\ntouch "$(git rev-parse --git-dir)/post-commit-ran"\n', { mode: 0o755 })
+    const quiet = (...a) => git('-c', 'core.hooksPath=/dev/null', ...a)
+    const scripts = []
+    const { out } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { ace: true } }), (p, o) => {
+      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
+      if (seatOf(o) === 'war-worker') {
+        // Two ace commits, then blocked: the field shape on a multi-commit move.
+        writeFileSync(join(dir, 'x.js'), 'ace one'); quiet('commit', '-q', '-am', 'ace one')
+        writeFileSync(join(dir, 'y.js'), 'ace two'); quiet('add', 'y.js'); quiet('commit', '-q', '-m', 'ace two')
+        return blockedWith(git('rev-parse', 'HEAD'))
+      }
+      if (o.label === 'audit:t1:correctness') return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: approved, findings: [nit({ file: 'x.js' })], confidence: 'high' }
+      return defaultImpl(p, o)
+    }, {
+      'tip-probe': p => {
+        const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], tip = git('rev-parse', 'task')
+        return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), approved_tree: git('rev-parse', approved + '^{tree}'),
+          count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--name-only', pre, tip).split('\n') }
+      },
+      'ace-gate': { gate_green: false, gate_output: 'red' },
+      'pin-transfer': p => { scripts.push(p.match(/run exactly: `([^`]+)`/)[1]); return { status: 'error' } },
+    })
+    assert.equal(scripts.length, 1, 'the pin-transfer probe carried the range revert')
+    const preRevertTip = git('rev-parse', 'HEAD')
+    const run = spawnSync('bash', ['-c', scripts[0]], { cwd: dir, encoding: 'utf8' })
+    assert.equal(run.status, 0, run.stderr); assert.match(run.stdout, /RANGE-REVERTED/)
+    assert.equal(git('rev-parse', 'HEAD^'), preRevertTip, 'one forward commit on top of the range — never a reset')
+    assert.equal(git('rev-parse', 'HEAD^{tree}'), git('rev-parse', approved + '^{tree}'), 'the revert tree equals the last approved tree')
+    assert.equal(git('log', '-1', '--format=%(trailers:key=WAR-Task,valueonly)'), 'task', 'git parses the exact WAR-Task trailer')
+    const msg = git('log', '-1', '--format=%B')
+    assert.ok(!msg.includes('HOOK-PREPARE') && !msg.includes('Hook-Trailer'), 'no message hook altered the engine commit')
+    assert.equal(spawnSync('test', ['-e', join(dir, '.git', 'post-commit-ran')]).status, 1, 'post-commit never ran')
+    const again = spawnSync('bash', ['-c', scripts[0]], { cwd: dir, encoding: 'utf8' })
+    assert.match(again.stdout, /RANGE-CLEAN/, 'a replay at the approved tree skips — the range is never reverted twice')
+    assert.ok(out.landed.includes('t1'), 't1 lands')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
