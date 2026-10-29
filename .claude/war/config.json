@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "profile": "balanced",
+  "profile": "custom",
   "agents": {
     "worker": {
-      "model": "fable",
+      "model": "opus",
       "effort": "default",
       "docs": {
-        "model": "fable",
+        "model": "opus",
         "effort": "default"
       },
       "fix": {
@@ -16,27 +16,31 @@
     },
     "auditor": {
       "model": "opus",
-      "effort": "high"
+      "effort": "default"
     },
     "refiner": {
       "model": "sonnet",
       "effort": "high",
       "recovery": {
-        "model": "opus",
-        "effort": "high"
+        "model": "fable",
+        "effort": "default"
       }
     },
     "servitor": {
-      "model": "sonnet",
-      "effort": "xhigh"
+      "model": "opus",
+      "effort": "high"
     },
     "redteam": {
       "model": "opus",
-      "effort": "high"
+      "effort": "default"
     },
     "snipe": {
       "model": "opus",
-      "effort": "high"
+      "effort": "default"
+    },
+    "trial": {
+      "model": "opus",
+      "effort": "default"
     }
   },
   "audit": {
@@ -50,7 +54,7 @@
         "depth": "deep"
       },
       {
-        "lens": "plan-faithfulness",
+        "lens": "performance",
         "depth": "deep"
       },
       {
@@ -58,7 +62,7 @@
         "depth": "deep"
       },
       {
-        "lens": "performance",
+        "lens": "security",
         "depth": "deep"
       }
     ],
@@ -84,6 +88,11 @@
     "replyStandard": true,
     "valeMarkdown": true,
     "valeStyle": "workAuditRefine"
+  },
+  "interview": {
+    "trialWallSeconds": 600,
+    "commandTimeoutSeconds": 120,
+    "excerptLines": 20
   },
   "overrides": {
     "gate": "node --test 'skills/**/*.test.mjs'",
