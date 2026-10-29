@@ -275,6 +275,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // red-team escape guard, git, perl and gh — no scanned-module verb, so the rotted-reason loop
   // below stays satisfiable (the red-team's census-and-pins probe proved this placement at 76a8b6fb).
   'skills/war-strategy/references/fork-trials.md',
+  // merge-provenance.md holds the agents/war-refiner.md merge-task sentences evicted byte-identical at
+  // plan 2026-10-28-blocked-ace-and-merge-provenance Task 2.1 (#2485, ADR 0042) behind the card's
+  // "when merging a task" pointer; its only command prose is git (the two-step --no-ff merge form and
+  // mktemp) — no scanned-module verb, so the rotted-reason loop below stays satisfiable.
+  'skills/war/references/merge-provenance.md',
 ]
 
 function skillDocs() {
