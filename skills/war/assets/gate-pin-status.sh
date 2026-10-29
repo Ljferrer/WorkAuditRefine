@@ -12,7 +12,8 @@
 #    tip the seat actually judges.)
 #
 # --mapped is the EXPLICIT per-task changed-file list the PIPELINE ALWAYS PASSES
-# (Task 2.1 computes it as `git diff --name-only <task-merge>^1 <task-merge>` — that
+# (the pipeline computes it as `git diff --name-only <preMergeTip> <gateHeadSha>`, where
+# <preMergeTip> is the previous task's merge commit and <gateHeadSha> the gated tip — that
 # task's OWN files). It is a whitespace-separated list of EXACT repo-root-relative paths
 # (same format as `git diff --name-only` on both sides), matched by exact membership
 # (NOT glob — unlike assert-test-in-diff.sh's `--pattern` glob-set).
