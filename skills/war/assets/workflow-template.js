@@ -2343,19 +2343,13 @@ const tipProbe = async ({ probeId, probeSite, probeWorktree, probeBranch, probeP
 // 'unchanged' (no commit above the pre-dispatch tip, or the approved tree) · 'moved' (a net change).
 const tipClass = p => !p ? 'unusable' : !p.pre_is_ancestor ? 'non-descendant' : (p.count === 0 || p.tip_tree === p.approved_tree) ? 'unchanged' : 'moved'
 // tipWhy: the one reason text for a tip class that is not 'moved', shared by the subset, re-entry,
-// polish (`ace`) and terminal arms. `site` names the dispatch; `revertWhere` is the arm's own revert
-// location (the terminal arm reverts in place, the other arms at the merge slot). A non-descendant tip
-// takes one literal at every arm: the probe's PRE is the pre-dispatch tip at every site (the approved
-// tip at the polish site, the post-polish tip at the terminal site). A worker reason wins over every
-// arm but 'unusable', which prefixes it. An unchanged tip with commits above the pre-dispatch tip (a
-// net-zero pair) is named as such, never as a missing head_sha: the engine never reads head_sha (PIN-2).
-const tipWhy = (cls, probe, workerWhy, site, revertWhere) => cls === 'unusable'
+// polish (`ace`) and terminal arms. `site` names the dispatch; `revertWhere` and `descentWhy` are the
+// arm's own literals (the log asserts pin them). A worker reason wins over every arm but 'unusable',
+// which prefixes it. An unchanged tip with commits above the pre-dispatch tip (a net-zero pair) is
+// named as such, never as a missing head_sha: the engine never reads head_sha (PIN-2).
+const tipWhy = (cls, probe, workerWhy, site, revertWhere, descentWhy) => cls === 'unusable'
   ? (workerWhy ? workerWhy + '; ' : '') + 'the tip probe after the ' + site + ' dispatch was dead or unusable, so the range ' + revertWhere
-  : workerWhy || (cls === 'non-descendant' ? 'the branch tip does not descend from the pre-dispatch tip' : probe.count > 0 ? 'the ' + site + ' range carries no net change above the approved tree' : site + ' worker returned no usable head_sha')
-// multiCommitWhy: the one failed-absorb reason for a regressed range of more than one commit (#2485 D4,
-// End state 2), shared by the polish (`ace`), subset and re-entry arms: no commit-level culprit exists,
-// so the whole range forward-reverts, the rows route to the sweep, and no bisection runs.
-const multiCommitWhy = (site, count) => 'failed absorb — the ' + site + ' range of ' + count + ' commits regressed on re-audit; the whole range is forward-reverted and no bisection runs on a multi-commit move'
+  : workerWhy || (cls === 'non-descendant' ? descentWhy : probe.count > 0 ? 'the ' + site + ' range carries no net change above the approved tree' : site + ' worker returned no usable head_sha')
 // ACE_REVERT (#2485 D17): the refiner range revert run BEFORE a subset or re-entry worker (it used to
 // ride the worker prompt). It reports the post-revert tip read from Git.
 const ACE_REVERT = { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean' }, tip_sha: { type: 'string' }, detail: { type: 'string' } } }
@@ -3892,7 +3886,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // unusable probe leaves the tip unread, so the range registers for the merge-slot revert
         // (PIN-5); a non-descendant tip leaves the merge-slot tree clause as the backstop.
         if (subClass === 'unusable') pendingRevert = true
-        const why = tipWhy(subClass, subProbe, swWhy, 'subset', 'is forward-reverted at the merge slot')
+        const why = tipWhy(subClass, subProbe, swWhy, 'subset', 'is forward-reverted at the merge slot', 'the branch tip does not descend from the pre-dispatch tip')
         for (const q of [sub, ...queue.splice(0)])
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
         break
@@ -3932,16 +3926,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // budget-bounded re-entry (D1, #1731 — born at a re-audit, it re-enters after the bisection).
         // Blocking findings stay untouched — they are this arm's regression signal, not routable.
         routeReauditMinors(r, subSeats)
-        if (subProbe.count > 1) {
-          // A regressed multi-commit subset range (#2485 D4, End state 2): no commit-level culprit to
-          // halve, so the WHOLE range forward-reverts (pendingRevert above — the next revert dispatch
-          // or the merge clause reverts approved..HEAD) and the rows route to the sweep, never a demote.
-          for (const f of sub.findings) routeToSweep(f, multiCommitWhy('subset', subProbe.count))
-        } else {
-          const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
-          if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
-          else for (const f of sub.findings) { const ur = unsoundReason(subSeats, f); demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
-        }
+        const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
+        if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
+        else for (const f of sub.findings) { const ur = unsoundReason(subSeats, f); demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
       }
     }
     if (pendingRevert) registerRangeRevert(r, pendingRevert)   // final failed range not yet reverted in-loop
@@ -4032,7 +4019,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // sweep (a failed ATTEMPT, D13 — the rows stay absorbs; routeToSweep re-stamps queuedKeys). A
         // dead or unusable probe registers the range for the merge-slot revert (PIN-5).
         if (reClass === 'unusable') pendingRevert = true
-        const why = tipWhy(reClass, reProbe, rwWhy, 're-entry', 'is forward-reverted at the merge slot')
+        const why = tipWhy(reClass, reProbe, rwWhy, 're-entry', 'is forward-reverted at the merge slot', 'the branch tip does not descend from the pre-dispatch tip')
         for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
           queuedKeys.delete(remintKey(f))
           routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')
@@ -4066,21 +4053,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         routeReauditMinors(r, reS)                       // fresh absorbs born HERE re-enter (loop continues)
       } else {
         pendingRevert = reSha                            // reverted by the NEXT dispatch, or the merge clause if final
-        if (reProbe.count > 1) {
-          // A regressed multi-commit re-entry range (#2485 D4, End state 2): the WHOLE range
-          // forward-reverts (pendingRevert above) and the rows route to the sweep, never a demote.
-          for (const f of batch) routeToSweep(f, multiCommitWhy('re-entry', reProbe.count))
-        } else {
-          // Unsound-citation naming (D6): a blocking re-audit finding flagged citationUnsound names
-          // the mismatch — the shared unsoundReason helper carries it into the demote reason so the
-          // durable record explains the revert (same duty as aceBisect's regression arms). Each
-          // demote registers on revertedKeys ({ reverted: true }) — the oscillation bound's registry.
-          for (const f of batch) {
-            const ur = unsoundReason(reS, f)
-            demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — ' + (ur
-              ? ur + '; the re-entry commit is forward-reverted'
-              : 're-entry batch regressed on re-audit; the re-entry commit is forward-reverted (a forward-reverted finding never re-enters)'), { reverted: true })
-          }
+        // Unsound-citation naming (D6): a blocking re-audit finding flagged citationUnsound names
+        // the mismatch — the shared unsoundReason helper carries it into the demote reason so the
+        // durable record explains the revert (same duty as aceBisect's regression arms). Each
+        // demote registers on revertedKeys ({ reverted: true }) — the oscillation bound's registry.
+        for (const f of batch) {
+          const ur = unsoundReason(reS, f)
+          demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — ' + (ur
+            ? ur + '; the re-entry commit is forward-reverted'
+            : 're-entry batch regressed on re-audit; the re-entry commit is forward-reverted (a forward-reverted finding never re-enters)'), { reverted: true })
         }
         routeReauditMinors(r, reS)                       // the regressed round's own fresh absorbs may still re-enter
       }
@@ -4097,12 +4078,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // charges it — every ace-side commit charges task.absorbRounds, the ladder's own meter (seeded by
   // the barrier's absorbCharges read, 0 on a fresh branch); the merge slot's fixRounds seed stays
   // never-lowering so a resume that enters the merge queue without this stage still has a defined
-  // budget (PIN-13). Fail-open (PIN-2, PIN-5): an engine error inside the stage is caught and logged,
-  // and a range revert registers (tip null — no Git read placed it), so the merge slot forward-reverts
-  // whatever sits above the last approved tip (RANGE-CLEAN skips an unmoved tip) and the approved task
-  // still merges. A throw after an ace commit — at the tip probe, the revert dispatch or the re-audit,
-  // which dispatchSite rethrows when non-infra — would otherwise reach the merge slot unregistered, and
-  // aceReentry clears r.aceReverted on takeover before its end-of-loop re-registration.
+  // budget (PIN-13). Fail-open (PIN-2): an engine error inside the stage is caught, logged, and the
+  // approved task still merges its pre-ace tip.
   const aceStage = async (r) => {
     liveTaskRecords.add(r)
     // Classify-at-collection (ADR 0013), now classified wave-side: each Minor/Nit routes ONCE, by
@@ -4273,7 +4250,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               // A regressed multi-commit range (#2485 D4): no commit-level culprit to bisect, so the
               // WHOLE range forward-reverts and the rows route to the sweep (a failed ATTEMPT, D13).
               registerRangeRevert(r, aceProbe.tip_sha)
-              for (const f of aceable) routeToSweep(f, multiCommitWhy('ace', aceProbe.count))
+              for (const f of aceable) routeToSweep(f, 'failed absorb — the ace range of ' + aceProbe.count + ' commits regressed on re-audit; the whole range is forward-reverted and no bisection runs on a multi-commit move')
             } else {
               // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
               // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.
@@ -4294,7 +4271,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // detail carries r.tipProbe. Either way a failed ATTEMPT routes the rows to the sweep as
           // absorbs (D13), never a follow-up.
           if (aceClass === 'unusable') registerRangeRevert(r, null)
-          const why = tipWhy(aceClass, aceProbe, aceWhy, 'ace', 'above the approved tip is forward-reverted at the merge slot')
+          const why = tipWhy(aceClass, aceProbe, aceWhy, 'ace', 'above the approved tip is forward-reverted at the merge slot', 'the branch tip does not descend from the approved tip')
           for (const f of aceable) routeToSweep(f, 'failed absorb — ' + why)
         }
       } else if (aceable.length && openBlockers === 0) {
@@ -4319,11 +4296,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')
       }
     } catch (err) {
-      // PIN-2 / PIN-5, restated at the new slot: the ace never turns a mergeable task into a hold. A
-      // thrown engine error inside the stage is logged with its verbatim cause, the range above the
-      // last approved tip registers for the merge-slot forward-revert, and the approved work lands.
-      log('ace-stage ' + r.task.id + ': engine error in the wave-side ace stage — ' + ((err && err.message) || String(err)) + '; the range above the approved tip is forward-reverted at the merge slot and the approved work lands (fail-open, PIN-2).')
-      registerRangeRevert(r, null)
+      // PIN-2, restated at the new slot: the ace never turns a mergeable task into a hold. A thrown
+      // engine error inside the stage is logged with its verbatim cause and the approved tip merges.
+      log('ace-stage ' + r.task.id + ': engine error in the wave-side ace stage — ' + ((err && err.message) || String(err)) + '; the approved tip merges unchanged (fail-open, PIN-2).')
     }
   }
   // ---- WORK + AUDIT each task in the wave concurrently (the global dispatch semaphore caps the
@@ -4672,11 +4647,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // fails closed to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
       // member, so no hard escalation can be downgraded by an in-band field (PIN-6).
-      // revert_range rides the context ONLY when a range is registered: the snapshot and pin-confirm
-      // prompts key on the key's presence ("when the context names revert_range"), so a null key would
-      // read as named and pin-confirm would return the approved pin as content_sha on an unreverted tip.
       const taskMergeContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch,
-        target: ph.integrationBranch, seed: workingBranchFor(r.task), ...(revertRange ? { revert_range: revertRange } : {}) }
+        target: ph.integrationBranch, seed: workingBranchFor(r.task), revert_range: revertRange }
       const pinContext = { ...taskMergeContext, pin: true }
       const pinBefore = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
       if (deathOf(pinBefore)) { mergeDied(deathOf(pinBefore)); continue }
@@ -6128,7 +6100,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           return rv
         }
         if (tClass !== 'moved') {
-          const why = tipWhy(tClass, tProbe, twWhy, 'terminal', 'is forward-reverted')
+          const why = tipWhy(tClass, tProbe, twWhy, 'terminal', 'is forward-reverted', 'the polish branch tip does not descend from the post-polish tip')
           log('terminal pass: phase ' + ph.id + ' — no terminal commit (' + why + '); the pass is spent (one hop per phase, never a second); ' + terminalRows.length + ' row(s) ' + (finalPhase ? 'demote' : 'carry') + '.')
           if (tClass === 'unusable') await terminalRevert('the tip probe after the terminal dispatch was dead or unusable')
           for (const f of terminalRows) {

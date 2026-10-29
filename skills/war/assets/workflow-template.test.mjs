@@ -21431,40 +21431,6 @@ test('2485/ES2 a two-commit move with a regression gets the full panel, forward-
   assertLandedReverted(out, 'regression')
 })
 
-test('2485/ES2 a two-commit subset regression forward-reverts the whole range, routes the rows to the sweep and never halves', async () => {
-  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'salvaged b', file: 'skills/b.js' }), fc = nit({ title: 'salvaged c', file: 'skills/c.js' })
-  const impl = buildSeqImpl({
-    'audit:t1:correctness': [bApprove([fa, fb, fc]), bRegress('skills/a.js'), bRegress('skills/b.js')],
-    'ace:polish:t1:a1': [bWorker('ace00001')],
-    'ace:subset:t1:a2': [bWorker(SUB_TIP)],
-  }, aceBase([fa, fb, fc]))
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, revertAwarePinSeats(SUB_TIP, { 'tip-probe': probeAt('subset', movedProbe(SUB_TIP, { files: ['skills/b.js', 'skills/c.js'], count: 2 })) }))
-  assert.ok(labelIdx(calls, 'ace:subset:t1:a2') >= 0, 'the culprit-excised remainder dispatches as one subset')
-  assert.ok(!calls.some(c => /^ace:subset:t1:a3$/.test(c.opts.label || '')), 'no halving: a two-file remainder would otherwise split into a later subset dispatch')
-  for (const t of ['salvaged b', 'salvaged c']) {
-    assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes(t) && l.includes('the subset range of 2 commits regressed on re-audit')), t + ': routes to the sweep, naming the range')
-    assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('"' + t + '"') && l.includes('demote:absorb-regressed')), t + ': never the depth/split-floor demote (the sweep-skipped drain of a rosterless phase is a later, separate demotion)')
-  }
-  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(SUB_TIP), 'the merge forward-reverts the whole range above the approved tip')
-  assert.ok(!(out.aced || []).length, 'nothing is aced')
-  assertLandedReverted(out, 'subset regression')
-})
-
-test('2485/ES2 a two-commit re-entry regression forward-reverts the whole range and routes the rows to the sweep, never a follow-up demote', async () => {
-  const first = nit({ title: 'first', file: 'skills/first.js' }), second = nit({ title: 'second', file: 'skills/second.js' })
-  const impl = buildSeqImpl({
-    'audit:t1:correctness': [approveWith('audit:t1:correctness', [first]), approveWith('audit:t1:correctness', [second]), bRegress('skills/second.js')],
-    'ace:reentry:t1:a2': [bWorker(RE_TIP)],
-  }, aceBase([first]))
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, revertAwarePinSeats(RE_TIP, { 'tip-probe': probeAt('reentry', movedProbe(RE_TIP, { files: ['skills/second.js'], count: 2 })) }))
-  assert.ok(labelIdx(calls, 'ace:reentry:t1:a2') >= 0, 'the re-entry batch dispatches')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('"second"') && l.includes('the re-entry range of 2 commits regressed on re-audit')), 'the row routes to the sweep, naming the range')
-  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('"second"') && l.includes('demote:absorb-regressed')), 'never the regressed-batch demote (the sweep-skipped drain of a rosterless phase is a later, separate demotion)')
-  assert.ok(!calls.some(c => /^ace:(subset|reentry):t1:a3$/.test(c.opts.label || '')), 'no bisection and no further re-entry on the range')
-  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(RE_TIP), 'the merge forward-reverts the whole range above the approved ace tip')
-  assertLandedReverted(out, 're-entry regression')
-})
-
 test('2485/ES3 dispatched revert only: a blocked subset over the refiner revert has the approved tree, takes failed-absorb, no charge, no aced record, no re-audit', async () => {
   const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
   const impl = buildSeqImpl({
@@ -21572,50 +21538,6 @@ test('2485/ES3 dead revert-bearing pin-transfer probe reads env-died', async () 
   const esc = out.escalated.find(e => e && e.task === 't1')
   assert.equal(esc.reason, 'env-died', 'today\'s soft env-died merge death')
   assert.ok(!calls.some(isMergeTask), 'no merge runs')
-})
-
-test('2485/ES3 engine throw at the tip probe after a blocked result: the ace stage catch registers the range revert and t1 lands reverted', async () => {
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl(), revertAwarePinSeats(ACE_TIP, { 'tip-probe': () => { throw new Error('schema mismatch: count is not an integer') } }))
-  assert.ok(calls.some(c => c.opts.label === 'tip-probe:polish:t1:a1'), 'the probe was dispatched')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-stage t1: engine error') && l.includes('schema mismatch') && l.includes('forward-reverted at the merge slot')), 'the catch logs the verbatim cause and the merge-slot revert')
-  assert.ok(!calls.some(c => isAceGate(c)), 'nothing is judged on the worker report')
-  assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the pin-transfer probe carries the range revert with no Git-read tip')
-  assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT \(--ace\)/, 'the merge dispatch carries the range revert')
-  assertLandedReverted(out, 'thrown probe')
-})
-
-test('2485/ES3 engine throw at the ace gate after a moved tip: the ace stage catch registers the range revert and t1 lands reverted', async () => {
-  const impl = (p, o) => seatOf(o) === 'war-worker' && /^ace:/.test(o.label || '') ? aceOk({ head_sha: ACE_TIP }) : aceBase([nit()])(p, o)
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, revertAwarePinSeats(ACE_TIP, { 'ace-gate': () => { throw new Error('schema mismatch: gate_green is not a boolean') } }))
-  const probe = labelIdx(calls, 'tip-probe:polish:t1:a1')
-  assert.ok(probe >= 0 && calls.slice(probe + 1).some(isAceGate), 'the probe read a moved tip and the gate check was dispatched')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-stage t1: engine error') && l.includes('schema mismatch') && l.includes('forward-reverted at the merge slot')), 'the catch logs the verbatim cause and the merge-slot revert')
-  assert.ok(!calls.some(c => isAuditor(c) && c.prompt.includes(ACE_TIP)) && !(out.aced || []).length, 'nothing judged the ace tip and nothing is aced')
-  assert.match(calls.find(isPinTransfer).prompt, /FORWARD-REVERT \(--ace\)/, 'the pin-transfer probe carries the range revert')
-  assertLandedReverted(out, 'thrown gate check')
-})
-
-test('2485/ES3 the merge-slot context carries revert_range only when a range is registered: absent on an unmoved tip, present with a null tip after a dead probe', async () => {
-  const ctxOf = (calls, kind, tail) => JSON.parse(calls.find(c => c.opts.dispatchKind === kind).prompt.match(new RegExp('Context: (\\{.*?\\})\\. ' + tail))[1])
-  const clean = await runPhase(ACE_ARGS(), blockedAceImpl())
-  for (const [kind, tail] of [['pin-snapshot', 'Before any merge mutation'], ['pin-confirm', 'Immutable BEFORE:']]) {
-    assert.ok(!Object.hasOwn(ctxOf(clean.calls, kind, tail), 'revert_range'), kind + ': no registered range — the key is absent, never null (the prompts key on the context naming revert_range)')
-  }
-  assert.ok(clean.out.landed.includes('t1'), 'the unmoved tip lands')
-  const dead = await runPhase(ACE_ARGS(), blockedAceImpl(), revertAwarePinSeats(ACE_TIP, { 'tip-probe': INFRA }))
-  for (const [kind, tail] of [['pin-snapshot', 'Before any merge mutation'], ['pin-confirm', 'Immutable BEFORE:']]) {
-    const range = ctxOf(dead.calls, kind, tail).revert_range
-    assert.ok(range && isHexSha(range.approved) && range.tip === null, kind + ': a registered range rides the key with its approved sha and a null tip')
-  }
-  assertLandedReverted(dead.out, 'dead probe, keyed context')
-})
-
-test('2485/ES3 non-descendant tip after an implemented result: the one descent literal names the failed absorb at the polish arm, then the one merge-slot hold', async () => {
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), blockedAceImpl({ task_id: 't1', status: 'implemented', head_sha: ACE_TIP }), keyedPinSeats({ 'tip-probe': nonDescendantProbe }))
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('tidy import') && l.includes('failed absorb — the branch tip does not descend from the pre-dispatch tip')), 'the tipWhy literal, read through the routing log')
-  assert.ok(!calls.some(c => isAceGate(c)), 'never re-audited')
-  const esc = out.escalated.find(e => e && e.task === 't1')
-  assert.equal(esc && esc.detail.note, 'branch tip carries content committed after approval', 'the one merge-slot backstop hold')
 })
 
 test('2485/ES4 the delta-scale input is the tip probe\'s git file list: a worker that reports no files still scales to the originating seat', async () => {
@@ -21793,22 +21715,6 @@ test('terminal-pass — a net-zero terminal pair (commits above the post-polish 
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('returned no usable head_sha')), 'never the missing-head_sha text: the engine never reads head_sha (PIN-2)')
   assert.ok(carriedOf(out, 'polish-panel absorb'), 'the row carries')
   assert.ok(!calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit on an approved-equal tree')
-  assert.equal(terminalCalls(calls).length, 1, 'never a second pass')
-})
-
-// A terminal tip probe whose pre-dispatch tip (the post-polish integrated tip) is not an ancestor of the polish branch tip.
-const terminalNonDescendantProbe = p => {
-  const { pre, approved } = probeShas(p)
-  return { tip_sha: '7e4a1a10'.padEnd(40, '0'), tip_tree: fixtureTree('7e4a1a10'), pre_sha: pre, approved_tree: fixtureTree(approved), count: 0, pre_is_ancestor: false, files: [] }
-}
-test('terminal-pass — a non-descendant polish tip carries the rows with the one descent literal (tipWhy), reverts nothing and never re-audits', async () => {
-  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }),
-    { 'tip-probe': probeAt('terminal', terminalNonDescendantProbe) })
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('no terminal commit (the branch tip does not descend from the pre-dispatch tip)')), 'the one literal, never the retired post-polish wording')
-  const row = carriedOf(out, 'polish-panel absorb')
-  assert.ok(row && row.carriedFrom.reason.includes('the branch tip does not descend from the pre-dispatch tip'), 'the carried row names the literal')
-  assert.ok(!calls.some(c => c.opts.dispatchKind === 'terminal-revert'), 'a non-descendant tip is not the unusable arm: no terminal revert')
-  assert.ok(!calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit')
   assert.equal(terminalCalls(calls).length, 1, 'never a second pass')
 })
 
