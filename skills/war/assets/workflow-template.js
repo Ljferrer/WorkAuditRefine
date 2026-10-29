@@ -1649,8 +1649,9 @@ const parkAsk = f => {
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
 // exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set). A
-// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip after any ace dispatch
-// (dead, blocked or unchanged, #2485 D2), a red gate at an ace-family tip, and a regressed
+// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
+// non-descendant or unchanged) after a polish, subset or re-entry ace dispatch, dead or not, blocked
+// or not (#2485 D2), a red gate at an ace-family tip, and a regressed
 // multi-commit range at the polish, subset or re-entry arm (#2485 D4) route to the sweep
 // (routeToSweep, phaseClose:true) — the ace attempt did not happen, so the sweep is the next rung. A
 // FRESH absorb born at a re-audit re-enters the ladder (routeReauditMinors → aceReentry,
@@ -1841,10 +1842,10 @@ const recordAced = (f, sha, extra) => {
 }
 // Sweep routing (D2 ladder rung; in-band-absorb-default D13/D14/D15): the phase-close sweep is the
 // vehicle when the ace ladder cannot dispatch (spent budget, ace off, a failed attempt — an untouched
-// file, a non-moved tip after any ace dispatch (dead, blocked or unchanged, #2485 D2), a red gate at
-// the ace tip, a regressed multi-commit range at the polish, subset or re-entry arm (#2485 D4)), for
-// an out-of-diff absorb, and for the gate-audit
-// family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
+// file, a non-moved tip (tipClass unusable, non-descendant or unchanged) after a polish, subset or
+// re-entry ace dispatch, dead or not, blocked or not (#2485 D2), a red gate at the ace tip, a
+// regressed multi-commit range at the polish, subset or re-entry arm (#2485 D4)), for an out-of-diff
+// absorb, and for the gate-audit family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
 // downstream. Release-slot rows never enter here (demoteReleaseSlot at birth, PIN-11).
 const routeToSweep = (f, why) => {
   log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
