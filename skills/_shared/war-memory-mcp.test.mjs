@@ -402,7 +402,9 @@ test('RA1: the server appends the query log only under */.claude/projects/*/memo
 // ---------------------------------------------------------------------------
 
 test('ES4: with node:sqlite forced unavailable, memory_query returns a memory disabled result and the same process still answers tools/list', async () => {
-  const local = tmpDir();
+  // `local` sits under the anchor, so the no-log assertion fails if the disabled path appends.
+  const base = tmpDir();
+  const local = join(base, '.claude', 'projects', 'x', 'memory');
   lessonFile(local, 'any-lesson', { description: 'any lesson text', meta: { keywords: ['any'] } });
   // Test seam: the server probes the module named by this env var in place of node:sqlite.
   const s = startServer({ env: { WAR_MEMORY_MCP_SQLITE_MODULE: 'node:no-such-builtin-for-this-test' } });
@@ -415,7 +417,7 @@ test('ES4: with node:sqlite forced unavailable, memory_query returns a memory di
     const list = await s.call('tools/list', {});
     assert.deepEqual(list.result.tools.map((t) => t.name), ['memory_query']);
     assert.ok(!existsSync(join(local, QUERY_LOG)), 'no query log when memory is disabled');
-  } finally { await s.close(); rmSync(local, { recursive: true, force: true }); }
+  } finally { await s.close(); rmSync(base, { recursive: true, force: true }); }
 });
 
 test('sqlite seam: with the env var unset the server loads the real node:sqlite and answers a query', async () => {

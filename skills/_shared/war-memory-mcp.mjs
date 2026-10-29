@@ -118,7 +118,8 @@ function formatHit(r) {
 
 // The `local` anchor, the same string rule as the hook's memory_fence: absolute, no `..` segment,
 // and a match for the glob */.claude/projects/*/memory (its `*` spans `/`), one trailing `/` tolerated.
-const LOCAL_ANCHOR = /^.*\/\.claude\/projects\/.*\/memory\/?$/;
+// The `s` flag lets `.` match line terminators too, as the bash glob `*` does.
+const LOCAL_ANCHOR = /^.*\/\.claude\/projects\/.*\/memory\/?$/s;
 function localPassesAnchor(local) {
   return local.startsWith('/') && !`/${local}/`.includes('/../') && LOCAL_ANCHOR.test(local);
 }
