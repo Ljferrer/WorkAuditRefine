@@ -8891,10 +8891,15 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
   // the OLD-absent key scans the eviction destination too, never a relocated read.
   assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
-  const captureUses = [...src.matchAll(/label:\s*`(merge:\$\{r\.task\.id\}[^`]*)`,\s*schema: MERGE_RESULT,\s*\.\.\.spawn\('refiner'\) \},\s*taskMergeContext\)/g)].map(m => m[1]).sort()
+  // The primary merge passes revertMergeContext (#2485: it alone carries the revert clause, so it alone
+  // names revert_range); that object spreads taskMergeContext, so the shared task identity (task, repo)
+  // reaches capture unchanged at every site. Both names count here; the spread is pinned below.
+  const captureUses = [...src.matchAll(/label:\s*`(merge:\$\{r\.task\.id\}[^`]*)`,\s*schema: MERGE_RESULT,\s*\.\.\.spawn\('refiner'\) \},\s*(?:taskMergeContext|revertMergeContext)\)/g)].map(m => m[1]).sort()
   assert.deepEqual(captureUses, ['merge:${r.task.id}', 'merge:${r.task.id}:floor-retry:r${r.task.fixRounds}',
     'merge:${r.task.id}:environment-proceed', 'merge:${r.task.id}:baseline-proceed'].sort(),
   'primary, floor, environment and baseline merges pass their shared task identity to capture')
+  assert.match(src, /const revertMergeContext = revertRange \? \{ \.\.\.taskMergeContext, revert_range: revertRange \} : taskMergeContext\n/,
+    'the revert-carrying context spreads taskMergeContext, so its task and repo are the shared identity')
 })
 
 // #1151 — the classification-site drift guard: the sibling of captureUses above, and the ARBITER the
@@ -19624,16 +19629,49 @@ test('Git reconciliation: exhausted snapshot death stays soft and an independent
   assert.notEqual(out.landDecision, 'held:workflow-error'); assert.ok(out.landed.includes('t2'))
 })
 
+// Real-git seats, shared by the pin boundary cases below and the #2485 floor-retry fixture: one git
+// world per fixture dir (branches `integration` and `task`, a bare `origin.git`), and seat answers that
+// follow the dispatched prompt against that world, so the oracle is git's own patch-id and tree, never
+// the engine's context builder.
+const realGitTools = dir => {
+  const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+  const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const remote = () => git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
+  const resolve = value => { if (typeof value !== 'string' || !/^[0-9a-f]{7,40}$/.test(value)) return null; const r = run('rev-parse', '--verify', '--end-of-options', value + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
+  const patch = (base, tip) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, tip) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+  return { run, git, remote, resolve, patch }
+}
+const pinBeforeOf = p => JSON.parse(String(p).match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1])
+const snapshotContextOf = p => JSON.parse(String(p).match(/Context: (\{.*?\})\. Before any merge mutation/)[1])
+// pin-confirm as the prompt asks: content is the approved pin when the context names revert_range and
+// that pin is an ancestor of the pre-rebase source tip, else the source tip itself.
+const realGitPinConfirm = (dir, p) => {
+  const { run, git, remote, resolve, patch } = realGitTools(dir)
+  const before = pinBeforeOf(p), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve)
+  const ctx = JSON.parse(p.match(/Context: (\{.*?\})\. Immutable BEFORE:/)[1])
+  const approvedAncestor = ctx.revert_range && pins[0] ? run('merge-base', '--is-ancestor', pins[0], before.source_sha).status === 0 : undefined
+  const content = ctx.revert_range && approvedAncestor ? pins[0] : before.source_sha
+  const ownBase = git('merge-base', before.base_sha, content)
+  const lines = git('cherry', before.base_sha, content)
+  return { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, approved_ancestor: approvedAncestor,
+    head_tree: git('rev-parse', 'task^{tree}'), approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
+    pre_content_id: fixtureContentId(dir, ownBase, content), post_content_id: fixtureContentId(dir, 'integration', 'task'), pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
+    post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
+    cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
+}
+// merge-confirm as the prompt asks: the merge-task patch over the snapshot base, read after the dispatch.
+const realGitMergeConfirm = (dir, p) => {
+  const { run, git, remote, resolve, patch } = realGitTools(dir)
+  const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), result = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
+  return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task') }
+}
+
 // The mutator's claims and the verifier's Git observations are deliberately separate here.
 // These tests do not use the synthetic pin-confirm projection in the legacy fixture harness.
 for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace-unknown', 'whitespace-missing', 'whitespace-contradiction', 'whitespace-approved', 'upstream', 'forged-patches', 'forged-pre', 'forged-tip', 'forged-upstream', 'forged-cherry', 'error-unchanged', 'error-changed', 'changed-approved', 'changed-target', 'unknown-changed', 'missing-changed', 'known-revert', 'wrong-revert-content', 'nonfull-revert-content']) {
   test('pin transfer Git boundary: real ' + kind, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'war-pin-boundary-'))
-    const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
-    const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
-    const remote = () => git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
-    const resolve = value => { if (typeof value !== 'string' || !/^[0-9a-f]{7,40}$/.test(value)) return null; const r = run('rev-parse', '--verify', '--end-of-options', value + '^{commit}'); return r.status === 0 ? r.stdout.trim() : null }
-    const patch = (base, tip) => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, tip) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.trim().split(' ')[0] }
+    const { run, git, remote, resolve, patch } = realGitTools(dir)
     try {
       git('init', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
       writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('branch', 'working')
@@ -19689,27 +19727,13 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
           return { status: 'transferred', rebased_tip: kind === 'forged-tip' ? 'deadbeef' : rebased, dispatch_base: base, pre_rebase_patch_id: kind === 'forged-pre' ? patch('integration', 'task') : pre, post_rebase_patch_id: kind === 'forged-pre' ? patch('integration', 'task') : pre }
         },
         'pin-confirm': p => {
-          const before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1]), pins = JSON.parse(p.match(/REPORTED PINS: ([^\n]+)/)[1]).map(resolve)
-          const ctx = JSON.parse(p.match(/Context: (\{.*?\})\. Immutable BEFORE:/)[1])
-          const approvedAncestor = ctx.revert_range && pins[0] ? run('merge-base', '--is-ancestor', pins[0], before.source_sha).status === 0 : undefined
-          const content = ctx.revert_range && approvedAncestor ? pins[0] : before.source_sha
-          const ownBase = git('merge-base', before.base_sha, content)
-          const lines = git('cherry', before.base_sha, content)
-          const result = { head_sha: git('rev-parse', 'task'), local_sha: git('rev-parse', 'integration'), remote_sha: remote(), content_sha: content, approved_ancestor: approvedAncestor,
-            head_tree: git('rev-parse', 'task^{tree}'), approved_tree: pins[0] ? git('rev-parse', pins[0] + '^{tree}') : '', content_tree: git('rev-parse', content + '^{tree}'), dispatch_base: ownBase,
-            pre_content_id: fixtureContentId(dir, ownBase, content), post_content_id: fixtureContentId(dir, 'integration', 'task'), pre_patch_id: patch(ownBase, content), post_patch_id: patch('integration', 'task'), target_ancestor: run('merge-base', '--is-ancestor', 'integration', 'task').status === 0,
-            post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
-            cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
-          if (kind === 'wrong-revert-content') result.content_sha = before.source_sha
+          const result = realGitPinConfirm(dir, p)
+          if (kind === 'wrong-revert-content') result.content_sha = pinBeforeOf(p).source_sha
           if (kind === 'nonfull-revert-content') result.content_sha = 'bad'
           return result
         },
         'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
-        'merge-confirm': (p, o) => {
-          if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
-          const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), result = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
-          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task') }
-        },
+        'merge-confirm': (p, o) => o.label === 'git-confirm:merge:t1' ? realGitMergeConfirm(dir, p) : NEW_SEAT_DEFAULTS['merge-confirm'](p),
       })
       if (kind.startsWith('whitespace')) assert.equal(patch(base, approved), patch(targetBefore, rebased), 'a changed string literal retains the same stable patch ID')
       if (kind.startsWith('whitespace')) assert.equal(audits, 2, 'every report arm re-audits exact-content drift, even with equal patch IDs')
@@ -21538,6 +21562,94 @@ test('2485/ES3 dead revert-bearing pin-transfer probe reads env-died', async () 
   const esc = out.escalated.find(e => e && e.task === 't1')
   assert.equal(esc.reason, 'env-died', 'today\'s soft env-died merge death')
   assert.ok(!calls.some(isMergeTask), 'no merge runs')
+})
+
+// The merge-slot revert, then a floor fix, against real git (#2485 PIN-5). The registered range rides
+// the pin-transfer probe and the primary merge as revert_range, and those two dispatches run the
+// revert. The floor-retry re-merge runs after that revert landed and after a floor fix committed above
+// the still-ancestor approved commit (a no-op rebase), so its snapshot must predict the branch's own
+// patch: a context that still named revert_range would predict the approved patch, fail confirmMerge on
+// the merge it just pushed and hold the task. Every snapshot and confirm seat here follows the
+// dispatched prompt against the real repo, so the land itself is the oracle, never the context builder.
+test('2485/ES3 dead probe, then a done-unmet floor in real git: the floor-retry re-merge takes the plain context, confirms the floor fix and lands', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-2485-floor-retry-'))
+  const { run, git, remote, patch } = realGitTools(dir)
+  try {
+    git('init', '-q', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-q', '-m', 'base'); git('branch', 'working')
+    git('init', '-q', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', '-q', 'origin', 'integration', 'working')
+    // The task sits on the integration tip itself, so every rebase below is a no-op and the approved
+    // commit stays an ancestor of the branch tip.
+    git('checkout', '-q', '-b', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), 'approved'); git('add', 'deliverable.test.js'); git('commit', '-q', '-m', 'task\n\nWAR-Task: task')
+    const approved = git('rev-parse', 'HEAD'); git('push', '-q', 'origin', 'task'); git('checkout', '-q', 'integration')
+    // A snapshot seat that follows the dispatched prompt: the approved commit's patch when the context
+    // names revert_range and that commit is an ancestor of the source tip, else the branch's own patch.
+    const snapshot = p => {
+      const ctx = snapshotContextOf(p)
+      const tip = ctx.revert_range && run('merge-base', '--is-ancestor', ctx.revert_range.approved, 'task').status === 0 ? ctx.revert_range.approved : 'task'
+      const base = git('merge-base', 'integration', tip)
+      return { base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(base, tip), content_id: fixtureContentId(dir, base, tip) }
+    }
+    const commitOnTask = (file, text) => { git('checkout', '-q', 'task'); writeFileSync(join(dir, file), text); git('add', file); git('commit', '-q', '-m', text); return git('rev-parse', 'HEAD') }
+    let audits = 0, floorFix = null
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir, doneWhen: DU_CMD }], run: { roundLimit: 2, ace: true } }), (p, o) => {
+      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
+      if (o.label === 'ace:polish:t1:a1') return { task_id: 't1', status: 'implemented', head_sha: commitOnTask('deliverable.test.js', 'unjudged ace'), ace_diff_files: ['deliverable.test.js'], files_changed: ['deliverable.test.js'] }
+      if (isMakePassWorker({ opts: o })) { floorFix = commitOnTask('task-one.acceptance.test.mjs', 'floor fix'); return { task_id: 't1', status: 'implemented', head_sha: floorFix, files_changed: ['task-one.acceptance.test.mjs'] } }
+      if (o.label === 'audit:t1:correctness') { audits++; return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: git('rev-parse', 'task'), findings: audits === 1 ? [nit({ file: 'deliverable.test.js' })] : [], confidence: 'high' } }
+      if (o.label === 'merge:t1') return { mode: 'merge-task', status: 'done-unmet' }
+      if (/^merge:t1:floor-retry:/.test(o.label || '')) { git('checkout', '-q', 'integration'); git('merge', '-q', '--ff-only', 'task'); git('push', '-q', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') } }
+      return defaultImpl(p, o)
+    }, {
+      'tip-probe': probeAt('polish', INFRA),
+      'pin-snapshot': snapshot,
+      'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot(p) : NEW_SEAT_DEFAULTS['merge-snapshot'],
+      'pin-transfer': p => {
+        git('checkout', '-q', 'task')
+        const rv = spawnSync('bash', ['-c', rangeRevertScriptOf(p)], { cwd: dir, encoding: 'utf8' })
+        assert.equal(rv.status, 0, rv.stderr); assert.match(rv.stdout, /RANGE-REVERTED/, 'the dead probe\'s range is reverted at the merge slot')
+        git('rebase', '-q', 'integration')
+        return { status: 'error' }
+      },
+      'pin-confirm': p => realGitPinConfirm(dir, p),
+      'merge-confirm': (p, o) => /^git-confirm:merge:t1/.test(o.label || '') ? realGitMergeConfirm(dir, p) : NEW_SEAT_DEFAULTS['merge-confirm'](p),
+    })
+    const snapshotBefore = label => { const i = calls.findIndex(c => c.opts.label === label); assert.ok(i > 0, label + ' dispatched'); return snapshotContextOf(calls.slice(0, i).reverse().find(c => c.opts.dispatchKind === 'merge-snapshot').prompt) }
+    const retry = calls.find(c => /^merge:t1:floor-retry:/.test(c.opts.label || ''))
+    assert.ok(retry, 'the done-unmet floor routes a floor-retry re-merge')
+    // Control arm: the two revert-carrying dispatches name the range (the approved sha; a tip never read from Git).
+    assert.deepEqual(snapshotContextOf(calls.find(c => c.opts.label === 'git-pin-snapshot:t1').prompt).revert_range, { approved, tip: null }, 'the pin-transfer snapshot names the registered range')
+    assert.deepEqual(snapshotBefore('merge:t1').revert_range, { approved, tip: null }, 'the primary merge snapshot names the registered range')
+    assert.match(calls.find(c => c.opts.label === 'merge:t1').prompt, /FORWARD-REVERT \(--ace\)[^\n]*the pre-revert tip was never read from Git/, 'the primary merge carries the revert clause')
+    // The finding: the floor-retry carries no clause, so its snapshot context names no range.
+    assert.ok(!retry.prompt.includes('FORWARD-REVERT'), 'the floor-retry re-merge carries no revert clause: the revert is history')
+    assert.ok(!Object.hasOwn(snapshotBefore(retry.opts.label), 'revert_range'), 'the floor-retry snapshot context carries no revert_range key')
+    assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'git confirmed the floor-retry merge outright: no uncertain-merge reconciliation')
+    assertLandedReverted(out, 'floor-retry after the merge-slot revert')
+    assert.equal(remote(), floorFix, 'origin integration is the floor-fix tip: the merge landed')
+    assert.equal(git('rev-parse', floorFix + '^^{tree}'), git('rev-parse', approved + '^{tree}'), 'the floor fix sits on the engine revert, whose tree is the approved tree')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('merge contexts name revert_range only beside the revert clause: with no registered range neither the pin-transfer nor the merge snapshot carries the key', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), defaultImpl)
+  for (const label of ['git-pin-snapshot:t1', 'git-snapshot:t1']) {
+    const snap = calls.find(c => c.opts.label === label)
+    assert.ok(snap, label + ' dispatched')
+    assert.ok(!Object.hasOwn(snapshotContextOf(snap.prompt), 'revert_range'), label + ': no registered range, so no revert_range key, never a null one')
+  }
+  assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'and no revert clause')
+  assert.ok(out.landed.includes('t1'))
+  // Source census, default-deny: the merge-task dispatch sites and the context each passes. Only the
+  // primary merge interpolates aceRevertClause, so only it takes revertMergeContext; a fifth site, or a
+  // re-merge handed the revert-carrying context, reds this row.
+  const sites = Object.fromEntries([...src.matchAll(/label: `(merge:\$\{r\.task\.id\}[^`]*)`, schema: MERGE_RESULT, \.\.\.spawn\('refiner'\) \}, (\w+)\)\)/g)].map(m => [m[1], m[2]]))
+  assert.deepEqual(sites, {
+    'merge:${r.task.id}': 'revertMergeContext',
+    'merge:${r.task.id}:floor-retry:r${r.task.fixRounds}': 'taskMergeContext',
+    'merge:${r.task.id}:environment-proceed': 'taskMergeContext',
+    'merge:${r.task.id}:baseline-proceed': 'taskMergeContext',
+  }, 'revert_range rides the primary merge only; every re-merge takes the plain context')
 })
 
 test('2485/ES4 the delta-scale input is the tip probe\'s git file list: a worker that reports no files still scales to the originating seat', async () => {

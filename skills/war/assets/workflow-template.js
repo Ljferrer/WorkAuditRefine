@@ -4647,9 +4647,19 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // fails closed to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
       // member, so no hard escalation can be downgraded by an in-band field (PIN-6).
+      // Two merge contexts (#2485 D17, PIN-5). The snapshot and pin-confirm prompts read a context that
+      // names revert_range as "THIS dispatch forward-reverts the range, so the expected patch is the
+      // approved commit's". That holds only on the dispatches that interpolate aceRevertClause: the
+      // pin-transfer probe (pinContext) and the primary merge (revertMergeContext). The floor-retry,
+      // environment-proceed and baseline-proceed re-merges run after that revert already landed on the
+      // branch and carry no clause, so they take the plain taskMergeContext: a floor fix sits above the
+      // still-ancestor approved commit, and a snapshot that kept predicting the approved patch would
+      // fail confirmMerge on the merge it just pushed and hold a mergeable task. No registered range
+      // means no key at all: the prompts key on the name, so null is never a third state.
       const taskMergeContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch,
-        target: ph.integrationBranch, seed: workingBranchFor(r.task), revert_range: revertRange }
-      const pinContext = { ...taskMergeContext, pin: true }
+        target: ph.integrationBranch, seed: workingBranchFor(r.task) }
+      const revertMergeContext = revertRange ? { ...taskMergeContext, revert_range: revertRange } : taskMergeContext
+      const pinContext = { ...revertMergeContext, pin: true }
       const pinBefore = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
       if (deathOf(pinBefore)) { mergeDied(deathOf(pinBefore)); continue }
       let pinProbe = await dispatchSite(
@@ -4853,7 +4863,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, revertMergeContext))
 
       // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
       const mrDeath = deathOf(mr)
