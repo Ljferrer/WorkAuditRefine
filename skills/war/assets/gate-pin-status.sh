@@ -13,9 +13,10 @@
 #
 # --mapped is the EXPLICIT per-task changed-file list the PIPELINE ALWAYS PASSES
 # (the pipeline computes it as `git diff --name-only <preMergeTip> <gateHeadSha>`, where
-# <preMergeTip> is the previous task's merge commit and <gateHeadSha> the gated tip — that
-# task's OWN files). It is a whitespace-separated list of EXACT repo-root-relative paths
-# (same format as `git diff --name-only` on both sides), matched by exact membership
+# <preMergeTip> is the previous task's merge commit (the phase base for a phase's first
+# task) and <gateHeadSha> the gated tip — that task's OWN files). It is a
+# whitespace-separated list of EXACT repo-root-relative paths (same format as
+# `git diff --name-only` on both sides), matched by exact membership
 # (NOT glob — unlike assert-test-in-diff.sh's `--pattern` glob-set).
 #
 # The mapped set is DELIBERATELY NOT the global gate-discovery set: sibling merges in the
