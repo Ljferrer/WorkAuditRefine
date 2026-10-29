@@ -193,8 +193,9 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const fn = build(source)
   // world.ace: branch → the last ace-family worker result on it (reset BEFORE each such dispatch, so
   // a death leaves no stale entry). Keyed by branch because sibling tasks ace concurrently.
-  // world.merge: merge label → the (completed) merge-task reply, so the neutral merge-confirm proof's second
-  // parent is the gated tip that reply reported (an honest refiner's merge commit, #2485 D12).
+  // world.merge: base merge label → the (completed) merge-task reply. A segmentedMerge continuation
+  // ('<label>:segment-N') replaces its first segment's error reply, so the neutral merge-confirm proof's
+  // second parent is the gated tip the completed reply reported (an honest refiner's merge commit, #2485 D12).
   const world = { ace: new Map(), merge: new Map() }
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
@@ -204,7 +205,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
     let result = await agentImpl(prompt, opts)
     if (aceWorker) world.ace.set(branchOfPrompt(prompt), result)
     if (!seats.rawMergeResults) result = completeMergeFixture(opts, result)
-    if (seatOf(opts) === 'war-refiner' && result && typeof result === 'object' && result.mode === 'merge-task') world.merge.set(opts.label, result)
+    if (seatOf(opts) === 'war-refiner' && result && typeof result === 'object' && result.mode === 'merge-task') world.merge.set(String(opts.label).replace(/:segment-\d+$/, ''), result)
     return seats.rawTaskAuditPins ? result : completeAuditFixture(prompt, opts, result)
   }
   const log = (m) => logs.push(m)
@@ -22204,6 +22205,13 @@ const es6Phase = async (repo, doMerge, { gateSha, throwAfterPush } = {}) => {
   return { ...result, base: () => base, facts: () => gitTaskFacts(repo.run, base, 'task', 'integration') }
 }
 const rebaseTask = repo => { repo.git('checkout', '-q', 'task'); repo.git('rebase', '-q', 'integration'); repo.git('checkout', '-q', 'integration') }
+// runTrailerRead: run the MERGE_FACTS_RULE trailer read exactly as a dispatched prompt spells it, through
+// bash, so a shell-quoting regression (an unquoted %(...) is a bash syntax error) fails the exit-0 assert.
+const runTrailerRead = (repo, prompt) => {
+  const read = (String(prompt).match(/git show -s --format=\S*trailers:key=WAR-Task\S* <local target>/) || [])[0]
+  assert.ok(read, 'the prompt carries the trailer read')
+  return bash(repo.dir, read.replace('<local target>', 'integration')).stdout.trim()
+}
 const assertRefused = (out, calls, why) => {
   assert.ok(!out.landed.includes('t1'), why + ': the task is never recorded merged')
   assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'merge:t1'), why + ': confirmMerge refuses it')
@@ -22225,6 +22233,8 @@ test('2485/ES6 real git: the exact dispatched merge spelling makes one --no-ff m
     assert.deepEqual(f.parents, [base(), repo.git('rev-parse', 'task')], 'parents are [snapshot base, rebased task tip]')
     assert.equal(f.base_is_ancestor, true); assert.equal(f.tree.target, f.tree.source, 'the merge tree is the task tree')
     assert.equal(f.trailer.replace(/\n+$/, ''), 'WAR-Task: task', 'one exact WAR-Task trailer')
+    const confirm = calls.find(c => c.opts.label === 'git-confirm:merge:t1')
+    assert.equal(runTrailerRead(repo, confirm.prompt), 'WAR-Task: task', 'the dispatched trailer read runs in bash and reads the exact trailer')
     assert.equal(repo.remote(), repo.git('rev-parse', 'integration'))
   } finally { rmSync(repo.dir, { recursive: true, force: true }) }
 })
@@ -22236,6 +22246,7 @@ test('2485/ES6 real git: a correct merge whose reply is lost after the push reac
   try {
     const { out, calls } = await es6Phase(repo, p => { rebaseTask(repo); bash(repo.dir, mergeCommandOf(p)) }, { throwAfterPush: true })
     assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the lost reply enters reconciliation')
+    assert.equal(runTrailerRead(repo, calls.find(c => c.opts.dispatchKind === 'merge-reconcile').prompt), 'WAR-Task: task', 'the reconcile prompt\'s trailer read runs in bash and reads the exact trailer')
     assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:merged' && r.site === 'merge:t1'), 'reconcileMerge accepts the correct merge commit')
     assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
   } finally { rmSync(repo.dir, { recursive: true, force: true }) }
@@ -22382,6 +22393,24 @@ test('2485/ES8 gate_sha feeds gateHeadSha; the merge commit (integration_sha) fe
   assert.equal(out.handoff.tipSha, M.t3, 'the handoff tipSha fallback reads lastLandedTip — the last merge commit (t3, a requiresTest:false task), never a gateHeadSha')
   const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
   assert.ok(fp.includes('pinned sha ' + M.t3) && !fp.includes('pinned sha ' + G.t3), "auditEvidenceOf's landedShaByTask fallback renders t3's merge commit")
+})
+
+// The harness world.merge key is the base label, so a segmented merge's continuation reply (the one that
+// names gate_sha) is the reply the neutral merge-confirm proof reads, and an honest refiner's gate_sha survives.
+test('2485/ES8 segmented merge: the continuation reply\'s gate_sha (distinct from integration_sha) survives confirmMerge and feeds gateHeadSha', async () => {
+  const M = 'c0'.repeat(20), G = 'd1'.repeat(20)
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (/^merge:t1(:|$)/.test(o.label || '') && !o.dispatchKind) {
+      n++
+      return n === 1 ? { mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: 'gate backgrounded' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: M, gate_sha: G }
+    }
+    return defaultImpl(p, o)
+  })
+  assert.ok(calls.some(c => c.opts.label === 'merge:t1:segment-2'), 'the merge ran as a segmented continuation')
+  assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmed:merged' && r.site === 'merge:t1'), 'confirmMerge accepts the continuation reply')
+  assert.equal(gateHeadShaOf(evPromptOf(calls), 't1'), G, 'gateHeadSha is the continuation reply\'s gate_sha, never the sentinel')
 })
 
 test('2485/ES8 real git: a gate_sha that differs from the merge commit second parent yields the sentinel gateHeadSha in the confirm and reconcile arms; a matching gate_sha is kept', async () => {
