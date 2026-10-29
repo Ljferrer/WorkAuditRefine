@@ -351,6 +351,9 @@ const QUALIFIED_HEADERS = [
   // default-roster sentence's eviction destination (byte-funding the D17 boundary sentence),
   // joined on eviction per the UNION-extension precedent above.
   'design.md',
+  // blocked-ace-and-merge-provenance Task 2.1 (#2485): the agents/war-refiner.md merge-task eviction
+  // destination behind the card's "when merging a task" pointer, joined on creation.
+  'merge-provenance.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

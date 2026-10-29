@@ -225,6 +225,12 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   mode: { enum: ['merge-task', 'land-phase'] },
   status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
+  // gate_sha (#2485 D12, PIN-12): the rebased task tip the merge-task gate ran at — the task merge
+  // commit's second parent. integration_sha is the --no-ff merge commit itself (D8), so the two differ
+  // on every task merge: landMerged reads gateHeadSha from gate_sha and the lastLandedTip tracker from
+  // integration_sha. merge-task only, OPTIONAL (absent, or not a prefix of Git's second merge parent per
+  // gitBoundGateSha ⇒ the pinOrSentinel sentinel, SOFT cannot-confirm).
+  gate_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' },
   // gate_failure_class (spec §6 / ADR 0019): the on-failure classification the refiner returns
   // ALONGSIDE status:'gate_failed'. ABSENT ⇒ 'introduced' (the permanent fail-safe). Orthogonal to
@@ -1643,8 +1649,9 @@ const parkAsk = f => {
 // carriedPhaseClose (D3a/D3b), as does a held phase's whole queue; a fileless absorb
 // (demote:fileless, severity default); a release-slot absorb at birth (demote:release-slot); an
 // exclusion-set hit at sweep time or at the terminal-pass filter (demote:exclusion-set). A
-// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip after any ace dispatch
-// (dead, blocked or unchanged, #2485 D2), a red gate at an ace-family tip, and a regressed
+// FAILED ATTEMPT never demotes: an untouched-file ace row, a non-moved tip (tipClass unusable,
+// non-descendant or unchanged) after a polish, subset or re-entry ace dispatch, dead or not, blocked
+// or not (#2485 D2), a red gate at an ace-family tip, and a regressed
 // multi-commit range at the polish, subset or re-entry arm (#2485 D4) route to the sweep
 // (routeToSweep, phaseClose:true) — the ace attempt did not happen, so the sweep is the next rung. A
 // FRESH absorb born at a re-audit re-enters the ladder (routeReauditMinors → aceReentry,
@@ -1835,10 +1842,10 @@ const recordAced = (f, sha, extra) => {
 }
 // Sweep routing (D2 ladder rung; in-band-absorb-default D13/D14/D15): the phase-close sweep is the
 // vehicle when the ace ladder cannot dispatch (spent budget, ace off, a failed attempt — an untouched
-// file, a non-moved tip after any ace dispatch (dead, blocked or unchanged, #2485 D2), a red gate at
-// the ace tip, a regressed multi-commit range at the polish, subset or re-entry arm (#2485 D4)), for
-// an out-of-diff absorb, and for the gate-audit
-// family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
+// file, a non-moved tip (tipClass unusable, non-descendant or unchanged) after a polish, subset or
+// re-entry ace dispatch, dead or not, blocked or not (#2485 D2), a red gate at the ace tip, a
+// regressed multi-commit range at the polish, subset or re-entry arm (#2485 D4)), for an out-of-diff
+// absorb, and for the gate-audit family's absorbs — logged, never silent; the sweep-time exclusion set and a sweep discard demote
 // downstream. Release-slot rows never enter here (demoteReleaseSlot at birth, PIN-11).
 const routeToSweep = (f, why) => {
   log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
@@ -2251,22 +2258,49 @@ const dispatchSite = (prompt, opts) => dispatchAgent(prompt, opts).catch(err => 
 const MERGE_SNAPSHOT = { type: 'object', required: ['base_sha', 'source_sha', 'remote_sha', 'patch_id', 'content_id'], properties: {
   base_sha: { type: 'string' }, source_sha: { type: 'string' },
   remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, content_id: { type: 'string' }, seed_sha: { type: ['string', 'null'] } } }
+// tree (#2485 D9): the task merge commit's tree and the current source tree, both read from Git, so the
+// predicate refuses an evil merge (a merge commit whose tree is not the rebased task tree).
+const MERGE_TREES = { type: 'object', properties: { target: { type: 'string' }, source: { type: 'string' } } }
 const MERGE_RECONCILIATION = { type: 'object', required: ['outcome', 'base_sha', 'source_sha', 'local_sha', 'remote_sha'], properties: {
   outcome: { enum: ['merged', 'landed', 'unmerged', 'uncertain'] }, base_sha: { type: 'string' }, source_sha: { type: 'string' },
   local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, content_id: { type: 'string' },
-  parents: { type: 'array', items: { type: 'string' } }, source_tip: { type: 'string' }, base_is_ancestor: { type: 'boolean' }, result: MERGE_RESULT, detail: { type: 'string' } } }
+  parents: { type: 'array', items: { type: 'string' } }, source_tip: { type: 'string' }, base_is_ancestor: { type: 'boolean' },
+  tree: MERGE_TREES, trailer: { type: 'string' }, result: MERGE_RESULT, detail: { type: 'string' } } }
 const fullSha = sha => typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha)
-// Shared by normal confirmation and uncertain-response recovery: no success path has a
-// weaker definition of the task fast-forward or the exact two-parent phase commit.
+// Shared by normal confirmation and uncertain-response recovery: no success path has a weaker
+// definition of the task merge commit, the polish or terminal fast-forward, or the exact two-parent
+// phase commit.
 const sourceGitMatches = (proof, before, land) => land
   ? proof.source_tip === before.source_sha
   : fullSha(proof.source_tip) && proof.patch_id === before.patch_id && proof.content_id === before.content_id
-const mergeGitMatches = (proof, before, land) => fullSha(proof.local_sha) && proof.remote_sha === proof.local_sha && sourceGitMatches(proof, before, land) &&
-  (land
+// The task merge predicate (#2485 D9, PIN-9). A task merge context carries kind 'task': the merge is
+// ONE --no-ff merge commit whose parents are exactly [snapshot base_sha, current source tip], whose
+// source descends from base_sha (for a task merge base_is_ancestor reads the SOURCE: the task was
+// rebased, so an unrebased merge is refused), whose tree equals the source tree (an evil merge is
+// refused), and whose raw WAR-Task trailer output is exactly `WAR-Task: <source branch>` (one trailer,
+// exact key and value). Polish and terminal merges carry no kind and keep the fast-forward arm; land
+// keeps the exact two-parent phase commit.
+const taskMergeTrailer = context => 'WAR-Task: ' + context.source
+const taskMergeMatches = (proof, before, context) => Array.isArray(proof.parents) && proof.parents.length === 2 &&
+  proof.parents[0] === before.base_sha && proof.parents[1] === proof.source_tip && proof.base_is_ancestor === true &&
+  !!proof.tree && typeof proof.tree === 'object' && fullSha(proof.tree.target) && proof.tree.target === proof.tree.source &&
+  typeof proof.trailer === 'string' && proof.trailer.replace(/\n+$/, '') === taskMergeTrailer(context)
+const mergeGitMatches = (proof, before, context) => fullSha(proof.local_sha) && proof.remote_sha === proof.local_sha && sourceGitMatches(proof, before, context.land) &&
+  (context.land
     ? fullSha(before.remote_sha) && proof.base_is_ancestor === true &&
       Array.isArray(proof.parents) && proof.parents.length === 2 && fullSha(proof.parents[0]) &&
       (proof.parents[0] === before.remote_sha || proof.local_sha === before.remote_sha) && proof.parents[1] === before.source_sha
+    : context.kind === 'task' ? taskMergeMatches(proof, before, context)
     : proof.source_tip === proof.local_sha && proof.base_is_ancestor === true)
+// MERGE_FACTS_RULE: the base_is_ancestor read and the task-merge facts that both the confirmation and
+// the reconciliation prompt ask for — one sentence, so the two arms cannot drift apart.
+const MERGE_FACTS_RULE = 'base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <X> (true ONLY on exit 0), where X is the current source branch for a task merge (context kind task) and the local target otherwise. For a task merge also return parents (git show -s --format=%P <local target>), tree { target: <local target>^{tree}, source: <current source>^{tree} } as full SHAs, and trailer: the raw unedited output of git show -s --format=\'%(trailers:key=WAR-Task)\' <local target>.'
+// NEVER_MOVE_MERGED (#2485 D11, PIN-11 ‡): the one never-move sentence carried verbatim by the
+// pin-transfer probe step (2), all four merge-task step (a) copies and the refiner card step 1 (ES9).
+const NEVER_MOVE_MERGED = 'A task branch whose tip is already an ancestor of the integration tip is merged: never rebase, move or re-merge it, and report it merged.'
+// neverMoveStep: the merge-task step (a) form of NEVER_MOVE_MERGED, with its Git test.
+const neverMoveStep = (nmWorktree, nmBranch, nmTarget) => pt`${NEVER_MOVE_MERGED} Its test: \`git -C ${nmWorktree} merge-base --is-ancestor ${nmBranch} ${nmTarget}\` exits 0 — then skip this rebase and the merge, and never make a second merge commit. `
+
 const mergeSnapshot = async (opts, context) => {
   let before
   const seed = context.seed ?? context.target
@@ -2426,14 +2460,14 @@ const pinContentMatches = proof => proof.target_ancestor === true && !blankText(
 const MERGE_CONFIRMATION = { type: 'object', properties: {
   local_sha: { type: 'string' }, remote_sha: { type: ['string', 'null'] }, source_tip: { type: 'string' },
   reported_sha: { type: ['string', 'null'] }, patch_id: { type: 'string' }, content_id: { type: 'string' }, base_is_ancestor: { type: 'boolean' },
-  parents: { type: 'array', items: { type: 'string' } } } }
+  parents: { type: 'array', items: { type: 'string' } }, tree: MERGE_TREES, trailer: { type: 'string' } } }
 const confirmMerge = async (result, opts, context, before) => {
   const mode = context.land ? 'land-phase' : 'merge-task'
   const success = context.land ? 'landed' : 'merged'
   const claimed = result[context.land ? 'working_sha' : 'integration_sha'] ?? null
   const proof = await dispatchSite(
     pt`GIT MERGE CONFIRMATION (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Immutable pre-dispatch snapshot: ${JSON.stringify(before)}. Reported result: ${JSON.stringify({ mode: result.mode, status: result.status, claimed })}.
-Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0). For merge-task return patch_id from git diff <merge-base snapshot-base current-source>..<current source> | git patch-id --stable (first field). Also return content_id for that same diff using Exact Git diff identity in refiner-recovery.md; never echo the snapshot identity. For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
+Read local target and source branch tips with git rev-parse --verify <ref>^{commit}; query origin's exact refs/heads/<target> with git ls-remote. Return local_sha, remote_sha (null ONLY on a successful query proving absence), source_tip. Resolve the claimed SHA separately through git rev-parse --verify --end-of-options <claimed>^{commit} ONLY if it is 7–40 lowercase hex; return reported_sha as the full resolved commit or null on missing/malformed/ambiguous/nonexistent input. Never infer Git identity from matching strings. For BOTH modes return ${MERGE_FACTS_RULE} For merge-task return patch_id from git diff <merge-base snapshot-base current-source>..<current source> | git patch-id --stable (first field). Also return content_id for that same diff using Exact Git diff identity in refiner-recovery.md; never echo the snapshot identity. For land-phase return the target commit's actual ordered parents via git show -s --format=%P <local target>. Read refs again after computing evidence; any movement or Git error returns {}. No writes, checkout, rebase, merge or push.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-confirm', label: 'git-confirm:' + opts.label, schema: MERGE_CONFIRMATION, ...spawn('refiner') })
   const died = deathOf(proof)
   if (died) {
@@ -2441,10 +2475,21 @@ Read local target and source branch tips with git rev-parse --verify <ref>^{comm
     return false // a read-only death after a mutation cannot establish Git certainty
   }
   const confirmed = !!proof && result.mode === mode && (result.status === success
-    ? mergeGitMatches(proof, before, context.land) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
+    ? mergeGitMatches(proof, before, context) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
     : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && proof.remote_sha === before.remote_sha && sourceGitMatches(proof, before, context.land))
   auditLog.push({ task: context.task, verdict: confirmed ? 'git-confirmed:' + result.status : 'git-confirmation:unresolved', findings: [], site: opts.label, reported: result, before, after: proof })
-  return confirmed
+  return confirmed && proof // the Git proof (truthy) on confirmation, so the caller can bind the gated tip to its parents
+}
+// gitBoundGateSha (#2485 D12, PIN-12): gate_sha is a refiner report, so a confirmed task merge keeps it
+// only when Git's second merge parent (the gated task tip taskMergeMatches pins to source_tip) starts
+// with it. Otherwise it is dropped and landMerged records the pinOrSentinel sentinel (SOFT
+// cannot-confirm). The task never holds on this check.
+const gitBoundGateSha = (result, proof, context) => {
+  const gated = result && result.gate_sha, second = proof && Array.isArray(proof.parents) ? proof.parents[1] : null
+  if (context.kind !== 'task' || !result || result.status !== 'merged' || gated === undefined ||
+      (typeof gated === 'string' && /^[0-9a-f]{7,40}$/.test(gated) && fullSha(second) && second.startsWith(gated))) return result
+  const { gate_sha: dropped, ...rest } = result
+  return rest
 }
 const reconcileMerge = async (original, opts, context, before, lost) => {
   const cause = deathOf(lost) || 'missing or error merge response'
@@ -2458,21 +2503,25 @@ const reconcileMerge = async (original, opts, context, before, lost) => {
 `
       + (context.land
         ? pt`LAND RECOVERY: the target is the working branch and the source is the integration branch. Inspect Git for an already-pushed --no-ff phase commit with EXACT parents [snapshot remote_sha, snapshot source_sha]. Also recognize a phase commit ALREADY at snapshot remote_sha whose second parent is exactly snapshot source_sha and whose first parent is a full Git commit: that phase was published before this dispatch/resume. Return base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0), so a local follower may advance to that published commit but foreign local history is never overwritten. If it exists, reuse that commit, complete the local compare-and-swap only as the original land contract allows, and never make a second phase commit. Otherwise retry push-first CAS only with unchanged source and target base. Rerun the full gate into a fresh artifact at the actual landed commit, preserving the original classified baseline allowances. Return outcome landed only with parents, source_tip, the verified snapshot patch_id and a normal land-phase MergeResult whose working_sha equals BOTH local and origin target refs. A foreign/diverged target, unknown writer or missing proof means uncertain; preserve all refs.\n`
-        : pt`Before retrying, verify source identity per refiner-recovery.md. With matching source and unchanged target refs, retry once after resolving its environment. If the local or remote target already advanced, accept ONLY this source branch's fast-forward from base_sha, with both the source patch-id and exact content_id equal to the snapshot and no foreign commits. Recompute patch_id via git patch-id --stable and content_id via Exact Git diff identity in refiner-recovery.md over merge-base(snapshot base_sha,current source)..current source; never echo captured values. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA and base_is_ancestor from git merge-base --is-ancestor <snapshot base_sha> <local target> (true ONLY on exit 0).\n`)
-      + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha the current source/target/remote SHA, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha, independently recomputed content_id and the verified nonempty patch_id. Return unmerged ONLY with unchanged target refs and matching source identity; include source_tip, patch_id, content_id and any normal non-success result. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
+        : pt`Before retrying, verify source identity per refiner-recovery.md. With matching source and unchanged target refs, retry once after resolving its environment. If the local or remote target already advanced, accept ONLY `
+          + (context.kind === 'task'
+            ? pt`one --no-ff merge commit of this source branch whose parents are exactly [snapshot base_sha, current source tip], whose tree equals the current source tree and whose WAR-Task trailer is exactly \`${taskMergeTrailer(context)}\`, with both the source patch-id and exact content_id equal to the snapshot and no foreign commits; an existing such merge commit IS the merge: report it merged and never make a second merge.`
+            : pt`a fast-forward of this source branch from base_sha, with both the source patch-id and exact content_id equal to the snapshot and no foreign commits.`)
+          + pt` Recompute patch_id via git patch-id --stable and content_id via Exact Git diff identity in refiner-recovery.md over merge-base(snapshot base_sha,current source)..current source; never echo captured values. Complete a missing push without force, rerun the gate into a fresh artifact, and run every required floor using immutable base_sha as the diff base (NEVER the already-advanced target ref, which would make the task diff empty). Honor exactly the original baseline/environment allowances and known forward-revert. Do not edit audited content or resolve a content conflict: changed patches require a ruling/re-audit, not a recovery approval. Re-check local AND origin refs after the last operation. Return source_tip as the current source branch SHA and ${MERGE_FACTS_RULE}\n`)
+      + pt`For task merges, return outcome merged ONLY with a complete normal MergeResult (status merged, integration_sha equal to both target refs — the --no-ff merge commit on a task merge, the source tip on a polish or terminal fast-forward — gate_sha the gated source tip on a task merge, all gate/floor evidence) plus base_sha and source_sha echoing the snapshot, local_sha, remote_sha, independently recomputed content_id and the verified nonempty patch_id. Return unmerged ONLY with unchanged target refs and matching source identity; include source_tip, patch_id, content_id and any normal non-success result. Never label already-pushed content unmerged. Any other state, unknown writer, changed patch, divergent/foreign ref, Git error or incomplete evidence returns outcome uncertain with detail. Preserve all commits and branches; no force push/reset/delete.
 ORIGINAL OPERATION (all requirements still apply):
 ` + original + '\n' + capture.clause,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'merge-reconcile', label: 'git-reconcile:' + opts.label + ':' + attempt, schema: MERGE_RECONCILIATION, ...spawnRefinerRecovery() })
     const recovered = rawRecovered && !deathOf(rawRecovered) ? { ...rawRecovered, result: admitGateResult(rawRecovered.result, capture) } : rawRecovered
     if (deathOf(recovered)) continue
     if (!recovered || recovered.base_sha !== before.base_sha || recovered.source_sha !== before.source_sha) continue
-    if (recovered.outcome === success && mergeGitMatches(recovered, before, context.land) &&
+    if (recovered.outcome === success && mergeGitMatches(recovered, before, context) &&
         (!blankText(before.patch_id) || context.land && recovered.local_sha === before.remote_sha) && recovered.patch_id === before.patch_id && recovered.result &&
         recovered.result.mode === mode && recovered.result.status === success && recovered.result[context.land ? 'working_sha' : 'integration_sha'] === recovered.local_sha &&
         gateLogPathOf(recovered.result.gate_log_path) &&
         (recovered.local_sha !== before.base_sha || context.land && recovered.local_sha === before.remote_sha)) {
       auditLog.push({ task: context.task, verdict: 'git-reconciled:' + success, findings: [], site: opts.label, before, after: recovered })
-      return recovered.result
+      return gitBoundGateSha(recovered.result, recovered, context)
     }
     if (recovered.outcome === 'unmerged' && recovered.local_sha === before.base_sha && recovered.remote_sha === before.remote_sha && sourceGitMatches(recovered, before, context.land) &&
         (!recovered.result || (recovered.result.mode === mode && !['merged', 'landed'].includes(recovered.result.status)))) {
@@ -2491,8 +2540,10 @@ const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => 
   let result, thrown
   try {
     result = admitGateResult(await invoke(body, opts, capture), capture)
-    if (!uncertainMerge(result) && !await confirmMerge(result, opts, context, before)) {
-      result = { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
+    if (!uncertainMerge(result)) {
+      const proof = await confirmMerge(result, opts, context, before)
+      result = proof ? gitBoundGateSha(result, proof, context)
+        : { ...result, status: 'error', detail: 'Git did not confirm the reported merge outcome; automatic reconciliation required' }
     }
   }
   catch (err) { thrown = err; result = { mode: context.land ? 'land-phase' : 'merge-task', status: 'error', detail: 'lost merge dispatch: ' + String(err && err.message || err) } }
@@ -3337,8 +3388,8 @@ if (tasks.length) {
   // is never reported (#1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
-  // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run,
-  // and the handoff tipSha fallback reads that list, which must stay truthful. Only ids matching a real
+  // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run —
+  // and it never sets lastLandedTip, which the handoff tipSha fallback reads. Only ids matching a real
   // task are honored (git > any Lead-assembled arg) — but the match normalizes BOTH id dialects first
   // (#1704): the barrier may report the WORKTREE-NAME dialect (`p<phase>-<id>`, e.g. `p2-2.1`) while
   // tasks carry bare ids (`2.1`) — strip the prefix on both sides before comparing. An id matching no
@@ -4616,7 +4667,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       log(`gate-audit: skipping ${task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
     } else {
       mergedTasksForGateAudit.push({ taskId: task.id, gateOutput: mr.gate_output, acceptanceCriteria: task.planSlice,
-        gateHeadSha: pinOrSentinel(mr.integration_sha), gateLogPath: mr.gate_log_path, preMergeTip: predTip,
+        // gateHeadSha is the GATED tip (#2485 D12): gate_sha, the task merge commit's second parent —
+        // never integration_sha, which is the merge commit itself under the --no-ff task merge (D8).
+        gateHeadSha: pinOrSentinel(mr.gate_sha), gateLogPath: mr.gate_log_path, preMergeTip: predTip,
         // mappedTests (D7, Task 3.2) + claimedEndStateIds (A1): both OPTIONAL, omitted when absent/empty
         // (fail-open — the seat prompt is byte-identical to today without them).
         ...(Array.isArray(mr.mappedTests) && mr.mappedTests.length ? { mappedTests: mr.mappedTests } : {}),
@@ -4677,7 +4730,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const submodMergeNote = isSubmodTask && r.task.targetRepo
         ? pt`\nSUBMODULE TASK: this merge-task operates INSIDE the submodule repo, not the superproject. `
           + pt`Submodule checkout (targetRepo): ${r.task.targetRepo}. Submodule base: ${r.task.targetBase || '<targetBase>'}. `
-          + pt`Run rebase and gate cwd-scoped to ${r.task.targetRepo}; the _refinery merge fast-forwards the submodule integration branch.`
+          + pt`Run rebase and gate cwd-scoped to ${r.task.targetRepo}; the _refinery merge makes the same --no-ff merge commit, with the exact WAR-Task trailer, on the submodule integration branch.`
         : ''
       // D2 / #2485 D17 forward-revert: r.aceReverted is the registered RANGE revert — the pair
       // (<approved>, the pre-revert tip) — set for a final failed ace range no later dispatch reverted
@@ -4715,7 +4768,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // still-ancestor approved commit, and a snapshot that kept predicting the approved patch would
       // fail confirmMerge on the merge it just pushed and hold a mergeable task. No registered range
       // means no key at all: the prompts key on the name, so null is never a third state.
-      const taskMergeContext = { task: r.task.id, repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch,
+      // kind 'task' selects the --no-ff merge-commit arm of the merge predicate (#2485 D9); the polish and
+      // terminal merges carry no kind and keep the fast-forward arm.
+      const taskMergeContext = { task: r.task.id, kind: 'task', repo: isSubmodTask ? r.task.targetRepo : refineryPath, source: r.task.branch,
         target: ph.integrationBranch, seed: workingBranchFor(r.task) }
       const revertMergeContext = revertRange ? { ...taskMergeContext, revert_range: revertRange } : taskMergeContext
       const pinContext = { ...revertMergeContext, pin: true }
@@ -4725,7 +4780,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n`
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
-        + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
+        + pt`  (2) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. ${NEVER_MOVE_MERGED} Here that means: when \`git -C ${r.task.worktree} merge-base --is-ancestor ${r.task.branch} ${ph.integrationBranch}\` exits 0, skip the rebase and return { status: 'empty-unmatched', detail: 'already merged: the task tip is an ancestor of the integration tip' } — the engine fails closed and never re-merges it. The task branch is checked out there, so the rebase cannot run in _refinery. On CONFLICT: abort it and return { status: 'conflict', conflict_files: [...] } — never force, never resolve.\n`
         + pt`  (3) TIP=rev-parse ${r.task.branch} (the rebased task tip being approved); POST=diff ${ph.integrationBranch}..$TIP piped to git patch-id --stable, first field (empty on an empty diff).\n`
         + pt`  (4) ARM ORDER — already_upstream FIRST. Post-rebase diff EMPTY and N > 0 and EVERY CHERRY line starting '-' and PRE non-empty: return { status: 'already_upstream', rebased_tip: $TIP, dispatch_base: $BASE, pre_rebase_patch_id: $PRE, post_rebase_patch_id: $POST, already_upstream_commits: [the task commit SHAs CHERRY listed] } — the engine independently checks the final tree before deciding whether approval transfers or a full content re-audit is required. The consumer REFUSES an already_upstream whose fields contradict it (rebased_tip equal to dispatch_base, a non-empty POST, or an empty already_upstream_commits) — never report already_upstream to carry a different true result; the fields are read as returned.\n`
         + pt`  (5) Post-rebase diff EMPTY AND (N is 0, OR any CHERRY line starts '+', OR PRE is EMPTY) — the empty post-rebase diff is the shared precondition for all three legs, so this is never an unscoped 3-way OR: return { status: 'empty-unmatched', detail: '<which leg failed>' } — fail closed; never already_upstream, never a transfer.\n`
@@ -4843,7 +4898,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           if (pinProof.head_tree === pinProof.approved_tree) {
             pinTransfers.push({ ...probeRow('already_upstream'), alreadyUpstreamCommits: commits })
             log('pin-transfer ' + r.task.id + ': already_upstream — the approved tree equals the published integration tree; matched non-merge task commits: ' + commits.join(', ') + '; no panel and no content merge (PIN-16).')
-            landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha })
+            landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha, gate_sha: pinProof.head_sha })
             continue
           }
           upstreamReaudit = true
@@ -4885,7 +4940,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           pinTransfers.push(probeRow('mismatch', rbSeats))
           r.seats = rbSeats
           if (upstreamReaudit) {
-            landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha })
+            landMerged(r.task, { mode: 'merge-task', status: 'merged', integration_sha: pinProof.head_sha, gate_sha: pinProof.head_sha })
             continue
           }
         } else {
@@ -4905,13 +4960,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + reattachClause(refineryPath)
         + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
         + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+        + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
         + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
-        + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
+        + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
         + baselineDebtClause()
-        + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
+        + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + pt` Also before step (b), run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS — it exits 0 on its own when the diff touches no prompt-surface budget ceiling). Exit 1 (a hard:/advisory: ceiling raise in prompt-surface-budgets.test.mjs with no Budget-Raise trailer on any commit in the range) → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route (the status enum is never widened) — do NOT merge; the required commit trailer form is \`Budget-Raise: ADR-0042 <surface> +<bytes>\`, and a legitimate ceiling change routes through the operator re-baseline pass (skills/war/references/budget-rebaseline.md) — a worker instead funds growth UNDER the ceiling. Exit 2 (a git/ref error) → return { mode: 'merge-task', status: 'error' }, never the budget-uncited route — the exit-1-vs-2 split mirrors the test floor.`
         + (requiresTest
@@ -5055,11 +5111,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + reattachClause(refineryPath)
             + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
             + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test, no other signal (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
             + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
             + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
-            + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
+            + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
             + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
-                + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
+                + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content. `
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
             + pt`Before the _refinery merge step (b), re-run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} — the floor fix-worker pushed new commits, so the check runs afresh REGARDLESS of requiresTest (the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }. `
@@ -5149,9 +5206,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             pt`ENVIRONMENT-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
-            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}.\n`
+            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch) + '\n'
             + pt`  (b) Run the gate (${plan.gate}) in a FRESH shell with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'merge-task', status: 'gate_failed' } classifying it afresh in gate_failure_class, and do NOT merge.\n`
-                + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
+                + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` (one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return { mode: 'merge-task', status: 'merged', integration_sha: <the merge commit>, gate_sha: <the gated task tip> } — populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
             // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
@@ -5184,9 +5242,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             pt`BASELINE-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`The prior merge-task gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the phase integration base, NOT introduced by this task: ${(mr.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
-            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}.\n`
+            + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch) + '\n'
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
-            + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
+            + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` (one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return { mode: 'merge-task', status: 'merged', integration_sha: <the merge commit>, gate_sha: <the gated task tip> } — integration_sha is the new merge commit and gate_sha the rebased task tip the gate ran at (the merge commit's second parent).`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             // routedMr wraps this dispatch (D6, PIN-10, #1736): the normalized 'budget-uncited' is a
             // HARD_ESCALATION_REASONS member, so the generic tail below escalates an uncited ceiling
@@ -5406,14 +5465,16 @@ if (mergedTasksForGateAudit.length > 0) {
   const repoOf = t => t.taskType === 'submodule' ? (t.targetRepo || '<submodule>') : '<superproject>'
   const sameRepo = (a, b) => repoOf(a) === repoOf(b)
   const intraDep = tasks.some(t => (t.deps || []).some(d => tasks.some(x => x.id === d && sameRepo(x, t))))
-  // Per-task pre-merge base for the task's own changed-file set + the guard floor. Per-task merges are
-  // FAST-FORWARD (linear single-parent chain, NO per-task merge commit), so the base is the task's TRUE
-  // immediate predecessor tip in serial merge order — the stamped preMergeTip landMerged() captured (#806),
-  // which correctly spans a requiresTest:false interleave (that skipped task lands but never enters this
-  // list, yet its real integration tip IS the successor's base) — or, for the FIRST landed task, the phase
-  // integration base (a shell substitution the refiner resolves). NOT the previous LIST entry's gateHeadSha
-  // (over-counts across a requiresTest:false skip / can be a sentinel), NOT <merge>^1 (void: no merge commit),
-  // and NOT the post-merge integration tip (an empty three-dot no-op).
+  // Per-task pre-merge base for the task's own changed-file set + the guard floor. Each task merge is a
+  // --no-ff merge commit M (#2485 D8): M^2 is the gated rebased task tip (gateHeadSha, read from gate_sha)
+  // and M^1 the integration tip the task rebased onto — the task's TRUE immediate predecessor tip in serial
+  // merge order, the stamped preMergeTip landMerged() captured (#806) from lastLandedTip (the previous merge
+  // commit), which correctly spans a requiresTest:false interleave (that skipped task lands but never enters
+  // this list, yet its real integration tip IS the successor's base) — or, for the FIRST landed task, the
+  // phase integration base (a shell substitution the refiner resolves). So <preMergeTip>..<gateHeadSha> is
+  // M^1..M^2, the task's own change set. NOT the previous LIST entry's gateHeadSha (over-counts across a
+  // requiresTest:false skip / can be a sentinel), and NOT the post-merge integration tip (an empty
+  // three-dot no-op).
   const phaseBaseCmd = `$(git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch})`
   const evItems = mergedTasksForGateAudit.map((m) => ({
     taskId: m.taskId, gateHeadSha: m.gateHeadSha,
@@ -5433,7 +5494,7 @@ if (mergedTasksForGateAudit.length > 0) {
     // bare), e.preMergeTip is constructed with a || phaseBaseCmd fallback; ${e.gateHeadSha ?? …} absence-tolerant.
     + evItems.map(e => pt`  - ${e.taskId} · gateHeadSha=${e.gateHeadSha ?? '<gateHeadSha>'} · preMergeTip=${e.preMergeTip} · gateLogPath=${e.gateLogPath}`).join('\n') + '\n'
     + pt`  1. PIN STATUS — run: gate-pin-status.sh <gateHeadSha> $(git -C ${refineryPath} rev-parse HEAD) --mapped "$(git -C ${refineryPath} diff --name-only <preMergeTip> <gateHeadSha>)". `
-    + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — exactly what the task brought in under fast-forward topology), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
+    + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — <preMergeTip> is the previous task's merge commit, the tip this task rebased onto, and <gateHeadSha> the gated task tip, the merge commit's second parent, so the range is exactly what the task brought in), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
     + (intraDep
       ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), ${evidenceCapture.clause} Return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: <the actual absolute captured path> } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
@@ -5507,7 +5568,7 @@ if (mergedTasksForGateAudit.length > 0) {
       pt`POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
       + pt`${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.\n`
-      + pt`Gate-HEAD sha (the rebased integration tip the gate ran at): ${gateHeadSha}.\n`
+      + pt`Gate-HEAD sha (the rebased task tip the gate ran at, the task merge commit's second parent): ${gateHeadSha}.\n`
       + pt`PIN STATUS: ${pinStatusLine}. A stamped CONFIRMED or BENIGN-ADVANCE token IS the pin proof — the refiner's evidence dispatch already computed it (gate-pin-status.sh) against the observed _refinery tip ${observedHead || gateHeadSha}. Consume the stamped token; do NOT reconstruct the proof — you MAY spot-verify with a SINGLE read-only \`git -C ${refineryPath} cat-file -t <sha>\` or \`git -C ${refineryPath} rev-parse HEAD\` only if you doubt it.\n`
       + pt`CONFIRMED (observed tip == gate-HEAD) or BENIGN-ADVANCE (observed tip descends gate-HEAD and NONE of this task's own files changed in the intervening range) ⇒ the tree you judge corresponds to the current integration tip; a mapped acceptance-criteria test provably unrun AT that confirmed tip stays HARD.\n`
       + pt`STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`
@@ -6541,14 +6602,15 @@ if (landDecision === 'landed') {
 // the Wrap-up 'if': the handoff block also emits on held:escalation, where landResult can be NULL
 // (land never dispatched) and an in-gate const would be undeclared there — the dereference would hit
 // the top-level catch and turn the degraded path that most needs a handoff into held:workflow-error.
-// The computation moved VERBATIM (its own landResult && … null-guard retained, truthy-string check on
-// working_sha unchanged — no new SHA-shape validation), so handoff.tipSha is byte-identical to the
-// pre-hoist value.
-// tipSha: the landed working sha; degraded → the last confirmed merge tip; else null.
-const lastPinned = [...mergedTasksForGateAudit].reverse().find(m => /^[0-9a-f]{7,40}$/.test(m.gateHeadSha || ''))
+// The landed arm keeps its own landResult && … null-guard and the truthy-string check on working_sha
+// (no new SHA-shape validation).
+// tipSha: the landed working sha; degraded → the last confirmed merge tip; else null. The degraded
+// fallback reads lastLandedTip (#2485 D12): the last real integration_sha, the task merge commit, which
+// landMerged records for every merged task. A gateHeadSha is the gated task tip, the merge commit's
+// second parent, so it is never the integration tip.
 const tipSha = (landResult && landResult.status === 'landed' && typeof landResult.working_sha === 'string' && landResult.working_sha)
   ? landResult.working_sha
-  : (lastPinned ? lastPinned.gateHeadSha : null)
+  : (isSha(lastLandedTip) ? lastLandedTip : null)
 // Pre-resolved BEFORE any interpolation: the pt tag throws on undefined and a bare null would render
 // the literal "null" — the null case becomes the NAMED placeholder the grounding ladder's step 4
 // routes on (ADR 0034; working_sha is contract-promised but not schema-required in MERGE_RESULT).
@@ -6695,8 +6757,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
   // candidate rows so each filed issue can carry its `## Evidence artifacts` section (the issue-side
   // evidence duty, ADR 0044 amendment) — all read from the auditLog already in hand at filing time:
   // the audit round from the task's audit-verdict entry's fixRounds, the pinned sha from its
-  // post-merge gate-audit entry's gateHeadSha (the engine-stamped integration tip the task's gate
-  // ran at — the landed tree that still carries the unabsorbed finding). A merged requiresTest:false
+  // post-merge gate-audit entry's gateHeadSha (the gated task tip, the task merge commit's second
+  // parent, whose tree is the landed tree that still carries the unabsorbed finding). A merged requiresTest:false
   // task has NO gate-audit entry (the D7 skip) — its pinned sha falls back to the landedShaByTask
   // retention landMerged stamped (its real landed integration tip), so a merged task never renders
   // 'unrecorded' (Phase 5 Task 1). Fail-open: a task with neither (e.g. a never-merged task filing
@@ -6803,7 +6865,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
 // holds (nothing landed to hand off).
 let handoff = null
 if (landDecision === 'landed' || landDecision === 'held:escalation') {
-  // tipSha + lastPinned are HOISTED above the Wrap-up gate (see LANDED-TIP ANCHOR) — the Wrap-up
+  // tipSha is HOISTED above the Wrap-up gate (see LANDED-TIP ANCHOR) — the Wrap-up
   // dispatch threads the same value. This block consumes them unchanged: Wrap-up fires only on
   // 'landed', a strict subset of this block's emit conditions, so the hoist widens nothing.
   // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].

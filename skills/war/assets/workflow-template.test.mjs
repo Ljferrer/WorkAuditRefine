@@ -77,10 +77,19 @@ const NEW_SEAT_DEFAULTS = {
     return reported.length && reported.every(x => typeof x === 'string' && /^[0-9a-f]{7,40}$/.test(x))
       ? fixtureGitProof(prompt, reported[0].padEnd(40, '0')) : {}
   },
-  'merge-confirm': prompt => {
+  // #2485 D9: a task merge (context kind 'task') is a --no-ff merge commit — the neutral proof reports
+  // parents [snapshot base, source tip], equal trees and the exact trailer; polish and terminal merges
+  // keep the fast-forward shape and land keeps the phase commit.
+  // The second parent is the gated tip the merge reply reported (world.merge), else the snapshot source.
+  'merge-confirm': (prompt, opts, world) => {
+    const ctx = JSON.parse(prompt.match(/Context: (\{.*?\})\. Immutable pre-dispatch snapshot:/)[1])
     const before = JSON.parse(prompt.match(/Immutable pre-dispatch snapshot: ([^\n]+?)\. Reported result:/)[1])
     const result = JSON.parse(prompt.match(/Reported result: ([^\n]+?)\.\n/)[1])
     const tip = typeof result.claimed === 'string' && /^[0-9a-f]{7,40}$/.test(result.claimed) ? result.claimed.padEnd(40, '0') : null
+    const reply = world && opts && world.merge.get(String(opts.label || '').replace(/^git-confirm:/, ''))
+    const gated = reply && isHexSha(reply.gate_sha) ? reply.gate_sha.padEnd(40, '0') : before.source_sha
+    if (['merged', 'landed'].includes(result.status) && ctx.kind === 'task') return { local_sha: tip, remote_sha: tip, source_tip: gated, reported_sha: tip, patch_id: before.patch_id, content_id: before.content_id, base_is_ancestor: true,
+      parents: [before.base_sha, gated], tree: { target: fixtureTree('merge:' + tip), source: fixtureTree('merge:' + tip) }, trailer: 'WAR-Task: ' + ctx.source + '\n' }
     return ['merged', 'landed'].includes(result.status)
       ? { local_sha: tip, remote_sha: tip, source_tip: result.status === 'landed' ? before.source_sha : tip, reported_sha: tip, patch_id: before.patch_id, content_id: before.content_id, base_is_ancestor: true, parents: [before.remote_sha, before.source_sha] }
       : { local_sha: before.base_sha, remote_sha: before.remote_sha, source_tip: before.source_sha, patch_id: before.patch_id, content_id: before.content_id }
@@ -169,10 +178,13 @@ const fixtureAuditPin = prompt => (String(prompt).match(/AUDIT PIN: the worker r
 const completeAuditFixture = (prompt, opts, result) => /^audit:/.test(opts.label || '') && result && typeof result === 'object' && !Object.hasOwn(result, 'audit_sha')
   ? { ...result, audit_sha: fixtureAuditPin(prompt) } : result
 
+// A neutral merged fixture that names no gate_sha (#2485 D12) gated the tip it reports: gate_sha takes
+// the reported integration_sha. The ES8 merge-commit fixtures name both shas and keep them distinct.
 const completeMergeFixture = (opts, result) => {
   if (seatOf(opts) !== 'war-refiner' || !result || typeof result !== 'object' || !['merged', 'landed'].includes(result.status)) return result
   const field = result.status === 'landed' ? 'working_sha' : 'integration_sha'
-  return Object.hasOwn(result, field) ? result : { ...result, [field]: '2'.repeat(40) }
+  const filled = Object.hasOwn(result, field) ? result : { ...result, [field]: '2'.repeat(40) }
+  return result.status === 'merged' && !Object.hasOwn(filled, 'gate_sha') ? { ...filled, gate_sha: filled.integration_sha } : filled
 }
 
 async function runPhase(args, agentImpl, seats = {}, source = src) {
@@ -181,7 +193,10 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
   const fn = build(source)
   // world.ace: branch → the last ace-family worker result on it (reset BEFORE each such dispatch, so
   // a death leaves no stale entry). Keyed by branch because sibling tasks ace concurrently.
-  const world = { ace: new Map() }
+  // world.merge: base merge label → the (completed) merge-task reply. A segmentedMerge continuation
+  // ('<label>:segment-N') replaces its first segment's error reply, so the neutral merge-confirm proof's
+  // second parent is the gated tip the completed reply reported (an honest refiner's merge commit, #2485 D12).
+  const world = { ace: new Map(), merge: new Map() }
   const agent = async (prompt, opts = {}) => {
     calls.push({ prompt, opts })
     if (NEW_SEAT_KINDS.includes(opts.dispatchKind)) return answerNewSeat(seats, prompt, opts, world)
@@ -190,6 +205,7 @@ async function runPhase(args, agentImpl, seats = {}, source = src) {
     let result = await agentImpl(prompt, opts)
     if (aceWorker) world.ace.set(branchOfPrompt(prompt), result)
     if (!seats.rawMergeResults) result = completeMergeFixture(opts, result)
+    if (seatOf(opts) === 'war-refiner' && result && typeof result === 'object' && result.mode === 'merge-task') world.merge.set(String(opts.label).replace(/:segment-\d+$/, ''), result)
     return seats.rawTaskAuditPins ? result : completeAuditFixture(prompt, opts, result)
   }
   const log = (m) => logs.push(m)
@@ -649,9 +665,9 @@ test('Task 5 — merge-task prompt: rebase runs git -C in the TASK worktree, mer
   // Must state rebase --onto does not dodge it
   assert.match(p, /rebase\s+--onto.{0,60}(not|does not|doesn.t|cannot)/i,
     'merge-task prompt states rebase --onto does not dodge the constraint')
-  // Must instruct git merge <task.branch> (merge from the task branch into integration in _refinery)
-  assert.match(p, /git\s+merge\b.*war\/wtprov-a\/p3-t1/,
-    'merge-task prompt mentions git merge of the task branch in _refinery')
+  // Must instruct the --no-ff merge of <task.branch> into integration in _refinery (#2485 D8, D10)
+  assert.match(p, /git -c core\.hooksPath=\/dev\/null merge --no-ff --no-commit war\/wtprov-a\/p3-t1 && git -c core\.hooksPath=\/dev\/null commit --no-verify -m "[^"]+" --trailer "WAR-Task: war\/wtprov-a\/p3-t1"/,
+    'merge-task prompt spells the two-step --no-ff merge of the task branch in _refinery')
 })
 
 test('Task 5 — land prompt: detached at origin/<working>, land-advance, reland loop, land_stale on exhaustion', async () => {
@@ -7091,7 +7107,7 @@ test('handoff absorbed grouping: per-task ace absorbs group by commit sha as [{ 
 // #990 — the LANDED-TIP ANCHOR is hoisted above the Wrap-up gate and THREADED into the servitor
 // prompt. Same computation the handoff block used to own (the test above pins its semantics
 // unchanged); these three pin the RENDERED value at each rung of its fallback chain:
-// landed working_sha → last pinned gateHeadSha → the named placeholder. The placeholder rung is the
+// landed working_sha → lastLandedTip (the last task merge commit) → the named placeholder. The placeholder rung is the
 // ADR 0034 proof: `pt` throws on undefined, so the null case must be pre-resolved BEFORE interpolation.
 // ---------------------------------------------------------------------------
 const TIP_PLACEHOLDER = /landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input/
@@ -9258,6 +9274,9 @@ test('#806 — an unproved middle merge leaves the tracker at the last confirmed
 })
 
 test('#806 — no-skip control: all gated, all real shas ⇒ the chain is byte-identical to today (first=phaseBaseCmd, each successor=predecessor gateHeadSha)', async () => {
+  // The neutral fixture sets gate_sha equal to integration_sha, so preMergeTip equals the predecessor's
+  // gateHeadSha only in this fixture. Under real merge commits preMergeTip is the previous merge commit
+  // (M^1), not the gated tip: 2485/ES8 pins that merge-commit shape, where the two differ.
   const { calls } = await runPhase(THREE(new Set()), skewImpl({ t1: 'aaaa1111', t2: 'bbbb2222', t3: 'cccc3333' }))
   const ev = evPromptOf(calls)
   assert.match(preMergeTipOf(ev, 't1'), /merge-base/, 'first entry = the phaseBaseCmd merge-base substitution (unchanged)')
@@ -12773,6 +12792,10 @@ const BARE_INTERPOLATION_CENSUS = [
   // round, stamped from the same helper; file is chainDepthLine's reference pointer, a module-const
   // string at both callers (CHAIN_FIX_MD, CHAIN_AUDIT_MD) — all construction-guaranteed.
   'correctiveRound', 'e.round', 'examplesPointer', 'file', 'variant', 'variantClause',
+  // #2485 Task 2.1: MERGE_FACTS_RULE and NEVER_MOVE_MERGED are plain-string module consts; neverMoveStep's
+  // three params are r.task.worktree, r.task.branch and ph.integrationBranch at all four step (a) copies,
+  // each entry-validated — all construction-guaranteed strings.
+  'MERGE_FACTS_RULE', 'NEVER_MOVE_MERGED', 'nmBranch', 'nmTarget', 'nmWorktree',
 ]
 
 test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
@@ -18849,7 +18872,8 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
   for (const timing of ['before-merge', 'after-local-merge', 'after-push']) {
     test('Git reconciliation: ' + site + ' lost ' + timing + ' recovers in-phase with Git evidence', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'war-git-reconcile-'))
-      const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+      const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+      const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
       try {
         git('init', '-b', 'integration'); git('config', 'user.name', 'WAR Fixture'); git('config', 'user.email', 'fixture@example.invalid')
         writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base')
@@ -18862,13 +18886,17 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
         const label = site === 'initial' ? 'merge:t1' : site === 'floor-retry' ? 'merge:t1:floor-retry:r1' : site === 'polish' || site === 'terminal' ? 'merge:p3-' + site : 'merge:t1:' + site
         let recovered = false, faulted = false
         const gitResultAncestor = () => spawnSync('git', ['merge-base', '--is-ancestor', base, 'integration'], { cwd: dir }).status === 0
-        const merge = () => { git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration') }
+        // #2485 D8: a task site makes the --no-ff merge commit (a replay over an existing one makes none,
+        // D11); the polish and terminal sites stay fast-forward.
+        const sweepSite = site === 'polish' || site === 'terminal'
+        const mergeOnly = branch => { if (sweepSite) git('merge', '--ff-only', 'task'); else gitTaskMerge(run, 'task', branch) }
+        const merge = branch => { mergeOnly(branch); git('push', 'origin', 'integration') }
         const clean = sweepBase([queuedAbsorb()])
         const args = site === 'polish' || site === 'terminal' ? SWEEP_ARGS() : PROVISION_ARGS({ tasks: SINGLE_TASK })
         const { out, calls } = await runPhase(args, (p, o) => {
           if (o.label === label) {
             faulted = true
-            if (timing !== 'before-merge') git('merge', '--ff-only', 'task')
+            if (timing !== 'before-merge') mergeOnly(branchOfPrompt(p))
             if (timing === 'after-push') git('push', 'origin', 'integration')
             throw new Error('read ECONNRESET')
           }
@@ -18884,12 +18912,14 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
             assert.ok(p.includes('using immutable base_sha as the diff base'))
             assert.ok(p.includes('FRESH GATE ARTIFACT'))
             assert.ok(p.includes('ORIGINAL OPERATION'))
-            merge()
+            const ctx = reconcileContextOf(p)
+            merge(ctx.source)
             const local = git('rev-parse', 'integration')
             const remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', 'integration')
             recovered = true
             return { outcome: 'merged', ...snapshot, local_sha: local, remote_sha: remote, source_tip: source, base_is_ancestor: gitResultAncestor(),
-              result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_log_path: fixtureGatePath(p), gate_output: 'all checks pass', mappedTests: ['deliverable.test.js'] } }
+              ...(ctx.kind === 'task' ? gitTaskFacts(run, base, 'task', 'integration') : {}),
+              result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_sha: source, gate_log_path: fixtureGatePath(p), gate_output: 'all checks pass', mappedTests: ['deliverable.test.js'] } }
           },
         })
         assert.ok(faulted, 'the requested alternate consumer actually lost its response')
@@ -18900,12 +18930,17 @@ for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-p
         if (site === 'initial' || site.endsWith('proceed') || site === 'floor-retry') assert.ok(out.landed.includes('t1'))
         else assert.equal(out.handoff.polish, 'merged')
         assert.equal(calls.filter(c => c.opts.dispatchKind === 'merge-reconcile').length, 1)
+        if (!sweepSite) assert.equal(git('rev-list', '--count', '--merges', 'integration'), '1', 'a lost task merge is recovered as exactly one merge commit, never a second')
       } finally { rmSync(dir, { recursive: true, force: true }) }
     })
   }
 }
 
-const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_is_ancestor: true, base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '2'.repeat(40), remote_sha: '2'.repeat(40), source_tip: '2'.repeat(40), patch_id: 'fixture-task-patch', content_id: '5'.repeat(40), result: { mode: 'merge-task', status: 'merged', integration_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
+// #2485 D9: a recovered task merge is one merge commit '6'*40 over [snapshot base, source tip] with the
+// exact trailer; gate_sha is the gated source tip.
+const reconciliationProof = (prompt = '') => ({ outcome: 'merged', base_is_ancestor: true, base_sha: '1'.repeat(40), source_sha: '2'.repeat(40), local_sha: '6'.repeat(40), remote_sha: '6'.repeat(40), source_tip: '2'.repeat(40),
+  parents: ['1'.repeat(40), '2'.repeat(40)], tree: { target: '7'.repeat(40), source: '7'.repeat(40) }, trailer: 'WAR-Task: ' + reconcileContextOf(prompt).source + '\n',
+  patch_id: 'fixture-task-patch', content_id: '5'.repeat(40), result: { mode: 'merge-task', status: 'merged', integration_sha: '6'.repeat(40), gate_sha: '2'.repeat(40), gate_log_path: fixtureGatePath(prompt) } })
 for (const [name, modify] of [
   ['wrong snapshot base', r => { r.base_sha = '3'.repeat(40) }],
   ['wrong snapshot source', r => { r.source_sha = '3'.repeat(40) }],
@@ -18922,6 +18957,15 @@ for (const [name, modify] of [
   ['no MergeResult', r => { delete r.result }],
   ['result tip differs', r => { r.result.integration_sha = '3'.repeat(40) }],
   ['unchanged target is not a merge', r => { r.source_tip = r.local_sha = r.remote_sha = r.result.integration_sha = r.base_sha }],
+  // #2485 D9: each clause of the task merge predicate refuses on its own.
+  ['fast-forward is not a task merge commit', r => { r.local_sha = r.remote_sha = r.result.integration_sha = r.source_tip; r.parents = [r.base_sha] }],
+  ['first parent is not the snapshot base', r => { r.parents = ['3'.repeat(40), r.source_tip] }],
+  ['second parent is not the source tip', r => { r.parents = [r.base_sha, '3'.repeat(40)] }],
+  ['evil merge tree', r => { r.tree = { target: '8'.repeat(40), source: '7'.repeat(40) } }],
+  ['missing merge tree', r => { delete r.tree }],
+  ['inexact trailer', r => { r.trailer = r.trailer.replace('WAR-Task: ', 'war-task: ') }],
+  ['second trailer', r => { r.trailer = r.trailer + 'WAR-Task: other-branch\n' }],
+  ['missing trailer', r => { delete r.trailer }],
   ['unmerged but local advanced', r => { r.outcome = 'unmerged'; r.remote_sha = r.base_sha; delete r.result }],
   ['unmerged but remote advanced', r => { r.outcome = 'unmerged'; r.local_sha = r.base_sha; delete r.result }],
   ['false unmerged after push', r => { r.outcome = 'unmerged'; delete r.result }],
@@ -19460,12 +19504,12 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
       const patch = () => { const r = spawnSync('git', ['patch-id', '--stable'], { input: git('diff', base, source) + '\n', encoding: 'utf8' }); assert.equal(r.status, 0); return r.stdout.split(' ')[0] }
       const before = { base_sha: base, remote_sha: base, source_sha: tip, patch_id: patch(), content_id: fixtureContentId(dir, base, source) }
       const label = site === 'land' ? 'land:phase-3' : 'merge:t1'
-      const merge = () => { git('merge', site === 'land' ? '--no-ff' : '--ff-only', source, '-m', 'merge'); git('push', 'origin', target) }
+      const merge = p => { if (site === 'land') git('merge', '--no-ff', source, '-m', 'merge'); else gitTaskMerge(run, source, branchOfPrompt(p)); git('push', 'origin', target) }
       let confirmed = 0, recovered = 0, reported
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
         if (o.label === label) {
           if (shape.includes('whitespace')) { git('checkout', source); writeFileSync(join(dir, 'own.test.js'), 'module.exports = \"accepted  task\"'); git('add', 'own.test.js'); git('commit', '-m', 'whitespace mutation'); git('checkout', target) }
-          if (shape === 'valid' || shape === 'false-failure' || shape.includes('whitespace')) merge()
+          if (shape === 'valid' || shape === 'false-failure' || shape.includes('whitespace')) merge(p)
           const head = git('rev-parse', target)
           reported = { mode: site === 'land' ? 'land-phase' : 'merge-task', status: shape.startsWith('false-failure') ? 'gate_failed' : site === 'land' ? 'landed' : 'merged' }
           if (shape !== 'minimal') reported[site === 'land' ? 'working_sha' : 'integration_sha'] = shape === 'nonexistent' ? 'deadbeef' : shape === 'wrong-tip' ? tip : head.slice(0, 10)
@@ -19480,7 +19524,8 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
           const claimed = reported[site === 'land' ? 'working_sha' : 'integration_sha']
           const resolved = typeof claimed === 'string' ? run('rev-parse', '--verify', '--end-of-options', claimed + '^{commit}') : null
           return { local_sha: git('rev-parse', target), remote_sha: git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target), source_tip: git('rev-parse', source), reported_sha: resolved?.status === 0 ? resolved.stdout.trim() : null,
-            base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0, patch_id: patch(), content_id: fixtureContentId(dir, base, source), parents: git('show', '-s', '--format=%P', target).split(' ') }
+            base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0, patch_id: patch(), content_id: fixtureContentId(dir, base, source), parents: git('show', '-s', '--format=%P', target).split(' '),
+            ...(site === 'task' ? gitTaskFacts(run, base, source, target) : {}) }
         },
         'merge-reconcile': (p, o) => {
           assert.ok(o.label.startsWith('git-reconcile:' + label), 'only the uncertain target is maintained')
@@ -19488,7 +19533,8 @@ for (const site of ['task', 'land']) for (const shape of ['minimal', 'nonexisten
           const local = git('rev-parse', target), remote = git('--git-dir=' + join(dir, 'origin.git'), 'rev-parse', target)
           if (!shape.startsWith('false-failure')) return { outcome: 'unmerged', ...before, source_tip: git('rev-parse', source), patch_id: patch(), content_id: fixtureContentId(dir, base, source), local_sha: local, remote_sha: remote }
           return { outcome: site === 'land' ? 'landed' : 'merged', ...before, content_id: fixtureContentId(dir, base, source), local_sha: local, remote_sha: remote, source_tip: git('rev-parse', source), base_is_ancestor: run('merge-base', '--is-ancestor', base, target).status === 0,
-            parents: git('show', '-s', '--format=%P', target).split(' '), result: { mode: site === 'land' ? 'land-phase' : 'merge-task', status: site === 'land' ? 'landed' : 'merged', [site === 'land' ? 'working_sha' : 'integration_sha']: local, gate_log_path: fixtureGatePath(p) } }
+            parents: git('show', '-s', '--format=%P', target).split(' '), ...(site === 'task' ? gitTaskFacts(run, base, source, target) : {}),
+            result: { mode: site === 'land' ? 'land-phase' : 'merge-task', status: site === 'land' ? 'landed' : 'merged', [site === 'land' ? 'working_sha' : 'integration_sha']: local, gate_log_path: fixtureGatePath(p) } }
         },
       })
       if (shape.includes('whitespace')) assert.equal(patch(), before.patch_id, 'stable patch IDs cannot distinguish significant whitespace in a string literal')
@@ -19660,11 +19706,32 @@ const realGitPinConfirm = (dir, p) => {
     post_empty: run('diff', '--quiet', 'integration', 'task').status === 0, task_count: Number(git('rev-list', '--count', ownBase + '..' + content)), pins,
     cherry: lines ? lines.split('\n').map(line => ({ sign: line[0], sha: line.slice(2) })) : [] }
 }
-// merge-confirm as the prompt asks: the merge-task patch over the snapshot base, read after the dispatch.
+// #2485 D8/D10: the engine's two-step --no-ff task merge, spelled as the merge prompt spells it, with the
+// exact WAR-Task trailer naming the engine's task branch. NEVER-MOVE (D11): a source already an
+// ancestor of HEAD is merged — no second merge commit (the reconcile replay of an existing merge).
+const gitTaskMerge = (run, source, branch) => {
+  if (run('merge-base', '--is-ancestor', source, 'HEAD').status === 0) return
+  for (const args of [['-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', '--no-commit', source],
+    ['-c', 'core.hooksPath=/dev/null', 'commit', '--no-verify', '-q', '-m', 'Merge WAR task (' + branch + ')', '--trailer', 'WAR-Task: ' + branch]]) {
+    const r = run(...args); assert.equal(r.status, 0, r.stderr)
+  }
+}
+// The task-merge facts MERGE_FACTS_RULE asks for, read from real Git: base_is_ancestor reads the SOURCE.
+const gitTaskFacts = (run, base, source, target) => {
+  const out = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout }
+  return { base_is_ancestor: run('merge-base', '--is-ancestor', base, source).status === 0, parents: out('show', '-s', '--format=%P', target).trim().split(' '),
+    tree: { target: out('rev-parse', target + '^{tree}').trim(), source: out('rev-parse', source + '^{tree}').trim() }, trailer: out('show', '-s', '--format=%(trailers:key=WAR-Task)', target) }
+}
+const confirmContextOf = p => JSON.parse(String(p).match(/Context: (\{.*?\})\. Immutable pre-dispatch snapshot:/)[1])
+const reconcileContextOf = p => JSON.parse((String(p).match(/Context: (\{.*?\})\. Immutable pre-dispatch Git snapshot:/) || [null, '{}'])[1])
+// merge-confirm as the prompt asks: the merge-task patch over the snapshot base, read after the dispatch,
+// plus the task-merge facts on a task merge context.
 const realGitMergeConfirm = (dir, p) => {
   const { run, git, remote, resolve, patch } = realGitTools(dir)
   const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1]), result = JSON.parse(p.match(/Reported result: ([^\n]+?)\.\n/)[1])
-  return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task') }
+  const own = git('merge-base', before.base_sha, 'task')   // the prompt's merge-base(snapshot base, current source)
+  return { local_sha: git('rev-parse', 'integration'), remote_sha: remote(), source_tip: git('rev-parse', 'task'), reported_sha: resolve(result.claimed), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(own, 'task'), content_id: fixtureContentId(dir, own, 'task'),
+    ...(confirmContextOf(p).kind === 'task' ? gitTaskFacts(run, before.base_sha, 'task', 'integration') : {}) }
 }
 
 // The mutator's claims and the verifier's Git observations are deliberately separate here.
@@ -19696,7 +19763,7 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
           audits++; const deny = audits > 1 && !accepted
           return { seat: o.label, lens: 'correctness', verdict: deny ? 'request_changes' : 'approve', audit_sha: git('rev-parse', 'task'), findings: deny ? [{ severity: 'Major', title: 'unapproved patch', rationale: 'the rebase changed the accepted task' }] : reverts && audits === 1 ? [nit({ file: 'deliverable.test.js' })] : [] }
         }
-        if (o.label === 'merge:t1') { git('checkout', 'integration'); git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') } }
+        if (o.label === 'merge:t1') { git('checkout', 'integration'); gitTaskMerge(run, 'task', branchOfPrompt(p)); git('push', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration'), gate_sha: git('rev-parse', 'task') } }
         return defaultImpl(p, o)
       }, { rawMergeResults: true, rawTaskAuditPins: true,
         'ace-gate': p => reverts ? { gate_green: false, gate_output: 'regressed ace' } : NEW_SEAT_DEFAULTS['ace-gate'](p),
@@ -19744,7 +19811,7 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
       if (kind === 'upstream') { assert.ok(!calls.some(isMergeTask)); assert.equal(remote(), targetBefore); assert.equal(out.pinTransfers.find(r => r.mode === 'already_upstream').rebasedTip, targetBefore) }
       if (!accepted) assert.ok(!out.pinTransfers.some(r => ['transferred', 'already_upstream'].includes(r.mode)), 'no false transfer receipt')
       if (kind === 'changed-approved') assert.ok(out.pinTransfers.some(r => r.mode === 'mismatch'), 'only the approving new panel produces the receipt')
-      if (accepted && kind !== 'upstream') assert.equal(remote(), rebased)
+      if (accepted && kind !== 'upstream') { assert.equal(git('rev-parse', 'integration^2'), rebased, 'the task merge commit carries the rebased tip as its second parent'); assert.equal(remote(), git('rev-parse', 'integration')) }
       if (kind === 'transferred') {
         const receipt = out.pinTransfers.find(r => r.kind === 'merge')
         for (const [field, expected] of [['preContentId', fixtureContentId(dir, base, approved)], ['postContentId', fixtureContentId(dir, targetBefore, rebased)]]) {
@@ -19781,8 +19848,8 @@ for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-
       let maintenance = 0, mergeCalls = 0
       const { out, calls } = await runPhase(PROVISION_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'working' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2 } }), (p, o) => {
         if (o.label === 'merge:t1') {
-          mergeCalls++; git('checkout', 'task'); git('rebase', 'integration'); git('checkout', 'integration'); git('merge', '--ff-only', 'task'); git('push', 'origin', 'integration')
-          return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') }
+          mergeCalls++; git('checkout', 'task'); git('rebase', 'integration'); git('checkout', 'integration'); gitTaskMerge(run, 'task', branchOfPrompt(p)); git('push', 'origin', 'integration')
+          return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration'), gate_sha: git('rev-parse', 'task') }
         }
         return defaultImpl(p, o)
       }, { 'pin-snapshot': snapshot,
@@ -19798,7 +19865,8 @@ for (const kind of ['local-ahead', 'unpublished-seed', 'published-seed', 'local-
         'merge-confirm': (p, o) => {
           if (o.label !== 'git-confirm:merge:t1') return NEW_SEAT_DEFAULTS['merge-confirm'](p)
           const before = JSON.parse(p.match(/Immutable pre-dispatch snapshot: (.+?)\. Reported result:/)[1])
-          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote('integration'), source_tip: git('rev-parse', 'task'), reported_sha: git('rev-parse', 'integration'), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task') }
+          return { local_sha: git('rev-parse', 'integration'), remote_sha: remote('integration'), source_tip: git('rev-parse', 'task'), reported_sha: git('rev-parse', 'integration'), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, 'integration').status === 0, patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task'),
+            ...gitTaskFacts(run, before.base_sha, 'task', 'integration') }
         },
       })
       const accepted = ['published-seed', 'local-behind', 'maintenance-death-after-ff'].includes(kind)
@@ -20043,15 +20111,17 @@ for (const relative of [false, true]) for (const scenario of ['normal', 'lost-ta
       const seed = p.match(/also query origin's exact refs\/heads\/([^ ]+) and return seed_sha/)[1]
       return { base_sha: git('rev-parse', c.target), source_sha: git('rev-parse', c.source), remote_sha: remote(c.target), seed_sha: remote(seed), patch_id: patch(git('merge-base', c.target, c.source), c.source), content_id: fixtureContentId(subRepo, git('merge-base', c.target, c.source), c.source) }
     }
-    const proof = (c, before) => ({ local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), source_tip: git('rev-parse', c.source), base_is_ancestor: run(subRepo, 'merge-base', '--is-ancestor', before.base_sha, c.target).status === 0, patch_id: patch(before.base_sha, c.source), content_id: fixtureContentId(subRepo, before.base_sha, c.source), parents: git('show', '-s', '--format=%P', c.target).split(' ') })
+    const runSub = (...args) => run(subRepo, ...args)
+    const proof = (c, before) => ({ local_sha: git('rev-parse', c.target), remote_sha: remote(c.target), source_tip: git('rev-parse', c.source), base_is_ancestor: run(subRepo, 'merge-base', '--is-ancestor', before.base_sha, c.target).status === 0, patch_id: patch(before.base_sha, c.source), content_id: fixtureContentId(subRepo, before.base_sha, c.source), parents: git('show', '-s', '--format=%P', c.target).split(' '),
+      ...(c.kind === 'task' ? gitTaskFacts(runSub, before.base_sha, c.source, c.target) : {}) })
     const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: superRepo, phase: { id: 3, title: 'Submodule', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks, run: { ace: false, roundLimit: 2 } }), (p, o) => {
       const id = o.label?.match(/^(?:work|audit|merge):(t[12])(?:$|:)/)?.[1]
       if (isWorker({ opts: o })) { const task = tasks.find(t => o.label.includes(t.id)); return { task_id: task.id, status: 'implemented', head_sha: git('rev-parse', task.branch) } }
       if (id && isAuditor({ opts: o })) { auditCounts[id] = (auditCounts[id] || 0) + 1; return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: git('rev-parse', id), findings: [] } }
       if (id && /^merge:/.test(o.label)) {
-        mergeCalls++; git('checkout', 'integration'); git('merge', '--ff-only', id); git('push', 'origin', 'integration')
+        mergeCalls++; git('checkout', 'integration'); gitTaskMerge(runSub, id, id); git('push', 'origin', 'integration')
         if (scenario === 'lost-task' && id === 't1') throw new Error('529 submodule reply lost after push')
-        return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') }
+        return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration'), gate_sha: git('rev-parse', id) }
       }
       if (o.label === 'land:phase-3') {
         git('checkout', 'main'); git('fetch', 'origin', 'main'); git('merge', '--ff-only', 'origin/main'); git('merge', '--no-ff', 'integration', '-m', 'phase'); git('push', 'origin', 'main')
@@ -20088,15 +20158,15 @@ for (const relative of [false, true]) for (const scenario of ['normal', 'lost-ta
       'merge-reconcile': p => {
         const c = context(p), before = JSON.parse(p.match(/Immutable pre-dispatch Git snapshot: (.+?)\. Prior response:/)[1]); const after = proof(c, before)
         assert.equal(c.repo, subRepo); assert.equal(c.target, c.land ? 'main' : 'integration')
-        return { ...before, ...after, patch_id: before.patch_id, outcome: c.land ? 'landed' : 'merged', result: { mode: c.land ? 'land-phase' : 'merge-task', status: c.land ? 'landed' : 'merged', [c.land ? 'working_sha' : 'integration_sha']: after.local_sha, gate_log_path: fixtureGatePath(p) } }
+        return { ...before, ...after, patch_id: before.patch_id, outcome: c.land ? 'landed' : 'merged', result: { mode: c.land ? 'land-phase' : 'merge-task', status: c.land ? 'landed' : 'merged', [c.land ? 'working_sha' : 'integration_sha']: after.local_sha, ...(c.land ? {} : { gate_sha: after.source_tip }), gate_log_path: fixtureGatePath(p) } }
       },
     })
     assert.equal(remote('super-only'), null, 'the superproject working branch does not exist in the submodule remote')
     if (scenario === 'unpublished-seed') { assert.equal(mergeCalls, 0); assert.equal(remote('integration'), null); assert.equal(remote('main'), base); assert.ok(!calls.some(c => c.opts.dispatchKind === 'pin-transfer')) }
     else {
       assert.deepEqual(out.landed, ['t1', 't2'], JSON.stringify({ workflowError: out.workflowError, escalated: out.escalated })); assert.equal(out.landDecision, 'landed'); assert.equal(mergeCalls, 2); assert.deepEqual(auditCounts, { t1: 1, t2: 1 }, 'first and later task transfer without unnecessary re-audit')
-      assert.equal(remote('integration'), git('rev-parse', 't2')); assert.equal(remote('main'), out.landResult.working_sha)
-      assert.equal(git('rev-list', '--count', '--merges', 'main'), '1')
+      assert.equal(remote('integration'), git('rev-parse', 'integration')); assert.equal(git('rev-parse', 'integration^2'), git('rev-parse', 't2'), 'the submodule integration tip is t2\'s --no-ff merge commit'); assert.equal(remote('main'), out.landResult.working_sha)
+      assert.equal(git('rev-list', '--count', '--merges', '--first-parent', 'main'), '1', 'one phase commit on the working branch')
       for (const c of [...snapshots, ...proofs]) { assert.equal(c.repo, subRepo); assert.equal(c.target, c.land ? 'main' : 'integration'); if (!c.land) assert.equal(c.seed, 'main') }
     }
     if (relative && scenario === 'normal') { gitAt(superRepo, 'add', subRepo); assert.ok(gitAt(superRepo, 'ls-files', '--stage', 'module').includes(git('rev-parse', 'HEAD')), 'Git accepts the absolute submodule path for a gitlink update') }
@@ -20662,7 +20732,8 @@ for (const site of ['task', 'land']) for (const route of ['baseline', 'environme
     const snapshot = () => ({ base_sha: git('rev-parse', target), source_sha: git('rev-parse', source), remote_sha: remote(), patch_id: patch(git('merge-base', target, source), source), content_id: fixtureContentId(dir, git('merge-base', target, source), source) })
     const proof = before => {
       const ownBase = git('merge-base', before.base_sha, source)
-      return { local_sha: git('rev-parse', target), remote_sha: remote(), source_tip: git('rev-parse', source), patch_id: patch(ownBase, source), content_id: fixtureContentId(dir, ownBase, source), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, target).status === 0, parents: git('show', '-s', '--format=%P', target).split(' ') }
+      return { local_sha: git('rev-parse', target), remote_sha: remote(), source_tip: git('rev-parse', source), patch_id: patch(ownBase, source), content_id: fixtureContentId(dir, ownBase, source), base_is_ancestor: run('merge-base', '--is-ancestor', before.base_sha, target).status === 0, parents: git('show', '-s', '--format=%P', target).split(' '),
+        ...(site === 'task' ? gitTaskFacts(run, before.base_sha, source, target) : {}) }
     }
     const failure = { mode: site === 'task' ? 'merge-task' : 'land-phase', status: 'gate_failed', gate_failure_class: route, gate_failing_ids: ['existing-test'], gate_base_sha: base, gate_output: 'classified existing failure' }
     const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 2 } }), (p, o) => {
@@ -20676,8 +20747,8 @@ for (const site of ['task', 'land']) for (const route of ['baseline', 'environme
         return failure
       }
       if (o.label === retryLabel) {
-        retries++; git('checkout', target); git('merge', site === 'task' ? '--ff-only' : '--no-ff', source, '-m', 'proceed'); git('push', 'origin', target)
-        return { mode: failure.mode, status: site === 'task' ? 'merged' : 'landed', [site === 'task' ? 'integration_sha' : 'working_sha']: git('rev-parse', target), gate_log_path: fixtureGatePath(p) }
+        retries++; git('checkout', target); if (site === 'task') gitTaskMerge(run, source, branchOfPrompt(p)); else git('merge', '--no-ff', source, '-m', 'proceed'); git('push', 'origin', target)
+        return { mode: failure.mode, status: site === 'task' ? 'merged' : 'landed', [site === 'task' ? 'integration_sha' : 'working_sha']: git('rev-parse', target), ...(site === 'task' ? { gate_sha: git('rev-parse', source) } : {}), gate_log_path: fixtureGatePath(p) }
       }
       return defaultImpl(p, o)
     }, { rawMergeResults: true,
@@ -21762,7 +21833,7 @@ test('2485/ES3 dead probe, then a done-unmet floor in real git: the floor-retry 
       if (isMakePassWorker({ opts: o })) { floorFix = commitOnTask('task-one.acceptance.test.mjs', 'floor fix'); return { task_id: 't1', status: 'implemented', head_sha: floorFix, files_changed: ['task-one.acceptance.test.mjs'] } }
       if (o.label === 'audit:t1:correctness') { audits++; return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: git('rev-parse', 'task'), findings: audits === 1 ? [nit({ file: 'deliverable.test.js' })] : [], confidence: 'high' } }
       if (o.label === 'merge:t1') return { mode: 'merge-task', status: 'done-unmet' }
-      if (/^merge:t1:floor-retry:/.test(o.label || '')) { git('checkout', '-q', 'integration'); git('merge', '-q', '--ff-only', 'task'); git('push', '-q', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration') } }
+      if (/^merge:t1:floor-retry:/.test(o.label || '')) { git('checkout', '-q', 'integration'); gitTaskMerge(run, 'task', branchOfPrompt(p)); git('push', '-q', 'origin', 'integration'); return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration'), gate_sha: git('rev-parse', 'task') } }
       return defaultImpl(p, o)
     }, {
       'tip-probe': probeAt('polish', INFRA),
@@ -21790,7 +21861,8 @@ test('2485/ES3 dead probe, then a done-unmet floor in real git: the floor-retry 
     assert.ok(!Object.hasOwn(snapshotBefore(retry.opts.label), 'revert_range'), 'the floor-retry snapshot context carries no revert_range key')
     assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'git confirmed the floor-retry merge outright: no uncertain-merge reconciliation')
     assertLandedReverted(out, 'floor-retry after the merge-slot revert')
-    assert.equal(remote(), floorFix, 'origin integration is the floor-fix tip: the merge landed')
+    assert.equal(remote(), git('rev-parse', 'integration'), 'origin integration is the task merge commit: the merge landed')
+    assert.equal(git('rev-parse', 'integration^2'), floorFix, 'the merge commit\'s second parent is the floor-fix tip')
     assert.equal(git('rev-parse', floorFix + '^^{tree}'), git('rev-parse', approved + '^{tree}'), 'the floor fix sits on the engine revert, whose tree is the approved tree')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
@@ -22047,4 +22119,375 @@ test('range revert real git: a missing worktree never prints RANGE-CLEAN — the
     assert.doesNotMatch(run.stdout, /RANGE-CLEAN|RANGE-REVERTED/, 'an unreadable HEAD tree is never a success token')
     assert.match(run.stdout, /NOT-DESCENDANT/, 'the history arm reports the unreadable worktree as not-ok')
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ---- #2485 Task 2.1 — merge-commit provenance (plan 2026-10-28-blocked-ace-and-merge-provenance, D8–D13) ----
+// Every task merge is ONE --no-ff merge commit made by the two-step form under core.hooksPath=/dev/null,
+// carrying the exact `WAR-Task: <task branch>` trailer; the task arm of the merge predicate accepts it only
+// on parents [snapshot base, source tip], a rebased source, merge tree == source tree and the exact trailer.
+const ES_MERGE_CMD = /run exactly `(git -c core\.hooksPath=\/dev\/null merge --no-ff --no-commit ([^ `]+) && git -c core\.hooksPath=\/dev\/null commit --no-verify -m "Merge WAR task t1 \(\2\)" --trailer "WAR-Task: \2")`/
+const mergeCommandOf = p => { const m = String(p).match(ES_MERGE_CMD); assert.ok(m, 'the merge prompt carries the exact two-step --no-ff merge spelling'); return m[1] }
+// The four task merge sites, each driven to dispatch once (the reconciliation-loop drivers).
+const taskMergeSitePrompts = async () => {
+  const prompts = {}
+  for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed']) {
+    const label = site === 'initial' ? 'merge:t1' : site === 'floor-retry' ? 'merge:t1:floor-retry:r1' : 'merge:t1:' + site
+    const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+      if (o.label === 'merge:t1' && site === 'floor-retry') return { mode: 'merge-task', status: 'no-test' }
+      if (o.label === 'merge:t1' && /-proceed$/.test(site)) return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: site.split('-')[0], gate_failing_ids: ['old-test'], gate_base_sha: '1'.repeat(40) }
+      return defaultImpl(p, o)
+    })
+    const c = calls.find(x => x.opts.label === label)
+    assert.ok(c, label + ' dispatched')
+    prompts[site] = c.prompt
+    if (site === 'initial') prompts.probe = calls.find(x => x.opts.dispatchKind === 'pin-transfer').prompt
+  }
+  return prompts
+}
+const NEVER_MOVE_SENTENCE = src.match(/const NEVER_MOVE_MERGED = '([^']+)'/)[1]
+
+test('2485/ES6 every task merge site spells the one --no-ff merge commit with the exact trailer under core.hooksPath=/dev/null; the polish and terminal merges stay fast-forward', async () => {
+  const prompts = await taskMergeSitePrompts()
+  const commands = ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed'].map(site => mergeCommandOf(prompts[site]))
+  assert.equal(new Set(commands).size, 1, 'the four task merge sites dispatch one identical spelling')
+  for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed']) {
+    assert.doesNotMatch(prompts[site], /git merge war\//, site + ': no bare fast-forward `git merge <task branch>` survives')
+    assert.match(prompts[site], /integration_sha[^.]*the new merge commit and gate_sha[^.]*the rebased task tip the gate ran at/, site + ': integration_sha is the merge commit and gate_sha the gated tip')
+  }
+  for (const label of ['merge:p${ph.id}-polish', 'merge:p${ph.id}-terminal']) {
+    const end = src.indexOf('label: `' + label + '`'), start = src.lastIndexOf('reconciledMerge(', end)
+    const block = src.slice(start, end)
+    assert.match(block, /then git merge \$\{polishBranch\} \(fast-forward merge\)/, label + ' keeps its fast-forward merge')
+    assert.doesNotMatch(block, /--no-ff/, label + ' is never a --no-ff task merge')
+  }
+  assert.match(src, /the _refinery merge makes the same --no-ff merge commit, with the exact WAR-Task trailer, on the submodule integration branch/, 'the submodule arm names the merge-commit form')
+})
+
+// A real repo: base on integration, a task commit, then a published sibling, so the merge needs the rebase.
+const es6Repo = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-2485-es6-'))
+  const tools = realGitTools(dir), { git } = tools
+  git('init', '-q', '-b', 'integration'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+  writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-q', '-m', 'base'); git('branch', 'working')
+  git('init', '-q', '--bare', join(dir, 'origin.git')); git('remote', 'add', 'origin', join(dir, 'origin.git')); git('push', '-q', 'origin', 'integration', 'working')
+  git('checkout', '-q', '-b', 'task'); writeFileSync(join(dir, 'deliverable.test.js'), 'approved'); git('add', 'deliverable.test.js'); git('commit', '-q', '-m', 'task')
+  git('checkout', '-q', 'integration'); writeFileSync(join(dir, 'sibling'), 'published sibling'); git('add', 'sibling'); git('commit', '-q', '-m', 'sibling'); git('push', '-q', 'origin', 'integration')
+  return { dir, ...tools }
+}
+const bash = (dir, cmd) => { const r = spawnSync('bash', ['-c', cmd], { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r }
+// One phase whose merge:t1 dispatch runs `doMerge(prompt)` in real Git; confirmation and reconciliation read
+// real Git through the prompts' own fact rules. Options: `gateSha` overrides the reported gate_sha (merge
+// reply and reconcile result); `throwAfterPush` loses the merge reply after the push, so the shared
+// merge-reconcile handler decides.
+const es6Phase = async (repo, doMerge, { gateSha, throwAfterPush } = {}) => {
+  const { dir, git, remote, patch } = repo
+  let base = null
+  const snapshot = () => { const fork = git('merge-base', 'integration', 'task'); return { base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(fork, 'task'), content_id: fixtureContentId(dir, fork, 'task') } }
+  const result = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 2 } }), (p, o) => {
+    if (o.label === 'merge:t1') {
+      base = git('rev-parse', 'integration')
+      doMerge(p)
+      git('push', '-q', 'origin', 'integration')
+      if (throwAfterPush) throw new Error('read ECONNRESET after push')
+      return { mode: 'merge-task', status: 'merged', integration_sha: git('rev-parse', 'integration'), gate_sha: gateSha ?? git('rev-parse', 'task'), gate_output: 'ok' }
+    }
+    return defaultImpl(p, o)
+  }, {
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+    'merge-confirm': (p, o) => o.label === 'git-confirm:merge:t1' ? realGitMergeConfirm(dir, p) : NEW_SEAT_DEFAULTS['merge-confirm'](p),
+    'merge-reconcile': p => {
+      const before = JSON.parse(p.match(/Immutable pre-dispatch Git snapshot: (.+?)\. Prior response:/)[1])
+      const local = git('rev-parse', 'integration'), own = git('merge-base', before.base_sha, 'task')
+      return { outcome: 'merged', base_sha: before.base_sha, source_sha: before.source_sha, local_sha: local, remote_sha: remote(), source_tip: git('rev-parse', 'task'), patch_id: patch(own, 'task'), content_id: fixtureContentId(dir, own, 'task'),
+        ...gitTaskFacts(repo.run, before.base_sha, 'task', 'integration'), result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_sha: gateSha ?? git('rev-parse', 'task'), gate_log_path: fixtureGatePath(p) } }
+    },
+  })
+  return { ...result, base: () => base, facts: () => gitTaskFacts(repo.run, base, 'task', 'integration') }
+}
+const rebaseTask = repo => { repo.git('checkout', '-q', 'task'); repo.git('rebase', '-q', 'integration'); repo.git('checkout', '-q', 'integration') }
+// runTrailerRead: run the MERGE_FACTS_RULE trailer read exactly as a dispatched prompt spells it, through
+// bash, so a shell-quoting regression (an unquoted %(...) is a bash syntax error) fails the exit-0 assert.
+const runTrailerRead = (repo, prompt) => {
+  const read = (String(prompt).match(/git show -s --format=\S*trailers:key=WAR-Task\S* <local target>/) || [])[0]
+  assert.ok(read, 'the prompt carries the trailer read')
+  return bash(repo.dir, read.replace('<local target>', 'integration')).stdout.trim()
+}
+const assertRefused = (out, calls, why) => {
+  assert.ok(!out.landed.includes('t1'), why + ': the task is never recorded merged')
+  assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmation:unresolved' && r.site === 'merge:t1'), why + ': confirmMerge refuses it')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), why + ': the uncertain merge enters reconciliation')
+  assert.ok(!out.auditLog.some(r => r.verdict === 'git-reconciled:merged'), why + ': reconcileMerge refuses the same commit')
+  assert.equal(out.landDecision, 'held:workflow-error', why + ': it holds before land')
+}
+
+test('2485/ES6 real git: the exact dispatched merge spelling makes one --no-ff merge commit over [snapshot base, rebased tip] with the exact trailer, and the engine confirms it (A2)', async () => {
+  const repo = es6Repo()
+  try {
+    let command = null
+    const { out, calls, base, facts } = await es6Phase(repo, p => { command = mergeCommandOf(p); rebaseTask(repo); bash(repo.dir, command) })
+    assert.equal(command, 'git -c core.hooksPath=/dev/null merge --no-ff --no-commit task && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task t1 (task)" --trailer "WAR-Task: task"', 'the dispatched spelling, byte for byte')
+    assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+    assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmed:merged' && r.site === 'merge:t1'), 'confirmMerge accepts the merge commit')
+    assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'no reconciliation: the reply is confirmed outright')
+    const f = facts()
+    assert.deepEqual(f.parents, [base(), repo.git('rev-parse', 'task')], 'parents are [snapshot base, rebased task tip]')
+    assert.equal(f.base_is_ancestor, true); assert.equal(f.tree.target, f.tree.source, 'the merge tree is the task tree')
+    assert.equal(f.trailer.replace(/\n+$/, ''), 'WAR-Task: task', 'one exact WAR-Task trailer')
+    const confirm = calls.find(c => c.opts.label === 'git-confirm:merge:t1')
+    assert.equal(runTrailerRead(repo, confirm.prompt), 'WAR-Task: task', 'the dispatched trailer read runs in bash and reads the exact trailer')
+    assert.equal(repo.remote(), repo.git('rev-parse', 'integration'))
+  } finally { rmSync(repo.dir, { recursive: true, force: true }) }
+})
+
+// Positive control for es6Phase's merge-reconcile handler: a correct merge whose reply is lost after the
+// push reaches reconciliation and is accepted, so each refusal below depends on its predicate clause.
+test('2485/ES6 real git: a correct merge whose reply is lost after the push reaches merge-reconcile and is recorded git-reconciled:merged (positive control)', async () => {
+  const repo = es6Repo()
+  try {
+    const { out, calls } = await es6Phase(repo, p => { rebaseTask(repo); bash(repo.dir, mergeCommandOf(p)) }, { throwAfterPush: true })
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'), 'the lost reply enters reconciliation')
+    assert.equal(runTrailerRead(repo, calls.find(c => c.opts.dispatchKind === 'merge-reconcile').prompt), 'WAR-Task: task', 'the reconcile prompt\'s trailer read runs in bash and reads the exact trailer')
+    assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:merged' && r.site === 'merge:t1'), 'reconcileMerge accepts the correct merge commit')
+    assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+  } finally { rmSync(repo.dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES6 real git: an evil merge (the merge commit tree is not the task tree) is refused by confirmMerge and reconcileMerge', async () => {
+  const repo = es6Repo()
+  try {
+    const { out, calls, facts } = await es6Phase(repo, p => {
+      rebaseTask(repo)
+      const [mergeStep, commitStep] = mergeCommandOf(p).split(' && ')
+      bash(repo.dir, mergeStep); writeFileSync(join(repo.dir, 'evil'), 'content no panel judged'); repo.git('add', 'evil'); bash(repo.dir, commitStep)
+    })
+    const f = facts()
+    assert.notEqual(f.tree.target, f.tree.source, 'the merge tree differs from the task tree')
+    assert.equal(f.trailer.replace(/\n+$/, ''), 'WAR-Task: task'); assert.equal(f.base_is_ancestor, true); assert.equal(f.parents[1], repo.git('rev-parse', 'task'), 'only the tree clause fails')
+    assertRefused(out, calls, 'evil merge')
+  } finally { rmSync(repo.dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES6 real git: an unrebased merge (the snapshot base is not an ancestor of the task tip) is refused by confirmMerge and reconcileMerge', async () => {
+  const repo = es6Repo()
+  try {
+    // The task carries the sibling's content through its own commit, so the merge tree still equals the
+    // task tree and only the rebased-ancestry clause can refuse it.
+    repo.git('checkout', '-q', 'task'); repo.git('checkout', 'integration', '--', 'sibling'); repo.git('commit', '-q', '-m', 'sibling copy'); repo.git('checkout', '-q', 'integration')
+    const { out, calls, facts } = await es6Phase(repo, p => bash(repo.dir, mergeCommandOf(p)))
+    const f = facts()
+    assert.equal(f.base_is_ancestor, false, 'the base is not an ancestor of the task tip')
+    assert.equal(f.tree.target, f.tree.source); assert.equal(f.trailer.replace(/\n+$/, ''), 'WAR-Task: task'); assert.equal(f.parents[1], repo.git('rev-parse', 'task'), 'only the ancestry clause fails')
+    assertRefused(out, calls, 'unrebased merge')
+  } finally { rmSync(repo.dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES6 real git: a mutating prepare-commit-msg hook has no effect on the merge commit made by the dispatched spelling, and alters it without core.hooksPath=/dev/null (proven red)', async () => {
+  const hook = repo => { const h = join(repo.dir, '.git', 'hooks', 'prepare-commit-msg'); mkdirSync(dirname(h), { recursive: true }); writeFileSync(h, '#!/bin/sh\nprintf "\\nHooked: yes\\nWAR-Task: hooked\\n" >> "$1"\n', { mode: 0o755 }) }
+  const guarded = es6Repo()
+  try {
+    hook(guarded)
+    const { out, facts } = await es6Phase(guarded, p => { rebaseTask(guarded); bash(guarded.dir, mergeCommandOf(p)) })
+    assert.equal(facts().trailer.replace(/\n+$/, ''), 'WAR-Task: task', 'the hook never ran on the engine commit')
+    assert.doesNotMatch(guarded.git('log', '-1', '--format=%B', 'integration'), /Hooked/, 'the message carries no hook text')
+    assert.ok(out.landed.includes('t1'), 'the guarded merge lands')
+  } finally { rmSync(guarded.dir, { recursive: true, force: true }) }
+  const bare = es6Repo()
+  try {
+    hook(bare)
+    const { out, calls, facts } = await es6Phase(bare, p => { rebaseTask(bare); bash(bare.dir, mergeCommandOf(p).replaceAll('-c core.hooksPath=/dev/null ', '')) })
+    assert.notEqual(facts().trailer.replace(/\n+$/, ''), 'WAR-Task: task', 'without the hooksPath override the hook rewrites the trailer block even under --no-verify')
+    assertRefused(out, calls, 'hook-altered merge')
+  } finally { rmSync(bare.dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES6 real git: an inexact WAR-Task trailer on the merge commit is refused by confirmMerge and reconcileMerge', async () => {
+  const repo = es6Repo()
+  try {
+    const { out, calls, facts } = await es6Phase(repo, p => { rebaseTask(repo); bash(repo.dir, mergeCommandOf(p).replace('--trailer "WAR-Task: task"', '--trailer "War-Task: task"')) })
+    const f = facts()
+    assert.equal(f.trailer.replace(/\n+$/, ''), 'War-Task: task', 'git parses the trailer but the key is not exact')
+    assert.equal(f.tree.target, f.tree.source); assert.equal(f.base_is_ancestor, true); assert.equal(f.parents[1], repo.git('rev-parse', 'task'), 'only the trailer clause fails')
+    assertRefused(out, calls, 'inexact trailer')
+  } finally { rmSync(repo.dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES10 a repeated reconcile on an existing merge commit whose second parent is the task tip and whose trailer is exact reports merged and makes no second merge', async () => {
+  const repo = es6Repo(), { dir, git, remote, patch } = repo
+  try {
+    let attempts = 0, reconcilePrompt = null
+    const snapshot = () => { const fork = git('merge-base', 'integration', 'task'); return { base_sha: git('rev-parse', 'integration'), source_sha: git('rev-parse', 'task'), remote_sha: remote(), patch_id: patch(fork, 'task'), content_id: fixtureContentId(dir, fork, 'task') } }
+    const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { roundLimit: 3 } }), (p, o) => {
+      if (o.label === 'merge:t1') { rebaseTask(repo); bash(dir, mergeCommandOf(p)); git('push', '-q', 'origin', 'integration'); throw new Error('read ECONNRESET after push') }
+      return defaultImpl(p, o)
+    }, {
+      'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' ? snapshot() : NEW_SEAT_DEFAULTS['merge-snapshot'],
+      'merge-reconcile': p => {
+        attempts++; reconcilePrompt = p
+        // Every attempt replays the ORIGINAL OPERATION under the never-move rule: the task tip is already an
+        // ancestor of the integration tip, so no attempt makes a second merge commit.
+        gitTaskMerge(repo.run, 'task', 'task')
+        if (attempts === 1) throw new Error('529 reconcile reply lost')
+        const before = JSON.parse(p.match(/Immutable pre-dispatch Git snapshot: (.+?)\. Prior response:/)[1]), local = git('rev-parse', 'integration')
+        return { outcome: 'merged', base_sha: before.base_sha, source_sha: before.source_sha, local_sha: local, remote_sha: remote(), source_tip: git('rev-parse', 'task'), patch_id: patch(before.base_sha, 'task'), content_id: fixtureContentId(dir, before.base_sha, 'task'),
+          ...gitTaskFacts(repo.run, before.base_sha, 'task', 'integration'), result: { mode: 'merge-task', status: 'merged', integration_sha: local, gate_sha: git('rev-parse', 'task'), gate_log_path: fixtureGatePath(p) } }
+      },
+    })
+    assert.equal(attempts, 2, 'the reconcile repeated')
+    assert.match(reconcilePrompt, /an existing such merge commit IS the merge: report it merged and never make a second merge/, 'the task-arm reconcile prompt names the existing merge commit')
+    assert.match(reconcilePrompt, /whose parents are exactly \[snapshot base_sha, current source tip\][^.]*WAR-Task trailer is exactly `WAR-Task: task`/, 'and accepts only the predicate')
+    assert.ok(out.auditLog.some(r => r.verdict === 'git-reconciled:merged' && r.site === 'merge:t1'), 'the existing merge commit reports merged')
+    assert.ok(out.landed.includes('t1'))
+    assert.equal(git('rev-list', '--count', '--merges', 'integration'), '1', 'exactly one merge commit — no second merge')
+    assert.equal(git('rev-parse', 'integration^2'), git('rev-parse', 'task'), 'its second parent is the task tip')
+    assert.equal(calls.filter(c => c.opts.label === 'merge:t1').length, 1, 'the primary mutation is never restarted')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES9 the never-move sentence rides the pin-transfer probe step (2), all four merge step (a) copies and the refiner card step 1, verbatim', async () => {
+  assert.match(NEVER_MOVE_SENTENCE, /never rebase, move or re-merge it, and report it merged/)
+  const prompts = await taskMergeSitePrompts()
+  const stepLine = (p, head) => p.split('\n').find(l => l.trimStart().startsWith(head)) || ''
+  assert.ok(stepLine(prompts.probe, '(2) REBASE').includes(NEVER_MOVE_SENTENCE), 'the pin-transfer probe step (2)')
+  assert.match(stepLine(prompts.probe, '(2) REBASE'), /skip the rebase and return \{ status: 'empty-unmatched'/, 'the probe never moves an already-merged branch')
+  for (const site of ['initial', 'floor-retry', 'environment-proceed', 'baseline-proceed']) {
+    const a = stepLine(prompts[site], '(a) REBASE')
+    assert.ok(a.includes(NEVER_MOVE_SENTENCE), site + ': merge step (a)')
+    assert.match(a, /merge-base --is-ancestor \S+ \S+` exits 0 — then skip this rebase and the merge, and never make a second merge commit/, site + ': step (a) names the never-move test')
+  }
+  const step1 = refinerMd.split('\n').find(l => l.startsWith('1. `git -C <taskWorktree> fetch`'))
+  assert.ok(step1 && step1.includes(NEVER_MOVE_SENTENCE), 'the refiner card merge-task step 1')
+})
+
+test('2485/ES8 gate_sha feeds gateHeadSha; the merge commit (integration_sha) feeds lastLandedTip, the successor preMergeTip, landedShaByTask and the handoff tipSha fallback', async () => {
+  const M = { t1: 'a1'.repeat(20), t2: 'a2'.repeat(20), t3: 'a3'.repeat(20) }, G = { t1: 'b1'.repeat(20), t2: 'b2'.repeat(20), t3: 'b3'.repeat(20) }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+    { id: 't3', issue: 103, title: 'T3', planSlice: 's3', roster: [{ lens: 'correctness' }], requiresTest: false },
+    { id: 't4', issue: 104, title: 'T4', planSlice: 's4', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out, calls } = await runPhase(args, (p, o) => {
+    const seat = seatOf(o), label = o.label || ''
+    if (seat === 'war-refiner' && o.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 9 }], clusters: [{ ordinals: [1], issue: 9 }] }
+    if (seat === 'war-refiner' && /^evidence:/.test(label)) return { perTask: ['t1', 't2'].map(taskId => ({ taskId, pin_status: 'BENIGN-ADVANCE', pin_evidence: 'no mapped file changed', observedHead: M.t3 })) }
+    if (seat === 'war-auditor' && label === 'gate-audit:t1:execution-evidence') return { seat: label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high', audit_sha: G.t1 }
+    if (seat === 'war-auditor' && label === 'gate-audit:t2:execution-evidence') return { seat: label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high', audit_sha: M.t3 }
+    if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: label === 'audit:t3:correctness' ? [handoffMinorF] : [], confidence: 'high' }
+    const id = (/^merge:(t\d)$/.exec(label) || [])[1]
+    if (id === 't4') return { mode: 'merge-task', status: 'submodule-blocked' }
+    if (id) return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: M[id], gate_sha: G[id] }
+    return defaultImpl(p, o)
+  }, { rawMergeResults: true })
+  assert.equal(out.landDecision, 'held:escalation', 'the t4 hold keeps the land from running, so the handoff takes its degraded fallback')
+  const ev = evPromptOf(calls)
+  assert.equal(gateHeadShaOf(ev, 't1'), G.t1, 't1 gateHeadSha is its gate_sha, never the merge commit')
+  assert.equal(gateHeadShaOf(ev, 't2'), G.t2, 't2 gateHeadSha is its gate_sha')
+  assert.match(preMergeTipOf(ev, 't1'), /merge-base/, 'the first task starts at the phase base')
+  assert.equal(preMergeTipOf(ev, 't2'), M.t1, "t2's preMergeTip is t1's merge commit (lastLandedTip), never t1's gated tip")
+  const seat1 = calls.find(c => c.opts.label === 'gate-audit:t1:execution-evidence').prompt
+  assert.ok(seat1.includes("Gate-HEAD sha (the rebased task tip the gate ran at, the task merge commit's second parent): " + G.t1 + '.'), 'the seat prompt pins the gated tip')
+  assert.ok(seat1.includes('PIN STATUS: BENIGN-ADVANCE'), 'the stamped pin_status reaches the seat')
+  const e1 = out.auditLog.find(r => r.task === 't1' && r.gateEvidence), e2 = out.auditLog.find(r => r.task === 't2' && r.gateEvidence)
+  assert.equal(e1.gateHeadSha, G.t1); assert.equal(e1.pinMismatch, true); assert.equal(e1.expectedPin, M.t3, 'expectedPin is the observed merge-commit head, not the gated tip')
+  assert.equal(e2.gateHeadSha, G.t2); assert.ok(!e2.pinMismatch, 'a seat that reviewed the observed head matches')
+  assert.equal(out.handoff.tipSha, M.t3, 'the handoff tipSha fallback reads lastLandedTip — the last merge commit (t3, a requiresTest:false task), never a gateHeadSha')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.ok(fp.includes('pinned sha ' + M.t3) && !fp.includes('pinned sha ' + G.t3), "auditEvidenceOf's landedShaByTask fallback renders t3's merge commit")
+})
+
+// The harness world.merge key is the base label, so a segmented merge's continuation reply (the one that
+// names gate_sha) is the reply the neutral merge-confirm proof reads, and an honest refiner's gate_sha survives.
+test('2485/ES8 segmented merge: the continuation reply\'s gate_sha (distinct from integration_sha) survives confirmMerge and feeds gateHeadSha', async () => {
+  const M = 'c0'.repeat(20), G = 'd1'.repeat(20)
+  let n = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }), (p, o) => {
+    if (/^merge:t1(:|$)/.test(o.label || '') && !o.dispatchKind) {
+      n++
+      return n === 1 ? { mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: 'gate backgrounded' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: M, gate_sha: G }
+    }
+    return defaultImpl(p, o)
+  })
+  assert.ok(calls.some(c => c.opts.label === 'merge:t1:segment-2'), 'the merge ran as a segmented continuation')
+  assert.ok(out.auditLog.some(r => r.verdict === 'git-confirmed:merged' && r.site === 'merge:t1'), 'confirmMerge accepts the continuation reply')
+  assert.equal(gateHeadShaOf(evPromptOf(calls), 't1'), G, 'gateHeadSha is the continuation reply\'s gate_sha, never the sentinel')
+})
+
+test('2485/ES8 real git: a gate_sha that differs from the merge commit second parent yields the sentinel gateHeadSha in the confirm and reconcile arms; a matching gate_sha is kept', async () => {
+  const SENTINEL = '(integration_sha unrecorded/malformed)'
+  for (const [why, opts, want] of [['confirm match', {}, 'tip'], ['confirm mismatch', { gateSha: 'base' }, SENTINEL], ['reconcile mismatch', { gateSha: 'base', throwAfterPush: true }, SENTINEL]]) {
+    const repo = es6Repo()
+    try {
+      const base = repo.git('rev-parse', 'integration')
+      const { out, calls } = await es6Phase(repo, p => { rebaseTask(repo); bash(repo.dir, mergeCommandOf(p)) }, { ...opts, gateSha: opts.gateSha && base })
+      assert.ok(out.landed.includes('t1'), why + ': the task never holds on the gate_sha check')
+      assert.equal(repo.git('rev-parse', 'integration^1'), base, why + ': the reported gate_sha is a real commit, the first parent, never the second')
+      assert.equal(gateHeadShaOf(evPromptOf(calls), 't1'), want === 'tip' ? repo.git('rev-parse', 'integration^2') : want, why)
+    } finally { rmSync(repo.dir, { recursive: true, force: true }) }
+  }
+})
+
+// D13 default-deny reader census: every non-comment engine line that reads or writes integration_sha,
+// gate_sha, lastLandedTip, landedShaByTask, gateHeadSha, preMergeTip, pinStatus, expectedPin or merge_sha is
+// classified into exactly one named row, and every row matches its exact line count. A new reader reds
+// the census until it is classified (and fixtured under the merge-commit shape, as the ES8 fixture above is).
+const READER_TOKEN = /\b(integration_sha|gate_sha|lastLandedTip|landedShaByTask|gateHeadSha|preMergeTip|pinStatus|expectedPin|merge_sha)\b/
+const READER_CENSUS = [
+  ['MERGE_RESULT.integration_sha', /^\s+branch: \{ type: 'string' \}, integration_sha: \{ type: 'string' \}/, 1],
+  ['MERGE_RESULT.gate_sha', /^\s+gate_sha: \{ type: 'string' \},$/, 1],
+  ['mergedTasksForGateAudit entry shape', /^const mergedTasksForGateAudit = \[\]/, 1],
+  ['lastLandedTip tracker', /^let lastLandedTip = null$/, 1],
+  ['landedShaByTask retention', /^const landedShaByTask = new Map\(\)$/, 1],
+  ['recovery predicate: confirmMerge claimed sha', /const claimed = result\[context\.land \? 'working_sha' : 'integration_sha'\]/, 1],
+  ['recovery predicate prompt line: reconcileMerge task merges', /For task merges, return outcome merged ONLY with a complete normal MergeResult/, 1],
+  ['recovery predicate: reconcileMerge result sha', /recovered\.result\[context\.land \? 'working_sha' : 'integration_sha'\] === recovered\.local_sha/, 1],
+  ['task audit-pin mismatch row (a task-audit pin, not a merge sha)', /verdict: 'pin-mismatch:reconcile', pinMismatch: true, expectedPin: pin/, 1],
+  ['pinOrSentinel', /'\(integration_sha unrecorded\/malformed\)'/, 1],
+  ['gate_sha Git binding (gitBoundGateSha)', /const gated = result && result\.gate_sha, second = proof|const \{ gate_sha: dropped, \.\.\.rest \} = result$/, 2],
+  ['landMerged: predTip from lastLandedTip', /const predTip = lastLandedTip$/, 1],
+  ['landMerged: gateHeadSha from gate_sha, preMergeTip', /gateHeadSha: pinOrSentinel\(mr\.gate_sha\), gateLogPath: mr\.gate_log_path, preMergeTip: predTip/, 1],
+  ['landMerged: lastLandedTip and landedShaByTask from integration_sha', /if \(isSha\(mr\.integration_sha\)\) \{ lastLandedTip = mr\.integration_sha; landedShaByTask\.set\(task\.id, mr\.integration_sha\) \}/, 1],
+  ['already_upstream landMerged (pinProof.head_sha)', /landMerged\(r\.task, \{ mode: 'merge-task', status: 'merged', integration_sha: pinProof\.head_sha, gate_sha: pinProof\.head_sha \}\)/, 2],
+  ['first-merge and floor-retry populate sentences', /pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at/, 2],
+  ['environment-proceed step (c)', /\(c\) On a fully green gate, MERGE in _refinery/, 1],
+  ['baseline-proceed step (c)', /\(c\) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery/, 1],
+  ['gate-audit evidence dispatch', /taskId: m\.taskId, gateHeadSha: m\.gateHeadSha|preMergeTip: m\.preMergeTip \|\| phaseBaseCmd|For EACH merged task below \(taskId · gateHeadSha|evItems\.map\(e => pt`  - \$\{e\.taskId\} · gateHeadSha|1\. PIN STATUS — run: gate-pin-status\.sh <gateHeadSha>|The --mapped set is THIS task's OWN changed files|2\. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff\.sh <preMergeTip>/, 7],
+  ['evidence stamp: pinStatus on the gate-audit entry', /m\.pinStatus = p\.pin_status/, 1],
+  ['gate-audit seat prompt', /await parallel\(mergedTasksForGateAudit\.map\(\(\{ taskId, gateOutput|const pinStatusLine = pinStatus$|\? pt`\$\{pinStatus\}|the gate ran at gate-HEAD sha \$\{gateHeadSha\}|Gate-HEAD sha \(the rebased task tip the gate ran at|PIN STATUS: \$\{pinStatusLine\}|it should equal the observed tip \$\{observedHead \|\| gateHeadSha\}|the expected gate-HEAD sha \$\{gateHeadSha\}/, 8],
+  ['gate-audit entry: pin and expectedPin', /const pin = observedHead \|\| gateHeadSha$|\.\.\.\(mismatch \? \{ pinMismatch: true, expectedPin: pin \} : \{\}\), gateHeadSha, auditSha/, 2],
+  ['handoff tipSha fallback (lastLandedTip)', /: \(isSha\(lastLandedTip\) \? lastLandedTip : null\)$/, 1],
+  ["auditEvidenceOf's fallback (landedShaByTask)", /const g = auditLog\.find\(e => e && e\.task === t && e\.gateEvidence && typeof e\.gateHeadSha|sha: g \? g\.gateHeadSha : \(landedShaByTask\.get\(t\) \?\? 'unrecorded'\)/, 2],
+]
+const readerCensusOf = source => {
+  const counts = new Map(READER_CENSUS.map(([name]) => [name, 0])), unclassified = [], ambiguous = []
+  source.split('\n').forEach((line, i) => {
+    if (/^\s*\/\//.test(line) || !READER_TOKEN.test(line)) return
+    const rows = READER_CENSUS.filter(([, re]) => re.test(line))
+    if (rows.length === 0) unclassified.push((i + 1) + ': ' + line.trim().slice(0, 120))
+    else if (rows.length > 1) ambiguous.push((i + 1) + ': ' + rows.map(r => r[0]).join(' | '))
+    else counts.set(rows[0][0], counts.get(rows[0][0]) + 1)
+  })
+  return { counts, unclassified, ambiguous }
+}
+
+test('2485/ES8 reader census (D13, default-deny): every integration_sha, gate_sha, lastLandedTip, landedShaByTask and gate-audit pin reader is one named row with its exact line count', () => {
+  const { counts, unclassified, ambiguous } = readerCensusOf(src)
+  assert.deepEqual(unclassified, [], 'an unclassified reader joins the census (and a merge-commit-shape fixture) before it lands')
+  assert.deepEqual(ambiguous, [], 'each reader line belongs to exactly one row')
+  for (const [name, , n] of READER_CENSUS) assert.equal(counts.get(name), n, name + ': exact line count')
+  // Default-deny, proven red: a new reader line is unclassified, and a lost reader line drops its row's count.
+  assert.equal(readerCensusOf(src + '\nconst stray = mr.integration_sha\n').unclassified.length, 1, 'a new reader reds the census')
+  const dropped = readerCensusOf(src.replace(': (isSha(lastLandedTip) ? lastLandedTip : null)', ': null'))
+  assert.equal(dropped.counts.get('handoff tipSha fallback (lastLandedTip)'), 0, 'a removed reader reds its row')
+  assert.ok(!src.includes('merge_sha'), 'the engine reads no merge_sha (the ledger field is Lead-side)')
+})
+
+test('2485/ES8 MergeResult key-set: every MERGE_RESULT.properties name, gate_sha included, appears in the refiner card return-shape sentence, and no other name does', () => {
+  const literal = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)[0]
+  const keys = Object.keys(new Function(literal + '\nreturn MERGE_RESULT')().properties).sort()
+  assert.ok(keys.includes('gate_sha'), 'MERGE_RESULT declares gate_sha')
+  const sentence = refinerMd.split('\n').find(l => l.startsWith('For **`merge-task`** and **`land-phase`** return ONLY the `MergeResult` JSON'))
+  assert.ok(sentence, 'the card return-shape sentence exists')
+  const shape = sentence.match(/: `\{ ([^}]+) \}`/)[1].split(',').map(s => s.trim().replace(/\?$/, '')).sort()
+  assert.deepEqual(shape, keys, 'the card return shape mirrors MERGE_RESULT.properties exactly')
 })

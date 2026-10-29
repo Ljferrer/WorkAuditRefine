@@ -1035,8 +1035,9 @@ registration). Twelve members: `demote:absorb-regressed`, `demote:absorb-blocked
 `demote:unclassified`. `demote()` validates every `follow-up` reason at runtime; a miss prepends
 `demote:unclassified` with a loud log, never a throw. Each engine-filed issue body carries the prefix on its
 `Demote-Reason:` line, and `/war-review` tallies `demote:unclassified` as a defect signal. A failed ATTEMPT
-(an untouched file, a dead ace worker, a red gate at the ace tip) and an ace-off run route the row to the
-phase-close sweep instead of demoting (ADR 0013 amendment 2026-09-04, Phase 4).
+(an untouched file, a non-moved tip after a polish, subset or re-entry dispatch, a red gate at the ace tip,
+a regressed multi-commit range — #2485 D2/D4) and an ace-off run route the row to the phase-close sweep
+instead of demoting (ADR 0013 amendment 2026-09-04, Phase 4).
 _Avoid_: an unprefixed `follow-up` demotion; a prefix minted outside the enum; reading a member as a
 `HARD_ESCALATION_REASONS` or `BARRIER_TOKENS` member.
 
