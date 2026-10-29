@@ -16336,7 +16336,7 @@ test('demote-census — every demote() site whose disposition can be follow-up l
     assert.ok(!n.includes(t), `retired demote text absent: ${t}`)
   }
   assert.ok(src.includes("tipWhy(aceClass, aceProbe, aceWhy, 'ace')") && src.includes("routeToSweep(f, 'failed absorb — ' + why)"), 'the dead ace worker routes to the sweep (the one tipWhy helper names the arm)')
-  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("tipWhy(reClass, reProbe, rwWhy, 're-entry')") && src.includes("site + ' worker returned no usable head_sha'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line; the no-head_sha arm lives in tipWhy)')
+  assert.ok(src.includes("routeToSweep(f, 'failed absorb — ' + why + '; re-entry abandoned')") && src.includes("tipWhy(reClass, reProbe, rwWhy, 're-entry')") && src.includes("site + ' dispatch left no commit above the pre-dispatch tip'"), 'the dead re-entry worker routes to the sweep (the re-entry abandoned text survives as its log line; the no-commit arm lives in tipWhy)')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the task gate was RED at the ace tip"), 'the red ace gate routes to the sweep')
   assert.ok(src.includes("routeToSweep(f, 'failed absorb — the ace commit at ' + sha + ' never touched '"), 'the untouched-file row routes to the sweep')
 })
@@ -16885,7 +16885,7 @@ test('terminal-pass — a terminal commit that does not merge, or a terminal wor
   assert.equal(terminalCalls(dead.calls).length, 1, 'never a second pass')
   assert.ok(!dead.calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness' && c.prompt.includes('7e4a1a10')), 'no re-audit without a commit')
   const noSha = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalWorker: { task_id: 'p3-polish', status: 'implemented' } }))
-  assert.ok(noSha.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal worker returned no usable head_sha)')), 'an implemented result without head_sha takes the no-usable-head_sha arm, logged')
+  assert.ok(noSha.logs.some(l => typeof l === 'string' && l.includes('no terminal commit (terminal dispatch left no commit above the pre-dispatch tip)')), 'an implemented result with no commit above the pre-dispatch tip is named from Git, logged')
   assert.ok(carriedOf(noSha.out, 'polish-panel absorb'), 'and the row carries')
   const rejected = { seat: 'audit:p3-polish:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'terminal broke it', file: 'docs/y.md', rationale: 'regressed' }] }
   const badRevert = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected, terminalRevert: { ok: false, stderrTail: 'boom' } }))
@@ -21455,6 +21455,82 @@ test('2485/ES2 a two-commit move with a regression gets the full panel, forward-
   assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(RANGE_TIP), 'the merge forward-reverts the whole range')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('the ace range of 2 commits regressed on re-audit')), 'the rows route to the sweep, naming the range')
   assertLandedReverted(out, 'regression')
+})
+
+// A regressed multi-commit move at the subset and re-entry arms (#2485 D4): the rows route to the
+// sweep, no bisection runs, and the merge forward-reverts the range. Culprit-first leaves the remainder
+// as one splittable subset, so a halving would show as a later subset dispatch.
+test('2485/ES2 a two-commit subset move with a regression routes its rows to the sweep, never halves, and the merge forward-reverts the range', async () => {
+  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'fb nit', file: 'skills/b.js' }), fc = nit({ title: 'fc nit', file: 'skills/c.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb, fc]), bRegress('skills/a.js'), bRegress('zz-unrelated.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker(SUB_TIP)],
+  }, aceBase([fa, fb, fc]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': probeAt('subset', movedProbe(SUB_TIP, { count: 2, files: ['skills/b.js', 'skills/c.js'] })) })
+  assert.ok(calls.some(c => c.opts.label === 'ace:subset:t1:a2'), 'the remainder subset dispatched')
+  assert.ok(!calls.some(c => /^ace:subset:t1:a[3-9]$/.test(c.opts.label || '')), 'no later subset: a multi-commit move never halves')
+  for (const t of ['fb nit', 'fc nit']) {
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes(t) && l.includes('the subset range of 2 commits regressed on re-audit')), t + ' routes to the sweep, naming the range')
+    assert.ok(!logs.some(l => typeof l === 'string' && l.includes(t) && l.includes('depth/split floor')), t + ' never takes the depth/split-floor demote')
+  }
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(SUB_TIP), 'the merge forward-reverts the range')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('2485/ES2 a two-commit re-entry move with a regression routes its rows to the sweep, never demotes them, and the merge forward-reverts the range', async () => {
+  const first = nit({ title: 'first', file: 'skills/first.js' }), second = nit({ title: 'second', file: 'skills/second.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [approveWith('audit:t1:correctness', [first]), approveWith('audit:t1:correctness', [second]),
+      { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'reentry broke it', file: 'zz.js', rationale: 'regressed' }] }],
+    'ace:reentry:t1:a2': [bWorker(RE_TIP)],
+  }, aceBase([first]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': probeAt('reentry', movedProbe(RE_TIP, { count: 2, files: ['skills/second.js'] })) })
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('"second"') && l.includes('the re-entry range of 2 commits regressed on re-audit')), 'the row routes to the sweep, naming the range')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('"second"') && l.includes('demote:absorb-regressed')), 'never the regression demote')
+  assert.ok(!calls.some(c => /^ace:(subset|reentry):t1:a[3-9]$/.test(c.opts.label || '')), 'no later ace dispatch')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(RE_TIP), 'the merge forward-reverts the range')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+// tipStranded: a refiner revert that reported ok over a tree that is not the approved tree, then a
+// worker that made no commit. The probe reads count 0 with a stray tree, so the tip is 'unchanged',
+// and the range must still register for the merge-slot revert at both non-moved arms.
+const strayTreeAt = (label, seen) => (p, o, w) => {
+  if (o.label !== label) return NEW_SEAT_DEFAULTS['tip-probe'](p, o, w)
+  const { pre } = probeShas(p); seen.tip = pre
+  return { ...approvedTreeProbe(pre, 0)(p), tip_tree: fixtureTree('stray') }
+}
+test('tip probe — an unchanged subset tip without the approved tree registers the range for the merge-slot revert', async () => {
+  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' }), fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'nothing to commit' }],
+  }, aceBase([fa, fb]))
+  const seen = {}
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': strayTreeAt('tip-probe:subset:t1:a2', seen) })
+  assert.ok(isHexSha(seen.tip), 'the subset probe read the post-revert tip')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('salvaged nit') && l.includes('bisection abandoned')), 'the failed-absorb arm routes the row to the sweep')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(seen.tip), 'the stray-tree tip registers for the merge-slot revert')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('tip probe — an unchanged re-entry tip without the approved tree registers the range for the merge-slot revert', async () => {
+  const first = nit({ title: 'first', file: 'skills/first.js' }), second = nit({ title: 'second', file: 'skills/second.js' }), third = nit({ title: 'third', file: 'skills/third.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [approveWith('audit:t1:correctness', [first]), approveWith('audit:t1:correctness', [second]),
+      { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [{ severity: 'Major', title: 'reentry broke it', file: 'zz.js', rationale: 'regressed' }, third] }],
+    'ace:reentry:t1:a2': [bWorker(RE_TIP)],
+    'ace:reentry:t1:a3': [{ task_id: 't1', status: 'blocked', blocked_reason: 'nothing to commit' }],
+  }, aceBase([first]))
+  const seen = {}
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl, { 'tip-probe': strayTreeAt('tip-probe:reentry:t1:a3', seen) })
+  assert.ok(calls.some(isAceRevert), 'a refiner revert ran before the second re-entry worker')
+  assert.ok(isHexSha(seen.tip), 'the second re-entry probe read the post-revert tip')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('"third"') && l.includes('re-entry abandoned')), 'the failed-absorb arm routes the row to the sweep')
+  assert.match(calls.find(isMergeTask).prompt, mergeRangeRevert(seen.tip), 'the stray-tree tip registers for the merge-slot revert')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
 test('2485/ES3 dispatched revert only: a blocked subset over the refiner revert has the approved tree, takes failed-absorb, no charge, no aced record, no re-audit', async () => {

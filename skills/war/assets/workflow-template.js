@@ -2349,11 +2349,20 @@ const tipClass = p => !p ? 'unusable' : !p.pre_is_ancestor ? 'non-descendant' : 
 // the terminal arm reverts in place, every other arm at the merge slot. A non-descendant tip takes one
 // in-helper literal at every arm: the probe's PRE is the pre-dispatch tip at every site (the approved
 // tip at the polish site, the post-polish tip at the terminal site). A worker reason wins over every
-// arm but 'unusable', which prefixes it. An unchanged tip with commits above the pre-dispatch tip (a
-// net-zero pair) is named as such, never as a missing head_sha: the engine never reads head_sha (PIN-2).
+// arm but 'unusable', which prefixes it. An unchanged tip is named from Git, never as a missing
+// head_sha (the engine never reads head_sha, PIN-2): a net-zero pair (commits above the pre-dispatch
+// tip) as no net change, else as a dispatch that left no commit above the pre-dispatch tip.
 const tipWhy = (cls, probe, workerWhy, site) => cls === 'unusable'
   ? (workerWhy ? workerWhy + '; ' : '') + 'the tip probe after the ' + site + ' dispatch was dead or unusable, so the range above the approved tip is forward-reverted' + (site === 'terminal' ? '' : ' at the merge slot')
-  : workerWhy || (cls === 'non-descendant' ? 'the branch tip does not descend from the pre-dispatch tip' : probe.count > 0 ? 'the ' + site + ' range carries no net change above the approved tree' : site + ' worker returned no usable head_sha')
+  : workerWhy || (cls === 'non-descendant' ? 'the branch tip does not descend from the pre-dispatch tip' : probe.count > 0 ? 'the ' + site + ' range carries no net change above the approved tree' : site + ' dispatch left no commit above the pre-dispatch tip')
+// tipStranded: the range a non-moved subset or re-entry tip leaves for the merge-slot revert (PIN-5):
+// true when the tip is unread (the slot reads HEAD from Git), the probed tip when it is 'unchanged' but
+// lacks the approved tree (no commit above a refiner revert whose tree is not the approved tree), else
+// null. A non-descendant tip leaves the merge-slot tree clause as the backstop.
+const tipStranded = (cls, p) => cls === 'unusable' ? true : (cls === 'unchanged' && p.tip_tree !== p.approved_tree) ? p.tip_sha : null
+// multiRegressWhy (#2485 D4): the one sweep reason of a regressed multi-commit ace range, shared by
+// the polish (`ace`), subset and re-entry arms: no commit-level culprit exists, so nothing bisects.
+const multiRegressWhy = (site, n) => 'failed absorb — the ' + site + ' range of ' + n + ' commits regressed on re-audit; the whole range is forward-reverted and no bisection runs on a multi-commit move'
 // ACE_REVERT (#2485 D17): the refiner range revert run BEFORE a subset or re-entry worker (it used to
 // ride the worker prompt). It reports the post-revert tip read from Git.
 const ACE_REVERT = { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean' }, tip_sha: { type: 'string' }, detail: { type: 'string' } } }
@@ -2371,6 +2380,8 @@ const PIN_GIT_PROOF = { type: 'object', properties: {
 const verifyPinTransfer = async (r, before, probe, context) => {
   const approved = approvedShaOf(r)
   const range = rangeRevertOf(r)
+  // pins[3] (the registered range's pre-revert tip) is resolved for the audit record only: since #2485 D17
+  // no decision reads it, and it keeps the already_upstream slice(4) index stable.
   const reported = [approved, probe && probe.rebased_tip || null, probe && probe.dispatch_base || null, range ? range.tip : null,
     ...(probe && Array.isArray(probe.already_upstream_commits) ? probe.already_upstream_commits : [])]
   let proof
@@ -3894,10 +3905,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const subClass = tipClass(subProbe)
       if (subClass !== 'moved') {
         // No usable commit — uncharged; the ladder abandons here (never holds): this subset and every
-        // queued one route to the sweep (a failed ATTEMPT, D13 — the rows stay absorbs). A dead or
-        // unusable probe leaves the tip unread, so the range registers for the merge-slot revert
-        // (PIN-5); a non-descendant tip leaves the merge-slot tree clause as the backstop.
-        if (subClass === 'unusable') pendingRevert = true
+        // queued one route to the sweep (a failed ATTEMPT, D13 — the rows stay absorbs). tipStranded
+        // registers the range an unread tip, or an unchanged tip without the approved tree, leaves for
+        // the merge-slot revert (PIN-5); a non-descendant tip leaves the merge-slot tree clause as the
+        // backstop.
+        pendingRevert = tipStranded(subClass, subProbe)
         const why = tipWhy(subClass, subProbe, swWhy, 'subset')
         for (const q of [sub, ...queue.splice(0)])
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
@@ -3933,11 +3945,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         routeReauditMinors(r, subSeats)
       } else {
         pendingRevert = subSha                           // reverted by the NEXT dispatch, or the merge clause if final
+        // A regressed multi-commit subset range (#2485 D4) has no commit-level culprit to bisect: its rows
+        // route to the sweep (a failed ATTEMPT, D13) BEFORE the fold below, so queuedKeys refuses a
+        // re-raise of them, and the queued sibling subsets still run.
+        const multi = subProbe.count > 1
+        if (multi) for (const f of sub.findings) routeToSweep(f, multiRegressWhy('subset', subProbe.count))
         // Fold (#1694): the FAILING subset's re-audit round's OWN Minor/Nits route by disposition
         // too, mirroring the approved arm — an ask parks, never drops; a fresh absorb queues for
         // budget-bounded re-entry (D1, #1731 — born at a re-audit, it re-enters after the bisection).
         // Blocking findings stay untouched — they are this arm's regression signal, not routable.
         routeReauditMinors(r, subSeats)
+        if (multi) continue
         const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
         if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
         else for (const f of sub.findings) { const ur = unsoundReason(subSeats, f); demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
@@ -3954,7 +3972,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // shrinking rule): re-entry batches dispatch only while absorbRounds < run.absorbRounds — the
   // same gate the batch ace and the bisection subsets read (D5). Budget-spent findings route
   // phaseClose:true (the sweep rung, logged); a regressed re-entry batch is
-  // forward-reverted and its findings demote — a forward-reverted finding NEVER re-enters (the
+  // forward-reverted and its findings demote (a multi-commit range routes them to the sweep, #2485
+  // D4) — a forward-reverted finding NEVER re-enters (the
   // oscillation bound, A1) — while the regressed re-audit's own fresh absorbs may still re-enter
   // (born at a re-audit) until the budget stops the loop. Every demotion logged, nothing silent
   // (PIN-2). A citation-resolved finding (D6) is executed through this vehicle: its prompt row and
@@ -4028,9 +4047,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const reClass = tipClass(reProbe)
       if (reClass !== 'moved') {
         // No usable commit — uncharged; abandon (never hold): this batch and the queue route to the
-        // sweep (a failed ATTEMPT, D13 — the rows stay absorbs; routeToSweep re-stamps queuedKeys). A
-        // dead or unusable probe registers the range for the merge-slot revert (PIN-5).
-        if (reClass === 'unusable') pendingRevert = true
+        // sweep (a failed ATTEMPT, D13 — the rows stay absorbs; routeToSweep re-stamps queuedKeys).
+        // tipStranded registers the range an unread tip, or an unchanged tip without the approved tree,
+        // leaves for the merge-slot revert (PIN-5).
+        pendingRevert = tipStranded(reClass, reProbe)
         const why = tipWhy(reClass, reProbe, rwWhy, 're-entry')
         for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
           queuedKeys.delete(remintKey(f))
@@ -4068,8 +4088,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // Unsound-citation naming (D6): a blocking re-audit finding flagged citationUnsound names
         // the mismatch — the shared unsoundReason helper carries it into the demote reason so the
         // durable record explains the revert (same duty as aceBisect's regression arms). Each
-        // demote registers on revertedKeys ({ reverted: true }) — the oscillation bound's registry.
-        for (const f of batch) {
+        // demote registers on revertedKeys ({ reverted: true }) — the oscillation bound's registry. A
+        // multi-commit range (#2485 D4) routes the rows to the sweep instead (a failed ATTEMPT, D13), and
+        // queuedKeys refuses the fold's re-raise of them as revertedKeys does.
+        if (reProbe.count > 1) for (const f of batch) routeToSweep(f, multiRegressWhy('re-entry', reProbe.count))
+        else for (const f of batch) {
           const ur = unsoundReason(reS, f)
           demote(f, 'follow-up', 'demote:absorb-regressed — failed absorb — ' + (ur
             ? ur + '; the re-entry commit is forward-reverted'
@@ -4266,7 +4289,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               // A regressed multi-commit range (#2485 D4): no commit-level culprit to bisect, so the
               // WHOLE range forward-reverts and the rows route to the sweep (a failed ATTEMPT, D13).
               registerRangeRevert(r, aceProbe.tip_sha)
-              for (const f of aceable) routeToSweep(f, 'failed absorb — the ace range of ' + aceProbe.count + ' commits regressed on re-audit; the whole range is forward-reverted and no bisection runs on a multi-commit move')
+              for (const f of aceable) routeToSweep(f, multiRegressWhy('ace', aceProbe.count))
             } else {
               // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
               // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.

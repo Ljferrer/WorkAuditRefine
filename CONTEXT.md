@@ -939,7 +939,7 @@ _Avoid_: reading ambiguity as absence of grinding.
 **Pin transfer**:
 An audit approval carried to a new SHA by a mechanical predicate, not a re-convened panel (canonical:
 `pinTransfers` in `skills/war/assets/workflow-template.js`). *Seat-approval transfer*: a wave-side
-ace whose git-derived file set (`ace_diff_files`) is a subset of the findings' file set re-runs only
+ace whose git-derived file set (the tip probe's read) is a subset of the findings' file set re-runs only
 the originating seats; the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a
 conflict-free rebase plus `git patch-id --stable` equality of the task's own diff, before and after,
 carries the panel pin to the rebased tip. Neither accounts an approval at a SHA the gate never
