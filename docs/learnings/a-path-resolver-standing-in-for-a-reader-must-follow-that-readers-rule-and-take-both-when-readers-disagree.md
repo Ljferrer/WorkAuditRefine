@@ -24,7 +24,7 @@ metadata:
     - fail-open
   created: 2026-10-26
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-26T21:26:46.750Z
+  modified: 2026-10-27T09:55:46.096Z
 ---
 
 # Pick the reader's rule, not your own: one fix flipped the hole to the other reader
@@ -37,12 +37,12 @@ metadata:
 
 **3. Attached short options carry file values.** `git diff -O<orderfile>` and `git ls-files -X<exclude-file>` read a file. The Bash arm sent every `-*` token to a no-touch flag arm. git reads a cluster letter by letter, so `-pO<file>` reads the file too. The landed arm takes the text after the first file-valued letter (`O`, `X`, `S`) with a shortest-prefix cut. A non-path tail resolves to the base, which is already touched. Rows t31b to t31g pin it. Rows t31f and t31g exist to turn red under a longest-prefix mutant.
 
-**4. Physical against lexical reading.** `canon` was `cd` in its default mode, which folds `lnk/..` as text. The kernel and git's `--no-index` open resolve `lnk/..` as the parent of the link's target. The a6 ace commit made `canon` use `cd -P`. That flipped the hole. The Read tool resolves `..` as text (`/var/../private/etc/hosts` opens), and git's in-repo test (`path_inside_repo`, `normalize_path_copy`) is lexical too. The fix commit's claim that no caller needs logical resolution was false, because the Read arm and the Glob and Grep arm also reach `canon`. Polish then added a text-fold reading. The nearest-existing-ancestor walk was itself physical, so a multi-`..` path through a planted link, and a `..` after a missing component, still escaped. The landed `lexical_dir` folds `.` and `..` as text first and walks up afterward. `task_worktree_of` and `outside_top` take both readings. The walk-down in `touch_operand` reads only the physical form, because git opens `--no-index` operands physically.
+**4. Physical against lexical reading.** `canon` was `cd` in its default mode, which folds `lnk/..` as text. The kernel and git's `--no-index` open resolve `lnk/..` as the parent of the link's target. The a6 ace commit made `canon` use `cd -P`. That flipped the hole. The Read tool resolves `..` as text (`/var/../private/etc/hosts` opens), and git's in-repo test (`path_inside_repo`, `normalize_path_copy`) is lexical too. The fix commit's claim that no caller needs logical resolution was false, because the Read arm and the Glob and Grep arm also reach `canon`. Polish then added a text-fold reading. The nearest-existing-ancestor walk was itself physical, so a multi-`..` path through a planted link, and a `..` after a missing component, still escaped. The landed `lexical_dir` folds `.` and `..` as text first and walks up afterward. `task_worktree_of` and `outside_top` take both readings. The walk-down in `touch_operand` reads only the physical form, because git opens `--no-index` operands physically. The Grep walk-down, `grep_walk`, reads only the physical form too, because ripgrep opens its search root through the kernel (the `lexical_dir` header says so).
 
 **5. A test oracle that runs the real tool.** Rows t38 and t41 run git in the fixture and assert on its stderr: two operands never print `outside repository`, three do. Those rows share no code with the hook. If a git release changes the rule, they go red.
 
 **Pattern across the ladder.** Task 8.1 took eight commits. Each round found the next neighbor of the last fix. Reading the guard's grammar and each reader's rule up front ends that. The two-reading union ended it here.
 
-**Not run.** Whether `git diff -pO<file>` accepts a cluster, and the `~-` against OLDPWD case, rest on seat reasoning. See [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
+**Not run.** Whether `git diff -pO<file>` accepts a cluster rests on seat reasoning. The `~-` against OLDPWD case is settled by a ruling, not by a run: the hook now treats `~-` as unresolved and escalates (plan 2026-10-26-fingerprint-hook-followups, phase 2). See [[audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals]].
 
 **Locate-cue (verify still present before acting).** In `hooks/audit-tree-fingerprint.sh`: `canon`, `lexical_dir`, `task_worktree_of`, `outside_top`, `implied_noindex`, `touch_operand`, and the `-[!OXS]*[OXS]?*` arm in the Bash token loop. In `hooks/audit-tree-fingerprint.test.sh`: rows t30b to t30e, t31b to t31g and t38 to t44. Found at landed tip c01f2b9022b2 on `dev/2026-10-20-rea-artifact-evidence`, read through the run-scoped `_refinery` worktree (its HEAD equaled the tip).

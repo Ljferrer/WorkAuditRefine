@@ -13,9 +13,18 @@
 #         `$MAIN/.gitmodules` declares (a submodule task's worktree is
 #         registered in the submodule's own git dir and never appears in the
 #         superproject's list): HEAD sha plus the sha256 of `git status
-#         --porcelain=v1 -z -uall` joined with the blob hash (`git hash-object
-#         --no-filters`, no write, no clean filter) of every path that status
-#         lists.
+#         --porcelain=v1 -z -uall`, run with `-c core.fsmonitor=false -c
+#         core.untrackedCache=false` (git's own change detection off: a
+#         configured fsmonitor command would run inside the hook, and either
+#         cache could hide a change), joined with one `~<tag> <path>` record
+#         per path that `git -c core.fsmonitor=false ls-files -v -z` flags
+#         assume-unchanged (a lowercase tag) or skip-worktree (`S`, `s`), and
+#         with the blob hash (`git hash-object --no-filters`, no write, no
+#         clean filter) of every path that status lists or ls-files flags.
+#         Status never reports a worktree edit to a flagged path (a staged
+#         change to one is still listed), so each one is hashed as if dirty,
+#         and the flagged set itself is hashed data: a
+#         flag set mid-round changes the fingerprint (see fingerprint).
 #         The blob hashes make the fingerprint content-sensitive: a status line
 #         is the same before and after a second edit to an already-dirty file.
 #         The -z form carries every path raw; the newline form C-quotes a path
@@ -29,20 +38,25 @@
 #         (a Read file_path, a Glob or Grep path, an
 #         absolute Glob pattern, a Bash `git -C <path>` before the subcommand
 #         word, an absolute Bash operand, any relative Bash operand (`../x`,
-#         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x`, `~+/x` or
-#         `~-/x` operand, the value after `=` of a Bash `--<opt>=<path>` token,
+#         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x` or `~+/x`
+#         operand, the value after `=` of a Bash `--<opt>=<path>` token,
 #         the text after the option letter of an attached short-option value
 #         (`-O<file>`, `-X<file>`), or after the first file-valued letter (O,
 #         X, S) of a short-option cluster (`-pO<file>`), or the next token of
 #         a space-form file-valued flag, else the payload cwd) and add each
-#         to the seat's touched set. A directory
+#         to the seat's touched set. An unquoted `~-` or `~<name>` Bash token
+#         (`-C` value or operand) is unresolved: the payload carries no
+#         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
+#         touched set literal (see tilde). A directory
 #         operand that holds task worktrees adds each of them when the
-#         command reads them (see touch_operand).
+#         command reads them (see touch_operand). A Grep whose search root
+#         is a directory adds each task worktree below it that ripgrep
+#         enters (see grep_walk); Glob stays walk-up only.
 #     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
 #         or an unsafe agent_id, no git common dir, a missing start record, a
-#         git error, an unresolved Bash `~<name>` token),
+#         git error, an unresolved Bash `~-` or `~<name>` token),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
 #         `AUDIT-TAMPER: <worktree> changed during the audit round (<start> -> <now>)`
@@ -65,13 +79,18 @@
 #   value, 600 or more included, falls back to 540: the override is clamped
 #   under the hooks.json timeout, so the deadline itself always falls before
 #   Claude Code's kill. The deadline is measured on bash's SECONDS from the
-#   hook's start and checked per worktree in the start and compare loops and
-#   per path in blob_lines. Each `git status` and `git hash-object` call runs
-#   under a watchdog (see bounded) that kills it when the remaining deadline
-#   runs out, so one slow call cannot carry the hook past the deadline (Task
-#   8.1, ruling A). Past the deadline the hook stops hashing: the
-#   StructuredOutput arm escalates with `AUDIT-TAMPER: fingerprint timeout
-#   (<worktree> ... after <N>s, deadline <D>s; seat verdict <v>)` (<v> is the
+#   hook's start and checked per worktree in the start and compare loops, per
+#   ls-files record in fingerprint and per path in blob_lines. Each `git
+#   status`, `git ls-files` and `git hash-object` call runs under a watchdog
+#   (see bounded) that kills it when the remaining deadline runs out, so one
+#   slow call cannot carry the hook past the deadline (Task 8.1, ruling A); a
+#   deadline hit in any of them returns 3, the timeout. The status and
+#   ls-files calls run with the `-c core.fsmonitor=false` override (status
+#   with `-c core.untrackedCache=false` too), so no configured fsmonitor
+#   command runs inside a bounded call. Past the deadline the hook stops
+#   hashing: the StructuredOutput arm escalates with `AUDIT-TAMPER:
+#   fingerprint timeout (<worktree> ... after <N>s, deadline <D>s; seat
+#   verdict <v>)` (<v> is the
 #   seat's own verdict when it is one of the schema's three, else `unparsed`:
 #   the reason rides the engine's audit log, which no worker can write, so
 #   the Lead can cross-check the tamper record's `seat_verdict`) and writes
@@ -115,8 +134,9 @@
 #   composed `dirname "$(git ...)"` yields "." on a failed probe). `.claude/`
 #   is already excluded from status by provision-worktrees.sh ensure-exclude.
 #   `start` lines are `<head> <status-sha256> <worktree>`; `touched` holds one
-#   canonical worktree path per line, or a literal `~<name>` Bash `-C` token
-#   the hook cannot expand (the verdict arm reports it as unresolved). Worktree
+#   canonical worktree path per line, or a literal `~-` or `~<name>` Bash token
+#   (a `-C` value or an operand) the hook cannot expand (the verdict arm
+#   reports it as unresolved). Worktree
 #   paths are canonical (`pwd -P`) on both sides, so a symlinked temp dir
 #   compares equal to its real path.
 #
@@ -235,11 +255,12 @@ sha256_of_stdin() {
 # directory and canon'd, so a symlink not followed by `..` is still
 # followed forward, as the reader follows it. The two readings disagree
 # only across a `..` after a worktree-planted `lnk -> <other worktree>/sub`
-# or a `..` after a missing component; every resolver that stands in for a
-# reader takes BOTH (task_worktree_of, outside_top), so neither shape can
-# point the touch away from the worktree either reader reaches. The
-# walk-down of touch_operand reads only canon: it runs for the `--no-index`
-# forms, which git opens physically.
+# or a `..` after a missing or non-directory component; every resolver that
+# stands in for a reader takes BOTH (task_worktree_of, outside_top), so
+# neither shape can point the touch away from the worktree either reader
+# reaches. The walk-down of touch_operand reads only canon: it runs for the
+# `--no-index` forms, which git opens physically. grep_walk reads only canon
+# too: ripgrep opens its search root through the kernel.
 canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
 lexical_dir() {
   _lr="$1"; _lo=""
@@ -269,10 +290,11 @@ lexical_dir() {
 # watchdog killed it: wait reports 143 for SIGTERM, and a 143 counts as the
 # watchdog's kill only when the deadline has passed (the sleep is the whole
 # remaining deadline in whole seconds, so SECONDS >= DEADLINE at the kill). A
-# SIGTERM from elsewhere before the deadline (a worker-set core.fsmonitor
-# helper that kills its parent) returns 143, which fingerprint reads as a git
-# error and blob_lines as an `unreadable` blob (a later mismatch), never as
-# the timeout reason the Lead may rule fail-open. The
+# SIGTERM from elsewhere before the deadline (any process outside the
+# watchdog; a worker-set core.fsmonitor helper never runs here, since status
+# and ls-files carry the fsmonitor override) returns 143, which fingerprint
+# reads as a git error and blob_lines as an `unreadable` blob (a later
+# mismatch), never as the timeout reason the Lead may rule fail-open. The
 # watchdog is a subshell whose own `sleep` is a background child it kills
 # from a TERM trap, so cancelling the watchdog after a fast call leaves no
 # orphan sleep. The sleep
@@ -280,7 +302,7 @@ lexical_dir() {
 # sleep spawn and one kill. No job control (`set -m`) on bash 3.2: the child
 # pid is the command itself (a simple command backgrounded is forked directly),
 # so the kill reaches git, never a wrapper shell. A grandchild a killed git
-# spawned (a submodule `status`, an fsmonitor hook) is not killed, but it
+# spawned (a submodule `status`) is not killed, but it
 # writes only to the killed git's pipe, never to the hook's, so the hook never
 # waits on it. The watchdog and its sleep run with stdout AND stderr on
 # /dev/null: every bounded call sits inside a `$(...)` of the caller, and a
@@ -305,8 +327,9 @@ bounded() {
   return "$_crc"
 }
 
-# blob_lines <worktree> (the `status --porcelain=v1 -z -uall` records on
-# stdin) -> one `<blob> <path>` line per listed path, in record order
+# blob_lines <worktree> (the `status --porcelain=v1 -z -uall` records, then
+# fingerprint's synthesized `~<tag> <path>` flagged-path records, on stdin)
+# -> one `<blob> <path>` line per listed path, in record order
 # (`absent` for a deleted path, `unreadable` when hash-object fails). A rename
 # or copy record (R or C in either status column) carries its source path as
 # an extra NUL field, skipped here; the line names the new path. Every present
@@ -328,9 +351,9 @@ bounded() {
 # passes mid-list or kills a hash-object call (the caller stops hashing),
 # else 0.
 # hfnew: make blob_lines' hash-output temp file on the first hash-object
-# call, so a clean worktree (empty status, no call) spawns no mktemp and no
-# rm. hfrm: drop that file (a no-op when none was made, or on the /dev/null
-# fallback).
+# call, so a clean worktree (empty status and no flagged path, no call)
+# spawns no mktemp and no rm. hfrm: drop that file (a no-op when none was
+# made, or on the /dev/null fallback).
 hfnew() { [ -n "$_hf" ] || { _hf="$(mktemp 2>/dev/null)"; [ -n "$_hf" ] || _hf=/dev/null; }; }
 hfrm() { [ -z "$_hf" ] || [ "$_hf" = /dev/null ] || rm -f "$_hf"; }
 blob_lines() {
@@ -387,22 +410,54 @@ blob_lines() {
 
 # fingerprint <worktree> -> prints "<head> <status-sha256>", returns 1 on a
 # git error, or returns 3 when the deadline passed before or during hashing.
-# The sha256 covers the raw -z status output plus its blob_lines. The status
-# bytes land in a temp file (a bash variable cannot hold NUL) that feeds both
-# the parse and the hash from ONE status run, under the deadline watchdog
-# (bounded: a status killed at the deadline is 3). Read-only on the worktree:
-# status runs under the exported GIT_OPTIONAL_LOCKS=0, and hash-object runs
-# with --no-filters, so it hashes raw bytes and never runs a clean filter (a
-# git-lfs filter writes under .git/lfs; an eol filter would hide a
-# line-ending-only edit).
+# The sha256 covers the raw -z status output, one synthesized `~<tag> <path>`
+# record per flagged path, and the blob_lines of both. A flagged path is one
+# `git ls-files -v -z` tags assume-unchanged (a lowercase tag) or
+# skip-worktree (`S`; `s` is both): git status never reports a worktree edit
+# to such a path (the flags suppress only the worktree-versus-index
+# comparison, so a staged change to one is still listed), so it is hashed as
+# if dirty, and its record puts the flagged
+# set itself in the hashed data (a flag set mid-round changes the
+# fingerprint). `~` is never a status column, so a synthesized record cannot
+# collide with a status record, and blob_lines strips its three leading bytes
+# like any other. Both git calls run with `-c core.fsmonitor=false` (a
+# configured fsmonitor command runs under a plain status or ls-files, inside
+# the hook process, GIT_OPTIONAL_LOCKS=0 or not), and status runs with `-c
+# core.untrackedCache=false` too: git's own change detection is off, so every
+# path is read by stat and content. Each `-c` stands before `-C <worktree>`,
+# so `-C <worktree>` stays next to the subcommand word. Both calls write ONE
+# temp file (a bash variable cannot hold NUL): ls-files first, its flagged
+# records kept in a bash array, then status over the same file, with the
+# synthesized records appended, so the file feeds both the parse and the hash
+# and a clean worktree costs one mktemp. Both run under the deadline watchdog
+# (bounded: a call killed at the deadline is 3), and the deadline is checked
+# per ls-files record. Read-only on the worktree: both run under the exported
+# GIT_OPTIONAL_LOCKS=0, and hash-object runs with --no-filters, so it hashes
+# raw bytes and never runs a clean filter (a git-lfs filter writes under
+# .git/lfs; an eol filter would hide a line-ending-only edit).
 fingerprint() {
   expired && return 3
   _h="$(git -C "$1" rev-parse HEAD 2>/dev/null)" || return 1
   [ -n "$_h" ] || return 1
   _z="$(mktemp 2>/dev/null)" && [ -n "$_z" ] || return 1
-  bounded "$_z" /dev/null git -C "$1" status --porcelain=v1 -z -uall; _rc=$?
+  bounded "$_z" /dev/null git -c core.fsmonitor=false -C "$1" ls-files -v -z; _rc=$?
   if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
   if [ "$_rc" != 0 ]; then rm -f "$_z"; return 1; fi
+  _F=(); _nf=0
+  while IFS= read -r -d '' _fl; do
+    expired && { rm -f "$_z"; return 3; }
+    case "$_fl" in [[:lower:]]\ *|S\ *) _F[$_nf]="$_fl"; _nf=$((_nf + 1)) ;; esac
+  done < "$_z"
+  bounded "$_z" /dev/null git -c core.fsmonitor=false -c core.untrackedCache=false -C "$1" status --porcelain=v1 -z -uall; _rc=$?
+  if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
+  if [ "$_rc" != 0 ]; then rm -f "$_z"; return 1; fi
+  if [ "$_nf" -gt 0 ]; then
+    _fi=0
+    while [ "$_fi" -lt "$_nf" ]; do
+      printf '~%s\0' "${_F[$_fi]}"
+      _fi=$((_fi + 1))
+    done >> "$_z"
+  fi
   _ch="$(blob_lines "$1" < "$_z")"; _rc=$?
   if [ "$_rc" = 3 ]; then rm -f "$_z"; return 3; fi
   _s="$({ cat "$_z"; printf '\n%s' "$_ch"; } | sha256_of_stdin)"; _rc=$?
@@ -551,9 +606,9 @@ outside_top() {
 # either token is outside the base's work tree (outside_top). The caller
 # checks that the subcommand word is `diff` and calls once the global `-C`
 # tokens have settled `_base`. Each of the two tokens is shell-expanded like
-# any operand (quotes stripped, `~` expanded); a `~<name>` token cannot be
-# resolved, so nothing is implied (its literal touched line already escalates
-# the verdict). The two tokens are collected first and resolved only when
+# any operand (quotes stripped, `~` expanded); a `~-` or `~<name>` token
+# cannot be resolved, so nothing is implied (its literal touched line already
+# escalates the verdict). The two tokens are collected first and resolved only when
 # the count is exactly two: a one-token `diff A...B` or a third token
 # returns before any canon subshell (or base_top's rev-parse) runs.
 implied_noindex() {
@@ -601,23 +656,90 @@ touch_operand() {
   done
 }
 
+# ignored_dir <canonical dir>: returns 0 when the repository that holds <dir>
+# ignores it by pattern, the way ripgrep decides it: `check-ignore
+# --no-index`, never plain `check-ignore`, which reads the index and calls a
+# dir with any tracked file under it not ignored (this repo tracks
+# .claude/war/config.json), although ripgrep still skips it. The question is
+# asked from the dir's parent with a `./<name>/` operand (the `./` keeps a
+# leading `:` from reading as pathspec magic, the `/` makes a `dir/` pattern
+# match), so it is answered by the repository that holds <dir>, and git's
+# leading-directory check makes a dir under an ignored dir ignored too. A dir
+# with a `.git` entry is a repository root: never ignored, and no spawn. Any
+# other non-zero exit is "not ignored", so the walk marks: a dir no work tree
+# holds (git's "not a git repository" exit, where ripgrep enters, D4) and a
+# git error inside a work tree (when unsure, over-touch, PIN-6) alike. Runs
+# with `-c core.fsmonitor=false` (PIN-1); `--no-index` never reads an index.
+ignored_dir() {
+  [ -e "$1/.git" ] && return 1
+  _gq="${1%/*}"; [ -n "$_gq" ] || _gq=/
+  _gn="${1##*/}"
+  [ -n "$_gn" ] || return 1
+  git -c core.fsmonitor=false -C "$_gq" check-ignore -q --no-index -- "./$_gn/" >/dev/null 2>&1
+}
+
+# grep_walk <search root>: for a Grep whose search root R (its `path`, else
+# the payload cwd; a relative R resolves against the cwd) is a directory,
+# touch every marked task worktree W strictly below R that the Grep tool's
+# ripgrep enters (D4, PIN-4). That ripgrep runs with `--hidden` and no
+# `--no-ignore`, so it skips a folder the repository holding it ignores, but
+# never applies an ignore rule to an explicit search root or below it. So:
+# when R is at or under an ignored dir (ignored_dir R), every W below R is
+# touched; else W is touched unless a folder strictly below R on the path
+# down to W, W included, is ignored. A no-path Grep from the main checkout
+# meets `.claude` first, which provision-worktrees.sh ensure-exclude
+# excludes, so busy sibling worktrees under the run dir are never touched
+# (no false AUDIT-TAMPER). ripgrep honors more ignore files than git
+# (`.ignore`, `.rgignore`, global excludes); the gap errs toward over-touch.
+# The walk primitive is task_worktrees, as in touch_operand. R is read
+# physically (canon). Each folder's answer is cached for the call, so the
+# worktrees under one ignored dir cost one check-ignore spawn.
+grep_walk() {
+  [ -n "$STATE" ] || return 0
+  case "$1" in /*) _gr="$1" ;; *) _gr="$cwd/$1" ;; esac
+  [ -d "$_gr" ] || return 0
+  _gr="$(canon "$_gr")" && [ -n "$_gr" ] || return 0
+  _gall=0; ignored_dir "$_gr" && _gall=1
+  _gpre="${_gr%/}"
+  task_worktrees | {
+    _gyes=""; _gno=""
+    while IFS= read -r _w; do
+      case "$_w" in "$_gpre"/?*) ;; *) continue ;; esac
+      if [ "$_gall" = 0 ]; then
+        _gf="$_gpre"; _grest="${_w#"$_gpre"/}"; _gskip=0
+        while [ -n "$_grest" ]; do
+          _gf="$_gf/${_grest%%/*}"
+          case "$_grest" in */*) _grest="${_grest#*/}" ;; *) _grest="" ;; esac
+          case "$NL$_gno" in *"$NL$_gf$NL"*) continue ;; esac
+          case "$NL$_gyes" in *"$NL$_gf$NL"*) _gskip=1; break ;; esac
+          if ignored_dir "$_gf"; then _gyes="$_gyes$_gf$NL"; _gskip=1; break; fi
+          _gno="$_gno$_gf$NL"
+        done
+        [ "$_gskip" = 1 ] && continue
+      fi
+      touch_line "$_w"
+    done
+  }
+  return 0
+}
+
 # unquote <token>: sets _t to the token with one pair of outer quotes
 # (double or single) stripped.
 unquote() { _t="$1"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; }
 
 # tilde <token>: sets _t to the token with an unquoted word-initial `~`
 # expanded as the seat's shell expands it before git runs: `~` and `~/x`
-# from HOME, `~+` and `~-` (`+` and `-` are admitted too) from the payload
-# cwd (the nearest reading of PWD and OLDPWD the payload offers). Returns 1
-# on a `~<name>` form, which only getpwnam can resolve: the caller records
-# the token literal so the verdict arm escalates it as unresolved instead of
-# comparing nothing.
+# from HOME, `~+` (`+` is admitted too) from the payload cwd, which is the
+# seat's PWD. Returns 1 on a `~-` or `~-/x` form, which the shell expands
+# from OLDPWD (the payload carries none, and the hook never reads its own:
+# PIN-7), and on a `~<name>` form, which only getpwnam can resolve: the
+# caller records the token literal so the verdict arm escalates it as
+# unresolved instead of comparing nothing.
 tilde() {
   _t="$1"
   case "$_t" in
     "~"|"~/"*) [ -n "${HOME-}" ] && _t="$HOME${_t#\~}" ;;
     "~+"|"~+/"*) _t="$cwd${_t#\~+}" ;;
-    "~-"|"~-/"*) _t="$cwd${_t#\~-}" ;;
     "~"*) return 1 ;;
   esac
   return 0
@@ -762,6 +884,13 @@ case "$event" in
         _p="$(get '.tool_input.path')"
         [ -n "$_p" ] || _p="$cwd"
         touch_path "$_p"
+        # A Grep also walks down into the task worktrees its ripgrep enters
+        # (see grep_walk). Glob does not (D5, PIN-5): its default flags
+        # recurse into every folder, so a walk would touch every sibling
+        # worktree on each Glob from the main checkout, and Glob returns
+        # names only (a later Read or Grep of a listed file touches its
+        # worktree).
+        [ "$tool" = Grep ] && grep_walk "$_p"
         # An absolute Glob pattern reaches its own tree whatever `path` says:
         # touch the prefix up to the first glob metacharacter (`*`, `?`, `[`,
         # `{`), the literal directory the pattern walks.
@@ -783,8 +912,8 @@ case "$event" in
         # An unquoted word-initial `~` (admitted by validate-auditor-git.sh
         # for HEAD~1) is expanded by the seat's shell before git sees it, so
         # the hook expands that form too (see tilde above), on a `-C` value
-        # and on an operand alike; a `~<name>` form goes into the touched set
-        # literal. A quoted `'~/x'` or an attached `-C~/x` reaches git literal
+        # and on an operand alike; a `~-` or `~<name>` form goes into the
+        # touched set literal. A quoted `'~/x'` or an attached `-C~/x` reaches git literal
         # and stays literal here. Every other token, quotes stripped, is
         # classified as a path: an absolute one (`/...`) is touched as is, a
         # `--<opt>=<value>` token is classified by the value after its first
@@ -829,7 +958,7 @@ case "$event" in
         # either path outside the base's work tree). The first token is the program name
         # (`git`, the only one the guard admits) and names no path, so it is
         # skipped: resolved against the payload cwd it would touch a worktree
-        # a `-C` command never reads. After an unresolved `~<name>` -C the
+        # a `-C` command never reads. After an unresolved `~-` or `~<name>` -C the
         # base is unknown, so a later relative operand is not resolved; the
         # literal line already makes the verdict arm escalate, so nothing is
         # lost. The cwd fallback is unchanged by an operand token: the
