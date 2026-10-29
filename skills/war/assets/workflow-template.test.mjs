@@ -3216,6 +3216,18 @@ const isAceRevert = (c) => c.opts.dispatchKind === 'ace-revert'
 const revertBetween = (calls, a, b) => calls.slice(calls.indexOf(a) + 1, calls.indexOf(b)).some(isAceRevert)
 // The merge-slot range revert clause naming the pre-revert tip `tip` (the #2485 range spelling).
 const mergeRangeRevert = tip => new RegExp('FORWARD-REVERT \\(--ace\\)[^\\n]*the pre-revert tip ' + tip + '\\)[^\\n]*-c core\\.hooksPath=/dev/null revert --no-commit [0-9a-f]{7,40}\\.\\.HEAD')
+// #2485 D17 token contract: every revert site renders the one range revert script after "run exactly:".
+// The tokens are extracted from the script itself (the source), and the consumer prose around it must
+// name each one — a token the prose omits is an arm the refiner has no return mapping for.
+const rangeRevertScriptOf = prompt => (String(prompt).match(/run exactly:\s*`([^`]+)`/) || [])[1]
+const RANGE_REVERT_TOKENS = ['INDEX-DIRTY', 'NOT-DESCENDANT', 'RANGE-CLEAN', 'RANGE-REVERTED', 'TREE-MISMATCH']
+const assertRangeRevertTokensMapped = (prompt, site) => {
+  const script = rangeRevertScriptOf(prompt); assert.ok(script, site + ': the prompt carries the range revert script')
+  const tokens = [...new Set([...script.matchAll(/echo ([A-Z-]+)/g)].map(m => m[1]))].sort()
+  assert.deepEqual(tokens, RANGE_REVERT_TOKENS, site + ': the script prints exactly the named tokens')
+  const prose = String(prompt).replace(script, '')
+  for (const t of tokens) assert.ok(prose.includes(t), site + ': the consumer prose maps ' + t)
+}
 // A single-task phase (no deps) so the ace sub-loop path is the only thing under test.
 const ACE_ARGS = (over = {}) => PROVISION_ARGS({
   tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
@@ -3736,6 +3748,22 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === '5ab00001'), 'the approved half stays aced — the merge runs on a tip whose failed subsets are reverted')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the finally-failing half demotes')
   assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('range revert token contract (#2485 D17): the refiner revert dispatch, the pin-transfer probe and the merge dispatch each map every token the one script can print', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' }), fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
+    'ace:polish:t1:a1': [bWorker('ace00001')],
+    'ace:subset:t1:a2': [bWorker('5ab00001')],
+    'ace:subset:t1:a3': [bWorker('5ab00002')],   // the FINAL failed tip rides the merge-slot clause
+  }, aceBase([fa, fb]))
+  const { calls } = await runPhase(ACE_ARGS(), impl)
+  const revert = calls.find(isAceRevert); assert.ok(revert, 'the refiner revert dispatch ran before the first subset')
+  assertRangeRevertTokensMapped(revert.prompt, 'ace-revert')
+  const probe = calls.find(c => c.opts.dispatchKind === 'pin-transfer' && c.prompt.includes('FORWARD-REVERT (--ace)')); assert.ok(probe, 'the pin-transfer probe carried the clause')
+  assertRangeRevertTokensMapped(probe.prompt, 'pin-transfer probe')
+  assertRangeRevertTokensMapped(calls.find(isMergeTask).prompt, 'merge dispatch')
 })
 
 test('absorb-budget (bisection budget): each subset COMMIT charges one absorbRounds slot, never fixRounds; a spent budget routes the still-queued subsets to the phase-close sweep as absorbs (logged, by design) and the task still lands', async () => {
@@ -16719,6 +16747,7 @@ test('terminal-pass — a re-audit regression forward-reverts the terminal commi
   const nonFinal = await runPhase(SWEEP_ARGS({ finalPhase: false }), terminalImpl({ terminalSeat: rejected }))
   const rv = nonFinal.calls.find(c => (c.opts.label || '') === 'terminal-revert:phase-3')
   assert.ok(rv && TERMINAL_RANGE_REVERT.test(rv.prompt) && rv.opts.dispatchKind === 'terminal-revert', 'the range forward-revert above the post-polish tip is dispatched for the terminal sha')
+  assertRangeRevertTokensMapped(rv.prompt, 'terminal-revert')
   assert.ok(!nonFinal.calls.some(c => (c.opts.label || '') === 'merge:p3-terminal'), 'a regressed terminal commit never merges')
   assert.equal(terminalCalls(nonFinal.calls).length, 1, 'never a second pass')
   assert.ok(carriedOf(nonFinal.out, 'polish-panel absorb'), 'non-final: the row carries')
@@ -19640,7 +19669,7 @@ for (const kind of ['transferred', 'whitespace', 'whitespace-error', 'whitespace
           if (reverts) {
             // #2485 D17: run the engine's own range revert spelling, extracted from the dispatched probe.
             assert.ok(failedAce, 'the gate-red ace exists')
-            const rv = spawnSync('bash', ['-c', p.match(/run exactly: `([^`]+)`/)[1]], { cwd: dir, encoding: 'utf8' })
+            const rv = spawnSync('bash', ['-c', rangeRevertScriptOf(p)], { cwd: dir, encoding: 'utf8' })
             assert.equal(rv.status, 0, rv.stderr); assert.match(rv.stdout, /RANGE-REVERTED/)
           }
           if (kind === 'forged-upstream') git('rebase', '--onto', 'integration', 'task')
@@ -21481,7 +21510,7 @@ test('2485/ES3 dead probe after a blocked result that made no commit lands the a
       if (seatOf(o) === 'war-worker') return { task_id: 't1', status: 'blocked', blocked_reason: 'made no commit' }
       if (o.label === 'audit:t1:correctness') return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: approved, findings: [nit({ file: 'x.js' })], confidence: 'high' }
       return defaultImpl(p, o)
-    }, { 'tip-probe': INFRA, 'pin-transfer': p => { script = p.match(/run exactly: `([^`]+)`/)[1]; return { status: 'error' } } })
+    }, { 'tip-probe': INFRA, 'pin-transfer': p => { script = rangeRevertScriptOf(p); return { status: 'error' } } })
     assert.ok(script, 'the dead probe registered a range revert on the pin-transfer probe')
     const run = spawnSync('bash', ['-c', script], { cwd: dir, encoding: 'utf8' })
     assert.equal(run.status, 0, run.stderr)
@@ -21553,42 +21582,56 @@ test('2485/ES11 card mirror: worker card step 5, the four ace prompts and the ch
   assert.ok(!/trailer paragraph/i.test(prompts.subset.prompt), 'the chain clause no longer names a trailer paragraph')
 })
 
-test('2485/ES12 real git: the engine range revert carries a parsed WAR-Task trailer, its tree equals the approved tree, and no target-repo hook alters it', async () => {
+// #2485 ES12 real-git harness: a task repo whose root commit is the approved tip (x.js in the ace
+// range, w.js never touched), and the one range revert script the engine renders for it, captured from
+// the pin-transfer probe after a two-commit blocked ace with a red gate (the merge-slot revert path).
+// The script bakes in the worktree and the approved sha, so every state a fixture builds runs the same
+// text the refiner would run; `runScript(env)` is that run, bash -c in the task worktree.
+const rangeRevertRepo = () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-2485-range-revert-'))
   const git = (...a) => { const r = spawnSync('git', a, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  git('init', '-q', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+  writeFileSync(join(dir, 'x.js'), 'approved'); writeFileSync(join(dir, 'w.js'), 'untouched'); git('add', 'x.js', 'w.js'); git('commit', '-q', '-m', 'approved task')
+  const quiet = (...a) => git('-c', 'core.hooksPath=/dev/null', ...a)
+  return { dir, git, quiet, approved: git('rev-parse', 'HEAD') }
+}
+const captureRangeRevertScript = async ({ dir, git, quiet, approved }) => {
+  const scripts = []
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { ace: true } }), (p, o) => {
+    if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
+    if (seatOf(o) === 'war-worker') {
+      // Two ace commits, then blocked: the field shape on a multi-commit move.
+      writeFileSync(join(dir, 'x.js'), 'ace one'); quiet('commit', '-q', '-am', 'ace one')
+      writeFileSync(join(dir, 'y.js'), 'ace two'); quiet('add', 'y.js'); quiet('commit', '-q', '-m', 'ace two')
+      return blockedWith(git('rev-parse', 'HEAD'))
+    }
+    if (o.label === 'audit:t1:correctness') return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: approved, findings: [nit({ file: 'x.js' })], confidence: 'high' }
+    return defaultImpl(p, o)
+  }, {
+    'tip-probe': p => {
+      const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], tip = git('rev-parse', 'task')
+      return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), approved_tree: git('rev-parse', approved + '^{tree}'),
+        count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--name-only', pre, tip).split('\n') }
+    },
+    'ace-gate': { gate_green: false, gate_output: 'red' },
+    'pin-transfer': p => { scripts.push(rangeRevertScriptOf(p)); return { status: 'error' } },
+  })
+  assert.equal(scripts.length, 1, 'the pin-transfer probe carried the range revert')
+  const runScript = (env = {}) => spawnSync('bash', ['-c', scripts[0]], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } })
+  return { script: scripts[0], runScript, out }
+}
+
+test('2485/ES12 real git: the engine range revert carries a parsed WAR-Task trailer, its tree equals the approved tree, and no target-repo hook alters it', async () => {
+  const repo = rangeRevertRepo(), { dir, git, approved } = repo
   try {
-    git('init', '-q', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
-    writeFileSync(join(dir, 'x.js'), 'approved'); git('add', 'x.js'); git('commit', '-q', '-m', 'approved task')
-    const approved = git('rev-parse', 'HEAD')
     // Target-repo hooks that would alter or observe a commit: none may touch the engine revert.
     const hooks = join(dir, '.git', 'hooks')
     writeFileSync(join(hooks, 'prepare-commit-msg'), '#!/bin/sh\necho HOOK-PREPARE >> "$1"\n', { mode: 0o755 })
     writeFileSync(join(hooks, 'commit-msg'), '#!/bin/sh\nprintf "\\nHook-Trailer: injected\\n" >> "$1"\n', { mode: 0o755 })
     writeFileSync(join(hooks, 'post-commit'), '#!/bin/sh\ntouch "$(git rev-parse --git-dir)/post-commit-ran"\n', { mode: 0o755 })
-    const quiet = (...a) => git('-c', 'core.hooksPath=/dev/null', ...a)
-    const scripts = []
-    const { out } = await runPhase(PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: dir }], run: { ace: true } }), (p, o) => {
-      if (isWorker({ opts: o })) return { task_id: 't1', status: 'implemented', head_sha: approved }
-      if (seatOf(o) === 'war-worker') {
-        // Two ace commits, then blocked: the field shape on a multi-commit move.
-        writeFileSync(join(dir, 'x.js'), 'ace one'); quiet('commit', '-q', '-am', 'ace one')
-        writeFileSync(join(dir, 'y.js'), 'ace two'); quiet('add', 'y.js'); quiet('commit', '-q', '-m', 'ace two')
-        return blockedWith(git('rev-parse', 'HEAD'))
-      }
-      if (o.label === 'audit:t1:correctness') return { seat: o.label, lens: 'correctness', verdict: 'approve', audit_sha: approved, findings: [nit({ file: 'x.js' })], confidence: 'high' }
-      return defaultImpl(p, o)
-    }, {
-      'tip-probe': p => {
-        const pre = p.match(/PRE=(\S+) \(the pre-dispatch tip\)/)[1], tip = git('rev-parse', 'task')
-        return { tip_sha: tip, tip_tree: git('rev-parse', tip + '^{tree}'), pre_sha: git('rev-parse', pre), approved_tree: git('rev-parse', approved + '^{tree}'),
-          count: Number(git('rev-list', '--count', pre + '..' + tip)), pre_is_ancestor: true, files: git('diff', '--name-only', pre, tip).split('\n') }
-      },
-      'ace-gate': { gate_green: false, gate_output: 'red' },
-      'pin-transfer': p => { scripts.push(p.match(/run exactly: `([^`]+)`/)[1]); return { status: 'error' } },
-    })
-    assert.equal(scripts.length, 1, 'the pin-transfer probe carried the range revert')
+    const { runScript, out } = await captureRangeRevertScript(repo)
     const preRevertTip = git('rev-parse', 'HEAD')
-    const run = spawnSync('bash', ['-c', scripts[0]], { cwd: dir, encoding: 'utf8' })
+    const run = runScript()
     assert.equal(run.status, 0, run.stderr); assert.match(run.stdout, /RANGE-REVERTED/)
     assert.equal(git('rev-parse', 'HEAD^'), preRevertTip, 'one forward commit on top of the range — never a reset')
     assert.equal(git('rev-parse', 'HEAD^{tree}'), git('rev-parse', approved + '^{tree}'), 'the revert tree equals the last approved tree')
@@ -21596,8 +21639,70 @@ test('2485/ES12 real git: the engine range revert carries a parsed WAR-Task trai
     const msg = git('log', '-1', '--format=%B')
     assert.ok(!msg.includes('HOOK-PREPARE') && !msg.includes('Hook-Trailer'), 'no message hook altered the engine commit')
     assert.equal(spawnSync('test', ['-e', join(dir, '.git', 'post-commit-ran')]).status, 1, 'post-commit never ran')
-    const again = spawnSync('bash', ['-c', scripts[0]], { cwd: dir, encoding: 'utf8' })
+    const again = runScript()
     assert.match(again.stdout, /RANGE-CLEAN/, 'a replay at the approved tree skips — the range is never reverted twice')
     assert.ok(out.landed.includes('t1'), 't1 lands')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES12 real git: a staged index refuses the range revert (INDEX-DIRTY) with no commit, a clean index releases it, and an unstaged edit on an untouched file never blocks it', async () => {
+  const repo = rangeRevertRepo(), { dir, git, approved } = repo
+  try {
+    const { runScript } = await captureRangeRevertScript(repo)
+    const preRevertTip = git('rev-parse', 'HEAD'), approvedTree = git('rev-parse', approved + '^{tree}')
+    // The seats' case: a foreign file staged by a dead or rogue ace worker (the dead-attempt
+    // `git checkout -- .` restores the worktree FROM the index, so staged content survives it).
+    // `revert --no-commit` would fold it into the engine commit; the gate refuses before the revert.
+    writeFileSync(join(dir, 'z.js'), 'smuggled'); git('add', 'z.js')
+    let run = runScript()
+    assert.equal(run.status, 0, run.stderr); assert.match(run.stdout, /INDEX-DIRTY/); assert.doesNotMatch(run.stdout, /RANGE-REVERTED/)
+    assert.equal(git('rev-parse', 'HEAD'), preRevertTip, 'no revert commit: HEAD is unchanged')
+    assert.ok(!git('ls-tree', '--name-only', 'HEAD').split('\n').includes('z.js'), 'no commit carries the staged file')
+    assert.equal(git('diff', '--cached', '--name-only'), 'z.js', 'the staged content is left in place for a human, never discarded')
+    // The mirror arm: a staged edit to a file INSIDE the range is refused the same way.
+    git('rm', '-q', '--cached', 'z.js'); rmSync(join(dir, 'z.js'))
+    writeFileSync(join(dir, 'x.js'), 'staged edit'); git('add', 'x.js')
+    run = runScript()
+    assert.match(run.stdout, /INDEX-DIRTY/); assert.doesNotMatch(run.stdout, /RANGE-REVERTED/); assert.equal(git('rev-parse', 'HEAD'), preRevertTip)
+    // The release: a path checkout (never --hard) cleans the index, and the same script reverts. The
+    // boundary the gate must not cross rides along: an UNSTAGED edit to a tracked file the range never
+    // touched is not index content, so the revert proceeds, commits the approved tree, and the edit stays.
+    git('checkout', '-q', 'HEAD', '--', 'x.js'); writeFileSync(join(dir, 'w.js'), 'unstaged edit')
+    run = runScript()
+    assert.equal(run.status, 0, run.stderr); assert.match(run.stdout, /RANGE-REVERTED/)
+    assert.equal(git('rev-parse', 'HEAD^'), preRevertTip, 'one forward commit on top of the range')
+    assert.equal(git('rev-parse', 'HEAD^{tree}'), approvedTree, 'the revert tree equals the last approved tree')
+    assert.equal(git('log', '-1', '--format=%(trailers:key=WAR-Task,valueonly)'), 'task')
+    assert.equal(readFileSync(join(dir, 'w.js'), 'utf8'), 'unstaged edit'); assert.equal(git('diff', '--name-only'), 'w.js', 'the unstaged edit is untouched, in the worktree only')
+    assert.equal(spawnSync('git', ['diff', '--cached', '--quiet', 'HEAD'], { cwd: dir }).status, 0, 'and nothing is staged after the commit')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES12 real git: a non-descendant tip reads NOT-DESCENDANT before any index check, a reverted index that is not the approved tree is never committed (TREE-MISMATCH), and the replay refuses it (INDEX-DIRTY)', async () => {
+  const repo = rangeRevertRepo(), { dir, git } = repo
+  try {
+    const { runScript } = await captureRangeRevertScript(repo)
+    const preRevertTip = git('rev-parse', 'HEAD')
+    // A root that does not descend from the approved tip, with a dirty index on top: the history arm
+    // wins over the worktree arm (NOT-DESCENDANT is the merge-slot backstop's row, INDEX-DIRTY is not).
+    git('checkout', '-q', '--orphan', 'other'); git('commit', '-q', '-m', 'foreign root')
+    writeFileSync(join(dir, 'z.js'), 'staged'); git('add', 'z.js')
+    let run = runScript()
+    assert.equal(run.status, 0, run.stderr); assert.match(run.stdout, /NOT-DESCENDANT/); assert.doesNotMatch(run.stdout, /RANGE-REVERTED|INDEX-DIRTY/)
+    assert.equal(git('rev-parse', 'HEAD^{tree}'), git('rev-parse', preRevertTip + '^{tree}'), 'nothing committed above the foreign root')
+    git('rm', '-q', '--cached', 'z.js'); rmSync(join(dir, 'z.js')); git('checkout', '-q', 'task'); assert.equal(git('rev-parse', 'HEAD'), preRevertTip)
+    // TREE-MISMATCH: from a clean index a linear range revert always rebuilds the approved tree, so the
+    // arm is reached through a PATH shim that lies about `write-tree` alone — every other verb, and
+    // every oracle below, is real git. A deleted tree check would commit and print RANGE-REVERTED here.
+    const bin = join(dir, 'bin'); mkdirSync(bin)
+    const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
+    writeFileSync(join(bin, 'git'), '#!/bin/sh\nfor a in "$@"; do [ "$a" = write-tree ] && { echo 0000000000000000000000000000000000000000; exit 0; }; done\nexec ' + JSON.stringify(realGit) + ' "$@"\n', { mode: 0o755 })
+    run = runScript({ PATH: bin + ':' + process.env.PATH })
+    assert.equal(run.status, 0, run.stderr); assert.match(run.stdout, /TREE-MISMATCH/); assert.doesNotMatch(run.stdout, /RANGE-REVERTED/)
+    assert.equal(git('rev-parse', 'HEAD'), preRevertTip, 'no commit: HEAD is unchanged')
+    assert.equal(spawnSync('git', ['diff', '--cached', '--quiet', 'HEAD'], { cwd: dir }).status, 1, 'the reverted index is staged, not committed')
+    // The replay without the shim: the staged revert result is refused, never blindly committed.
+    run = runScript()
+    assert.match(run.stdout, /INDEX-DIRTY/); assert.doesNotMatch(run.stdout, /RANGE-REVERTED/); assert.equal(git('rev-parse', 'HEAD'), preRevertTip)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

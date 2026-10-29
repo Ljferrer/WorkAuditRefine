@@ -2298,10 +2298,18 @@ const approvedShaOf = r => r.aceSha || (r.seats || []).map(s => s.audit_sha).fin
 // ancestor of skips too (the range is undefined, and the merge-slot tree clause is the backstop).
 // `-c core.hooksPath=/dev/null` keeps every target-repo hook off the engine commit: --no-verify alone
 // still runs prepare-commit-msg and post-commit. The one commit carries the exact WAR-Task trailer.
+// Two guards keep the commit's tree the approved tree: `revert --no-commit` starts from the index and
+// never refuses a dirty one (the retired tip-only `revert --no-edit <sha>` did), so staged content a
+// panel never judged would ride into the engine commit — INDEX-DIRTY refuses before the revert, and
+// the commit runs only when `write-tree` (the index the commit would record) equals the approved tree,
+// else TREE-MISMATCH. Neither makes a commit; a replay after TREE-MISMATCH reads INDEX-DIRTY (the
+// reverted index is staged), never a blind commit. Every consumer maps the five tokens: RANGE-REVERTED
+// and RANGE-CLEAN are the success pair; NOT-DESCENDANT, INDEX-DIRTY and TREE-MISMATCH are not-ok.
 const rangeRevertScript = (revertWorktree, revertApproved, revertBranch) =>
   pt`if [ "$(git -C ${revertWorktree} rev-parse HEAD^{tree})" = "$(git -C ${revertWorktree} rev-parse ${revertApproved}^{tree})" ]; then echo RANGE-CLEAN; `
-  + pt`elif git -C ${revertWorktree} merge-base --is-ancestor ${revertApproved} HEAD; then git -C ${revertWorktree} -c core.hooksPath=/dev/null revert --no-commit ${revertApproved}..HEAD && git -C ${revertWorktree} -c core.hooksPath=/dev/null commit -q -m "Forward-revert ${revertApproved}..HEAD to the last approved tree" --trailer "WAR-Task: ${revertBranch}" && echo RANGE-REVERTED; `
-  + pt`else echo NOT-DESCENDANT; fi`
+  + pt`elif ! git -C ${revertWorktree} merge-base --is-ancestor ${revertApproved} HEAD; then echo NOT-DESCENDANT; `
+  + pt`elif ! git -C ${revertWorktree} diff --cached --quiet HEAD; then echo INDEX-DIRTY; `
+  + pt`else git -C ${revertWorktree} -c core.hooksPath=/dev/null revert --no-commit ${revertApproved}..HEAD && if [ "$(git -C ${revertWorktree} write-tree)" = "$(git -C ${revertWorktree} rev-parse ${revertApproved}^{tree})" ]; then git -C ${revertWorktree} -c core.hooksPath=/dev/null commit -q -m "Forward-revert ${revertApproved}..HEAD to the last approved tree" --trailer "WAR-Task: ${revertBranch}" && echo RANGE-REVERTED; else echo TREE-MISMATCH; fi; fi`
 // registerRangeRevert: the merge-slot revert input on r — the pair (<approved>, the pre-revert tip).
 // The tip is null when no Git read placed it (a dead or unusable tip probe); the clause reads HEAD from
 // Git either way.
@@ -3578,7 +3586,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const rv = await dispatchSite(
       pt`ACE RANGE REVERT for WAR task ${r.task.id} before the next ${revertSite} worker: a failed ace range sits on the task branch above the last approved tip. In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), with APPROVED=${revertApproved} (the last approved tip) from the engine and HEAD from Git, run exactly:\n`
       + pt`\`${rangeRevertScript(r.task.worktree, revertApproved, r.task.branch)}\`\n`
-      + pt`Then push ${r.task.branch} (plain git push; never force, never reset --hard). Return { ok: true, tip_sha: <git -C ${r.task.worktree} rev-parse HEAD after the step> } on RANGE-REVERTED or RANGE-CLEAN; { ok: false, detail } on NOT-DESCENDANT or any Git error.`,
+      + pt`Then push ${r.task.branch} (plain git push; never force, never reset --hard). Return { ok: true, tip_sha: <git -C ${r.task.worktree} rev-parse HEAD after the step> } on RANGE-REVERTED or RANGE-CLEAN; { ok: false, detail: '<the token, or the error>' } on NOT-DESCENDANT, INDEX-DIRTY (staged content no panel judged sits in the index: the revert is refused and nothing is committed), TREE-MISMATCH (the reverted index is not the approved tree: nothing is committed) or any Git error.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-revert', label: 'ace-revert:' + revertSite + ':' + r.task.id + ':a' + r.task.absorbRounds, schema: ACE_REVERT, ...spawn('refiner') })
     if (deathOf(rv)) return { tip: null, why: deathOf(rv) }
     if (!rv || rv.ok !== true || !isSha(rv.tip_sha)) return { tip: null, why: 'the ' + revertSite + ' range revert returned no usable reverted tip' + (rv && rv.detail ? ' (' + rv.detail + ')' : '') }
@@ -4608,12 +4616,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // BEFORE the rebase. It reverts <approved>..HEAD with HEAD read from Git, so the tree returns to
       // the last approved tree whatever the commit count; a tip already at the approved tree (a blocked
       // result that made no commit, or the probe's revert already done) skips, so a replay never
-      // reverts twice. Ace never turns a mergeable task into a hold.
+      // reverts twice; a staged index (INDEX-DIRTY) or a reverted index that is not the approved tree
+      // (TREE-MISMATCH) makes no commit and the refiner stops with status 'error', so no content a
+      // panel never judged is committed or merged. Ace never turns a mergeable task into a hold.
       const revertRange = rangeRevertOf(r)
       const aceRevertClause = revertRange
         ? pt`FORWARD-REVERT (--ace): the commits above the last approved tip ${revertRange.approved} are not approved (the pre-revert tip ${revertRange.tip || 'was never read from Git'}). BEFORE the rebase step (a), in the TASK worktree, run exactly: `
           + pt`\`${rangeRevertScript(r.task.worktree, revertRange.approved, r.task.branch)}\` `
-          + pt`It reads HEAD from Git, never from a worker report; RANGE-CLEAN (the tip already carries the approved tree) and NOT-DESCENDANT skip the revert and the commit. Do NOT reset --hard. The approved work still lands.\n`
+          + pt`It reads HEAD from Git, never from a worker report; RANGE-CLEAN (the tip already carries the approved tree) and NOT-DESCENDANT skip the revert and the commit. INDEX-DIRTY (staged content no panel judged sits in the index) and TREE-MISMATCH (the reverted index is not the approved tree) make no commit: STOP before the rebase and return status 'error' with the token as detail — the branch tip still carries the unapproved range and is never merged. Do NOT reset --hard. On RANGE-REVERTED or RANGE-CLEAN the approved work still lands.\n`
         : ''
       // ---- PIN TRANSFER AT THE MERGE SLOT (#1913, D2 / PIN-1 / PIN-7 / PIN-14 / PIN-16) ----
       // The panel approved a tip; the merge slot needs the same content, not the same sha. One refiner
@@ -6073,7 +6083,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         // terminal range never merged, so the landed tip is unaffected either way; never a second pass.
         const terminalRevert = async (revertWhy) => {
           const rv = await dispatchAgent(
-            pt`FORWARD-REVERT the terminal-pass range for WAR phase ${ph.id} (${revertWhy}). In the polish worktree ${polishWorktree} (branch ${polishBranch}), with APPROVED=${terminalApproved} (the post-polish integrated tip) from the engine and HEAD from Git, run exactly: \`${rangeRevertScript(polishWorktree, terminalApproved, polishBranch)}\` then push ${polishBranch}. Never reset --hard, never force. Return the env-outcome JSON: \`{ ok: true }\` on RANGE-REVERTED or RANGE-CLEAN; \`{ ok: false, failedCommand, exitCode, stderrTail }\` otherwise.`,
+            pt`FORWARD-REVERT the terminal-pass range for WAR phase ${ph.id} (${revertWhy}). In the polish worktree ${polishWorktree} (branch ${polishBranch}), with APPROVED=${terminalApproved} (the post-polish integrated tip) from the engine and HEAD from Git, run exactly: \`${rangeRevertScript(polishWorktree, terminalApproved, polishBranch)}\` then push ${polishBranch}. Never reset --hard, never force. Return the env-outcome JSON: \`{ ok: true }\` on RANGE-REVERTED or RANGE-CLEAN; \`{ ok: false, failedCommand, exitCode, stderrTail }\` on NOT-DESCENDANT, INDEX-DIRTY, TREE-MISMATCH (the token in stderrTail; none made a commit) or any Git error.`,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `terminal-revert:phase-${ph.id}`, dispatchKind: 'terminal-revert', schema: ENV_OUTCOME, ...spawn('refiner') }).catch(err => { const c = infraDeathCause(err); if (!c) throw err; return { ok: false, stderrTail: c } })
           log('terminal pass: forward-revert of the range above ' + terminalApproved + ' ' + (rv && rv.ok === true ? 'done' : 'did NOT confirm (' + ((rv && rv.stderrTail) || 'no result') + ') — the range stays on ' + polishBranch + ' unmerged; reaping is a human act'))
           return rv
