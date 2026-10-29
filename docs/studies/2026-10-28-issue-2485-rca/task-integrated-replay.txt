@@ -1,0 +1,13 @@
+t1-1 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-1 has mixed history after task-owned work
+t1-2 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-2 has mixed history after task-owned work
+t1-3 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-3 has no nonempty WAR-Task commit in the phase
+t1-4 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-4 has no nonempty WAR-Task commit in the phase
+t1-5 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-5 has mixed history after task-owned work
+t1-6 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-6 is not integrated
+t1-7 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-7 is not integrated
+t1-8 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-8 has mixed history after task-owned work
+t1-9 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-9 has mixed history after task-owned work
+t1-10 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-10 has mixed history after task-owned work
+t1-11 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-11 has no nonempty WAR-Task commit in the phase
+t1-12 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-12 has mixed history after task-owned work
+t1-13 rc=1 NO_TASK_PROOF war/2026-10-27-real-backend/p1-t1-13 absent or unreadable
