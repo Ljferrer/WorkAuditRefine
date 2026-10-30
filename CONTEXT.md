@@ -251,6 +251,9 @@ The ordered, pinned shell commands that take a bare worktree from checkout to **
 from the target repo's *own* declared setup. Run verbatim, in order, before the gate.
 _Avoid_: setup script, bootstrap steps, install commands.
 
+**Provision tree marker**:
+when a gate's tree may differ from its provisioned tree, read skills/war/references/glossary-cold.md
+
 **Setup-scout**:
 The read-only agent that derives the provision list from the target repo's signals, in descending
 authority (explicit → CI → dev-onboarding → structural floor). Holds no ecosystem knowledge itself.
@@ -481,6 +484,9 @@ _Avoid_: adding a `plan-defect` reason or land-decision member (the classificati
 reason); reading an absent field as `'implementation'` (absence asserts no classification nobody made).
 
 ### Landing
+
+**Merge-commit provenance**:
+when proving which merge landed a task, read skills/war/references/glossary-cold.md
 
 **Phantom land**:
 A land that reports `status:'landed'` while the working ref **never advanced** — the `--no-ff` merge
@@ -946,6 +952,9 @@ carries the panel pin to the rebased tip. Neither accounts an approval at a SHA 
 passed; a mismatch degrades to the in-lock full panel for that task alone.
 Arms and shape: `skills/war/references/schemas.md`.
 
+**Tip probe**:
+when an ace result returns, read skills/war/references/glossary-cold.md
+
 **Ace bisection**:
 The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
 `skills/war/assets/workflow-template.js`, dispatched wave-side per task, never inside the merge lock):
@@ -1360,9 +1369,11 @@ _Avoid_: a block-level provenance stamp — the marker is per-row precisely beca
 mix operator-ratified and AI-declared rows side by side.
 
 **topology-void**:
-A plan clause anchored on git topology that does not exist under WAR's fast-forward per-task merges (a
-per-task merge commit, its `^1` parent, a non-empty post-merge three-dot diff). The `ff-topology` executed
-probe classifies it — error, wrong-commit resolution, or degenerate/empty diff for the claimed anchor.
+A plan clause anchored on git topology that WAR's task merges lack. Each task lands as a `--no-ff` merge
+commit carrying `WAR-Task`, so `<merge>^1` and a `--first-parent` per-task anchor are valid; a
+fast-forward-only anchor (the task tip on the first-parent line) and a non-empty post-merge three-dot
+diff are void. The `ff-topology` executed probe classifies it — error, wrong-commit resolution, or
+degenerate/empty diff for the claimed anchor.
 _Avoid_: conflating with a merge *conflict* — the anchor is void, not contested.
 
 **analyzed-agent fallback**:
@@ -1666,6 +1677,9 @@ The uncommitted per-run telemetry record `/war` accumulates under the main check
 counts, terminal statuses. Fail-open bookkeeping consumed by `/war-review`; **never resume
 input** (the correctness record stays git > issues > ledger).
 _Avoid_: run ledger (the ledger is the owned-refs record); reading it during resume.
+
+**Launch identity of a recovery**:
+when relaunching to recover a run, read skills/war/references/glossary-cold.md
 
 **Resume precedence**:
 The ordering **git branch state > GitHub issue labels > `ledger.json`** that decides which layer wins

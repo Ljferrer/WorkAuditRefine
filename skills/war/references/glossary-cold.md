@@ -13,7 +13,8 @@ frequency (ADR 0042): these are cold but still authoritative — never delete a 
 same way. **Coldness criterion** (one standing criterion; selections for waves 1-3 and 5 are recorded in
 the D32 row's comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins those
 CONTEXT.md pointers to their bodies here — wave 4's bodies are deliberately unpinned, selected for
-carrying no live drift-guard key): a term qualifies when it names a
+carrying no live drift-guard key; wave 6's four born-cold merge-provenance bodies are pinned instead by
+`skills/red-team/assets/workflow-scaffold.test.mjs`): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
 owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
 and one-command forensics entries are the standing example. Bold glossary cross-references inside
@@ -558,3 +559,48 @@ Check is the trial's replay command. Grammar: `fork-trials.md`.
 _Avoid_: a new required H2 for the block; a `(verified:)` citation of an inconclusive or
 infra-failed row; the word "validated" on a sweep row; a column-0 `## `, `### ` or `- Files:` line
 inside a fence.
+
+## Tip probe
+
+The read-only refiner dispatch the engine sends after every ace result, dead or not, at all four ace
+sites (polish, subset, re-entry, terminal). It reads the task branch from git: the tip sha and tree,
+the commit count and ancestry from the pre-dispatch tip, and the name-only file list. A moved tip is
+re-audited through the ace re-audit seam or forward-reverted to the last approved tree; a tip whose
+tree equals the approved tree takes the failed-absorb arm. A dead or unusable probe forward-reverts
+the range and lands. Only a tip that does not descend from the pre-dispatch tip ends in the
+merge-slot hold. Canonical: `tipProbe` in `skills/war/assets/workflow-template.js` (#2485 D2, D5).
+_Avoid_: the worker's `head_sha` or file list as the source (a disagreeing worker list is a
+cross-check only); a hold for a mergeable task.
+
+## Merge-commit provenance
+
+How WAR proves a task merged. The refiner merges each rebased task branch with
+`git merge --no-ff --no-commit` plus a commit carrying the exact trailer `WAR-Task: <task branch>`.
+`task-integrated.sh` proves ownership from the first-parent merge commit whose trailer names the task
+and whose second parent equals the task tip, so untrailered floor-fix and revert commits on the task
+branch prove through that merge commit. The engine confirms the merge by its parents, the rebased
+ancestry, tree equality and the trailer; a repeated reconcile on an existing such merge reports
+merged and makes no second merge. Polish and terminal merges stay fast-forward and are never proven
+this way (#2485 D8).
+_Avoid_: a fast-forward task merge or a worker-side trailer as the proof; a per-commit `WAR-Task`
+scan of the task branch.
+
+## Provision tree marker
+
+The one line `provision_tree: <sha>` that every provision run writes into the worktree's
+`.war/provision_tree` file: the HEAD tree it ran on, with `.war/` added to `info/exclude`. Before any
+refiner gate, and before a dep-wave worker's gate, the provision steps re-run when `HEAD^{tree}`
+differs from the marker; an absent marker counts as a changed tree. The gate-log preamble repeats
+the line after `tip_sha`. Canonical: `PROVISION_TREE_LINE` and `PROVISION_RERUN_CLAUSE` in
+`skills/war/assets/workflow-template.js` (#2485 D15).
+_Avoid_: keying the re-run on the commit sha (a rebase that keeps the tree needs no re-run);
+treating a missing marker as provisioned.
+
+## Launch identity of a recovery
+
+The rule that a recovery relaunch executes from the same plugin root and version as the launch it
+recovers. The run manifest records `pluginRoot`, `pluginVersion` and `pluginSha` at run start, so a
+mismatch shows after the fact; refusing a mismatched launch is filed, not built (#2495). Doctrine:
+`launch-identity.md` (#2485 D22).
+_Avoid_: recovering a run from a different installed version or a local checkout; reusing the
+recovered launch's `runId` (a recovery still mints a fresh one).
