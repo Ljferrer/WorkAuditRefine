@@ -1,4 +1,4 @@
-# Default seat models follow the #2497 routing; ace and seats route on their own
+# Default seat models follow the #2497 routing; ace, roster seats and skill seats route on their own
 
 **Status:** accepted (operator ruling of 2026-10-30 on issues #2497 and #2519; refines
 [ADR 0050](0050-preset-tiers-order-by-model-capability.md), whose rank rule still holds)
@@ -25,6 +25,13 @@ pass. It has no default: an absent ace tier uses the fix tier, so ace runs opus 
 **A roster seat can carry its own `model` and `effort`.** They replace the auditor tier for that
 seat only. This is how the Lead keeps opus on a boundary-heavy seat (security, parsing, Git or
 filesystem, recovery, state machines) while routine seats run sonnet.
+
+**Every subagent role in `/war-machine`, `/survey-corps` and `/lessons-learned` gets a skill seat.**
+`agents.machine`, `agents.survey` and `agents.lessons` each map that skill's role names
+(`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. Roles that read or judge default to
+sonnet. Roles that write or regroup the artifact default to opus: the war-machine revise pass, the
+survey clusterer and spec synthesizer, and the lessons editor. Every preset inherits these values.
+Each skill reads them fail-open, as `/red-team` reads `agents.redteam`.
 
 ## Consequences
 

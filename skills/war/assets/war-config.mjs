@@ -30,6 +30,14 @@ export const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 export const EVIDENCE_LENS = 'artifact-evidence'
 export const WIDEN_BARRED_LENSES = [EVIDENCE_LENS]
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
+// Skill seats (ADR 0055): the subagent roles of the Workflow scripts that /war-machine, /survey-corps and
+// /lessons-learned author. agents.<skill>.<seat> is a { model, effort } tier the Lead threads into that
+// role's agent() opts. Not phase roles: the per-phase engine never reads them.
+export const SKILL_SEATS = {
+  machine: ['drafter', 'derive', 'apply', 'revise'],
+  survey: ['miner', 'reader', 'cluster', 'synth', 'critic'],
+  lessons: ['investigate', 'edit', 'retype', 'keywords'],
+}
 // How a run's provision list was derived. 'explicit' = pinned by the user;
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
 // 'none' = no steps / not yet scouted. See provisioning Part-B plan.
@@ -70,6 +78,21 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
+    // Skill seats (SKILL_SEATS above): sonnet for reading and judging roles, opus for the roles that
+    // write or regroup the artifact. Every preset inherits these.
+    machine: {
+      drafter: { model: 'sonnet', effort: 'high' }, derive: { model: 'sonnet', effort: 'high' },
+      apply:   { model: 'sonnet', effort: 'high' }, revise: { model: 'opus',   effort: 'default' },
+    },
+    survey: {
+      miner:   { model: 'sonnet', effort: 'high' }, reader: { model: 'sonnet', effort: 'high' },
+      cluster: { model: 'opus',   effort: 'default' }, synth: { model: 'opus', effort: 'default' },
+      critic:  { model: 'sonnet', effort: 'high' },
+    },
+    lessons: {
+      investigate: { model: 'sonnet', effort: 'high' }, edit: { model: 'opus', effort: 'default' },
+      retype:      { model: 'sonnet', effort: 'high' }, keywords: { model: 'sonnet', effort: 'high' },
+    },
   },
   audit: {
     roster: [
@@ -294,7 +317,18 @@ export function validate(input) {
   // agents.trial — the fork-trial subagent tier (D18), validated in the redteam idiom (present ⇒ a
   // tier; a present null is rejected). /war-strategy's plan interview reads it fail-open.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'trial')) validateAgentTier(c.agents.trial, 'agents.trial', errors)
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial']
+  // agents.machine / .survey / .lessons — skill seat maps: each present key an object whose keys are that
+  // skill's SKILL_SEATS members, each seat a { model, effort } tier.
+  for (const [skill, seats] of Object.entries(SKILL_SEATS)) {
+    if (!Object.prototype.hasOwnProperty.call(c.agents, skill)) continue
+    const block = c.agents[skill]
+    if (!isObj(block)) { errors.push(`agents.${skill} must be an object of seats (${seats.join('|')})`); continue }
+    for (const seat of Object.keys(block)) {
+      if (!seats.includes(seat)) errors.push(`agents.${skill}.${seat} is not a known seat (${seats.join('|')}) — run /war-room to regenerate the config`)
+      else validateAgentTier(block[seat], `agents.${skill}.${seat}`, errors)
+    }
+  }
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', ...Object.keys(SKILL_SEATS)]
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }

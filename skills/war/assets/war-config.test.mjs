@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
+  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, SKILL_SEATS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
   SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
@@ -1601,14 +1601,21 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
 // compared. The relation is non-strict, so an equal-rank move stays green by design.
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial']
+// SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0055). The skill block itself is a seat map, not a tier.
+const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
-  const expected = Object.keys(DEFAULTS.agents).flatMap(k =>
-    [k, ...Object.keys(DEFAULTS.agents[k]).filter(s => isObj(DEFAULTS.agents[k][s])).map(s => `${k}.${s}`)])
+  // A skill block (SKILL_SEATS) contributes only its seat paths; every other key is a tier plus its sub-tiers.
+  const expected = Object.keys(DEFAULTS.agents).flatMap(k => SKILL_SEATS[k]
+    ? Object.keys(DEFAULTS.agents[k]).map(s => `${k}.${s}`)
+    : [k, ...Object.keys(DEFAULTS.agents[k]).filter(s => isObj(DEFAULTS.agents[k][s])).map(s => `${k}.${s}`)])
   assert.deepEqual([...TIER_PATHS].sort(), [...expected].sort(), 'TIER_PATHS must cover every DEFAULTS.agents tier exactly once')
-  assert.deepEqual(Object.values(BULLET_LABELS).sort(), [...expected].sort(), 'BULLET_LABELS must map onto every DEFAULTS.agents tier exactly once')
+  assert.deepEqual([...Object.values(BULLET_LABELS), ...SKILL_SEAT_PATHS].sort(), [...expected].sort(), 'BULLET_LABELS plus the skill seats must map onto every DEFAULTS.agents tier exactly once')
+  for (const [skill, seats] of Object.entries(SKILL_SEATS)) {
+    assert.deepEqual(Object.keys(DEFAULTS.agents[skill]).sort(), [...seats].sort(), `DEFAULTS.agents.${skill} must default every SKILL_SEATS seat`)
+  }
 })
 test('MODEL_RANK is a permutation of MODELS, its ADR 0050 order sentence matches, and preset model rank is monotone thorough >= balanced >= economy on every tier', () => {
   assert.deepEqual([...MODEL_RANK].sort(), [...MODELS].sort(), 'MODEL_RANK must rank every MODELS member exactly once')
@@ -1668,6 +1675,39 @@ test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens
       assert.deepEqual(seen.get(label), { model: want.model, effort: want.effort }, `${preset} bullet ${label} must equal presetConfig('${preset}').agents.${path}`)
     }
   }
+})
+
+// Skill seats (ADR 0055): one /war-room bullet states them for every preset, so no preset may re-pin a
+// seat, and the bullet carries exactly one `<skill>-<seat> model/\`effort\`` token per seat, equal to DEFAULTS.
+test('/war-room skill seats bullet: one token per SKILL_SEATS seat, equal to DEFAULTS, and no preset re-pins a seat', () => {
+  const line = readDoc('skills/war-room/SKILL.md').split('\n').find(l => /^\s*- \*\*skill seats\*\* — /.test(l))
+  assert.ok(line, '/war-room has no skill seats bullet')
+  const seen = new Map()
+  for (const [, label, model, effort] of line.matchAll(new RegExp(`\\b([a-z]+-[a-z]+) (${MODELS.join('|')})/\`(\\w+)\``, 'g'))) {
+    assert.ok(!seen.has(label), `skill seats bullet names ${label} twice`)
+    seen.set(label, { model, effort })
+  }
+  assert.deepEqual([...seen.keys()].sort(), SKILL_SEAT_PATHS.map(p => p.replace('.', '-')).sort(), 'the bullet carries exactly one token per seat')
+  for (const path of SKILL_SEAT_PATHS) {
+    const [skill, seat] = path.split('.')
+    assert.deepEqual(seen.get(`${skill}-${seat}`), DEFAULTS.agents[skill][seat], `skill seats bullet ${skill}-${seat} must equal DEFAULTS.agents.${path}`)
+    for (const preset of Object.keys(PRESETS)) {
+      assert.deepEqual(tierAt(preset, path), DEFAULTS.agents[skill][seat], `${preset} must inherit agents.${path} (the bullet states one value for every preset)`)
+    }
+  }
+})
+
+test('agents.<skill> seat maps (ADR 0055): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {
+  assert.equal(validate({ agents: { machine: { drafter: { model: 'opus', effort: 'high' } } } }).valid, true, 'a partial seat map merges over DEFAULTS')
+  const unknown = validate({ agents: { survey: { writer: { model: 'opus', effort: 'high' } } } })
+  assert.equal(unknown.valid, false)
+  assert.match(unknown.errors.join('\n'), /agents\.survey\.writer is not a known seat/)
+  const bad = validate({ agents: { lessons: { edit: { model: 'gpt', effort: 'high' } } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.lessons\.edit\.model/)
+  const flat = validate({ agents: { machine: 'opus' } })
+  assert.equal(flat.valid, false)
+  assert.match(flat.errors.join('\n'), /agents\.machine must be an object of seats/)
 })
 
 // Re-introduction ban: these constructs were de-mirrored to pointers in 0.21.11. A model word inside

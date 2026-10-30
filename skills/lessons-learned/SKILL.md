@@ -85,6 +85,8 @@ If the machine sleeps or the process dies during analysis or editing, the live s
 
 This is an `Agent` + `Workflow` skill. Fan-out is the default for the read-heavy phases (a real store is ~100 files); only drop to inline single-agent work for a tiny store (≲ 20 memories). Cost is not the constraint — thoroughness is.
 
+**Seat models.** Resolve the run config before the first spawn: `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs <repo>/.claude/war/config.json --fill-defaults`, or `--preset balanced` when that file is missing. On a zero exit, give every `agent()` its seat's `model`, plus `effort` unless it is `default`, from `agents.lessons`: `investigate` verifies memories (§2), `edit` edits staging (§4), and `retype` and `keywords` run the `migrate` fan-outs ([migration.md](references/migration.md) Steps 2 and 4). On a nonzero exit, omit both and the agents inherit the session ([ADR 0055](../../docs/adr/0055-default-seat-models-follow-the-2497-routing.md)).
+
 ## Locate the memory store
 
 Your project memory dir is the directory holding `MEMORY.md` named in your system prompt's **auto-memory** section (e.g. `~/.claude/projects/<project-slug>/memory/`). Confirm it exists and contains `MEMORY.md` before doing anything. Call it `$MEM` below; always use its **absolute path** (the scope hooks reject `..` segments).
