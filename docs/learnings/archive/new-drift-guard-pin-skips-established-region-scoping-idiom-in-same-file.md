@@ -64,3 +64,5 @@ window, for instance), say so in a comment next to the assertion and name the re
 (a guard narrower than the End-state check it backstops).
 [[count-only-source-census-pin-is-blind-to-relocation-not-just-addition]] — occurrence-count pins
 are blind to relocation; same theme of scope not tracking the clause's location.
+
+> archived 2026-10-30: resolved — moved to archive

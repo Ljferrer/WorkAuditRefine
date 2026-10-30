@@ -46,7 +46,8 @@ fabricated numbers, so a reviewer cannot invent a bucket.
 
 **Where the plan went wrong.** The plan slice for task 1.5 fixed the four-way split as a literal. It
 assumed every trial row ends in one of four outcomes. The audit at the 1.5 pin raised the gap as
-`ask` (Minor). No default exists for `ask`, so it was never filed and stayed unruled at land.
+`ask` (Minor). No default exists for `ask`, so it stayed unruled at land. It was then filed as open issue #2452
+(`demote:ask-unruled-afk`), which awaits an operator ruling.
 
 **The two options the auditor named.**
 
@@ -54,7 +55,7 @@ assumed every trial row ends in one of four outcomes. The audit at the 1.5 pin r
   four literals.
 - Keep the four-way split over fact and pair rows, and report the sweep count beside it.
 
-**How to apply.** Before you edit the row, look for an operator ruling at the land Checkpoint. If there
+**How to apply.** Before you edit the row, look for an operator ruling on #2452. If there
 is none, ask. Do not pick a bucket on your own. Keep the label `trials per merged plan` and the literal
 `**Trials run**`, because the pipeline pins grep them.
 

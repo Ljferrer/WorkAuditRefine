@@ -39,7 +39,7 @@ A fix round quoted the format, and a later audit round found that no test would 
 
 **The fix pattern.** Extract the command text from the dispatched prompt itself.
 Replace its placeholder and run it through `bash`, then assert exit 0 and the expected output.
-At the landed tip, `runTrailerRead` in `skills/war/assets/workflow-template.test.mjs` does this for the `git-confirm` prompt.
+`runTrailerRead` in `skills/war/assets/workflow-template.test-harness.mjs` does this. `workflow-template.git-3.test.mjs` calls it on the `git-confirm` prompt, and `workflow-template.git-2.test.mjs` calls it on the `merge-reconcile` prompt.
 
 **Rule.** If a prompt string carries a shell command, test the prompt's own spelling through a shell.
 A fixture that rebuilds the same command as argv proves the git semantics only, never the quoting.
@@ -47,4 +47,4 @@ Check sibling reads too: the other engine trailer reads were already quoted.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[template-defers-runtime-values-to-agent-via-literal-placeholder]].
 
-Locate-cue: verify still present before acting. Found `MERGE_FACTS_RULE` (quoted form) in `skills/war/assets/workflow-template.js` and `runTrailerRead` in `skills/war/assets/workflow-template.test.mjs` at landed tip 9bcc4fa6 (phase 2).
+Locate-cue: verify still present before acting. Search `const MERGE_FACTS_RULE` (quoted form) in `skills/war/assets/workflow-template.js` and `const runTrailerRead` in `skills/war/assets/workflow-template.test-harness.mjs`. Landed at tip 9bcc4fa6 (phase 2).

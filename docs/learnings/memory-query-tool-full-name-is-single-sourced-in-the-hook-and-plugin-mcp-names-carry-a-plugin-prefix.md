@@ -38,7 +38,7 @@ metadata:
 - the Prior-lessons sentence of the worker card (the worker card has no `tools:` line and inherits plugin MCP tools);
 - the `MEMORY_TOOL` const in `skills/war/assets/workflow-template.js`.
 
-`skills/war/assets/memory-tool-name.test.mjs` extracts the hook literal with `^MEMORY_TOOL='([^'$]+)'$`. It fails closed on zero or two such lines and asserts each copy. `skills/war/assets/workflow-template.test.mjs` carries its own copy of that extractor. The two extractors once differed on `$`. Keep them in step.
+`skills/war/assets/memory-tool-name.test.mjs` extracts the hook literal with `^MEMORY_TOOL='([^'$]+)'$`. It fails closed on zero or two such lines and asserts each copy. `skills/war/assets/workflow-template.test-harness.mjs` carries its own copy of that extractor, in `MEMORY_TOOL_LITERAL`. The two extractors once differed on `$`. Keep them in step.
 
 **Hook behavior with that name.** The server segment is `plugin_work-audit-refine_war-memory`, which is not `rea`. The memory compare is an exact match and runs before the REA suffix path. So no canary line prints for it.
 

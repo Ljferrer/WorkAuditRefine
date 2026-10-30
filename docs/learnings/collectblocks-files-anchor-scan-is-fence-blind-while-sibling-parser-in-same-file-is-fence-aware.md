@@ -31,53 +31,15 @@ metadata:
 
 # collectBlocks' Files: anchor scan is code-fence-blind; resolveRoadmapPlans in the same file is not
 
-**Code-verified** at landed tip `a06d7260684761001549f958fc71acde414b2a0b` on
-`dev/2026-09-03-2026-09-03-in-band-absorb-default` — landed-tip grounding reached rung 2
-(worktree lookup): the `_refinery45` worktree's `gitdir` physical path is
-`<repo-root>/.claude/war-worktrees/2026-09-03-in-band-absorb-default-2026-09-03/_refinery/.git`
-(contains this plan's slug) and its `HEAD` equals the threaded landed tip exactly.
+**Open gap (#2090).** `collectBlocks` in `skills/war-campaign/assets/campaign-ledger.mjs` scans the whole plan and unions every `- Files:` block. It has no fence toggle. A `- Files:` line inside a ``` fence (a plan quoting the war-strategy template, or an illustrative example) counts like a real task block. `resolveRoadmapPlans` in the same file carries an `inFence` toggle for exactly this hazard: a fenced example table would otherwise become the first table.
 
-`skills/war-campaign/assets/campaign-ledger.mjs`'s `collectBlocks` (task 1.2's End state 2
-change: scan the whole plan document, unioning every `- Files:` block instead of only the first)
-has NO code-fence toggle. `resolveRoadmapPlans`, in the SAME file, carries an explicit `inFence`
-boolean (set/cleared on every ``` fence-delimiter line, `continue`d while true) specifically
-because "a fenced EXAMPLE table would otherwise BECOME the first table and mis-ingest its
-illustrative links" — the comment at its own call site. `collectBlocks` has no equivalent: a
-`- Files:` line inside a ```-delimited fence (a plan quoting the war-strategy template, or an
-illustrative example) now contributes to the union just like a real task block.
+**Rule.** When a new whole-document scanner sits beside a fence-aware one, match its fence handling or name the gap as a bounded ceiling.
 
-## Why it's bounded, not a live defect
+**Why:** Fence-blindness only widens the footprint. It can never narrow one to empty, so `assertOrderable`'s fail-loud throw (empty footprint only) is never tripped by it. Worst case: extra `overlaps` rows or a more conservative contention order. Never a throw, never a wrong refusal. The module's own Fallback ceilings header, above `extractFiles`, records this bound. At least five auditor notes converged on this gap without a shared prompt, all Nit-level. That is a strong signal the check is worth making explicit.
 
-The module's own header comment (`extractFiles`, just above `collectBlocks`) documents three
-"Fallback ceilings" — bounded ways the extraction can over-accept. Fence-blindness only WIDENS
-the footprint (adds extra path-shaped tokens); it can never narrow one to empty, so
-`assertOrderable`'s fail-loud throw (which fires only on an EMPTY union) can never be tripped by
-it. Worst case: sweep reports extra `overlaps` rows, or a wider (more conservative) contention
-order — never a throw, never a silently wrong refusal. No live plan carrying a fenced or prose
-`Files:` anchor was found at land time.
-
-## The pattern
-
-At least five independent auditor notes (across `correctness` and `test-fidelity` seats,
-multiple audit rounds within task 1.2) converged on this exact gap without a shared prompting
-finding — a strong signal that "does this new anchor scan match the fence-handling idiom the SAME
-FILE already established for the SAME class of input" is a check worth making explicit whenever a
-new document-wide scanner is added beside an existing fence-aware one. None of the seats treated
-it as blocking (Nit-level, `disposition: note`), consistent with the ceiling being bounded.
-
-## How to apply
-
-Before landing a new whole-document anchor/pattern scanner, grep the same file for a sibling
-parser's fence-handling idiom (`grep -n 'inFence\|```'`). If one exists and the new scanner
-processes the same class of document (plans/roadmaps that can legitimately quote themselves in
-fenced examples), either mirror the toggle or add an explicit header-comment ceiling bullet
-naming the gap as bounded — as this module's own header already does for the analogous
-`isPathShaped` over-acceptance ceiling.
+**How to apply:** Before landing a new whole-document anchor or pattern scanner, grep the same file for a sibling parser's idiom (`grep -n 'inFence\|```'`). If one exists and the new scanner reads the same class of document (plans and roadmaps can quote themselves in fenced examples), mirror the toggle or add a header-comment ceiling bullet.
 
 **Locate-cue (verify still present before acting):**
-`skills/war-campaign/assets/campaign-ledger.mjs`, `collectBlocks` (no `inFence`), contrasted with
-`resolveRoadmapPlans` (has `inFence`, set/read/cleared near its fence-delimiter check).
+`skills/war-campaign/assets/campaign-ledger.mjs`, `collectBlocks` (no `inFence`), contrasted with `resolveRoadmapPlans` (has `inFence`), and the `Code-fence blindness` bullet of the Fallback ceilings header.
 
-[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — a related but
-distinct finding from the SAME task 1.2 diff (the header's stale "both" count word) hit the
-phase-close polish mechanism's known failure mode this same phase.
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — a related but distinct finding from the same task diff.

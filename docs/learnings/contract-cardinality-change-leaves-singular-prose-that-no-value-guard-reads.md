@@ -67,9 +67,9 @@ The README Status blurb and the CHANGELOG 0.21.17 entry still described the sing
 ## Locate-cue (verify still present before acting)
 
 - `skills/war/references/artifact-evidence-lead.md`: search `one digest manifest per cited artifact`.
-- `docs/adr/0053-rea-artifact-evidence-source.md`: search `per cited artifact` in section 2, `any cited artifact's manifest` in section 5, and `D23` in the Decision log.
+- `docs/adr/0053-rea-artifact-evidence-source.md`: search `digest manifest per cited` in section 2, `mismatch against any cited` in section 5 (both sentences wrap after `cited`), and `D23` in the Decision log.
 - `docs/adr/0041-audit-evidence-precedence.md`: the 2026-10-20 row that begins `evidence-seat rung`.
 - `agents/war-evidence-auditor.md`: the `ADR 0041 rung:` line and the `HOLD only on a sha256 mismatch` line.
-- `skills/war/assets/workflow-template.test.mjs`: search `evidence seat skeleton: IDENTICAL wording`.
+- `skills/war/assets/workflow-template.engine-1.test.mjs`: the test titled `evidence seat skeleton: IDENTICAL wording`.
 
 Read at landed tip 82cef9c9 through the run's `_refinery` worktree (HEAD equal to the tip). The resolved wording is at the tip. The defects themselves come from the audit log, so this file stays `agent-unverified`.

@@ -60,3 +60,5 @@ Related: [[adr-policy-table-entry-vs-mechanism-attribution]] (an ADR row that la
 ## Locate-cue (verify still present before acting)
 
 `skills/war/assets/evidence-card-allowlist.test.mjs`, search `const DERIVED_AT_REA` and `function locateAtPinnedVersion`. `skills/war-room/assets/evidence-presence.test.mjs`, search `the war-room audit.roster row pins the decline rule`. `docs/adr/0053-rea-artifact-evidence-source.md`, the second Sharp edge under `## Consequences` and the 2026-10-21 row under `## Decision log`. Found at the phase-4 integration tip 6277998a, read through the run's `_refinery` worktree (second parent of landed tip c2e4b1c5, tree equal by ancestry, not read directly). The defect text itself is not at the tip. The three defects come from the audit log, so this file stays `agent-unverified`.
+
+> archived 2026-10-30: resolved — moved to archive

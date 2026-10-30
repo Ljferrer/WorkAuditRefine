@@ -43,3 +43,5 @@ Audit finding resolved in a fix round before land. Recorded as pattern, not live
 **Fix anchor (verified present at landed tip 4e33b6db).** `FENCE_RE`, `claimedVerbs` and the two live-corpus asserts in `skills/_shared/doc-cli-consistency.test.mjs`.
 
 **Related.** [[collectblocks-files-anchor-scan-is-fence-blind-while-sibling-parser-in-same-file-is-fence-aware]] is another fence-blind doc parser in this repo. [[weak-test-assertion-passes-without-feature-being-exercised]] is the general check.
+
+> archived 2026-10-30: resolved — moved to archive

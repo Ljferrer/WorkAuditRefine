@@ -52,4 +52,4 @@ Prove it red by rewriting the capture back to the `for m in $(...)` form and ass
 Related: [[a-shell-command-inside-a-prompt-string-needs-a-test-that-runs-the-exact-prompt-spelling-through-bash]], [[reclaim-empty-orphan-proof-swallows-git-log-error-as-empty]].
 
 Locate-cue: verify still present before acting. At landed tip 8c1a7a51, `absorbChargesClause` holds `ms=$(git -C "$W" rev-list --first-parent --merges "$tip..<integration>") && for m in $ms`.
-The test `2485/ES17 a failed merge walk fails the absorb-charge read and never seeds a plausible 0` in `skills/war/assets/workflow-template.test.mjs` holds the PATH wrapper and the red proof.
+The test `2485/ES17 a failed merge walk fails the absorb-charge read and never seeds a plausible 0` in `skills/war/assets/workflow-template.git-1.test.mjs` holds the PATH wrapper and the red proof.
