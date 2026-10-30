@@ -78,6 +78,7 @@ New doctrine defaults to a `references/` file plus a trigger pointer on the oper
 
 ## Known traps
 
+- `workflow-template.test.mjs` is split into topic files (`workflow-template.*.test.mjs`) sharing `workflow-template.test-harness.mjs`, so `node --test` runs them in parallel. When adding a workflow-template test or fixture, or grepping for a test name, read that harness file header first.
 - `docs/learnings/` on a branch/PR not yet merged ⇒ `render-index --local`-only silently drops every `[repo]` row — pass `--repo` whenever the dir exists.
 - LEGACY spec + plan pairs share a slug but different suffixes; `/red-team`'s legacy arm greps such a plan's source-spec line — keep it there. A merged plan's Part 1 is its own source of truth.
 - Findings route by auditor-owned `disposition` (`absorb`/`follow-up`/`note`/`ask`), orthogonal to severity; a fully specified Minor/Nit defaults to `absorb` (`phaseClose:true` outside the task diff) and `follow-up` needs a `barrier` tag; `ask` is never a default — an unruled `ask` is never filed, only ruled at the Checkpoint strike-list gate. A validation in neither the gate, a floor, nor the backstops section may not be waived in prose — escalate (ADR 0017).
