@@ -2742,9 +2742,11 @@ const workerIntentClause = intent
 // ace prompts, the phase-close sweep and the terminal pass) carries the line, not only the primary.
 const MEMORY_TOOL = 'mcp__plugin_work-audit-refine_war-memory__memory_query'
 const memoryQueryRepoArg = (typeof learningsTarget === 'string' && learningsTarget) ? `, repo: ${learningsTarget}` : ''
-const MEMORY_QUERY_TOOL_LINE = memoryLocalRoot
-  ? pt`\nMEMORY QUERY: you MAY call the MCP tool \`${MEMORY_TOOL}\` ({query, local?, repo?, topK?}) mid-task when you hit something unfamiliar — it searches hot and archived lessons in both memory roots and never writes a lesson. Call it with local: ${memoryLocalRoot}${memoryQueryRepoArg} (the server never guesses a root from the cwd; only local gets a query-log line). If a lesson changed your work, list its slug in lessonsUsed.\n`
+const MEMORY_QUERY_BASE_LINE = memoryLocalRoot
+  ? pt`\nMEMORY QUERY: you MAY call the MCP tool \`${MEMORY_TOOL}\` ({query, local?, repo?, topK?}) mid-task when you hit something unfamiliar — it searches hot and archived lessons in both memory roots and never writes a lesson. Call it with local: ${memoryLocalRoot}${memoryQueryRepoArg} (the server never guesses a root from the cwd; only local gets a query-log line).\n`
   : ''
+// Workers and auditors also report use. The servitor has no lessonsUsed field (ADR 0055).
+const MEMORY_QUERY_TOOL_LINE = MEMORY_QUERY_BASE_LINE.replace(/\n$/, ' If a lesson changed your work, list its slug in lessonsUsed.\n')
 // Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
 // command rides the six TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
 // five fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, MAKE_DONE_PASS, ace) — as a `Done when:` line beside the
@@ -6813,7 +6815,7 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     + pt`Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + pt`Escalations: ${JSON.stringify(escalated)}\n`
     + pt`Noted findings (disposition 'note' — MEMORY CANDIDATES, not issues; weigh each against the admission checklist below): ${JSON.stringify(notes)}\n`
-    + intentClause + servitorMemClause() + MEMORY_QUERY_TOOL_LINE
+    + intentClause + servitorMemClause() + MEMORY_QUERY_BASE_LINE
     + pt`Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
     + pt`\n`
     // Prompt-surface simplification (Task 5.1): the five discipline blocks below are TOKEN SKELETONS —

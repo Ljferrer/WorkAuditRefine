@@ -10,7 +10,7 @@ whose shipped text stays as it was. The recovered window is bounded at 0.15.0 by
 history (back to 0.5.0) is unrecovered. Relative links resolve from the repo root.
 
 ## 0.21.24 — 2026-10-31
-**0.21.24** — `tighten` ranks by real use ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md), #2536): `hooks/record-lesson-use.sh` logs each lesson a worker or auditor opens or names in the new optional `lessonsUsed` result field. `tighten-plan` now ranks rows by uses, then redundancy, then hits, and prints `mergeClusters`, which propose near-duplicate lessons to merge after an agent reads them. Redundancy replays the newest 500 distinct queries and asks how often a similar lesson fills the same top-K.
+**0.21.24** — `tighten` ranks by real use ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md), #2536): `hooks/record-lesson-use.sh` logs each lesson a worker or auditor opens or names in the new optional `lessonsUsed` result field, and `/snipe` logs its seats through `war-memory record-use`. `tighten-plan` now ranks rows by uses, then redundancy, then hits, and prints `mergeClusters`, which propose near-duplicate lessons to merge after an agent reads them. Redundancy replays the newest 500 distinct queries and asks how often a similar lesson fills the same top-K.
 
 Release scope: PR for #2536 only, on top of 0.21.23. Hook: `record-lesson-use.sh`. Memory: `war-memory.mjs`. Engine: `workflow-template.js` (the `lessonsUsed` schema field and prompt sentence). Cards: `war-worker`, `war-auditor`, `war-evidence-auditor`. Doctrine: an ADR 0055 amendment, `schemas.md`, `tighten.md`, `CONTEXT.md`, `CLAUDE.md`.
 

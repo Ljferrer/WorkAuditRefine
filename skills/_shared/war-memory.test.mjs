@@ -1486,6 +1486,22 @@ test('tighten-plan CLI (ADR 0055): one agent counts once, and use rows never cou
   rmSync(local, { recursive: true, force: true });
 });
 
+test('record-use (ADR 0055): writes one use row per valid slug, and tighten-plan counts them', () => {
+  const local = tmpDir();
+  lessonFile(local, 'snipe-used', { description: 'x', meta: { provenance: 'code-verified', date: '2026-01-01' } });
+  const r = spawnSync('node', [CLI, 'record-use', 'snipe-used', '../bad', '--local', local, '--seat', 'war-auditor', '--agent', 'snipe:correctness:abc'], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  const rows = readFileSync(join(local, 'war-memory-queries.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1, 'a bad slug adds no row');
+  assert.equal(rows[0].kind, 'use');
+  assert.equal(rows[0].agent, 'snipe:correctness:abc');
+  const plan = JSON.parse(spawnSync('node', [CLI, 'tighten-plan', '--local', local, '--target', '1'], { encoding: 'utf8' }).stdout);
+  assert.equal(plan.eligible.find((e) => e.slug === 'snipe-used').uses, 1);
+  const missing = spawnSync('node', [CLI, 'record-use', 'x'], { encoding: 'utf8', env: { ...process.env, CLAUDE_MEMORY_LOCAL: '' } });
+  assert.notEqual(missing.status, 0, 'no local root fails loud');
+  rmSync(local, { recursive: true, force: true });
+});
+
 test('hub floor (ADR 0055): cold citers cannot pin a row, hot citers still do', () => {
   const local = tmpDir();
   const meta = { provenance: 'code-verified', date: '2026-01-01' };

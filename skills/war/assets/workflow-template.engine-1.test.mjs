@@ -4454,6 +4454,10 @@ test('lessonsUsed (ADR 0055): the dispatched line asks for it, and both standing
   const worker = calls.find(isWorker)
   assert.ok(worker, 'worker dispatched (presence guard)')
   assert.ok(memoryQueryLineOf(worker.prompt).includes('lessonsUsed'), 'the dispatched line names the field')
+  const servitor = calls.find((c) => String(c.opts?.agentType || '').endsWith('war-servitor'))
+  assert.ok(servitor, 'servitor dispatched (presence guard)')
+  assert.ok(memoryQueryLineOf(servitor.prompt), 'the servitor keeps its MEMORY QUERY line')
+  assert.ok(!servitor.prompt.includes('lessonsUsed'), 'the servitor has no lessonsUsed field')
   for (const card of ['war-worker.md', 'war-auditor.md', 'war-evidence-auditor.md']) {
     const text = readFileSync(join(here, '../../../agents', card), 'utf8')
     assert.ok(text.includes('`lessonsUsed`'), card + ' carries the standing instruction')
