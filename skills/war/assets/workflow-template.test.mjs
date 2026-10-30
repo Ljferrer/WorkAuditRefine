@@ -22869,3 +22869,45 @@ test('2485/ES16 a paraphrased or numeric-less provision failure on a MergeResult
   const land = await runPhase(SINGLE_PROV(), (p, o) => o.label === 'land:phase-3' ? { ...provisionFailure('npm ci'), mode: 'land-phase' } : defaultImpl(p, o))
   assert.equal(land.out.landDecision, 'held:workflow-error', 'the land site applies the same gate')
 })
+
+// The five recovery arms (floor-retry, environment-proceed and baseline-proceed re-merges, the two re-lands)
+// each read provisionRed / landProvisionRed. Deleting one arm lets the failure fall through to a status arm.
+test('2485/ES16 every recovery arm routes a failed provision re-run to env-blocked: the floor-retry, environment-proceed and baseline-proceed re-merges and the two re-lands', async () => {
+  const at = (first, second, red) => (p, o) => o.label === first.label ? first.result() : o.label === second ? red() : defaultImpl(p, o)
+  const mergeRed = () => provisionFailure(PROVISION_LIST[1])
+  const landRed = () => ({ ...provisionFailure(PROVISION_LIST[1]), mode: 'land-phase' })
+  const sites = [
+    { name: 'floor-retry re-merge', merge: true, label: 'merge:t1:floor-retry:r1', impl: () => {
+      let n = 0
+      return (p, o) => (o.label || '').startsWith('merge:t1:floor-retry') ? mergeRed()
+        : o.label === 'merge:t1' && ++n === 1 ? { mode: 'merge-task', status: 'no-test' } : defaultImpl(p, o)
+    } },
+    { name: 'environment-proceed re-merge', merge: true, label: 'merge:t1:environment-proceed', impl: () => at({ label: 'merge:t1', result: envMergeResult }, 'merge:t1:environment-proceed', mergeRed) },
+    { name: 'baseline-proceed re-merge', merge: true, label: 'merge:t1:baseline-proceed', impl: () => at({ label: 'merge:t1', result: baselineMergeResult }, 'merge:t1:baseline-proceed', mergeRed) },
+    { name: 'environment-proceed re-land', merge: false, label: 'land:phase-3:environment-proceed', impl: () => at({ label: 'land:phase-3', result: envLandResult }, 'land:phase-3:environment-proceed', landRed) },
+    { name: 'baseline-proceed re-land', merge: false, label: 'land:phase-3:baseline-proceed', impl: () => at({ label: 'land:phase-3', result: baselineLandResult }, 'land:phase-3:baseline-proceed', landRed) },
+  ]
+  for (const s of sites) {
+    const { out, calls } = await runPhase(SINGLE_PROV(), s.impl())
+    assert.ok(calls.some(c => (c.opts.label || '') === s.label), s.name + ': the recovery dispatch fired')
+    const eb = out.escalated.find(e => e.reason === 'env-blocked' && e.outcome && e.outcome.failedCommand === PROVISION_LIST[1])
+    assert.ok(eb, s.name + ': an env-blocked row carries the failed step')
+    assert.notEqual(out.landDecision, 'held:workflow-error', s.name + ': the evidence gate admits the real step')
+    if (s.merge) assert.ok(!out.landed.includes('t1'), s.name + ': the task stays unmerged')
+    else assert.equal(out.landDecision, 'held:land-failed', s.name + ': the land holds')
+  }
+})
+
+test('2485/ES15 the gate-log preamble repeats the provision_tree marker line, and the ace gate says a failing provision step is NOT green, only when a provision list exists', async () => {
+  const LOG_LINE = "Its SECOND line repeats the gated worktree's `provision_tree:` marker line"
+  const ACE_RED = 'At this ace gate a failing provision step is NOT green'
+  const merge = (await runPhase(withProvision(), defaultImpl)).calls.find(c => c.opts.label === 'merge:t1').prompt
+  assert.ok(merge.includes(LOG_LINE), 'the merge gate-log preamble repeats the marker line')
+  const bareMerge = (await runPhase(PROVISION_ARGS(), defaultImpl)).calls.find(c => c.opts.label === 'merge:t1').prompt
+  assert.ok(!bareMerge.includes('provision_tree:'), 'a provision-less run names no marker line')
+  const aceGate = async (run) => (await runPhase(ACE_ARGS({ run }), aceBase([nit()]))).calls.find(c => c.opts.dispatchKind === 'ace-gate')
+  const g = await aceGate({ ace: true, provision: PROVISION_LIST, provisionSource: 'ci' })
+  assert.ok(g && g.prompt.includes(ACE_RED), 'the ace gate treats a red provision step as not green')
+  const bare = await aceGate({ ace: true })
+  assert.ok(bare && !bare.prompt.includes(ACE_RED), 'a provision-less ace gate carries no provision sentence')
+})

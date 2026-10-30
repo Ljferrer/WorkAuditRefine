@@ -3804,7 +3804,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // the current subset with the existing abandon reason (the gate never judged the tip).
   const aceGateGreen = async (r, aceTipSha) => {
     const g = await dispatchSite(
-      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing — never commit, revert, push or rebase.\n`
+      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing beyond the provision re-run and its restore — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
       + PROVISION_RERUN_CLAUSE + (provisionList.length ? pt`At this ace gate a failing provision step is NOT green: return { gate_green: false } with that step in gate_output.\n` : '')
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
