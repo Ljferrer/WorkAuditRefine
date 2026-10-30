@@ -88,3 +88,5 @@ of dedup-registry incompleteness in the same file, different registry (`queuedKe
 
 [[intake-normalization-plan-ref-spare-is-global-roster-residual]] — another documented PIN-6
 residual landed in the same task.
+
+> archived 2026-10-30: resolved — moved to archive

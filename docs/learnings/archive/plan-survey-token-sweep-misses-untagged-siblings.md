@@ -41,3 +41,5 @@ Related: [[wire-key-rename-misses-prose-placeholders]] (same family, prose-place
 surface); [[redteam-claims-vs-reality-misfires-on-impl-plans]] (this plan's red-team flagged
 an already-stated drift as a hole); [[task-prompt-suite-count-stale-after-stacking]]
 (grep-vs-count discipline for suite counts).
+
+> archived 2026-10-30: resolved — moved to archive
