@@ -28,10 +28,12 @@ filesystem, recovery, state machines) while routine seats run sonnet.
 
 **Every subagent role in `/war-machine`, `/survey-corps` and `/lessons-learned` gets a skill seat.**
 `agents.machine`, `agents.survey` and `agents.lessons` each map that skill's role names
-(`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. Roles that read or judge default to
-sonnet. Roles that write or regroup the artifact default to opus: the war-machine revise pass, the
-survey clusterer and spec synthesizer, and the lessons editor. Every preset inherits these values.
-Each skill reads them fail-open, as `/red-team` reads `agents.redteam`.
+(`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. By operator ruling (2026-10-30), plan
+conversion runs on the stronger models: every war-machine seat runs above the survey readers, and the
+revise pass runs the strongest model. The survey critic and the roles that write or regroup an
+artifact also run above the reading roles. The values live in `war-config.mjs` and the `/war-room`
+skill seats bullet. Every preset inherits them. Each skill reads them fail-open: a missing config
+file uses the balanced defaults, and an invalid config leaves the agents on the session model.
 
 ## Consequences
 

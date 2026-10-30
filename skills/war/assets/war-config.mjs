@@ -78,16 +78,17 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
-    // Skill seats (SKILL_SEATS above): sonnet for reading and judging roles, opus for the roles that
-    // write or regroup the artifact. Every preset inherits these.
+    // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise
+    // pass runs fable. The survey critic and the roles that write or regroup an artifact run opus. The
+    // other reading roles run sonnet. Every preset inherits these.
     machine: {
-      drafter: { model: 'sonnet', effort: 'high' }, derive: { model: 'sonnet', effort: 'high' },
-      apply:   { model: 'sonnet', effort: 'high' }, revise: { model: 'opus',   effort: 'default' },
+      drafter: { model: 'opus', effort: 'default' }, derive: { model: 'opus', effort: 'default' },
+      apply:   { model: 'opus', effort: 'default' }, revise: { model: 'fable', effort: 'default' },
     },
     survey: {
       miner:   { model: 'sonnet', effort: 'high' }, reader: { model: 'sonnet', effort: 'high' },
       cluster: { model: 'opus',   effort: 'default' }, synth: { model: 'opus', effort: 'default' },
-      critic:  { model: 'sonnet', effort: 'high' },
+      critic:  { model: 'opus',   effort: 'default' },
     },
     lessons: {
       investigate: { model: 'sonnet', effort: 'high' }, edit: { model: 'opus', effort: 'default' },
