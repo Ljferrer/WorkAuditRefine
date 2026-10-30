@@ -51,6 +51,8 @@ const FILE_BUDGETS = {
   // post-shrink 8,989 B @ c6a05fb → hard ×1.25 ceil-KB = 11,264; advisory ×1.10 ceil-KB = 10,240
   'agents/war-setup-scout.md': { hard: 11264, advisory: 10240 },
   // post-shrink 9,199 B @ c6a05fb → hard ×1.25 ceil-KB = 12,288; advisory ×1.10 ceil-KB = 10,240
+  // RAISED +1,024 B (12,288 → 13,312) at the operator's direction, 2026-10-31: the card reached 14 B
+  // of headroom. ADR 0042 reason and trailer: `Budget-Raise: ADR-0042 agents/war-worker.md +1024`.
   'agents/war-worker.md': { hard: 13312, advisory: 10240 },
   // post-shrink 32,923 B @ c6a05fb → hard ×1.25 ceil-KB = 41,984; advisory ×1.10 ceil-KB = 36,864
   'skills/lessons-learned/SKILL.md': { hard: 41984, advisory: 36864 },
@@ -60,6 +62,8 @@ const FILE_BUDGETS = {
   // 100,984 B @ 762a7e4 → 126,976/111,616). Ratchet-down only: placeholder retained,
   // blocking done-report flag raised for Lead adjudication (accept with an ADR-
   // justification note, or a re-shrink follow-up).
+  // RAISED +3,072 B (128,000 → 131,072) at the operator's direction, 2026-10-31: the file exceeded
+  // the ceiling by 36 B in 0.21.23. ADR 0042 reason and trailer: `Budget-Raise: ADR-0042 CONTEXT.md +3072`.
   'CONTEXT.md': { hard: 131072, advisory: 111616 },
   // Budgeted per adjudication F: CLAUDE.md loads every session, prompt-bearing.
   // post-shrink 12,987 B @ c6a05fb → hard ×1.25 ceil-KB = 16,384; advisory ×1.10 ceil-KB

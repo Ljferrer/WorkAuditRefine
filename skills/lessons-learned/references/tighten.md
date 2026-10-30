@@ -49,7 +49,8 @@ Five steps, strict order:
 
    **Merge proposals.** The JSON's `mergeClusters` array lists near-duplicate hot lessons: `target`,
    `merged` and `bytesFreed`. Similar words prove no shared rule, so read every member of each cluster
-   before you keep it. If the members state one rule, draft the merge. If only some do, keep that subset.
+   before you keep it. A cluster's members share one root, so a merge never moves a rule across roots.
+   If the members state one rule, draft the merge. If only some do, keep that subset.
    Otherwise drop the cluster. A
    merge folds each `merged` lesson's residue into `target`, so no rule leaves the hot set. A hub or a
    young lesson can be merged, because its rule stays hot. Present each kept cluster in the Gate.
@@ -78,6 +79,9 @@ Five steps, strict order:
      `git -C "$REPO_ROOT" checkout -b dev/<YYYY-MM-DD>-memory-tighten` off the current HEAD, so every
      repo-root move below lands on the dedicated branch, never wherever `$REPO_ROOT` happened to be
      checked out.
+   - **Merge edits**, for each approved cluster: fold the `merged` residue into `target`, and append a
+     `merged into [[target]]` note to each `merged` lesson. Make a repo copy's edits on the branch now.
+     Make a local copy's edits in `$STAGING`, right after the `stage` call below.
    - **Local**, reusing the Phase 1/5/6/7 subcommands verbatim (no fan-out — this isn't the audit
      flow): `safe-swap.sh stage "$MEM"` for `$STAGING`, then the merge edits, then the same Phase 5 `archive` /
      `render-index` invocations (both flags, `--repo "$REPO_ROOT"` included) against the approved
@@ -95,9 +99,6 @@ Five steps, strict order:
      gotcha — a stale active account on a multi-account machine silently drops the PR onto the wrong
      identity), then push and open the PR. Skip every bullet in this step when nothing `[repo]`-marked
      was struck and no merge target has a repo copy.
-   - **Merge edits**, for each approved cluster, before any `archive` call: fold the `merged` residue
-     into `target`, in `$STAGING` if it has a local copy and on the branch if it has a repo copy. Append
-     a `merged into [[target]]` note to each `merged` lesson the same way.
    - **If either `archive` call exits 1** it refused at least one slug on an occupied `archive/`
      destination (#1924, the count is on stderr). Nothing was overwritten and nothing is half-written.
      Stop the pass at that point, reconcile each named pair by hand, then re-run the refused slugs.
@@ -110,8 +111,9 @@ Five steps, strict order:
      entry needs both passes, in this order, to actually drop its row.)*
 
 5. **Report.** Before/after `MEMORY.md` lines + bytes + % full on both axes, the actioned buckets (slugs
-   struck: local-only / repo-only / dupe-both), any editorial trims, the PR URL (or "no repo-side change"
-   when nothing `[repo]`-marked was struck), and the local swap's backup + `.prev` paths. **When the
+   struck: local-only / repo-only / dupe-both; merged: each target and its merged slugs), any editorial
+   trims, the PR URL (or "no repo-side change" when nothing `[repo]`-marked was struck and no merge
+   target has a repo copy), and the local swap's backup + `.prev` paths. **When the
    approved subset still leaves the file at or above `target`** (fewer strikes than the default
    `cutIndex`, or the eligible list itself falls short) — **execute anyway, then report the shortfall
    loudly**: bytes still missing plus the next-best candidates (the same `eligible` array from `cutIndex`

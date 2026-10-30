@@ -1438,18 +1438,18 @@ test('similarPairs (ADR 0055): shared rare words pair lessons, bodies do not, tw
     rec('other-cold-b', 'cold', { keywords: ['quokka', 'walrus'] }),
     ...Array.from({ length: 6 }, (_, i) => rec(`filler-${i}`, 'hot', { keywords: [`word${i}x`] })),
   ];
-  const pairs = similarPairs(recs, { threshold: 0.3 }).map((p) => [p.a, p.b].sort().join('+'));
+  const pairs = similarPairs(recs).map((p) => [p.a, p.b].sort().join('+'));
   assert.deepEqual(pairs, ['frob-gate-holds+frob-gate-refuses']);
 });
 
 test('mergeClusters (ADR 0055): links pairs, keeps the most-used target, holds the user-confirmed floor', () => {
-  const rec = (slug, provenance = 'code-verified') => ({ slug, provenance, description: slug });
-  const hot = [rec('a'), rec('b'), rec('c'), rec('rule', 'user-confirmed')];
-  const pairs = [{ a: 'a', b: 'b' }, { a: 'b', b: 'c' }, { a: 'a', b: 'rule' }, { a: 'a', b: 'cold-only' }];
+  const rec = (slug, provenance = 'code-verified', root = 'local') => ({ slug, provenance, root, description: slug });
+  const hot = [rec('a'), rec('b'), rec('c'), rec('rule', 'user-confirmed'), rec('shared', 'code-verified', 'repo')];
+  const pairs = [{ a: 'a', b: 'b' }, { a: 'b', b: 'c' }, { a: 'a', b: 'rule' }, { a: 'a', b: 'cold-only' }, { a: 'c', b: 'shared' }];
   const [cluster, ...rest] = mergeClusters(hot, pairs, { uses: new Map([['b', 3]]), hits: new Map([['c', 9]]) });
   assert.equal(rest.length, 0);
   assert.equal(cluster.target, 'b', 'uses outrank hits');
-  assert.deepEqual([...cluster.merged].sort(), ['a', 'c'], 'neither the operator rule nor a cold slug joins');
+  assert.deepEqual([...cluster.merged].sort(), ['a', 'c'], 'no operator rule, cold slug or other-root lesson joins');
   assert.ok(cluster.bytesFreed > 0);
 });
 
