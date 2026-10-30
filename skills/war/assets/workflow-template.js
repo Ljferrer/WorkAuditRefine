@@ -787,11 +787,12 @@ const spawn = role => {
   const model = a.model || ROLE_MODEL[role]
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
-// spawnSeat(seat): an auditor roster seat's spawn opts. A seat's own model/effort (#2519, validated by
+// spawnSeat(seat, rebut): an auditor roster seat's spawn opts. A seat's own model/effort (#2519, validated by
 // validateRoster) overrides the auditor tier field by field; a seat with neither is exactly spawn('auditor').
-const spawnSeat = s => {
-  const a = agents.auditor || {}, e = s.effort ?? a.effort
-  return { model: s.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
+// In a rebuttal round a configured agents.auditor.rebuttal tier replaces both; absent, the round is unchanged.
+const spawnSeat = (s, rebut) => {
+  const a = agents.auditor || {}, r = rebut && a.rebuttal, e = r ? r.effort : s.effort ?? a.effort
+  return { model: (r && r.model) || s.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
 }
 // Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
 // row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
@@ -3326,7 +3327,7 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
     if (!SEAT_AGENT_TYPES.includes(agentType)) throw new Error('task ' + task.id + ': roster seat ' + seat.lens + ' names agentType ' + JSON.stringify(agentType) + ' — not a SEAT_AGENT_TYPES member (' + SEAT_AGENT_TYPES.join('|') + '); refused at dispatch')
     return dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin, correctiveRound, agentType) + (extra || ''), {
       agentType: NS + agentType, phase: 'Audit',
-      label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawnSeat(seat) })
+      label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawnSeat(seat, peers) })
   }
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
   // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).

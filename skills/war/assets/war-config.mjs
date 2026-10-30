@@ -301,7 +301,7 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam, agents.snipe, agents.trial, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
+// for agents.redteam, agents.snipe, agents.trial, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
 // skill seat (SKILL_SEATS): validated exactly
 // like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
 // trial feeds /war-strategy's fork-trial subagent; the worker tiers refine worker dispatch).
@@ -337,6 +337,8 @@ export function validate(input) {
     }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
+  // agents.auditor.rebuttal: the rebuttal-round seat tier (no default: absent ⇒ the seat's usual tier).
+  if (isObj(c.agents.auditor) && Object.prototype.hasOwnProperty.call(c.agents.auditor, 'rebuttal')) validateAgentTier(c.agents.auditor.rebuttal, 'agents.auditor.rebuttal', errors)
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
   // agentMatrix stays four roles). Defaulted in DEFAULTS (preset-overridden); a config

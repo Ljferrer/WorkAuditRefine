@@ -7967,6 +7967,32 @@ test('#2519 — per-seat model: a seat with model/effort dispatches on it; a sea
   assert.deepEqual(optsOf('plan-faithfulness'), { model: 'opus', effort: undefined }, 'a seat effort of default overrides the tier effort (inherit session) and keeps the tier model')
 })
 
+// agents.auditor.rebuttal: a split panel's rebuttal-round seats take the rebuttal tier; the round-0 seats keep
+// the auditor tier. Absent, the rebuttal seats keep the auditor tier (unchanged from before the tier existed).
+test('agents.auditor.rebuttal — rebuttal-round seats dispatch on the rebuttal tier when set, else on the auditor tier', async () => {
+  const splitImpl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') {
+      return (opts.label || '').includes('security')
+        ? { seat: opts.label, lens: 'security', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'split me', file: 'a.js', rationale: 'because' }] }
+        : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const optsByRound = async (auditor) => {
+    const { calls } = await runPhase(PROVISION_ARGS({ agents: { auditor }, tasks: [
+      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security' }] },
+    ] }), splitImpl)
+    const pick = label => { const c = calls.find(x => x.opts.label === label); assert.ok(c, `${label} dispatched (presence guard)`); return { model: c.opts.model, effort: c.opts.effort } }
+    return { first: pick('audit:t1:security'), rebut: pick('audit:t1:security:rebut') }
+  }
+  const set = await optsByRound({ model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'opus', effort: 'default' } })
+  assert.deepEqual(set.first, { model: 'sonnet', effort: 'xhigh' }, 'the round-0 seat keeps the auditor tier')
+  assert.deepEqual(set.rebut, { model: 'opus', effort: undefined }, 'the rebuttal seat carries agents.auditor.rebuttal — drop the rebut arg to spawnSeat and this fails')
+  const absent = await optsByRound({ model: 'sonnet', effort: 'xhigh' })
+  assert.deepEqual(absent.rebut, { model: 'sonnet', effort: 'xhigh' }, 'no rebuttal tier ⇒ the rebuttal seat keeps the auditor tier')
+})
+
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
   assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
   const MIRROR_REGISTRY = [

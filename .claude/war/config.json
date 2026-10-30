@@ -19,8 +19,12 @@
       }
     },
     "auditor": {
-      "model": "opus",
-      "effort": "default"
+      "model": "sonnet",
+      "effort": "xhigh",
+      "rebuttal": {
+        "model": "opus",
+        "effort": "default"
+      }
     },
     "refiner": {
       "model": "sonnet",

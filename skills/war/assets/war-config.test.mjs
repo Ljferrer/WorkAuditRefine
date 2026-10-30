@@ -1700,6 +1700,14 @@ test('/war-room skill seats bullets: one per preset, one token per SKILL_SEATS s
   }
 })
 
+test('agents.auditor.rebuttal: no DEFAULTS value, validated like the other tiers when present', () => {
+  assert.equal(DEFAULTS.agents.auditor.rebuttal, undefined, 'no default: absent ⇒ the rebuttal round keeps the seat tier')
+  assert.equal(validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'opus', effort: 'default' } } } }).valid, true)
+  const bad = validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'gpt', effort: 'default' } } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.auditor\.rebuttal\.model/)
+})
+
 test('agents.<skill> seat maps (ADR 0056): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {
   assert.equal(validate({ agents: { machine: { drafter: { model: 'opus', effort: 'high' } } } }).valid, true, 'a partial seat map merges over DEFAULTS')
   const unknown = validate({ agents: { survey: { writer: { model: 'opus', effort: 'high' } } } })
