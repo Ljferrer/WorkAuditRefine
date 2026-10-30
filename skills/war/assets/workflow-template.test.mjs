@@ -6030,6 +6030,29 @@ test("handoff unverified mapping (End state 7, D8): attested met/unmet drive the
   assert.equal(a2 && a2.status, 'unverified', "a pin-mismatched seat's met attestation is excluded — the condition falls to 'unverified'")
 })
 
+test("handoff attestation binding ignores a trailing End-state tag: a condition staged with its ' · check: `…`' tail binds a seat row that echoes the text without it, and the reverse", async () => {
+  // Field case (run f4aaf5fa, phases 2, 4, 5, 6): the Lead staged each condition with its tag tail,
+  // the seat echoed the condition without it, and every attested-met row fell to 'unverified'.
+  const tagged = 'condition A: the wibble suite is green · check: `node --test wibble.test.mjs && echo A-OK`'
+  const bare = 'condition A: the wibble suite is green'
+  const att = (rows) => (prompt, opts) => {
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && (opts.label || '').startsWith('merge:'))
+      return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'c0ffee1234' }
+    if ((opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [], endStateAttestations: rows }
+    return gateAuditImpl(prompt, opts)
+  }
+  const argsWith = cond => ES_ROW_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+    endState: [{ condition: cond, tag: 'check:', check: ES_CHECK_CMD }] } })
+  const { out } = await runPhase(argsWith(tagged), att([{ condition: bare, status: 'met', evidence: 'artifact read at tip' }]))
+  assert.equal(out.handoff.endState.find(e => e.condition === tagged)?.status, 'met', 'a tagged staged condition binds the seat row that drops the tag')
+  const { out: out2 } = await runPhase(argsWith(bare), att([{ condition: tagged, status: 'met', evidence: 'artifact read at tip' }]))
+  assert.equal(out2.handoff.endState.find(e => e.condition === bare)?.status, 'met', 'a bare staged condition binds the seat row that echoes the tag')
+  // Anti-vacuous: a different condition with the same tag tail must NOT bind.
+  const { out: out3 } = await runPhase(argsWith(tagged), att([{ condition: 'condition Z: something else · check: `node --test wibble.test.mjs && echo A-OK`', status: 'met', evidence: 'x' }]))
+  assert.equal(out3.handoff.endState.find(e => e.condition === tagged)?.status, 'unverified', 'only the tag tail is ignored, never the condition text')
+})
+
 test("handoff endState assembly (Task 3.2): the derivation + assembly comment carry the five-status set, and the ternary chain's terminal arm is 'unverified', never 'met'", () => {
   const s = src.indexOf('// endState (D8, Task 3.2')
   const e = src.indexOf('backstops:', s)

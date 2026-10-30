@@ -7048,8 +7048,10 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     log('endstate: vacuous phase — ' + (tasks || []).length + ' task(s) declared, zero landed: every claimed End-state condition lands unverified with the zero-tasks-ran note; the land-barrier endstate never attests green on a vacuous phase (D5).')
   }
   // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
-  // drifts only in whitespace/case must still bind its condition — never a silent 'met'.
-  const normRef = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  // drifts only in whitespace/case must still bind its condition — never a silent 'met'. A trailing
+  // End-state tag (` · check: …`, `gate:`, `backstop:`, `HARD at audit_sha`) is dropped on both sides:
+  // a condition staged with its tag tail must bind a seat row that echoes the text without it.
+  const normRef = s => String(s || '').replace(/\s*·\s*(check:|gate:|backstop:|HARD at audit_sha)[\s\S]*$/i, '').trim().replace(/\s+/g, ' ').toLowerCase()
   handoff = {
     tipSha,
     polish: polishStatus,
