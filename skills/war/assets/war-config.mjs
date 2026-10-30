@@ -205,7 +205,8 @@ export const PRESETS = {
   economy: {
     profile: 'economy',
     // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers, the
-    // auditor, refiner, servitor and red-team seats, the trial tier (A9), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
+    // auditor, refiner, servitor and red-team seats, the trial tier (A9), the skill seats (machine, survey,
+    // lessons), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
     // autoEscalate widening fallback, the phase-close polish panel, and the terminal-pass seat source,
     // never a per-task seat count.
