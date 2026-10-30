@@ -31,6 +31,8 @@ import {
   ROLES,
   DEFAULTS,
   SEAT_AGENT_TYPES,
+  MODELS,
+  EFFORTS,
   EVIDENCE_LENS,
   WIDEN_BARRED_LENSES,
   extractInterpolations,
@@ -7910,6 +7912,46 @@ test('#817 — floor-retry fix tier absent: the add-test dispatch inherits the b
   assert.equal(opts.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
 })
 
+// #2519 — the ace tier splits --ace and the terminal pass off agents.worker.fix. Fix rounds and floor retries stay
+// on the fix tier. (Ace absent ⇒ the fix tier: the 'Task 1.2 — fix tier set' test above proves that fallback.)
+const ACE_SPLIT = { worker: { model: 'fable', fix: { model: 'opus', effort: 'high' }, ace: { model: 'sonnet', effort: 'medium' } } }
+test('#2519 — ace tier set: the --ace worker dispatches on agents.worker.ace; the fix-round and add-test workers stay on agents.worker.fix', async () => {
+  const { work, fix, ace } = await runFixAndAce(ACE_SPLIT)
+  assert.equal(work.model, 'fable', 'the first-pass worker stays on the base tier')
+  assert.deepEqual({ model: fix.model, effort: fix.effort }, { model: 'opus', effort: 'high' }, 'the fix-round worker stays on agents.worker.fix')
+  assert.deepEqual({ model: ace.model, effort: ace.effort }, { model: 'sonnet', effort: 'medium' },
+    'the --ace worker carries agents.worker.ace — revert spawnWorker(\'ace\') → \'fix\' and this fails')
+  const retry = await runFloorRetry(ACE_SPLIT)
+  assert.deepEqual({ model: retry.model, effort: retry.effort }, { model: 'opus', effort: 'high' }, 'the add-test floor retry stays on agents.worker.fix')
+})
+
+test('#2519 — ace tier: the terminal pass dispatches on agents.worker.ace when set, else on agents.worker.fix', async () => {
+  const terminalOpts = async (agents) => {
+    const { calls } = await runPhase(SWEEP_ARGS({ agents }), terminalImpl())
+    const tw = calls.find(c => (c.opts.label || '') === 'terminal:phase-3')
+    assert.ok(tw, 'the terminal pass ran (presence guard)')
+    return { model: tw.opts.model, effort: tw.opts.effort }
+  }
+  assert.deepEqual(await terminalOpts(ACE_SPLIT), { model: 'sonnet', effort: 'medium' }, 'ace set ⇒ the terminal worker carries agents.worker.ace')
+  assert.deepEqual(await terminalOpts({ worker: { model: 'fable', fix: { model: 'opus', effort: 'high' } } }), { model: 'opus', effort: 'high' },
+    'ace absent ⇒ the terminal worker carries agents.worker.fix (unchanged from before the split)')
+})
+
+// #2519 — a roster seat's own model/effort overrides the auditor tier for that seat only.
+test('#2519 — per-seat model: a seat with model/effort dispatches on it; a seat without one keeps the auditor tier', async () => {
+  const roster = [{ lens: 'correctness', model: 'sonnet', effort: 'high' }, { lens: 'security' }, { lens: 'plan-faithfulness', effort: 'default' }]
+  const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster }
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task], agents: { auditor: { model: 'opus', effort: 'xhigh' } } }), defaultImpl)
+  const optsOf = (lens) => {
+    const c = calls.find(x => x.opts.label === `audit:t1:${lens}`)
+    assert.ok(c, `the ${lens} seat dispatched (presence guard)`)
+    return { model: c.opts.model, effort: c.opts.effort }
+  }
+  assert.deepEqual(optsOf('correctness'), { model: 'sonnet', effort: 'high' }, 'the seat model/effort overrides the auditor tier — revert spawnSeat → spawn(\'auditor\') and this fails')
+  assert.deepEqual(optsOf('security'), { model: 'opus', effort: 'xhigh' }, 'a seat with no model/effort keeps the auditor tier')
+  assert.deepEqual(optsOf('plan-faithfulness'), { model: 'opus', effort: undefined }, 'a seat effort of default overrides the tier effort (inherit session) and keeps the tier model')
+})
+
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
   assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
   const MIRROR_REGISTRY = [
@@ -7987,6 +8029,14 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'SEAT_AGENT_TYPES', mode: 'deepEqual',
       canonical: SEAT_AGENT_TYPES,
       extractInline: () => parseInlineArray(/const\s+SEAT_AGENT_TYPES\s*=\s*(\[[^\]]+\])/) },
+    // MODELS and EFFORTS (#2519): the war-config.mjs enums, hand-copied inline for validateRoster's per-seat
+    // model/effort check. deepEqual, no literal restated.
+    { name: 'MODELS', mode: 'deepEqual',
+      canonical: MODELS,
+      extractInline: () => parseInlineArray(/const\s+MODELS\s*=\s*(\[[^\]]+\])/) },
+    { name: 'EFFORTS', mode: 'deepEqual',
+      canonical: EFFORTS,
+      extractInline: () => parseInlineArray(/const\s+EFFORTS\s*=\s*(\[[^\]]+\])/) },
     { name: 'WIDEN_BARRED_LENSES', mode: 'deepEqual',
       canonical: WIDEN_BARRED_LENSES,
       extractInline: () => parseInlineArray(/const\s+WIDEN_BARRED_LENSES\s*=\s*(\[[^\]]+\])/) },

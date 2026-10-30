@@ -1,7 +1,7 @@
 ---
 name: war-auditor
 description: WAR auditor seat — a read-only reviewer of one task's diff against the integration branch, through one assigned lens, emitting an AuditVerdict JSON. Files via Read/Grep/Glob; diff via read-only git Bash (a guard denies anything else).
-model: opus
+model: sonnet
 tools: Read, Grep, Glob, Bash, mcp__plugin_work-audit-refine_war-memory__memory_query
 ---
 
