@@ -107,7 +107,7 @@ test('thorough preset', () => {
   assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default' })
   assert.deepEqual(PRESETS.thorough.agents, {
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-    auditor:  { model: 'fable',  effort: 'default' },
+    auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'xhigh' },
     servitor: { model: 'opus',   effort: 'high' },
     redteam:  { model: 'fable',  effort: 'default' },
@@ -1605,7 +1605,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 // SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', ...SKILL_SEAT_PATHS]
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1659,7 +1659,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {
@@ -1700,8 +1700,12 @@ test('/war-room skill seats bullets: one per preset, one token per SKILL_SEATS s
   }
 })
 
-test('agents.auditor.rebuttal: no DEFAULTS value, validated like the other tiers when present', () => {
-  assert.equal(DEFAULTS.agents.auditor.rebuttal, undefined, 'no default: absent ⇒ the rebuttal round keeps the seat tier')
+test('agents.auditor.rebuttal: defaulted one model above the auditor in every preset, validated like the other tiers', () => {
+  const rank = m => MODEL_RANK.indexOf(m)
+  for (const preset of Object.keys(PRESETS)) {
+    const a = presetConfig(preset).agents.auditor
+    assert.equal(rank(a.rebuttal.model), Math.min(rank(a.model) + 1, MODEL_RANK.length - 1), `${preset} rebuttal model is one above its auditor (${a.model}), capped at the top`)
+  }
   assert.equal(validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'opus', effort: 'default' } } } }).valid, true)
   const bad = validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'gpt', effort: 'default' } } } })
   assert.equal(bad.valid, false)

@@ -303,7 +303,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
     worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix / .ace is set, below)
-    auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier, above a seat's own model/effort too; no default, absent ⇒ each seat keeps its usual tier
+    auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier, above a seat's own model/effort too; defaulted one model above the auditor; an omitted block ⇒ each seat keeps its usual tier
     refiner:  { model, effort },
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session

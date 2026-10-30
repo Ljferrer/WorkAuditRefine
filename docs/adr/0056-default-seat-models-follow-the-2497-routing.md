@@ -40,7 +40,8 @@ on the session model.
 
 **Amended 2026-10-31 (0.21.25): a rebuttal round can take its own tier.** A configured
 `agents.auditor.rebuttal` replaces each rebuttal-round seat's tier, the seat's own roster
-`model`/`effort` included. Absent, the round keeps each seat's usual tier.
+`model`/`effort` included. Every preset sets it one model above its auditor tier, capped at fable. A
+hand-written config that omits it keeps each seat's usual tier.
 
 ## Consequences
 
