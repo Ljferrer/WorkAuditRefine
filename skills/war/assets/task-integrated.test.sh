@@ -15,6 +15,7 @@
 #   7. task whose commits net to zero, --no-ff merge                              -> TASK_INTEGRATED
 #   8. merged, then integration changes an owned path -> NO_TASK_PROOF ... content differs at integration
 #   9. merge commit whose trailer is not exact (suffix)  -> NO_TASK_PROOF ... has no WAR-Task merge commit
+#  10. merged, then an unrelated integration commit -> TASK_INTEGRATED <task> <merge commit> <later tip>
 #
 # Exit 0 = all cases passed; non-zero = at least one failed.
 set -u
@@ -154,6 +155,17 @@ g merge --no-ff --no-commit "$TASK"
 g commit --no-verify -m "Merge $TASK" --trailer "WAR-Task: $TASK-extra"
 expect 'case 9: an inexact trailer refuses' \
   "1 NO_TASK_PROOF $TASK has no WAR-Task merge commit" "$(probe "$TASK" integration working)"
+
+# Case 10: the merge commit sits below the tip, so the two provenance fields must differ.
+new_repo c10
+g checkout -b "$TASK" integration
+put feature 'task feature'; g commit -m 'implement feature'
+engine_merge "$TASK"
+M="$(git -C "$REPO" rev-parse integration)"
+put unrelated 'sibling work'; g commit -m 'unrelated later commit'
+TIP="$(git -C "$REPO" rev-parse integration)"
+expect 'case 10: the merge-commit field names M below a later integration tip' \
+  "0 TASK_INTEGRATED $TASK $M $TIP" "$(probe "$TASK" integration working)"
 
 printf '\ntask-integrated: %d check(s) passed, %d check(s) failed.\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
