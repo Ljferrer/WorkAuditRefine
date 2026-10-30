@@ -44,8 +44,8 @@ metadata:
 
 **Who owned what.** Task 1.4 owned sites 1 and 2, and its ace fix round corrected both. Site 3 is in
 task 1.1's Files, a file-disjoint sibling. The 1.4 audit raised it as a cross-task cascade
-(`phaseClose: true`), because task 1.4 could not touch it. It reads correctly at the integrated tip.
-Which later commit made it correct is not recorded in the audit log.
+(`phaseClose: true`), because task 1.4 could not touch it. It read correctly for wave 5 at the integrated
+tip. Which later commit made it correct is not recorded in the audit log.
 
 **A born-cold body has no pre-eviction text.** The header now says so (search `born-cold body is
 authored here first`). A pinned companion test, `D32 companion`, checks that the clause stays beside the
@@ -57,13 +57,20 @@ residual.
 module's CLI commands. The worker reworded it in the live home. The audit ruled that a faithful
 deviation.
 
-**How to apply.** For wave 6, edit the header wave list, the D32 rows and lead comment, and the census
-reason comment together. Search by the file name `glossary-cold.md`, not by the old phrase. Check which
+**Wave 6 repeated the lag.** Its four born-cold bodies (Tip probe, Merge-commit provenance, Provision tree
+marker, Launch identity of a recovery) are pinned by `skills/red-team/assets/workflow-scaffold.test.mjs`,
+not by the D32 rows. The header and the D32 comment record that. The census comment does not: it still
+lists only fork trial, pair beat and Trials run block.
+
+**How to apply.** For the next wave, edit the header wave list, the D32 rows and lead comment, and the census
+reason comment together. If the wave's pin lives elsewhere, as wave 6's does, the header and D32 comment
+must name that file. Search by the file name `glossary-cold.md`, not by the old phrase. Check which
 task owns each file before you split the work, because the files are disjoint across tasks.
 
 **Locate-cue (verify still present before acting).** Search `selections for waves 1-3 and 5` in the
 header, `since wave 5, the born-cold terms too` in the D32 comment, and `born-cold bodies that never
-lived in CONTEXT.md` in the census file. Grounded at the phase-1 integration tip via the `_refinery`
+lived in CONTEXT.md` in the census file. The wave 6 pin is the `Tip probe` term list in
+`workflow-scaffold.test.mjs`. Grounded at the phase-1 integration tip via the `_refinery`
 worktree (rung 2).
 
 Related: [[new-references-md-file-forces-doc-cli-consistency-placement-census-registration]],

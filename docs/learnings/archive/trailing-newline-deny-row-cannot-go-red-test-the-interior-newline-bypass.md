@@ -46,3 +46,5 @@ metadata:
 **Test-writing note.** Write the payload as JSON with an escaped newline inside the printf string. The hook then decodes a real newline.
 
 **Locate-cue (verify still present before acting).** `hooks/validate-auditor-git.sh` (search `#1828`); `hooks/validate-auditor-git.test.sh` (search `N1 newline-deny`). Found at landed tip 4e33b6db.
+
+> archived 2026-10-30: resolved — moved to archive

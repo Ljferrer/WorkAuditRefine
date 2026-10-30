@@ -145,3 +145,5 @@ producer — that loop now ends `else { queuedKeys.add(remintKey(f)); terminalQu
 the `liveTaskRecords` set, the per-task `r.reentryQueue` and `r.task.pendingAbsorbs`. An unresolvable
 re-mint logs instead of returning silently. The durable rule stands; only the instance status above is
 historical. Locate-cue now: the `liveTaskRecords` declaration directly above `corroborateSurvivor`.
+
+> archived 2026-10-30: resolved — moved to archive

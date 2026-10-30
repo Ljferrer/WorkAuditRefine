@@ -19,15 +19,17 @@ metadata:
 
 **Cost.** Every gate-audit seat that read that artifact had to explain it. Five filed a Nit note (tasks 1.1, 1.2, 1.4, 1.7 and the integrated-tip seat). Two more explained it inside the attestation. A seat that read only the last `exit_code:` line would attest unmet. An unmet row holds the land.
 
-**Plan-author rule.** Write the capture so the statement exits 0. This form is a hypothesis, not run in this phase: `rc=0; out=$(...) || rc=$?; test "$rc" -eq 2 && ...`. An `||` list counts as one statement under the ruling, and its status is 0 when the `||` branch runs.
+**Plan-author rule.** Write the capture so the statement exits 0. This form: `rc=0; out=$(...) || rc=$?; test "$rc" -eq 2 && ...`. An `||` list counts as one statement under the ruling, and its status is 0 when the `||` branch runs. Confirmed in bash (status 0, rc 2), but not run through the engine.
 
 **Seat reading rule.** Read the per-statement lines. Judge the statement that carries the assertion, not the maximum.
 
 **Locate-cue (verify still present before acting).**
 - `skills/war/assets/workflow-template.js`, the `ENDSTATE_CHECK_RESULT` comment ("MAXIMUM of them (#1782)").
-- `skills/war/assets/workflow-template.test.mjs`, the test titled `endstate: compound check exit aggregation`.
+- `skills/war/assets/workflow-template.engine-1.test.mjs`, the test titled `endstate: compound check exit aggregation`.
 - `docs/plans/2026-10-20-rea-artifact-evidence.md`, End state 16 (grep `NEWLINE_DENIED`).
 
 Found at landed tip 4e33b6db, read in the run-scoped refinery worktree whose HEAD equals the tip.
 
 **Related.** [[compound-check-closed-operator-enumeration-drops-one-site-restates-the-dead-operator]] covers the same aggregation rule from the operator-enumeration side.
+
+> archived 2026-10-30: resolved — moved to archive

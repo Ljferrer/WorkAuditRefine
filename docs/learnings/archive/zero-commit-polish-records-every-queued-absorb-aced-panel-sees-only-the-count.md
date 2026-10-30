@@ -45,3 +45,5 @@ metadata:
 **Locate-cue (verify still present before acting).** `skills/war/assets/workflow-template.js`: search `drain the phase-close queue`, `RESIDUAL, ruled (#1944-class)` and `citationSoundnessClause`. Found at landed tip 4e33b6db.
 
 **Related.** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] covers the polish round that has no successor.
+
+> archived 2026-10-30: resolved — moved to archive

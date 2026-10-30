@@ -49,3 +49,5 @@ audit seats across two gate-audit rounds flagged it independently.
   describe a per-site cap as a flat or global agent ceiling.
 - If the purpose is a real ceiling, use one shared in-flight semaphore at the leaf dispatch
   seam, not more per-site group slicing.
+
+> archived 2026-10-30: resolved — moved to archive

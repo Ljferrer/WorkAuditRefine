@@ -41,3 +41,5 @@ metadata:
 **Status.** Audit finding resolved in a fix round before land, recorded as pattern, not live instance. See [[evidence-mcp-hook-checks-tool-names-only-so-foreign-server-suffix-and-output-directory-writes-pass]] for the hook's accepted residuals.
 
 **Locate-cue (verify still present before acting).** `hooks/validate-evidence-auditor-mcp.sh`, the output-path check block before `exit 0`: search `has($k)` and `ti_type`. The fix is present there. `hooks/validate-evidence-auditor-mcp.test.sh`, the Group B2 rows. Found at the phase-3 integration tip f94b8783, read through the run's `_refinery` worktree. That commit is the second parent of landed tip 6e655d6e, and the landed merge's other parent is an ancestor of it, so the two trees match by ancestry (tree not read directly).
+
+> archived 2026-10-30: resolved — moved to archive
