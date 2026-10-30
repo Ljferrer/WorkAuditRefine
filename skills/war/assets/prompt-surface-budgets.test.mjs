@@ -50,6 +50,9 @@ const FILE_BUDGETS = {
   // it ratchets to its own measured size, no flag.
   // post-shrink 8,989 B @ c6a05fb → hard ×1.25 ceil-KB = 11,264; advisory ×1.10 ceil-KB = 10,240
   'agents/war-setup-scout.md': { hard: 11264, advisory: 10240 },
+  // New card (ADR 0057): a small card is the point of the helper, so the budget stays small.
+  // post-shrink 1,044 B @ a46c4f0 → hard ×1.25 ceil-KB = 2,048; advisory set by hand at 1,536, below hard
+  'agents/war-helper.md': { hard: 2048, advisory: 1536 },
   // post-shrink 9,199 B @ c6a05fb → hard ×1.25 ceil-KB = 12,288; advisory ×1.10 ceil-KB = 10,240
   // RAISED +1,024 B (12,288 → 13,312) at the operator's direction, 2026-10-31: the card reached 14 B
   // of headroom. ADR 0042 reason and trailer: `Budget-Raise: ADR-0042 agents/war-worker.md +1024`.

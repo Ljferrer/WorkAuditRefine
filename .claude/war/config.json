@@ -50,6 +50,10 @@
       "model": "opus",
       "effort": "default"
     },
+    "helper": {
+      "model": "haiku",
+      "effort": "low"
+    },
     "machine": {
       "drafter": {
         "model": "opus",

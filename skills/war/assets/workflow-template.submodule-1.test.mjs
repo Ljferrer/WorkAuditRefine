@@ -933,11 +933,11 @@ test('filing-floor — a submodule task\'s diff probe resolves its base against 
   const { calls } = await runPhase(SUBMOD_PHASE_ARGS({ run: { ace: true } }), floorImpl([]), PROBE)
   const p = calls.find(c => c.opts.dispatchKind === 'diff-probe' && c.opts.label === 'diff-probe:tsub')
   assert.ok(p, 'the submodule task\'s probe dispatched')
-  assert.ok(p.prompt.includes('merge-base main '), 'the range base is the submodule base (targetBase: main)')
-  assert.ok(!p.prompt.includes('merge-base integration/submod-test/phase-5'), 'never the superproject integration branch')
+  assert.ok(p.prompt.includes('--name-only main...'), 'the range base is the submodule base (targetBase: main)')
+  assert.ok(!p.prompt.includes('integration/submod-test/phase-5...'), 'never the superproject integration branch')
   const q = calls.find(c => c.opts.dispatchKind === 'diff-probe' && c.opts.label === 'diff-probe:tbump')
   assert.ok(q, "the gitlink-bump task's probe dispatched (presence guard — never a vacuous negative arm)")
-  assert.ok(q.prompt.includes('merge-base integration/submod-test/phase-5'), 'a non-submodule task keeps the integration-branch base')
+  assert.ok(q.prompt.includes('--name-only integration/submod-test/phase-5...'), 'a non-submodule task keeps the integration-branch base')
 })
 
 test('held-carry — default-deny census: carriedPhaseClose is present on EVERY Workflow-emitted hold class (escalation, nothing-merged, land-failed, submodule-pr, workflow-error from the catch block) and is [] on landed', async () => {

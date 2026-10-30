@@ -158,7 +158,7 @@ The probe rebases and measures; it never merges, never pushes the integration br
 { diff_files?: ["path"],   // `git diff --name-only <dispatchBase>..<tip>` in the task worktree — one repo-relative path per entry; the GIT-derived changed-file list dispositionOf's engine default and the intake filing floor read (in-band-absorb-default D4, PIN-6)
   detail? }                // free text on a git error — returned WITHOUT diff_files
 ```
-Dispatched as `diff-probe:<taskId>` (`dispatchKind: diff-probe`), ONE per task, idempotent on resume. Its OWN schema (the PinTransfer precedent): no `MergeResult` status, `HARD_ESCALATION_REASONS` member, or `KNOWN_LAND_DECISIONS` member changes. **Fail-open:** a dead/thrown dispatch or a return without a `diff_files` array leaves the probe ABSENT (logged) — that task keeps the old severity default, the intake floor skips it, and its filed seat rows carry `demote:floor-skipped` (one of the no-probe-ran sites — the reason also covers a row raised at the escalation arm, the sweep, or the terminal pass; the enum is `DEMOTE_REASONS` in `land-decision.mjs`, described in the `barrier` provenance row above). Worker `files_changed` is never the source.
+Dispatched as `diff-probe:<taskId>` (`dispatchKind: diff-probe`) on the `war-helper` card, ONE per task, idempotent on resume. Its OWN schema (the PinTransfer precedent): no `MergeResult` status, `HARD_ESCALATION_REASONS` member, or `KNOWN_LAND_DECISIONS` member changes. **Fail-open:** a dead/thrown dispatch or a return without a `diff_files` array leaves the probe ABSENT (logged) — that task keeps the old severity default, the intake floor skips it, and its filed seat rows carry `demote:floor-skipped` (one of the no-probe-ran sites — the reason also covers a row raised at the escalation arm, the sweep, or the terminal pass; the enum is `DEMOTE_REASONS` in `land-decision.mjs`, described in the `barrier` provenance row above). Worker `files_changed` is never the source.
 
 ## EvidenceResult — `war-refiner` (the post-merge `evidence:phase-<id>` dispatch)
 ```jsonc
@@ -308,6 +308,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session
     trial?: { model, effort },               // not a phase role — the fork-trial subagent tier (D18) `/war-strategy`'s plan interview reads fail-open like redteam; defaulted in `war-config.mjs` DEFAULTS and re-pinned by every preset; validated like redteam; no `agents/*.md` card
+    helper?: { model, effort },              // not a phase role — the audit-pin and diff-probe tier on the war-helper card (ADR 0057); defaulted in DEFAULTS, every preset inherits it
     machine?: { drafter, derive, apply, revise },              // skill seats (ADR 0056): each seat a { model, effort } tier; seat names are SKILL_SEATS in war-config.mjs; defaulted in DEFAULTS; thorough and economy pin their own
     survey?: { miner, reader, cluster, synth, critic },        // skill seats for /survey-corps, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
     lessons?: { investigate, edit, retype, keywords },         // skill seats for /lessons-learned, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
@@ -495,8 +496,8 @@ Pin-transfer uses a flat `PIN_TRANSFER` schema for Workflow API compatibility; i
 
 A task auditor resolves the actual task branch tip using read-only Git. After every
 complete task panel (whose schema requires `audit_sha`), the Workflow independently dispatches `audit-pin` on
-the normal refiner tier; a repair re-audit escalates its verification to
-`agents.refiner.recovery`. The refiner resolves the branch and each reported object name
+the `war-helper` card, or on the normal refiner tier if a word needs quotes; a repair re-audit
+escalates its verification to `agents.refiner.recovery`. The dispatch resolves the branch and each reported object name
 through Git, returning a full `head_sha` and a positional `pins` array (full SHAs or null).
 Equal text and prefix containment alone never prove identity; ambiguous, nonexistent or
 malformed reports are unresolved. The engine checks proof shape and correspondence and

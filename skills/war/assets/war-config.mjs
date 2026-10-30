@@ -79,6 +79,9 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
+    // helper: the tier of the tiny read-only Git dispatches (audit-pin, diff-probe) on the war-helper card
+    // (#2497, ADR 0057). NOT a phase role (never in ROLES/agentMatrix). Every preset inherits it.
+    helper:   { model: 'haiku',  effort: 'low' },
     // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise
     // pass runs fable. The survey critic and the roles that write or regroup an artifact run opus. The
     // other reading roles run sonnet. thorough and economy pin their own seats (see PRESETS).
@@ -303,10 +306,10 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam, agents.snipe, agents.trial, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
+// for agents.redteam, agents.snipe, agents.trial, agents.helper, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
 // skill seat (SKILL_SEATS): validated exactly
 // like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
-// trial feeds /war-strategy's fork-trial subagent; the worker tiers refine worker dispatch).
+// trial feeds /war-strategy's fork-trial subagent, helper feeds the tiny Git dispatches; the worker tiers refine worker dispatch).
 function validateAgentTier(block, path, errors) {
   if (!isObj(block)) { errors.push(`${path} must be an object { model, effort }`); return }
   if (!MODELS.includes(block.model)) errors.push(`${path}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(block.model)})`)
@@ -353,6 +356,8 @@ export function validate(input) {
   // agents.trial — the fork-trial subagent tier (D18), validated in the redteam idiom (present ⇒ a
   // tier; a present null is rejected). /war-strategy's plan interview reads it fail-open.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'trial')) validateAgentTier(c.agents.trial, 'agents.trial', errors)
+  // agents.helper — the war-helper tier (ADR 0057), validated in the redteam idiom.
+  if (Object.prototype.hasOwnProperty.call(c.agents, 'helper')) validateAgentTier(c.agents.helper, 'agents.helper', errors)
   // agents.machine / .survey / .lessons — skill seat maps: each present key an object whose keys are that
   // skill's SKILL_SEATS members, each seat a { model, effort } tier.
   for (const [skill, seats] of Object.entries(SKILL_SEATS)) {
@@ -364,7 +369,7 @@ export function validate(input) {
       else validateAgentTier(block[seat], `agents.${skill}.${seat}`, errors)
     }
   }
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', ...Object.keys(SKILL_SEATS)]
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', 'helper', ...Object.keys(SKILL_SEATS)]
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }

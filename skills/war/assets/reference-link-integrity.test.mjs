@@ -630,7 +630,7 @@ function evictedSectionBody(text, heading) {
 }
 const EVICTED_2115 = [
   ['refiner-recovery.md § Diff probe', () => evictedSectionBody(refinerRecoveryText, '## Diff probe'),
-    846, '7513cb0e1042c0216e184c3d94e2efa5cea49c111a4cc104d79de6bbbf3ef532'],
+    876, 'bc2b1e25d68275932cdb36afaa7e13f0541cf61b7ca43acb2d778277fc47f0f5'],
   ['refiner-recovery.md § merge-task two-worktree split', () => evictedSectionBody(refinerRecoveryText, '## merge-task two-worktree split'),
     373, '2fe2c5679e6e35e823317680184ed17ce3110675fbc0cde0e78094243af085cf'],
   ['refiner-recovery.md § Submodule land arms routing tail', () => {

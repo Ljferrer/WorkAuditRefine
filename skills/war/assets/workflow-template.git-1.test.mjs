@@ -449,9 +449,10 @@ for (const result of ['approve', 'block', 'repeat-mismatch']) {
           findings: result === 'block' ? [{ severity: 'Major', title: 'task bug', file: 'a', rationale: 'actual tip violates acceptance' }] : [] }
         return defaultImpl(p, o)
       }, { 'audit-pin': (p, o) => {
-        assert.equal(o.model, lookups ? 'opus' : 'sonnet')
+        assert.equal(o.model, lookups ? 'opus' : 'haiku')
+        assert.equal(seatOf(o), lookups ? 'war-refiner' : 'war-helper', 'a repeat lookup stays on the recovery refiner')
         assert.match(p, /No edits, checkout, merge, push or rebase/)
-        const command = p.match(/git rev-parse --verify (\S+)\./)[1]
+        const command = p.match(/ rev-parse --verify (\S+)\./)[1]
         reconciled = true; lookups++
         return { head_sha: git('rev-parse', '--verify', command), pins: fixturePinRequest(p).map(sha => git('rev-parse', '--verify', sha + '^{commit}')) }
       } })
@@ -763,4 +764,61 @@ test('2485/ES15 real git: after the barrier writes the marker in a linked worktr
     assert.equal(run(wt, markerWriterOf(p)).status, 0)
     assert.equal(run(wt, markerTestOf(p)).status, 0, 'the marker written after the restore names the HEAD tree')
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('war-helper (ADR 0057): the exact audit-pin and diff-probe spellings pass the helper guard and read true from real Git', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-helper-'))
+  try {
+    const git = (...a) => spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }).stdout.trim()
+    git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(dir, 'a'), 'base'); git('add', '.'); git('commit', '-m', 'base')
+    git('checkout', '-b', 'task'); writeFileSync(join(dir, 'b'), 'task'); git('add', '.'); git('commit', '-m', 'task')
+    const tip = git('rev-parse', 'HEAD')
+    git('checkout', 'main'); writeFileSync(join(dir, 'c'), 'main'); git('add', '.'); git('commit', '-m', 'main')
+
+    const { calls } = await runPhase(SWEEP_ARGS(), floorImpl([]), PROBE)
+    const pin = calls.find(c => c.opts.dispatchKind === 'audit-pin'), probe = calls.find(c => c.opts.dispatchKind === 'diff-probe')
+    for (const c of [pin, probe]) {
+      assert.equal(seatOf(c.opts), 'war-helper')
+      assert.equal(c.opts.model, 'haiku')
+    }
+    const commands = [
+      [pin.prompt.match(/git -C \S+ rev-parse --verify --end-of-options <value>\^0/)[0].replace('<value>', tip.slice(0, 12)), tip],
+      [pin.prompt.match(/git -C \S+ rev-parse --verify \S+\^0(?=\.)/)[0].replace(/\S+\^0$/, 'task^0'), tip],
+      [probe.prompt.match(/git -C \S+ diff --name-only \S+\.\.\.\S+/)[0].replace(/\S+\.\.\.\S+$/, `main...${tip}`), 'b'],
+    ]
+    for (const [command, want] of commands) {
+      const guarded = spawnSync('bash', ['hooks/validate-auditor-git.sh'], { encoding: 'utf8',
+        input: JSON.stringify({ agent_type: 'work-audit-refine:war-helper', tool_input: { command } }) })
+      assert.equal(guarded.status, 0, `the helper guard admits: ${command}\n${guarded.stderr}`)
+      const real = command.replace(/^git -C \S+/, `git -C ${dir}`)
+      assert.equal(spawnSync('bash', ['-c', real], { encoding: 'utf8' }).stdout.trim(), want, real)
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('war-helper (ADR 0057): a word the guard denies bare routes that dispatch to the refiner, and agents.helper sets the tier', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'war helper-'))
+  try {
+    const spaced = await runPhase(SWEEP_ARGS({ worktreeRoot: root }), floorImpl([]), PROBE)
+    for (const kind of ['audit-pin', 'diff-probe']) {
+      const c = spaced.calls.find(x => x.opts.dispatchKind === kind)
+      assert.equal(seatOf(c.opts), 'war-refiner', kind)
+      assert.equal(c.opts.model, 'sonnet', kind)
+    }
+    // The refiner arm runs the prompt's exact spelling: the quoted path must survive bash.
+    const pin = spaced.calls.find(x => x.opts.dispatchKind === 'audit-pin').prompt
+    const [spelled, path] = pin.match(/git -C '([^']+)' rev-parse --verify --end-of-options <value>\^0/)
+    mkdirSync(path, { recursive: true })
+    const git = (...a) => spawnSync('git', ['-C', path, ...a], { encoding: 'utf8' }).stdout.trim()
+    git('init', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(path, 'a'), 'x'); git('add', '.'); git('commit', '-m', 'x')
+    const tip = git('rev-parse', 'HEAD')
+    assert.equal(spawnSync('bash', ['-c', spelled.replace('<value>', tip.slice(0, 12))], { encoding: 'utf8' }).stdout.trim(), tip)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+  const tuned = await runPhase(SWEEP_ARGS({ agents: { helper: { model: 'sonnet', effort: 'medium' } } }), floorImpl([]), PROBE)
+  const c = tuned.calls.find(x => x.opts.dispatchKind === 'diff-probe')
+  assert.equal(seatOf(c.opts), 'war-helper')
+  assert.equal(c.opts.model, 'sonnet')
+  assert.equal(c.opts.effort, 'medium')
 })

@@ -13053,8 +13053,8 @@ test('filing-floor — the diff-probe dispatch runs per task after the worker\'s
   assert.ok(workIdx < probeIdx && probeIdx < auditIdx, 'worker → probe → first audit seat (before the seats convene)')
   const p = calls[probeIdx]
   assert.equal(p.opts.label, 'diff-probe:t1', 'label diff-probe:<task>')
-  assert.equal(seatOf(p.opts), 'war-refiner', 'a refiner dispatch')
-  assert.ok(p.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t1 diff --name-only') && p.prompt.includes('merge-base integration/wtprov-a/phase-3 deadbeef'), 'the prompt names the git range in the task worktree: merge-base(integration, tip)..tip')
+  assert.equal(seatOf(p.opts), 'war-helper', 'a helper dispatch')
+  assert.ok(p.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t1 diff --name-only integration/wtprov-a/phase-3...deadbeef'), 'the prompt names the three-dot git range in the task worktree')
   assert.ok(/Idempotent/.test(p.prompt), 'idempotent on resume')
   assert.ok(p.opts.schema && p.opts.schema.properties && p.opts.schema.properties.diff_files, 'its own DIFF_PROBE_RESULT schema carries diff_files')
   assert.ok(!(p.opts.schema.required || []).includes('diff_files'), 'diff_files is optional (fail-open)')
@@ -17159,3 +17159,10 @@ test('2485/ES15 the gate-log preamble repeats the provision_tree marker line, an
   assert.ok(bare && !bare.prompt.includes(ACE_RED), 'a provision-less ace gate carries no provision sentence')
 })
 
+
+test('every agent card the engine dispatches is registered in plugin.json (an unlisted card is not an agent type)', () => {
+  const manifest = JSON.parse(readFileSync('.claude-plugin/plugin.json', 'utf8'))
+  const dispatched = [...new Set([...readFileSync('skills/war/assets/workflow-template.js', 'utf8').matchAll(/NS \+ '(war-[a-z-]+)'/g)].map(m => m[1]))]
+  assert.ok(dispatched.includes('war-helper') && dispatched.includes('war-worker'), 'the scan sees the literals')
+  for (const card of dispatched) assert.ok(manifest.agents.includes(`./agents/${card}.md`), `${card} is dispatched but plugin.json does not list it`)
+})
