@@ -21,6 +21,9 @@ import {
   buildProjection,
   archiveCandidates,
   inboundCiters,
+  similarPairs,
+  mergeClusters,
+  redundancyScores,
   tightenPlan,
   findNearDupes,
   migrationPlan,
@@ -1410,6 +1413,77 @@ test('fallback (criterion 5): with the log absent, order equals the tier+age evi
   const expected = archiveCandidates(recs).map((r) => r.slug); // tier then (all-local) age
   // no `hits` passed ⇒ empty map ⇒ all hits 0 (the log-absent degradation)
   assert.deepEqual(evictedSlugs(recs), expected);
+});
+
+test('tighten order (ADR 0055): uses, then redundancy, then hits; nothing is summed', () => {
+  const rec = (slug) => ({ slug, temperature: 'hot', root: 'local', provenance: 'code-verified', body: '', description: slug, keywords: [], effectiveDate: '2026-01-01' });
+  const recs = ['used', 'plain', 'dupe-like', 'often-hit'].map(rec);
+  const plan = tightenPlan(recs, {
+    now: NOW,
+    uses: new Map([['used', 1]]),
+    redundancy: new Map([['dupe-like', 0.5]]),
+    hits: new Map([['used', 0], ['often-hit', 9], ['dupe-like', 5]]),
+  });
+  assert.deepEqual(plan.eligible.map((e) => e.slug), ['dupe-like', 'plain', 'often-hit', 'used']);
+  assert.equal(plan.eligible.find((e) => e.slug === 'used').uses, 1);
+});
+
+test('similarPairs (ADR 0055): shared rare words pair lessons, bodies do not, two cold lessons never pair', () => {
+  const rec = (slug, temperature, extra = {}) => ({ slug, temperature, root: 'local', description: '', keywords: [], body: '', ...extra });
+  const recs = [
+    rec('frob-gate-refuses', 'hot', { keywords: ['frobnicate', 'zebra'] }),
+    rec('frob-gate-holds', 'hot', { keywords: ['frobnicate', 'zebra'] }),
+    rec('same-body-a', 'hot', { body: 'frobnicate zebra' }),
+    rec('other-cold-a', 'cold', { keywords: ['quokka', 'walrus'] }),
+    rec('other-cold-b', 'cold', { keywords: ['quokka', 'walrus'] }),
+    ...Array.from({ length: 6 }, (_, i) => rec(`filler-${i}`, 'hot', { keywords: [`word${i}x`] })),
+  ];
+  const pairs = similarPairs(recs, { threshold: 0.3 }).map((p) => [p.a, p.b].sort().join('+'));
+  assert.deepEqual(pairs, ['frob-gate-holds+frob-gate-refuses']);
+});
+
+test('mergeClusters (ADR 0055): links pairs, keeps the most-used target, holds the user-confirmed floor', () => {
+  const rec = (slug, provenance = 'code-verified') => ({ slug, provenance, description: slug });
+  const hot = [rec('a'), rec('b'), rec('c'), rec('rule', 'user-confirmed')];
+  const pairs = [{ a: 'a', b: 'b' }, { a: 'b', b: 'c' }, { a: 'a', b: 'rule' }, { a: 'a', b: 'cold-only' }];
+  const [cluster, ...rest] = mergeClusters(hot, pairs, { uses: new Map([['b', 3]]), hits: new Map([['c', 9]]) });
+  assert.equal(rest.length, 0);
+  assert.equal(cluster.target, 'b', 'uses outrank hits');
+  assert.deepEqual([...cluster.merged].sort(), ['a', 'c'], 'neither the operator rule nor a cold slug joins');
+  assert.ok(cluster.bytesFreed > 0);
+});
+
+test('redundancyScores (ADR 0055): the share of appearances a near-duplicate also fills', () => {
+  const local = tmpDir();
+  const meta = { type: 'project', provenance: 'code-verified' };
+  lessonFile(local, 'twin-a', { description: 'frobnicate gate', meta });
+  lessonFile(local, 'twin-b', { description: 'frobnicate gate', meta });
+  lessonFile(local, 'solo', { description: 'walrus harbor', meta });
+  const records = walkCorpus({ local });
+  const db = buildIndex(records);
+  const scores = redundancyScores(db, records, ['frobnicate', 'walrus'], [{ a: 'twin-a', b: 'twin-b' }]);
+  assert.equal(scores.get('twin-a'), 1);
+  assert.equal(scores.get('solo'), 0);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('tighten-plan CLI (ADR 0055): one agent counts once, and use rows never count as hits', () => {
+  const local = tmpDir();
+  lessonFile(local, 'read-lesson', { description: 'x', meta: { provenance: 'code-verified', date: '2026-01-01' } });
+  const rows = [
+    { kind: 'use', slug: 'read-lesson', agent: 'ag1' },
+    { kind: 'use', slug: 'read-lesson', agent: 'ag1' },
+    { kind: 'use', slug: 'read-lesson', agent: 'ag2' },
+  ];
+  writeFileSync(join(local, 'war-memory-queries.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  const r = spawnSync('node', [CLI, 'tighten-plan', '--local', local, '--target', '1'], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  const plan = JSON.parse(r.stdout);
+  const entry = plan.eligible.find((e) => e.slug === 'read-lesson');
+  assert.equal(entry.uses, 2);
+  assert.equal(entry.hits, 0);
+  assert.ok(Array.isArray(plan.mergeClusters));
+  rmSync(local, { recursive: true, force: true });
 });
 
 test('hub floor (ADR 0055): cold citers cannot pin a row, hot citers still do', () => {

@@ -24,7 +24,7 @@ Evidence from that date:
 5. **The gate stays, and the test shapes it.** `tighten` applies the always-loaded test to preselect rows. The operator can strike rows or delegate the choice.
 6. **A query shows each lesson once.** The CLI query now collapses twins as the `memory_query` tool does. Otherwise a lesson archived in both roots fills two prefetch slots.
 
-Three follow-ups are accepted but not built: record real use, score redundancy by replaying past queries, and merge near-duplicate lessons. Each one crosses engine surfaces, so each goes through a plan.
+Three follow-ups shipped in the amendment below: real use, redundancy and merges.
 
 ## Consequences
 
@@ -38,3 +38,12 @@ Three follow-ups are accepted but not built: record real use, score redundancy b
 - **Raise the hard cap.** The cap protects read cost, and a higher cap only delays the same freeze.
 - **Drop the hub floor.** A hub with hot citers still names a shared concept for lessons in the index.
 - **Drop the young floor now.** Nothing yet measures whether a new lesson gets used, so removing it trades one guess for another.
+
+## Amendments
+
+- **2026-10-31 — use, redundancy and merges (#2536).** The operator directed this work outside the plan pipeline.
+  - **Use:** `hooks/record-lesson-use.sh` appends `kind: "use"` rows to the query log. It records each lesson file a worker or auditor opens, and each slug in a result's optional `lessonsUsed`. A hook is the writer because Workflow scripts cannot write files. One agent counts once per slug. Main-session and housekeeping reads stay out, because a housekeeping pass reads every lesson.
+  - **Redundancy:** `similarPairs` scores lesson pairs by rare words shared across slug, description and keywords. `redundancyScores` replays the newest 500 distinct queries. A lesson's score is the share of its top-K appearances that a similar lesson shares. `findNearDupes` proved unusable here, because a lesson's own twins fill its five result slots.
+  - **Ranking:** `tighten-plan` compares uses, then redundancy, then hits. The keys compare in turn and nothing is summed, so a log with no use rows behaves as before.
+  - **Merges:** `tighten-plan` prints `mergeClusters`. Similar words prove no shared rule, so an agent reads each cluster before it keeps one. The `user-confirmed` floor holds, and a merged rule stays hot.
+  - **Limits:** a seat can leave `lessonsUsed` empty, so `uses` is a floor on use. The young floor stays until the log holds enough use rows to judge it.

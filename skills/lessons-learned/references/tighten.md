@@ -37,14 +37,21 @@ Five steps, strict order:
    suppresses the advisory `warn`.
 
 2. **Plan.** Reuse that same JSON — `tighten-plan` is the corpus authority; **never re-derive hits,
-   floors, or ranking by hand.** Its `eligible` array is the ranked mutation set (ascending `hits`, ties
-   by `tier` then `ageDays`), one entry per candidate: `slug`, `hits`, `tier`, `ageDays`, `inbound`,
+   floors, or ranking by hand.** Its `eligible` array is the ranked mutation set (ascending `uses`, then descending
+   `redundancy`, then ascending `hits`, ties by `tier` then `ageDays`), one entry per candidate: `slug`,
+   `uses`, `redundancy`, `hits`, `tier`, `ageDays`, `inbound`,
    `bytesFreed`, a running `cumulativeFreed` — plus, on a cross-root dupe, `dupe: true` /
    `copies: ["local","repo"]`. The top-level `cutIndex` marks how many entries (from the top) the
    **default** proposal strikes to clear `cutGoalBytes` (`currentBytes` down to `target − slack`, `slack`
    = 500 B); `projectedBytes` is the file size if exactly that default set lands. Optionally fold in
    editorial description trims for cells the 160 B cap visibly cut mid-thought — polish only, never
    counted toward the byte math (eviction owns bytes; edits are cosmetic).
+
+   **Merge proposals.** The JSON's `mergeClusters` array lists near-duplicate hot lessons: `target`,
+   `merged` and `bytesFreed`. Similar words prove no shared rule, so read every member of each cluster
+   before you keep it. If the members state one rule, draft the merge. Otherwise drop the cluster. A
+   merge folds each `merged` lesson's residue into `target`, so no rule leaves the hot set. A hub or a
+   young lesson can be merged, because its rule stays hot. Present each kept cluster in the Gate.
 
 3. **Gate** (the single destructive phase — every mutation behind one ask, never a row-by-row
    negotiation). Present the full `eligible` list as a strike-list — slug · hits · tier · age · inbound ·
@@ -82,6 +89,9 @@ Five steps, strict order:
      gotcha — a stale active account on a multi-account machine silently drops the PR onto the wrong
      identity), then push and open the PR. Skip every bullet in this step when nothing `[repo]`-marked
      was struck.
+   - **Merges**, for each approved cluster: edit `target` in `$STAGING`, and in the repo branch too if
+     it has a repo copy. Append a `merged into [[target]]` note to each `merged` lesson. Those lessons
+     join the strike list above, so the same local-then-repo `archive` moves them.
    - **If either `archive` call exits 1** it refused at least one slug on an occupied `archive/`
      destination (#1924, the count is on stderr). Nothing was overwritten and nothing is half-written.
      Stop the pass at that point, reconcile each named pair by hand, then re-run the refused slugs.
