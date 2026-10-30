@@ -28,16 +28,21 @@ When the changed set is a subset of that footprint, only the seats that raised t
 re-run. Every other seat's approval transfers to the ace SHA unchanged. Any file outside the
 footprint re-runs the full panel, and so does an absent or empty git set, a `files_changed`
 cross-check mismatch, or a re-running seat that detects a file outside the claimed set (D3,
-PIN-18). The agent's self-report is a cross-check, never the source.
+PIN-18). The agent's self-report is a cross-check, never the source. Since #2485 D7 the
+git-derived list is the refiner tip probe's read of the ace range, and the worker's
+`ace_diff_files` and `files_changed` are both cross-checks. Two more triggers re-run the full
+panel: more than one commit in the probed range (#2485 D3), and a pre-dispatch tip whose tree is
+not the approved tree. Every forward-revert is range-based (#2485 D17): a red gate or a regression
+reverts the whole range above the last approved tip.
 
 The rule is stated to the seat itself, in the standing auditor card
 ([`agents/war-auditor.md`](../../agents/war-auditor.md), the `## Pin transfer` section, which
 since 2026-10-27 is a trigger pointer whose body lives byte-identical in
 [`skills/war/references/pin-transfer.md`](../../skills/war/references/pin-transfer.md), ADR 0042): "only
 the seats that raised those findings re-run; every other seat's approval transfers to the new
-sha unchanged", and the re-running seat owes an independent check — "run `git diff --name-only
-<sha>^ <sha>` yourself and compare", setting `scopeBreach: true` on excess. The engine mirrors
-that duty into the dispatched delta-scaled re-audit prompt
+sha unchanged", and the re-running seat owes an independent check — "run the
+`git diff --no-renames --name-only` it names yourself and compare", setting `scopeBreach: true`
+on excess. The engine mirrors that duty into the dispatched delta-scaled re-audit prompt
 ([`skills/war/assets/workflow-template.js`](../../skills/war/assets/workflow-template.js), the
 `DELTA-SCALED RE-AUDIT` clause).
 
@@ -96,9 +101,9 @@ run today (PIN-3).
 ### Guardrails that bound all three forms
 
 - **No approval is ever accounted at a SHA the task gate did not pass.** The gate runs at the ace
-  tip before any re-audit or transfer; a red gate forward-reverts the ace commit, the task merges
-  its approved pre-ace tip, and findings demote per their dispositions — never a hold (PIN-12,
-  PIN-2).
+  tip before any re-audit or transfer; a red gate forward-reverts the ace range, the task merges
+  its approved pre-ace tip, and the rows route to the phase-close sweep as absorbs (a failed
+  attempt, never a demotion) — never a hold (PIN-12, PIN-2).
 - **Unanimity survives in transferred form.** The `pinTransfers` ledger names every seat as
   transferred or re-ran, with its own SHA (PIN-10).
 - **No soft markers.** A pin-transfer outcome never rides an in-band field on a hard-escalating
@@ -144,3 +149,5 @@ Success evidence is mandatory: transferred requires a usable rebased tip, non-em
 - 2026-09-07 · section 2's `D4` attributed to this ADR's ratifying plan (the 2026-08-30 plan's D4 row), the relationship heading renamed `Relationship to other ADRs` so the ADR 0051 row fits under it · issue #2156
 
 - 2026-09-09 · Require positive evidence before transfer or already-upstream completion; invalid destinations hold, missing transfer equality re-audits (#2154, PR #2297 initial Snipe).
+
+- 2026-10-30 · Amendment: a blocked ace result no longer reaches pin transfer unjudged. The engine reads the branch tip after every ace dispatch and re-audits or forward-reverts it, and the `verifyPinTransfer` tree clause stays unrelaxed. Two residuals are the only exceptions to never-hold: a tip that does not descend from the pre-dispatch tip holds at the merge slot with the note "branch tip carries content committed after approval", and a revert-bearing pin-transfer probe that itself dies reads `env-died` · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D5, D6, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).

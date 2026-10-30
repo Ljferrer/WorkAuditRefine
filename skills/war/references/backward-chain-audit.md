@@ -2,7 +2,7 @@
 
 The auditor's chain for a re-audit. The seat stays read-only: it reads the pinned sha, the fix commit body and the threaded history with the allowlisted git read verbs, and it writes only a verdict. From corrective round 2 the seat is the classifier and the oracle. Classifier: every re-block carries one `relation:` tag that names how the new blocker relates to the last fix, and that tag selects the fixer's examples. Oracle: the seat runs its own chain from the cited End state and judges the fixer's chain against it; the fixer's markers are self-reports, never evidence.
 
-The `## The rules` section rides byte-equal in the roster-seat audit prompt built by `skills/war/assets/workflow-template.js` at corrective round 2 or later, pinned by the `workflow-template.test.mjs` fixture `backward-chain: audit rules gated on corrective round`. Round-1 audit prompts are unchanged, byte for byte (PIN-10): a first audit has no fix to relate to. The three gate-audit-family seats (per-task, integrated-tip, end-state) judge executed gate evidence, never a fix, and carry no backward-chain clause. The depth sections below are read by pointer: the prompt names the section for the corrective round it dispatches.
+The `## The rules` section rides byte-equal in the roster-seat audit prompt built by `skills/war/assets/workflow-template.js` at corrective round 2 or later, pinned by the `workflow-template.engine-1.test.mjs` fixture `backward-chain: audit rules gated on corrective round`. Round-1 audit prompts are unchanged, byte for byte (PIN-10): a first audit has no fix to relate to. The three gate-audit-family seats (per-task, integrated-tip, end-state) judge executed gate evidence, never a fix, and carry no backward-chain clause. The depth sections below are read by pointer: the prompt names the section for the corrective round it dispatches.
 
 ## The rules
 
@@ -39,7 +39,7 @@ Never file that finding before this tier: at rounds 2 to 4 a class that keeps re
 
 ## Variants
 
-- Delta-scaled re-audit: the seat re-runs `git diff --name-only <sha>^ <sha>` itself and chains only over the files the ace commit touched; a changed file outside the claimed set is `scopeBreach: true` and the full panel re-runs. The `relation:` tag is still owed on every re-block.
+- Delta-scaled re-audit: the seat re-runs the `git diff --no-renames --name-only <pre> <sha>` its prompt names and chains only over the files the ace range touched; a changed file outside the claimed set is `scopeBreach: true` and the full panel re-runs. The `relation:` tag is still owed on every re-block.
 - Pin-content re-audit: the seat judges the pinned content against the approved tree, with no threaded findings and no corrective round; it is round 1 by definition and carries no backward-chain clause.
 
 ## Worked examples

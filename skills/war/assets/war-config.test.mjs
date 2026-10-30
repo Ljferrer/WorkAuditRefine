@@ -1956,7 +1956,20 @@ test('node-test breadth: skills/ contains at least the expected set of *.test.mj
     'skills/_shared/provision.test.mjs',
     'skills/war/assets/land-decision.test.mjs',
     'skills/war/assets/war-config.test.mjs',
-    'skills/war/assets/workflow-template.test.mjs',
+    // The workflow-template tests are split into topic files sharing workflow-template.test-harness.mjs
+    // (not a *.test.mjs file). Each part is listed: a lost or renamed part file drops its tests silently.
+    'skills/war/assets/workflow-template.engine-1.test.mjs',
+    'skills/war/assets/workflow-template.engine-2.test.mjs',
+    'skills/war/assets/workflow-template.git-1.test.mjs',
+    'skills/war/assets/workflow-template.git-2.test.mjs',
+    'skills/war/assets/workflow-template.git-3.test.mjs',
+    'skills/war/assets/workflow-template.git-4.test.mjs',
+    'skills/war/assets/workflow-template.git-5.test.mjs',
+    'skills/war/assets/workflow-template.git-6.test.mjs',
+    'skills/war/assets/workflow-template.recovery.test.mjs',
+    'skills/war/assets/workflow-template.submodule-1.test.mjs',
+    'skills/war/assets/workflow-template.submodule-2.test.mjs',
+    'skills/war/assets/workflow-template.submodule-3.test.mjs',
   ].map(p => join(REPO_ROOT, p))
   for (const expected of EXPECTED_MJES) {
     assert.ok(
@@ -3002,19 +3015,19 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     ['HARD_ESCALATION_REASONS mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
     // Marker (#1411): "SOFT_ENV_REASONS mirrors land-decision.mjs export … Keep in sync"
     // → covered by its own inline-equality drift test (the D2 registry row in
-    // workflow-template.test.mjs deepEquals the pair independently).
+    // workflow-template.engine-1.test.mjs deepEquals the pair independently).
     ['SOFT_ENV_REASONS mirrors', ['drift-guard(F07): inline SOFT_ENV_REASONS']],
     // Marker (in-band-absorb-default D1): "BARRIER_TOKENS mirrors land-decision.mjs export … Keep in sync"
     // → covered by its own inline-equality drift test (the D2 registry `barrier-list` rows in
-    // workflow-template.test.mjs bind the card sentence and the eligibility-doc list too).
+    // workflow-template.engine-1.test.mjs bind the card sentence and the eligibility-doc list too).
     ['BARRIER_TOKENS mirrors', ['drift-guard(F07): barrier-list — inline BARRIER_TOKENS']],
     // Marker (in-band-absorb-default D2): "RELEASE_SLOT_FILES mirrors land-decision.mjs export … Keep in sync"
     // → covered by its own inline-equality drift test (the D2 registry `sweep-exclude` row in
-    // workflow-template.test.mjs binds the inline copy too). Registry count: 7 logic-mirror keys → 8.
+    // workflow-template.engine-1.test.mjs binds the inline copy too). Registry count: 7 logic-mirror keys → 8.
     ['RELEASE_SLOT_FILES mirrors', ['drift-guard(F07): sweep-exclude — inline RELEASE_SLOT_FILES']],
     // Marker (in-band-absorb-default D13): "DEMOTE_REASONS mirrors land-decision.mjs export … Keep in sync"
     // → covered by its own inline-equality drift test (the D2 registry `demote-census` row in
-    // workflow-template.test.mjs binds the inline copy too). Registry count: 8 → 9.
+    // workflow-template.engine-1.test.mjs binds the inline copy too). Registry count: 8 → 9.
     ['DEMOTE_REASONS mirrors', ['drift-guard(F07): demote-census — inline DEMOTE_REASONS']],
     // Marker (absorb-budget, D5): "Mirror of DEFAULTS.run.absorbRounds in war-config.mjs — keep in sync"
     // → covered by the absorbRounds fallback drift guard (the roundLimit-fallback idiom).

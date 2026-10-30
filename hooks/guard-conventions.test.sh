@@ -84,33 +84,33 @@ negation_block_scan() {
 # carrying `# guard-conventions: allow` is suppressed (printed to stderr).
 # ---------------------------------------------------------------------------
 search_root_scan() {
-  _f="$1"
-  _num=0
-  while IFS= read -r _line || [ -n "$_line" ]; do
-    _num=$((_num + 1))
-    # Strip leading whitespace; skip comment lines.
-    _t="${_line#"${_line%%[![:space:]]*}"}"
-    case "$_t" in \#*) continue ;; esac
-    # Is this a recursive-grep or find command?
-    _scan=0
-    printf '%s\n' "$_line" | grep -qE 'grep +-[A-Za-z]*[rR]' && _scan=1
-    case "$_line" in *"find "*) _scan=1 ;; esac
-    [ "$_scan" -eq 0 ] && continue
-    # A .claude exclusion anywhere on the line makes it compliant.
-    case "$_line" in *.claude*) continue ;; esac
-    # Repo-root search root?
-    case "$_line" in
-      *" . "*|*" ."|*" ./"*|*'$PWD'*|*'${PWD}'*|*'$REPO_ROOT'*|*'$REPO '*|*'$ROOT '*|*'show-toplevel'*) ;;
-      *) continue ;;
-    esac
-    # An allow-tag suppresses the hit but is recorded on stderr.
-    case "$_line" in
-      *"guard-conventions: allow"*)
-        printf 'SUPPRESSED %s:%s: %s\n' "$_f" "$_num" "$_t" >&2
-        continue ;;
-    esac
-    printf '%s:%s: repo-root recursive scan without .claude exclusion\n' "$_f" "$_num"
-  done < "$_f"
+  # One awk pass per file (was one grep subprocess per line). Same rules, in order: skip comment
+  # lines; keep only a recursive grep or a find; a .claude mention complies; keep only a repo-root
+  # search root; an allow tag suppresses the hit onto stderr. The root tests sit on lines with no
+  # find or recursive grep, so this function never trips its own full-tree pass.
+  SR_FILE="$1" awk '
+    {
+      line = $0
+      t = line
+      sub(/^[[:space:]]+/, "", t)
+      if (substr(t, 1, 1) == "#") next
+      if (!(line ~ /grep +-[A-Za-z]*[rR]/ || index(line, "find ") > 0)) next
+      if (index(line, ".claude") > 0) next
+      root = 0
+      if (index(line, " . ") > 0) root = 1
+      if (length(line) >= 2 && substr(line, length(line) - 1) == " .") root = 1
+      if (index(line, " ./") > 0) root = 1
+      if (index(line, "$PWD") > 0 || index(line, "${PWD}") > 0) root = 1
+      if (index(line, "$REPO_ROOT") > 0 || index(line, "$REPO ") > 0 || index(line, "$ROOT ") > 0) root = 1
+      if (index(line, "show-toplevel") > 0) root = 1
+      if (!root) next
+      if (index(line, "guard-conventions: allow") > 0) {
+        printf "SUPPRESSED %s:%d: %s\n", ENVIRON["SR_FILE"], NR, t > "/dev/stderr"
+        next
+      }
+      printf "%s:%d: repo-root recursive scan without .claude exclusion\n", ENVIRON["SR_FILE"], NR
+    }
+  ' "$1"
 }
 
 # ---------------------------------------------------------------------------

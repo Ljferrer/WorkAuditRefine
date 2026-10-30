@@ -157,7 +157,7 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 // `scopeLock` / `adjudicated` prose after the real declaration was deleted: the token would survive
 // inside the un-stripped block comment and the assert would stay green with no executable
 // declaration behind it. The block pass is what makes those asserts sound — so this file does NOT
-// narrow them (unlike the three narrowed sites in workflow-template.test.mjs, whose asserts are
+// narrow them (unlike the three narrowed sites in workflow-template.engine-1.test.mjs, whose asserts are
 // negative / extractive and do not need the block pass).
 //
 // THIS census is what keeps the two-step strip sound. blockCommentSpans(text) DELIBERATELY
@@ -170,7 +170,7 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 // (measured: exactly the two real spans, no fakes — this file has no resolveGate-style glob
 // literals), so the naive idiom sees exactly its two real block comments.
 //
-// Backtick-free coupling: the backtick-free assert below mirrors workflow-template.test.mjs's
+// Backtick-free coupling: the backtick-free assert below mirrors workflow-template.engine-1.test.mjs's
 // scanTemplateLiterals backtick-free assert — the two censuses are mutually load-bearing (a backtick
 // smuggled into a block comment is where the "line-only is safe" argument would break over there).
 // Naive-strip string-blindness inside the census itself is bounded by EXACT-LIST equality:
@@ -179,7 +179,7 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 function blockCommentSpans(text) {
   return text.replace(/\/\/[^\n]*/g, '').match(/\/\*[\s\S]*?\*\//g) || []
 }
-// Ordered {head, tail} projection — the same census shape as workflow-template.test.mjs's block
+// Ordered {head, tail} projection — the same census shape as workflow-template.engine-1.test.mjs's block
 // census (which needs it for a ~40KB fake span). Here both spans are short, so head and tail overlap
 // and cover each span exactly — any edit anywhere in a span flips head or tail. Enumerated from the
 // two hardcoded full comment texts, so the equality is independent of live src (non-vacuous).
@@ -987,6 +987,48 @@ test('ff-topology prose presence pair: SKILL.md + lenses.md both carry the probe
     const r = region(text)
     assert.match(r, /mandatory/i, `${name} ff-topology region must state the probe is mandatory (mid-sentence, case-insensitive)`)
     assert.match(r, /--fast/, `${name} ff-topology region must state the probe is --fast-proof`)
+    // #2485 (Task 5.3): the fixture is WAR's merge-commit topology (each task lands as a `--no-ff`
+    // merge commit carrying `WAR-Task`), so the region must name both and the fast-forward-only void,
+    // and the retired fast-forward-per-task fixture text must be gone from the whole file.
+    assert.match(r, /--no-ff/, `${name} ff-topology region must build the fixture with --no-ff task merges`)
+    assert.match(r, /WAR-Task/, `${name} ff-topology region must name the WAR-Task trailer on each task merge`)
+    assert.match(r, /fast-forward-only/i, `${name} ff-topology region must name the fast-forward-only anchor as the void`)
+  }
+  assert.doesNotMatch(surfaces['SKILL.md'], /synthetic fast-forward repo/,
+    'SKILL.md Step 2 still describes the retired fast-forward fixture')
+  assert.doesNotMatch(surfaces['references/lenses.md'], /done as \*\*fast-forward\*\* merges/,
+    'lenses.md ff-topology row still builds the retired fast-forward task-merge fixture')
+})
+
+// #2485 (Task 5.3): CONTEXT.md's topology-void entry follows the merge-commit topology, and the four
+// born-cold terms carry one trigger pointer each in CONTEXT.md and a body (with its _Avoid_ line) in
+// skills/war/references/glossary-cold.md. Entry extraction: the bold term → next bold term or `###`;
+// cold body: the `## ` heading → next `## `.
+test('#2485 topology-void entry and the four born-cold merge-provenance terms (CONTEXT.md + glossary-cold.md)', () => {
+  const repo = join(__dirname, '..', '..', '..')
+  const ctx = readFileSync(join(repo, 'CONTEXT.md'), 'utf8')
+  const cold = readFileSync(join(repo, 'skills', 'war', 'references', 'glossary-cold.md'), 'utf8')
+  const entry = (term) => {
+    const start = ctx.indexOf(`\n**${term}**:\n`)
+    assert.ok(start !== -1, `CONTEXT.md must carry a **${term}**: entry`)
+    const rest = ctx.slice(start + 1)
+    const end = rest.slice(2).search(/\n(\*\*[^\n]+\*\*[^\n]*:\n|### )/)
+    return end === -1 ? rest : rest.slice(0, end + 3)
+  }
+  const tv = entry('topology-void')
+  assert.match(tv, /--no-ff/, 'topology-void must name the --no-ff task merge commit')
+  assert.match(tv, /WAR-Task/, 'topology-void must name the WAR-Task trailer')
+  assert.match(tv, /fast-forward-only/, 'topology-void must name the fast-forward-only anchor as the void')
+  assert.doesNotMatch(tv, /fast-forward per-task merges/, 'topology-void still states the retired fast-forward premise')
+  for (const term of ['Tip probe', 'Merge-commit provenance', 'Provision tree marker', 'Launch identity of a recovery']) {
+    assert.match(entry(term), /^\*\*[^\n]+\*\*:\nwhen [^\n]+, read skills\/war\/references\/glossary-cold\.md\n/,
+      `CONTEXT.md \`${term}\` must be one fixed-shape trigger pointer to glossary-cold.md`)
+    const heads = cold.split('\n').filter((l) => l === `## ${term}`)
+    assert.equal(heads.length, 1, `glossary-cold.md must carry exactly one \`## ${term}\` heading`)
+    const at = cold.indexOf(`\n## ${term}\n`) + 1
+    const next = cold.indexOf('\n## ', at + 3)
+    const body = cold.slice(at, next === -1 ? undefined : next)
+    assert.match(body, /\n_Avoid_: /, `glossary-cold.md \`${term}\` body must carry its _Avoid_ line`)
   }
 })
 

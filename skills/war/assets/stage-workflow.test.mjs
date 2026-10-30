@@ -400,7 +400,7 @@ test('(l) --args on a pre-existing staged file warns on stderr, leaves it byte-u
 // harness actually hands a staged script at ~104.5 KB) still needs a live run.
 //
 // This is the file-header carve-out: a ~3-line AsyncFunction harness, NET-NEW here on purpose —
-// workflow-template.test.mjs's builder is module-scoped and closed over the shipped template, so it is
+// workflow-template.engine-1.test.mjs's builder is module-scoped and closed over the shipped template, so it is
 // unreachable from this suite. Every effect handle is stubbed and `args` is passed FALSY, which is
 // exactly the shape a staged script sees when the Lead dispatches with no Workflow args.
 //

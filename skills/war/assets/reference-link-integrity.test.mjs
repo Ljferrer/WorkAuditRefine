@@ -11,7 +11,7 @@
 // Why a NEW sibling file rather than a skill-doc-contracts.test.mjs block: the spec
 // sanctions either ("or sibling"); a separate file keeps this guard file-disjoint from the
 // concurrent campaign plans that own skill-doc-contracts.test.mjs and
-// workflow-template.test.mjs. Auto-discovered by `node --test 'skills/**/*.test.mjs'` — no
+// workflow-template.engine-1.test.mjs. Auto-discovered by `node --test 'skills/**/*.test.mjs'` — no
 // wiring needed.
 //
 // Self-match note (the coupling-comment lesson — a comment that restates a sweep's own
@@ -148,7 +148,7 @@ const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
  * beginning with the literal plugin-root placeholder resolves its remainder against
  * REPO_ROOT (plugin root ≡ repo root in this repo), from any scanned file, dir or
  * root-level entry alike. Link SHAPE
- * enforcement stays per-card in workflow-template.test.mjs — a scan-wide shape assert here
+ * enforcement stays per-card in workflow-template.engine-1.test.mjs — a scan-wide shape assert here
  * is out of this sweep's scope.
  */
 function resolutionRoots(file, target) {
@@ -351,6 +351,9 @@ const QUALIFIED_HEADERS = [
   // default-roster sentence's eviction destination (byte-funding the D17 boundary sentence),
   // joined on eviction per the UNION-extension precedent above.
   'design.md',
+  // blocked-ace-and-merge-provenance Task 2.1 (#2485): the agents/war-refiner.md merge-task eviction
+  // destination behind the card's "when merging a task" pointer, joined on creation.
+  'merge-provenance.md',
   // 2026-10-27-memory-query-mcp-tool Task 1.3: the agents/war-auditor.md `## Pin transfer (#1913)` body's
   // eviction destination (byte-funding the card's memory_query tools: entry, PIN-5), joined on creation.
   'pin-transfer.md',
@@ -676,14 +679,16 @@ test('reference link integrity — the refiner card keeps a trigger pointer per 
 // pin-transfer.md to fund the card's memory_query `tools:` entry (PIN-5, ADR 0042). The digest pins
 // the moved body (the text after its `## Pin transfer (#1913)` heading, trailing blank line included —
 // 1,594 B at eviction, card lines 138-145 @ 68160232); a sanctioned edit re-pins it here with its rationale.
+// Re-pinned (#2485 merge of master into PR #2529): the re-running-seat duty paragraph names the tip probe
+// as the claimant and the `git diff --no-renames --name-only` read, the text #2485 Phase 1 wrote on the card.
 test('reference link integrity — the auditor-card pin-transfer block landed byte-identical in pin-transfer.md and the card keeps a trigger pointer, not the body', () => {
   const text = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'pin-transfer.md'), 'utf8');
   const heading = '## Pin transfer (#1913)\n';
   const at = text.indexOf(`\n${heading}`);
   assert.ok(at >= 0, 'pin-transfer.md lost its `## Pin transfer (#1913)` heading');
   const body = text.slice(at + 1 + heading.length);
-  assert.equal(Buffer.byteLength(body, 'utf8'), 1594, 'the moved block is 1,594 B (pre-eviction card bytes)');
-  assert.equal(sha256(body), '1366228f60d469208c5bae0019af65978930c580f07e4fbf3094ab7b1d1b960c',
+  assert.equal(Buffer.byteLength(body, 'utf8'), 1619, 'the moved block is 1,619 B (the eviction body with the #2485 duty paragraph)');
+  assert.equal(sha256(body), '86e15be8c019dd49c1ae1b4573fafd64e2a69723125e92956c494bc4758c0bb5',
     'the moved block must be byte-identical to its pre-eviction card text (ADR 0042) — a sanctioned edit re-pins the digest here with its rationale');
   const auditorCard = readFileSync(join(REPO_ROOT, 'agents/war-auditor.md'), 'utf8');
   assert.ok(auditorCard.includes(', read [pin-transfer.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/pin-transfer.md)'),

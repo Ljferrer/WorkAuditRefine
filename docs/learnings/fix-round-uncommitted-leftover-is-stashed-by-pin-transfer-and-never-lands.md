@@ -16,6 +16,7 @@ metadata:
     - refiner
     - lost work
     - shared stash stack
+    - ace gate restore
   provenance: agent-unverified
   slug: fix-round-uncommitted-leftover-is-stashed-by-pin-transfer-and-never-lands
   phase: 2026-10-20-rea-artifact-evidence/phase-6 task 6.2
@@ -27,7 +28,7 @@ metadata:
     - process
   created: 2026-10-23
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-27T13:45:48.566Z
+  modified: 2026-10-30T10:18:51.561Z
 ---
 
 # Uncommitted work left by an ace fixer never reaches the pin or the land
@@ -44,4 +45,6 @@ metadata:
 
 **Recurrence (2026-10-27-memory-query-mcp-tool/phase-1 task 1.4).** The refiner again found uncommitted edits in the task worktree at pin-transfer, this time to `CLAUDE.md` (the Guard architecture paragraph). It stashed them as `refiner-p1-1.4-uncommitted-CLAUDE.md-pintransfer`, again recorded only in the free-text `reported.detail`. The rebase of three audited commits was clean and the verdict was `pin-transfer:git-verified`. The landed `CLAUDE.md` already carries the corrected paragraph from an audited ace commit, so the loss is probably benign here. The stash contents were not inspected (servitor has no Bash), and this is a hypothesis. Two sightings make the free-text-only record a repeat pattern.
 
-Related: [[in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]].
+**Change in provisioned runs (2026-10-28-blocked-ace-and-merge-provenance/phase-4 task 4.1, code-verified).** The ace-gate check now interpolates `PROVISION_RERUN_CLAUSE`, and that clause carries `PROVISION_CLEAN_LINE` ("restore tracked files via `git checkout -- .`"). The ace gate runs in the task worktree before pin-transfer. So if `run.provision` is non-empty, a tracked-file ace leftover can be discarded at the ace gate and never reach the stash. Untracked leftover files survive the restore. Merged content is unchanged, and the gate now runs on the committed ace tip. Only the forensic stash is lost, so in a provisioned run an empty stash list proves nothing. `depClause` omits the restore on purpose, because the dep-wave worker's edits live in its worktree. Locate-cue: verify still present before acting. Found at `skills/war/assets/workflow-template.js` (`aceGateGreen`, `PROVISION_CLEAN_LINE`) @ phase 4, landed tip 426c70a8.
+
+Related: [[in-diff-absorb-autofixable-finding-can-ship-unfixed-despite-a-real-fix-round]], [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]], [[a-new-provision-run-in-a-shared-worktree-must-carry-the-restore-tracked-files-rule]].

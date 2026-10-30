@@ -251,6 +251,9 @@ The ordered, pinned shell commands that take a bare worktree from checkout to **
 from the target repo's *own* declared setup. Run verbatim, in order, before the gate.
 _Avoid_: setup script, bootstrap steps, install commands.
 
+**Provision tree marker**:
+when a gate's tree may differ from its provisioned tree, read skills/war/references/glossary-cold.md
+
 **Setup-scout**:
 The read-only agent that derives the provision list from the target repo's signals, in descending
 authority (explicit → CI → dev-onboarding → structural floor). Holds no ecosystem knowledge itself.
@@ -482,6 +485,9 @@ reason); reading an absent field as `'implementation'` (absence asserts no class
 
 ### Landing
 
+**Merge-commit provenance**:
+when proving which merge landed a task, read skills/war/references/glossary-cold.md
+
 **Phantom land**:
 A land that reports `status:'landed'` while the working ref **never advanced** — the `--no-ff` merge
 produced no commit because the integration branch had nothing ahead of the working branch, so
@@ -526,7 +532,7 @@ a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper 
 `segmentedMerge` on the four per-task merge-task sites (initial, floor-retry, environment-proceed,
 baseline-proceed); the two sweep-family merges are not segmented (ADR 0051 §3; the
 `segmented-land: re-land sites` and `segmented-gate: re-merge sites` fixtures in
-`workflow-template.test.mjs` are the arbiters of those two site lists) — each helper appends
+`workflow-template.engine-1.test.mjs` are the arbiters of those two site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
 by `run.roundLimit`; exhaustion routes by the ridden status. The pair is the read (PIN-9): a landed
 or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
@@ -795,7 +801,7 @@ after its `upstream link:` line. The closed tag set is canonical in
 `skills/war/references/backward-chain-audit.md` `## The rules` and bound to the fixer's Round 2
 table and the examples bank's tag H2s (those between `## Entry shape` and `## Growth rules`) by
 the skeleton guard `backward-chain.test.mjs`, and to the engine regex by a
-`workflow-template.test.mjs` fixture; it selects the fixer's first move and the
+`workflow-template.engine-1.test.mjs` fixture; it selects the fixer's first move and the
 examples section it reads.
 _Avoid_: a fifth restatement of the tag set; a second tag line; a tag at round 1 (no fix to relate
 to); a schema field (the tag rides `rationale`).
@@ -939,12 +945,15 @@ _Avoid_: reading ambiguity as absence of grinding.
 **Pin transfer**:
 An audit approval carried to a new SHA by a mechanical predicate, not a re-convened panel (canonical:
 `pinTransfers` in `skills/war/assets/workflow-template.js`). *Seat-approval transfer*: a wave-side
-ace whose git-derived file set (`ace_diff_files`) is a subset of the findings' file set re-runs only
+ace whose git-derived file set (the tip probe's read) is a subset of the findings' file set re-runs only
 the originating seats; the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a
 conflict-free rebase plus `git patch-id --stable` equality of the task's own diff, before and after,
 carries the panel pin to the rebased tip. Neither accounts an approval at a SHA the gate never
 passed; a mismatch degrades to the in-lock full panel for that task alone.
 Arms and shape: `skills/war/references/schemas.md`.
+
+**Tip probe**:
+when an ace result returns, read skills/war/references/glossary-cold.md
 
 **Ace bisection**:
 The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
@@ -1035,8 +1044,9 @@ registration). Twelve members: `demote:absorb-regressed`, `demote:absorb-blocked
 `demote:unclassified`. `demote()` validates every `follow-up` reason at runtime; a miss prepends
 `demote:unclassified` with a loud log, never a throw. Each engine-filed issue body carries the prefix on its
 `Demote-Reason:` line, and `/war-review` tallies `demote:unclassified` as a defect signal. A failed ATTEMPT
-(an untouched file, a dead ace worker, a red gate at the ace tip) and an ace-off run route the row to the
-phase-close sweep instead of demoting (ADR 0013 amendment 2026-09-04, Phase 4).
+(an untouched file, a non-moved tip after a polish, subset or re-entry dispatch, a red gate at the ace tip,
+a regressed multi-commit range — #2485 D2/D4) and an ace-off run route the row to the phase-close sweep
+instead of demoting (ADR 0013 amendment 2026-09-04, Phase 4).
 _Avoid_: an unprefixed `follow-up` demotion; a prefix minted outside the enum; reading a member as a
 `HARD_ESCALATION_REASONS` or `BARRIER_TOKENS` member.
 
@@ -1359,9 +1369,11 @@ _Avoid_: a block-level provenance stamp — the marker is per-row precisely beca
 mix operator-ratified and AI-declared rows side by side.
 
 **topology-void**:
-A plan clause anchored on git topology that does not exist under WAR's fast-forward per-task merges (a
-per-task merge commit, its `^1` parent, a non-empty post-merge three-dot diff). The `ff-topology` executed
-probe classifies it — error, wrong-commit resolution, or degenerate/empty diff for the claimed anchor.
+A plan clause anchored on git topology that WAR's task merges lack. Each task lands as a `--no-ff` merge
+commit carrying `WAR-Task`, so `<merge>^1` and a `--first-parent` per-task anchor are valid; a
+fast-forward-only anchor (the task tip on the first-parent line) and a non-empty post-merge three-dot
+diff are void. The `ff-topology` executed probe classifies it — error, wrong-commit resolution, or
+degenerate/empty diff for the claimed anchor.
 _Avoid_: conflating with a merge *conflict* — the anchor is void, not contested.
 
 **analyzed-agent fallback**:
@@ -1672,6 +1684,9 @@ The uncommitted per-run telemetry record `/war` accumulates under the main check
 counts, terminal statuses. Fail-open bookkeeping consumed by `/war-review`; **never resume
 input** (the correctness record stays git > issues > ledger).
 _Avoid_: run ledger (the ledger is the owned-refs record); reading it during resume.
+
+**Launch identity of a recovery**:
+when relaunching to recover a run, read skills/war/references/glossary-cold.md
 
 **Resume precedence**:
 The ordering **git branch state > GitHub issue labels > `ledger.json`** that decides which layer wins

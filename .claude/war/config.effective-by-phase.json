@@ -1,0 +1,733 @@
+{
+  "description": "Effective WAR settings per phase for the run of docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md. The launch config is .claude/war/config.json (profile custom). Phases changed it mid-run by operator ruling, through each phase args. Read from the staged args each attempt ran with.",
+  "launchConfig": ".claude/war/config.json",
+  "launchCommit": "85bbd7d3",
+  "plugin": {
+    "version": "0.21.19",
+    "sha": "34640b6d65acc2ac608b5fe870c4fa7d725a9b20"
+  },
+  "rulings": [
+    "Phases 2-6: ace workers on Opus (staged-script patch).",
+    "Phases 2-6: audit rosters use the Lead first proposed seats, adding plan-faithfulness and test-fidelity to the pool lenses; Phase 1 used pool lenses only.",
+    "Phases 3-6: agents.worker.fix = opus/default.",
+    "Phase 3 relaunch onward: ace prompts carry the one-final-trailer-block rule (staged-script patch).",
+    "Phases 5-6: agents.auditor and agents.worker.docs = sonnet/high (issue #2497 trial).",
+    "Phases 5-6: --afk."
+  ],
+  "attempts": [
+    {
+      "phase": 1,
+      "runId": "c2ca6400-7d35-45d4-8d8e-aea6278fb33a",
+      "outcome": "landed",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "opus",
+            "effort": "default"
+          },
+          "fix": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "agents.worker.fix (no patch)",
+      "aceTrailerRule": "0.21.19 prompt: OWN final paragraph",
+      "afk": false,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "1.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "deep"
+          },
+          {
+            "lens": "simplicity",
+            "depth": "deep"
+          },
+          {
+            "lens": "security",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 2,
+      "runId": "c2ca6400-7d35-45d4-8d8e-aea6278fb33a",
+      "outcome": "landed",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "opus",
+            "effort": "default"
+          },
+          "fix": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "0.21.19 prompt: OWN final paragraph",
+      "afk": false,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "2.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "security",
+            "depth": "neighbors"
+          }
+        ],
+        "2.2": [
+          {
+            "lens": "correctness",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 3,
+      "runId": "c2ca6400-7d35-45d4-8d8e-aea6278fb33a",
+      "outcome": "held (attempt 1)",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "opus",
+            "effort": "default"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "0.21.19 prompt: OWN final paragraph",
+      "afk": false,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "3.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "deep"
+          },
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 3,
+      "runId": "fb475838-a456-466a-9337-f712c8737635",
+      "outcome": "landed (recovery relaunch)",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "opus",
+            "effort": "default"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "patched: one final trailer block (the landed ES11 rule)",
+      "afk": false,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "3.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "deep"
+          },
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 4,
+      "runId": "fb475838-a456-466a-9337-f712c8737635",
+      "outcome": "landed",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "opus",
+            "effort": "default"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "patched: one final trailer block (the landed ES11 rule)",
+      "afk": false,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "4.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "performance",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 5,
+      "runId": "fb475838-a456-466a-9337-f712c8737635",
+      "outcome": "held (attempt 1)",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "sonnet",
+            "effort": "high"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "sonnet",
+          "effort": "high"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "patched: one final trailer block (the landed ES11 rule)",
+      "afk": true,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "5.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "neighbors"
+          }
+        ],
+        "5.2": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "neighbors"
+          }
+        ],
+        "5.3": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "neighbors"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "neighbors"
+          }
+        ],
+        "5.4": [
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "correctness",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 5,
+      "runId": "7a9621b7-4ad5-4511-a4ee-76ed12fa821f",
+      "outcome": "held (attempt 2)",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "sonnet",
+            "effort": "high"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "sonnet",
+          "effort": "high"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "patched: one final trailer block (the landed ES11 rule)",
+      "afk": true,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "5.1": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "neighbors"
+          }
+        ],
+        "5.2": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "neighbors"
+          }
+        ],
+        "5.3": [
+          {
+            "lens": "correctness",
+            "depth": "deep"
+          },
+          {
+            "lens": "cascading-impact",
+            "depth": "neighbors"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "neighbors"
+          }
+        ],
+        "5.4": [
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "correctness",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 5,
+      "runId": "f4aaf5fa-d874-44f3-b1d2-8de1fdc9b894",
+      "outcome": "landed (attempt 3, task 5.4 only)",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "sonnet",
+            "effort": "high"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "sonnet",
+          "effort": "high"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "patched: one final trailer block (the landed ES11 rule)",
+      "afk": true,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "5.4": [
+          {
+            "lens": "test-fidelity",
+            "depth": "deep"
+          },
+          {
+            "lens": "plan-faithfulness",
+            "depth": "deep"
+          },
+          {
+            "lens": "correctness",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    },
+    {
+      "phase": 6,
+      "runId": "f4aaf5fa-d874-44f3-b1d2-8de1fdc9b894",
+      "outcome": "landed",
+      "agents": {
+        "worker": {
+          "model": "opus",
+          "effort": "default",
+          "docs": {
+            "model": "sonnet",
+            "effort": "high"
+          },
+          "fix": {
+            "model": "opus",
+            "effort": "default"
+          }
+        },
+        "auditor": {
+          "model": "sonnet",
+          "effort": "high"
+        },
+        "refiner": {
+          "model": "sonnet",
+          "effort": "high",
+          "recovery": {
+            "model": "fable",
+            "effort": "default"
+          }
+        },
+        "servitor": {
+          "model": "opus",
+          "effort": "high"
+        },
+        "redteam": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "snipe": {
+          "model": "opus",
+          "effort": "default"
+        },
+        "trial": {
+          "model": "opus",
+          "effort": "default"
+        }
+      },
+      "aceWorkers": "opus (Lead patch to the staged script: the four ace spawn sites spawn { model: opus }; no config key exists, see #2519)",
+      "aceTrailerRule": "patched: one final trailer block (the landed ES11 rule)",
+      "afk": true,
+      "roundLimit": 6,
+      "absorbRounds": 6,
+      "rosters": {
+        "6.1": [
+          {
+            "lens": "correctness",
+            "depth": "neighbors"
+          }
+        ]
+      }
+    }
+  ]
+}

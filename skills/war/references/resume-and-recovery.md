@@ -18,7 +18,7 @@ Before reading the ledger or open issues and continuing, run the **reconciliatio
 |---|---|---|
 | **A — ledger ahead** | Ledger marks a task `merged` (has `merge_sha`) but `git merge-base --is-ancestor <merge_sha> <integration_branch>` fails (SHA not reachable on branch). | The merge never landed. **Trust git:** revert the task's ledger status (`merged`→`audited`) + label, re-enter it into the refine queue. **Report.** |
 | **B — git ahead** | A commit reachable on the branch maps to a ledger task (by recorded branch/SHA) the ledger does **not** mark `merged`. | Crash hit *after* the push. **Trust git:** mark the task `merged` with that SHA, flip the label. **Report.** |
-| **C — unexplained** | A commit reachable on the branch maps to **no** ledger task. | Foreign/concurrent push (the create-only `--owned-file` guard's concern, resurfacing at resume). **HALT** and surface to the Lead for a decision. **Do not auto-repair** — trusting git is only sound for commits this run authored. |
+| **C — unexplained** | A commit reachable on the branch maps to **no** ledger task. A `--no-ff` merge commit whose parsed `WAR-Task` trailer names a task of this run is an **explained** shape: it, and every commit its second parent brings in, maps to that task (its trailer is the ownership record, so untrailered worker, floor-fix, ace and revert commits under it are explained). | Foreign/concurrent push (the create-only `--owned-file` guard's concern, resurfacing at resume). **HALT** and surface to the Lead for a decision. **Do not auto-repair** — trusting git is only sound for commits this run authored. |
 
 **Landed-phase check (working branch):** each phase lands as one `--no-ff` commit; the pre-flight also verifies that commit is present on the working branch **iff** the ledger marks the phase `landed` (same A/B/C logic at phase granularity).
 
@@ -96,8 +96,10 @@ A phase-close polish revert carrying only an auto-generated body is **never self
 3. **Re-land with a real rationale naming which findings are re-opened**, and **diff the reverted commit's fix-set against the redo pass's fix-set by finding title/file** before treating the absorb queue as drained. A redo pass re-derives its queue from the findings open *at redo time*, so every finding the reverted commit had already closed is silently orphaned — the recorded orphaning mechanism, not a hypothetical.
 
 Recovery auto-skips require `task-integrated.sh` proof of integrated task-owned work, as specified
-in [refiner-recovery.md](refiner-recovery.md#recovery-task-provenance). The worker's exact
-`WAR-Task: <task branch>` trailer must occur on a nonempty commit. A positive shared-phase commit
-count cannot prove ownership. Surviving net work must be attributable to the owned commits, and the union of their changed paths
-must remain unchanged at integration, even when a change restores the phase-base state. Mixed later
-history, cancelled owned work and untagged legacy branches run through work/audit again (#2196).
+in [refiner-recovery.md](refiner-recovery.md#recovery-task-provenance). The proof is the task's
+first-parent merge commit: a commit on the integration branch's first-parent history whose parsed
+`WAR-Task: <task branch>` trailer names the task and whose second parent is the task tip. A
+positive shared-phase commit count cannot prove ownership, and a fast-forward-only branch has no
+merge commit, so it never proves. The merge commit's own change set must remain unchanged at
+integration, even when a change restores the phase-base state. Cancelled owned work, fast-forward-only
+and untagged legacy branches run through work/audit again (#2196, #2485).

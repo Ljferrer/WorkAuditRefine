@@ -4,7 +4,7 @@ Read this file when the gate is red on a merge-task or land-phase dispatch (the 
 
 ## Gate-failure classification
 
-On **any** gate failure — merge-task step 3 or the land-phase gate — **classify** the failure into `gate_failure_class` BEFORE returning `status: "gate_failed"`, by re-running the FAILING gate at the **classification base** (spec §6 / ADR 0019). The re-run happens in `_refinery` (already gate-capable — never a throwaway worktree).
+On **any** gate failure — merge-task step 3 or the land-phase gate — **classify** the failure into `gate_failure_class` BEFORE returning `status: "gate_failed"`, by re-running the FAILING gate at the **classification base** (spec §6 / ADR 0019). The re-run happens in `_refinery` — never a throwaway worktree. `_refinery` is provisioned at the phase topology barrier: once per phase, after the barrier and before the first merge, `provision-run:_refinery` runs `run.provision` and writes the `provision_tree` marker, and before this re-run it is re-provisioned by the tree rule: when its HEAD tree differs from the marker, re-run the provision steps verbatim, in order, first (#2485 D15).
 
 - **Per-site classification base:**
   - **merge-task** — the **phase integration base**: the cut point of `integration/<slug>/phase-N` (e.g. its `git merge-base` with the working branch).

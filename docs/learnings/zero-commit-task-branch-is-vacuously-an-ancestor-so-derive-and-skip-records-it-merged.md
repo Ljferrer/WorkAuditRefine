@@ -67,3 +67,10 @@ Recurrences: 3 in two runs (2026-08-27-in-run-finding-resolution tasks 1.2, 1.3,
 2026-08-30-engine-concurrency-and-pin-transfer task 2.2, where a `p2-polish` gate-audit raised an `ask` naming
 the gap, but the discarded terminal polish round drained no queue, see
 [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]).
+
+**Note (2026-10-30, merge-commit rule, #2485):** a RESOLVED record, so the text above stays as written. The
+derive-and-skip proof is now merge-commit provenance (ADR 0054): `task-integrated.sh` proves a task from a
+first-parent merge commit whose `WAR-Task` trailer names it and whose second parent is its tip, so a
+zero-commit branch has no such commit and is never reported merged. That also closes the residual above
+(a branch cut at a later relaunch's adopted tip), and the `rev-list --count` conjunct and its manual check
+are no longer the proof.

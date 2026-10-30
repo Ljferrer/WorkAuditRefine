@@ -1,6 +1,6 @@
 # Backward-chain doctrine — the worker
 
-The worker's chain for the first pass on a task. The task's finish line is a check WAR runs; the worker names it first, chains backward from it to the tip, and works the earliest unmet link. The `## The rules` section rides byte-equal in the WORK dispatched prompt built by `skills/war/assets/workflow-template.js`, pinned by the `workflow-template.test.mjs` fixture `backward-chain: worker rules byte-equal on the work build only`. No fix-applying build carries it; those carry the fixer's block ([backward-chain-fix.md](backward-chain-fix.md)).
+The worker's chain for the first pass on a task. The task's finish line is a check WAR runs; the worker names it first, chains backward from it to the tip, and works the earliest unmet link. The `## The rules` section rides byte-equal in the WORK dispatched prompt built by `skills/war/assets/workflow-template.js`, pinned by the `workflow-template.engine-1.test.mjs` fixture `backward-chain: worker rules byte-equal on the work build only`. No fix-applying build carries it; those carry the fixer's block ([backward-chain-fix.md](backward-chain-fix.md)).
 
 ## The rules
 

@@ -731,6 +731,33 @@ test('Segmented-land bullet — filing-on-held names the filing dispatch alone; 
   assert.doesNotMatch(region, /or the `handoff` carries/i, 'the OLD emit-on-held disjunct (`or the `handoff` carries …`) is still in the Segmented-land bullet (#1801)')
 })
 
+// (#2485 Task 5.1 — D22, PIN-26) De-mirror pins: run-manifest.md's field table is the one home of the
+// manifest's top-level fields (schemas.md and the card's init-stamp sentence point at it, never
+// restate it), and schemas.md points at the engine declarations for the merge confirmation and
+// reconciliation shapes (no `tree` / `trailer` rows), as it already points `attempts[]` away.
+test('2485/T5.1 de-mirror — manifest top-level fields live in run-manifest.md; merge proof shapes stay engine-owned (#2485 D22, PIN-26)', () => {
+  const table = runManifestMd.match(/^## Top-level fields[\s\S]*?(?=\n## )/m)
+  assert.ok(table, 'could not locate the `## Top-level fields` section in run-manifest.md — construct rotted')
+  for (const field of ['runId', 'planPath', 'configProfile', 'startedAt', 'endedAt', 'pluginRoot', 'pluginVersion', 'pluginSha']) {
+    assert.match(table[0], new RegExp('^\\| `' + field + '` \\|', 'm'), `run-manifest.md § Top-level fields must carry a \`${field}\` table row`)
+  }
+  assert.match(table[0], /^\| `pluginVersion` \| optional, null-tolerated \| run start \|/m, 'the `pluginVersion` row must be optional, null-tolerated and stamped at run start')
+  const manifest = schemasMd.match(/^## Run manifest[\s\S]*?(?=\n## )/m)
+  assert.ok(manifest, 'could not locate `## Run manifest` in schemas.md — construct rotted')
+  assert.match(manifest[0], /top-level fields[^\n]*run-manifest\.md/, 'schemas.md § Run manifest must point its top-level fields at run-manifest.md (de-mirror)')
+  assert.doesNotMatch(manifest[0], /runId: "<minted UUID>"|planPath: "docs\/plans|configProfile: "balanced/, 'schemas.md restates the manifest top-level jsonc rows — they live only in run-manifest.md (de-mirror)')
+  assert.doesNotMatch(manifest[0], /top-level `runId`, `planPath`/, 'schemas.md restates the MUST-carry top-level list — it lives only in run-manifest.md (de-mirror)')
+  assert.doesNotMatch(manifest[0], /pluginRoot|pluginVersion|pluginSha/, 'schemas.md restates the plugin launch-identity fields — they live only in run-manifest.md (de-mirror)')
+  const init = skillMd.match(/Initialize at run start \([^)]*\)\)?/)
+  assert.ok(init, 'could not locate the card init-stamp sentence `Initialize at run start (…)` in SKILL.md — construct rotted')
+  assert.match(init[0], /references\/run-manifest\.md/, 'the SKILL.md init-stamp sentence must point at run-manifest.md (de-mirror)')
+  assert.doesNotMatch(init[0], /`runId`|`planPath`|`configProfile`|plugin/, 'the SKILL.md init-stamp sentence restates the top-level field list — it lives only in run-manifest.md (de-mirror)')
+  const merge = schemasMd.match(/^## MergeResult[\s\S]*?(?=\n## )/m)
+  assert.ok(merge, 'could not locate `## MergeResult` in schemas.md — construct rotted')
+  assert.match(norm(merge[0]), /`MERGE_CONFIRMATION` \/ `MERGE_RECONCILIATION` declarations are the wire-shape authority; see \[refiner-recovery\.md\]\(refiner-recovery\.md#uncertain-merge-reconciliation\)/, 'schemas.md § MergeResult must point the confirmation and reconciliation shapes at the engine declarations (de-mirror)')
+  assert.doesNotMatch(merge[0], /^\s*(tree|trailer)\??:|^- \*\*`(tree|trailer)`\*\*/m, 'schemas.md restates a `tree` or `trailer` proof row — the shape lives only in the engine declarations (de-mirror)')
+})
+
 // (2026-09-06 Task 1.2 — D22, PIN-26) Doc-truth pins on the remaining surfaces: the manifest
 // relaunch arm lives in run-manifest.md alone (schemas.md points, never restates), the handoff
 // `followUps` literal is the de-mirrored four-key summary, the ask-ruling gate's overrule clause is
@@ -1814,7 +1841,7 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
 // `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
-// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned) and, since wave 5, the born-cold terms too, not one plan's five. Modelled on D28: each residue is a hand-copied cross-file
+// more the same way, so the row now covers every pinned evicted term (wave 4's bodies are deliberately unpinned) and, since wave 5, the born-cold terms too, not one plan's five (wave 6's four born-cold merge-provenance bodies are pinned by skills/red-team/assets/workflow-scaffold.test.mjs, not by this row). Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while CONTEXT.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
@@ -2776,7 +2803,7 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // passage (refinery-surface, war-pipeline-structure, and lessons-learned-doc-contract read other
 // regions — verified by token grep at base); the doc-cli-consistency and war-config `.test.mjs`
 // suites were also read and likewise anchor other regions. Survey-derived
-// straggler, listed per the slice: workflow-template.test.mjs's 'handoff block (criterion 6)'
+// straggler, listed per the slice: workflow-template.engine-1.test.mjs's 'handoff block (criterion 6)'
 // test TITLE still enumerates the pre-widening seven-key handoff literal `{ tipSha, polish,
 // absorbed, followUps, notes, endState, intentPresent }` — title prose only (its assertions are
 // per-key and the ninth key is additive by guardrail: no exact-key validator exists), and its
@@ -3579,7 +3606,11 @@ test('reserve-retired — the roundLimit − 2 reserve arithmetic and the floor-
 // `#gate-failure-classification` in-page anchor token survives in the card or the two references
 // files that linked into it (case-insensitive): an in-page anchor cannot resolve into the moved
 // section, so a surviving token is a dangling link.
-const GATE_FAILURE_SECTION_SHA256 = '927b5e3345a883124bc7270a0f53349469b6c73267d0ed0ab58595c8418679ad'
+// Sanctioned re-pin (#2485 D15, Task 5.1): the opening paragraph's "already gate-capable" premise was
+// false (`_refinery` was never provisioned), so it now states that `_refinery` is provisioned at the
+// phase topology barrier and re-provisioned by the tree rule before the base re-run. Pre-edit pin:
+// 3,126 B, sha256 927b5e3345a883124bc7270a0f53349469b6c73267d0ed0ab58595c8418679ad.
+const GATE_FAILURE_SECTION_SHA256 = 'e1a5fbd12c615702912ca2937dee8cb351e6b5a71337071c47754688b4901e1b'
 test('refiner-evict (a) — the evicted `## Gate-failure classification` body is present verbatim in gate-failure-classification.md (extract and byte equality; ADR 0042, D12)', () => {
   const heading = '\n## Gate-failure classification\n'
   const at = gateFailureMd.indexOf(heading)
@@ -3593,7 +3624,7 @@ test('refiner-evict (a) — the evicted `## Gate-failure classification` body is
   assert.ok(!/\n## /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last `##` section (heading → end of file)')
   // Non-vacuity: the extraction spans the section's tail bullet.
   assert.match(body, /\*\*Debt reuse:\*\*/, 'the extracted section must span its `**Debt reuse:**` tail bullet')
-  assert.equal(Buffer.byteLength(body, 'utf8'), 3126, 'the evicted section is 3,126 B (the pre-eviction card bytes)')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 3482, 'the evicted section is 3,482 B (the pre-eviction card bytes plus the #2485 D15 `_refinery` provisioning edit)')
   assert.equal(
     createHash('sha256').update(body, 'utf8').digest('hex'),
     GATE_FAILURE_SECTION_SHA256,
@@ -3879,7 +3910,7 @@ test('old-default-absent (self-check) — the lawful rewrite passes and each sin
 })
 
 // (barrier-list) CONTEXT.md's **Barrier list** glossary entry hand-spells all four BARRIER_TOKENS.
-// The registry rows in workflow-template.test.mjs bind the inline mirror, the auditor card, the
+// The registry rows in workflow-template.engine-1.test.mjs bind the inline mirror, the auditor card, the
 // eligibility doc, and the schemas.md row — this row binds the fifth hand copy to the canonical
 // array literal in land-decision.mjs (ADR 0025 same-commit mirror duty; the recorded
 // [[default-flip-must-audit-all-doc-surfaces]] class), extracted by construct (bolded term to
@@ -3955,7 +3986,7 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
 
 // (demote-prefix-term) CONTEXT.md's **Demote reason prefix** glossary entry hand-spells all twelve
 // DEMOTE_REASONS members (plan 2026-09-03-in-band-absorb-default, Task 4.2; D13, PIN-15). The
-// registry rows in workflow-template.test.mjs bind the inline mirror; this row binds the glossary
+// registry rows in workflow-template.engine-1.test.mjs bind the inline mirror; this row binds the glossary
 // copy to the canonical array literal in land-decision.mjs (ADR 0025 same-commit mirror duty),
 // extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
 test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names every canonical DEMOTE_REASONS member', () => {
@@ -4000,7 +4031,7 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
 // `provision_red:`, say), which reds the same assert with a message that misnames the cause. The glossary
 // row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
 // line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
-// workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
+// workflow-template.engine-1.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
 test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
   const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')
   const end = workflowTemplateSrc.indexOf('if (mergedTasksForGateAudit.length > 0)')
@@ -4031,7 +4062,7 @@ test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactl
 // cannot de-mirror (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2 re-entry; D7/D8,
 // PIN-11/PIN-12): the two stamp lines `GATE_LOG_STAMP` builds (`tip_sha:` first, `exit_code:` last)
 // and the `GATE_LOG_UNTHREADED` fallback marker the evidence dispatch renders on an unthreaded
-// `gate_log_path`. The gate-log-stamp registry rows in workflow-template.test.mjs bind the engine
+// `gate_log_path`. The gate-log-stamp registry rows in workflow-template.engine-1.test.mjs bind the engine
 // build to the refiner card, and the `unverified-triggers` row above asserts the two stamp tokens
 // only on the engine side (its FRAME), so nothing else watches this glossary copy — a rename of
 // either stamp token or a rewording of the marker would leave it silently stale. Both literals are
@@ -4301,6 +4332,13 @@ test('sweep-exclusion-pin — SKILL.md carries the ADR 0042 trigger pointer and 
   for (const field of ['`sweepExcludeCount`', '`finalPhase`']) {
     assert.ok(mustCarry[0].includes(field), `the run-manifest.md MUST-carry sentence must list ${field} in the per-phase set (PIN-8; Task 6.1)`)
   }
+  // The launch identity (#2485 D22, PIN-26): the three plugin fields ride the TOP-LEVEL list, the
+  // tail after `**top level**`, so a name moved into the per-phase set reds here too.
+  const topLevel = mustCarry[0].slice(mustCarry[0].indexOf('**top level**'))
+  for (const field of ['`pluginRoot`', '`pluginVersion`', '`pluginSha`']) {
+    assert.ok(topLevel.includes(field), `the run-manifest.md MUST-carry sentence must list ${field} on its top-level list (#2485 D22, PIN-26)`)
+  }
+  assert.match(topLevel, /optional, null-tolerated/, 'the run-manifest.md top-level list must mark the plugin fields optional and null-tolerated (the `workflowRunId` posture; #2485 D22)')
 })
 
 test('lead-carry-pin — resume-and-recovery.md carries the relaunch carry steps: carriedPhaseClose → args.seededPhaseClose, finalPhase at every launch, the absorbCharges override, the transcript re-derivation residual (End state 16, D3a/D3b, PIN-5)', () => {

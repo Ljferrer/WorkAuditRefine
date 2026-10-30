@@ -15,14 +15,15 @@ WAR advertises a "three-layer resumable source of truth" — GitHub issue labels
 3. **The journal is off-ladder.** The `resumeFromRunId` journal is an intra-phase replay cache, not a landed-state record. A resumed phase re-runs the gate and the push-first CAS, so a stale cached "merged" is caught at re-land, never trusted — no reconciliation is defined for it.
 
 Recovery auto-skips additionally require `task-integrated.sh` proof: integrated ancestry and a
-nonempty task commit carrying `WAR-Task: <task branch>` in the phase history. This committed
-provenance survives cloning and rebasing. Surviving net task-owned work and unchanged content across
-the union of all owned commits’ changed paths at integration are also required, with stable input
-refs. Nonempty mixed history after the first owned commit cannot establish that attribution. Later reverts
-or removals cannot count as completed work merely because ancestry remains. Each probe uses its
-own repository and base (submodule targetRepo/targetBase). Untagged legacy, cancelled-owned, mixed-history and
-changed-content branches take ordinary work/audit;
-a shared commit count or local marker cannot establish task ownership (#2196).
+first-parent merge commit in the phase history whose parsed `WAR-Task: <task branch>` trailer names the
+task and whose second parent equals the task tip (merge-commit provenance, ADR 0054). The engine writes
+that commit, so worker commits need no trailer, and the committed provenance survives cloning and
+rebasing. Unchanged task content across the paths that merge commit changed (`M^1..M^2`) at integration is
+also required, with stable input refs. A fast-forward-only, zero-commit or sibling-only branch has no such
+merge commit and cannot establish that attribution. Later reverts or removals cannot count as completed
+work merely because ancestry remains. Each probe uses its own repository and base (submodule
+targetRepo/targetBase). Untagged legacy, cancelled-owned and changed-content branches take ordinary
+work/audit; a shared commit count or local marker cannot establish task ownership (#2196).
 
 ## Considered options
 
@@ -48,3 +49,4 @@ a shared commit count or local marker cannot establish task ownership (#2196).
 
 - 2026-09-09 · Operator authorized Git-resident task provenance before automatic recovery skips;
   sibling-only, empty-tagged and untagged legacy branches cannot be marked complete (#2196).
+- 2026-10-30 · The recovery auto-skip proof moved from a worker-written `WAR-Task` commit trailer to the engine's first-parent task merge commit; git stays the source of truth and the repair direction is unchanged · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D8, D14, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).

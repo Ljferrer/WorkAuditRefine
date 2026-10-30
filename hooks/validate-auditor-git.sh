@@ -253,7 +253,7 @@ esac
 # the char allowlist already excludes quotes and glob chars, so no re-split/glob.
 # COUPLING: the deny string's two parenthesized flag groups are parsed by the
 # extraction-equality test (2026-07-26 spec D6) in
-# skills/war/assets/workflow-template.test.mjs — reshape both together.
+# skills/war/assets/workflow-template.engine-1.test.mjs — reshape both together.
 # ---------------------------------------------------------------------------
 if [ "$subcmd" = "branch" ]; then
   branch_rest="${rest#branch}"
