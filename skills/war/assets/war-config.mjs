@@ -78,6 +78,9 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
+    // helper: the tier of the tiny read-only Git dispatches (audit-pin, diff-probe) on the war-helper card
+    // (#2497, ADR 0057). NOT a phase role (never in ROLES/agentMatrix). Every preset inherits it.
+    helper:   { model: 'haiku',  effort: 'low' },
     // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise
     // pass runs fable. The survey critic and the roles that write or regroup an artifact run opus. The
     // other reading roles run sonnet. thorough and economy pin their own seats (see PRESETS).
@@ -205,8 +208,7 @@ export const PRESETS = {
   economy: {
     profile: 'economy',
     // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers, the
-    // auditor, refiner, servitor and red-team seats, the trial tier (A9), the skill seats (machine, survey,
-    // lessons), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
+    // auditor, refiner, servitor and red-team seats, the trial tier (A9), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
     // autoEscalate widening fallback, the phase-close polish panel, and the terminal-pass seat source,
     // never a per-task seat count.
@@ -351,6 +353,8 @@ export function validate(input) {
   // agents.trial — the fork-trial subagent tier (D18), validated in the redteam idiom (present ⇒ a
   // tier; a present null is rejected). /war-strategy's plan interview reads it fail-open.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'trial')) validateAgentTier(c.agents.trial, 'agents.trial', errors)
+  // agents.helper — the war-helper tier (ADR 0057), validated in the redteam idiom.
+  if (Object.prototype.hasOwnProperty.call(c.agents, 'helper')) validateAgentTier(c.agents.helper, 'agents.helper', errors)
   // agents.machine / .survey / .lessons — skill seat maps: each present key an object whose keys are that
   // skill's SKILL_SEATS members, each seat a { model, effort } tier.
   for (const [skill, seats] of Object.entries(SKILL_SEATS)) {
@@ -362,7 +366,7 @@ export function validate(input) {
       else validateAgentTier(block[seat], `agents.${skill}.${seat}`, errors)
     }
   }
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', ...Object.keys(SKILL_SEATS)]
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', 'helper', ...Object.keys(SKILL_SEATS)]
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }

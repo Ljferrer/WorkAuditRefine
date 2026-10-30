@@ -1485,6 +1485,7 @@ test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent mod
     auditor:  DEFAULTS.agents.auditor.model,
     refiner:  DEFAULTS.agents.refiner.model,
     servitor: DEFAULTS.agents.servitor.model,
+    helper:   DEFAULTS.agents.helper.model,
   })
 })
 
@@ -1605,7 +1606,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
 // SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', ...SKILL_SEAT_PATHS]
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', 'helper', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -1659,7 +1660,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial', 'helper-tier': 'helper' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {

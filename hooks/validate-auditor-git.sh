@@ -14,8 +14,9 @@
 #   same way through its own suffix-anchored arm `*war-evidence-auditor`
 #   (`*war-auditor` does not capture `<ns>:war-evidence-auditor`); its MCP
 #   tools are gated by validate-evidence-auditor-mcp.sh, never here.
-#   Every other agent type → exit 0 (pass-through; this guard gates the two
-#   read-only seats only).
+#   war-helper (ADR 0057) has its own arm too: it keeps Bash only to read Git.
+#   Every other agent type → exit 0 (pass-through; this guard gates these
+#   three read-only agents only).
 #
 # FAIL-CLOSED CHARACTER ALLOWLIST (bash 3.2.57 compatible)
 #   Permitted chars: [A-Za-z0-9 ./_=:,@^~%+-]
@@ -75,6 +76,7 @@ cmd="$(get '.tool_input.command')"
 case "$atype" in
   *war-auditor) ;;
   *war-evidence-auditor) ;;
+  *war-helper) ;;
   *) exit 0 ;;
 esac
 

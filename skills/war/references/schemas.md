@@ -158,7 +158,7 @@ The probe rebases and measures; it never merges, never pushes the integration br
 { diff_files?: ["path"],   // `git diff --name-only <dispatchBase>..<tip>` in the task worktree — one repo-relative path per entry; the GIT-derived changed-file list dispositionOf's engine default and the intake filing floor read (in-band-absorb-default D4, PIN-6)
   detail? }                // free text on a git error — returned WITHOUT diff_files
 ```
-Dispatched as `diff-probe:<taskId>` (`dispatchKind: diff-probe`), ONE per task, idempotent on resume. Its OWN schema (the PinTransfer precedent): no `MergeResult` status, `HARD_ESCALATION_REASONS` member, or `KNOWN_LAND_DECISIONS` member changes. **Fail-open:** a dead/thrown dispatch or a return without a `diff_files` array leaves the probe ABSENT (logged) — that task keeps the old severity default, the intake floor skips it, and its filed seat rows carry `demote:floor-skipped` (one of the no-probe-ran sites — the reason also covers a row raised at the escalation arm, the sweep, or the terminal pass; the enum is `DEMOTE_REASONS` in `land-decision.mjs`, described in the `barrier` provenance row above). Worker `files_changed` is never the source.
+Dispatched as `diff-probe:<taskId>` (`dispatchKind: diff-probe`) on the `war-helper` card, ONE per task, idempotent on resume. Its OWN schema (the PinTransfer precedent): no `MergeResult` status, `HARD_ESCALATION_REASONS` member, or `KNOWN_LAND_DECISIONS` member changes. **Fail-open:** a dead/thrown dispatch or a return without a `diff_files` array leaves the probe ABSENT (logged) — that task keeps the old severity default, the intake floor skips it, and its filed seat rows carry `demote:floor-skipped` (one of the no-probe-ran sites — the reason also covers a row raised at the escalation arm, the sweep, or the terminal pass; the enum is `DEMOTE_REASONS` in `land-decision.mjs`, described in the `barrier` provenance row above). Worker `files_changed` is never the source.
 
 ## EvidenceResult — `war-refiner` (the post-merge `evidence:phase-<id>` dispatch)
 ```jsonc
@@ -303,11 +303,12 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
     worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix / .ace is set, below)
-    auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier, above a seat's own model/effort too; no default, absent ⇒ each seat keeps its usual tier
+    auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier; no default, absent ⇒ each seat keeps its usual tier
     refiner:  { model, effort },
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session
     trial?: { model, effort },               // not a phase role — the fork-trial subagent tier (D18) `/war-strategy`'s plan interview reads fail-open like redteam; defaulted in `war-config.mjs` DEFAULTS and re-pinned by every preset; validated like redteam; no `agents/*.md` card
+    helper?: { model, effort },              // not a phase role — the audit-pin and diff-probe tier on the war-helper card (ADR 0057); defaulted in DEFAULTS, every preset inherits it
     machine?: { drafter, derive, apply, revise },              // skill seats (ADR 0056): each seat a { model, effort } tier; seat names are SKILL_SEATS in war-config.mjs; defaulted in DEFAULTS; thorough and economy pin their own
     survey?: { miner, reader, cluster, synth, critic },        // skill seats for /survey-corps, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
     lessons?: { investigate, edit, retype, keywords },         // skill seats for /lessons-learned, read fail-open: a missing config uses the balanced defaults, an invalid one the session model

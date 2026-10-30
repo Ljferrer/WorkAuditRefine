@@ -28,19 +28,13 @@ filesystem, recovery, state machines) while routine seats run sonnet.
 
 **Amended 2026-10-31 (0.21.25): every subagent role in `/war-machine`, `/survey-corps` and `/lessons-learned` gets a skill seat.**
 `agents.machine`, `agents.survey` and `agents.lessons` each map that skill's role names
-(`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. By operator ruling (2026-10-30), the
-balanced defaults put plan conversion on the stronger models: every war-machine seat runs above the
-survey readers, and the revise pass runs the strongest model. The survey clusterer, synthesizer and
-critic and the lessons editor also run above the reading roles. The lessons retype and keyword
-passes write only short metadata, so they stay with the reading roles. `thorough` runs each seat one
-model tier higher, capped at fable. `economy` runs a little lower. The values for each preset live in
-`war-config.mjs` and the `/war-room` skill seats bullets, never restated here. Each skill reads them
-fail-open: a missing config file uses the balanced defaults, and an invalid config leaves the agents
-on the session model.
-
-**Amended 2026-10-31 (0.21.25): a rebuttal round can take its own tier.** A configured
-`agents.auditor.rebuttal` replaces each rebuttal-round seat's tier, the seat's own roster
-`model`/`effort` included. Absent, the round keeps each seat's usual tier.
+(`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. By operator ruling (2026-10-30), plan
+conversion runs on the stronger models: every war-machine seat runs above the survey readers, and the
+revise pass runs the strongest model. The survey critic and the roles that write or regroup an
+artifact also run above the reading roles. The values live in `war-config.mjs` and the `/war-room`
+skill seats bullets. `thorough` runs each seat one model tier higher, capped at fable. `economy` runs
+a little lower, but plan drafting, clustering and spec synthesis keep opus. Each skill reads them fail-open: a missing config
+file uses the balanced defaults, and an invalid config leaves the agents on the session model.
 
 ## Consequences
 

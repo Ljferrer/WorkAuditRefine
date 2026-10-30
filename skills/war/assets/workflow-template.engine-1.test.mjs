@@ -7967,9 +7967,8 @@ test('#2519 — per-seat model: a seat with model/effort dispatches on it; a sea
   assert.deepEqual(optsOf('plan-faithfulness'), { model: 'opus', effort: undefined }, 'a seat effort of default overrides the tier effort (inherit session) and keeps the tier model')
 })
 
-// agents.auditor.rebuttal: a split panel's rebuttal-round seats take the rebuttal tier, above the seat's own
-// roster model too; the round-0 seats keep their usual tier. Absent, the rebuttal seats keep their usual tier
-// (unchanged from before the tier existed). The security seat carries its own model so the precedence is pinned.
+// agents.auditor.rebuttal: a split panel's rebuttal-round seats take the rebuttal tier; the round-0 seats keep
+// the auditor tier. Absent, the rebuttal seats keep the auditor tier (unchanged from before the tier existed).
 test('agents.auditor.rebuttal — rebuttal-round seats dispatch on the rebuttal tier when set, else on the auditor tier', async () => {
   const splitImpl = (prompt, opts) => {
     if (seatOf(opts) === 'war-auditor') {
@@ -7982,16 +7981,16 @@ test('agents.auditor.rebuttal — rebuttal-round seats dispatch on the rebuttal 
   }
   const optsByRound = async (auditor) => {
     const { calls } = await runPhase(PROVISION_ARGS({ agents: { auditor }, tasks: [
-      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security', model: 'fable' }] },
+      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security' }] },
     ] }), splitImpl)
     const pick = label => { const c = calls.find(x => x.opts.label === label); assert.ok(c, `${label} dispatched (presence guard)`); return { model: c.opts.model, effort: c.opts.effort } }
     return { first: pick('audit:t1:security'), rebut: pick('audit:t1:security:rebut') }
   }
   const set = await optsByRound({ model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'opus', effort: 'default' } })
-  assert.deepEqual(set.first, { model: 'fable', effort: 'xhigh' }, 'the round-0 seat keeps its own model over the auditor tier')
-  assert.deepEqual(set.rebut, { model: 'opus', effort: undefined }, 'the rebuttal seat carries agents.auditor.rebuttal, above its own model — drop the rebut arg or let s.model win and this fails')
+  assert.deepEqual(set.first, { model: 'sonnet', effort: 'xhigh' }, 'the round-0 seat keeps the auditor tier')
+  assert.deepEqual(set.rebut, { model: 'opus', effort: undefined }, 'the rebuttal seat carries agents.auditor.rebuttal — drop the rebut arg to spawnSeat and this fails')
   const absent = await optsByRound({ model: 'sonnet', effort: 'xhigh' })
-  assert.deepEqual(absent.rebut, { model: 'fable', effort: 'xhigh' }, 'no rebuttal tier ⇒ the rebuttal seat keeps its usual tier (its own model)')
+  assert.deepEqual(absent.rebut, { model: 'sonnet', effort: 'xhigh' }, 'no rebuttal tier ⇒ the rebuttal seat keeps the auditor tier')
 })
 
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
@@ -13053,8 +13052,8 @@ test('filing-floor — the diff-probe dispatch runs per task after the worker\'s
   assert.ok(workIdx < probeIdx && probeIdx < auditIdx, 'worker → probe → first audit seat (before the seats convene)')
   const p = calls[probeIdx]
   assert.equal(p.opts.label, 'diff-probe:t1', 'label diff-probe:<task>')
-  assert.equal(seatOf(p.opts), 'war-refiner', 'a refiner dispatch')
-  assert.ok(p.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t1 diff --name-only') && p.prompt.includes('merge-base integration/wtprov-a/phase-3 deadbeef'), 'the prompt names the git range in the task worktree: merge-base(integration, tip)..tip')
+  assert.equal(seatOf(p.opts), 'war-helper', 'a helper dispatch')
+  assert.ok(p.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/p3-t1 diff --name-only integration/wtprov-a/phase-3...deadbeef'), 'the prompt names the three-dot git range in the task worktree')
   assert.ok(/Idempotent/.test(p.prompt), 'idempotent on resume')
   assert.ok(p.opts.schema && p.opts.schema.properties && p.opts.schema.properties.diff_files, 'its own DIFF_PROBE_RESULT schema carries diff_files')
   assert.ok(!(p.opts.schema.required || []).includes('diff_files'), 'diff_files is optional (fail-open)')
@@ -17159,3 +17158,10 @@ test('2485/ES15 the gate-log preamble repeats the provision_tree marker line, an
   assert.ok(bare && !bare.prompt.includes(ACE_RED), 'a provision-less ace gate carries no provision sentence')
 })
 
+
+test('every agent card the engine dispatches is registered in plugin.json (an unlisted card is not an agent type)', () => {
+  const manifest = JSON.parse(readFileSync('.claude-plugin/plugin.json', 'utf8'))
+  const dispatched = [...new Set([...readFileSync('skills/war/assets/workflow-template.js', 'utf8').matchAll(/NS \+ '(war-[a-z-]+)'/g)].map(m => m[1]))]
+  assert.ok(dispatched.includes('war-helper') && dispatched.includes('war-worker'), 'the scan sees the literals')
+  for (const card of dispatched) assert.ok(manifest.agents.includes(`./agents/${card}.md`), `${card} is dispatched but plugin.json does not list it`)
+})
