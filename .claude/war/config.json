@@ -36,7 +36,7 @@
     },
     "servitor": {
       "model": "opus",
-      "effort": "high"
+      "effort": "medium"
     },
     "redteam": {
       "model": "opus",
