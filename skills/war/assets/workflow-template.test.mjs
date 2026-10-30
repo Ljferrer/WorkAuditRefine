@@ -18720,7 +18720,8 @@ test('pin-transfer integrity: abbreviated and full names of the same base cannot
 
 test('recovery integrity #2196: real Git provenance distinguishes sibling, legacy, empty, unmerged and rebased task work', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-task-provenance-'))
-  const git = (...args) => { const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+  const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
   const taskBranch = 'war/wtprov-a/p3-t1', integration = 'integration/wtprov-a/phase-3', working = 'dev/wtprov-a'
   const probe = () => spawnSync('bash', [join(here, 'task-integrated.sh'), taskBranch, integration, working], { cwd: dir, encoding: 'utf8' })
   const commit = (file, message) => { writeFileSync(join(dir, file), message); git('add', file); git('commit', '-m', message) }
@@ -18734,17 +18735,18 @@ test('recovery integrity #2196: real Git provenance distinguishes sibling, legac
   try {
     git('init', '-b', working); git('config', 'user.name', 'WAR Fixture'); git('config', 'user.email', 'fixture@example.invalid')
     commit('base', 'base'); commit('prior-phase', 'prior work\n\nWAR-Task: ' + taskBranch); git('checkout', '-b', integration)
-    commit('sibling', 'sibling\n\nWAR-Task: war/wtprov-a/p3-t2')
+    // Every task merge is the engine's --no-ff merge commit carrying WAR-Task (#2485 D8); worker commits carry none.
+    git('checkout', '-b', 'war/wtprov-a/p3-t2'); commit('sibling', 'sibling'); git('checkout', integration); gitTaskMerge(run, 'war/wtprov-a/p3-t2', 'war/wtprov-a/p3-t2')
     git('branch', taskBranch)
     await check(1, 'branch cut at a later sibling tip')
     git('checkout', taskBranch); commit('legacy', 'legacy task without trailer'); git('checkout', integration); git('merge', '--ff-only', taskBranch)
-    await check(1, 'untagged legacy work is conservative')
-    git('checkout', taskBranch); git('commit', '--allow-empty', '-m', 'bookkeeping\n\nWAR-Task: ' + taskBranch); git('checkout', integration); git('merge', '--ff-only', taskBranch)
-    await check(1, 'empty tagged commit')
-    git('checkout', taskBranch); commit('deliverable', 'implement t1\n\nWAR-Task: ' + taskBranch)
+    await check(1, 'a legacy fast-forward merge is conservative')
+    git('checkout', taskBranch); git('commit', '--allow-empty', '-m', 'bookkeeping'); git('checkout', integration); gitTaskMerge(run, taskBranch, taskBranch)
+    await check(0, 'an empty task proves through its merge commit (net zero)')
+    git('checkout', taskBranch); commit('deliverable', 'implement t1')
     await check(1, 'own work not integrated')
-    git('checkout', integration); commit('sibling-later', 'another sibling'); git('checkout', taskBranch); git('rebase', integration); git('checkout', integration); git('merge', '--ff-only', taskBranch)
-    await check(0, 'rebased nonempty own task commit')
+    git('checkout', integration); commit('sibling-later', 'another sibling'); git('checkout', taskBranch); git('rebase', integration); git('checkout', integration); gitTaskMerge(run, taskBranch, taskBranch)
+    await check(0, 'rebased own task work merged by its merge commit')
     git('reflog', 'expire', '--expire=now', '--all')
     await check(0, 'proof does not depend on a local reflog')
     const clone = join(dir, 'fresh-machine')
@@ -20362,9 +20364,9 @@ for (const kind of ['unchanged', 'sibling', 'reverted', 'removed', 'changed', 'e
       if (kind.startsWith('gitlink')) { git('update-index', '--cacheinfo', '160000,' + git('rev-parse', 'HEAD') + ',module'); git('config', 'diff.ignoreSubmodules', 'all') }
       // Add the ordinary file separately so an ignore-submodules default cannot hide the entire task.
       if (kind !== 'gitlink-only') git('add', '--', file)
-      git('commit', '-m', 'task work\n\nWAR-Task: task'); const approved = git('rev-parse', 'HEAD')
+      git('commit', '-m', 'task work'); const approved = git('rev-parse', 'HEAD')
       if (kind === 'empty-final') git('revert', '--no-edit', approved)
-      git('checkout', 'integration'); git('merge', '--ff-only', 'task')
+      git('checkout', 'integration'); gitTaskMerge((...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' }), 'task', 'task')
       if (kind === 'reverted') git('revert', '--no-edit', approved)
       if (kind === 'removed') { git('rm', file); git('commit', '-m', 'remove task work') }
       if (kind === 'changed' || kind === 'odd-changed' || kind === 'external-masks-change' || kind === 'subdirectory') { writeFileSync(join(dir, file), 'lost accepted behavior'); commit('alter task work') }
@@ -20378,7 +20380,8 @@ for (const kind of ['unchanged', 'sibling', 'reverted', 'removed', 'changed', 'e
       }
       if (kind === 'mode-changed') { git('update-index', '--chmod=+x', file); git('commit', '-m', 'change required file mode') }
       const result = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: kind === 'subdirectory' ? join(dir, 'nested') : dir, encoding: 'utf8' })
-      const preserved = ['unchanged', 'sibling', 'odd-sibling', 'gitlink-only'].includes(kind)
+      // empty-final nets to zero: its merge commit is the proof, so it proves (#2485 D14).
+      const preserved = ['unchanged', 'sibling', 'odd-sibling', 'gitlink-only', 'empty-final'].includes(kind)
       assert.equal(result.status, preserved ? 0 : 1, result.stdout + result.stderr)
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: result.status === 0 ? ['t1'] : [] }))
       assert.equal(out.auditLog.some(r => r.verdict === 'recovered:pre-merged'), preserved)
@@ -20396,7 +20399,9 @@ for (const [submodule, relative] of [[false, false], [true, false], [true, true]
     if (submodule) { init(seed, 'main'); gitAt(parent, '-c', 'protocol.file.allow=always', 'submodule', 'add', seed, 'module'); gitAt(parent, 'commit', '-m', 'add module') }
     const repo = submodule ? join(parent, 'module') : parent, git = (...args) => gitAt(repo, ...args)
     git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid'); git('branch', 'integration'); git('checkout', '-b', 'task')
-    writeFileSync(join(repo, 'deliverable'), 'task work'); git('add', 'deliverable'); git('commit', '-m', 'work\n\nWAR-Task: ' + (owned ? 'task' : 'other-task')); git('checkout', 'integration'); git('merge', '--ff-only', 'task')
+    writeFileSync(join(repo, 'deliverable'), 'task work'); git('add', 'deliverable'); git('commit', '-m', 'work'); git('checkout', 'integration')
+    // An unowned probe is another task's merge commit whose second parent is this task's tip.
+    gitTaskMerge((...args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' }), 'task', owned ? 'task' : 'other-task')
     let proofCommand
     const { out, calls } = await runPhase(PROVISION_ARGS({ mainCheckout: parent, phase: { id: 3, title: 'P3', integrationBranch: 'integration', workingBranch: 'super-only' }, tasks: [{ ...SINGLE_TASK[0], branch: 'task', worktree: repo, ...(submodule ? { taskType: 'submodule', targetRepo: relative ? 'module' : repo, targetBase: 'main' } : {}) }], recovery: { sanctioned: true } }), (p, o) => {
       if (o.dispatchKind === 'provision-barrier') {
@@ -20414,17 +20419,18 @@ for (const [submodule, relative] of [[false, false], [true, false], [true, true]
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error', 'owned-history-error', 'mixed-diff-error', 'owned-net-error', 'root-error', 'enter-root-error', 'ancestry-error', 'phase-base-error', 'history-error', 'trailer-error', 'commit-diff-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
+// Re-keyed to the merge-commit helper (#2485 D14): the per-commit diff, owned-interval, unowned-diff and
+// surviving-net reads retired with the checks they served; the merge-parent read is new.
+for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error', 'root-error', 'enter-root-error', 'ancestry-error', 'phase-base-error', 'history-error', 'trailer-error', 'parents-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-recovery-proof-error-')), bin = join(dir, 'bin'), scratch = join(dir, 'scratch')
   const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
   const git = (...args) => { const r = spawnSync(realGit, args, { cwd: dir, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
   try {
     mkdirSync(bin); mkdirSync(scratch); git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
     writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); const base = git('rev-parse', 'HEAD'); git('checkout', '-b', 'task')
-    writeFileSync(join(dir, 'deliverable'), 'approved'); git('add', 'deliverable'); git('commit', '-m', 'task\n\nWAR-Task: task'); const firstOwned = git('rev-parse', 'HEAD')
-    if (scenario === 'mixed-diff-error') git('commit', '--allow-empty', '-m', 'bookkeeping')
-    if (scenario === 'owned-net-error') { writeFileSync(join(dir, 'deliverable'), 'revised'); git('add', 'deliverable'); git('commit', '-m', 'revision\n\nWAR-Task: task') }
-    const taskTip = git('rev-parse', 'HEAD'); git('branch', 'integration')
+    writeFileSync(join(dir, 'deliverable'), 'approved'); git('add', 'deliverable'); git('commit', '-m', 'task')
+    const taskTip = git('rev-parse', 'HEAD'); git('checkout', '-b', 'integration', 'working')
+    gitTaskMerge((...args) => spawnSync(realGit, args, { cwd: dir, encoding: 'utf8' }), 'task', 'task')
     // The wrapper simulates a concurrent writer or a failed Git read; the helper itself stays read-only.
     writeFileSync(join(bin, 'git'), `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process')
@@ -20433,13 +20439,10 @@ if (scenario === 'root-error' && args.includes('--show-toplevel')) process.exit(
 if (scenario === 'enter-root-error' && args.includes('--show-toplevel')) { console.log(${JSON.stringify(join(dir, 'missing-root'))}); process.exit(0) }
 if (scenario === 'ancestry-error' && args.includes('--is-ancestor')) process.exit(128)
 if (scenario === 'phase-base-error' && args[0] === 'merge-base' && !args.includes('--is-ancestor')) process.exit(128)
-if (scenario === 'history-error' && args[0] === 'rev-list' && args.includes('--no-merges')) process.exit(128)
-if (scenario === 'trailer-error' && args[0] === 'show') process.exit(128)
-if (scenario === 'commit-diff-error' && args.includes('--quiet') && args.includes(${JSON.stringify(firstOwned + '^')})) process.exit(128)
+if (scenario === 'history-error' && args[0] === 'rev-list' && args.includes('--first-parent')) process.exit(128)
+if (scenario === 'trailer-error' && args[0] === 'show' && args.includes('--format=%(trailers:key=WAR-Task,valueonly)')) process.exit(128)
+if (scenario === 'parents-error' && args[0] === 'show' && args.includes('--format=%P')) process.exit(128)
 if (scenario === 'list-error' && args.includes('--name-only')) process.exit(128)
-if (scenario === 'owned-history-error' && args[0] === 'rev-list' && args.length === 2) process.exit(128)
-if (scenario === 'mixed-diff-error' && args.includes('--quiet') && args.includes(${JSON.stringify(taskTip + '^')})) process.exit(128)
-if (scenario === 'owned-net-error' && args.includes('--quiet') && args.includes(${JSON.stringify(firstOwned + '^')}) && args.includes(${JSON.stringify(taskTip)})) process.exit(128)
 if (scenario === 'compare-error' && args.includes('--quiet') && args.at(-1) === 'deliverable') process.exit(128)
 if (scenario === 'refs-error' && JSON.stringify(args) === JSON.stringify(['rev-parse','refs/heads/task^{commit}','refs/heads/integration^{commit}','refs/heads/working^{commit}'])) process.exit(128)
 const r = spawnSync(real, args, { stdio: 'inherit' })
@@ -20459,11 +20462,10 @@ process.exit(r.status ?? 128)
       const diagnostic = {
         'root-error': 'cannot resolve repository root', 'enter-root-error': 'cannot enter repository root',
         'ancestry-error': 'ancestry check failed', 'phase-base-error': 'cannot resolve phase base',
-        'history-error': 'cannot read task history', 'trailer-error': 'cannot read task trailer',
-        'commit-diff-error': 'cannot read task commit diff', 'list-error': 'cannot read owned task paths',
+        'history-error': 'cannot read integration history', 'trailer-error': 'cannot read task trailer',
+        'parents-error': 'cannot read merge parents', 'list-error': 'cannot read owned task paths',
         'compare-error': 'cannot compare current task content', 'refs-error': 'cannot re-read proof refs',
-        'temp-error': 'cannot allocate proof paths', 'owned-history-error': 'cannot read owned interval',
-        'mixed-diff-error': 'cannot read unowned contribution', 'owned-net-error': 'cannot read surviving task-owned diff',
+        'temp-error': 'cannot allocate proof paths',
       }[scenario]
       assert.ok(diagnostic, 'every injected failure has its own diagnostic oracle')
       assert.ok(r.stderr.includes('task-integrated: ' + diagnostic), r.stderr)
@@ -20516,12 +20518,15 @@ for (const scenario of ['sibling-after-reverted-owner', 'sibling-before-reverted
         git('checkout', 'task'); put('main-work', 'owned main work'); commit('owned main')
         git('merge', '--no-ff', '--no-commit', 'side'); put('merge-only', 'required resolution'); commit('owned merge')
       }
-      git('checkout', 'integration'); git('merge', '--ff-only', 'task')
+      git('checkout', 'integration'); gitTaskMerge((...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' }), 'task', 'task')
       if (scenario === 'tagged-merge-only-loss') { git('rm', 'merge-only'); commit('lose merge resolution', 'other-task') }
       if (scenario === 'earlier-owned-path-lost') { git('rm', 'deliverable'); commit('later loss', 'other-task') }
       if (scenario === 'later-owned-path-lost') { git('rm', 'second'); commit('later loss', 'other-task') }
       if (scenario === 'restored-path-lost') { put('obsolete', 'sibling file'); commit('undo task deletion', 'other-task') }
-      const preserved = ['owned-revision', 'restored-path-preserved', 'restored-path-only', 'unowned-empty-bookkeeping'].includes(scenario)
+      // The merge commit owns the whole task branch (#2485 D14): sibling-trailered, untrailered and
+      // reverting commits inside it no longer refuse, and a net-zero task proves. Only owned-path
+      // content lost at integration after the merge still refuses.
+      const preserved = !['earlier-owned-path-lost', 'later-owned-path-lost', 'restored-path-lost', 'tagged-merge-only-loss'].includes(scenario)
       const r = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: dir, encoding: 'utf8' })
       assert.equal(r.status, preserved ? 0 : 1, r.stdout + r.stderr)
       const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, recovery: { sanctioned: true } }), barrierEnv({ ok: true, preMerged: r.status === 0 ? ['t1'] : [] }))
@@ -20599,9 +20604,9 @@ for (const integrated of [false, true]) test('recovery ancestry is independent o
   try {
     git('init', '-b', 'working'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
     writeFileSync(join(dir, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base'); git('checkout', '-b', 'task')
-    writeFileSync(join(dir, 'owned'), 'same content'); git('add', 'owned'); git('commit', '-m', 'owned task\n\nWAR-Task: task')
+    writeFileSync(join(dir, 'owned'), 'same content'); git('add', 'owned'); git('commit', '-m', 'owned task')
     git('checkout', '-b', 'integration', 'working')
-    if (integrated) git('merge', '--ff-only', 'task')
+    if (integrated) gitTaskMerge((...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' }), 'task', 'task')
     else { writeFileSync(join(dir, 'owned'), 'same content'); git('add', 'owned'); git('commit', '-m', 'independent integration work') }
     assert.equal(git('rev-parse', 'task^{tree}'), git('rev-parse', 'integration^{tree}'), 'identical paths, blobs and modes cannot substitute for ancestry')
     const r = spawnSync('bash', [join(here, 'task-integrated.sh'), 'task', 'integration', 'working'], { cwd: dir, encoding: 'utf8' })
@@ -22490,4 +22495,68 @@ test('2485/ES8 MergeResult key-set: every MERGE_RESULT.properties name, gate_sha
   assert.ok(sentence, 'the card return-shape sentence exists')
   const shape = sentence.match(/: `\{ ([^}]+) \}`/)[1].split(',').map(s => s.trim().replace(/\?$/, '')).sort()
   assert.deepEqual(shape, keys, 'the card return shape mirrors MERGE_RESULT.properties exactly')
+})
+
+// ES17 (D18, PIN-18): the barrier's absorb-charge read runs the EXACT dispatched bash spelling against
+// real Git. Once a task merges through its --no-ff merge commit, <integration>..<branch> is empty, so the
+// seed must read M^1..M^2 of that merge commit; a charge naming another task id never counts.
+const absorbReadOf = async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const prompt = calls.find(isProvision).prompt
+  const cmd = prompt.match(/ABSORB-CHARGE READ[^\n]*?run this one bash command with its two angle-bracket placeholders filled: `([^`]+)`/)
+  assert.ok(cmd, 'the barrier prompt spells the absorb-charge read as one bash command')
+  return { prompt, cmd: cmd[1] }
+}
+const absorbFixture = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-absorb-seed-'))
+  const run = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+  const git = (...args) => { const r = run(...args); assert.equal(r.status, 0, r.stderr); return r.stdout.trim() }
+  const commit = (file, message) => { writeFileSync(join(dir, file), message); git('add', file); git('commit', '-m', message) }
+  git('init', '-b', 'dev/wtprov-a'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+  commit('base', 'base'); git('branch', 'integration/wtprov-a/phase-3')
+  return { dir, run, git, commit }
+}
+const readCharges = (cmd, dir, branch) => {
+  const filled = cmd.replace(`<that task's worktree>`, dir).replace(`<that task's branch>`, branch)
+  const r = spawnSync('bash', ['-c', filled], { encoding: 'utf8' })
+  assert.equal(r.status, 0, r.stderr)
+  return r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
+}
+// The prompt's rule: the bare task id segment must equal this task's id; take the HIGHEST n.
+const highestFor = (values, id) => Math.max(0, ...values.map(v => v.match(/^(.+):(\d+)$/)).filter(m => m && m[1] === id).map(m => Number(m[2])))
+
+test('2485/ES17 absorb-charge seed counts Ace-Charge on a merged task through its merge commit M^1..M^2', async () => {
+  const { prompt, cmd } = await absorbReadOf()
+  assert.ok(prompt.includes('a merged branch reads M^1..M^2 of its first-parent WAR-Task merge commit M'), 'the prompt names the merged-branch range')
+  assert.match(refinerMd, /over `M\^1\.\.M\^2` of its first-parent `WAR-Task` merge commit `M` once merged/, 'the card names the same range')
+  const { dir, git, run, commit } = absorbFixture()
+  const branch = 'war/wtprov-a/p3-t1'
+  try {
+    git('checkout', '-b', branch)
+    commit('one', 'ace one\n\nAce-Charge: t1:1'); commit('two', 'ace two\n\nAce-Charge: t1:2'); commit('fix', 'untrailered floor fix')
+    // Unmerged: the integration..branch range carries the charges.
+    assert.equal(highestFor(readCharges(cmd, dir, branch), 't1'), 2, 'an unmerged branch reads integration..branch')
+    git('checkout', 'integration/wtprov-a/phase-3'); commit('sibling', 'sibling work')
+    gitTaskMerge(run, branch, branch); commit('later', 'later sibling\n\nAce-Charge: t1:9')
+    // Red baseline: the pre-#2485 range is empty once the branch is merged, so it seeds a plausible 0.
+    assert.equal(git('log', "--format=%(trailers:key=Ace-Charge,valueonly)", 'integration/wtprov-a/phase-3..' + branch), '', 'the old range reads nothing on a merged branch')
+    assert.equal(highestFor(readCharges(cmd, dir, branch), 't1'), 2, 'a merged branch reads M^1..M^2 of its merge commit, not the later first-parent commit')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES17 a foreign task\'s Ace-Charge never counts toward this task\'s seed', async () => {
+  const { prompt, cmd } = await absorbReadOf()
+  assert.ok(prompt.includes("whose task id is that task's (a charge naming another task id never counts)"), 'the prompt rules out a foreign charge')
+  assert.ok(refinerMd.includes("another task's id never"), 'the card rules out a foreign charge')
+  const { dir, git, run, commit } = absorbFixture()
+  const t1 = 'war/wtprov-a/p3-t1', t2 = 'war/wtprov-a/p3-t2'
+  try {
+    git('checkout', '-b', t1); commit('own', 'ace\n\nAce-Charge: t1:1'); commit('picked', 'cherry-picked from t2\n\nAce-Charge: t2:5')
+    git('checkout', 'integration/wtprov-a/phase-3'); gitTaskMerge(run, t1, t1)
+    git('checkout', '-b', t2); commit('t2', 't2 ace\n\nAce-Charge: t2:7'); git('checkout', 'integration/wtprov-a/phase-3'); gitTaskMerge(run, t2, t2)
+    const values = readCharges(cmd, dir, t1)
+    assert.ok(values.includes('t2:5') && !values.includes('t2:7'), 'the range is t1\'s own merge commit, and it carries the foreign value')
+    assert.equal(highestFor(values, 't1'), 1, 'the foreign t2:5 charge does not raise t1\'s seed')
+    assert.equal(highestFor(readCharges(cmd, dir, t2), 't2'), 7, 't2 reads its own merge commit')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

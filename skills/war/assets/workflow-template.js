@@ -421,8 +421,9 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
 // The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
 // arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip AND
-// carries a nonempty commit with its exact WAR-Task branch trailer (already-integrated; a
-// zero-commit ancestor is never reported, #1895; the derive-and-skip step, armed only under
+// was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent
+// is its tip (already-integrated, #2485 D14; a zero-commit ancestor has no merge commit and is never
+// reported, #1895; the derive-and-skip step, armed only under
 // args.recovery.sanctioned — recovery mechanics, spec §4.2/§4.4); staleRemote — per-task stale-remote
 // classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
 // STALE_REMOTE marker (always-on classification, never recovery-gated); worktreeHygiene (D20, #1381) —
@@ -432,8 +433,9 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // log() summary line when non-empty, no auditLog entry, no routing change, never a hold — the barrier
 // never halts on it. All three absent on a plain barrier with nothing to report. A fourth OPTIONAL
 // field, absorbCharges (absorb-budget, D5) — { <task>: n }, the HIGHEST `Ace-Charge: <task>:<n>`
-// trailer index on each task branch (one `git log` trailer read per task, allowed beside the named
-// commands) — seeds r.task.absorbRounds on a relaunch; absent or malformed ⇒ 0 with a loud log.
+// trailer index for that task id on each task's own commits (one bash trailer read per task, allowed
+// beside the named commands; a merged branch reads M^1..M^2 of its merge commit, #2485 D18) — seeds
+// r.task.absorbRounds on a relaunch; absent or malformed ⇒ 0 with a loud log.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
   taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
@@ -657,8 +659,9 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
 // Absent / non-sanctioned ⇒ THREE recovery-gated barrier arms are DORMANT, not one: (1) the
 // derive-and-skip step (deriveSkipClause — a task branch that is an ancestor of the frozen tip AND
-// carries a nonempty commit with its own WAR-Task trailer is reported preMerged and its ensure-worktree skipped; a
-// zero-commit ancestor is never preMerged, #1895 — the §4.2 relaunch prompt delta); (2) the
+// was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is its tip
+// is reported preMerged and its ensure-worktree skipped; a zero-commit ancestor has no merge commit and is
+// never preMerged, #1895 — the §4.2 relaunch prompt delta); (2) the
 // pre-checkout ref-holder auto-free (holderFreeClause, #1712 fix 3 — clean prior-generation holders of
 // THIS plan's own refs only, carrying TWO refusal arms: a DIRTY holder and a FOREIGN plan's holder are
 // never freed, each dying loud with the holder path named in stderrTail); (3) the
@@ -3315,16 +3318,20 @@ if (tasks.length) {
   // reorders tasks, or changes routing.
   const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE may emit \`WORKTREE_HYGIENE\` marker lines (a repaired or detected dirty-submodule state on a reused worktree). Capture each as { task: "<that task's id>", path: "<the marker's submodule path>", action: "repaired"|"detected", detail: "<the marker's detail>" } into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
   // Absorb-budget relaunch seed (D5): the ONE git read allowed beyond the named subcommands — a
-  // per-task `git log` trailer read of `Ace-Charge: <task>:<n>` on the task branch. The HIGHEST
+  // per-task bash trailer read of `Ace-Charge: <task>:<n>` on the task's own commits. The HIGHEST
   // index (never a count) so a cherry-pick or duplicate trailer never double-charges; a reverted
-  // ace commit's trailer still counts (the revert carries no charge trailer). Always-on; absent or
-  // malformed ⇒ the engine seeds 0 with a loud log naming the task. The range names the integration
-  // branch, never "$TIP": an agent shell does not carry a variable across calls, so an unset TIP reads
-  // as HEAD..<branch> — empty in the task worktree — and returns a plausible 0 (#2038).
-  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run \`git -C <that task's worktree> log --format='%(trailers:key=Ace-Charge,valueonly)' ${ph.integrationBranch}..<that task's branch>\` (the integration branch by name, never a shell variable from an earlier call) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
+  // ace commit's trailer still counts (the revert carries no charge trailer); a charge whose task id
+  // is not this task's never counts. Always-on; absent or malformed ⇒ the engine seeds 0 with a loud
+  // log naming the task. An unmerged branch reads <integration>..<branch>. A merged branch reads
+  // M^1..M^2 of its first-parent WAR-Task merge commit M (#2485 D18), because <integration>..<branch>
+  // is empty once the branch is merged. The command names the integration branch, never "$TIP": an
+  // agent shell does not carry a variable across calls, so an unset TIP reads as HEAD..<branch> —
+  // empty in the task worktree — and returns a plausible 0 (#2038). The command is one bash call, so
+  // its own variables never cross calls.
+  const absorbChargesClause = pt`ABSORB-CHARGE READ (per task, always-on — the ONE git read allowed beside the named subcommands): after each task's ensure-worktree, run this one bash command with its two angle-bracket placeholders filled: \`W="<that task's worktree>"; B="<that task's branch>"; tip=$(git -C "$W" rev-parse "$B") && range="${ph.integrationBranch}..$B" && if git -C "$W" merge-base --is-ancestor "$tip" ${ph.integrationBranch}; then for m in $(git -C "$W" rev-list --first-parent --merges ${ph.integrationBranch}); do if [ "$(git -C "$W" rev-parse "$m^2")" = "$tip" ] && [ "$(git -C "$W" show -s --format='%(trailers:key=WAR-Task,valueonly)' "$m")" = "$B" ]; then range="$m^1..$m^2"; break; fi; done; fi && git -C "$W" log --format='%(trailers:key=Ace-Charge,valueonly)' "$range"\` (the integration branch by name, never a shell variable from an earlier call; an unmerged branch reads ${ph.integrationBranch}..<branch>, and a merged branch reads M^1..M^2 of its first-parent WAR-Task merge commit M, because ${ph.integrationBranch}..<branch> is empty once the branch is merged) and take the HIGHEST integer n across the \`<task id>:<n>\` trailer values whose task id is that task's (a charge naming another task id never counts) — the trailer's task-id segment is the BARE task id (the branch's \`p<phase>-<id>\` suffix, e.g. \`2.1\` for \`p2-2.1\`), never the worktree or branch name, and a value whose id segment matches under that normalization counts (never a count of trailers — a cherry-pick or duplicate trailer must not double-charge; a reverted ace commit's trailer still counts). Return \`absorbCharges: { "<task id>": <highest n, or 0 when the range carries no Ace-Charge trailer> }\` on the ok: true env-outcome, one entry per task. A failing read is NOT a barrier failure: omit that task's entry (the engine seeds 0 and logs it loudly) and continue.\n`
   // Recovery skips require Git-resident task provenance; the helper owns the graph proof.
   const deriveSkipClause = recovery
-    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a nonempty task-owned commit carrying the exact WAR-Task branch trailer, surviving net task-owned work without mixed later history, and matching task/integration content across the union of all task-owned changed paths, with stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, empty-tagged, untagged legacy, cancelled-owned, mixed-history or changed-content branch) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches are reused with their commits intact, never reset.\n`
+    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: BEFORE each task's ensure-worktree, run task-integrated.sh <branch> <integration> <working> in the repo named by that task's entry below. Use these repository-local arguments, never the superproject working branch inside a submodule.\nRECOVERY TASK PROOFS: ${JSON.stringify(tasks.map(t => ({ task: t.id, repo: t.taskType === 'submodule' ? t.targetRepo : (mainCheckout || '.'), branch: t.branch, integration: ph.integrationBranch, working: workingBranchFor(t) })))}\nThis read-only helper is authoritative for preMerged: exit 0 with TASK_INTEGRATED proves ancestry, a first-parent merge commit in the phase whose parsed WAR-Task trailer equals the task branch and whose second parent equals the task tip (worker commits need no trailer, and a task whose commits net to zero still proves), and matching task/integration content across the paths that merge commit changed (M^1..M^2), with stable input refs; report that task id in preMerged and skip its ensure-worktree. Exit 1 with NO_TASK_PROOF (including a zero-commit, sibling-only, fast-forward-only, unmerged or changed-content branch, or one whose only merge commit names another task) means ordinary ensure-worktree and work/audit, never completed; preserve the marker in the transcript. Exit 2 or any unrecognized failure halts provisioning with the exact command and stderr. A shared positive commit count is not ownership proof (#2196); never substitute the old ancestor/count shortcut. Existing non-integrated branches are reused with their commits intact, never reset.\n`
     : ''
   // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
@@ -3384,8 +3391,9 @@ if (tasks.length) {
   // ---- RECOVERY: barrier-derived merged-set skip (§4.2) ----
   // The provision-barrier refiner ran task-integrated.sh (the Workflow sandbox has no shell/fs) and
   // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip AND
-  // carries a nonempty commit with its own WAR-Task trailer and surviving owned work with its complete owned-path footprint preserved. A zero-commit ancestor
-  // is never reported (#1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
+  // was merged by a first-parent merge commit whose WAR-Task trailer names it and whose second parent is
+  // its tip, with that merge's owned-path content (M^1..M^2) preserved at integration (#2485 D14). A
+  // zero-commit ancestor has no merge commit and is never reported (#1895) — already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
   // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run —
@@ -3410,7 +3418,7 @@ if (tasks.length) {
     if (done.has(id)) continue
     done.add(id); succeeded.add(id); landed.push(id)
     auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
-    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip with verified task-owned work — the barrier's task-integrated.sh ancestry, WAR-Task ownership and surviving owned-content proof) — recorded merged, no worker dispatched.`)
+    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip merged by its own WAR-Task merge commit — the barrier's task-integrated.sh ancestry, merge-commit ownership and owned-content proof) — recorded merged, no worker dispatched.`)
   }
   // ---- §4.4 stale-remote classification → per-task env-blocked (always-on, never a phase halt) ----
   // The barrier CONTINUED past a per-task ensure-worktree exit carrying the STALE_REMOTE marker and
