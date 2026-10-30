@@ -13,6 +13,8 @@ spec per group — every swept issue accounted for, nothing committed. The next 
 This skill authorizes the **Workflow tool** (precedent: `/red-team`, `/lessons-learned`): the
 reader fan-out, the cluster barrier, and the per-group spec synthesis run as a Workflow.
 
+**Seat models.** Resolve the run config before the first spawn: `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs <repo>/.claude/war/config.json --fill-defaults`, or `--preset balanced` when that file is missing. On a zero exit, give every `agent()` its seat's `model`, plus `effort` unless it is `default`, from `agents.survey`: `miner` classifies lessons (Step 0), `reader` summarizes issues (Step 2), `cluster` groups them (Step 3), `synth` writes each spec (Step 4), and `critic` runs the completeness check (Step 5). On a nonzero exit, omit both and the agents inherit the session ([ADR 0056](../../docs/adr/0056-default-seat-models-follow-the-2497-routing.md)).
+
 ## Run
 
 ```

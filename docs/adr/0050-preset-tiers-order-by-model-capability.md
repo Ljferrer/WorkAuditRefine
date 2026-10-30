@@ -15,7 +15,7 @@ rule that lived only in the operator's head. This ADR writes that rule down and 
 **Model capability is the first axis of every seat.** `MODEL_RANK` in `war-config.mjs` orders
 the models ascending in capability and cost: haiku, sonnet, opus, fable. For every tier a preset
 resolves (worker base, docs, fix, auditor, refiner, refiner recovery, servitor, red-team, snipe,
-trial), the model rank is monotone across presets: `thorough` ≥ `balanced` ≥ `economy`.
+trial, and each skill seat in `SKILL_SEATS`), the model rank is monotone across presets: `thorough` ≥ `balanced` ≥ `economy`.
 `war-config.test.mjs` asserts that rule over every `TIER_PATHS` tier of the shipped presets, so
 an auditor reads the invariant from the suite instead of inferring one.
 
@@ -27,7 +27,8 @@ models carry a pinned effort as compensation (for example sonnet auditors on `xh
 why the effort axis is deliberately *not* monotone across presets and is not an invariant.
 
 **`economy` means cheaper models and a shorter fix budget, not a weaker rule set.** It pins its
-own worker (base and docs), auditor, refiner, servitor, red-team and trial tiers, each at or below
+own worker (base and docs), auditor, refiner, servitor, red-team and trial tiers and its skill seats
+(`SKILL_SEATS`), each at or below
 `balanced`'s `MODEL_RANK`, and the fix tier, the refiner recovery tier and snipe inherit `DEFAULTS`; the values are the
 `/war-room` economy bullet. `roundLimit: 4` and `redteamRoundLimit: 2` are pinned. `rosterPolicy`
 inherits `auto` on purpose: a config cannot predict what a task will entail, so the Lead composes

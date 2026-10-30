@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
+  DEFAULTS, PRESETS, MODELS, MODEL_RANK, EFFORTS, ROLES, SKILL_SEATS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, VALE_STYLES,
   SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES,
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
@@ -98,7 +98,7 @@ test('partial override merges over defaults', () => {
 
 test('thorough preset', () => {
   const c = presetConfig('thorough')
-  assert.equal(c.agents.worker.model, 'fable')   // pinned above the opus DEFAULTS (ADR 0055)
+  assert.equal(c.agents.worker.model, 'fable')   // pinned above the opus DEFAULTS (ADR 0056)
   assert.equal(c.agents.worker.effort, 'default')
   assert.equal(c.agents.auditor.model, 'fable')
   assert.equal(c.agents.auditor.effort, 'default')
@@ -107,13 +107,14 @@ test('thorough preset', () => {
   assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default' })
   assert.deepEqual(PRESETS.thorough.agents, {
     worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-    auditor:  { model: 'fable',  effort: 'default' },
+    auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'xhigh' },
     servitor: { model: 'opus',   effort: 'high' },
     redteam:  { model: 'fable',  effort: 'default' },
     snipe:    { model: 'fable',  effort: 'default' },
     trial:    { model: 'fable',  effort: 'default' },
-  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0055)')
+    machine: PRESETS.thorough.agents.machine, survey: PRESETS.thorough.agents.survey, lessons: PRESETS.thorough.agents.lessons,
+  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0056; skill seats bound by the /war-room bullet test)')
   assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
@@ -141,7 +142,8 @@ test('economy preset (sonnet review seats and trial tier, opus workers, a 4-roun
     servitor: { model: 'sonnet', effort: 'high' },
     redteam:  { model: 'sonnet', effort: 'default' },
     trial:    { model: 'sonnet', effort: 'high' },
-  }, 'economy agents literal (fix and snipe absent = inherited; trial pinned, A9)')
+    machine: PRESETS.economy.agents.machine, survey: PRESETS.economy.agents.survey, lessons: PRESETS.economy.agents.lessons,
+  }, 'economy agents literal (fix and snipe absent = inherited; trial pinned, A9; skill seats bound by the /war-room bullet test)')
   // ADR 0050: the four-lens roster is the widening fallback under inherited 'auto', not a seat count.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
@@ -1601,14 +1603,21 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
 // compared. The relation is non-strict, so an equal-rank move stays green by design.
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
-const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial']
+// SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
+const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
+const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'auditor.rebuttal', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
   // A new agents.<tier> in DEFAULTS, or a new object-valued worker sub-tier, must join both lists.
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
-  const expected = Object.keys(DEFAULTS.agents).flatMap(k =>
-    [k, ...Object.keys(DEFAULTS.agents[k]).filter(s => isObj(DEFAULTS.agents[k][s])).map(s => `${k}.${s}`)])
+  // A skill block (SKILL_SEATS) contributes only its seat paths; every other key is a tier plus its sub-tiers.
+  const expected = Object.keys(DEFAULTS.agents).flatMap(k => SKILL_SEATS[k]
+    ? Object.keys(DEFAULTS.agents[k]).map(s => `${k}.${s}`)
+    : [k, ...Object.keys(DEFAULTS.agents[k]).filter(s => isObj(DEFAULTS.agents[k][s])).map(s => `${k}.${s}`)])
   assert.deepEqual([...TIER_PATHS].sort(), [...expected].sort(), 'TIER_PATHS must cover every DEFAULTS.agents tier exactly once')
-  assert.deepEqual(Object.values(BULLET_LABELS).sort(), [...expected].sort(), 'BULLET_LABELS must map onto every DEFAULTS.agents tier exactly once')
+  assert.deepEqual([...Object.values(BULLET_LABELS), ...SKILL_SEAT_PATHS].sort(), [...expected].sort(), 'BULLET_LABELS plus the skill seats must map onto every DEFAULTS.agents tier exactly once')
+  for (const [skill, seats] of Object.entries(SKILL_SEATS)) {
+    assert.deepEqual(Object.keys(DEFAULTS.agents[skill]).sort(), [...seats].sort(), `DEFAULTS.agents.${skill} must default every SKILL_SEATS seat`)
+  }
 })
 test('MODEL_RANK is a permutation of MODELS, its ADR 0050 order sentence matches, and preset model rank is monotone thorough >= balanced >= economy on every tier', () => {
   assert.deepEqual([...MODEL_RANK].sort(), [...MODELS].sort(), 'MODEL_RANK must rank every MODELS member exactly once')
@@ -1650,7 +1659,7 @@ test('DOC_TIER_PINS: every prose restatement of a tier value equals presetConfig
 // once, no unknown label (the label group is open, so a stray `planner opus/`high`` token reaches the
 // census and fails it), every value equal to presetConfig(). A new preset without a bullet, a bullet
 // that drops a tier, or a reworded token all red here.
-const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial' }
+const BULLET_LABELS = { workers: 'worker', 'docs-tier': 'worker.docs', 'fix-tier': 'worker.fix', auditors: 'auditor', 'rebuttal-tier': 'auditor.rebuttal', refiner: 'refiner', 'recovery-tier': 'refiner.recovery', servitor: 'servitor', 'red-team': 'redteam', snipe: 'snipe', 'trial-tier': 'trial' }
 test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens all equal presetConfig()', () => {
   const text = readDoc('skills/war-room/SKILL.md')
   for (const preset of Object.keys(PRESETS)) {
@@ -1668,6 +1677,52 @@ test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens
       assert.deepEqual(seen.get(label), { model: want.model, effort: want.effort }, `${preset} bullet ${label} must equal presetConfig('${preset}').agents.${path}`)
     }
   }
+})
+
+// Skill seats (ADR 0056): each preset has a `- **<preset> skill seats** —` /war-room bullet carrying exactly
+// one `<skill>-<seat> model/\`effort\`` token per seat, each equal to presetConfig(). Delete-the-feature:
+// change one seat in PRESETS or one token in a bullet and this goes red.
+test('/war-room skill seats bullets: one per preset, one token per SKILL_SEATS seat, each equal to presetConfig()', () => {
+  const lines = readDoc('skills/war-room/SKILL.md').split('\n')
+  for (const preset of Object.keys(PRESETS)) {
+    const line = lines.find(l => new RegExp(`^\\s*- \\*\\*${preset} skill seats\\*\\* — `).test(l))
+    assert.ok(line, `/war-room has no ${preset} skill seats bullet`)
+    const seen = new Map()
+    for (const [, label, model, effort] of line.matchAll(new RegExp(`\\b([a-z]+-[a-z]+) (${MODELS.join('|')})/\`(\\w+)\``, 'g'))) {
+      assert.ok(!seen.has(label), `${preset} skill seats bullet names ${label} twice`)
+      seen.set(label, { model, effort })
+    }
+    assert.deepEqual([...seen.keys()].sort(), SKILL_SEAT_PATHS.map(p => p.replace('.', '-')).sort(), `${preset}: exactly one token per seat`)
+    for (const path of SKILL_SEAT_PATHS) {
+      const want = tierAt(preset, path)
+      assert.deepEqual(seen.get(path.replace('.', '-')), { model: want.model, effort: want.effort }, `${preset} skill seats bullet ${path} must equal presetConfig('${preset}').agents.${path}`)
+    }
+  }
+})
+
+test('agents.auditor.rebuttal: defaulted one model above the auditor in every preset, validated like the other tiers', () => {
+  const rank = m => MODEL_RANK.indexOf(m)
+  for (const preset of Object.keys(PRESETS)) {
+    const a = presetConfig(preset).agents.auditor
+    assert.equal(rank(a.rebuttal.model), Math.min(rank(a.model) + 1, MODEL_RANK.length - 1), `${preset} rebuttal model is one above its auditor (${a.model}), capped at the top`)
+  }
+  assert.equal(validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'opus', effort: 'default' } } } }).valid, true)
+  const bad = validate({ agents: { auditor: { model: 'sonnet', effort: 'xhigh', rebuttal: { model: 'gpt', effort: 'default' } } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.auditor\.rebuttal\.model/)
+})
+
+test('agents.<skill> seat maps (ADR 0056): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {
+  assert.equal(validate({ agents: { machine: { drafter: { model: 'opus', effort: 'high' } } } }).valid, true, 'a partial seat map merges over DEFAULTS')
+  const unknown = validate({ agents: { survey: { writer: { model: 'opus', effort: 'high' } } } })
+  assert.equal(unknown.valid, false)
+  assert.match(unknown.errors.join('\n'), /agents\.survey\.writer is not a known seat/)
+  const bad = validate({ agents: { lessons: { edit: { model: 'gpt', effort: 'high' } } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.lessons\.edit\.model/)
+  const flat = validate({ agents: { machine: 'opus' } })
+  assert.equal(flat.valid, false)
+  assert.match(flat.errors.join('\n'), /agents\.machine must be an object of seats/)
 })
 
 // Re-introduction ban: these constructs were de-mirrored to pointers in 0.21.11. A model word inside

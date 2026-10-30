@@ -303,11 +303,14 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
     worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix / .ace is set, below)
-    auditor:  { model, effort },
+    auditor:  { model, effort },             // optional auditor.rebuttal { model, effort }: the rebuttal-round seat tier, above a seat's own model/effort too; defaulted one model above the auditor; an omitted block ⇒ each seat keeps its usual tier
     refiner:  { model, effort },
     servitor: { model, effort },
     redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (values in `war-config.mjs` PRESETS); only a MISSING config file → red-team inherits the session
     trial?: { model, effort },               // not a phase role — the fork-trial subagent tier (D18) `/war-strategy`'s plan interview reads fail-open like redteam; defaulted in `war-config.mjs` DEFAULTS and re-pinned by every preset; validated like redteam; no `agents/*.md` card
+    machine?: { drafter, derive, apply, revise },              // skill seats (ADR 0056): each seat a { model, effort } tier; seat names are SKILL_SEATS in war-config.mjs; defaulted in DEFAULTS; thorough and economy pin their own
+    survey?: { miner, reader, cluster, synth, critic },        // skill seats for /survey-corps, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
+    lessons?: { investigate, edit, retype, keywords },         // skill seats for /lessons-learned, read fail-open: a missing config uses the balanced defaults, an invalid one the session model
     snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), defaulted in `war-config.mjs` DEFAULTS, presets may re-pin it; explicit null = unset (falls back to the auditor tier); validated like redteam
   //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (defaulted in DEFAULTS; presets may re-pin it)
   //   agents.worker.fix  { model, effort }  — the fix-round and floor-retry tier (and --ace when .ace is absent); defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config

@@ -1,4 +1,4 @@
-# Default seat models follow the #2497 routing; ace and seats route on their own
+# Default seat models follow the #2497 routing; ace, roster seats and skill seats route on their own
 
 **Status:** accepted (operator ruling of 2026-10-30 on issues #2497 and #2519; refines
 [ADR 0050](0050-preset-tiers-order-by-model-capability.md), whose rank rule still holds)
@@ -25,6 +25,23 @@ pass. It has no default: an absent ace tier uses the fix tier, so ace runs opus 
 **A roster seat can carry its own `model` and `effort`.** They replace the auditor tier for that
 seat only. This is how the Lead keeps opus on a boundary-heavy seat (security, parsing, Git or
 filesystem, recovery, state machines) while routine seats run sonnet.
+
+**Amended 2026-10-31 (0.21.25): every subagent role in `/war-machine`, `/survey-corps` and `/lessons-learned` gets a skill seat.**
+`agents.machine`, `agents.survey` and `agents.lessons` each map that skill's role names
+(`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. By operator ruling (2026-10-30), the
+balanced defaults put plan conversion on the stronger models: every war-machine seat runs above the
+survey readers, and the revise pass runs the strongest model. The survey clusterer, synthesizer and
+critic and the lessons editor also run above the reading roles. The lessons retype and keyword
+passes write only short metadata, so they stay with the reading roles. `thorough` runs each seat one
+model tier higher, capped at fable. `economy` runs a little lower. The values for each preset live in
+`war-config.mjs` and the `/war-room` skill seats bullets, never restated here. Each skill reads them
+fail-open: a missing config file uses the balanced defaults, and an invalid config leaves the agents
+on the session model.
+
+**Amended 2026-10-31 (0.21.25): a rebuttal round can take its own tier.** A configured
+`agents.auditor.rebuttal` replaces each rebuttal-round seat's tier, the seat's own roster
+`model`/`effort` included. Every preset sets it one model above its auditor tier, capped at fable. A
+hand-written config that omits it keeps each seat's usual tier.
 
 ## Consequences
 

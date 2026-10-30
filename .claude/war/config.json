@@ -12,11 +12,19 @@
       "fix": {
         "model": "fable",
         "effort": "default"
+      },
+      "ace": {
+        "model": "opus",
+        "effort": "default"
       }
     },
     "auditor": {
-      "model": "opus",
-      "effort": "default"
+      "model": "sonnet",
+      "effort": "xhigh",
+      "rebuttal": {
+        "model": "opus",
+        "effort": "default"
+      }
     },
     "refiner": {
       "model": "sonnet",
@@ -28,7 +36,7 @@
     },
     "servitor": {
       "model": "opus",
-      "effort": "high"
+      "effort": "medium"
     },
     "redteam": {
       "model": "opus",
@@ -41,6 +49,64 @@
     "trial": {
       "model": "opus",
       "effort": "default"
+    },
+    "machine": {
+      "drafter": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "derive": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "apply": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "revise": {
+        "model": "fable",
+        "effort": "default"
+      }
+    },
+    "survey": {
+      "miner": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "reader": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "cluster": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "synth": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "critic": {
+        "model": "opus",
+        "effort": "default"
+      }
+    },
+    "lessons": {
+      "investigate": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "edit": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "retype": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "keywords": {
+        "model": "sonnet",
+        "effort": "high"
+      }
     }
   },
   "audit": {

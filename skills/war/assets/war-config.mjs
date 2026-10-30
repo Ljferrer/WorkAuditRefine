@@ -30,6 +30,14 @@ export const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 export const EVIDENCE_LENS = 'artifact-evidence'
 export const WIDEN_BARRED_LENSES = [EVIDENCE_LENS]
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
+// Skill seats (ADR 0056): the subagent roles that /war-machine, /survey-corps and /lessons-learned
+// spawn. agents.<skill>.<seat> is a { model, effort } tier the Lead threads into that
+// role's agent() opts. Not phase roles: the per-phase engine never reads them.
+export const SKILL_SEATS = {
+  machine: ['drafter', 'derive', 'apply', 'revise'],
+  survey: ['miner', 'reader', 'cluster', 'synth', 'critic'],
+  lessons: ['investigate', 'edit', 'retype', 'keywords'],
+}
 // How a run's provision list was derived. 'explicit' = pinned by the user;
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
 // 'none' = no steps / not yet scouted. See provisioning Part-B plan.
@@ -48,11 +56,12 @@ export const DEFAULTS = {
     // override any tier per run. Every prose surface that restates a value from this object is bound
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
-    // Seat models follow the #2497 / #2519 routing (ADR 0055): opus for bounded worker, fix and ace work,
+    // Seat models follow the #2497 / #2519 routing (ADR 0056): opus for bounded worker, fix and ace work,
     // sonnet for docs-only tasks and routine audit seats. The Lead routes a boundary-heavy seat to opus
     // through the roster seat's own model.
     worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
-    auditor:  { model: 'sonnet', effort: 'high' },
+    // auditor.rebuttal: the rebuttal-round seat tier, one model above the auditor (capped at fable).
+    auditor:  { model: 'sonnet', effort: 'high', rebuttal: { model: 'opus', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'high', recovery: { model: 'opus', effort: 'high' } },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
@@ -70,6 +79,22 @@ export const DEFAULTS = {
     // agents/*.md card: the subagent is a general-purpose agent instructed by fork-trials.md.
     // Defaulted here (the balanced value); every preset re-pins it (see PRESETS, A9).
     trial:    { model: 'opus',   effort: 'default' },
+    // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise
+    // pass runs fable. The survey critic and the roles that write or regroup an artifact run opus. The
+    // other reading roles run sonnet. thorough and economy pin their own seats (see PRESETS).
+    machine: {
+      drafter: { model: 'opus', effort: 'default' }, derive: { model: 'opus', effort: 'default' },
+      apply:   { model: 'opus', effort: 'default' }, revise: { model: 'fable', effort: 'default' },
+    },
+    survey: {
+      miner:   { model: 'sonnet', effort: 'high' }, reader: { model: 'sonnet', effort: 'high' },
+      cluster: { model: 'opus',   effort: 'default' }, synth: { model: 'opus', effort: 'default' },
+      critic:  { model: 'opus',   effort: 'default' },
+    },
+    lessons: {
+      investigate: { model: 'sonnet', effort: 'high' }, edit: { model: 'opus', effort: 'default' },
+      retype:      { model: 'sonnet', effort: 'high' }, keywords: { model: 'sonnet', effort: 'high' },
+    },
   },
   audit: {
     roster: [
@@ -143,15 +168,29 @@ export const PRESETS = {
     profile: 'thorough',
     agents: {
       // Every seat pinned below carries its own value; the worker tiers (base, docs, fix) stay on fable
-      // above the opus/sonnet DEFAULTS (ADR 0055), and the refiner pin sits one effort tier above the
+      // above the opus/sonnet DEFAULTS (ADR 0056), and the refiner pin sits one effort tier above the
       // DEFAULTS refiner.
       worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-      auditor:  { model: 'fable',  effort: 'default' },
+      auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' } },
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
       snipe:    { model: 'fable',  effort: 'default' },
       trial:    { model: 'fable',  effort: 'default' },
+      // Skill seats one model tier above balanced (fable seats stay on 'default', ADR 0050).
+      machine: {
+        drafter: { model: 'fable', effort: 'default' }, derive: { model: 'fable', effort: 'default' },
+        apply:   { model: 'fable', effort: 'default' }, revise: { model: 'fable', effort: 'default' },
+      },
+      survey: {
+        miner:   { model: 'opus',  effort: 'default' }, reader: { model: 'opus', effort: 'default' },
+        cluster: { model: 'fable', effort: 'default' }, synth:  { model: 'fable', effort: 'default' },
+        critic:  { model: 'fable', effort: 'default' },
+      },
+      lessons: {
+        investigate: { model: 'opus',  effort: 'default' }, edit:     { model: 'fable', effort: 'default' },
+        retype:      { model: 'opus',  effort: 'default' }, keywords: { model: 'opus',  effort: 'default' },
+      },
     },
     // 5-lens pool: under rosterPolicy 'auto' the Lead seeds 1–5 seats per task from it.
     audit: {
@@ -167,7 +206,8 @@ export const PRESETS = {
   economy: {
     profile: 'economy',
     // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers, the
-    // auditor, refiner, servitor and red-team seats, the trial tier (A9), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
+    // auditor, refiner, servitor and red-team seats, the trial tier (A9), the skill seats (machine, survey,
+    // lessons), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
     // autoEscalate widening fallback, the phase-close polish panel, and the terminal-pass seat source,
     // never a per-task seat count.
@@ -179,6 +219,21 @@ export const PRESETS = {
       servitor: { model: 'sonnet', effort: 'high' },
       redteam:  { model: 'sonnet', effort: 'default' },
       trial:    { model: 'sonnet', effort: 'high' },
+      // Skill seats a little below balanced: plan drafting, clustering and spec synthesis keep opus, and
+      // the revise pass drops to opus. The grill passes, the survey critic and the lessons editor drop to sonnet.
+      machine: {
+        drafter: { model: 'opus',   effort: 'default' }, derive: { model: 'sonnet', effort: 'high' },
+        apply:   { model: 'sonnet', effort: 'high' },    revise: { model: 'opus',   effort: 'default' },
+      },
+      survey: {
+        miner:   { model: 'sonnet', effort: 'high' },    reader: { model: 'sonnet', effort: 'high' },
+        cluster: { model: 'opus',   effort: 'default' }, synth:  { model: 'opus',   effort: 'default' },
+        critic:  { model: 'sonnet', effort: 'high' },
+      },
+      lessons: {
+        investigate: { model: 'sonnet', effort: 'high' }, edit:     { model: 'sonnet', effort: 'high' },
+        retype:      { model: 'sonnet', effort: 'high' }, keywords: { model: 'sonnet', effort: 'high' },
+      },
     },
     audit: {
       roster: [
@@ -248,7 +303,8 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam, agents.snipe, agents.trial and the agents.worker.docs/fix/ace tiers: validated exactly
+// for agents.redteam, agents.snipe, agents.trial, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
+// skill seat (SKILL_SEATS): validated exactly
 // like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
 // trial feeds /war-strategy's fork-trial subagent; the worker tiers refine worker dispatch).
 function validateAgentTier(block, path, errors) {
@@ -283,6 +339,9 @@ export function validate(input) {
     }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
+  // agents.auditor.rebuttal: the rebuttal-round seat tier (defaulted; a hand-written config may omit it, and then
+  // each rebuttal seat keeps its usual tier).
+  if (isObj(c.agents.auditor) && Object.prototype.hasOwnProperty.call(c.agents.auditor, 'rebuttal')) validateAgentTier(c.agents.auditor.rebuttal, 'agents.auditor.rebuttal', errors)
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
   // agentMatrix stays four roles). Defaulted in DEFAULTS (preset-overridden); a config
@@ -294,7 +353,18 @@ export function validate(input) {
   // agents.trial — the fork-trial subagent tier (D18), validated in the redteam idiom (present ⇒ a
   // tier; a present null is rejected). /war-strategy's plan interview reads it fail-open.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'trial')) validateAgentTier(c.agents.trial, 'agents.trial', errors)
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial']
+  // agents.machine / .survey / .lessons — skill seat maps: each present key an object whose keys are that
+  // skill's SKILL_SEATS members, each seat a { model, effort } tier.
+  for (const [skill, seats] of Object.entries(SKILL_SEATS)) {
+    if (!Object.prototype.hasOwnProperty.call(c.agents, skill)) continue
+    const block = c.agents[skill]
+    if (!isObj(block)) { errors.push(`agents.${skill} must be an object of seats (${seats.join('|')})`); continue }
+    for (const seat of Object.keys(block)) {
+      if (!seats.includes(seat)) errors.push(`agents.${skill}.${seat} is not a known seat (${seats.join('|')}) — run /war-room to regenerate the config`)
+      else validateAgentTier(block[seat], `agents.${skill}.${seat}`, errors)
+    }
+  }
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe', 'trial', ...Object.keys(SKILL_SEATS)]
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }
