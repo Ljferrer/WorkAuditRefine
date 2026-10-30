@@ -28,17 +28,16 @@ metadata:
 
 # Strike the old End state when a decision row replaces it
 
-**Pattern.** A plan amendment added decision row D25 (user ruling, 2026-10-22: no second version, the 0.21.17 head blurb and its README twin are replaced in place to cover Phases 5 and 6) and a new End state 28 (version unchanged). It left End state 21 in place. End state 21 still requires the four slots and the `CHANGELOG.md` entry to move to a version strictly above the merge-base with the working branch.
+**Rule.** When a decision row or red-team adjudication replaces an End state, strike or rewrite the old End state in the same patch. A superseding End state added beside the old one leaves the old check live, and the gate attests it `unmet`.
 
-**Why End state 21 is red by construction.** Its check compares the plugin version with the version at `git merge-base HEAD origin/dev/2026-10-20-rea-artifact-evidence`. An earlier phase had already released 0.21.17 on that branch, so the merge-base version equals the tip version and the strict comparison is false. Against the fork base (the `master` merge-base, 0.21.16) the tip is above, so the substance holds.
+**Why:** in `docs/plans/2026-10-20-rea-artifact-evidence.md`, decision row D25 (no second version) and End state 28 (version unchanged) were added beside End state 21, which still requires a version strictly above the working-branch merge-base. An earlier phase had already released on that branch, so the strict comparison was false by construction. Against the fork base the substance held. Two gate-audit seats attested End state 21 `unmet`, and each filed one Nit `note` citing the adjudication-match rule (a matching finding is a confirmation note, never an escalation), so the phase landed with the `unmet` on record.
 
-**What the gate did.** The task 7.2 gate-audit seat and the phase integrated-tip seat both attested End state 21 `unmet` and End state 28 `met`. Each filed one Nit with disposition `note`, citing the adjudication-match rule: a result the adjudication rung rules is a confirmation note, never a hold. The phase landed with that `unmet` attestation in the gate-audit entries. Both seats suggested the same repairs: mark End state 21 superseded by End state 28 and D25, or key a release check on the stack base, not the working branch.
+**How to apply:**
+- Treat the old End state as a fifth surface of the four-surface sweep in [[red-team-endstate-rewrite-must-update-design-row-task-slice-and-the-check-literal-together]].
+- Key a release End state in a plan with several release-capable phases on the stack base (`origin/master`), because the working branch may already carry the bump.
 
-**How to apply.**
-- When a decision row or red-team adjudication replaces an End state, strike or rewrite the old End state in the same patch. This extends the four-surface sweep in [[red-team-endstate-rewrite-must-update-design-row-task-slice-and-the-check-literal-together]]: a superseding End state added beside the old one leaves the old check live, so a fifth surface needs the sweep.
-- A release End state that must hold in a plan with several release-capable phases should key its baseline on the stack base (`origin/master`), because the working branch may already carry the bump.
-- As Lead, expect `unmet` for End state 21 in this run's gate-audit attestations. Cite D25 in the reconciliation. Do not hold on it.
+**Still open.** `skills/war-strategy/SKILL.md` and `skills/war-strategy/references/plan-interview.md` carry no strike-the-old-End-state rule. The nearest doctrine is the patch rule in `skills/red-team/references/loop-budget.md` (patches state the final rule).
 
-**Locate-cue (verify still present before acting).** `docs/plans/2026-10-20-rea-artifact-evidence.md` carries the D25 row, End state 21 with its `git merge-base HEAD origin/dev/...` check, and End state 28 ("version unchanged"), with no supersession mark on End state 21. `CHANGELOG.md` heads at `## 0.21.17` and `.claude-plugin/plugin.json` reads 0.21.17. Found at landed tip 218012434004 on `dev/2026-10-20-rea-artifact-evidence`.
+**Locate-cue (verify still present before acting).** `docs/plans/2026-10-20-rea-artifact-evidence.md` carries the D25 row, End state 21 with its `git merge-base HEAD origin/dev/...` check, and End state 28, with no supersession mark on End state 21. The adjudication-match rule sits at `adjudicationClause` in `skills/war/assets/workflow-template.js`.
 
 Related: [[redteam-adjudication-is-authoritative-version-source]], [[gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream]], [[release-bump-slots-canonical-no-badge]].

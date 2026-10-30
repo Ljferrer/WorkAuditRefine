@@ -51,5 +51,5 @@ Add a fixture that stages a foreign file first, and assert no success token and 
 See [[weak-test-assertion-passes-without-feature-being-exercised]].
 
 **Locate-cue (verify still present before acting).** Found at `skills/war/assets/workflow-template.js` @ phase 1 landed tip b0c2e25: `rangeRevertScript` with the `INDEX-DIRTY` and `write-tree` arms.
-The fixtures are the three `2485/ES12 real git:` tests in `skills/war/assets/workflow-template.test.mjs`.
+The fixtures are the three `2485/ES12 real git:` tests, one each in `skills/war/assets/workflow-template.git-2.test.mjs`, `workflow-template.git-3.test.mjs` and `workflow-template.engine-1.test.mjs`.
 The same trap applies to `git cherry-pick -n` and any other `--no-commit` sequencer verb (agent-unverified generalization).

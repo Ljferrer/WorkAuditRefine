@@ -33,7 +33,7 @@ Every fixture that only the retired check refused now passes.
 
 **Instance.** Task 3.1 of plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` replaced the `has mixed history after task-owned work` marker in `skills/war/assets/task-integrated.sh` with a merge-commit rule.
 The same slice said a net-zero task flips to `TASK_INTEGRATED` and "every other verdict is kept".
-The `recovery owned footprint:` family in `skills/war/assets/workflow-template.test.mjs` flipped about seven scenarios, not one.
+The `recovery owned footprint:` family, now in `skills/war/assets/workflow-template.git-3.test.mjs`, flipped about seven scenarios, not one.
 The extra flips include `unowned-overlap` and `unowned-late-contribution`, which do not net to zero.
 Three audit seats each raised it as a `note` Nit, and two panels repeated it.
 The worker's candidate was correct, and the slice sentence was wrong.
@@ -46,4 +46,4 @@ Related: [[plan-end-state-superseded-by-a-later-decision-row-stays-live-and-atte
 
 Locate-cue: verify still present before acting. At landed tip 8c1a7a51 the plan's Task 3.1 slice holds both "every other verdict is kept" and the mixed-history retirement.
 `skills/war/assets/task-integrated.sh` no longer contains "mixed history".
-The `recovery owned footprint:` scenario loop is in `skills/war/assets/workflow-template.test.mjs`.
+The `recovery owned footprint:` scenario loop is in `skills/war/assets/workflow-template.git-3.test.mjs`.

@@ -63,3 +63,5 @@ from the same phase's audit log);
 [[prose-contract-widening-outruns-the-closed-executable-schema-literal]] (archived; a sibling
 class where widening one contract surface fails to widen a second surface sharing the same
 concept).
+
+> archived 2026-10-30: resolved — moved to archive

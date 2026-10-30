@@ -45,3 +45,5 @@ metadata:
 **Status.** Audit finding resolved in a fix round before land, recorded as pattern, not live instance. At the landed tip the two docs and `skills/war/SKILL.md` name `TARGET_ARTIFACTS_MARKER`. The guard still has no scan over unmapped surfaces.
 
 **Locate-cue (verify still present before acting).** `skills/war/assets/target-artifacts.test.mjs`, the `MARKER_SURFACES` array and the test titled "doc-token guard". Found at landed tip 0d8a9fba, read through the run's `_refinery` worktree (HEAD equal to the tip).
+
+> archived 2026-10-30: resolved — moved to archive

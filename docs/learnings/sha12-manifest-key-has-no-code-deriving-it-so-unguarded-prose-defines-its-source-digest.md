@@ -43,7 +43,7 @@ No production code cuts `<sha12>`. The only code that does is the `resolve` help
 
 Prose only. A test binds some of that prose and not the rest.
 
-- Bound: the worker clause and the evidence-seat skeleton. A substring assert in `skills/war/assets/workflow-template.test.mjs` checks both (test "rea clause and evidence skeleton: one manifest per cited artifact").
+- Bound: the worker clause and the evidence-seat skeleton. A substring assert in `skills/war/assets/workflow-template.engine-1.test.mjs` checks both (test "rea clause and evidence skeleton: one manifest per cited artifact").
 - Bound: the `Manifest path:` and `Manifest keys:` lines of `skills/war-strategy/references/artifact-evidence.md`. The doc-token guard extracts and compares them.
 - Not bound: the home's sentence that defines `<sha12>`, its `Plan slug:` line, its recon-lane `Digest first:` clause, and the inputs bullet in `agents/war-evidence-auditor.md`. No test file mentions them. Only the plan's End state 28 covers `Plan slug:` and `Digest first:`, as a one-time grep.
 
@@ -57,7 +57,7 @@ Task 5.1 landed two operator rulings. D23 made one manifest per cited artifact, 
 
 Four audit seats found the same gap in one round. Both dispatched prompts said "declared sha256". The doctrine home, the card bullet and the export header comment said only "sha256". Ace round a3 added the word to all three.
 
-Audit finding resolved in a fix round before land, recorded as pattern, not live instance. The missing test is live. At the landed tip, a grep for `declared sha256` under test files hits only `skills/war/assets/workflow-template.test.mjs`.
+Audit finding resolved in a fix round before land, recorded as pattern, not live instance. The missing test is live. A grep for `declared sha256` under test files hits only `skills/war/assets/workflow-template.engine-1.test.mjs`, plus a comment in `skills/war/assets/workflow-template.test-harness.mjs`.
 
 ## How to apply
 
@@ -71,7 +71,7 @@ Audit finding resolved in a fix round before land, recorded as pattern, not live
 - `skills/war-strategy/references/artifact-evidence.md`: search `is the first 12 hex of that artifact's declared sha256`, `Plan slug:` and `Digest first:`.
 - `agents/war-evidence-auditor.md`: the inputs bullet that names `<sha12>`.
 - `skills/war/assets/workflow-template.js`: search `const manifestPathOf`.
-- `skills/war/assets/workflow-template.test.mjs`: search `rea clause and evidence skeleton: one manifest per cited artifact`.
+- `skills/war/assets/workflow-template.engine-1.test.mjs`: search `rea clause and evidence skeleton: one manifest per cited artifact`.
 - `skills/war/assets/target-artifacts.test.mjs`: search `const resolve =`.
 
 Found at landed tip 82cef9c9, read through the run's `_refinery` worktree. Its HEAD equals the landed tip, so grounding rung 2 held. The cwd checkout was on another branch.

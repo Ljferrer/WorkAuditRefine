@@ -38,32 +38,33 @@ Task 2.1, tip `1a30b56ecda78e7ccf829e947c54df95b3128f7c`) tests whether a findin
 carries real content at several sites, and the tests disagree on whitespace-only strings. Verified
 live at the landed tip:
 
-- `contentTextOf` (line ~1306) feeds `f.ask.question` through `blankText` (`v => typeof v !==
+- `contentTextOf` feeds `f.ask.question` through `blankText` (`v => typeof v !==
   'string' || !v.trim()`) — a whitespace-only question reads as blank. Used by `normalizeSeat`'s
-  intake demotion (`askShaped` also spares this correctly via `contentTextOf`).
-- `intakeFloor`'s ask arm (line ~1264): `typeof f.ask.question === 'string' && f.ask.question` —
+  intake demotion. `askShaped` is separate: `(Minor|Nit) && disposition === 'ask'`, with no
+  `contentTextOf` read.
+- `intakeFloor`'s ask arm: `typeof f.ask.question === 'string' && f.ask.question` —
   raw truthiness. A whitespace-only string is truthy, so it reads as present and routes
   `barrier:trade-off` to `'ask'`.
-- `askContentKey` (line ~1286) and `parkAsk`'s `question:` field (line ~1342): both
+- `askContentKey` and `parkAsk`'s `question:` field: both
   `(f.ask && f.ask.question) || f.title || '(question unrecorded)'` — same raw truthiness.
-- The gate-audit floor pass (line ~4280) also uses the raw-truthiness spelling.
+- The gate-audit floor pass (its `barrier:trade-off` arm) and the seat-conflict peer check
+  (`p.peer.ask && p.peer.ask.question`) also use raw truthiness.
 
-So the SAME `ask.question: '   '` is blank at intake (never demoted to a note as empty-content,
-because `askShaped`/`contentTextOf` already spare it) but "present" everywhere else (routes to the
-ask channel, keys the dedup, becomes the rendered question).
+So the SAME `ask.question: '   '` is blank at intake (a Minor with no title, no other content and
+no `disposition: 'ask'` demotes to a note) but "present" everywhere else on a row that survives
+intake (routes to the ask channel, keys the dedup, becomes the rendered question).
 
 ## Why durable
 
 This is a live, documented inconsistency, not a false alarm — three different auditor lenses (two
-`simplicity`, one earlier round) flagged it independently. Task 2.1's own plan slice explicitly
-reserves the ask channel for a **later phase**: "this task touches neither `parkAsk` nor the asks
-projection." The plan's Method names Phase 3 as "ask records" — so this is inherited debt for
-that phase's implementer, not a defect to fix now.
+`simplicity`, one earlier round) flagged it independently. Task 2.1's plan slice left the ask
+channel to Phase 3 ("ask records"). Phase 3 landed (#2134) and this gap outlived it, so it is open
+debt.
 
 ## How to apply
 
-Before touching `parkAsk`, `askContentKey`, or `intakeFloor`'s ask arm: decide whether all four
-sites should share one `blankText`-based spelling of "does this ask carry a question," and if so
+Before touching `parkAsk`, `askContentKey`, `intakeFloor`'s ask arm, the gate-audit floor pass or
+the seat-conflict peer check: decide whether all of them should share one `blankText`-based spelling of "does this ask carry a question," and if so
 change all of them together in one commit (a partial migration would make the inconsistency worse,
 not better, by adding a fourth spelling).
 
@@ -73,5 +74,5 @@ not better, by adding a fourth spelling).
 the same task.
 
 [[auditor-supplied-provenance-keys-trusted-verbatim-in-followup-collapse-and-ask-parking]] — a
-second, independent ask-channel gap (finding-level `task`/`seat`/`sha` still auditor-supplied at
-non-gate-audit `parkAsk` call sites) also explicitly deferred to Phase 3.
+second, independent ask-channel gap (finding-level `task`/`seat`/`sha` at non-gate-audit `parkAsk`
+call sites). Recheck it before relying on it.

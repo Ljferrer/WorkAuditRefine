@@ -60,238 +60,86 @@ metadata:
 
 # An in-diff `absorb`/`autoFixable:true` finding can ship unfixed even after a real fix round ran
 
-**Found (code-verified — landed tip `fc9cf8c1099156f551c414ef99d34d277451da25` on
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, read via the run-scoped `_refinery` worktree
-whose `HEAD` is directly on this tip:
-`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
+**Rule:** `disposition: absorb` + `autoFixable: true` is a routing tag, not a completion guarantee.
+Minor/Nit never blocks approval, so nothing forces any one such finding to be fixed. Only a fresh
+Read of the named construct at the landed tip confirms a `suggested_fix` landed.
 
-Task 5.1's audit log entry shows one fix round already ran (`fixRounds: 1`) before its final
-`verdict: approve`. That same final audit entry carries nine findings, several `severity: Minor`,
-`disposition: absorb`, `autoFixable: true`, naming defects **inside** the task's own Files
-(`skills/war/assets/workflow-template.js`, `agents/war-refiner.md`, `skills/war/references/refiner-recovery.md`
-— all in Task 5.1's Files list). Three of them are confirmed **still present, unfixed, at the
-landed tip**:
+**Seen seven times** (landing refs are in `metadata.phase`). The shape covers all of these:
 
-1. `PARTIAL_LOG_RULE`'s remedy clause still reads "first stop any backgrounded gate job **you
-   started** and truncate the gate log" — on a re-dispatch the fresh agent started no job, so the
-   clause names an owner it never has. Verbatim, byte-equal, on both
-   `skills/war/assets/workflow-template.js` (the `const PARTIAL_LOG_RULE = pt\`...\`` literal) and
-   `agents/war-refiner.md` (its merge-task step, PIN-1 byte-equal mirror).
-2. The baseline-proceed re-merge build (`skills/war/assets/workflow-template.js`, the
-   `BASELINE-PROCEED re-merge` dispatch inside the `cls === 'baseline'` branch) never calls
-   `gateCaptureClause`, so `PARTIAL_LOG_RULE`'s "read the stamped gate log **named above**" has no
-   antecedent in that one prompt — the other three merge-task sites (initial, floor-retry,
-   environment-proceed) do name the path there.
-3. `skills/war/references/refiner-recovery.md`'s header still claims unqualified byte-identity
-   ("each moved block was **byte-identical** to its pre-eviction card text at eviction time") for
-   a block (the `## MergeResult merge-task-only fields` parenthetical) that gained a brand-new
-   `gate_segment` clause in the SAME commit — and the paired assert message in
-   `skills/war/assets/workflow-template.test.mjs` (`'refiner-recovery.md § MergeResult
-   merge-task-only fields carries the 617 B evicted parenthetical byte-identical'`) repeats the
-   same unqualified claim.
+- `fixRounds: 0`, with or without `phaseClose: true`. Several findings shipped untouched. The
+  `phaseClose: true` ones depended on a polish task that never touched those files.
+- `fixRounds: 1`. The round fixed other findings, and the re-audit kept these. All were non-blocking,
+  so the verdict went to `approve`.
 
-**Why this matters:** all three findings were tagged `autoFixable: true` and disposed `absorb`
-with no `phaseClose: true` — the shape that normally signals "cheap, mechanical, will be picked up."
-None of the three landed. The mechanism: Task 5.1's fix round (round 1) evidently addressed OTHER
-findings from the round-1 audit; the round-2 audit (the one quoted above) then surfaced/retained
-these, but since none is Critical/Major, the verdict went straight to `approve` — **Minor/Nit never
-blocks approval, so nothing forces a third round**, even for a finding that is in-diff, mechanical,
-and marked auto-fixable.
+**Sharper forms:**
 
-**Pattern to watch for:** `disposition: absorb` + `autoFixable: true` is informational, not a
-guarantee. Once a task's verdict reaches `approve`, any remaining non-blocking finding from that
-same audit round ships as-is unless a later task or phase-close polish independently happens to
-touch the same construct. Before trusting a `suggested_fix` was applied, re-Read the named
-construct at the landed tip — do not infer from the disposition tag or from `fixRounds > 0`.
+- A moving pinned sha is not per-finding proof. In one case two fix cycles moved the sha, yet one
+  finding in the batch shipped unfixed, its flagged sentence byte-for-byte unchanged. The round fixed
+  the sibling finding.
+- Three-seat agreement does not help. All three seats raised the same Nit, and the fix round closed
+  the Major and the Minors but skipped the Nit. The later approve rounds did not re-raise it.
+- A post-merge gate-audit does not re-check a prior round's in-diff absorb unless its own lens trips
+  on the same construct.
 
-**Recurrence 2 (code-verified — landed tip `2694f617c02b8ae0a527086792355331c5cc5a79` on
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 7 "Citations", task 7.1, read via the
-run-scoped `_refinery` worktree whose `HEAD` is directly on this tip:
-`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
-Task 7.1's own audit round approved with `fixRounds: 0` — the task never ran a fix round at all,
-because every finding topped out at Minor/Nit (Minor/Nit never blocks). At least three findings
-tagged `disposition: absorb`, `autoFixable: true` (two of them also `phaseClose: true`) are
-confirmed still present, unfixed, at the landed tip:
+**Correction on `fixRounds: 0`:** an earlier form of this lesson said `fixRounds: 0` means no absorb
+was ever applied. That overstates it. `run.ace` defaults true, and the ace ladder runs after approve.
+Each ace commit charges `absorbRounds`, never `fixRounds`, so `fixRounds` says nothing about absorbs
+in either direction. The `aced` record is not per-finding proof either: `recordAcedTouched` needs
+only that the commit touched the finding's file, or no file overlap at all plus a panel re-approval.
+Its own comment rules that second arm a known residual.
 
-1. `skills/war/references/schemas.md` line 63 still enumerates the durable citation shape as
-   `{ row, threadedRow, rationale }`; `citationOf` in `skills/war/assets/workflow-template.js`
-   actually returns `{ row: threadedRow, threadedRow, cited: row, rationale }` and `recordAced`
-   spreads that fourth `cited` key onto the durable `aced` record. Two seats flagged this
-   (Nit + Minor, both `phaseClose: true`); neither landed.
-2. `skills/war/assets/workflow-template.js`, the `queuedFindingRow` header comment (search
-   `citationStamp reached only the sweep copy`), still writes the drift-fixing commit's sha with a
-   leading `#` (`#3f55b04`) — in this file `#NNNN` denotes a GitHub issue, so it misreads as a
-   nonexistent issue. Flagged Nit, `phaseClose` absent (an in-diff, not phase-close-routed, fix);
-   unfixed anyway.
-3. `skills/war/assets/workflow-template.test.mjs` line 12846 (the `CITE_ARGS` header comment) is
-   still ~137 characters against its own neighbor lines' ~95-character wrap. Flagged Nit, in-diff;
-   unfixed.
+**Moot since this was written:** `PARTIAL_LOG_RULE` was rewritten, so its "you started" and "named
+above" wording is gone, from `agents/war-refiner.md` too.
 
-The `phaseClose: true` pair depended on a later phase-close/polish sweep touching those files; the
-phase's one polish task (`p7-polish`) touched only `docs/adr/0035-...md`, so the queue never
-drained them. **The reinforced rule: `disposition: absorb` + `autoFixable: true` is a routing tag,
-not a completion guarantee — and `fixRounds: 0` (an all-Minor/Nit round-1 approve) means NONE of
-that round's absorb findings were ever mechanically applied, `phaseClose` or not.** Always re-Read
-the named construct at the landed tip before trusting a `suggested_fix` landed.
+**Still open at master** (each re-checked; find by construct):
 
-**Recurrence 3 (code-verified — landed tip `b7a74b841bcb02079d86a0d9b72d0ac4bb5e3b99` on
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 9 "Sweep, terminal pass, filing
-fidelity", task 9.1, read via the run-scoped `_refinery` worktree whose `HEAD` is directly on this
-tip: `<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
-Task 9.1's own audit approved with `fixRounds: 0` — every finding topped out at Minor/Nit, so the
-verdict went straight to `approve` with no fix round at all. Four findings carried
-`disposition: absorb`, `autoFixable: true`; three had no `phaseClose: true` (the in-diff,
-"will be fixed now" shape). All three of those three are confirmed still unfixed at the landed
-tip:
+- `skills/war/references/refiner-recovery.md`, opening paragraph: unqualified "each moved block was
+  byte-identical", though the `## MergeResult merge-task-only fields` block gained a `gate_segment`
+  clause in the same commit. The assert message in `workflow-template.recovery.test.mjs`, search
+  "617 B evicted parenthetical byte-identical", repeats it.
+- `skills/war/references/schemas.md`, the `citation?` row: says `{ row, threadedRow, rationale }`,
+  while `citationOf` in `workflow-template.js` also returns `cited`.
+- `workflow-template.js`, the `queuedFindingRow` header comment: `#3f55b04` writes a sha like an
+  issue number.
+- `workflow-template.test-harness.mjs`, the `Args for the citation family` comment above `CITE_ARGS`:
+  one line overruns its neighbors' wrap.
+- `workflow-template.js`, the FOLLOW-UP CONSOLIDATION `if (hit)` arm, search `mergeSeat(hit, f)`: no
+  `drainCause` copy onto the survivor. `demote()` has the first-stamp-wins copy.
+- `workflow-template.engine-1.test.mjs`, the `intake normalization: default-deny census` test title:
+  says "strips seats/merged", behind its own assert message
+  ("seats/merged/drainCause/demoteReason").
+- `workflow-template.js`, the `drainCauseOf` header comment: "both sit outside any local try" is false
+  for the filing-prompt row, which runs inside the file-followups `try`.
+- `workflow-template.js`, the ENDSTATE-CHECK DISPATCH prompt, search `STATEMENT BOUNDARIES (#1782`: no
+  clause makes a compound command (`for`, `while`, `{ }`, `( )`) one statement. The
+  `endstate: statement-boundary operator set` test in `workflow-template.engine-1.test.mjs` has no
+  assert for it.
+- `CONTEXT.md`, the `**Disposition**` entry: still says `/release-slot-adjacent)`, though routing is
+  by literal now.
+- `skills/war/references/disposition-eligibility.md`, the `Release-slot eligibility by literal`
+  blockquote: does not state that the CHANGELOG head and the README `## Status` twin must move
+  together.
+- `skills/war/assets/skill-doc-contracts.test.mjs`, the `D20 — release-slot eligibility by literal`
+  test: asserts `RELEASE_SLOT_FILES` against the whole `disposition:'absorb'` block, where
+  older text already carries that token.
+- `skills/war/references/design.md`, the §18 `Disposition routing` bullet: still ends "route to the
+  sweep instead of being refused", the sentence ADR 0013 Decision 5 dropped.
+- `workflow-template.js`, the `throughRound` comment, search "already stamped one round lower": says
+  `chainRecordFix` runs before the `absorbRounds` charge. At all three ace fixer sites the charge
+  comes first.
+- `skills/war-strategy/references/fork-trials.md`, the `**The per-command cap.**` paragraph, search
+  "This host has none": states one machine's fact in a file read on every host.
 
-1. The FOLLOW-UP CONSOLIDATION block's `if (hit)` arm (`skills/war/assets/workflow-template.js`,
-   search `mergeSeat(hit, f)`) still has no line copying a merged-away row's `f.drainCause` onto
-   the survivor `hit.drainCause`. The suggested fix (mirror `demote()`'s own first-stamp-wins copy
-   at line 1537, `if (f.drainCause && !hit.drainCause) hit.drainCause = f.drainCause`) was never
-   applied — `mergeSeat(hit, f)` runs and nothing else touches `drainCause` in that arm.
-2. `skills/war/assets/workflow-template.test.mjs` line 6267, the census test title, still reads
-   "normalizeSeat strips seats/merged and demotes empty content" — the body's own assertion
-   message two lines below (`nfBody.includes(...)`) already says "strips
-   seats/merged/drainCause/demoteReason," so the title now visibly lags the assertion it labels.
-3. `drainCauseOf`'s header comment (`skills/war/assets/workflow-template.js`, near line 5433)
-   still reads "both sit outside any local try" — untrue for the filing-prompt row builder, which
-   runs inside the file-followups dispatch's own `try`; only the handoff followUps projection is
-   actually outside a try.
+**Why:** the tags look like "cheap, will be picked up", so the audit log reads as if the fix landed.
+No gate turns that into a duty once the verdict is `approve`.
 
-The one absorb finding that DID carry `phaseClose: true` (the ADR 0012 cross-reference) landed
-correctly, but only after the phase's later `p9-polish` task iterated on it across several rounds
-— see the phase-9 recurrence in
-[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] for that surface's
-own fate (fixed on the ADR, NOT fixed on two sibling glossary/schema surfaces stating the same
-rule).
+**How to apply:** never infer a fix from the disposition tag, `autoFixable`, the absence of
+`phaseClose`, `fixRounds`, a sha transition, seat count or the batch verdict. Re-Read each named
+construct at the landed tip, from a checkout that is really on that tip:
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]].
 
-**Reinforces the pattern with the cleanest case yet:** `fixRounds: 0` plus `disposition: absorb`
-plus `autoFixable: true` plus NO `phaseClose: true` is the strongest-looking "this is definitely
-fixed" shape the audit log can produce for a Minor/Nit — and three-for-three of them still shipped
-untouched. Never infer a fix from the disposition tag, the `autoFixable` flag, or the absence of
-`phaseClose: true`; only a fresh Read at the landed tip confirms it.
-
-**Recurrence 4 (code-verified — landed tip `8927103891fdc7902f15a498203f7eaeedd74823` on
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 11 "Audit-boundary redesign", task 11.1,
-read via the run-scoped `_refinery` worktree whose `HEAD` is directly on this tip:
-`<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
-Task 11.1's own audit round approved with `fixRounds: 0`. One finding — "STATEMENT BOUNDARIES
-clause does not exempt a compound command from the printf append" — carried `disposition: absorb`,
-`autoFixable: true`, with a concrete `suggested_fix`: append a sentence naming a `for`/`while`/
-`until`/`if`/`case` block, a `{ }` group, or a `( )` subshell as likewise ONE statement, and extend
-the `endstate: statement-boundary operator set` fixture with an assert on that sentence. Confirmed
-still absent at the landed tip: the STATEMENT BOUNDARIES sentence in
-`skills/war/assets/workflow-template.js` (the ENDSTATE-CHECK DISPATCH prompt, search `STATEMENT
-BOUNDARIES (#1782`) still ends at "an `&&` or `||` list is ONE statement, never split" with no
-compound-command clause, and the `endstate: statement-boundary operator set` fixture in
-`skills/war/assets/workflow-template.test.mjs` carries no assert naming `for`/`while`/`until`/`if`/
-`case`/subshell. Fourth-for-fourth: `fixRounds: 0` plus `disposition: absorb` plus
-`autoFixable: true` plus no `phaseClose: true` keeps shipping unfixed.
-
-**Recurrence 5 (code-verified — landed tip `48a7120616627a35ecf2a05e76e34d15dcf985a3` on
-`dev/2026-09-06-engine-and-audit-verdict-integrity`, phase 12 "Release-slot eligibility by
-literal", task 12.2, read via the run-scoped `_refinery` worktree whose `HEAD` is directly on this
-tip: `<repo-root>/.claude/war-worktrees/2026-09-06-engine-and-audit-verdict-integrity-2026-09-07/_refinery/`).**
-Task 12.2's own first audit round approved with `fixRounds: 0`. Three findings carried
-`disposition: absorb`, `autoFixable: true` with a concrete `suggested_fix`; a fourth carried
-`disposition: absorb`, `phaseClose: true`, `autoFixable: true`. All four confirmed still unfixed
-at the landed tip:
-
-1. `CONTEXT.md`'s `**Disposition**` entry (near line 832) still reads "`absorb` — the per-task
-   ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent)" — the suggested
-   fix (drop the `/release-slot-adjacent` arm, since the by-literal rule this same phase landed
-   replaced file-based routing) was never applied.
-2. `skills/war/references/disposition-eligibility.md`'s new Release-slot-eligibility blockquote
-   (near line 18) states the by-literal rule but never states the CHANGELOG-head/README-`##
-   Status`-twin-must-move-together duty `version-slots.test.mjs` enforces — the suggested addendum
-   sentence was never appended.
-3. `skills/war/assets/skill-doc-contracts.test.mjs`'s D20 test (near line 4386) still extracts and
-   asserts `RELEASE_SLOT_FILES` against the WHOLE `disposition:'absorb'` blockquote, not the single
-   Release-slot-eligibility line — the key is still satisfied by pre-existing text elsewhere in the
-   block, exactly as the finding warned; the suggested narrower assert was never applied.
-4. `skills/war/references/design.md` §18's disposition-routing bullet (near line 131) still ends
-   "README and other shared files route to the sweep instead of being refused" — the exact retired
-   sentence ADR 0013 Decision 5 dropped this same phase. The suggested replacement clause (the
-   by-literal rule) was never applied. This finding carried `phaseClose: true`, so it is a second,
-   different-surface confirmation of
-   [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]'s root cause —
-   that lesson names the ADR/glossary pair; this instance is `design.md`.
-
-Fifth-for-fifth: `fixRounds: 0` plus `disposition: absorb` plus `autoFixable: true`, `phaseClose`
-present or not, keeps shipping unfixed. The post-merge gate-audit that ran after land
-(`gateEvidence:true`, `auditSha: b2c92b1292d179251c6b29fe7332347cf75556f4`) re-surfaced none of
-these four — a gate-audit does not re-check a prior task-round's in-diff absorb `suggested_fix`
-unless its own lens happens to trip on the same construct.
-
-**Recurrence 6 (code-verified — landed tip `b9e9bfd748e902091e5ef6e336ee2fffc62e9a5b` on
-`dev/2026-09-11-backward-chain-doctrine`, phase 3 "Release", task `p3-polish` (phase-close
-coherence sweep), read via the run-scoped `_refinery` worktree whose `HEAD` equals this tip:
-`<repo-root>/.claude/war-worktrees/16a5695b-f2d2-46ae-801b-2fe413d9f12c/_refinery/` — a
-run-UUID-keyed root, see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] Recurrence
-21).** The sharpest form yet: unlike Recurrences 1-5 (all `fixRounds: 0`, no round ran at all),
-this task's audit log shows TWO real fix-and-reaudit cycles actually ran (`audit-pin:resolved` at
-`ea6757c9` → new pinned sha `d3f131bd`, then `approve`/`terminal:true` at `d3f131bd`) — the pinned
-sha visibly moved twice, proving real commits landed. One of the two findings resolved in that
-second cycle, "throughRound comment's causal reason inverts the statement order at all three ace
-sites" (Minor, `disposition: absorb`, `autoFixable: true`), quoted the exact wrong sentence: "the
-ace fixer's row was already stamped one round lower, because `chainRecordFix` runs before the
-`absorbRounds` charge the re-audit reads" — and gave a concrete corrected wording naming the
-`chainRound` capture instead of `chainRecordFix`. At the landed tip,
-`skills/war/assets/workflow-template.js` (search "the ace fixer's row was already stamped one
-round lower") still reads the ORIGINAL, flagged-wrong sentence verbatim, byte-for-byte identical
-to what the finding quoted as false. The code itself confirms the finding's diagnosis: at every
-ace site (e.g. lines ~3613-3614) `r.task.absorbRounds++` runs, THEN `chainRecordFix(...)` runs —
-the charge precedes the record call, the opposite of what the comment claims.
-
-**Sharpens the pattern:** a moving pinned sha (proof some diff in the round happened) is not proof
-THIS finding's diff happened — the round may have fixed the OTHER finding in the same batch (here,
-a sibling "Worker rule 1" finding in the identical audit-pin:resolved entry) and let this one ride
-through to `approve` unfixed. Never infer per-finding completion from the batch's `verdict` or
-`headSha` transition; re-Read each named construct individually.
-
-**Recurrence 7 (code-verified — landed tip `adb270b166190652e1289f8076ef43141e778f9a` on
-`dev/2026-10-26-interview-fork-trials-and-pair-beats`, phase 1 "Doctrine, config, glossary, pointers,
-record", task 1.1, read via the run-scoped `_refinery` worktree, rung 2 of the grounding ladder:
-`<repo-root>/.claude/war-worktrees/a3638493-09c0-47c2-b623-58b5edc9dd74/_refinery/`. Its `HEAD` is the
-phase-1 integration tip `7189418a760c592f73e0ba8e04cdee0d66db9e85`, the second parent of the landed
-merge; the land merged an ancestor base, so the trees match).** A real fix round ran (`fixRounds: 1`,
-pinned sha moved `5a4f36eb` to `dc724749` to `046bfdd6`). It closed the round-1 Major (the base
-attestation comparand) and three Minors (fill-defaults presence, trial cwd, snapshot junk ref). It
-skipped one Nit from the same batch: "Doctrine states the authoring host lacks timeout"
-(`disposition: absorb`, `autoFixable: true`, with the replacement sentence supplied). All three
-seats (correctness, plan-faithfulness, cascading-impact) raised it independently. Still present at
-the tip: `skills/war-strategy/references/fork-trials.md`, the `**The per-command cap.**` paragraph,
-search "This host has none" — "A host with `timeout` may use `timeout <s> <command>`. This host has
-none, so the portable form is a process-group kill". The reference file is read on every host, so
-the sentence is a snapshot of one machine. The later approve rounds praised the other fixes and did
-not re-raise it. **Sharpens the pattern again:** three-seat agreement on a Nit does not make the
-fix round take it. Nit never blocks, so the round fixes what blocks plus what it chooses.
-
-**Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
-much larger, heavily-recurring instance of this same root fact for **terminal/polish** tasks
-specifically (no further round exists structurally); this lesson generalizes it to an ordinary,
-non-terminal task that DID get a fix round, showing the guarantee gap is not limited to terminal
-rounds. [[audit-log-finding-can-be-stale-by-land-time]] — the complementary caution (a finding CAN
-be fixed before land, so don't assume it is still live either) — together they say: never trust the
-audit-log disposition alone in either direction, always re-Read at the landed tip.
-
-**Locate-cue (verify still present before acting):** `skills/war/assets/workflow-template.js`,
-search `const PARTIAL_LOG_RULE` and the `BASELINE-PROCEED re-merge` prompt literal inside the
-`cls === 'baseline'` branch; `agents/war-refiner.md`, search "any backgrounded gate job you
-started"; `skills/war/references/refiner-recovery.md`, the file's opening paragraph ("Verbatim
-evictions from..."); `skills/war/assets/workflow-template.test.mjs`, search "617 B evicted
-parenthetical byte-identical". Recurrence 2: `skills/war/references/schemas.md`, search `citation?`
-near line 63; `skills/war/assets/workflow-template.js`, search `citationStamp reached only the
-sweep copy` (the `queuedFindingRow` header) and `const citationOf`; `skills/war/assets/workflow-template.test.mjs`,
-search `Args for the citation family` (the `CITE_ARGS` header, around line 12846). Recurrence 3:
-`skills/war/assets/workflow-template.js`, search `mergeSeat(hit, f)` (the FOLLOW-UP CONSOLIDATION
-`if (hit)` arm) and `const drainCauseOf` (the header comment reading "both sit outside any local
-try"); `skills/war/assets/workflow-template.test.mjs`, search "strips seats/merged and demotes
-empty content" (the test title, line 6267). Recurrence 4: `skills/war/assets/workflow-template.js`,
-search `STATEMENT BOUNDARIES (#1782` (the ENDSTATE-CHECK DISPATCH prompt); `skills/war/assets/workflow-template.test.mjs`,
-search `endstate: statement-boundary operator set`. Recurrence 5: `CONTEXT.md`, search
-`/release-slot-adjacent)` (the `**Disposition**` entry); `skills/war/references/disposition-eligibility.md`,
-search `Release-slot eligibility by literal` (the D20 blockquote); `skills/war/assets/skill-doc-contracts.test.mjs`,
-search `D20 — release-slot eligibility by literal` (the test name) and the preceding
-`eligibilityRef.match` call; `skills/war/references/design.md`, search "route to the sweep instead
-of being refused" (§18's disposition-routing bullet).
+**Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] is the
+same root fact for terminal and polish tasks, where no further round exists. This lesson shows the
+gap also hits an ordinary task that did get a fix round.
+[[audit-log-finding-can-be-stale-by-land-time]] is the complement: a finding can also be fixed before
+land, so do not assume it is live either. Trust neither direction without a re-Read.

@@ -66,3 +66,5 @@ truncated, suspect a regression in that block before suspecting the plan.
 - [[endstate-check-cmd-artifact-can-double-quote-a-single-quoted-plan-literal]] (archived): same root cause, resolved by the same fenced transport.
 - [[check-command-grep-literal-must-include-markdown-code-span-backticks]] (archived): the opposite direction, omitting the backticks makes the pin unreachable.
 - [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]]: general SOFT-not-a-hold precedent for artifact-channel failures.
+
+> archived 2026-10-30: resolved — moved to archive

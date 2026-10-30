@@ -47,3 +47,5 @@ The audit seats saw each arm as a new defect, and each was one. The plan had lef
 **Rule for plan authors.** When a slice says a scanner must never drop X silently, list the closed set of line classes it can meet. For a block parser that is: marker, row, blank, continuation, prose, heading, fence, end of file. State the outcome for each class. Add one fixture per class, and prove each guard red by removing it. Auditors then close the class in one round, not six. See [[fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit]].
 
 **Fix anchor (verified present at landed tip 4e33b6db).** The header of `skills/war/assets/target-artifacts.mjs` states the final rule: every row-shaped line in Part 1 reaches `rows`, or the parse throws. Blank lines under the marker and between rows are skipped. A `- path:` bullet that does not open as a row (`ROW_HEAD`) stays inert prose by design.
+
+> archived 2026-10-30: resolved — moved to archive

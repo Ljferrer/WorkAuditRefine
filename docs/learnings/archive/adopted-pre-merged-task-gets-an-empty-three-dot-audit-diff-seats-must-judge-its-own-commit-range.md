@@ -45,3 +45,5 @@ metadata:
 **Evidence trail.** The ref equality (task branch and integration branch at one sha) comes from the seats' own `git rev-parse` output in the audit log. Those task refs have since advanced through ace commits, so I could not re-read the equal state. The empty result follows from the definition of a three-dot diff, which is the inward check I could run. The prompt construct is code-verified.
 
 **Locate-cue (verify still present before acting).** `skills/war/assets/workflow-template.js`, function `auditPrompt`, search `three-dot = merge-base..head`. Found at landed tip 0d8a9fba.
+
+> archived 2026-10-30: resolved — moved to archive

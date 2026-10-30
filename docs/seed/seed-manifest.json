@@ -9,10 +9,74 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "a-for-loop-over-command-substitution-hides-the-commands-failure",
+      "bytes": 2132,
+      "sha256": "fba103243f019b73cba6973d61b82e68eb60e0f6cd051a0b10f4284f9d458d82",
+      "description": "for m in $(cmd) ignores a failed cmd, so capture it first with ms=$(cmd) &&",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "a-shell-command-inside-a-prompt-string-needs-a-test-that-runs-the-exact-prompt-spelling-through-bash",
+      "bytes": 1786,
+      "sha256": "56c9125e8d857a2ce1dfd2c4043da72df8f6df5ba4b4bb09256ef05cfb91c061",
+      "description": "A git command spelled in an agent prompt needs a test that runs that exact text through bash",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "a-trailer-in-its-own-paragraph-is-unparsed-when-an-attribution-paragraph-follows",
+      "bytes": 1841,
+      "sha256": "d7cdfb8d521d3c5b9c6fb45f8ea8cdbbc8029a13f2af0ace1bd137b883421e96",
+      "description": "A trailer set as its own paragraph is lost once an agent appends a Co-Authored-By paragraph",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "agent-token-rotation-needs-authorizer-cache-ttl-zero",
+      "bytes": 1203,
+      "sha256": "d2c01b5cabf4fe52dc486a4953b29bb5fa5e315afeeaf36b29bea1430e834b56",
+      "description": "A rotated agent token dies at once only if the AppSync Lambda authorizer ttlOverride and the stack resultsCacheTtl are both zero.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "an-early-exit-guard-added-under-existing-tests-hollows-their-negative-assertions",
+      "bytes": 2490,
+      "sha256": "bc6bb34cd177b7bc1ac0f25a5b36d5042cb36fc1d584b6f92b94822001ae4572",
+      "description": "A new early-exit guard makes old 'nothing written' assertions pass because the guard refuses first, so re-aim each fixture at the guarded branch",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "ast-one-home-guard-needs-load-context-not-just-call",
       "bytes": 1723,
       "sha256": "062815c074c0972b6a94aeb7af2c352fab61e3d6cd59b5183f0197a7054389d7",
       "description": "An AST one-home guard must flag every Load-context name, attribute and ImportFrom of the helper, not only ast.Call",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "bash-case-glob-path-fence-needs-an-absolute-prefix-arm-and-its-star-spans-slash",
+      "bytes": 2442,
+      "sha256": "d42a7350e3b7d15b12ec5d7c2285e37de644a0547ff26d5275f99a1a06d04c86",
+      "description": "A bash case glob like */.claude/projects/*/memory admits a relative x/.claude/... path and a nested memory/archive/memory path",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "bash-per-call-watchdog-under-command-substitution-needs-detached-stdio-and-an-expired-gate-on-sigterm",
+      "bytes": 4072,
+      "sha256": "a7b265ab85647356f493cc31f82a22a30a53ca7c6327f212f130a734dd47647e",
+      "description": "A bash 3.2 watchdog around one call inside $(...) needs detached stdio, an empty pid seed and an expired gate on exit 143",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "bash-seconds-inherits-from-the-environment-so-a-test-forces-an-expired-deadline-without-sleeping",
+      "bytes": 2349,
+      "sha256": "dcc902961f99e776e487d5e0884b52738cf8381a76b05d8d56b7cc4ef524f5d9",
+      "description": "A test can expire a bash script's SECONDS deadline by exporting SECONDS, but it reaches only the pre-check arms",
       "type": "project",
       "provenance": "code-verified"
     },
@@ -37,6 +101,22 @@
       "bytes": 2862,
       "sha256": "bb74849456bb53d83b31e370a204393160633a0a650bcb87182dcfca6f9ab154",
       "description": "RESOLVED (realpathSync normalization + symlink-invocation regression tests, 2026-07-23): all three run-as-CLI guards now realpath before comparing; the real trigger was symlink invocation, not relative paths",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "cognito-login-comes-from-identities-claim",
+      "bytes": 1350,
+      "sha256": "cc55a07c305b825d41c700361b10965a221c52d9748f4fadd2fb29e0206532a9",
+      "description": "Read a Cognito caller's GitHub login from the identities claim, never from the user-writable preferred_username.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "composer-keeps-draft-until-resolve-needs-in-flight-guard",
+      "bytes": 1666,
+      "sha256": "59ea54f0c441d6ec11dd8708d1ba8c75d05c48847794ce74ee96b2426b31a832",
+      "description": "A composer that clears its draft only after the write resolves sends twice on a double tap unless it guards the pending post.",
       "type": "project",
       "provenance": "code-verified"
     },
@@ -105,6 +185,14 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "dirty-worktree-fingerprint-needs-blob-hashes-z-status-and-link-text-not-a-bare-status-hash",
+      "bytes": 2277,
+      "sha256": "bbf7d6f321b843f7a0b9a635e4faad51e28716e1e47202d2aeac7293181ae277",
+      "description": "A bare git status hash misses a second edit to a dirty file, so fingerprint blob hashes from a -z status",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "drift-matrix-stated-vs-covered-cells",
       "bytes": 1409,
       "sha256": "8381601a75c192ecdc4db93e0964399e2b76583241d2e64393b92eae24cd97bf",
@@ -135,6 +223,22 @@
       "description": "cmd_ensure_origin swallows git push stderr; siblings use _tmp_err",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "eslint-fence-config-authoring-rules",
+      "bytes": 3024,
+      "sha256": "b7fddc187d679997d6c0a2c9229099c886ffa6ff9738ef679d311789be643820",
+      "description": "ESLint flat-config import-ban blocks replace earlier rule options, so each subset block repeats its parent zones and exemptions go in ignores.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "expo-router-usefocuseffect-reruns-on-callback-identity",
+      "bytes": 1943,
+      "sha256": "8578830c449fb77c7d54e3ccecf5d0eb4176f14bb4ec3b064b0e19cef7a54171",
+      "description": "expo-router useFocusEffect re-runs its callback on every identity change while the route is focused, so a callback that depends on loaded data can clear a navigation latch.",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "fail-closed-gate-silently-redirects-existing-failure-tests",
@@ -185,6 +289,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "git-diff-name-only-hides-a-rename-source-so-scope-checks-need-no-renames",
+      "bytes": 1482,
+      "sha256": "cc03489ccc963b0c38984317c3fa5e41973d5578c557d65194ef8ed9b7d6e929",
+      "description": "git diff --name-only prints only a rename's destination, so a footprint check needs --no-renames",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "git-plain-pathspec-cwd-relative-vs-git-show-blob-top-of-tree-relative",
       "bytes": 3970,
       "sha256": "53429563262827ecd69fba0a67060e71224dcca78bdd307569451f8f329f4070",
@@ -201,6 +313,22 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "git-revert-no-commit-folds-a-staged-index-into-the-commit-so-guard-the-index-and-check-write-tree",
+      "bytes": 2369,
+      "sha256": "a32fb2f0a75be1c4e4e2d9fe7679ef1d39299877bc5533c10423658cc5e7915e",
+      "description": "git revert --no-commit skips the dirty-index refusal, so staged content rides into the revert commit",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "git-status-in-a-live-sibling-worktree-needs-optional-locks-off",
+      "bytes": 1822,
+      "sha256": "19c99e95295939f496cfdaf2454615f73c45ffdb015a923bdae9e4158504eadc",
+      "description": "git status refreshes a stale index under index.lock, so a read-only status loop over live worktrees needs GIT_OPTIONAL_LOCKS=0",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "gitmodules-working-tree-read-vs-ref-snapshot",
       "bytes": 2199,
       "sha256": "da2eaa3f6b91f0b7deca541425e3137203708fb62eed35f5165c72993a554405",
@@ -215,6 +343,30 @@
       "description": "Case-pattern widening test proves the fix only on a branch with no independent fallback deny",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "jest-agent-reporter-hides-passing-suites-in-gate-log",
+      "bytes": 1766,
+      "sha256": "dfb71ad5cedd952ca031d3c1508cc0cb61f8a9def322e273a6cddea764788c67",
+      "description": "Jest 30 swaps in a failures-only agent reporter under AI-agent env vars, so a gate log lists no passing suite paths unless the reporter is pinned.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "jest-expo-passwithnotests-red-at-base",
+      "bytes": 1700,
+      "sha256": "fe9df3325aa21cb7b3b8a7e388d47f82ab9da5aa44f46ca6a0aa3983683deba8",
+      "description": "The jest-expo preset sets passWithNoTests, so a path-filtered jest check passes with no test file until jest.config.js overrides it.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
+      "slug": "jq-empty-fallback-folds-false-null-and-empty-so-a-presence-gate-needs-has-and-a-type-check",
+      "bytes": 2183,
+      "sha256": "c8e6d3d5135f69278dc53c666856b61086a77d8eba96a23147fb15a26ced1304",
+      "description": "A hook that reads a key with jq // empty and gates on non-empty lets a present empty, null, false or array value pass",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "js-inner-function-param-shadows-outer-const-same-name",
@@ -273,6 +425,14 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "negative-assert-on-a-fixture-that-cannot-carry-the-offender-is-vacuous-and-a-label-count-a-fix-round-also-satisfies",
+      "bytes": 4011,
+      "sha256": "02c59668a0c1ee9f78b38e5f372f404ce94f07f671e14bc7b69f5bbe6c7bd9dc",
+      "description": "A negative assertion on a fixture that cannot contain the offender cannot fail, and a label count that a retry also reaches proves nothing",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "negative-grep-guard-can-trip-on-prose-comment",
       "bytes": 1673,
       "sha256": "feb8ab369b0a20525cd1932724e650333e4e826d009c1531ff4b699b945ebcda",
@@ -311,6 +471,14 @@
       "description": "war-config.mjs validate()'s overrides loop has no isObj guard, unlike the memory.* block right above it — a hand-edited overrides: null crashes with an uncaught TypeError instead of a clean validation error",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "plain-git-check-ignore-reads-the-index-so-a-walk-that-mirrors-ripgrep-skips-must-use-no-index",
+      "bytes": 4162,
+      "sha256": "e4f92d3fe2f950178679cc5854726ac4c8b2dd3a92c5de4f276196f84fbeab1f",
+      "description": "Plain git check-ignore reads the index, so a hook walk that mirrors ripgrep skips must ask with --no-index",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "printf-json-escaping-vacuous-test-case",
@@ -489,6 +657,14 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "stack-env-must-be-read-by-every-lambda-it-is-passed-to",
+      "bytes": 1684,
+      "sha256": "b0b02eb0cdfdf24561cdcd393db41ca463f212fc0103909405847a5a5d8f7a3e",
+      "description": "A Lambda handler that ignores the table env the stack passes works only while the stack keeps fixed table names.",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "stop-class-ok-masks-refusal-and-content-filter",
       "bytes": 1785,
       "sha256": "c932add7092a967ed5b95a6ce2567e069b7cae50dafa24cb6d4a727fe4f930c9",
@@ -505,12 +681,28 @@
       "provenance": "code-verified"
     },
     {
+      "slug": "superseding-an-adr-leaves-stale-pointers-in-readme",
+      "bytes": 1284,
+      "sha256": "010c4ac35fb3b48ab3a7f7bcbef59f8f8860c15b776bfb7af90e1a1e62065db6",
+      "description": "A sweep that retires a README claim can leave a second README pointer at the superseded ADR.",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
       "slug": "teardown-phase-reap-order-and-delete-fail-loud",
       "bytes": 1983,
       "sha256": "5d3b5faa3e263e06c225a9b96743a203b15f4121c676c399997c73a155f3bf64",
       "description": "teardown-phase: reap _refinery BEFORE branch delete; delete must fail loud",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "trailing-newline-deny-row-cannot-go-red-test-the-interior-newline-bypass",
+      "bytes": 2241,
+      "sha256": "450f980011f7f2125f3d0956293097f7ee191079382cc90bbdf4decc2e6ee170",
+      "description": "A trailing-newline deny row in a command guard can never pass; the real bypass is an interior newline joining two commands",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "war-normalize-extraction-shadow-bake",

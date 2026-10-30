@@ -53,3 +53,5 @@ metadata:
 ## Related
 
 [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]: a different doctrine/lint asymmetry class (case sensitivity, not enum membership) from the same structural-test family.
+
+> archived 2026-10-30: resolved — moved to archive
