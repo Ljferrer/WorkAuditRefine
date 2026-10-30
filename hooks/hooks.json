@@ -30,7 +30,14 @@
       {
         "matcher": "StructuredOutput",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh", "timeout": 600 }
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-tree-fingerprint.sh", "timeout": 600 },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/record-lesson-use.sh", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/record-lesson-use.sh", "if": "Read(**/*.md)", "timeout": 10 }
         ]
       }
     ],

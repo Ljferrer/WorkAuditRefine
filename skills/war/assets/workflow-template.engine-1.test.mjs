@@ -4449,6 +4449,17 @@ test('memory: empty/absent map ⇒ prompts byte-identical to a memory-less run (
   assert.ok(w && !w.prompt.includes('PRIOR-LESSONS'), 'memory-absent worker prompt carries no lesson block')
 })
 
+test('lessonsUsed (ADR 0055): the dispatched line asks for it, and both standing cards mirror it', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const worker = calls.find(isWorker)
+  assert.ok(worker, 'worker dispatched (presence guard)')
+  assert.ok(memoryQueryLineOf(worker.prompt).includes('lessonsUsed'), 'the dispatched line names the field')
+  for (const card of ['war-worker.md', 'war-auditor.md', 'war-evidence-auditor.md']) {
+    const text = readFileSync(join(here, '../../../agents', card), 'utf8')
+    assert.ok(text.includes('`lessonsUsed`'), card + ' carries the standing instruction')
+  }
+})
+
 test('memory_query seat line: present in the dispatched worker prompt AND mirrored in war-worker.md (both surfaces)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const w = calls.find(isWorker)
