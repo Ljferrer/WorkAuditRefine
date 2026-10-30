@@ -98,7 +98,7 @@ test('partial override merges over defaults', () => {
 
 test('thorough preset', () => {
   const c = presetConfig('thorough')
-  assert.equal(c.agents.worker.model, 'fable')   // pinned above the opus DEFAULTS (ADR 0055)
+  assert.equal(c.agents.worker.model, 'fable')   // pinned above the opus DEFAULTS (ADR 0056)
   assert.equal(c.agents.worker.effort, 'default')
   assert.equal(c.agents.auditor.model, 'fable')
   assert.equal(c.agents.auditor.effort, 'default')
@@ -113,7 +113,7 @@ test('thorough preset', () => {
     redteam:  { model: 'fable',  effort: 'default' },
     snipe:    { model: 'fable',  effort: 'default' },
     trial:    { model: 'fable',  effort: 'default' },
-  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0055)')
+  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0056)')
   assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
@@ -1601,7 +1601,7 @@ const tierAt = (preset, path) => path.split('.').reduce((o, k) => o[k], presetCo
 // deliberately unranked (see the MODEL_RANK comment in war-config.mjs), so only the model is
 // compared. The relation is non-strict, so an equal-rank move stays green by design.
 // Delete-the-feature: seat economy's auditor on fable, or thorough's on sonnet → red.
-// SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0055). The skill block itself is a seat map, not a tier.
+// SKILL_SEAT_PATHS: every agents.<skill>.<seat> tier (ADR 0056). The skill block itself is a seat map, not a tier.
 const SKILL_SEAT_PATHS = Object.entries(SKILL_SEATS).flatMap(([skill, seats]) => seats.map(seat => `${skill}.${seat}`))
 const TIER_PATHS = ['worker', 'worker.docs', 'worker.fix', 'auditor', 'refiner', 'refiner.recovery', 'servitor', 'redteam', 'snipe', 'trial', ...SKILL_SEAT_PATHS]
 test('TIER_PATHS and BULLET_LABELS enumerate exactly the DEFAULTS.agents keys and the worker sub-tiers (census)', () => {
@@ -1677,7 +1677,7 @@ test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens
   }
 })
 
-// Skill seats (ADR 0055): one /war-room bullet states them for every preset, so no preset may re-pin a
+// Skill seats (ADR 0056): one /war-room bullet states them for every preset, so no preset may re-pin a
 // seat, and the bullet carries exactly one `<skill>-<seat> model/\`effort\`` token per seat, equal to DEFAULTS.
 test('/war-room skill seats bullet: one token per SKILL_SEATS seat, equal to DEFAULTS, and no preset re-pins a seat', () => {
   const line = readDoc('skills/war-room/SKILL.md').split('\n').find(l => /^\s*- \*\*skill seats\*\* — /.test(l))
@@ -1697,7 +1697,7 @@ test('/war-room skill seats bullet: one token per SKILL_SEATS seat, equal to DEF
   }
 })
 
-test('agents.<skill> seat maps (ADR 0055): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {
+test('agents.<skill> seat maps (ADR 0056): a valid seat validates, an unknown seat, a bad tier or a non-object block is refused', () => {
   assert.equal(validate({ agents: { machine: { drafter: { model: 'opus', effort: 'high' } } } }).valid, true, 'a partial seat map merges over DEFAULTS')
   const unknown = validate({ agents: { survey: { writer: { model: 'opus', effort: 'high' } } } })
   assert.equal(unknown.valid, false)

@@ -30,7 +30,7 @@ export const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 export const EVIDENCE_LENS = 'artifact-evidence'
 export const WIDEN_BARRED_LENSES = [EVIDENCE_LENS]
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
-// Skill seats (ADR 0055): the subagent roles of the Workflow scripts that /war-machine, /survey-corps and
+// Skill seats (ADR 0056): the subagent roles of the Workflow scripts that /war-machine, /survey-corps and
 // /lessons-learned author. agents.<skill>.<seat> is a { model, effort } tier the Lead threads into that
 // role's agent() opts. Not phase roles: the per-phase engine never reads them.
 export const SKILL_SEATS = {
@@ -56,7 +56,7 @@ export const DEFAULTS = {
     // override any tier per run. Every prose surface that restates a value from this object is bound
     // to presetConfig() by DOC_TIER_PINS / the /war-room bullet parser in war-config.test.mjs — when
     // you add a restatement, add a pin row; when you cannot, write a pointer instead of the value.
-    // Seat models follow the #2497 / #2519 routing (ADR 0055): opus for bounded worker, fix and ace work,
+    // Seat models follow the #2497 / #2519 routing (ADR 0056): opus for bounded worker, fix and ace work,
     // sonnet for docs-only tasks and routine audit seats. The Lead routes a boundary-heavy seat to opus
     // through the roster seat's own model.
     worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
@@ -166,7 +166,7 @@ export const PRESETS = {
     profile: 'thorough',
     agents: {
       // Every seat pinned below carries its own value; the worker tiers (base, docs, fix) stay on fable
-      // above the opus/sonnet DEFAULTS (ADR 0055), and the refiner pin sits one effort tier above the
+      // above the opus/sonnet DEFAULTS (ADR 0056), and the refiner pin sits one effort tier above the
       // DEFAULTS refiner.
       worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
       auditor:  { model: 'fable',  effort: 'default' },
