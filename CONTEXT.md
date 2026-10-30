@@ -772,13 +772,6 @@ either direction, a stronger fixer than the first pass or a cheaper one (per-pre
 inherits the fix tier.
 _Avoid_: fix model (it's an optional override, not a standing role).
 
-**Skill seat**:
-A `{ model, effort }` tier for one subagent role in the Workflow scripts that `/war-machine`,
-`/survey-corps` and `/lessons-learned` author, configured at `agents.<skill>.<seat>` (seat names:
-`SKILL_SEATS` in `war-config.mjs`). Each skill reads it fail-open. It is not a phase role, and the
-per-phase engine never reads it.
-_Avoid_: skill tier (a skill has several seats, one per role).
-
 **Dispatch semaphore**:
 The /war engine's global agent ceiling: with `run.maxParallel` set, one global counting semaphore
 caps agent dispatches in flight across the whole run at that many — workers, auditors, aces, fix
