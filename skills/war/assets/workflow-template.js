@@ -795,8 +795,10 @@ const spawnSeat = (s, rebut) => {
   return { model: (r && r.model) || s.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
 }
 // helperOpts(...words): the spawn opts of a tiny read-only Git dispatch (#2497, ADR 0057). The helper's git guard
-// denies quotes, so a word it cannot pass bare routes that one dispatch to the refiner.
-const helperOpts = (...words) => words.every(w => /^[\w./=:,@^~%+-]+$/.test(w))
+// denies quotes, so a word it cannot pass bare routes that one dispatch to the refiner, and shq quotes it there.
+const bareWord = w => /^[\w./=:,@^~%+-]+$/.test(w)
+const shq = w => bareWord(w) ? w : "'" + w.split("'").join("'\\''") + "'"
+const helperOpts = (...words) => words.every(bareWord)
   ? { agentType: NS + 'war-helper', ...spawn('helper') } : { agentType: NS + 'war-refiner', ...spawn('refiner') }
 // Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
 // row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
@@ -3358,8 +3360,8 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   const pinEvidence = { task: task.id, verdict: 'audit-pin:unresolved', findings: seats.flatMap(s => (s.findings || []).map(f => ({ ...f, seat: s.seat, auditSha: s.audit_sha }))), reported, pinMismatch: true }
   auditLog.push(pinEvidence)
   const resolved = await dispatchSite(
-    pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git: resolve branch ${task.branch} with git -C ${task.worktree} rev-parse --verify ${task.branch}^0. PIN REQUEST: ${JSON.stringify(reported)}
-For each reported value, resolve it separately with git -C ${task.worktree} rev-parse --verify --end-of-options <value>^0, ONLY if it is 7–40 lowercase hexadecimal characters. Missing, malformed, ambiguous or nonexistent values resolve to null; never infer identity from prefixes. Return { head_sha: <full branch commit SHA>, pins: [<full resolved SHA or null per requested value, in the same order>] }. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a branch Git error return { head_sha: '', pins: [] }.`,
+    pt`AUDIT PIN RECONCILIATION for WAR task ${task.id}. Read-only Git: resolve branch ${task.branch} with git -C ${shq(task.worktree)} rev-parse --verify ${shq(task.branch)}^0. PIN REQUEST: ${JSON.stringify(reported)}
+For each reported value, resolve it separately with git -C ${shq(task.worktree)} rev-parse --verify --end-of-options <value>^0, ONLY if it is 7–40 lowercase hexadecimal characters. Missing, malformed, ambiguous or nonexistent values resolve to null; never infer identity from prefixes. Return { head_sha: <full branch commit SHA>, pins: [<full resolved SHA or null per requested value, in the same order>] }. Resolve from Git, never echo the reported pin or use the integration merge-base. No edits, checkout, merge, push or rebase. On a branch Git error return { head_sha: '', pins: [] }.`,
     { phase: 'Audit', dispatchKind: 'audit-pin', label: 'audit-pin:' + task.id,
       schema: { type: 'object', required: ['head_sha', 'pins'], properties: { head_sha: { type: 'string' }, pins: { type: 'array', items: { type: ['string', 'null'] } } } }, ...(reconciliation.done ? { agentType: NS + 'war-refiner', ...spawnRefinerRecovery() } : helperOpts(task.worktree, task.branch)) })
   if (deathOf(resolved)) return { seats: [], expected, died: deathOf(resolved) }
@@ -4586,10 +4588,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // per-task seat cross-checks them against its endStateAttestations rows. Absent/malformed ⇒ null.
       task.claimedEndStateIds = Array.isArray(impl.acceptance_criteria_covered) ? impl.acceptance_criteria_covered : null
 
-      // DIFF PROBE (in-band-absorb-default D4, PIN-6): ONE refiner dispatch per task between the
-      // worker's green return and the seat convene — `git diff --name-only <dispatchBase>..<tip>` in
-      // the task worktree, the dispatch base being the merge-base of the integration branch and the
-      // tip (the frozen phase base every worktree was cut from). Read-only and idempotent on resume
+      // DIFF PROBE (in-band-absorb-default D4, PIN-6): ONE helper dispatch per task between the
+      // worker's green return and the seat convene — `git diff --name-only <base>...<tip>` in
+      // the task worktree, the three dots diffing from the merge-base of the integration branch and
+      // the tip (the frozen phase base every worktree was cut from). Read-only and idempotent on resume
       // (the same range yields the same list; a replay re-dispatches harmlessly). Its diff_files feed
       // dispositionOf's engine default and the intake filing floor; worker files_changed is never the
       // source. FAIL-OPEN: a dead/thrown dispatch or a return without a diff_files array leaves the
@@ -4605,7 +4607,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         try {
           probe = await dispatchSite(
             pt`DIFF PROBE for WAR task ${task.id} (a read-only git read, no merge, no push, no rebase, no gate). `
-            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${task.worktree} diff --name-only ${probeBase}...${tip} — the three dots diff from the merge-base of ${probeBase} and the task tip. `
+            + pt`In the task worktree ${task.worktree} (branch ${task.branch}) run EXACTLY: git -C ${shq(task.worktree)} diff --name-only ${shq(probeBase)}...${tip} — the three dots diff from the merge-base of ${probeBase} and the task tip. `
             + pt`Return { diff_files: [<one repo-relative path per line of that output, verbatim>] } — the GIT-derived changed-file list of the task branch; never the worker's own file report. Idempotent: re-running on a resume yields the same list. On any git error return { detail: "<the error>" } with NO diff_files — the engine keeps its old default for this task (fail-open); never block.`,
             { phase: 'Audit', label: 'diff-probe:' + task.id, dispatchKind: 'diff-probe', schema: DIFF_PROBE_RESULT, ...helperOpts(task.worktree, probeBase, tip) })
         } catch (err) {

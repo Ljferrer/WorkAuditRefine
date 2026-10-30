@@ -496,8 +496,8 @@ Pin-transfer uses a flat `PIN_TRANSFER` schema for Workflow API compatibility; i
 
 A task auditor resolves the actual task branch tip using read-only Git. After every
 complete task panel (whose schema requires `audit_sha`), the Workflow independently dispatches `audit-pin` on
-the normal refiner tier; a repair re-audit escalates its verification to
-`agents.refiner.recovery`. The refiner resolves the branch and each reported object name
+the `war-helper` card, or on the normal refiner tier if a word needs quotes; a repair re-audit
+escalates its verification to `agents.refiner.recovery`. The dispatch resolves the branch and each reported object name
 through Git, returning a full `head_sha` and a positional `pins` array (full SHAs or null).
 Equal text and prefix containment alone never prove identity; ambiguous, nonexistent or
 malformed reports are unresolved. The engine checks proof shape and correspondence and

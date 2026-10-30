@@ -798,12 +798,24 @@ test('war-helper (ADR 0057): the exact audit-pin and diff-probe spellings pass t
 })
 
 test('war-helper (ADR 0057): a word the guard denies bare routes that dispatch to the refiner, and agents.helper sets the tier', async () => {
-  const spaced = await runPhase(SWEEP_ARGS({ worktreeRoot: '/abs/my repo/wt' }), floorImpl([]), PROBE)
-  for (const kind of ['audit-pin', 'diff-probe']) {
-    const c = spaced.calls.find(x => x.opts.dispatchKind === kind)
-    assert.equal(seatOf(c.opts), 'war-refiner', kind)
-    assert.equal(c.opts.model, 'sonnet', kind)
-  }
+  const root = mkdtempSync(join(tmpdir(), 'war helper-'))
+  try {
+    const spaced = await runPhase(SWEEP_ARGS({ worktreeRoot: root }), floorImpl([]), PROBE)
+    for (const kind of ['audit-pin', 'diff-probe']) {
+      const c = spaced.calls.find(x => x.opts.dispatchKind === kind)
+      assert.equal(seatOf(c.opts), 'war-refiner', kind)
+      assert.equal(c.opts.model, 'sonnet', kind)
+    }
+    // The refiner arm runs the prompt's exact spelling: the quoted path must survive bash.
+    const pin = spaced.calls.find(x => x.opts.dispatchKind === 'audit-pin').prompt
+    const [spelled, path] = pin.match(/git -C '([^']+)' rev-parse --verify --end-of-options <value>\^0/)
+    mkdirSync(path, { recursive: true })
+    const git = (...a) => spawnSync('git', ['-C', path, ...a], { encoding: 'utf8' }).stdout.trim()
+    git('init', '-b', 'task'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid')
+    writeFileSync(join(path, 'a'), 'x'); git('add', '.'); git('commit', '-m', 'x')
+    const tip = git('rev-parse', 'HEAD')
+    assert.equal(spawnSync('bash', ['-c', spelled.replace('<value>', tip.slice(0, 12))], { encoding: 'utf8' }).stdout.trim(), tip)
+  } finally { rmSync(root, { recursive: true, force: true }) }
   const tuned = await runPhase(SWEEP_ARGS({ agents: { helper: { model: 'sonnet', effort: 'medium' } } }), floorImpl([]), PROBE)
   const c = tuned.calls.find(x => x.opts.dispatchKind === 'diff-probe')
   assert.equal(seatOf(c.opts), 'war-helper')

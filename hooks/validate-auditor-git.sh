@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # WAR auditor read-only-git Bash guard (PreToolUse: Bash).
-# F03 — fail-closed confinement for the war-auditor and war-evidence-auditor agents.
+# F03 — fail-closed confinement for the war-auditor, war-evidence-auditor and war-helper agents.
 #
 # PURPOSE
-#   Gate only the war-auditor and war-evidence-auditor agents: each case arm
-#   is suffix-anchored (patterns `*war-auditor`, `*war-evidence-auditor`), so
+#   Gate only the war-auditor, war-evidence-auditor and war-helper agents: each
+#   case arm is suffix-anchored (patterns `*war-auditor`, `*war-evidence-auditor`,
+#   `*war-helper`), so
 #   it captures the dispatched agent_type `<ns>:war-auditor` but NOT a longer
 #   `war-auditor-helper` decoration.
 #   For a captured type: ALLOW iff the command is a single git read-subcommand
@@ -66,8 +67,8 @@ atype="$(get '.agent_type')"
 cmd="$(get '.tool_input.command')"
 
 # ---------------------------------------------------------------------------
-# Only gate war-auditor and war-evidence-auditor agents; all others pass
-# through. Each arm is suffix-anchored (`*war-auditor`, `*war-evidence-auditor`)
+# Only gate war-auditor, war-evidence-auditor and war-helper agents; all others
+# pass through. Each arm is suffix-anchored (`*war-auditor`, `*war-evidence-auditor`)
 # so it captures the dispatched `<ns>:war-<role>` but not a `war-<role>-helper`
 # decoration, which falls through to the fail-open `*) exit 0`. The evidence
 # seat has its own arm: `*war-auditor` does not capture

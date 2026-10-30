@@ -209,7 +209,8 @@ export const PRESETS = {
   economy: {
     profile: 'economy',
     // Cheaper models and a shorter fix budget (ADR 0050): pins the base and docs worker tiers, the
-    // auditor, refiner, servitor and red-team seats, the trial tier (A9), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
+    // auditor, refiner, servitor and red-team seats, the trial tier (A9), the skill seats (machine, survey,
+    // lessons), roundLimit 4 and redteamRoundLimit 2. rosterPolicy inherits 'auto'
     // (the Lead composes each task's seats from the lens catalog); the four-lens roster below is the
     // autoEscalate widening fallback, the phase-close polish panel, and the terminal-pass seat source,
     // never a per-task seat count.
@@ -305,10 +306,10 @@ export function workerTierMatrix() {
 
 // Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
 // and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
-// for agents.redteam, agents.snipe, agents.trial, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
+// for agents.redteam, agents.snipe, agents.trial, agents.helper, agents.auditor.rebuttal, the agents.worker.docs/fix/ace tiers and every agents.<skill>.<seat>
 // skill seat (SKILL_SEATS): validated exactly
 // like a phase role, but none of them is itself a ROLE (redteam feeds /red-team, snipe feeds /snipe,
-// trial feeds /war-strategy's fork-trial subagent; the worker tiers refine worker dispatch).
+// trial feeds /war-strategy's fork-trial subagent, helper feeds the tiny Git dispatches; the worker tiers refine worker dispatch).
 function validateAgentTier(block, path, errors) {
   if (!isObj(block)) { errors.push(`${path} must be an object { model, effort }`); return }
   if (!MODELS.includes(block.model)) errors.push(`${path}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(block.model)})`)

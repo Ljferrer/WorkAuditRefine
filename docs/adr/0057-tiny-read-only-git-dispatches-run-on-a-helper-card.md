@@ -23,7 +23,7 @@ the guard admits: `<rev>^0` in place of `<rev>^{commit}`, and `<base>...<tip>` i
 
 **A word the guard cannot pass bare routes that one dispatch to the refiner.** A worktree path with
 a space needs quotes, and the guard denies quotes. `helperOpts` checks the words before dispatch,
-so these repos keep working at the old cost. The repeat `audit-pin` lookup stays on the recovery
+and the prompt quotes them on that arm through `shq`, so these repos run at the old cost. The repeat `audit-pin` lookup stays on the recovery
 refiner tier.
 
 ## Consequences

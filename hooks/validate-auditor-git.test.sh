@@ -674,15 +674,16 @@ expect_allow "H6: git -C -C rev-parse HEAD → allowed (first -C peeled; rest = 
 # while I2 stays deny — so I1 is the case that proves the narrowing.
 # ---------------------------------------------------------------------------
 
-# I1: trailing-junk agent type → arm no longer captures → falls through to the
-# pass-through `*) exit 0`, so a write command that WOULD be denied when gated
-# (git push, cf. B1) is allowed un-gated.
 expect_allow "I0a: war-helper runs a read-only git read" \
   "$(typed_cmd "work-audit-refine:war-helper" "git -C /tmp/x rev-parse --verify task^0")"
 expect_deny "I0b: war-helper git push is denied" \
   "$(typed_cmd "work-audit-refine:war-helper" "git push")"
 expect_deny "I0c: war-helper cannot run command substitution" \
   "$(typed_cmd "work-audit-refine:war-helper" 'git diff $(git merge-base a b)..b')"
+
+# I1: trailing-junk agent type → arm no longer captures → falls through to the
+# pass-through `*) exit 0`, so a write command that WOULD be denied when gated
+# (git push, cf. B1) is allowed un-gated.
 expect_allow "I1: work-audit-refine:war-auditor-helper git push → exit 0 (arm no longer captures)" \
   "$(typed_cmd "work-audit-refine:war-auditor-helper" "git push")"
 
