@@ -163,11 +163,11 @@ Most memories are **transferable lessons** — a durable pattern almost never go
 Before archiving anything, **check inbound links** for every `retire` / `merge` candidate — the mechanical count comes from `war-memory inbound`, which walks both roots, counts files whose body cites `[[<slug>]]`, excludes the slug's own file, and lists the citing slugs:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" inbound <slug> --local "$STAGING" --repo "$REPO_ROOT"
+node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" inbound <slug> --local "$STAGING" --repo "$REPO_ROOT" --hot
 ```
 
-- **0–1 inbound citers, no durable residue** → safe to retire.
-- **≥ 2 inbound citers** → it is a **concept hub**. A memory can be dead as a *bug warning* yet load-bearing as a *concept anchor* that siblings cite as "same family as …". **Do not delete it.** Downgrade to `keep-compress`: shrink it to a one-line `**RESOLVED (instance) — kept as concept anchor.**` stub and keep its index row.
+- **0–1 hot citers, no durable residue** → safe to retire. A cold citer does not count, because its link resolves either way (ADR 0055).
+- **≥ 2 hot citers** → it is a **concept hub**. A memory can be dead as a *bug warning* yet load-bearing as a *concept anchor* that siblings cite as "same family as …". **Do not delete it.** Downgrade to `keep-compress`: shrink it to a one-line `**RESOLVED (instance) — kept as concept anchor.**` stub and keep its index row.
 
 **`retire` and `merge` archive, they do not delete.** A surviving hub-downgrade runs **first** (a `keep-compress` stub is never archived). For every candidate that survives the downgrade check, the action is `war-memory archive <slug>` — the lesson leaves the hot set but stays queryable in `archive/`. Knowledge is archived, never deleted (Commander's Intent: *knowledge is archived, never deleted*). A `merge` also folds the source's residue into the target first (Phase 4), then archives the source with a `merged into [[target]]` note.
 

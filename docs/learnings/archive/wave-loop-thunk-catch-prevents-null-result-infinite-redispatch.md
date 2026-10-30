@@ -72,3 +72,5 @@ Related: [[done-report-path-contract-scoped-to-primary-worker-call-site]] (the
 `assertReportedPathsInWorktree` in the same task), [[held-escalation-lead-manual-completion]] (what
 `held:escalation` means downstream), [[war-phantom-land-reports-success-without-advancing-integration]]
 (a different "silent no-op looks like progress" engine hazard in the same file).
+
+> archived 2026-10-30: resolved — moved to archive

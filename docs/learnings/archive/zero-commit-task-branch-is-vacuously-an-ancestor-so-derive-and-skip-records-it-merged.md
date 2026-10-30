@@ -74,3 +74,5 @@ first-parent merge commit whose `WAR-Task` trailer names it and whose second par
 zero-commit branch has no such commit and is never reported merged. That also closes the residual above
 (a branch cut at a later relaunch's adopted tip), and the `rev-list --count` conjunct and its manual check
 are no longer the proof.
+
+> archived 2026-10-30: resolved — moved to archive

@@ -96,3 +96,5 @@ and its header comment (~line 309); `skills/war/references/gate-audit-checklist.
 sibling `headerRegion()` mechanics gap for a file with no `## ` heading at all.
 [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the registration
 comment's own wording defect, which shipped unfixed at this same landed tip.
+
+> archived 2026-10-30: resolved — moved to archive

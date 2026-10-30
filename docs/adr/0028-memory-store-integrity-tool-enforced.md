@@ -93,6 +93,7 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
 
 ## Amendments
 
+- **2026-10-30 — every hub count is a hot count.** The `archive` WARN already counted hot citers, but `tightenPlan` Floor 2 and the Phase 3 check counted cold citers too. [ADR 0055](0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md) aligns them: a cold citer cannot pin a row. `inbound --hot` gives that count.
 - **2026-07-27 — the hub WARN counts slug-deduped `inbound citers`.** Decision item 2 above quotes the
   WARN as first shipped: an undeduped record count with the noun `inbound refs`. A slug hot in *both*
   roots is two records but one citer, so that count read `2` where the `inbound` verb (and `tightenPlan`'s
