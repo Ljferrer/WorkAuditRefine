@@ -5,7 +5,7 @@ born-cold `CONTEXT.md` glossary bodies. Each evicted body below was byte-identic
 `CONTEXT.md` text **at eviction time** (only repo-root-relative links were re-anchored for this file's
 depth), moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`).
-A born-cold body is authored here first and has no pre-eviction text to match (wave 5): `CONTEXT.md`
+A born-cold body is authored here first and has no pre-eviction text to match (waves 5 and 6): `CONTEXT.md`
 holds only its `**Term**:` heading plus the same trigger pointer. One
 pointer may carry several terms when a whole cold cluster leaves together (wave 4). Prose
 temperature is branch
