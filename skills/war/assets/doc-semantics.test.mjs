@@ -462,7 +462,7 @@ const ES18_SURFACES = [
     new: [...ENGINE_MERGE_FORM, '**no rebase**'] },
   // The two dated lessons keep their recorded text by ruling (plan Task 5.2: a RESOLVED record keeps
   // its text with one dated note), so their OLD half is the premise statements, not their history.
-  { name: '2485/ES18 zero-commit dated lesson', file: 'docs/learnings/zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged.md',
+  { name: '2485/ES18 zero-commit dated lesson', file: 'docs/learnings/archive/zero-commit-task-branch-is-vacuously-an-ancestor-so-derive-and-skip-records-it-merged.md',
     extract: (r) => between(r, '**Note (2026-10-30, merge-commit rule, #2485):**', '\u0000EOF'),
     old: [...PREMISE_TOKENS],
     new: ['**Note (2026-10-30, merge-commit rule, #2485):**', 'merge-commit provenance (ADR 0054)'] },

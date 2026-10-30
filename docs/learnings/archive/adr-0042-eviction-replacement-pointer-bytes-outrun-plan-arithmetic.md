@@ -55,3 +55,5 @@ sits near that line again).
 **Locate-cue:** the `FILE_BUDGETS` entry for `agents/war-refiner.md` in
 `skills/war/assets/prompt-surface-budgets.test.mjs` (read the current `hard` value and the raise
 comment above it); the card's landed size via `git cat-file -s`.
+
+> archived 2026-10-30: resolved — moved to archive

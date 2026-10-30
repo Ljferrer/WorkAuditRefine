@@ -43,3 +43,5 @@ metadata:
 `skills/war-campaign/assets/campaign-ledger.mjs`, `collectBlocks` (no `inFence`), contrasted with `resolveRoadmapPlans` (has `inFence`), and the `Code-fence blindness` bullet of the Fallback ceilings header.
 
 [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — a related but distinct finding from the same task diff.
+
+> archived 2026-10-30: resolved — moved to archive

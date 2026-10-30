@@ -76,3 +76,5 @@ the same task.
 [[auditor-supplied-provenance-keys-trusted-verbatim-in-followup-collapse-and-ask-parking]] — a
 second, independent ask-channel gap (finding-level `task`/`seat`/`sha` at non-gate-audit `parkAsk`
 call sites). Recheck it before relying on it.
+
+> archived 2026-10-30: resolved — moved to archive

@@ -54,3 +54,5 @@ stale worktree), [[gate-evidence-severity-not-verdict-gates-hard-path]],
 [[version-slots-no-cross-slot-consistency-test]],
 [[handoff-endstate-met-default-hinges-on-verbatim-planref-match]],
 [[done-add-on-soft-failure-unblocks-true-dependents]] (sentinel vs. real commit check).
+
+> archived 2026-10-30: resolved — moved to archive

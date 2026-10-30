@@ -9,6 +9,11 @@ deictics reworded to read true from this file, and dated scope corrections appen
 whose shipped text stays as it was. The recovered window is bounded at 0.15.0 by design; earlier
 history (back to 0.5.0) is unrecovered. Relative links resolve from the repo root.
 
+## 0.21.23 — 2026-10-30
+**0.21.23** — the memory index holds what a query cannot surface ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md)): every seat reaches the archive through `memory_query` or prefetch, so eviction removes a row and keeps the lesson. A new always-loaded test preselects `tighten` rows: operator rules and traps that fire before a session queries stay, and task-scoped rows are candidates. The hub floor and the Phase 3 check now count hot citers only, `inbound --hot` prints that count, and the CLI query collapses twins so a twice-archived lesson fills one prefetch slot.
+
+Release scope: PR #2537 only, on top of 0.21.22. Memory: `war-memory.mjs`, `war-memory-mcp.mjs` and 10 lessons archived in `docs/learnings/`. Doctrine: ADR 0055, an ADR 0028 amendment, `CONTEXT.md`, `CLAUDE.md`, `README.md` and the `lessons-learned` skill.
+
 ## 0.21.22 — 2026-10-30
 **0.21.22** — default seat models follow the #2497 routing, plus an ace tier and per-seat models (issues #2497 and #2519, [ADR 0055](docs/adr/0055-default-seat-models-follow-the-2497-routing.md)): the balanced defaults move from fable workers and opus auditors to opus workers, sonnet docs-only workers and sonnet auditors. The fix tier moves to opus. `thorough` pins its worker tiers at fable, and `economy` moves its docs tier to sonnet, so the ADR 0050 rank order holds. A new `agents.worker.ace` tier drives the `--ace` dispatches and the terminal pass. It has no default, so ace uses the fix tier unless a config sets it. A roster seat can now carry its own `model` and `effort`, which replace the auditor tier for that seat only: the Lead puts boundary-heavy seats on opus. Both copies of `validateRoster` refuse a seat model or effort outside `MODELS` / `EFFORTS`. Task-class routing, sampled opus review and per-model telemetry stay open in #2534.
 

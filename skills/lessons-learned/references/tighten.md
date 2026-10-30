@@ -52,6 +52,13 @@ Five steps, strict order:
    (`currentBytes` minus the *approved* set's `bytesFreed` sum; recompute it if the operator strikes a
    different subset than the default). Collect the approved subset in this one ask.
 
+   Before you present the list, apply the **always-loaded test** ([ADR 0055](../../../docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md))
+   to each entry: a lesson keeps its row if a session needs it before it knows to query. A standing
+   operator rule passes, and so does a trap that fires at an action where no task text would surface
+   it. Take every passing entry out of the default strike set. Eviction removes only the row, because
+   query and prefetch still reach the archive. If the operator delegates the choice, strike by this
+   test and report each kept entry with its reason.
+
 4. **Execute**, in this order — a struck dupe only fully archives across both sub-steps below, so the
    order is load-bearing, not stylistic:
    - If the approved set touches any `[repo]`-marked slug, first

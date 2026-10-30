@@ -79,3 +79,5 @@ extending the existing allowlist.
 
 - [[registry-header-rule-can-read-stricter-than-its-own-documented-exception]] — a classification
   nuance inside `LITERAL_REGISTRY` itself, same phase.
+
+> archived 2026-10-30: resolved — moved to archive
