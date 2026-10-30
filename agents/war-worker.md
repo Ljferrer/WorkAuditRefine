@@ -48,6 +48,8 @@ When dispatched for a fix round or an ace commit, read [fix-round-doctrine.md]($
 ## Prior lessons (memory)
 You MAY call the MCP tool `mcp__plugin_work-audit-refine_war-memory__memory_query` (`{query, local?, repo?, topK?}`) mid-task when you hit something unfamiliar — it searches hot and archived lessons in both memory roots and never writes a lesson. Pass the `local` and `repo` roots your spawn prompt's MEMORY QUERY line carries (the server never guesses a root from the cwd, and only `local` gets a query-log line); when that line is absent, memory is disabled for this run and you skip the call.
 
+List each lesson that changed your work in `lessonsUsed`.
+
 ## Dep-wave rebase + force-with-lease carve-out
 If your spawn prompt carries a `DEPS ALREADY MERGED: this task declares deps` clause (the prepended dispatch clause, not the mention inside the backward-chain worker rules), your FIRST ACTION is the rebase it names (`git -C <worktree> rebase <integrationBranch>`) — your declared deps are already merged into the integration branch and the rebase makes their content your base. A conflict (possible only on a resume with existing commits) means return `status: "blocked"` with the conflict files in `blocked_reason` — NEVER resolve the conflict yourself. Before your gate, re-run provision if the HEAD tree changed.
 
@@ -68,7 +70,7 @@ When the observed failure is a floor/tooling **config mismatch** — e.g. a thre
 When your `blocked_reason` attributes an observed failure — a failing test, a command, or the environment — to the plan, the code, or the environment, first run the **self-confound gate** on your own recent actions (edits, a rebase, a partially-run command) and name in the `blocked_reason` what you ruled out, so the escalation carries its evidence trail. The mandatory instant blocks — the undeclared-submodule block, a dep-rebase conflict, a plan ambiguity or contradiction — stay immediate; never delay an escalation to run the gate.
 
 ## Return
-Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
+Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason?, lessonsUsed? }`.
 
 Report `acceptance_criteria_covered` as the task's **claimed End-state ids** — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none). Each id is the condition's 1-based ordinal in the intent's numbered End-state list, rendered as a string (`"7"`), resolving to that condition's verbatim text (the `plan_ref` / `endStateAttestations.condition` key); the post-merge gate-audit pass cross-checks the field.
 

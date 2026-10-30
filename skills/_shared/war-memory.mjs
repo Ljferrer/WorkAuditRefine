@@ -45,6 +45,8 @@ export const DEFAULT_TOP_K = 10;
 export const DEFAULT_BUDGET = 4096; // ~4KB per query block; a CLI flag, not a config key
 export const PROJECTION_FILE = 'MEMORY.md';
 export const QUERY_LOG_FILE = 'war-memory-queries.jsonl';
+const SIMILAR_MIN_SCORE = 0.12; // the similarPairs floor: above it the top pairs read as one rule (ADR 0055)
+const REPLAY_QUERY_LIMIT = 500; // newest distinct queries the redundancy replay runs (ADR 0055)
 export const ARCHIVE_DIR = 'archive';
 
 // Provenance tier ranking (lower rank sorts first / ranks higher). Absent → agent-unverified (§4.4).
@@ -505,7 +507,92 @@ const DAY_MS = 86_400_000;
 // speculative surface. Read at call time, never during module evaluation (no TDZ hazard).
 const FUTURE_SKEW_MS = 48 * 60 * 60 * 1000;
 
-export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, now = new Date() } = {}) {
+// Near-duplicate pairs by what each lesson claims to be about (ADR 0055): rare words shared across
+// slug, description and keywords, weighted by rarity. Bodies stay out, because they pull in lessons
+// that share a subsystem and not a rule. Every pair has a hot side, and the other side can be cold.
+export function similarPairs(records) {
+  const docs = collapseBySlug(records, records).map((r) => ({
+    slug: r.slug,
+    hot: r.temperature === 'hot',
+    words: new Set(`${r.slug.replace(/-/g, ' ')} ${r.description ?? ''} ${(r.keywords ?? []).join(' ')}`
+      .toLowerCase().match(/[a-z0-9_]{3,}/g) ?? []),
+  }));
+  const seen = new Map();
+  for (const d of docs) for (const w of d.words) seen.set(w, (seen.get(w) ?? 0) + 1);
+  const weight = (w) => Math.log(docs.length / seen.get(w));
+  const pairs = [];
+  docs.forEach((a, i) => {
+    for (const b of docs.slice(i + 1)) {
+      if (!a.hot && !b.hot) continue;
+      let shared = 0;
+      let total = 0;
+      for (const w of a.words) {
+        total += weight(w);
+        if (b.words.has(w)) shared += weight(w);
+      }
+      for (const w of b.words) if (!a.words.has(w)) total += weight(w);
+      if (total > 0 && shared / total >= SIMILAR_MIN_SCORE) pairs.push({ a: a.slug, b: b.slug });
+    }
+  });
+  return pairs;
+}
+
+// Group near-duplicate hot lessons into merge proposals (ADR 0055). Each cluster keeps one target
+// row, so a merge frees the other rows and loses no rule. Floor 1 holds here too: a user-confirmed
+// lesson joins no cluster. A pair links only when both lessons are hot and share a root, because a
+// merge must not carry a local-only rule into the repo or a shared rule out of it. A merge is a
+// judgment the gate makes, so this only proposes.
+export function mergeClusters(hotRecords, nearPairs, { hits, uses }) {
+  const bySlug = new Map(hotRecords.map((r) => [r.slug, r]));
+  const open = (slug) => bySlug.has(slug) && tierRank(bySlug.get(slug).provenance) !== TIER_RANK['user-confirmed'];
+  const parent = new Map();
+  const find = (s) => {
+    if (!parent.has(s)) parent.set(s, s);
+    while (parent.get(s) !== s) s = parent.get(s);
+    return s;
+  };
+  for (const { a, b } of nearPairs) {
+    if (open(a) && open(b) && bySlug.get(a).root === bySlug.get(b).root) parent.set(find(a), find(b));
+  }
+  const groups = new Map();
+  for (const s of parent.keys()) {
+    const root = find(s);
+    groups.set(root, [...(groups.get(root) ?? []), s]);
+  }
+  const out = [];
+  for (const slugs of groups.values()) {
+    const [target, ...merged] = slugs.sort((x, y) => (uses.get(y) ?? 0) - (uses.get(x) ?? 0)
+      || (hits.get(y) ?? 0) - (hits.get(x) ?? 0) || x.localeCompare(y));
+    const bytesFreed = merged.reduce((n, s) => n + Buffer.byteLength(projectionRow(bySlug.get(s)) + '\n', 'utf8'), 0);
+    out.push({ target, merged, bytesFreed });
+  }
+  return out.sort((a, b) => b.bytesFreed - a.bytesFreed || a.target.localeCompare(b.target));
+}
+
+// Replay past queries to score how far each lesson duplicates another (ADR 0055). A lesson's score
+// is the share of its top-K appearances where one of its near-duplicates also appears, because that
+// neighbor fills its place if it leaves. Rounded so the sort key stays stable across runs.
+export function redundancyScores(db, records, queries, nearPairs) {
+  const near = new Map();
+  for (const { a, b } of nearPairs) {
+    near.set(a, [...(near.get(a) ?? []), b]);
+    near.set(b, [...(near.get(b) ?? []), a]);
+  }
+  const seen = new Map();
+  const covered = new Map();
+  for (const text of queries) {
+    const top = new Set(collapseBySlug(rankRecords(db, records, text), records).slice(0, DEFAULT_TOP_K).map((r) => r.slug));
+    for (const slug of top) {
+      seen.set(slug, (seen.get(slug) ?? 0) + 1);
+      if ((near.get(slug) ?? []).some((other) => top.has(other))) covered.set(slug, (covered.get(slug) ?? 0) + 1);
+    }
+  }
+  const out = new Map();
+  for (const [slug, n] of seen) out.set(slug, Math.round(((covered.get(slug) ?? 0) / n) * 100) / 100);
+  return out;
+}
+
+export function tightenPlan(records, { hits = new Map(), uses = new Map(), redundancy = new Map(), nearPairs = [], target = WARN_BYTES, now = new Date() } = {}) {
   const { bytes: currentBytes, verdict: projectionVerdict } = buildProjection(records);
   // Target-aware severity (#992): `refuse` passes straight through; `warn` fires on the advisory
   // projection's own warn OR at `currentBytes >= target` — equivalently the effective trigger is
@@ -549,6 +636,8 @@ export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, no
     const entry = {
       slug: r.slug,
       hits: hits.get(r.slug) ?? 0,
+      uses: uses.get(r.slug) ?? 0,
+      redundancy: redundancy.get(r.slug) ?? 0,
       tier: r.provenance,
       ageDays,
       inbound,
@@ -563,8 +652,12 @@ export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, no
     eligible.push(entry);
   }
 
-  // Eviction order: ascending hits, ties by tier rank (lowest tier first) then age (oldest first).
+  // Eviction order (ADR 0055): uses, then redundancy, then hits, then tier and age. Keys compare in
+  // turn and nothing is summed. A log with no use rows ranks by redundancy, then hits. An empty log
+  // ranks by tier and age.
   eligible.sort((a, b) => {
+    if (a.uses !== b.uses) return a.uses - b.uses;
+    if (a.redundancy !== b.redundancy) return b.redundancy - a.redundancy;
     if (a.hits !== b.hits) return a.hits - b.hits;
     const tr = tierRank(b.tier) - tierRank(a.tier); // lowest tier (highest rank #) evicted first
     if (tr !== 0) return tr;
@@ -594,6 +687,7 @@ export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, no
     cutGoalBytes: cutGoal,
     cutIndex,
     projectedBytes: currentBytes - struckFreed,
+    mergeClusters: mergeClusters(deduped, nearPairs, { hits, uses }),
     shortfallBytes: reached ? 0 : cutGoal - totalFreed,
     eligible,
   };
@@ -717,23 +811,47 @@ function appendQueryLog(localRoot, entry) {
   }
 }
 
-// Per-slug query-log hit counts for tighten-plan, best-effort / fail-open (mirrors the log
-// writer). Reads QUERY_LOG_FILE in the local root; absent/unreadable ⇒ empty map ⇒ all 0.
-// PER-ENTRY dedupe of topSlugs: a cross-root twin double-listed in ONE entry counts once for
-// that entry; two entries count twice. Single pass, no index (tolerates a large log cheaply).
-function readQueryHits(localRoot) {
-  const hits = new Map();
-  if (!localRoot) return hits;
+// Real use (ADR 0055): rows hooks/record-lesson-use.sh appends, kind 'use'. One agent counts once
+// per slug, because a retried result or a second Read is the same use. Hits never come from here.
+function readLessonUses(rows) {
+  const agents = new Map();
+  for (const entry of rows) {
+    if (entry.kind !== 'use' || typeof entry.slug !== 'string') continue;
+    if (!agents.has(entry.slug)) agents.set(entry.slug, new Set());
+    agents.get(entry.slug).add(entry.agent);
+  }
+  return new Map([...agents].map(([slug, set]) => [slug, set.size]));
+}
+
+// The newest distinct query texts, for the redundancy replay. Bounded so a long log stays quick.
+function recentQueries(rows) {
+  const texts = rows.map((e) => e.query).filter((q) => typeof q === 'string' && q);
+  return [...new Set(texts.reverse())].slice(0, REPLAY_QUERY_LIMIT);
+}
+
+function readQueryLog(localRoot) {
+  if (!localRoot) return [];
   let text;
   try {
     text = fs.readFileSync(path.join(localRoot, QUERY_LOG_FILE), 'utf8');
   } catch {
-    return hits; // absent log ⇒ all hits 0
+    return []; // absent log ⇒ no rows
   }
+  const rows = [];
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
-    let entry;
-    try { entry = JSON.parse(line); } catch { continue; } // skip a malformed line, keep going
+    try { rows.push(JSON.parse(line)); } catch { /* skip a malformed line, keep going */ }
+  }
+  return rows;
+}
+
+// Per-slug query-log hit counts for tighten-plan, best-effort / fail-open (mirrors the log
+// writer). An absent/unreadable log gives no rows ⇒ empty map ⇒ all 0.
+// PER-ENTRY dedupe of topSlugs: a cross-root twin double-listed in ONE entry counts once for
+// that entry; two entries count twice.
+function readQueryHits(rows) {
+  const hits = new Map();
+  for (const entry of rows) {
     const slugs = Array.isArray(entry.topSlugs) ? entry.topSlugs : [];
     for (const slug of new Set(slugs)) hits.set(slug, (hits.get(slug) ?? 0) + 1);
   }
@@ -1081,6 +1199,24 @@ function cmdInbound(argv) {
   );
 }
 
+// Record a use from a caller that can write (ADR 0055). /snipe seats return plain text, so no hook
+// sees their lessonsUsed and the main session logs them here. Same row shape as the hook.
+function cmdRecordUse(argv) {
+  const roots = resolveRoots(argv);
+  requireLocal(roots, 'record-use');
+  for (const slug of argv._.slice(1)) {
+    if (!/^[a-z0-9-]+$/.test(slug)) continue; // a bad slug adds no row, as in the hook
+    appendQueryLog(roots.local, {
+      ts: new Date().toISOString(),
+      kind: 'use',
+      slug,
+      seat: argv.seat ?? null,
+      agent: argv.agent ?? null,
+      via: 'result',
+    });
+  }
+}
+
 // tighten-plan [--local <dir>] [--repo <dir>] [--target <bytes>]: emit the usage-scored,
 // floored eviction PLAN as JSON. Read-only — walks the corpus, reads the query log
 // best-effort, and prints the ranked eligible list + cut line. Never mutates (the skill's
@@ -1114,8 +1250,13 @@ function cmdTightenPlan(argv) {
     }
   }
   const records = walkCorpus(roots);
-  const hits = readQueryHits(roots.local);
-  const plan = tightenPlan(records, { hits, target });
+  const rows = readQueryLog(roots.local);
+  const hits = readQueryHits(rows);
+  const uses = readLessonUses(rows);
+  const db = buildIndex(records);
+  const nearPairs = similarPairs(records);
+  const redundancy = redundancyScores(db, records, recentQueries(rows), nearPairs);
+  const plan = tightenPlan(records, { hits, uses, redundancy, nearPairs, target });
   process.stdout.write(JSON.stringify(plan, null, 2) + '\n');
 }
 
@@ -1128,6 +1269,7 @@ const VERBS = {
   consolidate: cmdConsolidate,
   migrate: cmdMigrate,
   'tighten-plan': cmdTightenPlan,
+  'record-use': cmdRecordUse,
 };
 
 // Entry point — only when run directly, not when imported by the test suite.

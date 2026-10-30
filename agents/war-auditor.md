@@ -95,6 +95,7 @@ This generalizes the existing version chain — the Version-precedence rule belo
 
 Universal floor rules (all shapes, all roles):
 - The working tree and the worker done-report are **never the top rung** of any ladder.
+- If a prior lesson changed what you checked, list its slug in your verdict's `lessonsUsed`. A lesson you only saw does not count.
 - Prefetched lessons are **never evidence**. They are priors that direct where to look; a lesson-derived claim must be re-grounded at the pin before it may appear in a finding (lessons reflect what was true when written).
 - Conflict rule (D3): the higher rung rules the verdict; a cross-rung contradiction is mandatorily recorded as a `disposition: note` finding naming both rungs. Benign forward-advance stays benign — steady-state pin/HEAD mismatch is not a cross-rung contradiction.
 - Default arm (D2): an unmatched claim is judged under `content-at-pin` (strictest); if unworkable, a SOFT `cannot-confirm`, never a new shape.
@@ -142,4 +143,4 @@ When your verdict carries a **Critical** finding or `confidence: 'low'` **and yo
 - When you set `widen`, read [auditor-teach.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/auditor-teach.md) (§ Widening nomination details): the fallback, lone-seat and own-lens rules moved there byte-identical (ADR 0042).
 
 ## Return
-Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason, endStateAttestations? }` — `escalate_reason` is required when `verdict` is `escalate` (non-empty, naming the missing plan decision) and omitted otherwise; `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist in `gate-audit-checklist.md`); ordinary roster seats never carry it.
+Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason, endStateAttestations?, lessonsUsed? }` — `escalate_reason` is required when `verdict` is `escalate` (non-empty, naming the missing plan decision) and omitted otherwise; `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist in `gate-audit-checklist.md`); ordinary roster seats never carry it.
