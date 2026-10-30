@@ -2803,7 +2803,7 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // passage (refinery-surface, war-pipeline-structure, and lessons-learned-doc-contract read other
 // regions — verified by token grep at base); the doc-cli-consistency and war-config `.test.mjs`
 // suites were also read and likewise anchor other regions. Survey-derived
-// straggler, listed per the slice: workflow-template.test.mjs's 'handoff block (criterion 6)'
+// straggler, listed per the slice: workflow-template.engine-1.test.mjs's 'handoff block (criterion 6)'
 // test TITLE still enumerates the pre-widening seven-key handoff literal `{ tipSha, polish,
 // absorbed, followUps, notes, endState, intentPresent }` — title prose only (its assertions are
 // per-key and the ninth key is additive by guardrail: no exact-key validator exists), and its
@@ -3910,7 +3910,7 @@ test('old-default-absent (self-check) — the lawful rewrite passes and each sin
 })
 
 // (barrier-list) CONTEXT.md's **Barrier list** glossary entry hand-spells all four BARRIER_TOKENS.
-// The registry rows in workflow-template.test.mjs bind the inline mirror, the auditor card, the
+// The registry rows in workflow-template.engine-1.test.mjs bind the inline mirror, the auditor card, the
 // eligibility doc, and the schemas.md row — this row binds the fifth hand copy to the canonical
 // array literal in land-decision.mjs (ADR 0025 same-commit mirror duty; the recorded
 // [[default-flip-must-audit-all-doc-surfaces]] class), extracted by construct (bolded term to
@@ -3986,7 +3986,7 @@ test('old-default-absent (b) — every living surface carries the in-diff absorb
 
 // (demote-prefix-term) CONTEXT.md's **Demote reason prefix** glossary entry hand-spells all twelve
 // DEMOTE_REASONS members (plan 2026-09-03-in-band-absorb-default, Task 4.2; D13, PIN-15). The
-// registry rows in workflow-template.test.mjs bind the inline mirror; this row binds the glossary
+// registry rows in workflow-template.engine-1.test.mjs bind the inline mirror; this row binds the glossary
 // copy to the canonical array literal in land-decision.mjs (ADR 0025 same-commit mirror duty),
 // extracted by construct (bolded term to the next bolded term or `###` heading), never by line.
 test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names every canonical DEMOTE_REASONS member', () => {
@@ -4031,7 +4031,7 @@ test('demote-prefix-term — the CONTEXT.md **Demote reason prefix** entry names
 // `provision_red:`, say), which reds the same assert with a message that misnames the cause. The glossary
 // row is extracted by construct (bolded term to the next bolded term or `###` heading), never by
 // line (the demote-prefix-term idiom). The seat block's and the auditor card's own naming of the triggers ride
-// workflow-template.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
+// workflow-template.engine-1.test.mjs's registry rows (Task 10.1); this row binds only the glossary copy.
 test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactly the engine\'s record-only endstate artifact states', () => {
   const start = workflowTemplateSrc.indexOf('ENDSTATE-CHECK DISPATCH for WAR phase')
   const end = workflowTemplateSrc.indexOf('if (mergedTasksForGateAudit.length > 0)')
@@ -4062,7 +4062,7 @@ test('unverified-triggers — the CONTEXT.md **`unverified`** entry names exactl
 // cannot de-mirror (plan 2026-09-06-engine-and-audit-verdict-integrity, Task 10.2 re-entry; D7/D8,
 // PIN-11/PIN-12): the two stamp lines `GATE_LOG_STAMP` builds (`tip_sha:` first, `exit_code:` last)
 // and the `GATE_LOG_UNTHREADED` fallback marker the evidence dispatch renders on an unthreaded
-// `gate_log_path`. The gate-log-stamp registry rows in workflow-template.test.mjs bind the engine
+// `gate_log_path`. The gate-log-stamp registry rows in workflow-template.engine-1.test.mjs bind the engine
 // build to the refiner card, and the `unverified-triggers` row above asserts the two stamp tokens
 // only on the engine side (its FRAME), so nothing else watches this glossary copy — a rename of
 // either stamp token or a rewording of the marker would leave it silently stale. Both literals are

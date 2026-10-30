@@ -27,7 +27,7 @@
 //   - Only pt-tagged template literals are scanned (the dispatched-prompt surface). Comments, error
 //     messages, and derivation helpers are not prompt bytes; they are excluded today only
 //     incidentally — the scanner seeds on any pt` byte-run and models no comment or string context —
-//     and the default-deny census in workflow-template.test.mjs is what keeps the extracted set clean.
+//     and the default-deny census in workflow-template.engine-1.test.mjs is what keeps the extracted set clean.
 //   - An interpolation qualifies when its expression is a PURE member chain (`a.b.c` — no `??`,
 //     `||`, ternary, call, or optional chaining): any of those is a fallback/guard, so the site is
 //     not fallback-free.
@@ -49,7 +49,7 @@
 //     derivation inputs the template uses (branch: planSlug + phase.id; worktree: worktreeRoot +
 //     runId + phase.id) — the missing-field message names both remedies.
 //
-// The default-deny census in workflow-template.test.mjs pins the exact extracted set via this
+// The default-deny census in workflow-template.engine-1.test.mjs pins the exact extracted set via this
 // module's exports: any NEW fallback-free interpolation reds the census and forces an explicit
 // classification (required here, or exempt with a reason).
 

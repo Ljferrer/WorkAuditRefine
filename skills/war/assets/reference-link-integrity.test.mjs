@@ -11,7 +11,7 @@
 // Why a NEW sibling file rather than a skill-doc-contracts.test.mjs block: the spec
 // sanctions either ("or sibling"); a separate file keeps this guard file-disjoint from the
 // concurrent campaign plans that own skill-doc-contracts.test.mjs and
-// workflow-template.test.mjs. Auto-discovered by `node --test 'skills/**/*.test.mjs'` — no
+// workflow-template.engine-1.test.mjs. Auto-discovered by `node --test 'skills/**/*.test.mjs'` — no
 // wiring needed.
 //
 // Self-match note (the coupling-comment lesson — a comment that restates a sweep's own
@@ -148,7 +148,7 @@ const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
  * beginning with the literal plugin-root placeholder resolves its remainder against
  * REPO_ROOT (plugin root ≡ repo root in this repo), from any scanned file, dir or
  * root-level entry alike. Link SHAPE
- * enforcement stays per-card in workflow-template.test.mjs — a scan-wide shape assert here
+ * enforcement stays per-card in workflow-template.engine-1.test.mjs — a scan-wide shape assert here
  * is out of this sweep's scope.
  */
 function resolutionRoots(file, target) {

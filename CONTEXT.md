@@ -532,7 +532,7 @@ a new `MERGE_RESULT` status member or `KNOWN_LAND_DECISIONS` member. One helper 
 `segmentedMerge` on the four per-task merge-task sites (initial, floor-retry, environment-proceed,
 baseline-proceed); the two sweep-family merges are not segmented (ADR 0051 §3; the
 `segmented-land: re-land sites` and `segmented-gate: re-merge sites` fixtures in
-`workflow-template.test.mjs` are the arbiters of those two site lists) — each helper appends
+`workflow-template.engine-1.test.mjs` are the arbiters of those two site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
 by `run.roundLimit`; exhaustion routes by the ridden status. The pair is the read (PIN-9): a landed
 or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
@@ -801,7 +801,7 @@ after its `upstream link:` line. The closed tag set is canonical in
 `skills/war/references/backward-chain-audit.md` `## The rules` and bound to the fixer's Round 2
 table and the examples bank's tag H2s (those between `## Entry shape` and `## Growth rules`) by
 the skeleton guard `backward-chain.test.mjs`, and to the engine regex by a
-`workflow-template.test.mjs` fixture; it selects the fixer's first move and the
+`workflow-template.engine-1.test.mjs` fixture; it selects the fixer's first move and the
 examples section it reads.
 _Avoid_: a fifth restatement of the tag set; a second tag line; a tag at round 1 (no fix to relate
 to); a schema field (the tag rides `rationale`).

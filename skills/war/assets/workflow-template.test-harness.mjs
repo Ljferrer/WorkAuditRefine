@@ -10,12 +10,13 @@
 //   workflow-template.test-harness.mjs  every import and every top-level definition (fixtures,
 //                                       builders, impls, constants), in original order, all exported.
 //                                       Not a test file: its name does not match '*.test.mjs'.
-//   workflow-template.test.mjs          engine logic and prompt-contract tests (the fast majority).
-//   workflow-template.<topic>.test.mjs  the other topic files, listed below.
+//   workflow-template.<topic>-<n>.test.mjs  the test files, listed below. <n> numbers a topic's parts;
+//                                       a one-part topic (recovery) has no number. The pre-split
+//                                       workflow-template.test.mjs is engine-1, the fast majority.
 //
 // THE SPLIT AT CREATION (blocks = top-level test( or for-loop blocks; times from one serial run;
 // 1,337 tests, 264 s serial, 66 s wall once split):
-//   workflow-template.test.mjs               807 blocks, ~18 s  Engine logic and prompt-contract tests (part 1 of 2)
+//   workflow-template.engine-1.test.mjs      807 blocks, ~18 s  Engine logic and prompt-contract tests (part 1 of 2)
 //   workflow-template.engine-2.test.mjs        1 blocks, ~27 s  Engine logic and prompt-contract tests (part 2 of 2)
 //   workflow-template.git-1.test.mjs           9 blocks, ~18 s  Real-git boundary tests: merges, reverts, probes and fixtures that spawn git (part 1 of 6)
 //   workflow-template.git-2.test.mjs           7 blocks, ~18 s  Real-git boundary tests: merges, reverts, probes and fixtures that spawn git (part 2 of 6)
@@ -35,11 +36,13 @@
 //     AND to the import list of each part file that uses it. A part never declares a top-level binding.
 //   - A new test: the part file whose topic it tests. A test that spawns real git (spawnSync('git'),
 //     mkdtempSync repos, gitTaskMerge) goes in a git-* part; one about recovery, resume or relaunch in
-//     the recovery part; one about submodules in the submodule part; everything else in
-//     workflow-template.test.mjs.
+//     the recovery part; one about submodules in a submodule part; everything else in
+//     workflow-template.engine-1.test.mjs.
 //   - A test name a plan's End-state check greps for (for example '2485/ES1 ') may now live in a part
-//     file. A plan check that greps workflow-template.test.mjs for a test name must grep
-//     'skills/war/assets/workflow-template*.test.mjs' instead.
+//     file. A plan check that greps workflow-template.test.mjs (the pre-split name) for a test name
+//     must grep 'skills/war/assets/workflow-template.*.test.mjs' instead.
+//   - A new part file: name it workflow-template.<topic>-<n>.test.mjs and add it to the breadth list
+//     in war-config.test.mjs ('node-test breadth'), so losing it later turns the gate red.
 //   - A top-level let (chainFixCaptures) is assigned only inside functions defined here: an importer
 //     cannot assign an imported binding.
 //

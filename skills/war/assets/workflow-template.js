@@ -780,7 +780,7 @@ const spawn = role => {
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
 // Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
-// row in workflow-template.test.mjs. fix (the fix-round + --ace tier) is NOT listed
+// row in workflow-template.engine-1.test.mjs. fix (the fix-round + --ace tier) is NOT listed
 // here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
 // BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
 // worker (the correct fallback for a partial/hand-passed config — nothing to bind).
@@ -810,7 +810,7 @@ const spawnRefinerRecovery = () => {
 // vacuously read as all-*.md and misclassify a non-doc task as docs.
 const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.every(f => typeof f === 'string' && f.endsWith('.md'))
 // Roster seat agent types (REA artifact evidence D3/D18): inline copy of the war-config.mjs export, bound by
-// the SEAT_AGENT_TYPES registry row in workflow-template.test.mjs. 'war-evidence-auditor' is the evidence seat.
+// the SEAT_AGENT_TYPES registry row in workflow-template.engine-1.test.mjs. 'war-evidence-auditor' is the evidence seat.
 const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 // Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct,
 // agentType absent or a SEAT_AGENT_TYPES member. `evidence` is the run.evidence knob: an evidence-type row is
@@ -856,7 +856,7 @@ const widenRoster = (roster, defaultRoster) => {
 // source 'nominated'; else → defaultRoster verbatim, source 'default'. Feeds widenRoster.
 const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
 // WIDEN_BARRED_LENSES (REA artifact evidence D19): inline copy of the war-config.mjs export, bound by the
-// WIDEN_BARRED_LENSES registry row in workflow-template.test.mjs; a lone seat never widens toward the evidence seat.
+// WIDEN_BARRED_LENSES registry row in workflow-template.engine-1.test.mjs; a lone seat never widens toward the evidence seat.
 const WIDEN_BARRED_LENSES = ['artifact-evidence']
 const resolveWidenSource = (nominated, defaultRoster) => {
   const valid = Array.isArray(nominated) && nominated.length > 0 &&
@@ -867,7 +867,7 @@ const resolveWidenSource = (nominated, defaultRoster) => {
     : { source: 'default', seats: defaultRoster }
 }
 // resolveGate (F12, idempotent) — inline copy of war-config.mjs resolveGate (named in the block-head marker
-// above; the D2 registry row in workflow-template.test.mjs behaviorally binds it to the canonical export).
+// above; the D2 registry row in workflow-template.engine-1.test.mjs behaviorally binds it to the canonical export).
 // GATE_DISCOVERY_TOKEN is the SAME substring used to BUILD the discovery clause AND to detect it, so composer
 // and detector cannot drift; a declaredGate already carrying it is returned UNCHANGED (idempotent composition).
 const GATE_DISCOVERY_TOKEN = `-name '*.test.sh'`
@@ -1463,7 +1463,7 @@ const provisionClause = provisionList.length
 // + reaClause`, no task in scope); the worker card carries only the ADR 0042 pointer. reaOn false ⇒
 // '' ⇒ every prompt is byte-identical to an evidence-less run (G3). The manifest path is the inline
 // MANIFEST_PATH_TEMPLATE mirror (canonical: target-artifacts.mjs, bound by the MANIFEST_PATH_TEMPLATE
-// registry row in workflow-template.test.mjs); the key schema is named by its doc-home line, never
+// registry row in workflow-template.engine-1.test.mjs); the key schema is named by its doc-home line, never
 // restated here (G6). ONE line, so a reader can window it by its head. Rows name a path, a digest and a
 // provider only — never target content (G2, cite-only); entry validation class (10) guarantees each row's
 // path, sha256 and provider are non-empty strings, so the row text needs no fallback. The manifest duty
@@ -2248,7 +2248,7 @@ const blockedReason = r => !r ? 'worker returned no result'
 // held:workflow-error), and every dispatchSite caller (audit seats, ace workers and re-audits, merge,
 // pin-transfer, floor-fix, diff-probe, endstate-check, evidence, gate-audit, land, wrap-up, filing)
 // through its per-site death arm below; dispatchAgent's own body is the ONE place the leaf dispatch
-// seam is awaited (the census in workflow-template.test.mjs is the arbiter).
+// seam is awaited (the census in workflow-template.engine-1.test.mjs is the arbiter).
 // infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
 // matches this pattern set, propagating the harness cause verbatim into `blocked` — 'worker died:
@@ -2831,7 +2831,7 @@ const reattachClause = refineryP =>
   pt`HYGIENE (idempotent): begin by re-attaching _refinery to the integration branch — \`git -C ${refineryP} checkout ${ph.integrationBranch}\` — so a prior dispatch that died mid-classification cannot leave _refinery detached.\n`
 // classificationClause: the gate-failure classification PROCEDURE, mirrored (per-site base) into every
 // dispatched prompt whose refiner must classify a gate failure. Never enumerate those sites here: the
-// classification-site drift guard in workflow-template.test.mjs is the arbiter of the site list (it counts
+// classification-site drift guard in workflow-template.engine-1.test.mjs is the arbiter of the site list (it counts
 // this helper's call-paren occurrences in this file — writing that byte-run into this comment reds it; a
 // prose count or a bare site list would not, so count-free here is convention, not mechanism).
 // agents/war-refiner.md is the standing mirror (both-surfaces rule, same commit). baseDesc names the
@@ -2845,7 +2845,7 @@ const classificationClause = (refineryP, baseDesc) =>
 // GATE_LOG_STAMP: the two stamp lines every unique gate artifact carries — tip_sha: first and
 // exit_code: last. The stamp is what makes PARTIAL_LOG_RULE's two-sided read decidable, so the
 // stamp and the rule ride one commit. Standing twin, byte-equal: agents/war-refiner.md merge-task
-// step 9 (the `gate-log stamp` registry row in workflow-template.test.mjs binds the pair).
+// step 9 (the `gate-log stamp` registry row in workflow-template.engine-1.test.mjs binds the pair).
 const GATE_LOG_STAMP = pt`Stamp the artifact: its FIRST line is \`tip_sha: <the sha the gate ran at>\` and its LAST line is \`exit_code: <the gate's exit code>\`, written after the gate exits — the stamp is what makes a partial or stale log decidable.`
 // The refiner reads only a continuation's returned artifact; every other logical attempt
 // allocates a fresh file. Byte-equal standing card twin (PIN-1); the engine never opens logs.
@@ -2959,7 +2959,7 @@ const DISPOSITION_RULE_CLAUSE = pt`\nDISPOSITION RULE: every Minor/Nit finding c
 //     round-omitted build (PIN-10). The three gate-audit-family seats (per-task, integrated-tip,
 //     end-state) sit outside auditPrompt and carry no clause: they judge executed gate evidence, never
 //     a fix, and have no corrective round.
-// The workflow-template.test.mjs `backward-chain: …` fixtures pin each block byte-equal to its reference
+// The workflow-template.engine-1.test.mjs `backward-chain: …` fixtures pin each block byte-equal to its reference
 // section, so an edit lands in the reference first and here second. Pointer paths use the agent-resolved
 // '${CLAUDE_PLUGIN_ROOT}' literal idiom (plain strings, never pt interpolations). The bounded round count
 // is a safety precaution and never an obstacle (PIN-2): the round-5 tier is a completed outcome.
@@ -3150,7 +3150,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // hooks/validate-auditor-git.sh, minus grep, which the contract states separately as the narrow
     // D21 git grep -F -e <token> form (grep excepted from the list: its one narrow form rides its own
     // sentence below). The branch two-arm flag enumeration below has a STRICTER arbiter: the D6
-    // extraction-equality test in workflow-template.test.mjs reads the hook's own branch deny string
+    // extraction-equality test in workflow-template.engine-1.test.mjs reads the hook's own branch deny string
     // and asserts every flag token it lists onto BOTH mirror surfaces — the hook string is canonical,
     // these mirrors are followers, so a hook-side flag change REDs the mirrors. The grep optional-flag
     // list (-n -i -l -w -c) has the same arbiter: the D6 grep-flag test reads the hook's grep deny string.
@@ -3178,7 +3178,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // verdict-integrity D20/PIN-24) — standing home: skills/war/references/disposition-eligibility.md
     // carries widenings (1)-(3); the auditor card's eligibility pointer sentence is the standing leg
     // for (4), bound by the D3 registry's release-slot row (same commit). The dispatched
-    // block is pinned by the `disposition-prompt-widened` fixture in workflow-template.test.mjs.
+    // block is pinned by the `disposition-prompt-widened` fixture in workflow-template.engine-1.test.mjs.
     + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while the task's absorb budget remains (absorbRounds < run.absorbRounds), and the phase-close sweep is its vehicle when that budget is spent (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct only with a barrier tag (unspecified → barrier:underspecified, release-slot → barrier:release-slot; decision-shaped routes ask via barrier:trade-off); a finding whose file is outside the task diff routes absorb + phaseClose:true, and the engine exclusion set demotes a foreign-owned file naming its owner. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask. (4) release-slot eligibility is by literal, not file: a CHANGELOG.md/README.md absorb is eligible when the fix moves no version literal, CHANGELOG head heading or \`## Status\` version token (blurb prose, counts and enumerations are ordinary doc-truth absorbs); only plugin.json/marketplace.json are refused by basename, and version-slots.test.mjs in the gate is the merge guard.`
     // FINDING-PATH FORM (D12; both surfaces since verdict-integrity Task 2.1, #1811/#2005) — shared
     // with the three gate-audit-family seats and mirrored on agents/war-auditor.md; see the const.
@@ -3210,7 +3210,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // card); this dispatched copy is a TOKEN SKELETON (prompt-surface simplification, spec §4.3/§4.4 —
     // the D4 tiered-copies precedent): it must keep the four CALIBRATION_RULE_ANCHORS mid-sentence
     // phrases IN ORDER, one "only when the live artifact confirms" qualifier per rule window, and stay
-    // on ONE line (the qualifier-window tests in workflow-template.test.mjs slice it as a single line).
+    // on ONE line (the qualifier-window tests in workflow-template.engine-1.test.mjs slice it as a single line).
     // Reaches the inline gate-audit seats ONLY via the standing card (THIS clause is not emitted there;
     // adjudicationClause below and the EVIDENCE PRECEDENCE skeleton (ADR 0041) are the clauses that
     // also ride those seats directly).
@@ -3233,7 +3233,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // split, progressive disclosure: skeleton only in the hot path). The identical skeleton line is
     // ALSO inlined at each of the three gate-audit-family seats below (they sit OUTSIDE auditPrompt
     // and inherit nothing from it); the five-surface evidence-precedence registry row in
-    // workflow-template.test.mjs anchors the shared tokens on the card + all four dispatched
+    // workflow-template.engine-1.test.mjs anchors the shared tokens on the card + all four dispatched
     // surfaces, so a one-sided edit of any single copy REDs.
     + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
     // VERSION-PRECEDENCE + ADJUDICATION-MATCH RULES (Task 1.5, ADR 0032) — appended alongside intentClause;
@@ -3781,7 +3781,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // also apply findings and are deliberately outside this set under the plan scope
   // (agents/war-worker.md's trigger pointer still reaches those workers). FIX_ROUND_RULES is byte-equal to the
   // `## The rules` section of skills/war/references/fix-round-doctrine.md (the canonical home);
-  // the workflow-template.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
+  // the workflow-template.engine-1.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
   // reference` pins the equality, so an edit lands in the reference first and here second. The
   // first-pass worker prompt and the auditor prompts carry nothing of it. The pointer path is the
   // agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the SCRIPT const precedent): a plain
@@ -6650,7 +6650,7 @@ if (landDecision === 'landed') {
     // would return the STALE first (gate_failed) attempt while the escalation record says submodule-pr.
     // Inert on every other path: the tipSha anchor, the Wrap-up servitor gate and the handoff block are
     // all status:'landed' / landDecision-gated and read identically before and after. The count-keyed
-    // arm-symmetry pin in workflow-template.test.mjs is the arbiter: a re-land arm added without this
+    // arm-symmetry pin in workflow-template.engine-1.test.mjs is the arbiter: a re-land arm added without this
     // reassignment goes red there.
     if (landDied(reLand)) {
       // routed inside landDied: env-died re-land → held:land-failed, site-named, landResult null

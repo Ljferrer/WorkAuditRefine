@@ -157,7 +157,7 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 // `scopeLock` / `adjudicated` prose after the real declaration was deleted: the token would survive
 // inside the un-stripped block comment and the assert would stay green with no executable
 // declaration behind it. The block pass is what makes those asserts sound — so this file does NOT
-// narrow them (unlike the three narrowed sites in workflow-template.test.mjs, whose asserts are
+// narrow them (unlike the three narrowed sites in workflow-template.engine-1.test.mjs, whose asserts are
 // negative / extractive and do not need the block pass).
 //
 // THIS census is what keeps the two-step strip sound. blockCommentSpans(text) DELIBERATELY
@@ -170,7 +170,7 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 // (measured: exactly the two real spans, no fakes — this file has no resolveGate-style glob
 // literals), so the naive idiom sees exactly its two real block comments.
 //
-// Backtick-free coupling: the backtick-free assert below mirrors workflow-template.test.mjs's
+// Backtick-free coupling: the backtick-free assert below mirrors workflow-template.engine-1.test.mjs's
 // scanTemplateLiterals backtick-free assert — the two censuses are mutually load-bearing (a backtick
 // smuggled into a block comment is where the "line-only is safe" argument would break over there).
 // Naive-strip string-blindness inside the census itself is bounded by EXACT-LIST equality:
@@ -179,7 +179,7 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 function blockCommentSpans(text) {
   return text.replace(/\/\/[^\n]*/g, '').match(/\/\*[\s\S]*?\*\//g) || []
 }
-// Ordered {head, tail} projection — the same census shape as workflow-template.test.mjs's block
+// Ordered {head, tail} projection — the same census shape as workflow-template.engine-1.test.mjs's block
 // census (which needs it for a ~40KB fake span). Here both spans are short, so head and tail overlap
 // and cover each span exactly — any edit anywhere in a span flips head or tail. Enumerated from the
 // two hardcoded full comment texts, so the equality is independent of live src (non-vacuous).

@@ -31,7 +31,7 @@ export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict',
 // observed classes: session/rate limits, quota exhaustion, 529/overloaded, connection resets).
 // (Worded "env", never the full word: the #598 isolation guard pins this file free of the
 // gate-failure-classification vocabulary.) MIRRORED inline in ./workflow-template.js (the Workflow
-// sandbox can't import) — keep in sync; the D2 mirror-registry row in workflow-template.test.mjs is
+// sandbox can't import) — keep in sync; the D2 mirror-registry row in workflow-template.engine-1.test.mjs is
 // the drift guard. Task-level `reason` values only: NEVER members of HARD_ESCALATION_REASONS
 // (ADR 0005's infra-stays-soft precedent — held:workflow-error never entered it either) and NEVER
 // landDecision values. Soft means the phase LANDS minus the dead/blocked task (decideLand:
@@ -46,7 +46,7 @@ export const SOFT_ENV_REASONS = ['env-blocked', 'env-died']
 // 'held:phase-incomplete' is canonical-but-NOT-emitted by the Workflow — the Lead classifies it when a
 // phase notification is non-'completed' (§4.2). The drift-guard in land-decision.test.mjs pins this array
 // behaviorally (Workflow-emitted + decideLand ⊆ this) and across the doc surfaces (SKILL.md, schemas.md == this);
-// workflow-template.test.mjs's segmented-land no-widening fixture deepEquals a verbatim copy of this array
+// workflow-template.engine-1.test.mjs's segmented-land no-widening fixture deepEquals a verbatim copy of this array
 // (#1807) — a sanctioned widening updates that pin in the same commit.
 export const KNOWN_LAND_DECISIONS = ['landed', 'held:escalation', 'held:nothing-merged', 'held:land-failed', 'held:phase-incomplete', 'held:workflow-error', 'held:submodule-pr']
 
@@ -69,7 +69,7 @@ export function decideLand({ landed = [], escalated = [] } = {}) {
 // is never a barrier. Finding-level tokens only: NEVER members of HARD_ESCALATION_REASONS,
 // SOFT_ENV_REASONS, or KNOWN_LAND_DECISIONS. MIRRORED inline in ./workflow-template.js (the Workflow
 // sandbox can't import) — keep in sync; the D2 mirror-registry `barrier-list` rows in
-// workflow-template.test.mjs bind the inline copy, the auditor card sentence, the
+// workflow-template.engine-1.test.mjs bind the inline copy, the auditor card sentence, the
 // disposition-eligibility.md list, and the schemas.md AuditVerdict `barrier?` row to this export.
 export const BARRIER_TOKENS = ['barrier:release-slot', 'barrier:underspecified', 'barrier:rationale-comment', 'barrier:trade-off']
 
@@ -79,7 +79,7 @@ export const BARRIER_TOKENS = ['barrier:release-slot', 'barrier:underspecified',
 // engine matches on the BASENAMES derived from these paths through one helper, so the refusal keeps
 // its breadth in any directory (`sub/dir/plugin.json` refused, `plugin.json.bak` not). MIRRORED
 // inline in ./workflow-template.js (the Workflow sandbox can't import) — keep in sync; the D2
-// mirror-registry `sweep-exclude` row in workflow-template.test.mjs and the F07 drift test in
+// mirror-registry `sweep-exclude` row in workflow-template.engine-1.test.mjs and the F07 drift test in
 // war-config.test.mjs bind the inline copy to this export.
 export const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']
 
@@ -94,6 +94,6 @@ export const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin
 // ask-unruled-afk (Lead-side, the Checkpoint --afk no-match lane), unclassified. Finding-level
 // prefixes only: NEVER members of HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, KNOWN_LAND_DECISIONS, or
 // BARRIER_TOKENS. MIRRORED inline in ./workflow-template.js (the Workflow sandbox can't import) —
-// keep in sync; the D2 mirror-registry `demote-census` row in workflow-template.test.mjs and the F07
+// keep in sync; the D2 mirror-registry `demote-census` row in workflow-template.engine-1.test.mjs and the F07
 // drift test in war-config.test.mjs bind the inline copy to this export.
 export const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']

@@ -22,7 +22,7 @@ export const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
 // Roster seat agent types (REA artifact evidence D3/D18): the card a roster seat dispatches under.
 // 'war-auditor' is the plain seat; 'war-evidence-auditor' is the evidence seat, admitted by
 // validateRoster only while run.evidence is true. Inline copy in workflow-template.js, bound by the
-// SEAT_AGENT_TYPES registry row in workflow-template.test.mjs and the F07 validateRoster drift guard.
+// SEAT_AGENT_TYPES registry row in workflow-template.engine-1.test.mjs and the F07 validateRoster drift guard.
 export const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 // The evidence seat's lens (D15). WIDEN_BARRED_LENSES holds every lens resolveWidenSource refuses
 // beside RESERVED_LENSES (D19): a lone seat never widens toward the evidence seat. Inline copy in

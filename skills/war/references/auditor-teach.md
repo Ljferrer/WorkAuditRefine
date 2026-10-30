@@ -15,7 +15,7 @@ prompt literal, or `hooks/validate-auditor-git.sh`) and need the drift-guard wir
 merely operating within the grammar does not need this. On the card this block completed the
 sentence "Work within its grammar so you never pay the discovery tax — ":
 
-this contract is carried on both surfaces (this standing card and your dispatched audit prompt, edited together in one commit); the both-surfaces registry row in `skills/war/assets/workflow-template.test.mjs` anchors the shared tokens, and the extraction-equality test beside it reads the hook's own `branch` deny string and is the arbiter for the branch flag enumeration below (the hook string is canonical; both prompt surfaces are followers)
+this contract is carried on both surfaces (this standing card and your dispatched audit prompt, edited together in one commit); the both-surfaces registry row in `skills/war/assets/workflow-template.engine-1.test.mjs` anchors the shared tokens, and the extraction-equality test beside it reads the hook's own `branch` deny string and is the arbiter for the branch flag enumeration below (the hook string is canonical; both prompt surfaces are followers)
 
 Note (2026-10-22, plan 2026-10-20-rea-artifact-evidence D21): the contract's search rule is now
 "the Grep tool first; with no Grep tool, `git grep -F -e <token>`". The both-surfaces row anchors
@@ -27,7 +27,7 @@ card, and the evidence card's guard paragraph carries the same one sentence. The
 every regex selector deny) is enforced by the hook's per-token grep loop and pinned by group P of
 `hooks/validate-auditor-git.test.sh`; ADR 0029's Amendment (2026-10-22) records the reversal.
 The optional-flag list (-n -i -l -w -c) has the same extraction-equality arbiter as the branch
-flags: the `D6 — grep flag enumeration` test in `skills/war/assets/workflow-template.test.mjs`
+flags: the `D6 — grep flag enumeration` test in `skills/war/assets/workflow-template.engine-1.test.mjs`
 reads the hook's grep deny string and asserts each flag onto both prompt mirrors.
 
 ## Widening nomination details

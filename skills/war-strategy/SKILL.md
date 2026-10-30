@@ -412,7 +412,7 @@ and plans within a roadmap (the shared-file-contention table is this rule applie
 
 5. **New mirror ⇒ its registry row, same task.** A task that lands a **new inline mirror** of a canonical
    export (a constant or helper hand-copied into `workflow-template.js` because the Workflow sandbox can't
-   `import`) MUST also land its **mirror-registry row** in `workflow-template.test.mjs` in the **same task** —
+   `import`) MUST also land its **mirror-registry row** in `workflow-template.engine-1.test.mjs` in the **same task** —
    one row asserting the inline copy equals its canonical source. An **unguarded mirror is a plan defect**,
    never a follow-up: split the row into a later task and the mirror ships a phase naked. The registry grows
    by row, never by scanner (`// ponytail:` — the AST scanner is the rejected ceiling).
