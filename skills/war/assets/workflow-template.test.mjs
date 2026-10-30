@@ -22616,6 +22616,7 @@ const evalTemplateConst = name => {
   return new Function('return `' + m[1] + '`')()
 }
 const PROVISION_TREE_SENTENCE = evalTemplateConst('PROVISION_TREE_LINE')
+const PROVISION_CLEAN_SENTENCE = evalTemplateConst('PROVISION_CLEAN_LINE')
 const DEP_WAVE_PROVISION_SENTENCE = src.match(/^const DEP_WAVE_PROVISION_RULE = '([^']+)'$/m)[1]
 // The marker's two shell spellings, cut from the sentence: the writer and the reader test (exit 0 = seen).
 const markerWriterOf = text => { const m = String(text).match(/write it with `([^`]+)`/); assert.ok(m, 'the marker writer is spelled'); return m[1] }
@@ -22623,7 +22624,7 @@ const markerTestOf = text => { const m = String(text).match(/only when `(test [^
 
 // ES13 census (default-deny, exact named multiset): one row per interpolation site of either constant, named
 // by its enclosing construct — the column-0 declaration that holds it, else the dispatch label that follows it.
-const PROVISION_CONSTS = ['PROVISION_RERUN_CLAUSE', 'PROVISION_TREE_LINE']
+const PROVISION_CONSTS = ['PROVISION_CLEAN_LINE', 'PROVISION_RERUN_CLAUSE', 'PROVISION_TREE_LINE']
 const provisionConstructOf = (lines, i) => {
   for (let j = i; j >= 0; j--) {
     if (!/^\S/.test(lines[j]) || lines[j].startsWith('//')) continue
@@ -22651,6 +22652,12 @@ const provisionSiteCensus = text => {
   return rows.sort()
 }
 const PROVISION_SITE_CENSUS = [
+  // the cleanliness sentence: the re-run clause and the provision runs that may touch tracked files
+  // (per-task and _refinery provision-run, the polish worktree provision); depClause and the end-state
+  // install deliberately carry no row (see the PROVISION_CLEAN_LINE header comment)
+  'PROVISION_CLEAN_LINE @ PROVISION_RERUN_CLAUSE',
+  'PROVISION_CLEAN_LINE @ polish-worktree:phase-${ph.id}',
+  'PROVISION_CLEAN_LINE @ provisionStep',
   // the twelve refiner gate sites (D15): four merge step (a) copies, the ace-gate check, the integrated-tip
   // re-run, the polish-sweep and terminal-pass merges, the three land gates and the _refinery base re-run
   'PROVISION_RERUN_CLAUSE @ ace-gate:',
@@ -22692,6 +22699,8 @@ test('2485/ES13 census: the PROVISION_RERUN_CLAUSE and PROVISION_TREE_LINE inter
   assert.ok(step1 && step1.includes(PROVISION_TREE_SENTENCE), 'the refiner card merge-task step 1 carries PROVISION_TREE_LINE byte-equal')
   assert.ok(step1.includes('provision_tree:'), 'agents/war-refiner.md names provision_tree:')
   assert.ok(step1.indexOf(PROVISION_TREE_SENTENCE) > step1.indexOf(NEVER_MOVE_SENTENCE), 'the card step reads the marker after the rebase-or-skip decision')
+  assert.ok(step1.includes(PROVISION_CLEAN_SENTENCE), 'the refiner card merge-task step 1 carries PROVISION_CLEAN_LINE byte-equal')
+  assert.ok(step1.indexOf(PROVISION_CLEAN_SENTENCE) > step1.indexOf(PROVISION_TREE_SENTENCE), 'the card restore rule follows its re-run sentence')
 })
 
 // ES13 field shape (the Aligned recovery): the pin-transfer probe already rebased the task branch, so merge
@@ -22763,6 +22772,18 @@ test('2485/ES15 _refinery is provisioned once per phase after the topology barri
   assert.ok(p.includes('/abs/repo/.claude/worktrees/run-2026/_refinery'), 'it provisions the _refinery worktree')
   assert.ok(p.includes(PROVISION_TREE_SENTENCE), 'it writes the marker, the .war/ exclude line included')
   for (const cmd of PROVISION_LIST) assert.ok(p.includes(cmd), 'it runs the provision step: ' + cmd)
+  // Cleanliness (#1395 precedent): the shared _refinery is restored after the steps and before the marker,
+  // in the provision-run prompt and in the re-run clause every later _refinery gate carries.
+  assert.ok(PROVISION_CLEAN_SENTENCE.includes('`git checkout -- .`'), 'the sentence names the restore command')
+  const lastStep = p.lastIndexOf(PROVISION_LIST[PROVISION_LIST.length - 1])
+  assert.ok(lastStep !== -1 && lastStep < p.indexOf(PROVISION_CLEAN_SENTENCE) && p.indexOf(PROVISION_CLEAN_SENTENCE) < p.indexOf(PROVISION_TREE_SENTENCE),
+    'the _refinery provision-run prompt restores tracked files after the steps and before the marker')
+  for (const label of ['merge:t1', 'land:phase-3']) {
+    const g = calls.find(c => c.opts.label === label).prompt
+    const at = g.indexOf('PROVISION RE-RUN')
+    assert.ok(at !== -1 && g.indexOf(PROVISION_CLEAN_SENTENCE, at) > at && g.indexOf(PROVISION_CLEAN_SENTENCE, at) < g.indexOf('If a step exits non-zero', at),
+      label + ': the re-run clause carries the restore sentence after its step list')
+  }
   // The base re-run: classification detaches _refinery, so the tree rule applies there.
   const merge = calls.find(c => c.opts.label === 'merge:t1').prompt
   const base = merge.indexOf('BASE RE-RUN PROVISION: after detaching /abs/repo/.claude/worktrees/run-2026/_refinery')
@@ -22775,8 +22796,10 @@ test('2485/ES15 _refinery is provisioned once per phase after the topology barri
   assert.ok(eb && eb.reason === 'env-blocked' && eb.outcome.failedCommand === PROVISION_LIST[0], 'a red _refinery step is the soft env-blocked escalation')
   assert.ok(red.out.landed.includes('t1'), 'the task merges still run')
   assert.ok(!red.calls.some(c => /worktree remove|teardown/i.test(c.prompt)), 'the worktree is kept')
-  // No provision list ⇒ no _refinery dispatch.
-  assert.ok(!(await runPhase(PROVISION_ARGS(), defaultImpl)).calls.some(c => c.opts.label === 'provision-run:_refinery'), 'an empty list dispatches nothing')
+  // No provision list ⇒ no _refinery dispatch, and no prompt carries the restore sentence.
+  const bare = await runPhase(PROVISION_ARGS(), defaultImpl)
+  assert.ok(!bare.calls.some(c => c.opts.label === 'provision-run:_refinery'), 'an empty list dispatches nothing')
+  assert.ok(!bare.calls.some(c => c.prompt.includes(PROVISION_CLEAN_SENTENCE)), 'a provision-less run carries no restore sentence')
 })
 
 test('2485/ES15 real git: after the barrier writes the marker in a linked worktree, git status --porcelain is empty and the marker names the HEAD tree', async () => {
@@ -22801,6 +22824,16 @@ test('2485/ES15 real git: after the barrier writes the marker in a linked worktr
     assert.equal(exclude.split('\n').filter(l => l === '.war/').length, 1, '.war/ is excluded once')
     assert.equal(run(wt, 'echo b > b && git add b && git commit -qm next').status, 0)
     assert.notEqual(run(wt, markerTestOf(p)).status, 0, 'a changed tree fails the reader test')
+    // A step that rewrites a tracked file (a lockfile) and leaves build output: the dispatched restore
+    // spelling, run in the worktree, cleans the tracked tree and keeps the untracked output.
+    const restore = PROVISION_CLEAN_SENTENCE.match(/via `([^`]+)` in that worktree/)[1]
+    assert.equal(run(wt, 'echo rewritten > a && mkdir -p build && touch build/out').status, 0)
+    assert.notEqual(run(wt, 'git status --porcelain -uno').stdout, '', 'without the restore the tracked tree is dirty')
+    assert.equal(run(wt, restore).status, 0)
+    assert.equal(run(wt, 'git status --porcelain -uno').stdout, '', 'the restore leaves no tracked change')
+    assert.equal(run(wt, 'test -f build/out').status, 0, 'untracked build output survives the restore')
+    assert.equal(run(wt, markerWriterOf(p)).status, 0)
+    assert.equal(run(wt, markerTestOf(p)).status, 0, 'the marker written after the restore names the HEAD tree')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 

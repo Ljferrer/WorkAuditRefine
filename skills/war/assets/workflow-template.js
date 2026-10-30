@@ -1373,6 +1373,15 @@ if (!reaOn && (targetArtifacts.length || droppedEvidenceRows.length)) log('REA A
 // info/exclude, so the marker never dirties the tree (A3). Kept out of GATE_LOG_STAMP (its card twin is
 // merge-task step 9); the refiner card's merge-task step 1 carries it byte-equal (ES13 binds the pair).
 const PROVISION_TREE_LINE = pt`PROVISION TREE MARKER (run inside the worktree): after every provision run write it with \`mkdir -p .war && printf 'provision_tree: %s\\n' "$(git rev-parse 'HEAD^{tree}')" > .war/provision_tree && x="$(git rev-parse --git-path info/exclude)" && { grep -qxF .war/ "$x" 2>/dev/null || echo .war/ >> "$x"; }\`; the provision steps have seen the HEAD tree only when \`test "$(sed -n 's/^provision_tree: //p' .war/provision_tree 2>/dev/null)" = "$(git rev-parse 'HEAD^{tree}')"\` exits 0 (an absent marker is a changed tree).`
+// PROVISION_CLEAN_LINE (#2485 D15, the #1395 relaunch-fix precedent): the ONE cleanliness sentence. A
+// step that rewrites a tracked file (a lockfile an install rewrites) would leave the worktree dirty: in
+// the shared _refinery that makes the next `merge --no-ff --no-commit` refuse on overlapping paths, gates
+// a tree that differs from HEAD, and dies the next topology barrier on the dirty detached-holder arm.
+// Interpolated by provisionStep (task worktrees and _refinery), the polish-worktree provision and
+// PROVISION_RERUN_CLAUSE; the refiner card's merge-task step 1 carries it byte-equal. endstateProvisionClause
+// keeps its own `git -C` spelling (fail-open, every check still runs). depClause omits it: the worker's
+// own uncommitted edits live in that worktree, and `git checkout -- .` would discard them.
+const PROVISION_CLEAN_LINE = pt`Provision steps must leave the worktree CLEAN: restore tracked files via \`git checkout -- .\` in that worktree after any step that mutates them (untracked build output is fine). Write the marker only after the restore.`
 // PROVISION_RERUN_CLAUSE (#2485 D15/D19, PIN-15/PIN-19): the ONE tree-keyed re-run sentence every
 // refiner gate site interpolates before any floor or gate — the four merge step (a) copies, the ace-gate
 // check, the polish-sweep and terminal-pass merges, the integrated-tip full-gate re-run, the three land
@@ -1385,6 +1394,7 @@ const PROVISION_RERUN_CLAUSE = provisionList.length
     + pt` When that test does not exit 0 (a rebase, merge or checkout changed the tree, even one an earlier dispatch made), FIRST re-run these run.provision steps in that worktree, verbatim, in order, stopping at the first failure, then write the marker:\n`
     // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n')
+    + pt`\n` + PROVISION_CLEAN_LINE
     + pt`\nIf a step exits non-zero, run no gate and no floor, keep the worktree, and return the failure on your result as provision: { ok: false, failedCommand: "<the failing step VERBATIM>", exitCode: <its code>, stderrTail: "<tail of its stderr>", provisionSource: "${provisionSource}" } (a MergeResult keeps status "error"; a paraphrased failedCommand fails closed to held:workflow-error).\n`
   : ''
 // provisionEvidence: provisionStep's evidence gate, shared with the merge-time and land-time re-run
@@ -1406,7 +1416,7 @@ const provisionEvidence = (out, id, label) => {
 // provisionStep runs the pinned run.provision list, IN ORDER, inside one worktree — a refiner seat in
 // the Provision phase (the refiner owns provisioning; ADR 0001): each task worktree before its worker,
 // and `_refinery` once per phase before the first merge (#2485 D15, `purpose` names which). Every run
-// writes the PROVISION_TREE_LINE marker. It returns ok:true on full success or the env-blocked outcome
+// restores tracked files (PROVISION_CLEAN_LINE), then writes the PROVISION_TREE_LINE marker. It returns ok:true on full success or the env-blocked outcome
 // ({ taskId, failedCommand, exitCode, stderrTail, provisionSource } — schemas.md) for the FIRST failing
 // step. The caller keeps the worktree on ok:false. With an empty list provisioning is a no-op: ok:true
 // with no agent dispatched.
@@ -1423,6 +1433,7 @@ async function provisionStep(task, purpose = pt`for WAR task ${task.id} before i
     // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} is absence-tolerant (run.provision elements
     // are not per-task-schema-guaranteed; a placeholder over a phase-killing throw — Q17/ADR 0034).
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
+    + PROVISION_CLEAN_LINE + pt` `
     + pt`These steps make the worktree gate-ready (derived from the repo's own setup; source: ${provisionSource}). `
     + pt`Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, write the marker and return { ok: true }. ` + PROVISION_TREE_LINE + pt` `
     + pt`If a step exits NON-ZERO, STOP at that first failure and return the env-blocked outcome — `
@@ -6109,6 +6120,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         ? pt`Then, inside ${polishWorktree}, run these run.provision steps verbatim, in order, stopping at the first failure (source: ${provisionSource}):\n`
           // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
           + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
+          + PROVISION_CLEAN_LINE + pt` `
           + pt`If every step exits 0, write the marker. ` + PROVISION_TREE_LINE + pt`\n`
         : '')
       + pt`Return the env-outcome JSON: \`{ ok: true }\` when every subcommand and step exits 0; on a non-zero exit return \`{ ok: false, failedCommand: "<the exact subcommand line or step>", exitCode: <code>, stderrTail: "<tail of its stderr>" }\`.`,
