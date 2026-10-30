@@ -143,3 +143,7 @@ widening is operator-ratified beyond #586's trio-only ask.
   deferred backstop.
 - **Auto-heal re-point of a mismatched worktree (rejected).** Phase-scoped keying removes the collision
   class; the exit-6 die stays the backstop for residual hand-mangled states.
+
+## Decision log
+
+- 2026-10-30 · Amendment: a merge-time provision re-run is a fourth place the refiner runs provision steps, beside the phase topology barrier, the per-task provision-run and the polish worktree. Before any gate the refiner runs, and before a dep-wave worker's gate, `run.provision` re-runs when `HEAD^{tree}` differs from the `provision_tree` marker in the worktree's `.war/` directory; `_refinery` is provisioned once per phase after the topology barrier. A failed re-run rides `MergeResult.provision` through `provisionStep`'s evidence gate to the soft env-blocked escalation (C above), so no enum or status widens · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D15, D19 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
