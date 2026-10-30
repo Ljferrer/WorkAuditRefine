@@ -465,7 +465,7 @@ so the checklist is the guard:
 
 **0.21.26** — a helper card for tiny Git reads ([ADR 0057](docs/adr/0057-tiny-read-only-git-dispatches-run-on-a-helper-card.md), #2497): `audit-pin` and `diff-probe` ran on the refiner card, which loads the full tool list for a two-call read. Both now run on `agents/war-helper.md`, which has Bash only and defaults to haiku at low effort. `agents.helper` sets the tier, and the auditor git guard confines the helper. A worktree path that needs quotes routes that dispatch to the refiner. The repeat `audit-pin` lookup stays on the recovery refiner tier.
 
-Release scope: the window from the 0.21.25 head of PR #2539 to this release. Config: `war-config.mjs` (`agents.helper`). Engine: `workflow-template.js` (`helperOpts`, the `audit-pin` and `diff-probe` prompts). Card and guard: `agents/war-helper.md`, `validate-auditor-git.sh`. Docs: ADR 0057, `CONTEXT.md`, `schemas.md`, `refiner-recovery.md`, `/war-room`.
+Release scope: the window from the 0.21.25 `master` head (`abb8ed2e`, PR #2539 merged) to this release. Config: `war-config.mjs` (`agents.helper`). Engine: `workflow-template.js` (`helperOpts`, the `audit-pin` and `diff-probe` prompts). Card and guard: `agents/war-helper.md`, `validate-auditor-git.sh`. Docs: ADR 0057, `CONTEXT.md`, `schemas.md`, `refiner-recovery.md`, `/war-room`.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 

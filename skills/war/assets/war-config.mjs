@@ -60,7 +60,8 @@ export const DEFAULTS = {
     // sonnet for docs-only tasks and routine audit seats. The Lead routes a boundary-heavy seat to opus
     // through the roster seat's own model.
     worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
-    auditor:  { model: 'sonnet', effort: 'high' },
+    // auditor.rebuttal: the rebuttal-round seat tier, one model above the auditor (capped at fable).
+    auditor:  { model: 'sonnet', effort: 'high', rebuttal: { model: 'opus', effort: 'default' } },
     refiner:  { model: 'sonnet', effort: 'high', recovery: { model: 'opus', effort: 'high' } },
     servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
@@ -173,7 +174,7 @@ export const PRESETS = {
       // above the opus/sonnet DEFAULTS (ADR 0056), and the refiner pin sits one effort tier above the
       // DEFAULTS refiner.
       worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-      auditor:  { model: 'fable',  effort: 'default' },
+      auditor:  { model: 'fable',  effort: 'default', rebuttal: { model: 'fable', effort: 'default' } },
       refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',   effort: 'high' },
       redteam:  { model: 'fable',  effort: 'default' },
@@ -340,7 +341,8 @@ export function validate(input) {
     }
   }
   if (isObj(c.agents.refiner) && Object.prototype.hasOwnProperty.call(c.agents.refiner, 'recovery')) validateAgentTier(c.agents.refiner.recovery, 'agents.refiner.recovery', errors)
-  // agents.auditor.rebuttal: the rebuttal-round seat tier (no default: absent ⇒ the seat's usual tier).
+  // agents.auditor.rebuttal: the rebuttal-round seat tier (defaulted; a hand-written config may omit it, and then
+  // each rebuttal seat keeps its usual tier).
   if (isObj(c.agents.auditor) && Object.prototype.hasOwnProperty.call(c.agents.auditor, 'rebuttal')) validateAgentTier(c.agents.auditor.rebuttal, 'agents.auditor.rebuttal', errors)
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
