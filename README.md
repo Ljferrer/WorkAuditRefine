@@ -17,7 +17,7 @@ Sixty seconds, five commands:
 /snipe 3 correctness,security,auto     # 3 seats: two pinned lenses + one Lead-picked
 ```
 
-- **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#quick-audit-snipe)), verdicts reported straight in chat. No plan, no worktrees, no side effects — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
+- **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#quick-audit-snipe)), verdicts reported straight in chat. No plan, no worktrees, no side effects beyond a local usage row — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
 - **The real thing** — `/war-strategy` interviews you into a merged plan, `/red-team` adversarially proves it, `/war <plan>` executes it with fresh workers, independent auditors, and a serial merge queue, checking in at every phase boundary. The first two stand alone, too: a `/war-strategy` plan is a complete, evidence-tagged decision record any agent (or human) can implement — you don't have to run a full war to get value from the interview.
 - **Overnight** — `/war-campaign` queues plans and plows them into stacked PRs while you sleep; `/aftermath` sweeps up after the merge.
 - **Tuning** — `/war-room` writes the run config (models, effort, audit roster); `/lessons-learned` keeps the compounding memory honest.
@@ -465,7 +465,7 @@ so the checklist is the guard:
 
 **0.21.24** — `tighten` ranks by real use ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md), #2536): `hooks/record-lesson-use.sh` logs each lesson a worker or auditor opens or names in the new optional `lessonsUsed` result field, and `/snipe` logs its seats through `war-memory record-use`. `tighten-plan` now ranks rows by uses, then redundancy, then hits, and prints `mergeClusters`, which propose near-duplicate lessons to merge after an agent reads them. Redundancy replays the newest 500 distinct queries and asks how often a similar lesson fills the same top-K.
 
-Release scope: PR for #2536 only, on top of 0.21.23. Hook: `record-lesson-use.sh`. Memory: `war-memory.mjs`. Engine: `workflow-template.js` (the `lessonsUsed` schema field and prompt sentence). Cards: `war-worker`, `war-auditor`, `war-evidence-auditor`. Doctrine: an ADR 0055 amendment, `schemas.md`, `tighten.md`, `CONTEXT.md`, `CLAUDE.md`.
+Release scope: PR for #2536 only, on top of 0.21.23. Hook: `record-lesson-use.sh`. Memory: `war-memory.mjs`. Engine: `workflow-template.js` (the `lessonsUsed` schema field and prompt sentence). Cards: `war-worker`, `war-auditor`, `war-evidence-auditor`. Doctrine: an ADR 0055 amendment, `schemas.md`, `tighten.md`, `CONTEXT.md`, `CLAUDE.md`. Also: `/snipe`, `staged-script.md`, `hooks.json`, and two raised budget ceilings (`war-worker.md`, `CONTEXT.md`).
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 

@@ -70,7 +70,7 @@ When the observed failure is a floor/tooling **config mismatch** — e.g. a thre
 When your `blocked_reason` attributes an observed failure — a failing test, a command, or the environment — to the plan, the code, or the environment, first run the **self-confound gate** on your own recent actions (edits, a rebase, a partially-run command) and name in the `blocked_reason` what you ruled out, so the escalation carries its evidence trail. The mandatory instant blocks — the undeclared-submodule block, a dep-rebase conflict, a plan ambiguity or contradiction — stay immediate; never delay an escalation to run the gate.
 
 ## Return
-Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
+Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason?, lessonsUsed? }`.
 
 Report `acceptance_criteria_covered` as the task's **claimed End-state ids** — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none). Each id is the condition's 1-based ordinal in the intent's numbered End-state list, rendered as a string (`"7"`), resolving to that condition's verbatim text (the `plan_ref` / `endStateAttestations.condition` key); the post-merge gate-audit pass cross-checks the field.
 

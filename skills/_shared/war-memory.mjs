@@ -510,7 +510,7 @@ const FUTURE_SKEW_MS = 48 * 60 * 60 * 1000;
 // Near-duplicate pairs by what each lesson claims to be about (ADR 0055): rare words shared across
 // slug, description and keywords, weighted by rarity. Bodies stay out, because they pull in lessons
 // that share a subsystem and not a rule. Every pair has a hot side, and the other side can be cold.
-export function similarPairs(records, { threshold = SIMILAR_MIN_SCORE } = {}) {
+export function similarPairs(records) {
   const docs = collapseBySlug(records, records).map((r) => ({
     slug: r.slug,
     hot: r.temperature === 'hot',
@@ -531,7 +531,7 @@ export function similarPairs(records, { threshold = SIMILAR_MIN_SCORE } = {}) {
         if (b.words.has(w)) shared += weight(w);
       }
       for (const w of b.words) if (!a.words.has(w)) total += weight(w);
-      if (total > 0 && shared / total >= threshold) pairs.push({ a: a.slug, b: b.slug });
+      if (total > 0 && shared / total >= SIMILAR_MIN_SCORE) pairs.push({ a: a.slug, b: b.slug });
     }
   });
   return pairs;
@@ -539,9 +539,10 @@ export function similarPairs(records, { threshold = SIMILAR_MIN_SCORE } = {}) {
 
 // Group near-duplicate hot lessons into merge proposals (ADR 0055). Each cluster keeps one target
 // row, so a merge frees the other rows and loses no rule. Floor 1 holds here too: a user-confirmed
-// lesson joins no cluster. A pair links only when both lessons are hot, and a merge is a judgment
-// the gate makes, so this only proposes.
-export function mergeClusters(hotRecords, nearPairs, { hits = new Map(), uses = new Map() } = {}) {
+// lesson joins no cluster. A pair links only when both lessons are hot and share a root, because a
+// merge must not carry a local-only rule into the repo or a shared rule out of it. A merge is a
+// judgment the gate makes, so this only proposes.
+export function mergeClusters(hotRecords, nearPairs, { hits, uses }) {
   const bySlug = new Map(hotRecords.map((r) => [r.slug, r]));
   const open = (slug) => bySlug.has(slug) && tierRank(bySlug.get(slug).provenance) !== TIER_RANK['user-confirmed'];
   const parent = new Map();
@@ -551,21 +552,17 @@ export function mergeClusters(hotRecords, nearPairs, { hits = new Map(), uses = 
     return s;
   };
   for (const { a, b } of nearPairs) {
-    if (open(a) && open(b)) parent.set(find(a), find(b));
+    if (open(a) && open(b) && bySlug.get(a).root === bySlug.get(b).root) parent.set(find(a), find(b));
   }
   const groups = new Map();
   for (const s of parent.keys()) {
     const root = find(s);
     groups.set(root, [...(groups.get(root) ?? []), s]);
   }
-  const rank = (s) => [uses.get(s) ?? 0, hits.get(s) ?? 0];
   const out = [];
   for (const slugs of groups.values()) {
-    const [target, ...merged] = [...slugs].sort((x, y) => {
-      const [ux, hx] = rank(x);
-      const [uy, hy] = rank(y);
-      return uy - ux || hy - hx || x.localeCompare(y);
-    });
+    const [target, ...merged] = slugs.sort((x, y) => (uses.get(y) ?? 0) - (uses.get(x) ?? 0)
+      || (hits.get(y) ?? 0) - (hits.get(x) ?? 0) || x.localeCompare(y));
     const bytesFreed = merged.reduce((n, s) => n + Buffer.byteLength(projectionRow(bySlug.get(s)) + '\n', 'utf8'), 0);
     out.push({ target, merged, bytesFreed });
   }
@@ -1202,16 +1199,6 @@ function cmdInbound(argv) {
   );
 }
 
-// tighten-plan [--local <dir>] [--repo <dir>] [--target <bytes>]: emit the usage-scored,
-// floored eviction PLAN as JSON. Read-only — walks the corpus, reads the query log
-// best-effort, and prints the ranked eligible list + cut line. Never mutates (the skill's
-// gate is the sole destructive actor). Pure read: an absent local root is just an empty
-// corpus (no requireLocal), matching query/inbound. `--target` sets both the cut goal AND the
-// effective trigger: the printed `verdict` is the stricter of the advisory line and that target
-// (#992), so a sub-advisory target makes the skill's preflight bind there rather than at 17,000 B.
-// A SUPPLIED-but-invalid `--target` refuses loud (exit 1, diagnostic naming the received token)
-// rather than silently collapsing back to the advisory default (#1059); an absent flag still takes
-// the default, byte-identically.
 // Record a use from a caller that can write (ADR 0055). /snipe seats return plain text, so no hook
 // sees their lessonsUsed and the main session logs them here. Same row shape as the hook.
 function cmdRecordUse(argv) {
@@ -1230,6 +1217,16 @@ function cmdRecordUse(argv) {
   }
 }
 
+// tighten-plan [--local <dir>] [--repo <dir>] [--target <bytes>]: emit the usage-scored,
+// floored eviction PLAN as JSON. Read-only — walks the corpus, reads the query log
+// best-effort, and prints the ranked eligible list + cut line. Never mutates (the skill's
+// gate is the sole destructive actor). Pure read: an absent local root is just an empty
+// corpus (no requireLocal), matching query/inbound. `--target` sets both the cut goal AND the
+// effective trigger: the printed `verdict` is the stricter of the advisory line and that target
+// (#992), so a sub-advisory target makes the skill's preflight bind there rather than at 17,000 B.
+// A SUPPLIED-but-invalid `--target` refuses loud (exit 1, diagnostic naming the received token)
+// rather than silently collapsing back to the advisory default (#1059); an absent flag still takes
+// the default, byte-identically.
 function cmdTightenPlan(argv) {
   const roots = resolveRoots(argv);
   // Three-way resolution at the argv boundary (#1059). `parseArgv` is shared by every verb and

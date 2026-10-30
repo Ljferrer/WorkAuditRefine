@@ -41,4 +41,4 @@ The allowlist is REA's effect predicate (never `mutatesTarget`, `executesForeign
 ## Return
 
 If a prior lesson changed what you measured, list its slug in your verdict's `lessonsUsed`. A lesson you only saw does not count.
-Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, escalate_reason }`. `escalate_reason` is required when `verdict` is `escalate` and omitted otherwise. Omit `widen` (this seat never nominates lenses) and `endStateAttestations` (gate-audit-family seats only).
+Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, escalate_reason, lessonsUsed? }`. `escalate_reason` is required when `verdict` is `escalate` and omitted otherwise. Omit `widen` (this seat never nominates lenses) and `endStateAttestations` (gate-audit-family seats only).

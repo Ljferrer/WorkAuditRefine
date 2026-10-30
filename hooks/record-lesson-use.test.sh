@@ -55,7 +55,7 @@ ok 'a bad slug adds no row' "$(rows)" "$before"
 ok 'a missing memory root still exits 0' "$(run "$(payload war-worker Read "$TMP/none/projects/x/s.jsonl" '{"file_path":"/x/docs/learnings/a.md"}')")" 0
 ok 'an empty payload still exits 0' "$(run '')" 0
 ok 'invalid JSON still exits 0' "$(run 'not json')" 0
-ok 'the hook prints nothing' "$(printf '%s' "$(payload war-worker Read "$SUB" '{"file_path":"/x/docs/learnings/quiet.md"}')" | bash "$HOOK" | wc -c | tr -d ' ')" 0
+ok 'the hook prints nothing' "$(printf '%s' "$(payload war-worker Read "$SUB" '{"file_path":"/x/docs/learnings/quiet.md"}')" | env -u CLAUDE_MEMORY_LOCAL bash "$HOOK" | wc -c | tr -d ' ')" 0
 
 # Root resolution.
 REAL="$(cd "$TMP" && pwd -P)"
