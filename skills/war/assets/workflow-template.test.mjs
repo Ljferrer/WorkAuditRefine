@@ -11303,7 +11303,7 @@ const LITERAL_REGISTRY = [
   ["task ${t.id}: cannot derive branch/worktree "],
   ["task ${t.id}: invalid roster — ${rv.errors.j"],
   ["provision-run:${task.id}`, dispatchKind: 'pr"],
-  ["task ${task.id}: the provision-run:${task.id"],
+  ["task ${id}: the ${label} dispatch returned n"],   // provisionEvidence's evidence-gate throw (#2485 D19 — moved out of provisionStep)
   ["Disposition demotion: [${f.severity}] \"${f.t"],
   ["worker path-contract violation: reported fil", 2],
   ["Task ${taskId}: normalized main-checkout-roo"],
@@ -22487,14 +22487,33 @@ test('2485/ES8 reader census (D13, default-deny): every integration_sha, gate_sh
   assert.ok(!src.includes('merge_sha'), 'the engine reads no merge_sha (the ledger field is Lead-side)')
 })
 
-test('2485/ES8 MergeResult key-set: every MERGE_RESULT.properties name, gate_sha included, appears in the refiner card return-shape sentence, and no other name does', () => {
+// The MERGE_RESULT literal plus #2485 D19's provision pick (ENV_OUTCOME and the MERGE_PROVISION_KEYS
+// assignment), evaluated together: the provision property is assigned after ENV_OUTCOME is declared.
+const mergeResultSchema = () => {
   const literal = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)[0]
-  const keys = Object.keys(new Function(literal + '\nreturn MERGE_RESULT')().properties).sort()
+  const envLit = src.match(/const ENV_OUTCOME = \{[^]*?absorbCharges: \{ type: 'object' \} \} \}\n/)[0]
+  const pick = src.match(/const MERGE_PROVISION_KEYS = [^\n]*\nMERGE_RESULT\.properties\.provision = [^]*?\)\) \}\n/)[0]
+  return new Function(literal + '\n' + envLit + pick + 'return { MERGE_RESULT, ENV_OUTCOME }')()
+}
+
+test('2485/ES8 MergeResult key-set: every MERGE_RESULT.properties name, gate_sha and provision included, appears in the refiner card return-shape sentence, and no other name does; provision carries the five ENV_OUTCOME keys the card names', () => {
+  const { MERGE_RESULT, ENV_OUTCOME } = mergeResultSchema()
+  const keys = Object.keys(MERGE_RESULT.properties).sort()
   assert.ok(keys.includes('gate_sha'), 'MERGE_RESULT declares gate_sha')
+  assert.ok(keys.includes('provision'), 'MERGE_RESULT declares provision (#2485 D19)')
   const sentence = refinerMd.split('\n').find(l => l.startsWith('For **`merge-task`** and **`land-phase`** return ONLY the `MergeResult` JSON'))
   assert.ok(sentence, 'the card return-shape sentence exists')
   const shape = sentence.match(/: `\{ ([^}]+) \}`/)[1].split(',').map(s => s.trim().replace(/\?$/, '')).sort()
   assert.deepEqual(shape, keys, 'the card return shape mirrors MERGE_RESULT.properties exactly')
+  // D19: the five error-shape keys, picked by name from ENV_OUTCOME (the same objects, one source).
+  const five = ['ok', 'failedCommand', 'exitCode', 'stderrTail', 'provisionSource']
+  assert.deepEqual(Object.keys(MERGE_RESULT.properties.provision.properties), five, 'provision carries exactly the five keys, in pick order')
+  for (const k of five) assert.equal(MERGE_RESULT.properties.provision.properties[k], ENV_OUTCOME.properties[k], k + ' is ENV_OUTCOME\'s own property object, not a second literal')
+  const cardFive = sentence.match(/rides `provision: \{ ([^}]+) \}`/)
+  assert.ok(cardFive, 'the card ## Return sentence names the provision shape')
+  assert.deepEqual(cardFive[1].split(',').map(x => x.trim()), five, 'the card names the same five keys')
+  const schemasRow = schemasMdForAbsorb.split('\n').find(l => l.trimStart().startsWith('provision?,'))
+  assert.ok(schemasRow && schemasRow.includes('{ ' + five.join(', ') + ' }'), 'schemas.md\'s provision row names the same five keys')
 })
 
 // ES17 (D18, PIN-18): the barrier's absorb-charge read runs the EXACT dispatched bash spelling against
@@ -22586,4 +22605,234 @@ process.exit(spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }).s
     assert.notEqual(old, cmd, 'the capture spelling is present to revert')
     assert.equal(spawnSync('bash', ['-c', fill(old)], { encoding: 'utf8', env }).status, 0, 'the uncaptured walk hides the failure')
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ---- #2485 Task 4.1 — tree-keyed re-provision before any gate (plan 2026-10-28-blocked-ace-and-merge-provenance, D15/D19) ----
+// PROVISION_TREE_LINE is the one marker sentence (writer, file path, reader test); PROVISION_RERUN_CLAUSE is
+// the one re-run sentence every refiner gate site interpolates. Both are read from their engine homes.
+const evalTemplateConst = name => {
+  const m = src.match(new RegExp('const ' + name + ' = pt`((?:\\\\[^]|[^`\\\\])*)`'))
+  assert.ok(m, name + ' is one pt template with no interpolation')
+  return new Function('return `' + m[1] + '`')()
+}
+const PROVISION_TREE_SENTENCE = evalTemplateConst('PROVISION_TREE_LINE')
+const DEP_WAVE_PROVISION_SENTENCE = src.match(/^const DEP_WAVE_PROVISION_RULE = '([^']+)'$/m)[1]
+// The marker's two shell spellings, cut from the sentence: the writer and the reader test (exit 0 = seen).
+const markerWriterOf = text => { const m = String(text).match(/write it with `([^`]+)`/); assert.ok(m, 'the marker writer is spelled'); return m[1] }
+const markerTestOf = text => { const m = String(text).match(/only when `(test [^`]+)` exits 0/); assert.ok(m, 'the marker test is spelled'); return m[1] }
+
+// ES13 census (default-deny, exact named multiset): one row per interpolation site of either constant, named
+// by its enclosing construct — the column-0 declaration that holds it, else the dispatch label that follows it.
+const PROVISION_CONSTS = ['PROVISION_RERUN_CLAUSE', 'PROVISION_TREE_LINE']
+const provisionConstructOf = (lines, i) => {
+  for (let j = i; j >= 0; j--) {
+    if (!/^\S/.test(lines[j]) || lines[j].startsWith('//')) continue
+    const top = lines[j].match(/^(?:const|let|async function|function)\s+([A-Za-z_$][\w$]*)/)
+    if (top) return top[1]
+    break
+  }
+  for (let k = i; k < lines.length; k++) {
+    const m = lines[k].match(/label: (?:`([^`]*)`|'([^']*)')/)
+    if (m) return m[1] ?? m[2]
+  }
+  return '(unclassified)'
+}
+const provisionSiteCensus = text => {
+  const lines = text.split('\n'), rows = []
+  lines.forEach((line, i) => {
+    if (/^\s*\/\//.test(line)) return
+    for (const name of PROVISION_CONSTS) {
+      for (const m of line.matchAll(new RegExp('\\b' + name + '\\b', 'g'))) {
+        if (m.index === 6 && line.startsWith('const ' + name + ' =')) continue   // the definition itself
+        rows.push(name + ' @ ' + provisionConstructOf(lines, i))
+      }
+    }
+  })
+  return rows.sort()
+}
+const PROVISION_SITE_CENSUS = [
+  // the twelve refiner gate sites (D15): four merge step (a) copies, the ace-gate check, the integrated-tip
+  // re-run, the polish-sweep and terminal-pass merges, the three land gates and the _refinery base re-run
+  'PROVISION_RERUN_CLAUSE @ ace-gate:',
+  'PROVISION_RERUN_CLAUSE @ classificationClause',
+  'PROVISION_RERUN_CLAUSE @ evidence:phase-${ph.id}',
+  'PROVISION_RERUN_CLAUSE @ land:phase-${ph.id}',
+  'PROVISION_RERUN_CLAUSE @ land:phase-${ph.id}:baseline-proceed',
+  'PROVISION_RERUN_CLAUSE @ land:phase-${ph.id}:environment-proceed',
+  'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}',
+  'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:baseline-proceed',
+  'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:environment-proceed',
+  'PROVISION_RERUN_CLAUSE @ merge:${r.task.id}:floor-retry:r${r.task.fixRounds}',
+  'PROVISION_RERUN_CLAUSE @ merge:p${ph.id}-polish',
+  'PROVISION_RERUN_CLAUSE @ merge:p${ph.id}-terminal',
+  // the marker: readers (the re-run clause, the dep-wave worker clause) and writers (per-task and _refinery
+  // provision-run, the polish worktree provision, the end-state check install)
+  'PROVISION_TREE_LINE @ PROVISION_RERUN_CLAUSE',
+  'PROVISION_TREE_LINE @ depClause',
+  'PROVISION_TREE_LINE @ endstate-check:phase-${ph.id}',
+  'PROVISION_TREE_LINE @ polish-worktree:phase-${ph.id}',
+  'PROVISION_TREE_LINE @ provisionStep',
+]
+
+test('2485/ES13 census: the PROVISION_RERUN_CLAUSE and PROVISION_TREE_LINE interpolation sites are an exact named multiset, and the marker sentence rides the refiner card merge-task step 1 byte-equal', () => {
+  assert.deepEqual(provisionSiteCensus(src), [...PROVISION_SITE_CENSUS].sort(), 'every site is one named row; a new or lost site reds this census')
+  // Default-deny, proven red both ways: a stray site is a new row, a dropped site loses its row.
+  const stray = provisionSiteCensus(src + "\nconst strayGate = () => dispatchSite(pt`gate` + PROVISION_RERUN_CLAUSE, { label: `stray:x` })\n")
+  assert.ok(stray.includes('PROVISION_RERUN_CLAUSE @ strayGate'), 'a new site is classified by its construct')
+  assert.notDeepEqual(stray, [...PROVISION_SITE_CENSUS].sort(), 'a new site reds the census')
+  const dropped = src.replace("      ? PROVISION_RERUN_CLAUSE + pt`INTRA-PHASE-DEP", "      ? pt`INTRA-PHASE-DEP")
+  assert.notEqual(dropped, src, 'the integrated-tip site is present to drop')
+  assert.ok(!provisionSiteCensus(dropped).includes('PROVISION_RERUN_CLAUSE @ evidence:phase-${ph.id}'), 'a dropped site loses its row')
+  // Kept out of GATE_LOG_STAMP; the card mirror (equality row) and the provision_tree: token on the card.
+  assert.ok(!src.match(/^const GATE_LOG_STAMP = [^\n]*$/m)[0].includes('provision_tree'), 'GATE_LOG_STAMP carries no provision marker')
+  assert.match(PROVISION_TREE_SENTENCE, /provision_tree: %s\\n/, 'the writer line spells provision_tree:')
+  assert.match(PROVISION_TREE_SENTENCE, /\.war\/provision_tree/, 'the marker file path rides the one constant')
+  assert.match(PROVISION_TREE_SENTENCE, /echo \.war\/ >> "\$x"/, 'the writer appends .war/ to info/exclude (A3)')
+  const step1 = refinerMd.split('\n').find(l => l.startsWith('1. `git -C <taskWorktree> fetch`'))
+  assert.ok(step1 && step1.includes(PROVISION_TREE_SENTENCE), 'the refiner card merge-task step 1 carries PROVISION_TREE_LINE byte-equal')
+  assert.ok(step1.includes('provision_tree:'), 'agents/war-refiner.md names provision_tree:')
+  assert.ok(step1.indexOf(PROVISION_TREE_SENTENCE) > step1.indexOf(NEVER_MOVE_SENTENCE), 'the card step reads the marker after the rebase-or-skip decision')
+})
+
+// ES13 field shape (the Aligned recovery): the pin-transfer probe already rebased the task branch, so merge
+// step (a) is a no-op, and the gate needs a dependency a sibling merged. Real git, the dispatched spellings.
+test('2485/ES13 field shape: probe rebases, step (a) is a no-op, the gate needs a sibling dependency — the step (a) clause re-runs provision by the tree and the gate goes green', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-2485-es13-'))
+  const run = (cwd, cmd) => spawnSync('bash', ['-c', cmd], { cwd, encoding: 'utf8' })
+  const ok = (cwd, cmd) => { const r = run(cwd, cmd); assert.equal(r.status, 0, cmd + '\n' + r.stderr); return r.stdout.trim() }
+  try {
+    const step = 'mkdir -p vendor && for d in $(cat deps 2>/dev/null); do touch "vendor/$d"; done'
+    const gate = 'test -f vendor/lib'
+    const { calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { provision: [step], provisionSource: 'ci' } }), defaultImpl)
+    const prov = calls.find(c => c.opts.label === 'provision-run:t1').prompt
+    const merge = calls.find(c => c.opts.label === 'merge:t1').prompt
+    // Step (a) order: the re-run clause sits after the rebase-or-skip step and before (b) and every floor.
+    const a = merge.indexOf('(a) REBASE'), clause = merge.indexOf('PROVISION RE-RUN'), b = merge.indexOf('(b) MERGE'), floor = merge.indexOf('assert-no-submodule-mutation.sh')
+    assert.ok(a !== -1 && a < clause && clause < b && clause < floor, 'the clause follows step (a) and precedes (b) and the floors')
+    const clauseText = merge.slice(clause)
+    assert.ok(clauseText.includes('  1. ' + step), 'the clause lists the run.provision step verbatim')
+    // A repo: integration at base, the task worktree provisioned (marker written) at base.
+    const repo = join(dir, 'repo'), wt = join(dir, 'task-wt')
+    mkdirSync(repo)
+    ok(repo, "git init -q -b integration && git config user.name F && git config user.email f@example.invalid && printf 'vendor/\\n' > .gitignore && git add .gitignore && git commit -qm base")
+    ok(repo, `git worktree add -q -b task ${wt} integration`)
+    ok(wt, "printf 'x\\n' > own && git add own && git commit -qm task")
+    ok(wt, step); ok(wt, markerWriterOf(prov))
+    assert.equal(run(wt, markerTestOf(clauseText)).status, 0, 'the marker test reads the provisioned tree')
+    // A sibling lands a dependency on integration; the pin-transfer probe rebases the task branch.
+    ok(repo, "printf 'lib\\n' > deps && git add deps && git commit -qm sibling")
+    ok(wt, 'git rebase -q integration')
+    // Merge step (a): the merge-base test says the rebase is already done — a no-op.
+    assert.equal(run(wt, 'git merge-base --is-ancestor integration task').status, 0, 'step (a) skips: the probe already rebased')
+    assert.notEqual(run(wt, gate).status, 0, 'without a re-run the gate is red: the sibling dependency is not provisioned')
+    // The clause: the tree differs from the marker, so the steps re-run, then the marker is rewritten.
+    assert.notEqual(run(wt, markerTestOf(clauseText)).status, 0, 'the marker test sees the changed tree though step (a) did nothing')
+    ok(wt, step); ok(wt, markerWriterOf(clauseText))
+    assert.equal(run(wt, gate).status, 0, 'after the tree-keyed re-run the gate is green')
+    assert.equal(run(wt, markerTestOf(clauseText)).status, 0, 'the rewritten marker names the gated tree')
+    assert.equal(ok(wt, 'git status --porcelain'), '', 'the marker never dirties the worktree')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES14 the dep-wave worker clause asks for the tree-keyed re-run before the worker\'s gate, and the worker card mirrors the sentence', async () => {
+  const DEP_HEAD = 'DEPS ALREADY MERGED: this task declares deps'
+  const depPrompt = calls => calls.find(c => isWorker(c) && c.prompt.includes(DEP_HEAD)).prompt
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const p = depPrompt(calls)
+  const clause = p.slice(p.indexOf(DEP_HEAD), p.indexOf('\n', p.indexOf(DEP_HEAD)))
+  assert.ok(clause.includes(DEP_WAVE_PROVISION_SENTENCE + ' ' + PROVISION_TREE_SENTENCE), 'the dep clause carries the rule and the marker test')
+  assert.match(clause, /When it does not exit 0, re-run the listed provision steps verbatim, in order, then write the marker\./)
+  const rebase = clause.indexOf('FIRST ACTION'), rule = clause.indexOf(DEP_WAVE_PROVISION_SENTENCE)
+  assert.ok(rebase !== -1 && rebase < rule, 'the re-run follows the dep rebase')
+  const cardLine = workerMd.split('\n').find(l => l.startsWith('If your spawn prompt carries a `DEPS ALREADY MERGED'))
+  assert.ok(cardLine && cardLine.includes(DEP_WAVE_PROVISION_SENTENCE), 'agents/war-worker.md\'s dep-wave rebase section carries the sentence verbatim')
+  // Set-minus: no provision list ⇒ the dep clause carries no re-run sentence.
+  const bare = depPrompt((await runPhase(PROVISION_ARGS(), defaultImpl)).calls)
+  assert.ok(!bare.includes(DEP_WAVE_PROVISION_SENTENCE), 'a provision-less run keeps the old dep clause')
+})
+
+test('2485/ES15 _refinery is provisioned once per phase after the topology barrier and before the first merge, its dispatch writes the marker and the .war/ exclude, and the base re-run applies the tree rule', async () => {
+  const { calls, out } = await runPhase(withProvision(), defaultImpl)
+  const refinery = calls.filter(c => c.opts.label === 'provision-run:_refinery')
+  assert.equal(refinery.length, 1, 'one _refinery provision dispatch for the phase')
+  assert.equal(refinery[0].opts.dispatchKind, 'provision-run', 'it reuses the provision-run dispatch kind and its evidence gate')
+  const at = calls.indexOf(refinery[0])
+  assert.ok(idx(calls, isProvision) < at, 'after the topology barrier')
+  assert.ok(at < idx(calls, c => c.opts.dispatchKind === 'pin-transfer') && at < idx(calls, c => c.opts.label === 'merge:t1'), 'before the first merge slot')
+  const p = refinery[0].prompt
+  assert.ok(p.includes('/abs/repo/.claude/worktrees/run-2026/_refinery'), 'it provisions the _refinery worktree')
+  assert.ok(p.includes(PROVISION_TREE_SENTENCE), 'it writes the marker, the .war/ exclude line included')
+  for (const cmd of PROVISION_LIST) assert.ok(p.includes(cmd), 'it runs the provision step: ' + cmd)
+  // The base re-run: classification detaches _refinery, so the tree rule applies there.
+  const merge = calls.find(c => c.opts.label === 'merge:t1').prompt
+  const base = merge.indexOf('BASE RE-RUN PROVISION: after detaching /abs/repo/.claude/worktrees/run-2026/_refinery')
+  assert.ok(base !== -1 && merge.indexOf('PROVISION RE-RUN', base) > base, 'the base re-run carries the re-run clause')
+  assert.ok(out.landed.includes('t1'), 'the phase merges as before')
+  // The soft env-blocked route: a red _refinery step escalates env-blocked with the worktree kept; merges proceed.
+  const red = await runPhase(withProvision(), (pr, o) => o.label === 'provision-run:_refinery'
+    ? { ok: false, taskId: '_refinery', failedCommand: PROVISION_LIST[0], exitCode: 1, stderrTail: 'ERR', provisionSource: 'ci' } : defaultImpl(pr, o))
+  const eb = red.out.escalated.find(e => e.task === 'phase-3-refinery')
+  assert.ok(eb && eb.reason === 'env-blocked' && eb.outcome.failedCommand === PROVISION_LIST[0], 'a red _refinery step is the soft env-blocked escalation')
+  assert.ok(red.out.landed.includes('t1'), 'the task merges still run')
+  assert.ok(!red.calls.some(c => /worktree remove|teardown/i.test(c.prompt)), 'the worktree is kept')
+  // No provision list ⇒ no _refinery dispatch.
+  assert.ok(!(await runPhase(PROVISION_ARGS(), defaultImpl)).calls.some(c => c.opts.label === 'provision-run:_refinery'), 'an empty list dispatches nothing')
+})
+
+test('2485/ES15 real git: after the barrier writes the marker in a linked worktree, git status --porcelain is empty and the marker names the HEAD tree', async () => {
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const p = calls.find(c => c.opts.label === 'provision-run:_refinery').prompt
+  const dir = mkdtempSync(join(tmpdir(), 'war-2485-es15-'))
+  const run = (cwd, cmd) => spawnSync('bash', ['-c', cmd], { cwd, encoding: 'utf8' })
+  try {
+    const repo = join(dir, 'repo'), wt = join(dir, '_refinery')
+    mkdirSync(repo)
+    assert.equal(run(repo, 'git init -q -b integration && git config user.name F && git config user.email f@example.invalid && echo a > a && git add a && git commit -qm base').status, 0)
+    assert.equal(run(repo, `git worktree add -q --detach ${wt} integration`).status, 0)
+    const w = run(wt, markerWriterOf(p))
+    assert.equal(w.status, 0, w.stderr)
+    assert.equal(run(wt, 'git status --porcelain --untracked-files=all').stdout, '', 'the marker is excluded: the worktree stays clean')
+    assert.equal(run(repo, 'git status --porcelain --untracked-files=all').stdout, '', 'the main checkout stays clean too')
+    const tree = run(wt, 'git rev-parse HEAD^{tree}').stdout.trim()
+    assert.equal(readFileSync(join(wt, '.war/provision_tree'), 'utf8'), 'provision_tree: ' + tree + '\n', 'one line, the HEAD tree')
+    assert.equal(run(wt, markerTestOf(p)).status, 0, 'the reader test passes on the provisioned tree')
+    assert.equal(run(wt, markerWriterOf(p)).status, 0, 'the writer is idempotent')
+    const exclude = run(wt, 'cat "$(git rev-parse --git-path info/exclude)"').stdout
+    assert.equal(exclude.split('\n').filter(l => l === '.war/').length, 1, '.war/ is excluded once')
+    assert.equal(run(wt, 'echo b > b && git add b && git commit -qm next').status, 0)
+    assert.notEqual(run(wt, markerTestOf(p)).status, 0, 'a changed tree fails the reader test')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ES16 (D19, PIN-19): a failed re-run step rides MergeResult.provision; provisionStep's evidence gate admits
+// it as the soft env-blocked escalation, worktree kept; a paraphrased failedCommand throws held:workflow-error.
+const provisionFailure = (failedCommand) => ({ mode: 'merge-task', status: 'error', provision: { ok: false, failedCommand, exitCode: 1, stderrTail: 'ERR_LOCKFILE', provisionSource: 'ci' } })
+test('2485/ES16 a failed provision re-run step at the merge slot rides MergeResult.provision and routes to the soft env-blocked escalation with the worktree kept', async () => {
+  const { out, calls } = await runPhase(SINGLE_PROV(), (p, o) => o.label === 'merge:t1' ? provisionFailure(PROVISION_LIST[1]) : defaultImpl(p, o))
+  const eb = out.escalated.find(e => e.task === 't1')
+  assert.equal(eb.reason, 'env-blocked', 'the soft env-blocked reason')
+  assert.deepEqual(eb.outcome, { ok: false, taskId: 't1', failedCommand: PROVISION_LIST[1], exitCode: 1, stderrTail: 'ERR_LOCKFILE', provisionSource: 'ci' }, 'the real result fields ride the outcome')
+  assert.ok(SOFT_ENV_REASONS.includes(eb.reason) && !HARD_ESCALATION_REASONS.includes(eb.reason), 'env-blocked stays soft')
+  assert.ok(!out.landed.includes('t1'), 'the task is not merged')
+  assert.notEqual(out.landDecision, 'held:workflow-error')
+  assert.ok(!calls.some(isFixWorker), 'no fix round: an env-block is never a code defect')
+  assert.ok(!calls.some(c => /worktree remove|teardown/i.test(c.prompt)), 'the worktree is kept')
+  // The land gate's failed re-run: the same gate, the existing env-blocked land route.
+  const land = await runPhase(SINGLE_PROV(), (p, o) => o.label === 'land:phase-3' ? { ...provisionFailure(PROVISION_LIST[0]), mode: 'land-phase' } : defaultImpl(p, o))
+  const le = land.out.escalated.find(e => e.task === 'phase-3-land')
+  assert.ok(le && le.reason === 'env-blocked' && le.outcome.failedCommand === PROVISION_LIST[0], 'the land route is env-blocked')
+  assert.equal(land.out.landDecision, 'held:land-failed', 'the land holds as an env-blocked land does')
+})
+
+test('2485/ES16 a paraphrased or numeric-less provision failure on a MergeResult throws held:workflow-error, never a fabricated env-block', async () => {
+  for (const [name, bad] of [
+    ['paraphrased failedCommand', provisionFailure('pnpm install')],
+    ['zero exitCode', { ...provisionFailure(PROVISION_LIST[0]), provision: { ...provisionFailure(PROVISION_LIST[0]).provision, exitCode: 0 } }],
+  ]) {
+    const { out } = await runPhase(SINGLE_PROV(), (p, o) => o.label === 'merge:t1' ? bad : defaultImpl(p, o))
+    assert.equal(out.landDecision, 'held:workflow-error', name + ': the evidence gate throws')
+    assert.ok(!out.escalated.some(e => e.reason === 'env-blocked'), name + ': no env-block is invented')
+  }
+  const land = await runPhase(SINGLE_PROV(), (p, o) => o.label === 'land:phase-3' ? { ...provisionFailure('npm ci'), mode: 'land-phase' } : defaultImpl(p, o))
+  assert.equal(land.out.landDecision, 'held:workflow-error', 'the land site applies the same gate')
 })
