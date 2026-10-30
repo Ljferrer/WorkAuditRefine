@@ -185,7 +185,7 @@ The task gate (and the task's `Done when:` command) run at an ace-family commit 
   phases: [ { id, title, epic_issue, integration_branch,
     status: "todo"|"running"|"landed"|"blocked",
     tasks: [ { id, issue, title, branch, worktree, deps: ["id"],
-      roster: [ { lens: "correctness", depth: "deep" } ],   // distinct-lens audit seats, shape { lens, depth?, agentType? }; the seat bound, the depth enum and the depth default per `validateRoster` in `war-config.mjs` — never restated here; agentType ∈ SEAT_AGENT_TYPES (the `war-config.mjs` export; the evidence member needs run.evidence on)
+      roster: [ { lens: "correctness", depth: "deep" } ],   // distinct-lens audit seats, shape { lens, depth?, agentType?, model?, effort? } (a seat's model/effort overrides the auditor tier for that seat); the seat bound, the depth enum and the depth default per `validateRoster` in `war-config.mjs` — never restated here; agentType ∈ SEAT_AGENT_TYPES (the `war-config.mjs` export; the evidence member needs run.evidence on)
       plan_slice,
       requiresTest: true,           // bool; default true — set false for docs/config/VERIFY-no-op tasks; gates the refiner's test-floor check
       requiresPackaging: true,      // bool; default true, Lead-set at decompose — set false to skip the packaging floor (a logged, never-silent skip); resolved as `r.task.requiresPackaging !== false`, independent of requiresTest; gates the refiner's assert-packaging-in-diff.sh floor
@@ -300,7 +300,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 ```jsonc
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
-    worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix is set, below)
+    worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix / .ace is set, below)
     auditor:  { model, effort },
     refiner:  { model, effort },
     servitor: { model, effort },
@@ -308,9 +308,10 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     trial?: { model, effort },               // not a phase role — the fork-trial subagent tier (D18) `/war-strategy`'s plan interview reads fail-open like redteam; defaulted in `war-config.mjs` DEFAULTS and re-pinned by every preset; validated like redteam; no `agents/*.md` card
     snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), defaulted in `war-config.mjs` DEFAULTS, presets may re-pin it; explicit null = unset (falls back to the auditor tier); validated like redteam
   //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (defaulted in DEFAULTS; presets may re-pin it)
-  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config
+  //   agents.worker.fix  { model, effort }  — the fix-round and floor-retry tier (and --ace when .ace is absent); defaulted in DEFAULTS and inherited unless a preset re-pins it; an omitted block inherits the base worker config
+  //   agents.worker.ace  { model, effort }  — the --ace and terminal-pass tier (#2519); no default and no preset sets it; an omitted block inherits agents.worker.fix
   audit: {
-    roster: [ { lens: "correctness", depth: "deep" },        // seat shape { lens, depth?, agentType? }; lenses distinct; the seat bound, the depth enum and the depth default per `validateRoster` in `war-config.mjs` — never restated here; agentType ∈ SEAT_AGENT_TYPES (the `war-config.mjs` export; the evidence member needs run.evidence on)
+    roster: [ { lens: "correctness", depth: "deep" },        // seat shape { lens, depth?, agentType?, model?, effort? } (model/effort override the auditor tier for that seat); lenses distinct; the seat bound, the depth enum and the depth default per `validateRoster` in `war-config.mjs` — never restated here; agentType ∈ SEAT_AGENT_TYPES (the `war-config.mjs` export; the evidence member needs run.evidence on)
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)
               { lens: "plan-faithfulness", depth: "deep" },
               { lens: "simplicity", depth: "deep" },

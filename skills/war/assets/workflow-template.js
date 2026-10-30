@@ -773,28 +773,40 @@ const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.i
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/p${ph.id}-${t.id}` : t.worktree)
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource/resolveGate — the Workflow sandbox can't import. Keep in sync.
-const ROLE_MODEL = { worker: 'fable', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
+const ROLE_MODEL = { worker: 'opus', auditor: 'sonnet', refiner: 'sonnet', servitor: 'sonnet' }
+// MODELS / EFFORTS: inline copies of the war-config.mjs enums, read by validateRoster's per-seat model/effort
+// check (#2519). Bound by the MODELS and EFFORTS registry rows in workflow-template.engine-1.test.mjs.
+const MODELS = ['opus', 'sonnet', 'haiku', 'fable']
+const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
 const spawn = role => {
   const a = agents[role] || {}
   const model = a.model || ROLE_MODEL[role]
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
+// spawnSeat(seat): an auditor roster seat's spawn opts. A seat's own model/effort (#2519, validated by
+// validateRoster) overrides the auditor tier field by field; a seat with neither is exactly spawn('auditor').
+const spawnSeat = s => {
+  const a = agents.auditor || {}, e = s.effort ?? a.effort
+  return { model: s.model || a.model || ROLE_MODEL.auditor, ...(e && e !== 'default' && { effort: e }) }
+}
 // Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
-// row in workflow-template.engine-1.test.mjs. fix (the fix-round + --ace tier) is NOT listed
+// row in workflow-template.engine-1.test.mjs. fix (the fix-round + floor-retry tier) is NOT listed
 // here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
 // BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
 // worker (the correct fallback for a partial/hand-passed config — nothing to bind).
-const WORKER_TIER_DEFAULTS = { docs: { model: 'fable', effort: 'default' } }
-// spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix') — the configured agents.worker[tier]
+const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'high' } }
+// spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix'|'ace') — the configured agents.worker[tier]
 // block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
-// a null/absent tier ⇒ base). A partial tier block falls back to ITS tier's default model (docs ⇒ WORKER_TIER_DEFAULTS.docs),
+// a null/absent tier ⇒ base). ace (the --ace + terminal-pass tier, #2519) has no default: absent ⇒ the fix
+// tier's opts, so a config without agents.worker.ace dispatches exactly as before the split. A partial tier block falls back to ITS tier's default model (docs ⇒ WORKER_TIER_DEFAULTS.docs),
 // matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
 const spawnWorker = tier => {
   if (!tier) return spawn('worker')
   const w = agents.worker || {}
   const dflt = WORKER_TIER_DEFAULTS[tier]
-  const cfg = w[tier]
-  const a = (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) ? cfg : (dflt || w)
+  const cfg = w[tier], isBlock = cfg && typeof cfg === 'object' && !Array.isArray(cfg)
+  if (tier === 'ace' && !isBlock) return spawnWorker('fix')
+  const a = isBlock ? cfg : (dflt || w)
   const model = a.model || (dflt && dflt.model) || ROLE_MODEL.worker
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
@@ -813,7 +825,7 @@ const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.
 // the SEAT_AGENT_TYPES registry row in workflow-template.engine-1.test.mjs. 'war-evidence-auditor' is the evidence seat.
 const SEAT_AGENT_TYPES = ['war-auditor', 'war-evidence-auditor']
 // Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct,
-// agentType absent or a SEAT_AGENT_TYPES member. `evidence` is the run.evidence knob: an evidence-type row is
+// agentType absent or a SEAT_AGENT_TYPES member, model/effort absent or a MODELS/EFFORTS member. `evidence` is the run.evidence knob: an evidence-type row is
 // rejected unless it is exactly true; beside an evidence seat the non-evidence seats cap at 4 (five-seat ceiling).
 const validateRoster = (roster, evidence) => {
   const errors = []
@@ -827,13 +839,14 @@ const validateRoster = (roster, evidence) => {
   if (errors.length > 0) return { valid: false, errors }
   const seen = []
   roster.forEach((seat, i) => {
-    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType? }`); return }
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth?, agentType?, model?, effort? }`); return }
     if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
     else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
     else seen.push(seat.lens)
     if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
     if (seat.agentType !== undefined && !SEAT_AGENT_TYPES.includes(seat.agentType)) errors.push(`roster[${i}].agentType must be one of ${SEAT_AGENT_TYPES.join('|')} when present (got ${JSON.stringify(seat.agentType)})`)
     else if (seat.agentType === 'war-evidence-auditor' && evidence !== true) errors.push(`roster[${i}].agentType "war-evidence-auditor" needs run.evidence: true (the evidence seat is off by default)`)
+    for (const [k, e] of [['model', MODELS], ['effort', EFFORTS]]) if (seat[k] !== undefined && !e.includes(seat[k])) errors.push(`roster[${i}].${k} must be one of ${e.join('|')} when present (got ${JSON.stringify(seat[k])})`)
   })
   return { valid: errors.length === 0, errors }
 }
@@ -1953,7 +1966,8 @@ const drainHeldAbsorbs = (t, verdict) => {
   const diff = diffFilesByTask.has(t.id) ? diffFilesOf(t) : new Set()
   const absorbs = []
   for (const f of held) {
-    queuedKeys.delete(remintKey(f))   // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
+    // un-hold: the blocker hold stamped the key; the registry consult below must judge a LIVE collision, not the hold itself
+    queuedKeys.delete(remintKey(f))
     if (!judgeHeldRow(f, t.id, diff, 'held-absorb drain', 'a drain input')) continue
     if (!f.file) { demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'demote:fileless — fileless held absorb takes the severity default (never sweep-eligible)'); continue }   // the guard every sibling router applies (snipe: correctness)
     if (dropDup(absorbs, f, 'held absorb', t.id, 'in this drain')) continue   // #2096: the shared find-log-mergeSeat shape
@@ -3299,13 +3313,14 @@ async function auditRound(task, peers, workerTests, pin, extra, rosterOverride, 
   // the regular auditor), guarded against the inline SEAT_AGENT_TYPES mirror — validateRoster refuses an
   // unlisted type at entry, and this guard refuses it again at dispatch so no roster shape ever reaches
   // dispatch under an unlisted type. The evidence seat dispatches as NS + 'war-evidence-auditor' and gets
-  // the evidence skeleton from auditPrompt; spawn('auditor') supplies the model tier for every seat type.
+  // the evidence skeleton from auditPrompt; spawnSeat supplies the model tier for every seat type — the auditor
+  // tier, or the seat's own model/effort when the roster row carries one (#2519).
   const runSeat = seat => {
     const agentType = seat.agentType ?? 'war-auditor'
     if (!SEAT_AGENT_TYPES.includes(agentType)) throw new Error('task ' + task.id + ': roster seat ' + seat.lens + ' names agentType ' + JSON.stringify(agentType) + ' — not a SEAT_AGENT_TYPES member (' + SEAT_AGENT_TYPES.join('|') + '); refused at dispatch')
     return dispatchSite(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin, correctiveRound, agentType) + (extra || ''), {
       agentType: NS + agentType, phase: 'Audit',
-      label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawn('auditor') })
+      label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: { ...AUDIT_VERDICT, required: [...AUDIT_VERDICT.required, 'audit_sha'] }, ...spawnSeat(seat) })
   }
   // Initial fan-out — one parallel() call, unsliced: the global dispatch semaphore holds the ceiling
   // at the leaf agent() seam inside runSeat, so this site takes no permit of its own (PIN-15).
@@ -3551,7 +3566,8 @@ if (tasks.length) {
   for (const t of tasks) {
     if (done.has(t.id)) continue   // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
     let seeded = false
-    const causes = []   // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
+    // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
+    const causes = []
     for (const [srcName, m] of chargeMaps) {
       if (!m) continue
       const key = Object.keys(m).find(k => preMergedIdOf(k) === preMergedIdOf(t.id))
@@ -4037,7 +4053,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace subset', sub.findings.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('fix') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'subset'), schema: WORKER_RESULT, ...spawnWorker('ace') })
       // A subset worker death (D21) reads through deathOf FIRST — the site-named cause becomes the
       // abandon reason below, never a hold and never a content verdict. Dead or not, blocked or not,
       // the tip probe reads the branch next (#2485 D2): only a moved tip is a subset commit.
@@ -4183,7 +4199,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + chainFixClause(r.task, chainRound, 'ace re-entry', batch.map(relationTagOf))
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('fix') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('ace') })
       const rwWhy = deathOf(rw) || blockedReason(rw)   // a re-entry worker death (D21) takes the existing abandon arm, site-named
       const reProbe = await aceTipProbe(r, 'reentry', preRe)   // dead or not, blocked or not (#2485 D2)
       const reClass = tipClass(reProbe)
@@ -4374,7 +4390,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
-          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('fix') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
         const aceWhy = deathOf(ace) || blockedReason(ace)   // an ace worker death (D21) takes the existing failed-attempt arm, site-named
         // The tip probe (#2485 D2, PIN-2): dead or not, blocked or not, the branch is read from Git
         // before anything is charged or judged — `blocked` never means no commit, and the worker's
@@ -6184,8 +6200,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
-      // never agents.worker.fix. (The four fix-follow-up classes — fix:/ace:/add-test:|package-it:/terminal: — are
-      // tier-aware via spawnWorker('fix'); this one intentionally is not. The only other non-tiered base
+      // never agents.worker.fix or .ace. (The four fix-follow-up classes are tier-aware: fix: and add-test:|package-it:
+      // via spawnWorker('fix'), ace: and terminal: via spawnWorker('ace'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
     } catch (err) {
@@ -6345,7 +6361,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // Backward chain (PIN-6): the terminal pass carries the fixer block at corrective round 1 by definition.
           + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
           + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
-          { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('fix') })
+          { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('ace') })
         } catch (err) {
           const c = infraDeathCause(err)
           if (!c) throw err
@@ -6587,7 +6603,8 @@ if (landDecision === 'landed') {
     const why = deathOf(res)
     if (!why) return false
     envDied('phase-' + ph.id + '-land', why)   // concatenation-built (census-safe)
-    landResult = null   // the dead dispatch IS the outcome — null, as a dead dispatch returning nothing reads; never the stale earlier attempt (#1245's shape)
+    // the dead dispatch IS the outcome — null, as a dead dispatch returning nothing reads; never the stale earlier attempt (#1245's shape)
+    landResult = null
     landDecision = 'held:land-failed'
     log('Phase ' + ph.id + ': ' + why + ' — held:land-failed; the Lead re-runs the land per SKILL.md §4.3.')
     return true
@@ -7130,7 +7147,8 @@ return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinT
   return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, pinTransfers, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
-           carriedPhaseClose,   // D3b: whatever was carried before the throw (the held-phase arm may not have run — see resume-and-recovery.md's re-derivation residual)
+           // D3b: whatever was carried before the throw (the held-phase arm may not have run — see resume-and-recovery.md's re-derivation residual)
+           carriedPhaseClose,
            // recovery (D9, spec §9): an ADDITIVE field naming the sanctioned retry — held:workflow-error is
            // Lead/infra-side, so it retries via a FRESH Recovery relaunch (new runId), NEVER resumeFromRunId
            // (the journal replays the cached error). Conforms to the ratified "Resume vs. recovery
