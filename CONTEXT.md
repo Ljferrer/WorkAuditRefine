@@ -1577,11 +1577,10 @@ own reading — the floors and the gate are the counterweight); a weighted score
 *gate*; nothing is summed).
 
 **Always-loaded test**:
-The judgment that decides which lessons keep a row in the index projection: a lesson keeps its row if a
-session needs it before it knows to query. A standing operator rule passes, and so does a trap that fires
-at an action where no task text would surface it. Every other lesson is task-scoped, so query and prefetch
-reach it from the cold set ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md)).
-_Avoid_: reading eviction as a loss (it removes a row, never a lesson); reading a passing row as proof of use.
+A lesson keeps its index row if a session needs it before it knows to query: a standing operator rule,
+or a trap that fires where no task text would surface it. Query and prefetch reach the rest from the cold
+set ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md)).
+_Avoid_: reading eviction as a loss (it removes a row, never a lesson).
 
 **Derived memory index**:
 The SQLite/FTS5 index built **in memory, per invocation**, from both roots' lesson files (hot + cold).
