@@ -49,31 +49,37 @@ Five steps, strict order:
 
    **Merge proposals.** The JSON's `mergeClusters` array lists near-duplicate hot lessons: `target`,
    `merged` and `bytesFreed`. Similar words prove no shared rule, so read every member of each cluster
-   before you keep it. If the members state one rule, draft the merge. Otherwise drop the cluster. A
+   before you keep it. If the members state one rule, draft the merge. If only some do, keep that subset.
+   Otherwise drop the cluster. A
    merge folds each `merged` lesson's residue into `target`, so no rule leaves the hot set. A hub or a
    young lesson can be merged, because its rule stays hot. Present each kept cluster in the Gate.
 
 3. **Gate** (the single destructive phase — every mutation behind one ask, never a row-by-row
-   negotiation). Present the full `eligible` list as a strike-list — slug · hits · tier · age · inbound ·
+   negotiation). Present the full `eligible` list as a strike-list — slug · uses · redundancy · hits · tier · age · inbound ·
    bytes, the `cutIndex` entries pre-selected as the default — plus the projected post-run size
-   (`currentBytes` minus the *approved* set's `bytesFreed` sum; recompute it if the operator strikes a
-   different subset than the default). Collect the approved subset in this one ask.
+   (`currentBytes` minus each struck or merged row, counted once; recompute it if the operator strikes
+   a different subset than the default). Collect the approved subset in this one ask.
 
    Before you present the list, apply the **always-loaded test** ([ADR 0055](../../../docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md))
    to each entry: a lesson keeps its row if a session needs it before it knows to query. A standing
    operator rule passes, and so does a trap that fires at an action where no task text would surface
    it. Take every passing entry out of the default strike set. Eviction removes only the row, because
-   query and prefetch still reach the archive. If the operator delegates the choice, strike by this
+   query and prefetch still reach the archive. Take each kept cluster's `target` out of the strike set
+   too, because its row carries the merged rule. If the operator delegates the choice, strike by this
    test and report each kept entry with its reason.
 
 4. **Execute**, in this order — a struck dupe only fully archives across both sub-steps below, so the
    order is load-bearing, not stylistic:
+   - **Merges extend the set first.** Each approved cluster adds its `merged` slugs to the approved set.
+     A `target` with a repo copy counts as `[repo]`-marked, so the branch and the Repo commit below run
+     for it. The Phase 3 hub downgrade does not apply to these slugs, and `archive`'s hub WARN is
+     expected for them.
    - If the approved set touches any `[repo]`-marked slug, first
      `git -C "$REPO_ROOT" checkout -b dev/<YYYY-MM-DD>-memory-tighten` off the current HEAD, so every
      repo-root move below lands on the dedicated branch, never wherever `$REPO_ROOT` happened to be
      checked out.
    - **Local**, reusing the Phase 1/5/6/7 subcommands verbatim (no fan-out — this isn't the audit
-     flow): `safe-swap.sh stage "$MEM"` for `$STAGING`, then the same Phase 5 `archive` /
+     flow): `safe-swap.sh stage "$MEM"` for `$STAGING`, then the merge edits, then the same Phase 5 `archive` /
      `render-index` invocations (both flags, `--repo "$REPO_ROOT"` included) against the approved
      local-side slugs in place of a retire/merge list (a struck dupe's **local** half moves now — the
      prefer-local rule wins while both copies are hot; a repo-only slug's sole copy also moves now,
@@ -88,10 +94,10 @@ Five steps, strict order:
      `bash "${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh" Ljferrer` (the recorded gh-account
      gotcha — a stale active account on a multi-account machine silently drops the PR onto the wrong
      identity), then push and open the PR. Skip every bullet in this step when nothing `[repo]`-marked
-     was struck.
-   - **Merges**, for each approved cluster: edit `target` in `$STAGING`, and in the repo branch too if
-     it has a repo copy. Append a `merged into [[target]]` note to each `merged` lesson. Those lessons
-     join the strike list above, so the same local-then-repo `archive` moves them.
+     was struck and no merge target has a repo copy.
+   - **Merge edits**, for each approved cluster, before any `archive` call: fold the `merged` residue
+     into `target`, in `$STAGING` if it has a local copy and on the branch if it has a repo copy. Append
+     a `merged into [[target]]` note to each `merged` lesson the same way.
    - **If either `archive` call exits 1** it refused at least one slug on an occupied `archive/`
      destination (#1924, the count is on stderr). Nothing was overwritten and nothing is half-written.
      Stop the pass at that point, reconcile each named pair by hand, then re-run the refused slugs.

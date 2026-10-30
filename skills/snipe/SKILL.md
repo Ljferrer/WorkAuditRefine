@@ -33,7 +33,7 @@ Spawn all seats **in parallel** as `work-audit-refine:war-auditor` subagents at 
 > AUDIT SEAT — lens: `<lens>`, depth: deep.
 > Repo (read-only): `<path>`. Pinned audit_sha: `<sha>` (or: dirty working tree — advisory).
 > Review the range `<base>..<sha>`. Operator's stated concern (intent ceiling): `<concern or "none — judge the diff on its own terms">`.
-> Verify evidence at the pinned SHA with Read/Grep/Glob and read-only git. Return ONE AuditVerdict JSON per your standing card: verdict, audit_sha, lens, findings[] `{severity, disposition, title, file, locator (named construct, not line number), evidence, fix}`.
+> Verify evidence at the pinned SHA with Read/Grep/Glob and read-only git. Return ONE AuditVerdict JSON per your standing card: verdict, audit_sha, lens, findings[] `{severity, disposition, title, file, locator (named construct, not line number), evidence, fix}`. Add `lessonsUsed`: the slug of each lesson that changed what you checked.
 
 ## 4. Report
 
@@ -43,6 +43,7 @@ Synthesize one chat report, informational — nothing is gated:
 - Findings ranked by severity. Label every Critical/Major finding **"would block in a phase"** — mirroring run semantics without gating anything.
 - Surface every `ask`-disposition finding to the operator for a ruling; an unruled ask is never filed (standing doctrine).
 - If the tree was dirty: lead the report with the advisory caveat.
+- If a seat returned `lessonsUsed`, record it once per seat. No hook sees a snipe seat's plain-text result (ADR 0055): `node ${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs record-use <slug>... --local "$MEM" --seat war-auditor --agent snipe:<lens>:<sha>`. `$MEM` is the auto-memory directory. A failure here changes nothing in the report.
 - Close with the operator's options (absorb by hand — per `${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md`; file follow-ups on request; drop) — and take **no** action on them unprompted. Loop bound: across repeated /snipe invocations on the same branch, after two consecutive all-approve rounds with only Nits, stop unless a new commit lands.
 
 ## Non-goals

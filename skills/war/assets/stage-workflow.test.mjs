@@ -635,9 +635,9 @@ test('(p) stripFullLineComments blanks only full-line code comments, keeps every
 // blanked, which oracle (1) alone would accept. Scope: the oracle proves pt-tagged prompt spans; a
 // plain (untagged) template literal is outside it and rests on oracle (1) plus the fixture arms. (3) `node --check` parses the result, and the fallback-free interpolation census the
 // args preflight reads is unchanged, occurrence counts included. The staged size must also sit under
-// the cap with headroom for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 128
-// KiB so a template growth that eats the margin reds here before a campaign launch dies at dispatch.
-const ARGS_HEADROOM_BYTES = 131072
+// the cap with headroom for the measured ~104.5 KB over-size args class (SKILL.md) — pinned at 120
+// KiB, still 15 KiB above that class, so a template growth that eats the margin reds here before a campaign launch dies at dispatch.
+const ARGS_HEADROOM_BYTES = 122880
 // Oracles (1) and (2), shared by the shipped-template arm and the synthetic negative below. Returns
 // { blanked, spans, insideExpr } so each caller can add its own non-vacuity bounds.
 function assertStripKeptPromptBytes (original, stripped) {

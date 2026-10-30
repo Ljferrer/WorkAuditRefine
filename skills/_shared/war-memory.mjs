@@ -507,20 +507,11 @@ const DAY_MS = 86_400_000;
 // speculative surface. Read at call time, never during module evaluation (no TDZ hazard).
 const FUTURE_SKEW_MS = 48 * 60 * 60 * 1000;
 
-// Group near-duplicate hot lessons into merge proposals (ADR 0055). Each cluster keeps one target
-// row, so a merge frees the other rows and loses no rule. Floor 1 holds here too: a user-confirmed
-// lesson joins no cluster. A pair links only when both lessons are hot, and a merge is a judgment
-// the gate makes, so this only proposes.
 // Near-duplicate pairs by what each lesson claims to be about (ADR 0055): rare words shared across
 // slug, description and keywords, weighted by rarity. Bodies stay out, because they pull in lessons
 // that share a subsystem and not a rule. Every pair has a hot side, and the other side can be cold.
 export function similarPairs(records, { threshold = SIMILAR_MIN_SCORE } = {}) {
-  const best = new Map();
-  for (const r of records) {
-    const held = best.get(r.slug);
-    if (!held || (r.temperature === 'hot' && held.temperature !== 'hot')) best.set(r.slug, r);
-  }
-  const docs = [...best.values()].map((r) => ({
+  const docs = collapseBySlug(records, records).map((r) => ({
     slug: r.slug,
     hot: r.temperature === 'hot',
     words: new Set(`${r.slug.replace(/-/g, ' ')} ${r.description ?? ''} ${(r.keywords ?? []).join(' ')}`
@@ -540,12 +531,16 @@ export function similarPairs(records, { threshold = SIMILAR_MIN_SCORE } = {}) {
         if (b.words.has(w)) shared += weight(w);
       }
       for (const w of b.words) if (!a.words.has(w)) total += weight(w);
-      if (total > 0 && shared / total >= threshold) pairs.push({ a: a.slug, b: b.slug, score: shared / total });
+      if (total > 0 && shared / total >= threshold) pairs.push({ a: a.slug, b: b.slug });
     }
   });
   return pairs;
 }
 
+// Group near-duplicate hot lessons into merge proposals (ADR 0055). Each cluster keeps one target
+// row, so a merge frees the other rows and loses no rule. Floor 1 holds here too: a user-confirmed
+// lesson joins no cluster. A pair links only when both lessons are hot, and a merge is a judgment
+// the gate makes, so this only proposes.
 export function mergeClusters(hotRecords, nearPairs, { hits = new Map(), uses = new Map() } = {}) {
   const bySlug = new Map(hotRecords.map((r) => [r.slug, r]));
   const open = (slug) => bySlug.has(slug) && tierRank(bySlug.get(slug).provenance) !== TIER_RANK['user-confirmed'];
@@ -580,7 +575,7 @@ export function mergeClusters(hotRecords, nearPairs, { hits = new Map(), uses = 
 // Replay past queries to score how far each lesson duplicates another (ADR 0055). A lesson's score
 // is the share of its top-K appearances where one of its near-duplicates also appears, because that
 // neighbor fills its place if it leaves. Rounded so the sort key stays stable across runs.
-export function redundancyScores(db, records, queries, nearPairs, { topK = DEFAULT_TOP_K } = {}) {
+export function redundancyScores(db, records, queries, nearPairs) {
   const near = new Map();
   for (const { a, b } of nearPairs) {
     near.set(a, [...(near.get(a) ?? []), b]);
@@ -589,7 +584,7 @@ export function redundancyScores(db, records, queries, nearPairs, { topK = DEFAU
   const seen = new Map();
   const covered = new Map();
   for (const text of queries) {
-    const top = new Set(collapseBySlug(rankRecords(db, records, text), records).slice(0, topK).map((r) => r.slug));
+    const top = new Set(collapseBySlug(rankRecords(db, records, text), records).slice(0, DEFAULT_TOP_K).map((r) => r.slug));
     for (const slug of top) {
       seen.set(slug, (seen.get(slug) ?? 0) + 1);
       if ((near.get(slug) ?? []).some((other) => top.has(other))) covered.set(slug, (covered.get(slug) ?? 0) + 1);
@@ -660,8 +655,9 @@ export function tightenPlan(records, { hits = new Map(), uses = new Map(), redun
     eligible.push(entry);
   }
 
-  // Eviction order (ADR 0055): real uses first, then redundancy, then hits, then tier and age.
-  // Keys compare in turn and nothing is summed, so a log with no use rows falls back to hits.
+  // Eviction order (ADR 0055): uses, then redundancy, then hits, then tier and age. Keys compare in
+  // turn and nothing is summed. A log with no use rows ranks by redundancy, then hits. An empty log
+  // ranks by tier and age.
   eligible.sort((a, b) => {
     if (a.uses !== b.uses) return a.uses - b.uses;
     if (a.redundancy !== b.redundancy) return b.redundancy - a.redundancy;
@@ -818,26 +814,22 @@ function appendQueryLog(localRoot, entry) {
   }
 }
 
-// Per-slug query-log hit counts for tighten-plan, best-effort / fail-open (mirrors the log
-// writer). Reads QUERY_LOG_FILE in the local root; absent/unreadable ⇒ empty map ⇒ all 0.
-// PER-ENTRY dedupe of topSlugs: a cross-root twin double-listed in ONE entry counts once for
-// that entry; two entries count twice. Single pass, no index (tolerates a large log cheaply).
 // Real use (ADR 0055): rows hooks/record-lesson-use.sh appends, kind 'use'. One agent counts once
 // per slug, because a retried result or a second Read is the same use. Hits never come from here.
-function readLessonUses(localRoot) {
+function readLessonUses(rows) {
   const agents = new Map();
-  for (const entry of readQueryLog(localRoot)) {
+  for (const entry of rows) {
     if (entry.kind !== 'use' || typeof entry.slug !== 'string') continue;
     if (!agents.has(entry.slug)) agents.set(entry.slug, new Set());
-    agents.get(entry.slug).add(entry.agent ?? entry.ts);
+    agents.get(entry.slug).add(entry.agent);
   }
   return new Map([...agents].map(([slug, set]) => [slug, set.size]));
 }
 
 // The newest distinct query texts, for the redundancy replay. Bounded so a long log stays quick.
-function recentQueries(localRoot, limit = REPLAY_QUERY_LIMIT) {
-  const texts = readQueryLog(localRoot).map((e) => e.query).filter((q) => typeof q === 'string' && q);
-  return [...new Set(texts.reverse())].slice(0, limit);
+function recentQueries(rows) {
+  const texts = rows.map((e) => e.query).filter((q) => typeof q === 'string' && q);
+  return [...new Set(texts.reverse())].slice(0, REPLAY_QUERY_LIMIT);
 }
 
 function readQueryLog(localRoot) {
@@ -856,9 +848,13 @@ function readQueryLog(localRoot) {
   return rows;
 }
 
-function readQueryHits(localRoot) {
+// Per-slug query-log hit counts for tighten-plan, best-effort / fail-open (mirrors the log
+// writer). An absent/unreadable log gives no rows ⇒ empty map ⇒ all 0.
+// PER-ENTRY dedupe of topSlugs: a cross-root twin double-listed in ONE entry counts once for
+// that entry; two entries count twice.
+function readQueryHits(rows) {
   const hits = new Map();
-  for (const entry of readQueryLog(localRoot)) {
+  for (const entry of rows) {
     const slugs = Array.isArray(entry.topSlugs) ? entry.topSlugs : [];
     for (const slug of new Set(slugs)) hits.set(slug, (hits.get(slug) ?? 0) + 1);
   }
@@ -1216,6 +1212,24 @@ function cmdInbound(argv) {
 // A SUPPLIED-but-invalid `--target` refuses loud (exit 1, diagnostic naming the received token)
 // rather than silently collapsing back to the advisory default (#1059); an absent flag still takes
 // the default, byte-identically.
+// Record a use from a caller that can write (ADR 0055). /snipe seats return plain text, so no hook
+// sees their lessonsUsed and the main session logs them here. Same row shape as the hook.
+function cmdRecordUse(argv) {
+  const roots = resolveRoots(argv);
+  requireLocal(roots, 'record-use');
+  for (const slug of argv._.slice(1)) {
+    if (!/^[a-z0-9-]+$/.test(slug)) continue; // a bad slug adds no row, as in the hook
+    appendQueryLog(roots.local, {
+      ts: new Date().toISOString(),
+      kind: 'use',
+      slug,
+      seat: argv.seat ?? null,
+      agent: argv.agent ?? null,
+      via: 'result',
+    });
+  }
+}
+
 function cmdTightenPlan(argv) {
   const roots = resolveRoots(argv);
   // Three-way resolution at the argv boundary (#1059). `parseArgv` is shared by every verb and
@@ -1239,11 +1253,12 @@ function cmdTightenPlan(argv) {
     }
   }
   const records = walkCorpus(roots);
-  const hits = readQueryHits(roots.local);
-  const uses = readLessonUses(roots.local);
+  const rows = readQueryLog(roots.local);
+  const hits = readQueryHits(rows);
+  const uses = readLessonUses(rows);
   const db = buildIndex(records);
   const nearPairs = similarPairs(records);
-  const redundancy = redundancyScores(db, records, recentQueries(roots.local), nearPairs);
+  const redundancy = redundancyScores(db, records, recentQueries(rows), nearPairs);
   const plan = tightenPlan(records, { hits, uses, redundancy, nearPairs, target });
   process.stdout.write(JSON.stringify(plan, null, 2) + '\n');
 }
@@ -1257,6 +1272,7 @@ const VERBS = {
   consolidate: cmdConsolidate,
   migrate: cmdMigrate,
   'tighten-plan': cmdTightenPlan,
+  'record-use': cmdRecordUse,
 };
 
 // Entry point — only when run directly, not when imported by the test suite.
