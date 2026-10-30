@@ -48,19 +48,19 @@
     },
     "machine": {
       "drafter": {
-        "model": "sonnet",
-        "effort": "high"
+        "model": "opus",
+        "effort": "default"
       },
       "derive": {
-        "model": "sonnet",
-        "effort": "high"
+        "model": "opus",
+        "effort": "default"
       },
       "apply": {
-        "model": "sonnet",
-        "effort": "high"
+        "model": "opus",
+        "effort": "default"
       },
       "revise": {
-        "model": "opus",
+        "model": "fable",
         "effort": "default"
       }
     },
@@ -82,8 +82,8 @@
         "effort": "default"
       },
       "critic": {
-        "model": "sonnet",
-        "effort": "high"
+        "model": "opus",
+        "effort": "default"
       }
     },
     "lessons": {
