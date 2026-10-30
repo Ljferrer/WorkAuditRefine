@@ -12,6 +12,10 @@
       "fix": {
         "model": "fable",
         "effort": "default"
+      },
+      "ace": {
+        "model": "opus",
+        "effort": "default"
       }
     },
     "auditor": {
@@ -41,6 +45,64 @@
     "trial": {
       "model": "opus",
       "effort": "default"
+    },
+    "machine": {
+      "drafter": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "derive": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "apply": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "revise": {
+        "model": "opus",
+        "effort": "default"
+      }
+    },
+    "survey": {
+      "miner": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "reader": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "cluster": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "synth": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "critic": {
+        "model": "sonnet",
+        "effort": "high"
+      }
+    },
+    "lessons": {
+      "investigate": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "edit": {
+        "model": "opus",
+        "effort": "default"
+      },
+      "retype": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "keywords": {
+        "model": "sonnet",
+        "effort": "high"
+      }
     }
   },
   "audit": {
