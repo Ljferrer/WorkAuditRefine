@@ -16,6 +16,7 @@
 #   8. merged, then integration changes an owned path -> NO_TASK_PROOF ... content differs at integration
 #   9. merge commit whose trailer is not exact (suffix)  -> NO_TASK_PROOF ... has no WAR-Task merge commit
 #  10. merged, then an unrelated integration commit -> TASK_INTEGRATED <task> <merge commit> <later tip>
+#  11. branch moved back below its merge commit's second parent -> NO_TASK_PROOF ... no WAR-Task merge commit
 #
 # Exit 0 = all cases passed; non-zero = at least one failed.
 set -u
@@ -166,6 +167,16 @@ put unrelated 'sibling work'; g commit -m 'unrelated later commit'
 TIP="$(git -C "$REPO" rev-parse integration)"
 expect 'case 10: the merge-commit field names M below a later integration tip' \
   "0 TASK_INTEGRATED $TASK $M $TIP" "$(probe "$TASK" integration working)"
+
+# Case 11: the merge commit's trailer is exact, but its second parent is not the current task tip.
+new_repo c11
+g checkout -b "$TASK" integration
+put feature 'task feature'; g commit -m 'implement feature'
+put second 'second task commit'; g commit -m 'second task commit'
+engine_merge "$TASK"
+g branch -f "$TASK" "$TASK~1"
+expect 'case 11: a merge commit whose second parent is not the task tip refuses' \
+  "1 NO_TASK_PROOF $TASK has no WAR-Task merge commit" "$(probe "$TASK" integration working)"
 
 printf '\ntask-integrated: %d check(s) passed, %d check(s) failed.\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
