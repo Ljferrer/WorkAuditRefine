@@ -32,7 +32,8 @@ filesystem, recovery, state machines) while routine seats run sonnet.
 conversion runs on the stronger models: every war-machine seat runs above the survey readers, and the
 revise pass runs the strongest model. The survey critic and the roles that write or regroup an
 artifact also run above the reading roles. The values live in `war-config.mjs` and the `/war-room`
-skill seats bullet. Every preset inherits them. Each skill reads them fail-open: a missing config
+skill seats bullets. `thorough` runs each seat one model tier higher, capped at fable. `economy` runs
+a little lower, but plan drafting, clustering and spec synthesis keep opus. Each skill reads them fail-open: a missing config
 file uses the balanced defaults, and an invalid config leaves the agents on the session model.
 
 ## Consequences

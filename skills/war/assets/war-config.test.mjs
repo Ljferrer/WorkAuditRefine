@@ -113,7 +113,8 @@ test('thorough preset', () => {
     redteam:  { model: 'fable',  effort: 'default' },
     snipe:    { model: 'fable',  effort: 'default' },
     trial:    { model: 'fable',  effort: 'default' },
-  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0056)')
+    machine: PRESETS.thorough.agents.machine, survey: PRESETS.thorough.agents.survey, lessons: PRESETS.thorough.agents.lessons,
+  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0056; skill seats bound by the /war-room bullet test)')
   assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
@@ -141,7 +142,8 @@ test('economy preset (sonnet review seats and trial tier, opus workers, a 4-roun
     servitor: { model: 'sonnet', effort: 'high' },
     redteam:  { model: 'sonnet', effort: 'default' },
     trial:    { model: 'sonnet', effort: 'high' },
-  }, 'economy agents literal (fix and snipe absent = inherited; trial pinned, A9)')
+    machine: PRESETS.economy.agents.machine, survey: PRESETS.economy.agents.survey, lessons: PRESETS.economy.agents.lessons,
+  }, 'economy agents literal (fix and snipe absent = inherited; trial pinned, A9; skill seats bound by the /war-room bullet test)')
   // ADR 0050: the four-lens roster is the widening fallback under inherited 'auto', not a seat count.
   assert.deepEqual(c.audit.roster.map(s => s.lens),
     ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
@@ -1677,22 +1679,23 @@ test('/war-room preset bullets: every PRESETS key has a bullet whose tier tokens
   }
 })
 
-// Skill seats (ADR 0056): one /war-room bullet states them for every preset, so no preset may re-pin a
-// seat, and the bullet carries exactly one `<skill>-<seat> model/\`effort\`` token per seat, equal to DEFAULTS.
-test('/war-room skill seats bullet: one token per SKILL_SEATS seat, equal to DEFAULTS, and no preset re-pins a seat', () => {
-  const line = readDoc('skills/war-room/SKILL.md').split('\n').find(l => /^\s*- \*\*skill seats\*\* — /.test(l))
-  assert.ok(line, '/war-room has no skill seats bullet')
-  const seen = new Map()
-  for (const [, label, model, effort] of line.matchAll(new RegExp(`\\b([a-z]+-[a-z]+) (${MODELS.join('|')})/\`(\\w+)\``, 'g'))) {
-    assert.ok(!seen.has(label), `skill seats bullet names ${label} twice`)
-    seen.set(label, { model, effort })
-  }
-  assert.deepEqual([...seen.keys()].sort(), SKILL_SEAT_PATHS.map(p => p.replace('.', '-')).sort(), 'the bullet carries exactly one token per seat')
-  for (const path of SKILL_SEAT_PATHS) {
-    const [skill, seat] = path.split('.')
-    assert.deepEqual(seen.get(`${skill}-${seat}`), DEFAULTS.agents[skill][seat], `skill seats bullet ${skill}-${seat} must equal DEFAULTS.agents.${path}`)
-    for (const preset of Object.keys(PRESETS)) {
-      assert.deepEqual(tierAt(preset, path), DEFAULTS.agents[skill][seat], `${preset} must inherit agents.${path} (the bullet states one value for every preset)`)
+// Skill seats (ADR 0056): each preset has a `- **<preset> skill seats** —` /war-room bullet carrying exactly
+// one `<skill>-<seat> model/\`effort\`` token per seat, each equal to presetConfig(). Delete-the-feature:
+// change one seat in PRESETS or one token in a bullet and this goes red.
+test('/war-room skill seats bullets: one per preset, one token per SKILL_SEATS seat, each equal to presetConfig()', () => {
+  const lines = readDoc('skills/war-room/SKILL.md').split('\n')
+  for (const preset of Object.keys(PRESETS)) {
+    const line = lines.find(l => new RegExp(`^\\s*- \\*\\*${preset} skill seats\\*\\* — `).test(l))
+    assert.ok(line, `/war-room has no ${preset} skill seats bullet`)
+    const seen = new Map()
+    for (const [, label, model, effort] of line.matchAll(new RegExp(`\\b([a-z]+-[a-z]+) (${MODELS.join('|')})/\`(\\w+)\``, 'g'))) {
+      assert.ok(!seen.has(label), `${preset} skill seats bullet names ${label} twice`)
+      seen.set(label, { model, effort })
+    }
+    assert.deepEqual([...seen.keys()].sort(), SKILL_SEAT_PATHS.map(p => p.replace('.', '-')).sort(), `${preset}: exactly one token per seat`)
+    for (const path of SKILL_SEAT_PATHS) {
+      const want = tierAt(preset, path)
+      assert.deepEqual(seen.get(path.replace('.', '-')), { model: want.model, effort: want.effort }, `${preset} skill seats bullet ${path} must equal presetConfig('${preset}').agents.${path}`)
     }
   }
 })

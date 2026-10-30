@@ -80,7 +80,7 @@ export const DEFAULTS = {
     trial:    { model: 'opus',   effort: 'default' },
     // Skill seats (SKILL_SEATS above), operator ruling 2026-10-30: plan conversion runs opus, and its revise
     // pass runs fable. The survey critic and the roles that write or regroup an artifact run opus. The
-    // other reading roles run sonnet. Every preset inherits these.
+    // other reading roles run sonnet. thorough and economy pin their own seats (see PRESETS).
     machine: {
       drafter: { model: 'opus', effort: 'default' }, derive: { model: 'opus', effort: 'default' },
       apply:   { model: 'opus', effort: 'default' }, revise: { model: 'fable', effort: 'default' },
@@ -176,6 +176,20 @@ export const PRESETS = {
       redteam:  { model: 'fable',  effort: 'default' },
       snipe:    { model: 'fable',  effort: 'default' },
       trial:    { model: 'fable',  effort: 'default' },
+      // Skill seats one model tier above balanced (fable seats stay on 'default', ADR 0050).
+      machine: {
+        drafter: { model: 'fable', effort: 'default' }, derive: { model: 'fable', effort: 'default' },
+        apply:   { model: 'fable', effort: 'default' }, revise: { model: 'fable', effort: 'default' },
+      },
+      survey: {
+        miner:   { model: 'opus',  effort: 'default' }, reader: { model: 'opus', effort: 'default' },
+        cluster: { model: 'fable', effort: 'default' }, synth:  { model: 'fable', effort: 'default' },
+        critic:  { model: 'fable', effort: 'default' },
+      },
+      lessons: {
+        investigate: { model: 'opus',  effort: 'default' }, edit:     { model: 'fable', effort: 'default' },
+        retype:      { model: 'opus',  effort: 'default' }, keywords: { model: 'opus',  effort: 'default' },
+      },
     },
     // 5-lens pool: under rosterPolicy 'auto' the Lead seeds 1–5 seats per task from it.
     audit: {
@@ -203,6 +217,21 @@ export const PRESETS = {
       servitor: { model: 'sonnet', effort: 'high' },
       redteam:  { model: 'sonnet', effort: 'default' },
       trial:    { model: 'sonnet', effort: 'high' },
+      // Skill seats a little below balanced: plan drafting, clustering and spec synthesis keep opus, and
+      // the revise pass drops to opus. The grill passes, the survey critic and the lessons editor drop to sonnet.
+      machine: {
+        drafter: { model: 'opus',   effort: 'default' }, derive: { model: 'sonnet', effort: 'high' },
+        apply:   { model: 'sonnet', effort: 'high' },    revise: { model: 'opus',   effort: 'default' },
+      },
+      survey: {
+        miner:   { model: 'sonnet', effort: 'high' },    reader: { model: 'sonnet', effort: 'high' },
+        cluster: { model: 'opus',   effort: 'default' }, synth:  { model: 'opus',   effort: 'default' },
+        critic:  { model: 'sonnet', effort: 'high' },
+      },
+      lessons: {
+        investigate: { model: 'sonnet', effort: 'high' }, edit:     { model: 'sonnet', effort: 'high' },
+        retype:      { model: 'sonnet', effort: 'high' }, keywords: { model: 'sonnet', effort: 'high' },
+      },
     },
     audit: {
       roster: [

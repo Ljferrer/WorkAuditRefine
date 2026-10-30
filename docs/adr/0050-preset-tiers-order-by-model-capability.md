@@ -15,7 +15,7 @@ rule that lived only in the operator's head. This ADR writes that rule down and 
 **Model capability is the first axis of every seat.** `MODEL_RANK` in `war-config.mjs` orders
 the models ascending in capability and cost: haiku, sonnet, opus, fable. For every tier a preset
 resolves (worker base, docs, fix, auditor, refiner, refiner recovery, servitor, red-team, snipe,
-trial), the model rank is monotone across presets: `thorough` ≥ `balanced` ≥ `economy`.
+trial, and each skill seat in `SKILL_SEATS`), the model rank is monotone across presets: `thorough` ≥ `balanced` ≥ `economy`.
 `war-config.test.mjs` asserts that rule over every `TIER_PATHS` tier of the shipped presets, so
 an auditor reads the invariant from the suite instead of inferring one.
 
