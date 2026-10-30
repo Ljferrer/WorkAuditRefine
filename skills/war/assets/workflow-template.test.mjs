@@ -20421,31 +20421,6 @@ for (const [submodule, relative] of [[false, false], [true, false], [true, true]
 
 // Re-keyed to the merge-commit helper (#2485 D14): the per-commit diff, owned-interval, unowned-diff and
 // surviving-net reads retired with the checks they served; the merge-parent read is new.
-test('2485/ES17 a failed merge walk fails the absorb-charge read and never seeds a plausible 0', async () => {
-  const { cmd } = await absorbReadOf()
-  const { dir, git, run, commit } = absorbFixture()
-  const branch = 'war/wtprov-a/p3-t1', bin = join(dir, '.bin')
-  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
-  try {
-    git('checkout', '-b', branch); commit('one', 'ace one\n\nAce-Charge: t1:3')
-    git('checkout', 'integration/wtprov-a/phase-3'); gitTaskMerge(run, branch, branch)
-    mkdirSync(bin)
-    writeFileSync(join(bin, 'git'), `#!/usr/bin/env node
-const { spawnSync } = require('node:child_process')
-const args = process.argv.slice(2)
-if (args.includes('rev-list') && args.includes('--first-parent') && args.includes('--merges')) process.exit(128)
-process.exit(spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }).status ?? 128)
-`, { mode: 0o755 })
-    const env = { ...process.env, PATH: bin + ':' + process.env.PATH }
-    const fill = c => c.replace(`<that task's worktree>`, dir).replace(`<that task's branch>`, branch)
-    const r = spawnSync('bash', ['-c', fill(cmd)], { encoding: 'utf8', env })
-    assert.notEqual(r.status, 0, 'a failed merge walk fails the read: ' + r.stdout)
-    // Proven red: the pre-capture `for m in $(...)` spelling swallows the failure and exits 0.
-    const old = cmd.replace(/ms=\$\((git [^)]*)\) && for m in \$ms;/, 'for m in $($1);')
-    assert.notEqual(old, cmd, 'the capture spelling is present to revert')
-    assert.equal(spawnSync('bash', ['-c', fill(old)], { encoding: 'utf8', env }).status, 0, 'the uncaptured walk hides the failure')
-  } finally { rmSync(dir, { recursive: true, force: true }) }
-})
 for (const scenario of ['list-error', 'compare-error', 'refs-error', 'task-moved', 'integration-moved', 'working-moved', 'temp-error', 'root-error', 'enter-root-error', 'ancestry-error', 'phase-base-error', 'history-error', 'trailer-error', 'parents-error']) test('recovery current-content proof failure boundary: ' + scenario, () => {
   const dir = mkdtempSync(join(tmpdir(), 'war-recovery-proof-error-')), bin = join(dir, 'bin'), scratch = join(dir, 'scratch')
   const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
@@ -22554,6 +22529,7 @@ test('2485/ES17 absorb-charge seed counts Ace-Charge on a merged task through it
   const { prompt, cmd } = await absorbReadOf()
   assert.ok(prompt.includes('a merged branch reads M^1..M^2 of its first-parent WAR-Task merge commit M'), 'the prompt names the merged-branch range')
   assert.match(refinerMd, /over `M\^1\.\.M\^2` of its first-parent `WAR-Task` merge commit `M` once merged/, 'the card names the same range')
+  assert.ok(cmd.includes('rev-list --first-parent --merges "$tip..'), 'the merge walk is bounded below by the task tip')
   const { dir, git, run, commit } = absorbFixture()
   const branch = 'war/wtprov-a/p3-t1'
   try {
@@ -22583,5 +22559,31 @@ test('2485/ES17 a foreign task\'s Ace-Charge never counts toward this task\'s se
     assert.ok(values.includes('t2:5') && !values.includes('t2:7'), 'the range is t1\'s own merge commit, and it carries the foreign value')
     assert.equal(highestFor(values, 't1'), 1, 'the foreign t2:5 charge does not raise t1\'s seed')
     assert.equal(highestFor(readCharges(cmd, dir, t2), 't2'), 7, 't2 reads its own merge commit')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('2485/ES17 a failed merge walk fails the absorb-charge read and never seeds a plausible 0', async () => {
+  const { cmd } = await absorbReadOf()
+  const { dir, git, run, commit } = absorbFixture()
+  const branch = 'war/wtprov-a/p3-t1', bin = join(dir, '.bin')
+  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim()
+  try {
+    git('checkout', '-b', branch); commit('one', 'ace one\n\nAce-Charge: t1:3')
+    git('checkout', 'integration/wtprov-a/phase-3'); gitTaskMerge(run, branch, branch)
+    mkdirSync(bin)
+    writeFileSync(join(bin, 'git'), `#!/usr/bin/env node
+const { spawnSync } = require('node:child_process')
+const args = process.argv.slice(2)
+if (args.includes('rev-list') && args.includes('--first-parent') && args.includes('--merges')) process.exit(128)
+process.exit(spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' }).status ?? 128)
+`, { mode: 0o755 })
+    const env = { ...process.env, PATH: bin + ':' + process.env.PATH }
+    const fill = c => c.replace(`<that task's worktree>`, dir).replace(`<that task's branch>`, branch)
+    const r = spawnSync('bash', ['-c', fill(cmd)], { encoding: 'utf8', env })
+    assert.notEqual(r.status, 0, 'a failed merge walk fails the read: ' + r.stdout)
+    // Proven red: the pre-capture `for m in $(...)` spelling swallows the failure and exits 0.
+    const old = cmd.replace(/ms=\$\((git [^)]*)\) && for m in \$ms;/, 'for m in $($1);')
+    assert.notEqual(old, cmd, 'the capture spelling is present to revert')
+    assert.equal(spawnSync('bash', ['-c', fill(old)], { encoding: 'utf8', env }).status, 0, 'the uncaptured walk hides the failure')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
