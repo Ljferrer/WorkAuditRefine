@@ -128,18 +128,19 @@ PROOFS entries. The engine resolves relative targetRepo values against mainCheck
 the path before provisioning, snapshots, reconciliation and gate capture; use that same absolute
 path and return the artifact produced by the dispatched mktemp prefix. This is a read-only Git helper, a sibling of
 `provision-worktrees.sh`. Exit 0 (`TASK_INTEGRATED`) proves the local task branch is integrated
-and contains a nonempty commit in the phase with the exact `WAR-Task: <task branch>` trailer.
-The helper collects the union of paths changed by every qualifying owned commit, preserving
-rename sides, Gitlinks, modes and deletions, including changes that net back to the phase base.
-Final task/integration content must match on every path. The interval from before the first
-owned commit to the task tip must contain surviving net work and no nonempty contribution outside
-those qualifying owned commits. Earlier sibling history and later empty bookkeeping are allowed;
-mixed later history (including nonempty merge commits) returns no proof because attribution is
-uncertain. This deliberately sends even potentially valid mixed work through ordinary work/audit.
+through its merge commit. The first-parent owner rule: walk `git rev-list --first-parent` from the
+phase base to the integration tip. The owner is the first commit whose parsed `WAR-Task` trailer
+names the task branch and whose parents are exactly two, the second being the task tip. That merge
+commit, not any worker commit, carries ownership, so untrailered floor-fix, ace and revert commits
+on the task branch prove through it. A fast-forward-only branch, a zero-commit branch and another
+task's merge commit never prove this task. The owned paths are the merge's own change set,
+`<merge>^1..<merge>^2`, preserving rename sides, Gitlinks, modes and deletions, so a task whose
+commits net back to the phase base still proves. Final task/integration content must match on
+every owned path.
 NUL-delimited literal paths preserve filename syntax; input refs are re-read before success.
 Only the complete result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
-and work/audit, including sibling-only, zero-commit, empty-tagged, untagged legacy, cancelled-owned,
-mixed-history or changed-content branches. No new phase hold is introduced for absent proof.
+and work/audit, including sibling-only, zero-commit, empty-tagged, untagged legacy, fast-forward-only,
+cancelled-owned or changed-content branches. No new phase hold is introduced for absent proof.
 Exit 2 or any unrecognized failure stops the barrier with the command and stderr recorded.
 Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
 provenance, available after cloning on another machine; no local marker, reflog, label or journal
@@ -199,9 +200,17 @@ foreign content, reset a shared ref, force-push, or ask the human to run Git com
 For normal confirmation, resolve the reported success SHA independently as a Git commit; a
 7–40 digit lowercase hex abbreviation is acceptable only when Git resolves it unambiguously.
 Return full local/remote/source identities and `reported_sha`, never inferred matching strings.
-Task success requires source = local target = origin target, the same patch-id and exact content_id as the snapshot,
-and `base_is_ancestor: true` from `git merge-base --is-ancestor <snapshot base> <local target>`
-(exit 0). A verified task no-op can have an empty patch; uncertain recovery still requires the
+The confirmation returns the engine's `MERGE_CONFIRMATION` keys: `local_sha`, `remote_sha`,
+`source_tip`, `reported_sha`, `patch_id`, `content_id`, `base_is_ancestor`, `parents`, `tree` and
+`trailer`. Task success requires local target = origin target and the same patch-id and exact
+content_id as the snapshot, plus the merge-commit predicate. The task merge is one `--no-ff` merge
+commit whose `parents` are exactly [snapshot base, current source tip]. `base_is_ancestor: true`
+comes from `git merge-base --is-ancestor <snapshot base> <current source>` (exit 0), so an
+unrebased merge is refused. `tree.target` (the merge commit's tree) equals `tree.source` (the
+current source tree), so an evil merge is refused. `trailer`, the raw output of
+`git show -s --format='%(trailers:key=WAR-Task)' <local target>`, is exactly
+`WAR-Task: <source branch>`. Polish and terminal merges stay fast-forward: source = local target =
+origin target, with `base_is_ancestor` read against the local target. A verified task no-op can have an empty patch; uncertain recovery still requires the
 nonempty patch and advancement described below. Land success requires the actual two ordered
 parents [captured remote working base, captured integration source] and an unchanged source tip.
 On resume, the exact phase commit may already equal the captured remote tip: accept its full
@@ -218,9 +227,12 @@ content_id over merge-base(captured base,current source)..current source must eq
 snapshot; land requires the exact captured source SHA. A preserved task rebase is valid.
 Changed or unproven source content returns uncertain, preserving refs for a fresh audit.
 For a task/polish/terminal merge, matching source and unchanged target refs allow one retry of the full original
-operation in this recovery dispatch. An already-advanced target must be exactly the current
-source tip, fast-forward from the captured base, with no foreign commits and the same nonempty
-patch-id and exact content_id as the captured task diff. Complete an interrupted push without force. Rerun the gate
+operation in this recovery dispatch. On a task merge, an already-advanced target must be one merge
+commit that meets the merge-commit predicate above, with no foreign commits and the same nonempty
+patch-id and exact content_id as the captured task diff. An existing such merge commit is the
+merge: report it merged and never make a second merge commit. On a polish or terminal merge, an
+already-advanced target must be exactly the current source tip, fast-forward from the captured
+base, under the same patch and content rules. Complete an interrupted push without force. Rerun the gate
 into a fresh artifact and run every applicable floor against the **captured base SHA**, never
 against an already-advanced target branch (which would erase the task diff). The original
 baseline/environment exceptions and known forward-revert remain binding; do not change audited
@@ -235,10 +247,14 @@ respecting checkout/worktree cleanliness. Never create a second phase commit to 
 response. Gate the actual landed commit in a fresh artifact. Divergence/foreign advance is
 uncertain and requires further agent investigation before publishing more state.
 
-Return the engine's `MERGE_RECONCILIATION` shape: echo snapshot identities, report current local
-and origin target SHAs, current source tip, verified patch-id, `base_is_ancestor` from Git in both modes,
-and the complete normal MergeResult
-with its captured gate path. A land additionally reports its actual commit parents. `unmerged`
+Return the engine's `MERGE_RECONCILIATION` shape, whose keys are `outcome`, `base_sha`,
+`source_sha`, `local_sha`, `remote_sha`, `patch_id`, `content_id`, `parents`, `source_tip`,
+`base_is_ancestor`, `tree`, `trailer`, `result` and `detail`: echo snapshot identities, report
+current local and origin target SHAs, current source tip, verified patch-id, `base_is_ancestor`
+from Git in both modes, and the complete normal MergeResult with its captured gate path. A task
+merge additionally reports `parents`, `tree` and `trailer` for the merge-commit predicate, and its
+MergeResult names the merge commit as `integration_sha` and the gated source tip as `gate_sha`.
+A land additionally reports its actual commit parents. `unmerged`
 requires matching source identity and both target refs unchanged after the retry; it never
 means “no response.” The workflow validates these fields before accounting success or safe
 absence. Exhausted uncertainty holds before land (`held:workflow-error`), preserving all branches
