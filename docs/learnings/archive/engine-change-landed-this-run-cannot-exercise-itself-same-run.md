@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-08-05-precision-chain-and-loop-breaker@phase-5
+  promoted: dev/2026-10-28-blocked-ace-and-merge-provenance@phase-2
   slug: engine-change-landed-this-run-cannot-exercise-itself-same-run
   phase: "precision-chain-and-loop-breaker/5.5 (gate-audit note, confirmed against CLAUDE.md's plugin-iteration doctrine)"
   keywords: 
@@ -31,7 +31,7 @@ metadata:
     - process
   created: 2026-08-05
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-10-29T19:15:21.503Z
+  modified: 2026-10-30T07:47:53.033Z
 ---
 
 # A phase that lands a WAR engine change cannot exercise it within its own run
@@ -85,5 +85,13 @@ The refiner reports say "fast-forward", and the git-confirmed proofs in the audi
 So the run's own task history has no `WAR-Task` merge commits.
 A later proof over this branch that expects merge commits (for example, `skills/war/assets/task-integrated.sh` after plan Task 3.1, whose End state 7 makes it refuse a fast-forward-only branch) will not find them for these tasks.
 The plan accepts this through PIN-22: the run and any recovery relaunch use the installed plugin version.
+
+## Recurrence: 2026-10-28-blocked-ace-and-merge-provenance/phase-3 (landed tip 8c1a7a51)
+
+The refiner report for task 3.1 says "Merge was fast-forward", so task 3.1 also has no `WAR-Task` merge commit.
+The phase land itself is a two-parent merge (parents bfcd3eed and a1a9eb93).
+An ace worker on task 3.1 also put `Ace-Charge` outside the final trailer block, though the landed prompt now asks for one final trailer block.
+The installed prompt was still the old one (see [[a-trailer-in-its-own-paragraph-is-unparsed-when-an-attribution-paragraph-follows]]).
+Inference, not tested: the new absorb-charge read finds no merge commit M for a fast-forward-merged task, so it reads an empty range and seeds 0.
 
 > archived 2026-08-15: resolved — moved to archive
