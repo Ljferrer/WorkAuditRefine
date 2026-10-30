@@ -416,7 +416,7 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
   learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } } } }
 
 // Per-task provision-run result (Part B). The refiner runs the pinned run.provision list inside the
-// task worktree: ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
+// task worktree (or, once per phase, `_refinery` — #2485 D15): ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
 // ../references/schemas.md ({ taskId, failedCommand, exitCode, stderrTail, provisionSource }) for the
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
 // The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
@@ -442,12 +442,21 @@ const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   stderrTail: { type: 'string' }, provisionSource: { type: 'string' },
   preMerged: { type: 'array' }, staleRemote: { type: 'array' }, worktreeHygiene: { type: 'array' },
   absorbCharges: { type: 'object' } } }
+// MergeResult.provision (#2485 D19, PIN-19): a failed tree-keyed provision re-run step at a merge or land
+// gate rides this OPTIONAL field on an unmerged result; MergeResult.status is not widened. Its five
+// error-shape properties are PICKED BY NAME from ENV_OUTCOME.properties — one source, this explicit pick
+// list, no second literal. The engine admits it through provisionEvidence (provisionStep's evidence gate).
+const MERGE_PROVISION_KEYS = ['ok', 'failedCommand', 'exitCode', 'stderrTail', 'provisionSource']
+MERGE_RESULT.properties.provision = { type: 'object', required: ['ok'],
+  properties: Object.fromEntries(MERGE_PROVISION_KEYS.map(k => [k, ENV_OUTCOME.properties[k]])) }
 
 const done = new Set()
 const succeeded = new Set()
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
 // before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+// refineryProvisioned (#2485 D15): the once-per-phase _refinery provision-run has been dispatched.
+let refineryProvisioned = false
 // Disposition routing (ADR 0013): minorsFiled receives ONLY disposition:'follow-up' findings;
 // notes receives disposition:'note' findings (phase report + servitor feed — memory candidates,
 // never issues).
@@ -739,6 +748,8 @@ const endStateClaims = endStateRows.map(r => r.condition)
 // war-config.mjs's run.provision/run.provisionSource reads — that module is the tested source of
 // truth; keep these field names in sync. The barrier runs these commands, in order, inside each task
 // worktree before the worker; a failure short-circuits to an env-blocked task outcome (no worker).
+// #2485 D15: the same list also runs in _refinery before the first merge, in the polish worktree, and
+// again before any refiner gate whose HEAD tree differs from the provision_tree marker.
 const provisionList = Array.isArray(run.provision) ? run.provision : []
 const provisionSource = run.provisionSource || 'none'
 
@@ -1355,48 +1366,87 @@ for (const t of (tasks || [])) {
 if (!reaOn && (targetArtifacts.length || droppedEvidenceRows.length)) log('REA ARTIFACT EVIDENCE OFF (loud): args.evidence is ' + (A.evidence === undefined ? 'absent' : 'false') + ' (REA absent or run.evidence off); args.targetArtifacts carries ' + targetArtifacts.length + ' declared target artifact row(s) and ' + droppedEvidenceRows.length + ' evidence-type roster row(s) dropped at entry' + (droppedEvidenceRows.length ? ' (' + droppedEvidenceRows.join(', ') + ')' : '') + ' — the run proceeds with no evidence seat and no REA clause; cited artifact claims go unmeasured this run (G3, fail-open).')
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
-// provisionStep runs the pinned run.provision list, IN ORDER, inside one task worktree — a refiner
-// seat in the Provision phase (the refiner owns provisioning; ADR 0001). It returns ok:true on full
-// success or the env-blocked outcome ({ taskId, failedCommand, exitCode, stderrTail, provisionSource
-// } — schemas.md) for the FIRST failing step. The caller skips the worker (and keeps the worktree)
-// on ok:false. With an empty list provisioning is a no-op: ok:true with no agent dispatched.
-async function provisionStep(task) {
+// PROVISION_TREE_LINE (#2485 D15, PIN-15; the provision_red: precedent): the ONE marker sentence — the
+// writer line, the marker's file path (.war/provision_tree) and the reader comparison — interpolated at
+// every writer site (provisionStep, the polish-worktree provision, endstateProvisionClause) and reader
+// site (PROVISION_RERUN_CLAUSE, depClause). The writer also appends `.war/` to the worktree's
+// info/exclude, so the marker never dirties the tree (A3). Kept out of GATE_LOG_STAMP (its card twin is
+// merge-task step 9); the refiner card's merge-task step 1 carries it byte-equal (ES13 binds the pair).
+const PROVISION_TREE_LINE = pt`PROVISION TREE MARKER (run inside the worktree): after every provision run write it with \`mkdir -p .war && printf 'provision_tree: %s\\n' "$(git rev-parse 'HEAD^{tree}')" > .war/provision_tree && x="$(git rev-parse --git-path info/exclude)" && { grep -qxF .war/ "$x" 2>/dev/null || echo .war/ >> "$x"; }\`; the provision steps have seen the HEAD tree only when \`test "$(sed -n 's/^provision_tree: //p' .war/provision_tree 2>/dev/null)" = "$(git rev-parse 'HEAD^{tree}')"\` exits 0 (an absent marker is a changed tree).`
+// PROVISION_CLEAN_LINE (#2485 D15, the #1395 relaunch-fix precedent): the ONE cleanliness sentence. A
+// step that rewrites a tracked file (a lockfile an install rewrites) would leave the worktree dirty: in
+// the shared _refinery that makes the next `merge --no-ff --no-commit` refuse on overlapping paths, gates
+// a tree that differs from HEAD, and dies the next topology barrier on the dirty detached-holder arm.
+// Interpolated by provisionStep (task worktrees and _refinery), the polish-worktree provision and
+// PROVISION_RERUN_CLAUSE; the refiner card's merge-task step 1 carries it byte-equal. endstateProvisionClause
+// keeps its own `git -C` spelling (fail-open, every check still runs). depClause omits it: the worker's
+// own uncommitted edits live in that worktree, and `git checkout -- .` would discard them.
+const PROVISION_CLEAN_LINE = pt`Provision steps must leave the worktree CLEAN: restore tracked files via \`git checkout -- .\` in that worktree after any step that mutates them (untracked build output is fine). Write the marker only after the restore.`
+// PROVISION_RERUN_CLAUSE (#2485 D15/D19, PIN-15/PIN-19): the ONE tree-keyed re-run sentence every
+// refiner gate site interpolates before any floor or gate — the four merge step (a) copies, the ace-gate
+// check, the polish-sweep and terminal-pass merges, the integrated-tip full-gate re-run, the three land
+// prompts and the _refinery base re-run (classificationClause). The tree, not "this dispatch rebased", is
+// the trigger: a pin-transfer probe can rebase the branch and leave step (a) a no-op. A failing step rides
+// MergeResult.provision; the engine applies provisionStep's evidence gate (provisionEvidence). Empty
+// provision list ⇒ '' (every prompt byte-identical to a provision-less run).
+const PROVISION_RERUN_CLAUSE = provisionList.length
+  ? pt`PROVISION RE-RUN (tree-keyed, #2485 D15) — before any floor or gate in a worktree, check its marker. ` + PROVISION_TREE_LINE
+    + pt` When that test does not exit 0 (a rebase, merge or checkout changed the tree, even one an earlier dispatch made), FIRST re-run these run.provision steps in that worktree, verbatim, in order, stopping at the first failure, then write the marker:\n`
+    // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
+    + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n')
+    + pt`\n` + PROVISION_CLEAN_LINE
+    + pt`\nIf a step exits non-zero, run no gate and no floor, keep the worktree, and return the failure on your result as provision: { ok: false, failedCommand: "<the failing step VERBATIM>", exitCode: <its code>, stderrTail: "<tail of its stderr>", provisionSource: "${provisionSource}" } (a MergeResult keeps status "error"; a paraphrased failedCommand fails closed to held:workflow-error).\n`
+  : ''
+// provisionEvidence: provisionStep's evidence gate, shared with the merge-time and land-time re-run
+// (MergeResult.provision, #2485 D19). Evidence = an ok:false whose failedCommand trim-matches one of the
+// dispatched provisionList steps (exact array membership, never substring) AND whose exitCode is a NUMBER
+// ≠ 0 (an ok:false with exit 0 is incoherent). Then it returns the soft env-blocked shape from the REAL
+// result fields. Anything else — missing result, refusal prose, foreign/absent failedCommand, non-numeric
+// or zero exitCode — is NOT trustworthy execution evidence: it throws, and the catch routes it to
+// held:workflow-error (no fabricated env-block).
+const provisionEvidence = (out, id, label) => {
+  const trimmed = out && typeof out.failedCommand === 'string' ? out.failedCommand.trim() : null
+  const matchesStep = trimmed != null && provisionList.some(c => c.trim() === trimmed)
+  if (out && out.ok === false && matchesStep && typeof out.exitCode === 'number' && out.exitCode !== 0) {
+    return { ok: false, taskId: id, failedCommand: out.failedCommand,
+      exitCode: out.exitCode, stderrTail: out.stderrTail, provisionSource }
+  }
+  throw new Error(`task ${id}: the ${label} dispatch returned no execution evidence — an env-blocked classification requires a failedCommand matching a dispatched run.provision step and a numeric non-zero exitCode; got ${JSON.stringify(out)}`)
+}
+// provisionStep runs the pinned run.provision list, IN ORDER, inside one worktree — a refiner seat in
+// the Provision phase (the refiner owns provisioning; ADR 0001): each task worktree before its worker,
+// and `_refinery` once per phase before the first merge (#2485 D15, `purpose` names which). Every run
+// restores tracked files (PROVISION_CLEAN_LINE), then writes the PROVISION_TREE_LINE marker. It returns ok:true on full success or the env-blocked outcome
+// ({ taskId, failedCommand, exitCode, stderrTail, provisionSource } — schemas.md) for the FIRST failing
+// step. The caller keeps the worktree on ok:false. With an empty list provisioning is a no-op: ok:true
+// with no agent dispatched.
+async function provisionStep(task, purpose = pt`for WAR task ${task.id} before its worker runs`) {
   if (!provisionList.length) return { ok: true }
   // provision mode (agents/war-refiner.md ## provision): per-task provision-run — env-outcome return.
   // dispatchKind: 'provision-run' (stable discriminator — mocks/handlers/audits key on it, not the label prefix).
   // dispatchAgent (Phase 6 Task 1 (c)): a post-spawn harness death of THIS dispatch is TAGGED at the
   // dispatch layer, so the wave thunk's catch classifies it env-died SOFT (#1411) — not HARD escalate.
   const out = await dispatchAgent(
-    pt`PROVISION the worktree for WAR task ${task.id} before its worker runs. cd into ${task.worktree} `
+    pt`PROVISION the worktree ${purpose ?? '<purpose>'}. cd into ${task.worktree} `
     + pt`(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
     + pt`inside that worktree:\n`
     // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} is absence-tolerant (run.provision elements
     // are not per-task-schema-guaranteed; a placeholder over a phase-killing throw — Q17/ADR 0034).
     + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
+    + PROVISION_CLEAN_LINE + pt` `
     + pt`These steps make the worktree gate-ready (derived from the repo's own setup; source: ${provisionSource}). `
-    + pt`Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, return { ok: true }. `
+    + pt`Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, write the marker and return { ok: true }. ` + PROVISION_TREE_LINE + pt` `
     + pt`If a step exits NON-ZERO, STOP at that first failure and return the env-blocked outcome — `
     + pt`{ ok: false, taskId: "${task.id}", failedCommand: "<the command>", exitCode: <code>, stderrTail: "<tail of its stderr>", provisionSource: "${provisionSource}" } — `
     + pt`where failedCommand is the failing step VERBATIM (copy it exactly from the list above — the Workflow's evidence gate matches it against the dispatched list, and a paraphrased or invented command fails closed to held:workflow-error). `
     + pt`do NOT continue and do NOT remove the worktree (it is kept for inspection). This is environment setup, not the artifact under test: a failure is an env-block, never a code defect.`,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision-run:${task.id}`, dispatchKind: 'provision-run', schema: ENV_OUTCOME, ...spawn('refiner') })
   if (out && out.ok === true) return { ok: true }
-  // Evidence gate (C, tightened): an env-blocked classification is honored ONLY with execution
-  // evidence — an ok:false whose failedCommand trim-matches one of the dispatched provisionList steps
-  // (exact array membership, never substring) AND whose exitCode is a NUMBER ≠ 0 (an ok:false with
-  // exit 0 is incoherent). Then return today's soft env-blocked shape from the REAL result fields
-  // (downstream byte-preserved: reason env-blocked, worker unspawned, worktree kept, siblings proceed).
-  // Anything else — missing result, refusal prose, foreign/absent failedCommand, non-numeric or zero
-  // exitCode — is NOT trustworthy execution evidence: throw so the catch routes it to
-  // held:workflow-error (no fabricated env-block). The old provisionList[0] / synthetic exitCode / the
-  // synthetic no-result stderrTail fabrication is DELETED (the gate throws instead of inventing fields).
-  const trimmed = out && typeof out.failedCommand === 'string' ? out.failedCommand.trim() : null
-  const matchesStep = trimmed != null && provisionList.some(c => c.trim() === trimmed)
-  if (out && out.ok === false && matchesStep && typeof out.exitCode === 'number' && out.exitCode !== 0) {
-    return { ok: false, taskId: task.id, failedCommand: out.failedCommand,
-      exitCode: out.exitCode, stderrTail: out.stderrTail, provisionSource }
-  }
-  throw new Error(`task ${task.id}: the provision-run:${task.id} dispatch returned no execution evidence — an env-blocked classification requires a failedCommand matching a dispatched run.provision step and a numeric non-zero exitCode; got ${JSON.stringify(out)}`)
+  // Evidence gate (C, tightened): provisionEvidence above. The env-blocked shape is downstream
+  // byte-preserved: reason env-blocked, worker unspawned, worktree kept, siblings proceed. The old
+  // provisionList[0] / synthetic exitCode / the synthetic no-result stderrTail fabrication is DELETED
+  // (the gate throws instead of inventing fields).
+  return provisionEvidence(out, task.id, 'provision-run:' + task.id)
 }
 // Prompt fragment threaded into the worker AND fix-worker: both run in the SAME worktree, so both
 // must be told the pinned provision list (idempotent — re-running it is safe; D-Validation).
@@ -2631,6 +2681,10 @@ const PLAN_DEFECT_RULE = pt`When a block's root cause is a plan or spec defect �
 // existing byte-compare test is untouched). Names `--force-with-lease` only to FORBID widening it
 // (criterion 15): this is prompt prose, never an executable git invocation.
 const STALE_PRIOR_ATTEMPT_RULE = 'A non-fast-forward push rejection where the remote task branch was never merged and shares only an older base is a stale prior attempt — do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in blocked_reason.'
+// DEP_WAVE_PROVISION_RULE (#2485 D15, PIN-15): the dep-wave worker's tree-keyed re-run — the rebase can
+// change the tree the per-task provision-run saw. Byte-equal standing twin: agents/war-worker.md's
+// dep-wave rebase section (ES14 binds the pair); depClause adds the marker test and the step list.
+const DEP_WAVE_PROVISION_RULE = 'Before your gate, re-run provision if the HEAD tree changed.'
 // Dep-wave visibility (ADR 0012): a deps-bearing SAME-REPO task sees its merged dep content by
 // rebasing onto the integration branch FIRST. Scoped by taskType — 'gitlink-bump' is EXCLUDED (its
 // dep merged into the SUBMODULE repo's integration branch; this clause would assert a merge that
@@ -2640,7 +2694,9 @@ const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gi
   ? pt`DEPS ALREADY MERGED: this task declares deps [${(task.deps || []).join(', ')}] whose content is already merged into ${ph.integrationBranch}. `
     + pt`FIRST ACTION — before reading or writing anything else — run \`git -C ${task.worktree} rebase ${ph.integrationBranch}\` so your base includes the merged dep content (a first-dispatch task branch has zero commits of its own, so this rebase is a pure fast-forward). `
     + pt`If the rebase CONFLICTS (possible only on a resume with existing commits): abort it and return status:"blocked" with the conflict files in blocked_reason — NEVER resolve the conflict yourself. `
-    + FORCE_WITH_LEASE_RULE + ' ' + STALE_PRIOR_ATTEMPT_RULE + pt`\n`
+    + FORCE_WITH_LEASE_RULE + ' ' + STALE_PRIOR_ATTEMPT_RULE
+    + (provisionList.length ? ' ' + DEP_WAVE_PROVISION_RULE + ' ' + PROVISION_TREE_LINE + pt` When it does not exit 0, re-run the listed provision steps verbatim, in order, then write the marker.` : '')
+    + pt`\n`
   : ''
 // Worker-facing intent block (ADR 0013): the generic intent clause plus the worker's licensed-
 // judgment sentence and the latitude-clause arm (#1431, ADR 0013 Amendment 2026-08-17) — the arm is
@@ -2776,6 +2832,8 @@ const reattachClause = refineryP =>
 // per-site classification base.
 const classificationClause = (refineryP, baseDesc) =>
   pt`\nGATE-FAILURE CLASSIFICATION (spec §6/§9 / ADR 0019 — on gate failure, BEFORE returning gate_failed): PRECONDITION-MARKER SHORT-CIRCUIT — consult the gate STDERR, not just the TAP stdout: if it carries a recognized precondition marker (e.g. \`REL_GUARD_PRECONDITION_FAILED\`, emitted when a guard's meta-test cannot isolate a clean scratch dir), the gate could not establish its own preconditions ⇒ classify gate_failure_class:'environment' DIRECTLY (never 'introduced'), carry that marker line UNCURATED in gate_output, and skip the base re-run. Otherwise re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
+  // The _refinery base re-run (#2485 D15): the detach changes the tree, so the tree-keyed rule applies there.
+  + (provisionList.length ? pt`BASE RE-RUN PROVISION: after detaching ${refineryP} at the classification base, apply this rule in ${refineryP} before re-running the failing gate there:\n` + PROVISION_RERUN_CLAUSE : '')
 
 // ---- Gate-log stamp, partial-log rule and the segmented gate (D7/D8, PIN-11/PIN-12, #2086/#2094) ----
 // GATE_LOG_STAMP: the two stamp lines every unique gate artifact carries — tip_sha: first and
@@ -2827,6 +2885,8 @@ const segmentedMerge = async (prompt, opts, context) => {
 // a missing result never aliases an earlier same-tip log (#2182/#2168).
 const gateCaptureClause = (refineryP, prefix) =>
   pt`FRESH GATE ARTIFACT: for a fresh logical dispatch, ensure .war/ is git-excluded inside ${refineryP} (append \`.war/\` once to \`git -C ${refineryP} rev-parse --git-path info/exclude\`), create .war/ if needed, then allocate a fresh directory with \`mktemp -d "${prefix}XXXXXX"\`. Tee the FULL gate stdout+stderr to gate.log inside THAT directory; return its actual absolute path as gate_log_path, including on an incomplete result. Use ONLY this dispatch-owned prefix, including when rerunning at the same tip; never substitute another dispatch’s directory or a conventional task/phase filename. Keep allocation, writer setup and capture in one shell invocation so no shell variable must survive a later call. Populate gate_output only as NON-AUTHORITATIVE context; the captured file is the AUTHORITATIVE execution evidence. ${GATE_LOG_STAMP} `
+  // The gate-log preamble repeats the provision marker after tip_sha (#2485 D15), outside GATE_LOG_STAMP.
+  + (provisionList.length ? pt`Its SECOND line repeats the gated worktree's \`provision_tree:\` marker line, read after any provision re-run. ` : '')
 // The engine owns the logical-attempt prefix; mktemp owns the final filesystem allocation.
 // Workflow replay forbids clock/random reads. The run and phase identify this journal;
 // fresh Recovery launches use a new runId. mktemp still allocates the physical directory.
@@ -3744,8 +3804,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // the current subset with the existing abandon reason (the gate never judged the tip).
   const aceGateGreen = async (r, aceTipSha) => {
     const g = await dispatchSite(
-      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing — never commit, revert, push or rebase.\n`
+      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing beyond the provision re-run and its restore — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
+      + PROVISION_RERUN_CLAUSE + (provisionList.length ? pt`At this ace gate a failing provision step is NOT green: return { gate_green: false } with that step in gate_output.\n` : '')
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
       + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
       { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
@@ -4714,11 +4775,46 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
+      // _refinery provision (#2485 D15, PIN-15): once per phase, after the topology barrier and before the
+      // phase's first merge, the run.provision steps run in _refinery (base re-runs, the integrated-tip
+      // gate, the end-state checks and the land gate run there) and write the marker. It reuses
+      // provisionStep — its evidence gate (a paraphrased failedCommand throws → held:workflow-error) and
+      // its soft env-blocked route: a red step escalates env-blocked for the _refinery pseudo-task with the
+      // worktree kept, and the merges still run (each later _refinery gate re-runs the steps by the tree
+      // rule). A dispatch death is env-died SOFT, site-named. Empty provision list ⇒ no dispatch.
+      if (!refineryProvisioned) {
+        refineryProvisioned = true
+        const refineryId = 'phase-' + ph.id + '-refinery'
+        try {
+          const env = await provisionStep({ id: '_refinery', worktree: refineryPath },
+            pt`${refineryPath} (_refinery, on ${ph.integrationBranch}) once for WAR phase ${ph.id}, after the topology barrier and before the phase's first merge`)
+          if (!env.ok) {
+            log('Phase ' + ph.id + ': _refinery env-blocked — provision step "' + env.failedCommand + '" exited ' + env.exitCode + '. Worktree kept; the merges proceed and each later _refinery gate re-runs the steps by the tree rule.')
+            escalated.push({ task: refineryId, reason: 'env-blocked', outcome: env })
+          }
+        } catch (err) {
+          const c = infraDeathCause(err)
+          if (!c) throw err
+          envDied(refineryId, 'provision-run:_refinery dispatch died post-spawn (env-died): ' + c)
+        }
+      }
       // Merge-slot death arm (D21, PIN-25): snapshot/pin-probe, floor-fix and floor re-audit deaths
       // stay site-named SOFT env-died. A merge death reaches this arm only after Git reconciliation
       // proves its target unchanged; uncertainty holds earlier. Unmerged tasks do not block healthy
       // siblings through a fabricated content verdict.
       const mergeDied = why => envDied(r.task.id, why, { verdict: 'env-died', fixRounds: r.task.fixRounds })
+      // Merge-time provision failure (#2485 D19, PIN-19): a failed tree-keyed re-run step
+      // (PROVISION_RERUN_CLAUSE) rides MergeResult.provision on an unmerged result. provisionEvidence —
+      // provisionStep's own evidence gate — admits it as the soft env-blocked escalation with the
+      // worktree kept, or throws (a paraphrased failedCommand → held:workflow-error via the top-level
+      // catch). MergeResult.status is not widened and not read for this route.
+      const provisionRed = res => {
+        if (!res || res.status === 'merged' || !res.provision || typeof res.provision !== 'object' || res.provision.ok !== false) return false
+        const outcome = provisionEvidence(res.provision, r.task.id, 'merge:' + r.task.id + ' provision re-run')
+        log('Task ' + r.task.id + ': env-blocked at the merge slot — the tree-keyed provision re-run step "' + outcome.failedCommand + '" exited ' + outcome.exitCode + '. Worktree kept; not merged.')
+        escalated.push({ task: r.task.id, reason: 'env-blocked', outcome })
+        return true
+      }
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
       // requiresPackaging (spec §4.2): gates the assert-packaging-in-diff.sh floor, INDEPENDENT of
       // requiresTest (like the submodule floor, decoupled from the test flag). Default true; false
@@ -4971,6 +5067,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
         + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
+        + PROVISION_RERUN_CLAUSE
         + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
@@ -4991,6 +5088,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
       const mrDeath = deathOf(mr)
       if (mrDeath) { mergeDied(mrDeath); continue }
+      if (provisionRed(mr)) continue
 
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
       // ponytail: reuses existing 'escalate' reason (DP3 — no new HARD_ESCALATION_REASONS member, no land-decision.mjs cascade)
@@ -5122,6 +5220,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch)
             + pt`CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
             + pt`rebase --onto does NOT dodge this constraint — it is equally refused.\n`
+            + PROVISION_RERUN_CLAUSE
             + pt`  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` — one --no-ff merge commit of the now-rebased task branch, carrying the exact WAR-Task trailer; never a fast-forward, and no hook runs on it. Push.\n`
             + pt`Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
                 + pt`Populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content. `
@@ -5140,6 +5239,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const floorMrDeath = deathOf(floorMr)
           if (floorMrDeath) { mergeDied(floorMrDeath); floorMr = null; reAuditFailed = true; break }   // D21: a dead re-merge is env-died, never a floor status
+          if (provisionRed(floorMr)) { floorMr = null; reAuditFailed = true; break }   // D19: a failed provision re-run is env-blocked, never a floor status
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
@@ -5216,6 +5316,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
             + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch) + '\n'
+            + PROVISION_RERUN_CLAUSE
             + pt`  (b) Run the gate (${plan.gate}) in a FRESH shell with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'merge-task', status: 'gate_failed' } classifying it afresh in gate_failure_class, and do NOT merge.\n`
                 + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` (one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return { mode: 'merge-task', status: 'merged', integration_sha: <the merge commit>, gate_sha: <the gated task tip> } — populate integration_sha with the new merge commit and gate_sha with the rebased task tip the gate ran at (the merge commit's second parent), so the gate-audit pass can confirm the gate ran at the merged content.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
@@ -5234,6 +5335,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const epDeath = deathOf(ep)
           if (epDeath) mergeDied(epDeath)   // D21: a dead environment-proceed re-merge is env-died, site-named
+          else if (provisionRed(ep)) {
+            // D19: env-blocked, escalated inside provisionRed
+          }
           else if (ep && ep.status === 'merged') landMerged(r.task, ep)
           else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
           else if (ep && ep.status === 'gate_failed') escalated.push({ task: r.task.id, reason: ep.status, detail: ep })   // introduced OR baseline→introduced (bounded)
@@ -5252,6 +5356,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`The prior merge-task gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the phase integration base, NOT introduced by this task: ${(mr.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
             + pt`  (a) REBASE in the TASK worktree — skip ONLY per your card step 1 merge-base test (#1941): git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + neverMoveStep(r.task.worktree, r.task.branch, ph.integrationBranch) + '\n'
+            + PROVISION_RERUN_CLAUSE
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), run exactly \`git -c core.hooksPath=/dev/null merge --no-ff --no-commit ${r.task.branch} && git -c core.hooksPath=/dev/null commit --no-verify -m "Merge WAR task ${r.task.id} (${r.task.branch})" --trailer "WAR-Task: ${r.task.branch}"\` (one --no-ff merge commit carrying the exact WAR-Task trailer; no hook runs on it), push, return { mode: 'merge-task', status: 'merged', integration_sha: <the merge commit>, gate_sha: <the gated task tip> } — integration_sha is the new merge commit and gate_sha the rebased task tip the gate ran at (the merge commit's second parent).`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
@@ -5270,6 +5375,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const bpDeath = deathOf(bp)
           if (bpDeath) mergeDied(bpDeath)   // D21: a dead baseline-proceed re-merge is env-died, site-named
+          else if (provisionRed(bp)) {
+            // D19: env-blocked, escalated inside provisionRed
+          }
           else if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
           else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })
           else if (bp && bp.status === 'gate_failed') escalated.push({ task: r.task.id, reason: 'gate_failed', detail: bp })   // introduced OR baseline→introduced (bounded)
@@ -5396,8 +5504,9 @@ if (endStateCheckRows.length > 0) {
       : null
     if (r.unsupported) log(`endstate-check intake-lint: condition ${r.n}'s check literal is UNSUPPORTED by the .cmd transport (${r.unsupported}) — the row is dispatched as record-only: its artifact records the lint verdict, the command is never half-run.`)
   }
-  // provision-before-checks (#1395 fix 2): the run.provision steps provisioned the TASK worktrees,
-  // never _refinery — so a check needing that environment (installed deps, a built venv) reds
+  // provision-before-checks (#1395 fix 2): the run.provision steps once provisioned only the TASK
+  // worktrees, never _refinery (#2485 D15 now also provisions _refinery before the first merge, but a
+  // phase where nothing merged never reaches that dispatch) — so a check needing that environment (installed deps, a built venv) reds
   // ENVIRONMENTALLY at the land barrier and the seats then read a MET condition as red. The
   // dispatched refiner applies the same pinned list in _refinery FIRST, fail-open: a red step is
   // recorded into each artifact's preamble and every check still runs — no new hold path. The steps
@@ -5410,6 +5519,8 @@ if (endStateCheckRows.length > 0) {
     ? pt`provision-before-checks (#1395, fail-open): FIRST run the phase's provision steps IN ORDER inside ${refineryPath} (the same pinned list the task worktrees got; source: ${provisionSource}):\n`
       // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
       + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
+      // #2485 D15: this install is a provision run, so it writes the marker (PROVISION_TREE_LINE).
+      + pt`When every step exits 0, write the marker in ${refineryPath}. ` + PROVISION_TREE_LINE + pt`\n`
       + pt`A provision step exiting non-zero NEVER blocks: record it as a \`provision_red: <step> (exit <code>)\` line in each artifact's preamble (after the tip_sha line) and STILL run every check below — a provision failure never fails this dispatch and never holds the land.\n`
       + pt`Provision steps must leave the worktree CLEAN before any check runs: restore tracked files via \`git -C ${refineryPath} checkout -- .\` after any step that mutates them (untracked build output is fine) — the land dispatch merges and checks out in this SAME shared _refinery worktree, so the do-NOT-edit-tracked-files rule above holds at the end of provisioning too.\n`
     : ''
@@ -5505,7 +5616,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — <preMergeTip> is the previous task's merge commit, the tip this task rebased onto, and <gateHeadSha> the gated task tip, the merge commit's second parent, so the range is exactly what the task brought in), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
     + (intraDep
-      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), ${evidenceCapture.clause} Return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: <the actual absolute captured path> } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
+      ? PROVISION_RERUN_CLAUSE + pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), ${evidenceCapture.clause} Return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: <the actual absolute captured path> } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
       : pt`No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
     + pt`  3. PHASE DIFF — run: git -C ${refineryPath} diff --name-only ${phaseBaseCmd}..$(git -C ${refineryPath} rev-parse HEAD) and return its lines as phase_diff_files (one repo-relative path per entry) — the phase's git-derived changed-file list, read by the gate-audit floor pass; absent ⇒ that pass's note arm reads an empty Set and matches nothing.\n`
     + pt`Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], phase_diff_files, integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
@@ -5989,7 +6100,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       roster: defaultRoster,
       absorbRounds: 0,   // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
       planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
-    // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree.
+    // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree,
+    //    then run.provision and the provision_tree marker (#2485 D15).
     // provision mode (agents/war-refiner.md ## provision): phase-close polish worktree — env-outcome return.
     // dispatchKind: 'polish-worktree' (stable discriminator — keyed by mocks/handlers, not the label prefix).
     // dispatchAgent + catch (Phase 6 Task 1 (c)): a POST-SPAWN harness death of this dispatch classifies
@@ -6002,7 +6114,16 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     polishProv = await dispatchAgent(
       pt`Provision the phase-close POLISH worktree for WAR phase ${ph.id} by running provision-worktrees.sh. Do NOT free-author git; run exactly:\n`
       + pt`  provision-worktrees.sh ensure-worktree ${polishWorktree} ${polishBranch} "$(git -C ${refineryLandPath} rev-parse ${ph.integrationBranch})"\n`
-      + pt`— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). Return the env-outcome JSON: \`{ ok: true }\` when the ensure-worktree subcommand exits 0; on a non-zero exit return \`{ ok: false, failedCommand: "<the exact subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr>" }\`.`,
+      + pt`— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). `
+      // #2485 D15: the polish worktree gets run.provision and the marker too (it once got only ensure-worktree).
+      + (provisionList.length
+        ? pt`Then, inside ${polishWorktree}, run these run.provision steps verbatim, in order, stopping at the first failure (source: ${provisionSource}):\n`
+          // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
+          + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
+          + PROVISION_CLEAN_LINE + pt` `
+          + pt`If every step exits 0, write the marker. ` + PROVISION_TREE_LINE + pt`\n`
+        : '')
+      + pt`Return the env-outcome JSON: \`{ ok: true }\` when every subcommand and step exits 0; on a non-zero exit return \`{ ok: false, failedCommand: "<the exact subcommand line or step>", exitCode: <code>, stderrTail: "<tail of its stderr>" }\`.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, dispatchKind: 'polish-worktree', schema: ENV_OUTCOME, ...spawn('refiner') })
     } catch (err) {
       const c = infraDeathCause(err)
@@ -6098,6 +6219,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         pt`Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
+        + PROVISION_RERUN_CLAUSE
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
         + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
@@ -6289,6 +6411,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
               pt`Merge WAR polish branch ${polishBranch} (now carrying the terminal-pass commit ${terminalSha}) into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
               + reattachClause(refineryLandPath)
               + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch sits at the integrated tip plus one commit, so this is normally a no-op).\n`
+              + PROVISION_RERUN_CLAUSE
               + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
               + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The terminal commit is an ace-shaped absorb commit, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and the pass has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). On gate failure return gate_failed (no classification); the Workflow fail-open forward-reverts the terminal range and leaves it unmerged. On conflict return conflict; never force.`
               + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
@@ -6402,7 +6525,7 @@ if (landDecision === 'landed') {
     + pt`  1. In ${refineryLandPath}: detach HEAD at origin/${ph.workingBranch} (`
     + pt`\`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`). `
     + pt`This is the detached land — never checkout the working branch by name in _refinery.\n`
-    + pt`  2. Merge: \`git -C ${refineryLandPath} merge --no-ff ${ph.integrationBranch}\` (one phase commit). Run the gate (${plan.gate}) with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the _refinery land worktree. On gate failure return gate_failed.\n`
+    + pt`  2. Merge: \`git -C ${refineryLandPath} merge --no-ff ${ph.integrationBranch}\` (one phase commit).\n` + PROVISION_RERUN_CLAUSE + pt`     Run the gate (${plan.gate}) with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the _refinery land worktree. On gate failure return gate_failed.\n`
     + classificationClause(refineryLandPath, pt`the detached origin/${ph.workingBranch} tip the merge lands onto (\`git -C ${refineryLandPath} rev-parse origin/${ph.workingBranch}\`) — a stacked working branch carries prior plans' content the phase integration base lacks, so the land uses the working tip, NOT the integration base`)
     + baselineDebtClause()
     + pt`  3. Push-first CAS: run \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\` where <merge-sha> is HEAD in _refinery after the merge.\n`
@@ -6458,6 +6581,18 @@ if (landDecision === 'landed') {
     log('Phase ' + ph.id + ': ' + why + ' — held:land-failed; the Lead re-runs the land per SKILL.md §4.3.')
     return true
   }
+  // Land provision failure (#2485 D19, PIN-19): the land gate's tree-keyed re-run step failed, riding
+  // MergeResult.provision on an unlanded result. provisionEvidence admits it as the existing env-blocked
+  // land escalation (held:land-failed, _refinery kept), or throws (a paraphrased failedCommand →
+  // held:workflow-error). Read right after the death arm at each land site; status is not widened.
+  const landProvisionRed = res => {
+    if (!res || res.status === 'landed' || !res.provision || typeof res.provision !== 'object' || res.provision.ok !== false) return false
+    const outcome = provisionEvidence(res.provision, 'phase-' + ph.id + '-land', 'land:phase-' + ph.id + ' provision re-run')
+    escalated.push({ task: 'phase-' + ph.id + '-land', reason: 'env-blocked', outcome })
+    landDecision = 'held:land-failed'
+    log('Phase ' + ph.id + ': the land gate\'s provision re-run step "' + outcome.failedCommand + '" exited ' + outcome.exitCode + ' — env-blocked, held:land-failed; _refinery kept.')
+    return true
+  }
   landResult = await segmentedLand(landPrompt,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
   // 2B submodule PR-and-hold: the refiner opened a PR on the submodule remote and returned
@@ -6466,6 +6601,8 @@ if (landDecision === 'landed') {
   // ponytail: direct return pattern mirrors held:workflow-error (DP2 — no HARD_ESCALATION_REASONS cascade)
   if (landDied(landResult)) {
     // routed above: env-died land dispatch → held:land-failed, site-named
+  } else if (landProvisionRed(landResult)) {
+    // routed inside landProvisionRed: env-blocked land provision re-run → held:land-failed
   } else if (landResult && landResult.status === 'submodule-pr') {
     escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: landResult.pr_number, pr_remote: landResult.pr_remote, detail: landResult })
     landDecision = 'held:submodule-pr'
@@ -6493,7 +6630,7 @@ if (landDecision === 'landed') {
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
       + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
-      + pt`  2. Merge --no-ff ${ph.integrationBranch}; run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
+      + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
       + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
@@ -6511,6 +6648,8 @@ if (landDecision === 'landed') {
     // reassignment goes red there.
     if (landDied(reLand)) {
       // routed inside landDied: env-died re-land → held:land-failed, site-named, landResult null
+    } else if (landProvisionRed(reLand)) {
+      // routed inside landProvisionRed: env-blocked re-land provision re-run → held:land-failed
     } else if (reLand && reLand.status === 'submodule-pr') {
       landResult = reLand
       escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
@@ -6541,7 +6680,7 @@ if (landDecision === 'landed') {
       + reattachClause(refineryLandPath)
       + pt`The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
       + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
-      + pt`  2. Merge --no-ff ${ph.integrationBranch}; run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
+      + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
       + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
@@ -6551,6 +6690,8 @@ if (landDecision === 'landed') {
     // #1245: including the reassignment below — same arm-symmetry duty, same inertness on every other path.
     if (landDied(reLand)) {
       // routed inside landDied: env-died re-land → held:land-failed, site-named, landResult null
+    } else if (landProvisionRed(reLand)) {
+      // routed inside landProvisionRed: env-blocked re-land provision re-run → held:land-failed
     } else if (reLand && reLand.status === 'submodule-pr') {
       landResult = reLand
       escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
