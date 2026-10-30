@@ -2,6 +2,7 @@
 name: evidence-mcp-hook-checks-tool-names-only-so-foreign-server-suffix-and-output-directory-writes-pass
 description: "The MCP hook keys on the tool suffix plus an output-path segment check, so a foreign server's same-named tool passes and a symlink under an evidence dir is unseen"
 metadata:
+  promoted: dev/2026-10-20-rea-artifact-evidence@phase-3
   node_type: memory
   type: project
   keywords:
@@ -31,12 +32,12 @@ metadata:
     - residual
   created: 2026-10-21
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
-  modified: 2026-10-22T15:48:10.008Z
+  modified: 2026-10-27T13:45:45.479Z
 ---
 
 # The MCP hook is suffix-keyed with one input check: accepted residuals
 
-`hooks/validate-evidence-auditor-mcp.sh` decides from the tool name and the `agent_type`. Beyond a type check (a `tool_input` that is neither absent nor an object is denied), the only `tool_input` it reads is the output-path pair (`output_directory`, `destination`), added by ruling #2402. Three gaps follow. The plan accepted all three (G4). Tests pin the first as intended behavior. The slug keeps its phase-2 wording on purpose: a rename would break inbound links.
+`hooks/validate-evidence-auditor-mcp.sh` decides from the tool name and the `agent_type`. Beyond a type check (a `tool_input` that is neither absent nor an object is denied), the only `tool_input` it reads on the REA path is the output-path pair (`output_directory`, `destination`), added by ruling #2402. For the memory query tool it also reads `local` (see [[memory-query-local-fence-is-hook-only-and-binds-four-seats-not-everyone]]). Three gaps follow. The plan accepted all three (G4). Tests pin the first as intended behavior. The slug keeps its phase-2 wording on purpose: a rename would break inbound links.
 
 **1. A foreign server's tool can pass.** The hook compares the suffix after the second `__`. A tool named `mcp__<any server>__comment` or `mcp__<any server>__read_bytes` matches `mcp__rea__<suffix>` and passes for `war-worker` and `war-evidence-auditor`. The only signal is one canary line on stdout, naming the non-`rea` prefix. The header sentence "the suffix never widens the set" is true for the set of suffixes. It is not true for the set of servers. The evidence seat's card pins its MCP tools on its `tools:` line, so the platform limits that seat to `mcp__rea__` names. `war-worker` has no `tools:` line and inherits every registered server, so the hook is its only filter.
 

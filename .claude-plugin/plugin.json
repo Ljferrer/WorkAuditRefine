@@ -14,5 +14,11 @@
     "./agents/war-refiner.md",
     "./agents/war-servitor.md",
     "./agents/war-worker.md"
-  ]
+  ],
+  "mcpServers": {
+    "war-memory": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory-mcp.mjs"]
+    }
+  }
 }

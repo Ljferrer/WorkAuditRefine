@@ -36,7 +36,9 @@ not the approved tree. Every forward-revert is range-based (#2485 D17): a red ga
 reverts the whole range above the last approved tip.
 
 The rule is stated to the seat itself, in the standing auditor card
-([`agents/war-auditor.md`](../../agents/war-auditor.md), the `## Pin transfer` section): "only
+([`agents/war-auditor.md`](../../agents/war-auditor.md), the `## Pin transfer` section, which
+since 2026-10-27 is a trigger pointer whose body lives byte-identical in
+[`skills/war/references/pin-transfer.md`](../../skills/war/references/pin-transfer.md), ADR 0042): "only
 the seats that raised those findings re-run; every other seat's approval transfers to the new
 sha unchanged", and the re-running seat owes an independent check — "run the
 `git diff --no-renames --name-only` it names yourself and compare", setting `scopeBreach: true`
