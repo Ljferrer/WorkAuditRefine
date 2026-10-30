@@ -74,7 +74,7 @@ silent restatement as a plan defect (`needsDecision`) downstream.
 
 ## 2. Per spec — strictly serial
 
-**Seat models.** Resolve the run config before the first spawn: `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs <repo>/.claude/war/config.json --fill-defaults`, or `--preset balanced` when that file is missing. On a zero exit, give every `agent()` its seat's `model`, plus `effort` unless it is `default`, from `agents.machine`: `drafter` writes the draft (step 1), `derive` derives the grill's probes, `apply` runs them against the draft, and `revise` is the drafter's answer pass (step 2). On a nonzero exit, omit both and the agents inherit the session ([ADR 0056](../../docs/adr/0056-default-seat-models-follow-the-2497-routing.md)).
+**Seat models.** Resolve the run config before the first spawn: `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs <repo>/.claude/war/config.json --fill-defaults`, or `--preset balanced` when that file is missing. On a zero exit, give every `agent()` its seat's `model`, plus `effort` unless it is `default`, from `agents.machine`: `drafter` writes the draft (step 1), `derive` derives the grill's probes, `apply` runs them against the draft (a grill run as one agent takes the `apply` seat), and `revise` is the drafter's answer pass (step 2). On a nonzero exit, omit both and the agents inherit the session ([ADR 0056](../../docs/adr/0056-default-seat-models-follow-the-2497-routing.md)).
 
 One spec at a time — never a batch — so each successive plan's roadmap contention row can see the
 file footprints of the plans already authored (honest contention).

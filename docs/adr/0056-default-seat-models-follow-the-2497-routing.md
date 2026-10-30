@@ -26,7 +26,7 @@ pass. It has no default: an absent ace tier uses the fix tier, so ace runs opus 
 seat only. This is how the Lead keeps opus on a boundary-heavy seat (security, parsing, Git or
 filesystem, recovery, state machines) while routine seats run sonnet.
 
-**Every subagent role in `/war-machine`, `/survey-corps` and `/lessons-learned` gets a skill seat.**
+**Amended 2026-10-31 (0.21.25): every subagent role in `/war-machine`, `/survey-corps` and `/lessons-learned` gets a skill seat.**
 `agents.machine`, `agents.survey` and `agents.lessons` each map that skill's role names
 (`SKILL_SEATS` in `war-config.mjs`) to a `{ model, effort }` tier. By operator ruling (2026-10-30), plan
 conversion runs on the stronger models: every war-machine seat runs above the survey readers, and the
