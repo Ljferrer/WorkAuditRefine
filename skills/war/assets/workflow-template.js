@@ -1754,8 +1754,10 @@ const demote = (f, to, why, opts) => {
     if (prior) {
       log('Disposition demotion CORROBORATES: [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') → ' + to + ' — ' + why + '; the content key already lives on ' + prior + ' (D12, #1862) — the raiser joins its seats list, never a second minorsFiled row (logged, never silent).')
       const hit = corroborateSurvivor(f)
-      if (hit) hit.demoteReason = hit.demoteReason || why   // lands on the durable minorsFiled record and renders as the filing row's `engine demote reason` cell — never on the filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
-      if (hit && f.drainCause && !hit.drainCause) hit.drainCause = f.drainCause   // the sibling drainCause cell (#1799) rides the same copy — a drain-caused row colliding with an already-filed key keeps its structured { dispatch, why } provenance on the survivor
+      // lands on the durable minorsFiled record and renders as the filing row's `engine demote reason` cell — never on the filed-by line, which stays seat-filed (barrier: <tag>) because the survivor carries no engineFiled
+      if (hit) hit.demoteReason = hit.demoteReason || why
+      // the sibling drainCause cell (#1799) rides the same copy — a drain-caused row colliding with an already-filed key keeps its structured { dispatch, why } provenance on the survivor
+      if (hit && f.drainCause && !hit.drainCause) hit.drainCause = f.drainCause
       return
     }
     filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record
@@ -4475,7 +4477,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // alike), and pendingAbsorbs was spliced empty at the fold above — no hold-time dedup is needed.
         for (const f of aceable) {
           queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
-          f.disposition = 'absorb'   // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
+          // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
+          f.disposition = 'absorb'
           r.task.pendingAbsorbs.push(f)
         }
         log('absorb-budget: task ' + r.task.id + ' carries ' + openBlockers + ' open blocking finding(s) — ' + aceable.length + ' aceable row(s) HELD on r.pendingAbsorbs (' + r.task.pendingAbsorbs.length + ' held in all) for the next approve\'s ace batch.')
