@@ -50,3 +50,9 @@ anti-pattern this stale finding would have instanced),
 [[verify-and-close-claim-can-trace-to-transient-uncommitted-edit]] (re-verify against committed
 HEAD, not transient state), [[premergetip-chain-skips-requirestest-false-tasks]] (a *real*,
 still-live gap in the same preMergeTip mechanism, found in the code rather than stale plan prose).
+
+**Note (2026-10-30, merge-commit rule, #2485):** a dated record, so the recurrence above stays as written. It
+describes the `<preMergeTip>` idiom of the fast-forward engine. Task merges are now `--no-ff` merge commits
+with a `WAR-Task` trailer (ADR 0054), so a first-parent or `<merge>^1` per-task anchor is valid for them, and
+the `ff-topology` caution applies only to polish and terminal merges, which stay fast-forward. The lesson's
+rule (re-read the committed text before treating a finding as live) is unchanged.

@@ -147,3 +147,5 @@ Success evidence is mandatory: transferred requires a usable rebased tip, non-em
 - 2026-09-07 · section 2's `D4` attributed to this ADR's ratifying plan (the 2026-08-30 plan's D4 row), the relationship heading renamed `Relationship to other ADRs` so the ADR 0051 row fits under it · issue #2156
 
 - 2026-09-09 · Require positive evidence before transfer or already-upstream completion; invalid destinations hold, missing transfer equality re-audits (#2154, PR #2297 initial Snipe).
+
+- 2026-10-30 · Amendment: a blocked ace result no longer reaches pin transfer unjudged. The engine reads the branch tip after every ace dispatch and re-audits or forward-reverts it, and the `verifyPinTransfer` tree clause stays unrelaxed. Two residuals are the only exceptions to never-hold: a tip that does not descend from the pre-dispatch tip holds at the merge slot with the note "branch tip carries content committed after approval", and a revert-bearing pin-transfer probe that itself dies reads `env-died` · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D5, D6, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
