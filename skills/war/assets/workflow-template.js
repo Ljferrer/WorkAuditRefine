@@ -99,7 +99,7 @@ export const meta = {
 
 const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], properties: {
   // lessonsUsed: read by hooks/record-lesson-use.sh, never by the engine (ADR 0055).
-  lessonsUsed: { type: 'array', items: { type: 'string' } },
+  lessonsUsed: { type: 'array' },
   task_id: { type: 'string' }, branch: { type: 'string' }, worktree: { type: 'string' }, head_sha: { type: 'string' },
   status: { enum: ['implemented', 'blocked'] },
   tests: { type: 'object' }, acceptance_criteria_covered: { type: 'array' }, files_changed: { type: 'array' },
@@ -135,7 +135,7 @@ const RELEASE_SLOT_FILES = ['.claude-plugin/plugin.json', '.claude-plugin/market
 const DEMOTE_REASONS = ['demote:absorb-regressed', 'demote:absorb-blocked', 'demote:fileless', 'demote:task-unapproved', 'demote:sweep-skipped', 'demote:sweep-discarded', 'demote:terminal-pass', 'demote:exclusion-set', 'demote:release-slot', 'demote:floor-skipped', 'demote:ask-unruled-afk', 'demote:unclassified']
 const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'findings', 'confidence'], properties: {
   // lessonsUsed: read by hooks/record-lesson-use.sh, never by the engine (ADR 0055).
-  lessonsUsed: { type: 'array', items: { type: 'string' } },
+  lessonsUsed: { type: 'array' },
   seat: { type: 'string' }, lens: { type: 'string' }, audit_sha: { type: 'string' },
   verdict: { enum: ['approve', 'request_changes', 'escalate'] },
   findings: { type: 'array', items: { type: 'object', required: ['severity'], properties: {
