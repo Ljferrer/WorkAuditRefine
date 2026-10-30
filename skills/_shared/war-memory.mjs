@@ -313,6 +313,41 @@ export function rankRecords(db, records, text) {
 }
 
 // ---------------------------------------------------------------------------
+// Collapse (D3 / PIN-3). Records arrive one row per file copy; a slug present in both roots or
+// in hot + archive/ has several copies. A slug is a hit when any copy matched the query, placed
+// at its first-ranked copy's position. Which copy the hit shows is judged over EVERY copy in the
+// walked corpus (`records`), not only the matched ones: twins drift apart (a tighten pass
+// shortens a hot description while its archived twin keeps the long text), so a hot copy can
+// miss the query terms while its archived twin matches. Among the copies: a hot copy beats an
+// archived copy; at the same temperature the repo copy beats the local copy. The hit is tagged
+// (archived) only when every copy is archived.
+// ---------------------------------------------------------------------------
+const ROOT_RANK = { repo: 0, local: 1 };
+function copyRank(r) {
+  return (r.temperature === 'hot' ? 0 : 10) + (ROOT_RANK[r.root] ?? 5);
+}
+
+export function collapseBySlug(ranked, records) {
+  const copies = new Map();
+  for (const r of records) {
+    const list = copies.get(r.slug);
+    if (list) list.push(r);
+    else copies.set(r.slug, [r]);
+  }
+  const seen = new Set();
+  const out = [];
+  for (const r of ranked) {
+    if (seen.has(r.slug)) continue;
+    seen.add(r.slug);
+    const all = copies.get(r.slug) ?? [r];
+    let best = all[0];
+    for (const c of all) if (copyRank(c) < copyRank(best)) best = c;
+    out.push({ ...best, archived: all.every((c) => c.temperature !== 'hot') });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Query prompt block (§4.5). The ONLY output format — no --format.
 // ---------------------------------------------------------------------------
 
@@ -497,8 +532,9 @@ export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, no
   for (const r of deduped) {
     // Floor 1: user-confirmed is never evicted.
     if (tierRank(r.provenance) === TIER_RANK['user-confirmed']) continue;
-    // Floor 2: a hub (≥ 2 distinct inbound citers, both roots) is never evicted.
-    const inbound = new Set(inboundCiters(records, r.slug).map((c) => c.slug)).size;
+    // Floor 2: a hub (≥ 2 distinct HOT citers, both roots) is never evicted. A cold citer cannot
+    // pin a row: its link resolves from archive/ whichever way this lesson goes (ADR 0055).
+    const inbound = new Set(inboundCiters(records, r.slug, { hotOnly: true }).map((c) => c.slug)).size;
     if (inbound >= 2) continue;
     // Floor 3: within the young window (or undated ⇒ protected) is never evicted.
     if (!r.effectiveDate) continue; // undated ⇒ PROTECTED (treated as within-window)
@@ -739,7 +775,7 @@ function cmdQuery(argv) {
   const seat = argv.seat || null;
   const records = walkCorpus(roots);
   const db = buildIndex(records);
-  const ranked = rankRecords(db, records, text);
+  const ranked = collapseBySlug(rankRecords(db, records, text), records);
   const selected = selectForBudget(ranked, { topK, budget });
   appendQueryLog(roots.local, {
     ts: new Date().toISOString(),
@@ -772,7 +808,7 @@ function cmdQueriesBatch(argv) {
       );
       process.exit(1);
     }
-    const ranked = rankRecords(db, records, spec.text);
+    const ranked = collapseBySlug(rankRecords(db, records, spec.text), records);
     const selected = selectForBudget(ranked, {
       topK: spec.topK ?? DEFAULT_TOP_K,
       budget: spec.budget ?? DEFAULT_BUDGET,
@@ -1038,7 +1074,8 @@ function cmdInbound(argv) {
     process.exit(1);
   }
   const records = walkCorpus(resolveRoots(argv));
-  const citing = [...new Set(inboundCiters(records, slug).map((r) => r.slug))].sort();
+  const hotOnly = argv.hot === true; // the hub count (ADR 0055); bare `inbound` still lists every citer
+  const citing = [...new Set(inboundCiters(records, slug, { hotOnly }).map((r) => r.slug))].sort();
   process.stdout.write(
     `inbound ${slug}: ${citing.length}${citing.length ? ' — ' + citing.join(', ') : ''}\n`
   );

@@ -72,41 +72,6 @@ const TOOL = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Collapse (D3 / PIN-3). Records arrive one row per file copy; a slug present in both roots or
-// in hot + archive/ has several copies. A slug is a hit when any copy matched the query, placed
-// at its first-ranked copy's position. Which copy the hit shows is judged over EVERY copy in the
-// walked corpus (`records`), not only the matched ones: twins drift apart (a tighten pass
-// shortens a hot description while its archived twin keeps the long text), so a hot copy can
-// miss the query terms while its archived twin matches. Among the copies: a hot copy beats an
-// archived copy; at the same temperature the repo copy beats the local copy. The hit is tagged
-// (archived) only when every copy is archived.
-// ---------------------------------------------------------------------------
-const ROOT_RANK = { repo: 0, local: 1 };
-function copyRank(r) {
-  return (r.temperature === 'hot' ? 0 : 10) + (ROOT_RANK[r.root] ?? 5);
-}
-
-function collapseBySlug(ranked, records) {
-  const copies = new Map();
-  for (const r of records) {
-    const list = copies.get(r.slug);
-    if (list) list.push(r);
-    else copies.set(r.slug, [r]);
-  }
-  const seen = new Set();
-  const out = [];
-  for (const r of ranked) {
-    if (seen.has(r.slug)) continue;
-    seen.add(r.slug);
-    const all = copies.get(r.slug) ?? [r];
-    let best = all[0];
-    for (const c of all) if (copyRank(c) < copyRank(best)) best = c;
-    out.push({ ...best, archived: all.every((c) => c.temperature !== 'hot') });
-  }
-  return out;
-}
-
 // One rendered hit: the CLI's prompt-block line shape plus the (archived) tag and the file path,
 // so a seat can open the full lesson.
 function formatHit(r) {
@@ -192,7 +157,7 @@ function runMemoryQuery(args) {
   } finally {
     db.close(); // per-call in-memory database: free it now, never wait for GC
   }
-  const collapsed = collapseBySlug(ranked, records);
+  const collapsed = mem.collapseBySlug(ranked, records);
   const selected = mem.selectForBudget(collapsed, { topK });
   appendQueryLogIfPresent(local, {
     ts: new Date().toISOString(),

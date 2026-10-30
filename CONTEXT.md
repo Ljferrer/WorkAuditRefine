@@ -1569,12 +1569,19 @@ local-only — tighten is this skill's sole repo-side actor, and only through it
 
 **Usage-scored eviction**:
 The tighten pass's ranking of eviction candidates by *ascending* query-log hits, behind hard floors that
-make a lesson ineligible: `user-confirmed` tier, concept hubs (≥2 inbound citers), and lessons created or
+make a lesson ineligible: `user-confirmed` tier, concept hubs (≥2 hot inbound citers), and lessons created or
 recurrence-stamped within the last 8 days. When the query log is silent the ranking degrades to the
 tier + age eviction order; the floors still apply. Nothing is blended into a weighted composite.
 _Avoid_: reading zero hits as zero value (the log records WAR prefetch/seat queries, not the operator's
 own reading — the floors and the gate are the counterweight); a weighted score (hits *rank*; floors
 *gate*; nothing is summed).
+
+**Always-loaded test**:
+The judgment that decides which lessons keep a row in the index projection: a lesson keeps its row if a
+session needs it before it knows to query. A standing operator rule passes, and so does a trap that fires
+at an action where no task text would surface it. Every other lesson is task-scoped, so query and prefetch
+reach it from the cold set ([ADR 0055](docs/adr/0055-archive-reachable-memory-index-holds-only-what-a-query-cannot-surface.md)).
+_Avoid_: reading eviction as a loss (it removes a row, never a lesson); reading a passing row as proof of use.
 
 **Derived memory index**:
 The SQLite/FTS5 index built **in memory, per invocation**, from both roots' lesson files (hot + cold).

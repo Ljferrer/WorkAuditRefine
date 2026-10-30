@@ -1412,6 +1412,45 @@ test('fallback (criterion 5): with the log absent, order equals the tier+age evi
   assert.deepEqual(evictedSlugs(recs), expected);
 });
 
+test('hub floor (ADR 0055): cold citers cannot pin a row, hot citers still do', () => {
+  const local = tmpDir();
+  const meta = { provenance: 'code-verified', date: '2026-01-01' };
+  lessonFile(local, 'cold-pinned', { description: 'only cold citers', meta });
+  lessonFile(local, 'hot-pinned', { description: 'two hot citers', meta });
+  lessonFile(local, 'hot-a', { description: 'a', meta, body: 'per [[hot-pinned]]' });
+  lessonFile(local, 'hot-b', { description: 'b', meta, body: 'per [[hot-pinned]]' });
+  mkdirSync(join(local, 'archive'), { recursive: true });
+  lessonFile(join(local, 'archive'), 'cold-a', { description: 'c', meta, body: 'per [[cold-pinned]]' });
+  lessonFile(join(local, 'archive'), 'cold-b', { description: 'd', meta, body: 'per [[cold-pinned]]' });
+  const plan = tightenPlan(walkCorpus({ local }), { now: NOW });
+  const slugs = plan.eligible.map((e) => e.slug);
+  assert.ok(slugs.includes('cold-pinned'), 'two cold citers leave the lesson eligible');
+  assert.ok(!slugs.includes('hot-pinned'), 'two hot citers keep the hub floor');
+  assert.equal(plan.eligible.find((e) => e.slug === 'cold-pinned').inbound, 0, 'inbound reports the hot count');
+  const r = spawnSync('node', [CLI, 'inbound', 'cold-pinned', '--local', local, '--hot'], { encoding: 'utf8' });
+  assert.match(r.stdout, /inbound cold-pinned: 0/);
+  const all = spawnSync('node', [CLI, 'inbound', 'cold-pinned', '--local', local], { encoding: 'utf8' });
+  assert.match(all.stdout, /inbound cold-pinned: 2 — cold-a, cold-b/, 'bare inbound still lists every citer');
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('query (ADR 0055): a lesson archived in both roots fills one prefetch slot, not two', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  const meta = { type: 'project', provenance: 'code-verified' };
+  for (const root of [local, repo]) {
+    mkdirSync(join(root, 'archive'), { recursive: true });
+    lessonFile(join(root, 'archive'), 'twinned', { description: 'frobnicate twin fact', meta });
+  }
+  lessonFile(local, 'other', { description: 'frobnicate other fact', meta });
+  const r = spawnSync('node', [CLI, 'query', 'frobnicate', '--local', local, '--repo', repo], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout.split('[twinned]').length - 1, 1, 'the twin renders once');
+  assert.match(r.stdout, /\[other\]/, 'the freed slot reaches the next lesson');
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
 test('dupe (criterion 6): a cross-root twin is ONE both-copies-or-nothing unit — never single-copy savings', () => {
   const local = tmpDir();
   const repo = tmpDir();
