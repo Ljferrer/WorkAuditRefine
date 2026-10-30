@@ -55,7 +55,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS, BARRIER_TOKENS, RELEASE_SLOT_FILES, DEMOTE_REASONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS, SEAT_AGENT_TYPES, EVIDENCE_LENS, WIDEN_BARRED_LENSES, MODELS, EFFORTS } from './war-config.mjs'
 import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 import { MANIFEST_PATH_TEMPLATE, MANIFEST_KEYS } from './target-artifacts.mjs'
 
@@ -1364,7 +1364,7 @@ const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
 // Task 1.2 (war-room-config-expansion) — tier-aware worker dispatch + task.files plumbing
 // ---------------------------------------------------------------------------
 // First-pass workers dispatch on the docs tier for an all-*.md task (task.files = the plan Files:
-// list, NOT the worker's diff); fix-round and --ace dispatch on the fix tier when configured, else
+// list, NOT the worker's diff); fix-round and --ace (absent agents.worker.ace) dispatch on the fix tier when configured, else
 // the base worker. End-to-end (captures the real spawn opts at each dispatch label) so the predicate
 // AND the wiring are exercised together — a reverted tier arg fails these.
 // ---------------------------------------------------------------------------
@@ -1499,6 +1499,10 @@ const VALIDATE_ROSTER_CASES = [
   [[EVIDENCE_SEAT], undefined],                                                // evidence seat, knob absent
   [[...PLAIN_SEATS(4), EVIDENCE_SEAT], true],                                  // 4 + evidence = 5: valid
   [[...PLAIN_SEATS(5), EVIDENCE_SEAT], true],                                  // cap-4 beside an evidence seat
+  [[{ lens: 'correctness', model: 'sonnet', effort: 'high' }], undefined],     // per-seat model + effort (#2519)
+  [[{ lens: 'correctness', effort: 'default' }], undefined],                  // per-seat effort alone
+  [[{ lens: 'correctness', model: 'gpt' }], undefined],                       // unknown seat model
+  [[{ lens: 'correctness', model: 'opus', effort: 'turbo' }], undefined],     // unknown seat effort
 ]
 const WIDEN_ROSTER_CASES = [
   [[{ lens: 'a' }], RTRIO],                                                     // union append
@@ -1989,6 +1993,7 @@ const LITERAL_REGISTRY = [
   ["roster[${i}].depth must be \"neighbors\" or \"d"],
   ["roster[${i}].agentType must be one of ${SEAT"],
   ["roster[${i}].agentType \"war-evidence-auditor"],
+  ["roster[${i}].${k} must be one of ${e.join('|"],
   ["-name '*.test.sh'`\nconst resolveGate = (decl"],
   ["for f in $(find . -type f ${GATE_DISCOVERY_T"],
   ["do printf '\\\\n== gate(bash): %s ==\\\\n' \"$f\" "],
@@ -3516,6 +3521,8 @@ export {
   ROLES,
   DEFAULTS,
   SEAT_AGENT_TYPES,
+  MODELS,
+  EFFORTS,
   EVIDENCE_LENS,
   WIDEN_BARRED_LENSES,
   extractInterpolations,

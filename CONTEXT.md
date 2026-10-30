@@ -765,12 +765,12 @@ _Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the p
 plan's file list, not the diff).
 
 **Fix bump**:
-The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and `--ace` worker
-spawns — either direction, a stronger fixer than the first pass or a cheaper one (per-preset
-values: the `/war-room` preset bullets). Absent = fix work inherits the base worker config
-(today's behavior).
-_Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
-knob covers both).
+The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and floor-retry
+worker spawns, and to `--ace` and the terminal pass unless `agents.worker.ace` is set (#2519) —
+either direction, a stronger fixer than the first pass or a cheaper one (per-preset values: the
+`/war-room` preset bullets). Absent = fix work inherits the base worker config; an absent ace tier
+inherits the fix tier.
+_Avoid_: fix model (it's an optional override, not a standing role).
 
 **Dispatch semaphore**:
 The /war engine's global agent ceiling: with `run.maxParallel` set, one global counting semaphore

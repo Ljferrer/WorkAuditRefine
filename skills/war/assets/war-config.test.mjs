@@ -71,9 +71,9 @@ test('DEFAULTS validate', () => {
 
 test('empty input fills to balanced defaults and validates', () => {
   const c = fillDefaults({})
-  assert.equal(c.agents.worker.model, 'fable')
+  assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'default')
-  assert.equal(c.agents.auditor.model, 'opus')
+  assert.equal(c.agents.auditor.model, 'sonnet')
   assert.equal(c.agents.auditor.effort, 'high')
   assert.equal(c.agents.servitor.effort, 'xhigh')
   assert.equal(c.audit.rosterPolicy, 'auto')
@@ -90,7 +90,7 @@ test('partial override merges over defaults', () => {
   const c = fillDefaults({ agents: { worker: { model: 'haiku', effort: 'low' } } })
   assert.equal(c.agents.worker.model, 'haiku')
   assert.equal(c.agents.worker.effort, 'low')
-  assert.equal(c.agents.auditor.model, 'opus')   // untouched default
+  assert.equal(c.agents.auditor.model, 'sonnet') // untouched default
   assert.equal(c.agents.refiner.model, 'sonnet') // untouched default
   // No shipped preset pins audit.rosterPolicy any more — keep the override path itself covered.
   assert.equal(fillDefaults({ audit: { rosterPolicy: 'solo' } }).audit.rosterPolicy, 'solo')
@@ -98,7 +98,7 @@ test('partial override merges over defaults', () => {
 
 test('thorough preset', () => {
   const c = presetConfig('thorough')
-  assert.equal(c.agents.worker.model, 'fable')   // inherited from DEFAULTS
+  assert.equal(c.agents.worker.model, 'fable')   // pinned above the opus DEFAULTS (ADR 0055)
   assert.equal(c.agents.worker.effort, 'default')
   assert.equal(c.agents.auditor.model, 'fable')
   assert.equal(c.agents.auditor.effort, 'default')
@@ -106,13 +106,14 @@ test('thorough preset', () => {
   assert.equal(c.agents.servitor.effort, 'high')
   assert.deepEqual(c.agents.snipe, { model: 'fable', effort: 'default' })
   assert.deepEqual(PRESETS.thorough.agents, {
+    worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
     auditor:  { model: 'fable',  effort: 'default' },
     refiner:  { model: 'sonnet', effort: 'xhigh' },
     servitor: { model: 'opus',   effort: 'high' },
     redteam:  { model: 'fable',  effort: 'default' },
     snipe:    { model: 'fable',  effort: 'default' },
     trial:    { model: 'fable',  effort: 'default' },
-  }, 'thorough agents literal (worker absent = inherited)')
+  }, 'thorough agents literal (worker tiers pinned at fable, ADR 0055)')
   assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
@@ -134,7 +135,7 @@ test('economy preset (sonnet review seats and trial tier, opus workers, a 4-roun
   // Pins whose merged value equals DEFAULTS (refiner, worker effort, servitor model) cannot be
   // discriminated through presetConfig(), so the whole agents literal is pinned as written.
   assert.deepEqual(PRESETS.economy.agents, {
-    worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' } },
+    worker:   { model: 'opus',   effort: 'default', docs: { model: 'sonnet', effort: 'high' } },
     auditor:  { model: 'sonnet', effort: 'xhigh' },
     refiner:  { model: 'sonnet', effort: 'high' },
     servitor: { model: 'sonnet', effort: 'high' },
@@ -299,8 +300,8 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
 
 test('agents.worker.docs: DEFAULTS value plus a per-preset table (T1.1)', () => {
   // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
-  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'fable', effort: 'default' })
-  const DOCS = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'opus', effort: 'default' } }
+  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'high' })
+  const DOCS = { balanced: { model: 'sonnet', effort: 'high' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'sonnet', effort: 'high' } }
   for (const [preset, expected] of Object.entries(DOCS)) {
     assert.deepEqual(presetConfig(preset).agents.worker.docs, expected, `${preset} preset docs tier must be ${JSON.stringify(expected)}`)
   }
@@ -309,7 +310,7 @@ test('agents.worker.docs: DEFAULTS value plus a per-preset table (T1.1)', () => 
 test('legacy worker block without a docs tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
   const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no docs key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.agents.worker.docs, { model: 'fable', effort: 'default' })
+  assert.deepEqual(c.agents.worker.docs, { model: 'sonnet', effort: 'high' })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 
@@ -330,8 +331,8 @@ test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (valid
 test('agents.worker.fix: DEFAULTS value, per-preset table, and tier validation when present (fix + red-team asks)', () => {
   // /war-room now asks for the fix-worker model/effort and never leaves it blank — the value lives in
   // DEFAULTS and every shipped preset inherits it. Delete-the-feature: drop the fix block → these fail.
-  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'default' }, 'DEFAULTS (balanced) fix tier must be fable/default')
-  const FIX = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'fable', effort: 'default' } }
+  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'opus', effort: 'default' }, 'DEFAULTS (balanced) fix tier must be opus/default')
+  const FIX = { balanced: { model: 'opus', effort: 'default' }, thorough: { model: 'fable', effort: 'default' }, economy: { model: 'opus', effort: 'default' } }
   for (const [preset, expected] of Object.entries(FIX)) {
     assert.deepEqual(presetConfig(preset).agents.worker.fix, expected, `${preset} preset fix tier must be ${JSON.stringify(expected)}`)
   }
@@ -346,6 +347,30 @@ test('agents.worker.fix: DEFAULTS value, per-preset table, and tier validation w
   assert.equal(rk.valid, false)
   assert.match(rk.errors.join('\n'), /agents\.worker\.fix\.extra/)
   assert.match(rk.errors.join('\n'), /\/war-room/)
+})
+
+test('agents.worker.ace (#2519): no DEFAULTS value, absent from every preset, validated like the other worker tiers when present', () => {
+  // Absent by design: the engine falls back to the fix tier, so a config without it dispatches as before the split.
+  assert.equal(DEFAULTS.agents.worker.ace, undefined, 'DEFAULTS carries no ace tier (absent ⇒ the fix tier)')
+  for (const preset of Object.keys(PRESETS)) assert.equal(presetConfig(preset).agents.worker.ace, undefined, `${preset} carries no ace tier`)
+  assert.equal(validate({ agents: { worker: { ace: { model: 'opus', effort: 'default' } } } }).valid, true)
+  // Delete-the-feature: drop 'ace' from the worker-tier validation loop and these validate.
+  const re = validate({ agents: { worker: { ace: { model: 'gpt', effort: 'default' } } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.worker\.ace\.model/)
+  const rk = validate({ agents: { worker: { ace: { model: 'opus', effort: 'high', extra: 1 } } } })
+  assert.equal(rk.valid, false)
+  assert.match(rk.errors.join('\n'), /agents\.worker\.ace\.extra/)
+  // A configured ace tier joins workerTierMatrix only when present.
+  assert.ok(!workerTierMatrix().some(r => r.tier === 'ace'), 'no preset emits an ace row')
+})
+
+test('audit.roster seat model/effort (#2519): accepted when valid, refused when outside MODELS/EFFORTS', () => {
+  assert.equal(validate({ audit: { roster: [{ lens: 'correctness', model: 'sonnet', effort: 'high' }, { lens: 'security' }] } }).valid, true)
+  const bad = validate({ audit: { roster: [{ lens: 'correctness', model: 'gpt', effort: 'turbo' }] } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /audit\.roster\[0\]\.model/)
+  assert.match(bad.errors.join('\n'), /audit\.roster\[0\]\.effort/)
 })
 
 // --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
@@ -1289,12 +1314,12 @@ test('unknown role rejected', () => {
 
 test('spawnOpts omits effort when default', () => {
   // worker is the DEFAULTS role carrying effort 'default' (refiner moved to 'high').
-  assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'fable' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'opus' })
   assert.deepEqual(spawnOpts(presetConfig('economy'), 'worker'), { model: 'opus' })
 })
 
 test('spawnOpts includes non-default effort', () => {
-  assert.deepEqual(spawnOpts(DEFAULTS, 'auditor'), { model: 'opus', effort: 'high' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'auditor'), { model: 'sonnet', effort: 'high' })
   assert.deepEqual(spawnOpts(DEFAULTS, 'refiner'), { model: 'sonnet', effort: 'high' })
   assert.deepEqual(spawnOpts(presetConfig('thorough'), 'refiner'), { model: 'sonnet', effort: 'xhigh' })
 })
@@ -1548,7 +1573,8 @@ const DOC_TIER_PINS = [
   ['README.md', /^By default WAR runs (\w+) workers on `(\w+)` effort and/m, 'balanced', 'worker'],
   ['README.md', /^By default WAR runs \w+ workers on `\w+` effort and (\w+) auditors on `(\w+)`/m, 'balanced', 'auditor'],
   ['README.md', /built-in `DEFAULTS`: (\w+) workers on `(\w+)` effort/, 'balanced', 'worker'],
-  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base, docs and fix tiers alike\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base and fix tiers, with docs-only tasks on \w+\/`\w+`\), (\w+) auditors on `(\w+)`/, 'balanced', 'auditor'],
+  ['README.md', /built-in `DEFAULTS`: \w+ workers on `default` effort \(base and fix tiers, with docs-only tasks on (\w+)\/`(\w+)`\)/, 'balanced', 'worker.docs'],
   // ADR 0050's effort-compensation example names the economy auditor seat.
   ['docs/adr/0050-preset-tiers-order-by-model-capability.md', /for example (\w+) auditors on `(\w+)`\)/, 'economy', 'auditor'],
 ]
@@ -2576,6 +2602,9 @@ test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — m
 // RESERVED_LENSES precedent below): a drift in EITHER the inline literal or the logic bites.
 const VR_EXTRACT = /const validateRoster\s*=\s*\(roster,\s*evidence\)\s*=>\s*\{([\s\S]*?)\n\}/
 const SAT_INLINE_EXTRACT = /const\s+SEAT_AGENT_TYPES\s*=\s*(\[[^\]]*\])/
+// The per-seat model/effort check (#2519) reads the inline MODELS / EFFORTS enum copies: inject them the same way.
+const MODELS_INLINE_EXTRACT = /const\s+MODELS\s*=\s*(\[[^\]]*\])/
+const EFFORTS_INLINE_EXTRACT = /const\s+EFFORTS\s*=\s*(\[[^\]]*\])/
 const WR_EXTRACT = /const widenRoster\s*=\s*\(roster,\s*defaultRoster\)\s*=>\s*\{([\s\S]*?)\n\}/
 // inlineValidateRoster(): the LIVE inline validateRoster, closed over the LIVE inline SEAT_AGENT_TYPES.
 const inlineValidateRoster = () => {
@@ -2584,8 +2613,10 @@ const inlineValidateRoster = () => {
   const satMatch = templateText.match(SAT_INLINE_EXTRACT)
   assert.ok(satMatch, 'inline SEAT_AGENT_TYPES literal not found in workflow-template.js')
   const inlineTypes = JSON.parse(satMatch[1].replace(/'/g, '"'))
-  const fn = new Function('roster', 'evidence', 'SEAT_AGENT_TYPES', match[1])
-  return Object.assign((roster, evidence) => fn(roster, evidence, inlineTypes), { inlineTypes })
+  const enumOf = re => { const m = templateText.match(re); assert.ok(m, `inline ${re} literal not found in workflow-template.js`); return JSON.parse(m[1].replace(/'/g, '"')) }
+  const inlineModels = enumOf(MODELS_INLINE_EXTRACT), inlineEfforts = enumOf(EFFORTS_INLINE_EXTRACT)
+  const fn = new Function('roster', 'evidence', 'SEAT_AGENT_TYPES', 'MODELS', 'EFFORTS', match[1])
+  return Object.assign((roster, evidence) => fn(roster, evidence, inlineTypes, inlineModels, inlineEfforts), { inlineTypes, inlineModels, inlineEfforts })
 }
 const EVIDENCE_SEAT = { lens: EVIDENCE_LENS, agentType: 'war-evidence-auditor' }
 const plainSeats = n => Array.from({ length: n }, (_, i) => ({ lens: `plain-${i}` }))
@@ -2618,6 +2649,11 @@ const VR_CASES = [
   [[...plainSeats(5), EVIDENCE_SEAT], false],                             // cap-4 refusal fires before the knob
   [[...plainSeats(5)], true],                                             // 5 plain, knob on: valid
   [[...plainSeats(6)], true],                                             // 6 plain: the 1-5 bound, no cap message
+  [[{ lens: 'correctness', model: 'sonnet', effort: 'high' }], undefined], // per-seat model + effort (#2519)
+  [[{ lens: 'correctness', model: 'haiku' }], undefined],                 // per-seat model alone
+  [[{ lens: 'correctness', model: 'gpt' }], undefined],                   // unknown seat model
+  [[{ lens: 'correctness', effort: 'turbo' }], undefined],                // unknown seat effort
+  [[{ lens: 'correctness', model: null }], undefined],                    // null seat model is not absent
 ]
 
 test('drift-guard(F07): inline validateRoster mirror equals canonical validateRoster across accept/reject cases', () => {
@@ -2629,6 +2665,8 @@ test('drift-guard(F07): inline validateRoster mirror equals canonical validateRo
   // The inline SEAT_AGENT_TYPES literal must itself equal the canonical export (guards a stale inline copy).
   assert.deepEqual(inline.inlineTypes, SEAT_AGENT_TYPES,
     'inline SEAT_AGENT_TYPES literal in workflow-template.js diverges from canonical SEAT_AGENT_TYPES export')
+  assert.deepEqual(inline.inlineModels, MODELS, 'inline MODELS literal in workflow-template.js diverges from canonical MODELS')
+  assert.deepEqual(inline.inlineEfforts, EFFORTS, 'inline EFFORTS literal in workflow-template.js diverges from canonical EFFORTS')
 })
 
 test('drift-guard(F07): inline widenRoster mirror equals canonical widenRoster across union/dedupe/cap cases', () => {
