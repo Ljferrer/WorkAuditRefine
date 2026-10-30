@@ -31,7 +31,9 @@ cross-check mismatch, or a re-running seat that detects a file outside the claim
 PIN-18). The agent's self-report is a cross-check, never the source.
 
 The rule is stated to the seat itself, in the standing auditor card
-([`agents/war-auditor.md`](../../agents/war-auditor.md), the `## Pin transfer` section): "only
+([`agents/war-auditor.md`](../../agents/war-auditor.md), the `## Pin transfer` section, which
+since 2026-10-27 is a trigger pointer whose body lives byte-identical in
+[`skills/war/references/pin-transfer.md`](../../skills/war/references/pin-transfer.md), ADR 0042): "only
 the seats that raised those findings re-run; every other seat's approval transfers to the new
 sha unchanged", and the re-running seat owes an independent check — "run `git diff --name-only
 <sha>^ <sha>` yourself and compare", setting `scopeBreach: true` on excess. The engine mirrors
