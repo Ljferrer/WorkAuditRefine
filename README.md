@@ -391,6 +391,32 @@ The same simplification aim, carried onto Markdown surfaces — and unlike the c
 
 **Styles (`hooks.valeStyle`):** nine profiles ship vendored — `workAuditRefine` (the default: this repo's own fork, the four house rules plus a tuned cut of the Google style — sixteen Google rules disabled: thirteen that judged entrenched repo voice in the prototype sweep, plus `Google.Spelling` since the card mandates British, `Google.Latin` as a house twin, and `Google.WordList`, a substitution list that fires on ratified vocabulary like "CLI"), `google` (raw upstream Google, untouched), `microsoftFork` (house rules plus a Microsoft Writing Style Guide cut tuned on the same rationale — including `Microsoft.Contractions`, which recommends the contractions the card bans), `house` (the four house rules alone), and `writeGood`, `proselint`, `alex`, `readability`, `redhat` (house rules plus that package, near-stock). Each vendored-standard profile header pins its upstream source, version, and license (`styles/<Name>/LICENSE`). A tenth value, `custom`, reads the project's own `.claude/war/vale/.vale.ini` (written by the `/war-room` interview) and fail-opens to `workAuditRefine` when absent. Unknown values also mean the default; subordinate to `valeMarkdown` — when that is `false`, nothing runs.
 
+## Repository tests
+
+Run the complete WAR repository gate from the checkout root:
+
+```bash
+node skills/war/assets/repo-gate.mjs
+```
+
+This is the gate in this repository's `.claude/war/config.json`. It runs the full
+`skills/**/*.test.mjs` glob with two Node test-file workers while two shell workers
+run every discovered `*.test.sh`. Discovery excludes `.git`, `.claude`, and
+`node_modules` directories and does not follow symlinks. New suites are discovered
+on each invocation. Other projects' declared gates retain their existing ordering.
+
+Set `WAR_GATE_NODE_JOBS` and `WAR_GATE_SHELL_JOBS` to tune the pools independently
+(each defaults to `2`, accepts `1`–`32`). These limits apply per gate invocation;
+concurrent WAR runs share the machine, so start with the defaults.
+
+The Node invocation and each shell suite get separate temporary directories and
+logs under the printed `Gate logs:` path. Completed suite output is emitted as a contiguous block, with
+its exit status and elapsed time. Logs remain for inspection; scratch directories
+are removed after the jobs stop. Failures do not skip queued suites: the gate waits
+for all jobs and exits nonzero if any fail. `== gate complete:` marks a fully
+captured run, including a completed failing run. An interrupted run stops scheduling,
+terminates active process groups, exits nonzero, and has no completion marker.
+
 ## Releasing
 
 A version bump **must** update all four version slots across three files together (`marketplace.json` carries two) — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):

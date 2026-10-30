@@ -5117,6 +5117,7 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   // on the first red suite) leaves an enumerating-LOOKING log that is truncated — a mapped path after
   // the abort point must degrade SOFT, never mint a false HARD land-hold.
   assert.match(p, /ABORTED/, 'the truncation clause names the early-aborted bash half')
+  assert.match(p, /parallel repository gate[^\n]*missing `== gate complete:`[^\n]*SOFT cannot-confirm/, 'an in-flight parallel gate is incomplete evidence')
   assert.match(p, /truncated/i, 'the truncation clause states the log is truncated, not non-enumerating')
   assert.match(p, /after the abort point/i, 'a mapped path after the abort point is SOFT cannot-confirm, never HARD')
   // Rescoped conjunctive clause (D3, #1372): a standing pin — a revert to the old unconditional
@@ -5162,6 +5163,7 @@ test('authMappedLine twin (D7, round-3): the integrated-tip AUTHORITATIVE seat t
   // Truncation clause (D4, #1343-3) — the twin carries it too: a per-task-only clause would let a
   // truncated (early-aborted) integrated-tip log mint the false HARD through this seat instead.
   assert.match(p, /ABORTED/, 'the twin names the early-aborted bash half')
+  assert.match(p, /parallel repository gate[^\n]*missing `== gate complete:`[^\n]*SOFT cannot-confirm/, 'integrated-tip evidence also waits for the parallel gate completion marker')
   assert.match(p, /truncated/i, 'the twin states the truncated-log condition')
   assert.match(p, /after the abort point/i, 'the twin degrades a post-abort mapped path SOFT, never HARD')
 })
@@ -10946,7 +10948,8 @@ test('auditor-evict (a) — the evicted execution-evidence checklist section is 
   assert.ok(!/\n##? /.test(body.slice(heading.length)), 'the evicted section must be the file\'s last section (heading → end of file)')
   // Non-vacuity: the extraction spans the section's tail bullet.
   assert.match(body, /\*\*End-state ownership mapping:\*\*/, 'the extracted section must span its `**End-state ownership mapping:**` tail bullet')
-  assert.equal(Buffer.byteLength(body, 'utf8'), 4426, 'the evicted section is 4,426 B (the pre-eviction card bytes)')
+  assert.equal(Buffer.byteLength(body, 'utf8'), 4580, 'the approved checklist includes the parallel-gate completion rule')
+  assert.match(body, /parallel repository gate[^\n]*missing `== gate complete:`[^\n]*SOFT cannot-confirm/)
   assert.equal(createHash('sha256').update(body, 'utf8').digest('hex'), GATE_AUDIT_CHECKLIST_SHA256,
     'the evicted checklist section must be byte-identical to the pre-eviction card text (ADR 0042 byte-identical move) — a sanctioned edit re-pins GATE_AUDIT_CHECKLIST_SHA256 in this commit with its rationale')
 })

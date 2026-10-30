@@ -1521,6 +1521,7 @@ const RESOLVE_WIDEN_CASES = [
 // built from the CANONICAL resolveGate output — so a partial detector-token move (inline copy only) makes the
 // inline mirror recompose while canonical returns it unchanged, and the behavioral row diverges (idempotence).
 const RESOLVE_GATE_CASES = [
+  'node skills/war/assets/repo-gate.mjs',                // full repository gate → no duplicate shell pass
   null,                                                 // null → discovery clause alone
   '',                                                   // empty → discovery clause alone
   `node --test 'skills/**/*.test.mjs'`,                 // plain → composes declared && discovery
@@ -2411,7 +2412,9 @@ const quietGate = (base) => (prompt, opts) => {
 // dropped bullet, or a re-flow reds; a sanctioned later edit re-pins the digest in the same commit
 // with its rationale. (b) the card keeps the heading over the fixed trigger pointer and no longer
 // carries the body.
-const GATE_AUDIT_CHECKLIST_SHA256 = '0783da5e8701a746e6bad796defbf072a6a9fb5c97bd4efb3e3edf7705aead47'
+// Parallel repository gate: completed suites emit out of order. Require the final completion marker
+// before treating an absent mapped path as HARD; all pre-existing checklist duties are retained.
+const GATE_AUDIT_CHECKLIST_SHA256 = 'e1ff1f342a87d3c49c2c3d91f7c1b72ad69896fe096964e22c9eded678cfc9f2'
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
 // standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),

@@ -12,9 +12,16 @@ WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the p
 
 ## Commands
 
-Node ≥ 24 required (`node:sqlite`/FTS5). No package.json, no Makefile, no top-level runner.
+Node ≥ 24 required (`node:sqlite`/FTS5). No package.json or Makefile; the repository gate lives under `skills/war/assets/`.
 
 ```bash
+# Full repository gate (configured in .claude/war/config.json):
+# overlap Node tests with a bounded shell-suite pool; keep all tests and per-suite logs
+node skills/war/assets/repo-gate.mjs
+
+# Tune each pool (defaults: 2 Node files and 2 shell suites, each accepts 1..32)
+WAR_GATE_NODE_JOBS=2 WAR_GATE_SHELL_JOBS=4 node skills/war/assets/repo-gate.mjs
+
 # All JS tests (quoted glob REQUIRED — a directory arg fails on Node 24)
 node --test 'skills/**/*.test.mjs'
 

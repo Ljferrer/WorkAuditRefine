@@ -1715,6 +1715,15 @@ test('drift-guard: agents/war-<role>.md frontmatter model matches DEFAULTS.agent
 // resolveGate (F12): self-discovering multi-runner gate
 // ---------------------------------------------------------------------------
 
+test('resolveGate: WAR repository gate already covers shell discovery and is not composed twice', () => {
+  const gate = 'node skills/war/assets/repo-gate.mjs'
+  const config = JSON.parse(readFileSync(join(REPO_ROOT, '.claude/war/config.json'), 'utf8'))
+  assert.equal(config.overrides.gate, gate)
+  assert.equal(resolveGate(gate), gate)
+  assert.equal(resolveGate(resolveGate(gate)), gate)
+  assert.ok(resolveGate('echo ' + gate).includes('*.test.sh'), 'a mention of the runner is not execution')
+})
+
 test('resolveGate: with a declared gate — starts with declared gate', () => {
   const result = resolveGate('node --test x')
   assert.ok(result.startsWith('node --test x'), `expected result to start with declared gate, got: ${result}`)
@@ -2805,6 +2814,7 @@ test('drift-guard(F07): inline resolveGate mirror equals canonical resolveGate a
 
   const plain = `node --test 'skills/**/*.test.mjs'`
   const cases = [
+    'node skills/war/assets/repo-gate.mjs',
     null,                 // null → discovery clause alone
     '',                   // empty → discovery clause alone
     plain,                // plain → composes declared && discovery

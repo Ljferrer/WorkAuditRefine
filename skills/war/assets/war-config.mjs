@@ -515,6 +515,8 @@ const GATE_DISCOVERY_TOKEN = `-name '*.test.sh'`
 // --resolve-gate; idempotence makes that double composition harmless by construction (belt-and-suspenders).
 // MIRRORED inline in workflow-template.js. Keep in sync.
 export function resolveGate(declaredGate) {
+  // WAR's repository runner already discovers every shell suite; never append a second run.
+  if (declaredGate === 'node skills/war/assets/repo-gate.mjs') return declaredGate
   const discovery = [
     `for f in $(find . -type f ${GATE_DISCOVERY_TOKEN} -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*' | sort);`,
     `do printf '\\n== gate(bash): %s ==\\n' "$f" && bash "$f" || exit 1; done`,

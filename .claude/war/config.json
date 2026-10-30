@@ -95,7 +95,7 @@
     "excerptLines": 20
   },
   "overrides": {
-    "gate": "node --test 'skills/**/*.test.mjs'",
+    "gate": "node skills/war/assets/repo-gate.mjs",
     "workingBranch": null,
     "landingBranch": null,
     "learningsTarget": null,
