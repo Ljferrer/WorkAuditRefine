@@ -1713,7 +1713,7 @@ test('F03 — auditPrompt: does NOT contain "main repo checkout" prose (baseline
 
 test('F03 — auditPrompt: teaches the read-only git guard contract (one bare git per Bash call, no composition, Grep-tool sweep channel), keeps @{} in avoidance context', async () => {
   // The prompt teaches the D5 read-only git guard contract (Task 1.2, spec §5): one bare git command per
-  // Bash call from the read-verb allowlist, no pipes/chaining/redirects/quotes/globs/braces/substitution,
+  // Bash call from the read-verb allowlist, no pipes/chaining/redirects/unquoted globs/braces/substitution,
   // the Grep tool as the repo-wide sweep channel, and @{} reflog kept in avoidance context (braces are
   // denied). The guard's grammar is widened (~/%, ls-tree, read-form branch) — no longer the narrow
   // "%-format denied" teach, so the anchors moved to the contract's distinctive fragments.

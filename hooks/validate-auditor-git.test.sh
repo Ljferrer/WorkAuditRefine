@@ -8,7 +8,7 @@
 # ONLY a single git read-subcommand (diff/log/show/merge-base/rev-parse/status/
 # ls-files/ls-tree/cat-file/blame, plus read-form branch, plus the one narrow
 # grep form `git grep -F -e <token>` — group P) with no shell
-# metacharacters. Anything else → DENY
+# metacharacters outside an admitted quoted value (group Q). Anything else → DENY
 # (exit 2). Non-auditor agent types → exit 0 (pass-through).
 #
 # CRITICAL ASSERTION DESIGN:
@@ -485,6 +485,7 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
 # The `-O` execution hole the 2026-07-26 ratification named stays closed by per-flag policing
 # (group P), and the audit tree fingerprint hook is the compensating control. Flipping this row
 # back to expect_deny, or widening it past `-F -e <token>`, contradicts that amendment.
+# ADR 0029's Amendment 2026-10-30 lets the <token> be one quoted value (group Q).
 expect_allow "G6: git grep -F -e token allowed (the one admitted grep form; ADR 0029 Amendment 2026-10-22)" \
   "$(auditor_cmd "git grep -F -e token")"
 
@@ -494,7 +495,7 @@ expect_allow "G6: git grep -F -e token allowed (the one admitted grep form; ADR 
 # `--fixed-strings`) is required, exactly one `-e <token>` is required, the
 # optional read flags are `-n -i -l -w -c` (bare or in a short cluster parsed
 # letter by letter), at most one bare revision, and an optional `-- <pathspec>...`
-# (glob bytes already deny at the residue rule). Every other flag denies by
+# (a glob byte passes only inside a quoted value, group Q). Every other flag denies by
 # default: `-O`/`--open-files-in-pager` (runs a pager command) in any spelling
 # or cluster, `-f`/`--file`, `--no-index`, `--recurse-submodules`, and the
 # regex selectors `-E -G -P --extended-regexp --basic-regexp --perl-regexp`.
@@ -529,11 +530,12 @@ expect_deny_teach "P7: git grep -f denied" \
 expect_deny_teach "P8: git grep --no-index denied" \
   "$(auditor_cmd "git grep -F -e token --no-index")" "git grep admits one form only"
 
-# P9: a quoted pattern denies at the residue rule, BEFORE the grep grammar runs
-# (quotes are outside the char allowlist) — the metacharacter rule names the
-# narrow form as the fallback. Built with jq -nc (C11's rationale).
-expect_deny_teach "P9: git grep -F with quoted pattern denied" \
-  "$(jq -nc --arg c "git grep -F -e 'a b'" \
+# P9: an unquoted pattern with a glob byte denies at the residue rule, BEFORE the
+# grep grammar runs, and the metacharacter rule names the narrow form as the
+# fallback. Group Q owns the quoted -e value this row used to deny. Built with
+# jq -nc (C11's rationale).
+expect_deny_teach "P9: git grep -F with an unquoted glob byte denied" \
+  "$(jq -nc --arg c "git grep -F -e a*b" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "git grep -F -e <token>"
 
@@ -851,13 +853,13 @@ expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain tea
 # non-chain residue branch; group M pins the classification). Message text ONLY: the deny
 # DECISION is byte-unchanged (exit 2, char check still fires first; the verb set
 # later admitted the narrow `git grep -F -e <token>` form, cf. G6 and group P,
-# which a quoted payload never reaches), and K5–K8 stay green on their frozen substrings.
-# L1/L2 assert on a representative denied search: git grep with an alternation
-# \| — the exact #1412 shape. Routing-pinned like K5–K8: the char checks (the
+# which this payload never reaches), and K5–K8 stay green on their frozen substrings.
+# L1/L2 assert on a representative denied search: git grep with an unquoted
+# alternation \| — the #1412 shape (group Q admits the quoted spelling). Routing-pinned like K5–K8: the char checks (the
 # #1828 newline pre-check, then the residue allowlist) are the first checks
 # after the empty-command guard, and this payload carries no newline, so it can
 # only exit at the forbidden-char deny site (never at group P's grep-grammar site —
-# the \| and quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
+# the \| denies before the verb is ever parsed). Built with jq -nc --arg (C11's
 # rationale: \| is an invalid JSON escape, so auditor_cmd's printf would emit
 # unparseable JSON, the guard's jq read of .agent_type would return empty, and
 # the non-auditor `*) exit 0` pass-through would exit 0 with empty stderr —
@@ -868,8 +870,8 @@ expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain tea
 
 # L1: the rule that fired is NAMED on stderr (message-content assert, not just
 # exit code — the guard-specificity lesson).
-expect_deny_teach "L1: git grep 'a\\|b' → denied + metacharacter rule named" \
-  "$(jq -nc --arg c "git grep 'a\\|b'" \
+expect_deny_teach "L1: git grep a\\|b → denied + metacharacter rule named" \
+  "$(jq -nc --arg c "git grep a\\|b" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "glob/alternation/expansion metacharacters are refused outright"
 
@@ -877,8 +879,8 @@ expect_deny_teach "L1: git grep 'a\\|b' → denied + metacharacter rule named" \
 # filters instead of shell grep/git grep. Pinned separately: without this pin
 # the remedy half could be trimmed and L1 stays green (the same trimming
 # argument K7/K8 record, applied to the new clause's two halves).
-expect_deny_teach "L2: git grep 'a\\|b' → denied + Grep-tool filters remedy" \
-  "$(jq -nc --arg c "git grep 'a\\|b'" \
+expect_deny_teach "L2: git grep a\\|b → denied + Grep-tool filters remedy" \
+  "$(jq -nc --arg c "git grep a\\|b" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "Grep tool (glob:/type: filters) instead of shell grep/git grep"
 
@@ -915,12 +917,12 @@ expect_deny_teach "M3: git ls-files *.mjs → denied + metacharacter rule named"
   "$(auditor_cmd "git ls-files *.mjs")" \
   "the metacharacter rule fired"
 
-# M4: mixed residue (quotes + backslash + |, the exact #1412 search shape L1/L2
-# assert) classifies METACHARACTER — the non-chain bytes prove a search/expansion
+# M4: mixed residue (backslash + |, the #1412 search shape L1/L2 assert, unquoted
+# since group Q admits the quoted spelling) classifies METACHARACTER — the non-chain bytes prove a search/expansion
 # shape, so the chain-operator rule must not fire. jq -nc --arg per C11/L1's
 # escaping rationale.
-expect_deny_teach "M4: git grep 'a\\|b' (mixed residue) → denied + metacharacter (not chain-operator) rule" \
-  "$(jq -nc --arg c "git grep 'a\\|b'" \
+expect_deny_teach "M4: git grep a\\|b (mixed residue) → denied + metacharacter (not chain-operator) rule" \
+  "$(jq -nc --arg c "git grep a\\|b" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "the metacharacter rule fired"
 
@@ -940,8 +942,8 @@ expect_deny_lacks "M2b: git log | wc -l → metacharacter rule NOT named" \
 expect_deny_lacks "M3b: git ls-files *.mjs → chain-operator rule NOT named" \
   "$(auditor_cmd "git ls-files *.mjs")" \
   "the chain-operator rule fired"
-expect_deny_lacks "M4b: git grep 'a\\|b' (mixed residue) → chain-operator rule NOT named" \
-  "$(jq -nc --arg c "git grep 'a\\|b'" \
+expect_deny_lacks "M4b: git grep a\\|b (mixed residue) → chain-operator rule NOT named" \
+  "$(jq -nc --arg c "git grep a\\|b" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "the chain-operator rule fired"
 
@@ -1052,6 +1054,144 @@ expect_allow "O4: work-audit-refine:war-evidence-auditor git show abc1234:docs/p
 # pass-through (I1 parity).
 expect_allow "O5: work-audit-refine:war-evidence-auditor-helper cat x → exit 0 (arm no longer captures)" \
   "$(typed_cmd "work-audit-refine:war-evidence-auditor-helper" "cat x")"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP Q: quoted values (#1915, #2374) and the flags that run a command.
+# The guard swaps each admitted quoted value for one plain word, then every
+# rule above reads that masked command, so a quoted value can only sit where a
+# plain word could. Q-rows carry one branch each: an allow row per admitted
+# position, a deny row per way to reach a flag or the shell through a quote.
+# Every payload goes through jq --arg (C11's rationale).
+# ---------------------------------------------------------------------------
+q_cmd() { jq -nc --arg c "$1" '{agent_type:"war-auditor",tool_input:{command:$c}}'; }
+
+expect_allow "Q1: -S single-quoted value with a space" "$(q_cmd "git log -S'two words' HEAD")"
+expect_allow "Q2: -S double-quoted value" "$(q_cmd 'git log --oneline -S"override_effort" abc123')"
+expect_allow "Q3: -G single-quoted character class" "$(q_cmd "git diff --name-only -i -G'sonnet[ -]5' a b")"
+expect_allow "Q4: -G space form, quoted regex" "$(q_cmd "git log -i -G 'sonnet[-_.]?5' --oneline a..b")"
+expect_allow "Q5: -G regex with a backslash stays inert in single quotes" "$(q_cmd "git diff --stat -G'sonnet\\s5' a b")"
+expect_allow "Q6: -S value with parens" "$(q_cmd "git diff --stat -S'dict(f.MID)' a..b")"
+expect_allow "Q7: blame -L space form, quoted regex" "$(q_cmd "git blame -s -L '/^## Version/,+3' abc -- README.md")"
+expect_allow "Q8: blame -L attached quoted regex" "$(q_cmd "git blame -L'/^.\\sStep.*First/,+22' abc -- f")"
+expect_allow "Q9: log --format quoted value" "$(q_cmd "git log --format='%H %s' -1")"
+expect_allow "Q10: log --pretty quoted value" "$(q_cmd "git log --pretty='%h %s' -1")"
+expect_allow "Q11: --pretty=format: quoted value" "$(q_cmd "git log --pretty=format:'%h %s' -1")"
+expect_allow "Q12: --pretty=tformat: quoted value" "$(q_cmd "git log --pretty=tformat:'%h %s' -1")"
+expect_allow "Q13: --format=format: quoted value" "$(q_cmd "git log --format=format:'%h %s' -1")"
+expect_allow "Q14: --format=tformat: quoted value" "$(q_cmd "git log --format=tformat:'%h %s' -1")"
+expect_allow "Q15: --grep quoted value" "$(q_cmd "git log --grep='fix(war)' --oneline")"
+expect_allow "Q16: pathspec glob after --" "$(q_cmd "git ls-files --full-name -- ':/**/run_merge_convert.py'")"
+expect_allow "Q17: bare quoted rev:path with brackets" "$(q_cmd "git show 'abc123:apps/app/decision/[id]/thread.tsx'")"
+expect_allow "Q18: bare quoted pathspec with no --" "$(q_cmd 'git ls-files "*logger_helper*"')"
+expect_allow "Q19: git grep -F -e quoted text" "$(q_cmd "git grep -F -e 'a b'")"
+expect_allow "Q20: git grep -F -e quoted text with revision and quoted pathspec" "$(q_cmd "git grep -n -F -e \"| D13\" abc123 -- 'docs/*.md'")"
+expect_allow "Q21: -C quoted path with a space" "$(q_cmd "git -C '/a b/wt' log --oneline -1")"
+expect_allow "Q22: non-ASCII bytes inside quotes" "$(q_cmd "git log --format=%H -S'🚨 −1' abc123")"
+expect_allow "Q23: a quote byte of the other kind inside the value" "$(q_cmd "git log -S'say \"hi\"' HEAD")"
+expect_allow "Q24: three quoted values in one command" "$(q_cmd "git log --format='%h %s' -G'a[b]' -- 'x y/*'")"
+expect_allow "Q25: evidence seat admits a quoted value" \
+  "$(jq -nc --arg c "git log -S'a b'" '{agent_type:"work-audit-refine:war-evidence-auditor",tool_input:{command:$c}}')"
+expect_allow "Q26: helper seat admits a quoted value" \
+  "$(jq -nc --arg c "git diff --name-only -- 'a b'" '{agent_type:"work-audit-refine:war-helper",tool_input:{command:$c}}')"
+
+# A quote never reaches a flag, a verb or a -C write.
+expect_deny "Q30: whole --output token quoted with a space" "$(q_cmd "git log '--output=/tmp/a b'")"
+expect_deny "Q31: whole --output token quoted, no space" "$(q_cmd "git log '--output=/tmp/x'")"
+expect_deny "Q32: --output value quoted" "$(q_cmd "git log --output='/tmp/a b'")"
+expect_deny "Q33: quote inside a flag name" "$(q_cmd "git log --out'put'=/tmp/x")"
+expect_deny "Q34: --ext-diff split by a quote" "$(q_cmd "git diff --ext'-diff'")"
+expect_deny "Q35: global -c quoted" "$(q_cmd "git '-c core.pager=x' log")"
+expect_deny "Q36: attached -c value quoted" "$(q_cmd "git -c'core.pager=x y' log")"
+expect_deny "Q37: quoted verb" "$(q_cmd "git 'push'")"
+expect_deny "Q38: quoted verb after -C" "$(q_cmd "git -C /x 'push origin'")"
+expect_deny "Q39: quoted -C path keeps the write verb denied" "$(q_cmd "git -C '/a b' push")"
+expect_deny "Q40: quoted -C path keeps fetch denied" "$(q_cmd "git -C '/a b' fetch")"
+expect_deny "Q41: quoted --exec-path" "$(q_cmd "git --exec-path='/a b' log")"
+expect_deny "Q42: bare quoted value that starts with a dash" "$(q_cmd "git log '-p x'")"
+expect_deny "Q43: -O value quoted (default-deny on a head outside the list)" "$(q_cmd "git diff -O'a b'")"
+expect_deny "Q44: --contents value quoted (default-deny)" "$(q_cmd "git blame --contents='a b' f")"
+expect_deny "Q45: --since value quoted (default-deny)" "$(q_cmd "git log --since='2 weeks ago'")"
+expect_deny "Q46: rev:path quoted from the middle" "$(q_cmd "git show HEAD:'a b'")"
+# The shell stays denied around and inside a quoted value.
+expect_deny_teach "Q50: chain after a quoted value" "$(q_cmd "git log -S'a b' && rm x")" "the chain-operator rule fired"
+expect_deny "Q51: semicolon after a quoted value" "$(q_cmd "git log -S'a b'; rm x")"
+expect_deny_teach "Q52: pipe after a quoted value" "$(q_cmd "git log -S'a b' | wc -l")" "the chain-operator rule fired"
+expect_deny "Q53: redirect after a quoted value" "$(q_cmd "git log -S'a b' > /tmp/x")"
+expect_deny "Q54: double-quoted command substitution" "$(q_cmd 'git log -S"$(id)"')"
+expect_deny "Q55: double-quoted backtick" "$(q_cmd 'git log -S"`id`"')"
+expect_deny "Q56: double-quoted variable" "$(q_cmd 'git log -S"$HOME"')"
+expect_deny "Q57: double-quoted backslash" "$(q_cmd 'git log -S"a\"; rm x; echo \"b"')"
+expect_deny "Q57b: double-quoted backslash alone" "$(q_cmd 'git log -S"a\b"')"
+expect_deny "Q58: double-quoted bang" "$(q_cmd 'git log -S"a!b"')"
+expect_deny "Q59: ANSI-C quote" "$(q_cmd "git log -S\$'a'")"
+expect_deny "Q60: adjacent quoted segments" "$(q_cmd "git log -S'a''b'")"
+expect_deny "Q61: text after the closing quote" "$(q_cmd "git log -S'a b'c")"
+expect_deny "Q62: mixed adjacent quote kinds" "$(q_cmd "git log -S'a'\"b\"")"
+expect_deny "Q63: unterminated single quote" "$(q_cmd "git log -S'a b")"
+expect_deny "Q64: unterminated double quote" "$(q_cmd 'git log -S"a b')"
+expect_deny "Q65: empty quoted value" "$(q_cmd "git log -S''")"
+expect_deny "Q66: bare empty quoted value" "$(q_cmd "git -C '' push")"
+expect_deny "Q67: backslash-escaped quote opens no value" "$(q_cmd "git log \\'a ; rm x\\'")"
+expect_deny "Q68: newline inside a quoted value" "$(q_cmd "$(printf "git log -S'a\nb'")")"
+expect_deny "Q69: nine quoted values exceed the cap" \
+  "$(q_cmd "git log -- 'a' 'a' 'a' 'a' 'a' 'a' 'a' 'a' 'a'")"
+expect_allow "Q70: eight quoted values sit at the cap" \
+  "$(q_cmd "git log -- 'a' 'a' 'a' 'a' 'a' 'a' 'a' 'a'")"
+# branch and grep keep their narrow grammars with a quoted value in play.
+expect_deny "Q71: branch denies a bare quoted name" "$(q_cmd "git branch 'a b'")"
+expect_deny "Q72: branch denies a quoted flag value" "$(q_cmd "git branch --contains='a b'")"
+expect_deny_teach "Q73: grep still needs -F" "$(q_cmd "git grep -e 'a b'")" "git grep admits one form only"
+expect_deny_teach "Q74: grep still takes one -e" "$(q_cmd "git grep -F -e a -e 'b c'")" "git grep admits one form only"
+expect_deny "Q75: grep -O value quoted" "$(q_cmd "git grep -O'vim x' -F -e t")"
+expect_deny "Q76: grep -O flag quoted" "$(q_cmd "git grep '-O x' -F -e t")"
+expect_deny_teach "Q77: grep regex selector stays out with a quoted value" "$(q_cmd "git grep -G'a b' -F -e t")" "git grep admits one form only"
+expect_deny_teach "Q78: a second quoted bare grep token is a second revision" \
+  "$(q_cmd "git grep -F -e t 'a b' 'c d'")" "git grep admits one form only"
+
+# Flags that run a configured command (security rule of #1915's admission).
+for _flagcase in 'git diff --ext-diff HEAD' 'git log --ext-diff -p' 'git show --ext-diff HEAD' \
+  'git diff --ext-d' 'git show --textconv HEAD' 'git diff --textconv' 'git log --textconv -p' \
+  'git blame --textconv f' 'git cat-file --textconv HEAD:x' 'git cat-file --textcon HEAD:x' \
+  'git cat-file --filters HEAD:x' 'git -C /x cat-file --filters HEAD:x'; do
+  expect_deny_teach "Q80: $_flagcase → denied" "$(q_cmd "$_flagcase")" "runs a configured command"
+done
+expect_allow "Q81: --no-ext-diff stays a read flag" "$(q_cmd "git diff --no-ext-diff HEAD")"
+expect_allow "Q82: --no-textconv stays a read flag" "$(q_cmd "git log --no-textconv -p")"
+expect_allow "Q83: --text stays a read flag (-a, not a textconv prefix)" "$(q_cmd "git diff --text HEAD")"
+# The global forms the guard denies by the subcommand default.
+for _flagcase in 'git --exec-path' 'git --exec-path=/tmp log' 'git -C /x --exec-path=/y log' 'git -C /x -c a=b log' \
+  'git -c a=b log' 'git --config-env=a=b log'; do
+  expect_deny "Q84: $_flagcase → denied" "$(q_cmd "$_flagcase")"
+done
+
+# Self-correcting deny text (#1915 direction 1, #2162 option b).
+expect_deny_teach "Q90: metacharacter deny names the quoted form" "$(q_cmd "git log -Ga[b]")" "single-quote the whole value"
+expect_deny_teach "Q91: double-quoted expansion deny names single quotes" "$(q_cmd 'git log -S"$x"')" "single-quote the whole value"
+expect_deny_teach "Q92: chain deny names git -C for a cd chain" "$(q_cmd "cd /x && git status")" "git -C <path>"
+expect_deny_teach "Q93: chain deny names -n for a head pipe" "$(q_cmd "git log | head -5")" "-n <count>"
+expect_deny_teach "Q94: non-git grep deny names the Grep tool" "$(q_cmd 'grep -n "a b" f')" "grep: the Grep tool"
+expect_deny_teach "Q95: non-git cat deny names Read" "$(q_cmd "cat f")" "cat/sed/head: Read"
+expect_deny_teach "Q96: non-git ls deny names Glob" "$(q_cmd "ls /x")" "ls/find: Glob"
+expect_deny_lacks "Q97: non-git quoted grep is not a metacharacter denial" "$(q_cmd 'grep -n "a b" f')" "the metacharacter rule fired"
+
+# The worked examples on the three contract surfaces run through this guard.
+_card="$HERE/../agents/war-auditor.md"; _tmpl="$HERE/../skills/war/assets/workflow-template.js"
+for _ex in "git log -S'two words'" "git diff -G'a[b]c'" "git blame -L '/^## re/,+3' <sha> -- <file>" \
+  "git log --format='%H %s'" "git show '<sha>:app/[id]/f.tsx'" "git ls-files -- '*.md'" "git grep -F -e 'two words'"; do
+  n=$((n + 1))
+  if grep -qF -- "$_ex" "$_card" && grep -qF -- "$_ex" "$_tmpl"; then
+    printf 'ok %d - Q98 example on card and prompt: %s\n' "$n" "$_ex"
+  else
+    printf 'FAIL %d - Q98 example missing from card or prompt: %s\n' "$n" "$_ex"; fails=$((fails + 1))
+  fi
+  _run="${_ex//<sha>/abc123}"; _run="${_run//<file>/f}"
+  expect_allow "Q99 example admitted: $_run" "$(q_cmd "$_run")"
+done
+# Each example also has to mean the same thing to a real shell: one value, one argv word.
+_args="$(bash -c "printf '%s\n' git log -S'two words'" | wc -l | tr -d ' ')"
+n=$((n + 1))
+if [ "$_args" = 3 ]; then printf 'ok %d - Q100 oracle: a real shell passes the quoted value as one word\n' "$n"
+else printf 'FAIL %d - Q100 oracle: got %s words\n' "$n" "$_args"; fails=$((fails + 1)); fi
 
 # ---------------------------------------------------------------------------
 # Summary

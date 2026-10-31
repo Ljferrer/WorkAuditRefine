@@ -615,6 +615,7 @@ implied_noindex() {
   [ -n "$_base" ] || return 1
   _ip=1; _ic=0; _iw=0; _il=1; _in=0; _i1=""; _i2=""
   for _ia in $_cmd; do
+    word_of "$_ia"; _ia="$_w"
     if [ "$_ip" = 1 ]; then _ip=0; continue; fi
     if [ "$_ic" = 1 ]; then _ic=0; continue; fi
     if [ "$_iw" = 0 ]; then
@@ -722,6 +723,31 @@ grep_walk() {
   }
   return 0
 }
+
+# quote_words <command>: sets _cmd to <command> with each space or tab inside
+# a quoted value swapped for a control byte, so the whitespace split keeps one
+# quoted value one token, as the seat's shell does. word_of restores the bytes.
+# validate-auditor-git.sh admits a value with a space (ADR 0029 Amendment
+# 2026-10-30), and a split value names no path. It admits at most eight values,
+# so the peel stops after eight and an extra quote only over-splits.
+QSP="$(printf '\037')"; QTB="$(printf '\036')"; TB="$(printf '\t')"
+quote_words() {
+  _qr="$1"; _qs=""; _qn=0
+  while [ "$_qn" -lt 8 ]; do
+    _qn=$((_qn + 1))
+    _qp="${_qr%%[\'\"]*}"
+    [ "$_qp" != "$_qr" ] || break
+    _qq="${_qr:${#_qp}:1}"
+    _qt="${_qr:${#_qp}+1}"
+    case "$_qt" in *"$_qq"*) ;; *) break ;; esac
+    _qb="${_qt%%"$_qq"*}"
+    _qr="${_qt:${#_qb}+1}"
+    _qb="${_qb// /$QSP}"
+    _qs="$_qs$_qp$_qq${_qb//$TB/$QTB}$_qq"
+  done
+  _cmd="$_qs$_qr"
+}
+word_of() { _w="${1//$QSP/ }"; _w="${_w//$QTB/$TB}"; }
 
 # unquote <token>: sets _t to the token with one pair of outer quotes
 # (double or single) stripped.
@@ -907,8 +933,9 @@ case "$event" in
         # guard admits no other global option), and after it a `-C` or `-C<n>`
         # token is git's copy-detection flag (diff, log, blame), classified as
         # a flag like any `-*` token, so `git diff -C ../wtB/f ../wtD/f` keeps
-        # its operand base. Tokens are whitespace-split only (set -f above: a
-        # glob token stays literal); a quoted path has its quotes stripped.
+        # its operand base. Tokens are whitespace-split (set -f above: a glob
+        # token stays literal), with one quoted value one token (quote_words),
+        # and a quoted path has its quotes stripped.
         # An unquoted word-initial `~` (admitted by validate-auditor-git.sh
         # for HEAD~1) is expanded by the seat's shell before git sees it, so
         # the hook expands that form too (see tilde above), on a `-C` value
@@ -964,12 +991,13 @@ case "$event" in
         # lost. The cwd fallback is unchanged by an operand token: the
         # command still runs in the payload cwd, and the fallback never walks
         # down into nested worktrees (touch_path, not touch_operand).
-        _cmd="$(get '.tool_input.command')"
+        quote_words "$(get '.tool_input.command')"
         _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0
         for _tok in $_cmd; do
           [ "$_tok" = --no-index ] && _noindex=1
         done
         for _tok in $_cmd; do
+          word_of "$_tok"; _tok="$_w"
           if [ "$_first" = 1 ]; then _first=0; continue; fi
           if [ "$_want" = 1 ]; then
             _want=0; _found=1
@@ -1000,7 +1028,7 @@ case "$event" in
           case "$_t" in --*=*) _t="${_t#*=}" ;; esac
           case "$_t" in
             /*) touch_operand "$_t" ;;
-            -[!-]?*) _v="${_t#-?}"
+            -[!-]?*) _tq="$_t"; unquote "${_t#-?}"; _v="$_t"; _t="$_tq"
                case "$_v" in /*) touch_path "$_v" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v" ;; esac
                case "$_t" in -[!OXS]*[OXS]?*) _v2="${_t#-*[OXS]}"
                  case "$_v2" in /*) touch_path "$_v2" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v2" ;; esac ;;

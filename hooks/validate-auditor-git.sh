@@ -9,8 +9,8 @@
 #   it captures the dispatched agent_type `<ns>:war-auditor` but NOT a longer
 #   `war-auditor-helper` decoration.
 #   For a captured type: ALLOW iff the command is a single git read-subcommand
-#   from the explicit allowlist, with no shell metacharacters.  DENY (exit 2)
-#   anything else.
+#   from the explicit allowlist, with no shell metacharacters outside an
+#   admitted quoted value.  DENY (exit 2) anything else.
 #   The evidence seat (plan 2026-10-20-rea-artifact-evidence D3) is gated the
 #   same way through its own suffix-anchored arm `*war-evidence-auditor`
 #   (`*war-auditor` does not capture `<ns>:war-evidence-auditor`); its MCP
@@ -24,7 +24,8 @@
 #   (~ and % admit the idiomatic read forms HEAD~1 and --pretty=format:%H;
 #   + admits the range-length line forms blame -L <start>,+<n> and -L /re/,+<n>;
 #   none carries shell-metacharacter semantics in the denied-composition
-#   space that remains — quotes/globs/braces/$/parens/pipes/redirects still deny.)
+#   space that remains — globs/braces/$/parens/pipes/redirects still deny, and
+#   a quote passes only as one admitted quoted value, see QUOTED VALUES below.)
 #   Method: LC_ALL=C tr -d '<allowlist>' extracts residue.
 #   If residue is non-empty → forbidden char detected → DENY.
 #   This approach is safe on bash 3.2 (no bracket-class case mixing
@@ -35,6 +36,18 @@
 #   is caught by an explicit `case "$cmd" in *$'\n'*)` pre-check that runs
 #   BEFORE the residue assignment (#1828); the match reads $cmd directly and
 #   never passes through $(...).
+#
+# QUOTED VALUES (#1915, #2374, ADR 0029 Amendment 2026-10-30)
+#   One quoted value is one inert shell word, and the seat needs a character
+#   class, a space or a glob byte inside it. mask_quoted_values swaps each
+#   admitted value for the plain word QUOTEDVALUE, and every rule below reads
+#   that masked command, so a value can only sit where a plain word could.
+#   Admission is default-deny by token shape: the opening quote starts the
+#   token or follows one listed head (-S -G -L --grep= --format= --pretty=,
+#   with format:/tformat: on the last two), the closing quote ends the token,
+#   the body is not empty, and a bare body does not start with `-`, so no flag
+#   ever rides in a quote. A double-quoted body with $ ` \ or ! is refused.
+#   Anything else leaves the command unmasked and the residue rule denies it.
 #
 # GLOBAL GIT FLAGS DENIED (even before subcommand check)
 #   -c / --config       : override git config (security risk)
@@ -108,6 +121,45 @@ case "$cmd" in
 esac
 
 # ---------------------------------------------------------------------------
+# QUOTED VALUES: rewrite $cmd with each admitted quoted value masked, or leave
+# it untouched so the residue rule below denies the quote. Any return 1 leaves
+# $cmd alone: the assignment is the last step. MAX_QUOTED_VALUES bounds the
+# peel: each pass copies the rest of the command, and a real seat needs three.
+# ---------------------------------------------------------------------------
+MAX_QUOTED_VALUES=8
+mask_quoted_values() {
+  _rem="$cmd"; _out=""; _vals=0
+  while :; do
+    _pre="${_rem%%[\'\"]*}"
+    if [ "$_pre" = "$_rem" ]; then
+      cmd="$_out$_rem"
+      return 0
+    fi
+    _vals=$((_vals + 1))
+    [ "$_vals" -le "$MAX_QUOTED_VALUES" ] || return 1
+    _q="${_rem:${#_pre}:1}"
+    _tail="${_rem:${#_pre}+1}"
+    case "$_tail" in *"$_q"*) ;; *) return 1 ;; esac
+    _body="${_tail%%"$_q"*}"
+    _rem="${_tail:${#_body}+1}"
+    [ -n "$_body" ] || return 1
+    case "$_rem" in ""|" "*) ;; *) return 1 ;; esac
+    if [ "$_q" = '"' ]; then
+      case "$_body" in *'$'*|*'`'*|*'\'*|*'!'*) return 1 ;; esac
+    fi
+    case "${_pre##* }" in
+      "") case "$_body" in -*) return 1 ;; esac ;;
+      -S|-G|-L|--grep=) ;;
+      --format=|--format=format:|--format=tformat:) ;;
+      --pretty=|--pretty=format:|--pretty=tformat:) ;;
+      *) return 1 ;;
+    esac
+    _out="$_out${_pre}QUOTEDVALUE"
+  done
+}
+mask_quoted_values || true
+
+# ---------------------------------------------------------------------------
 # CHARACTER ALLOWLIST check (fail-closed).
 # Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ ~ % + -
 # Use LC_ALL=C tr -d to extract any character outside the allowed set.
@@ -134,9 +186,10 @@ esac
 #     braces, backslash, …) → the metacharacter rule: a genuine search shape
 #     (git grep 'a\|b', --include=*.py), remedied by the Grep tool's
 #     glob:/type: filters, or with no Grep tool by the one admitted
-#     `git grep -F -e <token>` form (D21). A mixed residue (e.g. 'a\|b':
-#     quotes + \ + |) classifies metacharacter — the non-chain byte proves a
-#     search/expansion shape, not mere composition.
+#     `git grep -F -e <token>` form (D21), and it names the quoted form that
+#     carries such a byte as data. A mixed residue (e.g. a\|b: \ + |)
+#     classifies metacharacter — the non-chain byte proves a search/expansion
+#     shape, not mere composition.
 # Message text only — the decision, exit code, and routing (char check first,
 # before any verb parsing) are byte-unchanged.
 # ---------------------------------------------------------------------------
@@ -159,9 +212,9 @@ if [ -n "$residue" ]; then
   # "\n&&" would still classify as chain-operator if the pre-check were lost.
   nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
   if [ -n "$nonchain_residue" ]; then
-    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> is the one admitted search form (one bare word, no quotes)"
+    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> is the one admitted search form; to pass these bytes to git as data, single-quote the whole value: -G'a[b]c', -S'two words', --format='%H %s', -L '/re/,+3', 'sha:app/[id]/f', -- '*.md'"
   else
-    deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
+    deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools; use git -C <path> in place of cd <path> &&, and -n <count> in place of | head"
   fi
 fi
 
@@ -171,7 +224,7 @@ fi
 # ---------------------------------------------------------------------------
 case "$cmd" in
   git\ *|git) ;;
-  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access; with no Grep tool, git grep -F -e <token> is the one admitted search form" ;;
+  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access (grep: the Grep tool; cat/sed/head: Read; ls/find: Glob; a tool-result file: Read or Grep); with no Grep tool, git grep -F -e <token> is the one admitted search form" ;;
 esac
 
 # Strip the leading 'git' token and any surrounding spaces to get the rest.
@@ -205,8 +258,8 @@ esac
 # Read-only global -C <path>: relocate cwd, then validate the subcommand normally.
 # -C only changes which repo git runs in; it does NOT add a write verb. The peeled
 # $rest re-enters the read-only subcommand allowlist below, so a write subcommand
-# after -C still denies (see H3). Single path assumed: the char allowlist already
-# forbids spaces inside a path token, so a space-containing path cannot reach here.
+# after -C still denies (see H3). Single path assumed: a path with a space reaches
+# here only as one masked quoted value, one plain word.
 # ponytail: one -C peeled. `git -C -C rev-parse HEAD` peels the first -C then leaves
 # `rev-parse HEAD` → ALLOW (harmless read in ambient cwd) — NOT a default-deny.
 case "$rest" in
@@ -276,7 +329,8 @@ fi
 # admitted in ONE shape — `-F` (or `--fixed-strings`) plus exactly one
 # `-e <token>` — with optional `-n -i -l -w -c` (bare, or in a short cluster
 # parsed letter by letter), at most one bare revision, and an optional
-# `-- <pathspec>...` (glob bytes already denied by the residue rule). EVERY
+# `-- <pathspec>...` (a glob byte passes only inside a quoted value). The token
+# may be one quoted value (masked above), so `-e 'two words'` is this form. EVERY
 # other token denies by shape, without enumerating the option space: any other
 # long flag (`--open-files-in-pager`, `--no-index`, `--recurse-submodules`,
 # `--file`, the regex selectors), any other cluster letter (`O` in `-O`, `-nO`,
@@ -304,7 +358,7 @@ if [ "$subcmd" = "grep" ]; then
   grep_dashdash=0
   for tok in $grep_rest; do
     if [ "$grep_dashdash" = 1 ]; then
-      continue                      # pathspec: residue rule already refused globs
+      continue                      # pathspec: git reads it, the shell does not
     fi
     if [ "$grep_expect" = 1 ]; then
       grep_patterns=$((grep_patterns + 1))
@@ -368,6 +422,18 @@ padded=" $rest "
 case "$padded" in
   *' --output'*|*' -o '*|*' -o')
     deny "output-to-file flag is not permitted (--output / -o writes a file)" ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Flags that run a command named in git config or .gitattributes. Same scan as
+# above, on the masked $rest. Prefix patterns, since cat-file reads an
+# abbreviated --textcon. --no-ext-diff and --no-textconv do not match, and
+# --text (-a) stops short of --textc. A plain `git diff` still honors a
+# configured diff.external and textconv driver: a seat cannot write that config.
+# ---------------------------------------------------------------------------
+case "$padded" in
+  *' --ext-'*|*' --textc'*|*' --filters'*)
+    deny "--ext-diff, --textconv and --filters are not permitted: each runs a configured command; the same read without the flag is admitted" ;;
 esac
 
 # Subcommand is in the allowlist. Allow.
