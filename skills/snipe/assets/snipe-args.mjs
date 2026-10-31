@@ -60,12 +60,13 @@ export function parseSnipeArgs(raw = '') {
 }
 
 // Seat model/effort ladder (#1920, operator requirement): agents.snipe when present, else
-// agents.auditor, else DEFAULTS (fillDefaults supplies it). Returned in spawnOpts shape:
+// agents.auditor, else DEFAULTS (fillDefaults keeps a null override, so each read falls back). Returned in spawnOpts shape:
 // effort 'default' is omitted (= inherit session), mirroring war-config spawnOpts.
 export function snipeTier(config = {}) {
-  const agents = fillDefaults(config).agents
-  const t = agents.snipe ?? agents.auditor
-  const model = MODELS.includes(t.model) ? t.model : agents.auditor.model
+  const agents = fillDefaults(config).agents ?? DEFAULTS.agents
+  const auditor = agents.auditor ?? DEFAULTS.agents.auditor
+  const t = agents.snipe ?? auditor
+  const model = MODELS.includes(t.model) ? t.model : auditor.model
   const effort = EFFORTS.includes(t.effort) ? t.effort : 'default'
   return effort === 'default' ? { model } : { model, effort }
 }
@@ -73,7 +74,7 @@ export function snipeTier(config = {}) {
 // Audit-round ceiling for a goal-driven /snipe loop: run.roundLimit, the same cap a phase's
 // fix rounds share. A value validateConfig would refuse falls back to the default.
 export function snipeRoundCap(config = {}) {
-  const limit = fillDefaults(config).run.roundLimit
+  const limit = fillDefaults(config).run?.roundLimit
   return Number.isInteger(limit) && limit >= 1 ? limit : DEFAULTS.run.roundLimit
 }
 
@@ -86,7 +87,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const ci = argv.indexOf('--config')
   const configPath = ci !== -1 ? argv.splice(ci, 2)[1] : '.claude/war/config.json'
   let config = {}
-  try { config = JSON.parse(readFileSync(configPath, 'utf8')) } catch { /* fail-open: defaults ladder */ }
+  try { config = JSON.parse(readFileSync(configPath, 'utf8')) ?? {} } catch { /* fail-open: defaults ladder */ }
   const parsed = parseSnipeArgs(argv.join(' '))
   console.log(JSON.stringify({ ...parsed, tier: snipeTier(config), roundCap: snipeRoundCap(config) }, null, 2))
 }
