@@ -11,9 +11,9 @@ history (back to 0.5.0) is unrecovered. Relative links resolve from the repo roo
 
 ## 0.21.31 — 2026-10-30
 
-**0.21.31** — `/zero-in` is a new skill that takes one issue or bug to a PR and audits it until only Nits remain. It packages the goal and `/snipe` loop behind #2543 and #2546. A guard runs first: the skill reads the issue and the code, then writes a card with a checkable end state for each ask and the first file or step. A missing row, or a decision only the operator can make, holds the launch before anything is written. A skill cannot start `/goal`, so the invocation is the goal and no Stop hook backs the loop. The `--rounds` count rests on the skill text, as a goal's round count does. No real run has used the skill yet.
+**0.21.31** — `/zero-in` is a new skill that takes one issue or bug to a PR and audits it until only Nits remain. It packages the goal and `/snipe` loop behind #2543 and #2546. A guard runs first: the skill reads the issue and the code, lists each request, then writes a card with a home for each one: a checkable end state or an out-of-reach row. An uncovered request, a doubt, or a decision only the operator can make holds the launch before anything is written. A skill cannot start `/goal`, so the invocation is the goal and no Stop hook backs the loop. The `--rounds` count rests on the skill text, as a goal's round count does. No real run has used the skill yet.
 
-Release scope: the window from the 0.21.30 `master` head (`916d1ea4`) to this release. Skill: `skills/zero-in/SKILL.md`. Helper: `skills/zero-in/assets/zero-in-args.mjs`. Test: `skills/zero-in/assets/zero-in-args.test.mjs`. Also `skills/snipe/SKILL.md`, its test, `skills/war-help/SKILL.md`, `CONTEXT.md` and the README quick start.
+Release scope: the window from the 0.21.30 `master` head (`916d1ea4`) to this release. Skill: `skills/zero-in/SKILL.md`. Helper: `skills/zero-in/assets/zero-in-args.mjs`. Test: `skills/zero-in/assets/zero-in-args.test.mjs`. Also `skills/snipe/SKILL.md`, its test, `skills/war-help/SKILL.md`, `skills/war/references/fix-round-doctrine.md`, `CONTEXT.md`, `CLAUDE.md`, the `plugin.json` skills array and the README.
 
 ## 0.21.30 — 2026-10-30
 
