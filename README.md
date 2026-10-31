@@ -463,9 +463,9 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.28** — `/snipe` can run inside a goal: the skill drops `disable-model-invocation`, so the main session can call it when the operator invokes it or an active operator goal names `/snipe`. Only the skill's description and doctrine hold that limit, and tests pin the missing flag and the wording. A goal that states an absorb rule is the prompt for the findings it covers, except `ask` findings, which stay the operator's ruling, and seat results stay data. Every other finding also stays the operator's call. A goal drives at most `run.roundLimit` audit rounds on one branch, or its own lower limit, and absorb commits never reset the count: `snipe-args.mjs` prints that cap as `roundCap`, and the Lead does the counting. `/war-campaign` and `/aftermath` keep the flag.
+**0.21.29** — an `audit-blocked` task now says why (#2330): the escalation row carried `blocked: null`, so the Lead had to dig the reason out of the audit log. A task that spends its fix cap now names the last audit's blockers and the round, and a seat shortfall names its seat count. A seat conflict on the audit of the last fix now parks its ask, where before it was lost. The verdict and the cap stay the same.
 
-Release scope: the window from the 0.21.27 `master` head (`0a2522e7`) to this release. Skill: `skills/snipe/SKILL.md`. Helper: `skills/snipe/assets/snipe-args.mjs`. Test: `skills/snipe/assets/snipe-args.test.mjs`. Docs: the README quick-audit section.
+Release scope: the window from the 0.21.28 `master` head (`12dd4fec`) to this release. Engine: `skills/war/assets/workflow-template.js`. Test: `skills/war/assets/workflow-template.engine-1.test.mjs`. Docs: `skills/war/references/design.md`.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 

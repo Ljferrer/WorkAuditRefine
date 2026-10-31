@@ -4662,6 +4662,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // survived that fix round unchanged — hold in split and agreed-block panels alike.
       const blockerKey = f => taskBlockerKey(task.id, f)
       let lastFixKeys = new Set()
+      const shortfall = () => 'persistent audit-seat shortfall: ' + seats.length + ' of ' + expected + ' seats returned after retries'
       // The cap counts fixes, never audits (#2330): the audit after the last fix ends the loop, so no
       // fix commit reaches a verdict unjudged. Fix dispatches stay bounded by roundLimit.
       while (round <= roundLimit) {
@@ -4671,14 +4672,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // Seat death (D21, PIN-25) reads BEFORE the shortfall check: a dead seat classifies env-died
         // SOFT with the site named — never audit-blocked (the seat judged nothing).
         if (died) { verdict = 'env-died'; blocked = died; break }
-        if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
+        if (seats.length < expected) { verdict = 'audit-blocked'; blocked = shortfall(); break }   // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
         if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
           ;({ seats, expected, died, pin } = await auditRound(task, seats, workerTests, pin, null, null, { repairWorkerPin: true }, correctiveRoundOf('audit', task, round)))   // the rebuttal is the same corrective round
           if (died) { verdict = 'env-died'; blocked = died; break }       // a dead rebuttal seat: env-died, never audit-blocked
-          if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
+          if (seats.length < expected) { verdict = 'audit-blocked'; blocked = shortfall(); break } // persistent shortfall after retries
           if (seats.some(s => s.verdict === 'escalate')) { escalateReason = escalateReasonOf(seats); verdict = 'escalate'; break }
           if (allApprove(seats, expected)) { verdict = 'approve'; break }
         }
@@ -4696,6 +4697,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : unchanged.length ? 'blocking finding survived a fix round unchanged (PIN-29): ' + nameThem(unchanged)
           : fixless.length ? 'fix-less blocking finding survived the rebuttal or agreed-block panel (decision-forked, D18): ' + nameThem(fixless)
           : null
+        // A spent cap holds like the arms above (#2330): the row names its blockers and a seat conflict
+        // still parks its ask. Only the verdict differs, because more fix budget could have cleared it.
+        const capSpent = !blocked && round >= roundLimit
+        if (capSpent) blocked = 'the audit of the last fix (round ' + round + ' of ' + roundLimit + ') still blocks and no fix round remains: ' + nameThem(survivors)
         if (blocked) {
           const conflicts = seatConflictsOf(seats)
           if (conflicts) {
@@ -4713,11 +4718,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             }
           }
           log('Task ' + task.id + ': ' + blocked + ' — escalating.')
-          verdict = 'escalate'; break
-        }
-        if (round >= roundLimit) {
-          log('Task ' + task.id + ': the audit of the last fix (round ' + round + ' of ' + roundLimit + ') still blocks — no fix round remains.')
-          break
+          verdict = capSpent ? 'audit-blocked' : 'escalate'; break
         }
         log('Task ' + task.id + ': all surviving blockers have a suggested_fix — dispatching a fix round and a full-roster re-audit.')
 
@@ -5494,8 +5495,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log('Task ' + r.task.id + ': env-died — ' + (r.blocked || 'post-spawn harness death') + '. Soft: siblings proceed; the phase lands minus this task; re-run it via the Recovery-relaunch runbook after the environment resets.')
         escalated.push({ task: r.task.id, reason: 'env-died', blocked: r.blocked })
       } else {
-        // Wave-collector escalation (worker-authored blocked text: the initial worker's why or a
-        // blocked audit-round fix-worker's reason). defectClassOf tags defectClass:'plan' iff the
+        // Wave-collector escalation (blocked text: the initial worker's why, a blocked audit-round
+        // fix-worker's reason, or the audit loop's own hold reason). defectClassOf tags defectClass:'plan' iff the
         // blocked text is sentinel-prefixed; absent otherwise (§4.3, orthogonal to reason).
         // escalate_reason (D18, PIN-22, #1664): the seat-supplied decision-forked reason, when an
         // explicit `escalate` verdict ended the audit loop; absent on every other route.
