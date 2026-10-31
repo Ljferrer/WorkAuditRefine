@@ -21,6 +21,7 @@ You print a short orientation card, then stop. You never decompose a plan, spawn
 | `/war` | execute a plan ([`../../README.md`](../../README.md#go-to-war-war)) |
 | `/survey-corps` | sweep open issues into war-shaped specs ([`../../README.md`](../../README.md#turn-issues-into-specs-survey-corps)) |
 | `/war-machine` | convert specs into merged plans + a roadmap, hand off to the campaign ([`../../README.md`](../../README.md#turn-specs-into-plans-war-machine)) |
+| `/zero-in` | fix one issue or bug, then audit until only Nits remain — **never auto-invokes** ([`../../README.md`](../../README.md#fix-one-thing-zero-in)) |
 | `/war-campaign` | run a queue of plans unattended — **never auto-invokes** ([`../../README.md`](../../README.md#run-a-campaign-war-campaign)) |
 | `/aftermath` | evidence-gated post-campaign cleanup — **never auto-invokes** ([`../../README.md`](../../README.md#clean-up-aftermath)) |
 | `/lessons-learned` | tidy, tighten, and warm-seed captured memory — `/lessons-learned seed` imports the portable corpus ([`../../README.md`](../../README.md#tidy-the-memory-lessons-learned)) |

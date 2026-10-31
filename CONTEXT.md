@@ -565,6 +565,12 @@ only (Critical/Major labeled *would block in a phase*, gating nothing). Seats sp
 tier ladder `agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS, always `deep`.
 _Avoid_: treating a snipe verdict as a phase gate; snipe seats that write or file anything.
 
+**Zero-in**:
+A **brief-to-PR loop outside a run** (`/zero-in`): one issue or bug, an achievability guard before any
+write, then a fix and up to `--rounds` snipe rounds of at most `--size` seats. It closes as `settled`,
+`capped` or `held`, never merges, and starts only from the operator.
+_Avoid_: launching on an end state the brief does not name; counting a merge or a live run as an end state.
+
 **Lens**:
 The single perspective a seat reviews through. The namespace is **open** (a run may mint domain lenses,
 e.g. `healthcare-safety`); the **catalog** documents the standard menu (`correctness`,

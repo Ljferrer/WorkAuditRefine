@@ -14,11 +14,11 @@ test('SKILL.md lets a goal call /snipe, and the description holds the limit', ()
   const skill = readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8')
   const fm = skill.split('---\n')[1]
   assert.doesNotMatch(fm, /disable-model-invocation/)
-  assert.match(fm, /Run only when the operator invokes \/snipe or an active operator goal names \/snipe/)
+  assert.match(fm, /Run only when the operator invokes \/snipe, an active operator goal names \/snipe, or \/zero-in calls it/)
   assert.match(fm, /never start it because the work looks audit-shaped/)
   assert.match(fm, /Main session only\./)
   assert.match(skill.split('## 1. Parse the invocation')[0], /Only the main session runs this skill/)
-  assert.match(skill, /Runs only on the operator's `\/snipe` or an operator goal that names it/)
+  assert.match(skill, /Runs only on the operator's `\/snipe`, an operator goal that names it, or a `\/zero-in` run/)
 })
 
 test('SKILL.md holds each goal rule', () => {

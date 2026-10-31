@@ -9,6 +9,12 @@ deictics reworded to read true from this file, and dated scope corrections appen
 whose shipped text stays as it was. The recovered window is bounded at 0.15.0 by design; earlier
 history (back to 0.5.0) is unrecovered. Relative links resolve from the repo root.
 
+## 0.21.31 — 2026-10-30
+
+**0.21.31** — `/zero-in` is a new skill that takes one issue or bug to a PR and audits it until only Nits remain. It packages the goal and `/snipe` loop behind #2543 and #2546. A guard runs first: the skill reads the issue and the code, then writes a card with a checkable end state for each ask and the first file or step. A missing row, or a decision only the operator can make, holds the launch before anything is written. A skill cannot start `/goal`, so the invocation is the goal and no Stop hook backs the loop. The `--rounds` count rests on the skill text, as a goal's round count does. No real run has used the skill yet.
+
+Release scope: the window from the 0.21.30 `master` head (`916d1ea4`) to this release. Skill: `skills/zero-in/SKILL.md`. Helper: `skills/zero-in/assets/zero-in-args.mjs`. Test: `skills/zero-in/assets/zero-in-args.test.mjs`. Also `skills/snipe/SKILL.md`, its test, `skills/war-help/SKILL.md`, `CONTEXT.md` and the README quick start.
+
 ## 0.21.30 — 2026-10-30
 
 **0.21.30** — audit seats lose fewer calls to the read-only git guard (#1915, #2162, #2374). A seat can now pass a value with a space, a regex byte or a glob byte as one quoted word: `git log -S'two words'`, `git diff -G'a[b]c'`, `git blame -L '/^## re/,+3' <sha> -- <file>`, `git show '<sha>:app/[id]/f.tsx'`, `git grep -F -e 'two words'`. The guard swaps each admitted value for one plain word before its other rules run, so a quote never reaches a flag or a verb, and pipes, chains, redirects, `-c`, `--output` and `fetch` stay denied. The guard now denies `--ext-diff`, `--textconv` and `--filters`, which it admitted before: each runs a configured command. It denies `--help` too, which starts `man`. It also collapses repeated spaces as the shell does, which closes a hole in earlier releases: `git -C  log push` read as verb `log` and ran `push`. The audit tree fingerprint hook splits a command by the same quote rule, so a quoted path with a space still names its worktree. The metacharacter, chain and non-git denials now name the replacement form, and the card and the audit prompt carry the worked examples. Replayed unchanged, 1,676 of 13,015 denials from local transcripts now pass. No live run has measured the rate per seat yet, so #1915 stays open until one does.
