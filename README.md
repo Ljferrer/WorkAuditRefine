@@ -125,9 +125,9 @@ The lightest skill in the plugin: convene 1–5 of WAR's own read-only auditor s
 
 **Seats** spawn in parallel as the same read-only `war-auditor` agents a phase convenes — standing card, `agent_type` guard confinement, severity + disposition vocabulary — always at `deep` depth, at the model/effort from your run config: `agents.snipe` (default and per-preset values: the `/war-room` preset bullets), falling back to `agents.auditor` on an explicit `null`. Override it via `/war-room` or by hand in `.claude/war/config.json`.
 
-**The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. `/snipe` never fixes, never files; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
+**The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. The seats and the report never fix and never file; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
 
-Runs only when you invoke it or when your active goal names `/snipe`; add an absorb rule to the goal if its fix rounds should proceed without you. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
+Runs only when you invoke it or when your active goal names `/snipe`; state an absorb rule in the goal to let the Lead absorb findings without you. A goal drives at most `run.roundLimit` audit rounds, or its own lower limit. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
 
 ### Configure a run (`/war-room`)
 
@@ -463,9 +463,9 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.28** — `/snipe` can run inside a goal: the skill drops `disable-model-invocation`, so the Lead can call it when the operator invokes it or an active operator goal names `/snipe`. Only the skill's description and doctrine hold that limit, and a test pins both the missing flag and the wording. A goal that states an absorb rule is the prompt for the findings it covers; every other finding stays the operator's call. `/war-campaign` and `/aftermath` keep the flag.
+**0.21.28** — `/snipe` can run inside a goal: the skill drops `disable-model-invocation`, so the main session can call it when the operator invokes it or an active operator goal names `/snipe`. Only the skill's description and doctrine hold that limit, and tests pin the missing flag and the wording. A goal that states an absorb rule is the prompt for the findings it covers, except `ask` findings, which stay the operator's ruling. Every other finding also stays the operator's call. A goal drives at most `run.roundLimit` audit rounds on one branch, or its own lower limit, and absorb commits never reset the count: `snipe-args.mjs` prints that cap as `roundCap`, and the Lead does the counting. `/war-campaign` and `/aftermath` keep the flag.
 
-Release scope: the window from the 0.21.27 `master` head (`0a2522e7`) to this release. Skill: `skills/snipe/SKILL.md`. Test: `skills/snipe/assets/snipe-args.test.mjs`. Docs: the README quick-audit section.
+Release scope: the window from the 0.21.27 `master` head (`0a2522e7`) to this release. Skill: `skills/snipe/SKILL.md`. Helper: `skills/snipe/assets/snipe-args.mjs`. Test: `skills/snipe/assets/snipe-args.test.mjs`. Docs: the README quick-audit section.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 
