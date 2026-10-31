@@ -226,7 +226,7 @@ carries regex search at one checkout. Pipes, chains, redirects, `-c`, `--exec-pa
 
 The guard now also denies `--ext-diff`, `--textconv` and `--filters`, which it admitted before this
 amendment: each runs a command named in git config. `cat-file` reads any unique flag prefix, so the guard
-denies every `--t` and `--fi` spelling on that verb. A plain `git diff` still honors a configured
+denies every `--t` and `--fi` spelling on that verb. It also denies `--help`, which starts `man`. A plain `git diff` still honors a configured
 `diff.external`, diff, log, show and blame still honor a configured textconv driver, and a signature read
 still honors `gpg.program`. A seat cannot write that config.
 
