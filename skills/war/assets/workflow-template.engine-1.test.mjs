@@ -1008,6 +1008,7 @@ test('Task 2 — persistent drop → audit-blocked: a lens that returns null on 
   assert.ok(!out.landed.includes('t1'), 'persistent drop → t1 does not land')
   const blocked = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
   assert.ok(blocked, 'persistent drop → audit-blocked escalation for t1')
+  assert.match(blocked.blocked, /audit panel incomplete: 2 of 3 seat results usable/, 'the escalation names the shortfall')
 })
 
 test('Task 2 — allApprove requires the full panel: even all-approve seats are rejected if count < expected', () => {
@@ -11997,8 +11998,72 @@ test('#2330 — the last fix round gets its audit: fixes stay bounded by roundLi
   const { out, calls, logs } = await runPhase(LAST_FIX_ARGS(2), lastFixImpl())
   assert.deepEqual(fixLabels(calls), ['fix:t1:r1', 'fix:t1:r2'], 'exactly roundLimit fixes, never one more')
   assert.deepEqual(auditedShas(calls), ['deadbeef', 'f1ced001', 'f1ced002'], 'the audit reaches the last fix commit')
-  assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'audit-blocked'), 'the task stays audit-blocked')
+  const held = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
+  assert.ok(held, 'the task stays audit-blocked')
+  assert.match(held.blocked, /round 2 of 2/, 'the escalation names the spent cap')
+  assert.ok(held.blocked.includes('[Major] blocker at f1ced002 (skills/x.js)'), 'the escalation names the last audit\'s blockers')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('no fix round remains')), 'the stop is logged')
+})
+
+test('#2330 — a seat conflict on the audit of the last fix parks its ask, and the task stays audit-blocked', async () => {
+  const peerMinor = { severity: 'Minor', title: 'sweep gap', file: 'a.js', line: 40, rationale: 'a follow-up sized gap', suggested_fix: 'add the sweep' }
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker' && /^fix:/.test(opts.label || '')) return { task_id: 't1', status: 'implemented', head_sha: 'f1ced001' }
+    if (seatOf(opts) !== 'war-auditor') return defaultImpl(prompt, opts)
+    const sha = (prompt.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1] || 'deadbeef'
+    const seat = { seat: opts.label, lens: opts.label.split(':')[2], audit_sha: sha, confidence: 'high' }
+    if (seat.lens === 'correctness') return { ...seat, verdict: 'approve', findings: [peerMinor] }
+    return { ...seat, verdict: 'request_changes', findings: [{ severity: 'Major', title: 'sweep gap at ' + sha, file: 'a.js', line: 40, rationale: 'the task mandate covers it', suggested_fix: 'add the sweep' }] }
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS, run: { roundLimit: 1, ace: false } }), impl)
+  assert.deepEqual(fixLabels(calls), ['fix:t1:r1'], 'the one fix ran')
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'audit-blocked'), 'the spent cap keeps its reason')
+  assert.ok((out.asks || []).some(a => a && a.task === 't1' && a.finding?.seatConflict && a.finding.title === 'sweep gap at f1ced001'), 'the conflict reaches the Lead as an ask')
+})
+
+test('#2330 — a hold arm at the cap still names every blocker of the last audit', async () => {
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker' && /^fix:/.test(opts.label || '')) return { task_id: 't1', status: 'implemented', head_sha: 'f1ced001' }
+    if (seatOf(opts) !== 'war-auditor') return defaultImpl(prompt, opts)
+    const sha = (prompt.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1] || 'deadbeef'
+    const major = title => ({ severity: 'Major', title, file: 'skills/x.js', rationale: 'r', suggested_fix: 'fix it' })
+    return { seat: opts.label, lens: 'correctness', audit_sha: sha, verdict: 'request_changes', confidence: 'high', findings: sha === 'deadbeef' ? [major('same blocker')] : [major('same blocker'), major('fresh blocker')] }
+  }
+  const { out } = await runPhase(LAST_FIX_ARGS(1), impl)
+  const held = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.match(held.blocked, /PIN-29/, 'the survivor arm still wins')
+  assert.ok(held.blocked.includes('[Major] fresh blocker (skills/x.js)'), 'the fresh blocker reaches the Lead too')
+})
+
+test('#2330 — a dropped rebuttal seat names the shortfall on the escalation row', async () => {
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) !== 'war-auditor') return defaultImpl(prompt, opts)
+    const lens = opts.label.split(':')[2]
+    if (/:rebut/.test(opts.label) && lens === 'security') return null
+    const seat = { seat: opts.label, lens, audit_sha: 'deadbeef', confidence: 'high' }
+    return lens === 'correctness' ? { ...seat, verdict: 'approve', findings: [] }
+      : { ...seat, verdict: 'request_changes', findings: [{ severity: 'Major', title: 'gap', file: 'a.js', rationale: 'r', suggested_fix: 'fix it' }] }
+  }
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SPLIT_PANEL_TASKS }), impl)
+  const held = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
+  assert.ok(held, 'the shortfall holds the task')
+  assert.match(held.blocked, /audit panel incomplete: 1 of 2 seat results usable/, 'the rebuttal arm carries the reason')
+})
+
+test('#2330 — a floor fix whose re-audit blocks names the blockers on the escalation row', async () => {
+  const impl = (prompt, opts) => {
+    if (isMergeTask({ opts })) return { mode: 'merge-task', status: 'no-test' }
+    if (seatOf(opts) === 'war-worker' && /^add-test:/.test(opts.label || '')) return { task_id: 't1', status: 'implemented', head_sha: 'f1ced001' }
+    if (seatOf(opts) !== 'war-auditor') return defaultImpl(prompt, opts)
+    const sha = (prompt.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1] || 'deadbeef'
+    const seat = { seat: opts.label, lens: 'correctness', audit_sha: sha, confidence: 'high' }
+    return sha === 'deadbeef' ? { ...seat, verdict: 'approve', findings: [] }
+      : { ...seat, verdict: 'request_changes', findings: [{ severity: 'Major', title: 'vacuous test', file: 'skills/x.test.mjs', rationale: 'r', suggested_fix: 'fix it' }] }
+  }
+  const { out } = await runPhase(LAST_FIX_ARGS(2), impl)
+  const held = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.ok(held.blocked.startsWith('no-test: re-audit did not approve after the floor fix'), 'the row keeps its prefix')
+  assert.ok(held.blocked.includes('[Major] vacuous test (skills/x.test.mjs)'), 'the row names the blocker')
 })
 
 test('#2330 — a floor trip after an approve at the fix cap spends no floor retry and escalates under its own status', async () => {
@@ -15760,7 +15825,9 @@ for (const [kind, mutate] of [
       return defaultImpl(p, o)
     }, { 'audit-pin': () => { const proof = { head_sha: tip, pins: [tip, tip] }; mutate(proof); return proof } })
     assert.ok(!out.landed.includes('t1'), 'malformed proof never grants approval')
-    assert.ok(out.escalated.some(e => e.task === 't1' && e.reason === 'audit-blocked'), 'malformed data stays an unresolved audit, never a thrown engine error')
+    const held = out.escalated.find(e => e.task === 't1' && e.reason === 'audit-blocked')
+    assert.ok(held, 'malformed data stays an unresolved audit, never a thrown engine error')
+    assert.match(held.blocked, /audit panel incomplete: 0 of \d+ seat results usable \(a dropped seat or an unresolved audit pin\)/, 'the reason stays true when every seat returned')
     assert.equal(calls.filter(c => c.opts.dispatchKind === 'audit-pin').length, 1, 'unusable proof does not invent a retry target')
   })
 }
