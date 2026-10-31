@@ -13,9 +13,9 @@ export const DEFAULT_ROUNDS = 3
 export const DEFAULT_SIZE = 3
 const MAX_SIZE = 5
 // The first arm skips a backtick span, so flag text in a quoted command stays brief text.
-const FLAG = /`[^`\n]*`|(^|\s)--([A-Za-z][A-Za-z0-9-]*)(?:=(\S*)|\s+(?!--)(\S+))?(?=\s|$)/g
+const FLAG = /`[^`\n]*`|(^|\s)--([A-Za-z][A-Za-z0-9-]*)(?:=(\S*)|\s+(?!--|`)(\S+))?(?=\s|$)/g
 const NEAR_MISS = /round|size|seat/i
-const ISSUE_REF = /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)|([\w.-]+\/[\w.-]+)#(\d+)|(?<![\w/#])#(\d+)/g
+const ISSUE_REF = /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)|(?<![\w./-])([\w.-]+\/[\w.-]+)#(\d+)|(?<![\w/#])#(\d+)/g
 const LENS_TEXT = /^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$/
 
 const intIn = (text, max) => (/^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= max ? Number(text) : null)
