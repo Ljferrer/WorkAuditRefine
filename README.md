@@ -463,7 +463,7 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.29** — an `audit-blocked` task now says why (#2330): the escalation row carried `blocked: null`, so the Lead had to dig the reason out of the audit log. A task that spends its fix cap now names the last audit's blockers and the round, and a seat shortfall names its seat count. A seat conflict on the audit of the last fix now parks its ask, where before it was lost. The verdict and the cap stay the same.
+**0.21.29** — an `audit-blocked` task now says why (#2330): the escalation row carried `blocked: null`, so the Lead had to dig the reason out of the audit log. A task that spends its fix cap now names the last audit's blockers and the round, a seat shortfall names its seat count, and a floor fix whose re-audit blocks names those blockers. A seat conflict on the audit of the last fix now parks its ask, where before it was lost. The verdict and the cap stay the same.
 
 Release scope: the window from the 0.21.28 `master` head (`12dd4fec`) to this release. Engine: `skills/war/assets/workflow-template.js`. Test: `skills/war/assets/workflow-template.engine-1.test.mjs`. Docs: `skills/war/references/design.md`.
 
