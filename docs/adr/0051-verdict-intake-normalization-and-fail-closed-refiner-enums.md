@@ -71,7 +71,10 @@ dispatch sites (the initial merge, the floor-retry re-merge, and the `environmen
 `baseline-proceed` re-merges). Its marker is `gate_segment: 'incomplete'`, an optional field on
 `MERGE_RESULT`, and it rides `status: 'error'` under the same `run.roundLimit` bound. A merged
 result carrying a stray marker is a merge, and a marker-absent error is one dispatch that routes
-by its status (#2156). The two sweep-family merge-task dispatches (`merge:p<id>-polish` and
+by its status (#2156). The ace gate check applies the same read to `GATE_CHECK`: the marker rides
+`gate_green: false`, and `aceGateGreen` re-dispatches under the same bound (#2326). A green reply
+carrying a stray marker is green. A spent bound takes the dispatch-death route, because nothing
+judged the tip: the ace tip forward-reverts and the rows reach the sweep. The two sweep-family merge-task dispatches (`merge:p<id>-polish` and
 `merge:p<id>-terminal`) are not segmented at this record's tip: each is one plain dispatch that
 routes by its status.
 
@@ -128,6 +131,7 @@ sites route through `routedMr`, so the reason names the real cause instead of ri
 
 - 2026-09-07 · ADR authored in the living form (a `**Status:**` line, in-place body, this log); records intake normalization, the `already_upstream` refusal arm and the segmented-land helper · issues #1869, #1870, #1973, #1797, #1805
 - 2026-09-07 · section 3 extended to the merge-task twin: `segmentedMerge`, the `gate_segment: 'incomplete'` marker on `status: 'error'` across the four per-task merge-task sites, same pair read and `roundLimit` bound · issue #2156
+- 2026-10-30 · section 3 extended to the ace gate check: `GATE_CHECK` carries `gate_segment`, an unfinished gate re-dispatches, and a spent bound never reads as a red gate · issues #2326, #2329
 
 ### 2026-09-09 finalization amendment: Git confirms every mutation result
 
