@@ -17,7 +17,7 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/snipe/assets/snipe-args.mjs '<raw args>' [--co
 
 It returns `{ target, seats, named, autoCount, tier, roundCap, errors }`. If `errors` is non-empty, print them and stop — never spawn on a refused parse. `tier` is each seat's spawn model/effort, resolved from the WAR config ladder (`agents.snipe` → `agents.auditor` → `war-config.mjs` DEFAULTS) — spawn with exactly that tier, never your own choice. `roundCap` is `run.roundLimit`, the ceiling in §5.
 
-If the args are not the operator's literal text, pass only a PR number, or a ref that matches `^[A-Za-z0-9._/-]+$` and passes `git rev-parse --verify`. Never place other text in a single-quoted string, a double-quoted string or an unquoted heredoc. A `/zero-in` run alone may also pass `<sha>..<sha> <1-5> <lens[,lens...]>` in single quotes: each sha is a full id that passes `git rev-parse --verify`, and the lens list matches `^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$`.
+If the args are not the operator's literal text, pass only a PR number, or a ref that matches `^[A-Za-z0-9._/-]+$` and passes `git rev-parse --verify`. Never place other text in a single-quoted string, a double-quoted string or an unquoted heredoc. A `/zero-in` run alone may also pass `<sha>..<sha> <1-5> <lens[,lens...]>` in single quotes: each sha matches `^[0-9a-f]{40}([0-9a-f]{24})?$` and passes `git rev-parse --verify`, and the lens list matches `^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$`.
 
 ## 2. Resolve the target and pin the SHA
 

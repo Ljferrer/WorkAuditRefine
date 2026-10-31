@@ -12,7 +12,8 @@ import { parseSnipeArgs, snipeTier, snipeRoundCap, SNIPE_LENS_CATALOG } from '..
 export const DEFAULT_ROUNDS = 3
 export const DEFAULT_SIZE = 3
 const MAX_SIZE = 5
-const FLAG = /(^|\s)--([A-Za-z][A-Za-z-]*)(?:=(\S*)|\s+(?!--)(\S+))?(?=\s|$)/g
+// The first arm skips a backtick span, so flag text in a quoted command stays brief text.
+const FLAG = /`[^`\n]*`|(^|\s)--([A-Za-z][A-Za-z0-9-]*)(?:=(\S*)|\s+(?!--)(\S+))?(?=\s|$)/g
 const NEAR_MISS = /round|size|seat/i
 const ISSUE_REF = /https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)|([\w.-]+\/[\w.-]+)#(\d+)|(?<![\w/#])#(\d+)/g
 const LENS_TEXT = /^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$/
@@ -33,6 +34,7 @@ export function parseZeroInArgs(raw = '', roundCap = DEFAULT_ROUNDS) {
   const errors = []
   const flags = {}
   const brief = String(raw).replace(FLAG, (whole, lead, name, eq, spaced) => {
+    if (whole.startsWith('`')) return whole
     if (!['rounds', 'size', 'seats'].includes(name)) {
       if (NEAR_MISS.test(name)) { errors.push(`unknown flag --${name}: put flag text from a bug description in backticks`); return lead }
       return whole
@@ -71,8 +73,8 @@ export function parseZeroInArgs(raw = '', roundCap = DEFAULT_ROUNDS) {
 const filled = v => typeof v === 'string' && v.trim() !== ''
 const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase()
 
-// The floor under the Lead's own judgment. It proves each request has a home and each
-// row has its fields. It cannot prove a check is a good one, so the SKILL holds that rule.
+// The floor under the Lead's own judgment. It proves each request has one home and each
+// row covers a request and has its fields. It cannot prove a check is a good one, so the SKILL holds that rule.
 export function assessCard(card) {
   if (card === null || typeof card !== 'object' || Array.isArray(card)) return { verdict: 'hold', reasons: ['not a card'] }
   const reasons = []
@@ -85,6 +87,7 @@ export function assessCard(card) {
       if (!filled(row[field])) reasons.push(`end state ${n} has no ${field}`)
     }
     if (filled(row.claim) && filled(row.check) && same(row.check, row.claim)) reasons.push(`end state ${n} restates its claim as its check`)
+    if (filled(row.covers) && !(Array.isArray(requested) && requested.some(want => filled(want) && same(want, row.covers)))) reasons.push(`end state ${n} covers no request`)
   })
   if (!Array.isArray(direction) || !direction.some(filled)) reasons.push('no direction: name the first file or step')
   if (!Array.isArray(asks)) reasons.push('asks must be a list')
@@ -92,9 +95,13 @@ export function assessCard(card) {
   if (!Array.isArray(outOfReach)) reasons.push('outOfReach must be a list')
   if (!Array.isArray(requested) || !requested.some(filled)) reasons.push('requested must list each thing the brief asks for')
   else {
-    const homes = [...(Array.isArray(endStates) ? endStates : []).map(row => row?.covers), ...(Array.isArray(outOfReach) ? outOfReach : [])].filter(filled)
+    const covered = (Array.isArray(endStates) ? endStates : []).map(row => row?.covers).filter(filled)
+    const outside = (Array.isArray(outOfReach) ? outOfReach : []).filter(filled)
     for (const want of requested) {
-      if (!filled(want) || !homes.some(home => same(home, want))) reasons.push(`request not covered: ${want}`)
+      const inRow = filled(want) && covered.some(home => same(home, want))
+      const inOutside = filled(want) && outside.some(home => same(home, want))
+      if (!inRow && !inOutside) reasons.push(`request not covered: ${want}`)
+      if (inRow && inOutside) reasons.push(`request in both an end state and outOfReach: ${want}`)
     }
   }
   return { verdict: reasons.length ? 'hold' : 'go', reasons }

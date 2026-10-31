@@ -567,7 +567,7 @@ _Avoid_: treating a snipe verdict as a phase gate; snipe seats that write or fil
 
 **Zero-in**:
 A **brief-to-PR loop outside a run** (`/zero-in`): one issue or bug, an achievability guard before any
-write, then a fix and up to `--rounds` snipe rounds of at most `--size` seats. It closes as `settled`,
+branch or commit, then a fix and up to `--rounds` snipe rounds of at most `--size` seats. It closes as `settled`,
 `capped` or `held`, never merges, and starts only from the operator.
 _Avoid_: launching with a request the card does not cover; counting a merge or a live run as an end state.
 
