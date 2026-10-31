@@ -17,7 +17,7 @@ body is about 1 KB. It carries no refiner doctrine.
 role, and every preset inherits it. A config without the key spawns haiku through `ROLE_MODEL`.
 
 **The auditor git guard also confines the helper.** `validate-auditor-git.sh` allows one read-only
-git command with no shell syntax. The dispatched prompts therefore spell their commands in forms
+git command with no shell syntax beyond one quoted value (ADR 0029 Amendment 2026-10-30). The dispatched prompts therefore spell their commands in forms
 the guard admits: `<rev>^0` in place of `<rev>^{commit}`, and `<base>...<tip>` in place of a
 `$(git merge-base ...)` substitution. Each new spelling resolves the same object or range.
 

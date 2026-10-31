@@ -46,7 +46,8 @@
 #   token or follows one listed head (-S -G -L --grep= --format= --pretty=,
 #   with format:/tformat: on the last two), the closing quote ends the token,
 #   the body is not empty, and a bare body does not start with `-`, so no flag
-#   ever rides in a quote. A double-quoted body with $ ` \ or ! is refused.
+#   ever rides in a quote. A double-quoted body with $ ` \ or ! is refused, and
+#   so is any body with the two control bytes audit-tree-fingerprint.sh swaps in.
 #   Anything else leaves the command unmasked and the residue rule denies it.
 #
 # GLOBAL GIT FLAGS DENIED (even before subcommand check)
@@ -117,7 +118,7 @@ deny() {
 # ---------------------------------------------------------------------------
 case "$cmd" in
   *$'\n'*)
-    deny "command contains forbidden character(s): <newline> — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools" ;;
+    deny "command contains forbidden character(s): <newline> — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools; use git -C <path> in place of cd <path> &&, and -n <count> on log or show in place of | head" ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -144,6 +145,7 @@ mask_quoted_values() {
     _rem="${_tail:${#_body}+1}"
     [ -n "$_body" ] || return 1
     case "$_rem" in ""|" "*) ;; *) return 1 ;; esac
+    case "$_body" in *$'\036'*|*$'\037'*) return 1 ;; esac    # quote_words stand-ins
     if [ "$_q" = '"' ]; then
       case "$_body" in *'$'*|*'`'*|*'\'*|*'!'*) return 1 ;; esac
     fi
@@ -184,10 +186,11 @@ mask_quoted_values || true
 #     186-denial composed-command churn actually occurred;
 #   - any other residue byte present (quotes, glob *, $, parens, backtick,
 #     braces, backslash, …) → the metacharacter rule: a genuine search shape
-#     (git grep 'a\|b', --include=*.py), remedied by the Grep tool's
+#     (git grep a\|b, --include=*.py), remedied by the Grep tool's
 #     glob:/type: filters, or with no Grep tool by the one admitted
 #     `git grep -F -e <token>` form (D21), and it names the quoted form that
-#     carries such a byte as data. A mixed residue (e.g. a\|b: \ + |)
+#     carries such a byte as data, plus the quote shape limits, because a
+#     refused quote lands here too. A mixed residue (e.g. a\|b: \ + |)
 #     classifies metacharacter — the non-chain byte proves a search/expansion
 #     shape, not mere composition.
 # Message text only — the decision, exit code, and routing (char check first,
@@ -212,9 +215,9 @@ if [ -n "$residue" ]; then
   # "\n&&" would still classify as chain-operator if the pre-check were lost.
   nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
   if [ -n "$nonchain_residue" ]; then
-    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> is the one admitted search form; to pass these bytes to git as data, single-quote the whole value: -G'a[b]c', -S'two words', --format='%H %s', -L '/re/,+3', 'sha:app/[id]/f', -- '*.md'"
+    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep; with no Grep tool, git grep -F -e <token> is the one admitted search form; to pass these bytes to git as data, single-quote the whole value: -G'a[b]c', -S'two words', --format='%H %s', -L '/re/,+3', 'sha:app/[id]/f', -- '*.md'; a quote must open the token or follow -S, -G, -L, --grep=, --format= or --pretty=, must close the token, and a bare value must not start with -"
   else
-    deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools; use git -C <path> in place of cd <path> &&, and -n <count> in place of | head"
+    deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools; use git -C <path> in place of cd <path> &&, and -n <count> on log or show in place of | head"
   fi
 fi
 
@@ -304,7 +307,7 @@ esac
 # is a bare name (flagless creation), a write flag (-d/-D/-m/-M/-c/-f/-u/--track/
 # --set-upstream-to/…), a combined short cluster (-av), or a space-form value
 # (--contains <rev>) denies — WITHOUT enumerating the write flags (default-deny
-# by token shape). --format is deliberately absent (parens stay denied anyway).
+# by token shape). --format is deliberately absent (the loop denies it by default).
 # bash-3.2-safe: unquoted `for tok in $branch_rest` word-split is safe here —
 # the char allowlist already excludes quotes and glob chars, so no re-split/glob.
 # COUPLING: the deny string's two parenthesized flag groups are parsed by the
@@ -426,15 +429,24 @@ esac
 
 # ---------------------------------------------------------------------------
 # Flags that run a command named in git config or .gitattributes. Same scan as
-# above, on the masked $rest. Prefix patterns, since cat-file reads an
-# abbreviated --textcon. --no-ext-diff and --no-textconv do not match, and
-# --text (-a) stops short of --textc. A plain `git diff` still honors a
-# configured diff.external and textconv driver: a seat cannot write that config.
+# above, on the masked $rest. --no-ext-diff and --no-textconv do not match. On
+# diff, log, show and blame, --text is -a, not a --textconv abbreviation, and
+# those verbs refuse an abbreviated flag. cat-file reads any unique prefix, so
+# its own arm denies every --t and --fi spelling. A plain `git diff` or `git
+# blame` still honors a configured diff.external and textconv driver, and a
+# signature read still honors gpg.program: a seat cannot write that config.
 # ---------------------------------------------------------------------------
+exec_deny() {
+  deny "--ext-diff, --textconv and --filters are not permitted: each runs a configured command; drop the flag, and on cat-file use git show <rev>:<path>"
+}
 case "$padded" in
-  *' --ext-'*|*' --textc'*|*' --filters'*)
-    deny "--ext-diff, --textconv and --filters are not permitted: each runs a configured command; the same read without the flag is admitted" ;;
+  *' --ext-'*|*' --textc'*|*' --filters'*) exec_deny ;;
 esac
+if [ "$subcmd" = "cat-file" ]; then
+  case "$padded" in
+    *' --t'*|*' --fi'*) exec_deny ;;
+  esac
+fi
 
 # Subcommand is in the allowlist. Allow.
 exit 0

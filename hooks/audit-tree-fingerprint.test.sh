@@ -351,6 +351,7 @@ fi
 # worktree uncompared (the fail-open direction), so each arm has its own seat.
 # touched_is <agent_id> <expected touched-file content>
 touched_is() { [ "$(cat "$FP_ROOT/$1/touched" 2>/dev/null)" = "$2" ]; }
+# touched_has <agent_id> <line>: the seat's touched set carries the line.
 touched_has() { grep -Fxq -- "$2" "$FP_ROOT/$1/touched" 2>/dev/null; }
 run "$(mk_start "$AUD" t1)"
 run "$(mk_tool "$AUD" t1 Grep "$(jq -nc --arg p "$TMP/wtA" '{pattern:"base",path:$p}')")"
@@ -377,27 +378,50 @@ if touched_is t5 "$WTB"; then pass "Bash quoted -C '<path>' adds that worktree t
 # a quote-aware split: a whitespace split reads `'$TMP/run` and `dir/wt...` and
 # touches nothing.
 _tb="$(printf '\t')"
-git -C "$MAIN" worktree add -q "$TMP/run dir/wt${_tb}S" -b wtq
-printf 'marker\n' > "$TMP/run dir/wt${_tb}S/.war-task"
-WTQ="$(cd "$TMP/run dir/wt${_tb}S" && pwd -P)"
+git -C "$MAIN" worktree add -q "$TMP/run  dir/wt${_tb}S" -b wtq
+printf 'marker\n' > "$TMP/run  dir/wt${_tb}S/.war-task"
+WTQ="$(cd "$TMP/run  dir/wt${_tb}S" && pwd -P)"
 run "$(mk_start "$AUD" ts1)"
-run "$(mk_bash "$AUD" ts1 "git diff --no-index '$TMP/run dir/wt${_tb}S/f' /dev/null")"
+run "$(mk_bash "$AUD" ts1 "git diff --no-index '$TMP/run  dir/wt${_tb}S/f' /dev/null")"
 if touched_has ts1 "$WTQ"; then pass "a quoted operand with a space touches its worktree"; else fail "quoted spaced operand not touched: |$(cat "$FP_ROOT/ts1/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" ts2)"
-run "$(mk_bash "$AUD" ts2 "git -C '$TMP/run dir/wt${_tb}S' log")"
+run "$(mk_bash "$AUD" ts2 "git -C '$TMP/run  dir/wt${_tb}S' log")"
 if touched_is ts2 "$WTQ"; then pass "a quoted -C path with a space touches that worktree"; else fail "quoted spaced -C not touched: |$(cat "$FP_ROOT/ts2/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" ts3)"
-run "$(mk_bash "$AUD" ts3 "git blame -S'$TMP/run dir/wt${_tb}S/revs' f")"
+run "$(mk_bash "$AUD" ts3 "git blame -S'$TMP/run  dir/wt${_tb}S/revs' f")"
 if touched_has ts3 "$WTQ"; then pass "an attached quoted value with a space touches its worktree"; else fail "attached quoted value not touched: |$(cat "$FP_ROOT/ts3/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" ts4)"
-run "$(mk_bash "$AUD" ts4 "git diff '$TMP/run dir' /dev/null")"
+run "$(mk_bash "$AUD" ts4 "git diff '$TMP/run  dir' /dev/null")"
 if touched_has ts4 "$WTQ"; then pass "a quoted directory operand with a space implies --no-index and walks to its worktree"; else fail "quoted dir operand not walked: |$(cat "$FP_ROOT/ts4/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" ts5)"
-run "$(mk_bash "$AUD" ts5 "git log -S'/no/such  path' --format='%H %s' HEAD")"
-if [ "$RC" = 0 ]; then pass "a quoted search value with a double space leaves the Bash arm at exit 0"; else fail "quoted search value rc=$RC"; fi
-git -C "$MAIN" worktree remove --force "$TMP/run dir/wt${_tb}S"
+run "$(mk_bash "$AUD" ts5 "git diff --no-index -S'a b' '$TMP/run  dir/wt${_tb}S/f' /dev/null")"
+if touched_has ts5 "$WTQ"; then pass "the second quoted value in a command stays one token"; else fail "second quoted value not touched: |$(cat "$FP_ROOT/ts5/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" ts6)"
+run "$(mk_bash "$AUD" ts6 "git -C \"$TMP/run  dir/wt${_tb}S\" log")"
+if touched_is ts6 "$WTQ"; then pass "a double-quoted -C path with a space touches that worktree"; else fail "double-quoted -C not touched: |$(cat "$FP_ROOT/ts6/touched" 2>/dev/null)|"; fi
+# Only the spaced operand implies --no-index here: the link leaves the work tree
+# and `runs` stays inside it, so only that implied flag walks `runs` to wtR.
+git -C "$MAIN" worktree add -q "$MAIN/runs/wtR" -b wtr
+printf 'marker\n' > "$MAIN/runs/wtR/.war-task"
+WTR="$(cd "$MAIN/runs/wtR" && pwd -P)"
+ln -s "$TMP/run  dir" "$MAIN/lnk dir"
+run "$(mk_start "$AUD" ts7)"
+run "$(mk_bash "$AUD" ts7 "git diff runs 'lnk dir'")"
+if touched_has ts7 "$WTR"; then pass "a quoted in-repo link with a space implies --no-index by itself"; else fail "implied --no-index missed: |$(cat "$FP_ROOT/ts7/touched" 2>/dev/null)|"; fi
+rm -f "$MAIN/lnk dir"
+git -C "$MAIN" worktree remove --force "$MAIN/runs/wtR"
+git -C "$MAIN" branch -q -D wtr
+rm -rf "$MAIN/runs"
+# A value with both quote kinds keeps the inner pair: the shell passes 'lnk'/f.
+mkdir -p "$MAIN/nest"
+ln -s "$TMP/wtB" "$MAIN/nest/'lnk'"
+run "$(mk_start "$AUD" ts8)"
+run "$(mk_bash "$AUD" ts8 "git -C '$MAIN/nest' diff --no-index \"'lnk'/f\" /dev/null")"
+if touched_has ts8 "$WTB"; then pass "unquote strips one quote kind only"; else fail "nested quotes stripped twice: |$(cat "$FP_ROOT/ts8/touched" 2>/dev/null)|"; fi
+rm -rf "$MAIN/nest"
+git -C "$MAIN" worktree remove --force "$TMP/run  dir/wt${_tb}S"
 git -C "$MAIN" branch -q -D wtq
-rm -rf "$TMP/run dir"
+rm -rf "$TMP/run  dir"
 run "$(mk_start "$AUD" t6)"
 run "$(mk_read "$AUD" t6 "$TMP/wtC/../wtA/f")"
 if touched_is t6 "$WTA"; then pass "Read through a ..-segment path touches the worktree it reaches, not the one it names"; else fail "..-segment touch wrong: |$(cat "$FP_ROOT/t6/touched" 2>/dev/null)|"; fi
@@ -529,7 +553,7 @@ if touched_is t24 "$(printf '%s\n%s' "$WTA" "$WTB")"; then pass "slashless opera
 # name, from the main checkout.
 run "$(mk_start "$AUD" t25)"
 run "$(mk_bash "$AUD" t25 "git -C $MAIN/.claude/war-worktrees/r diff --no-index wtN /dev/null")"
-if touched_is t25 "$WTN"; then pass "a bare task name after -C into the run directory touches that task worktree"; else fail "bare task name after -C into the run dir not touched: |$(cat "$FP_ROOT/t25/touched" 2>/dev/null)|"; fi
+if touched_is t25 "$WTN"; then pass "a bare task name after -C into the run  directory touches that task worktree"; else fail "bare task name after -C into the run  dir not touched: |$(cat "$FP_ROOT/t25/touched" 2>/dev/null)|"; fi
 # A HOME-relative operand: the seat's shell expands a word-initial `~/`
 # before git runs, so `git diff --no-index ~/wtB/f /dev/null` reads wtB. HOME
 # is the fixture dir, as in the -C tilde rows. Red without tilde expansion
@@ -738,18 +762,18 @@ if touched_is t37 "$WTQ"; then pass "an in-repo directory operand under --no-ind
 # The oracle is git itself: the same command in the fixture names no "outside
 # repository" error (it fails on the missing `./null` instead), where a
 # non-implied form (t41, t44) does. t39 is the row where git really recurses
-# the run directory.
+# the run  directory.
 run "$(mk_start "$AUD" t38)"
 run "$(mk_bash "$AUD" t38 "git diff . /dev/null")"
 if touched_is t38 "$WTQ"; then pass "an in-repo directory operand under implied --no-index touches the nested task worktree"; else fail "implied --no-index in-repo directory operand not walked: |$(cat "$FP_ROOT/t38/touched" 2>/dev/null)|"; fi
 git -C "$MAIN" diff --quiet . /dev/null 2>"$TMP/err"
 if ! grep -q 'outside repository' "$TMP/err"; then pass "git itself treats the two-path form with one outside path as --no-index"; else fail "git did not imply --no-index for 'diff . /dev/null': $(cat "$TMP/err")"; fi
-# The live layout: the run directory (`.claude` here) diffed against a
+# The live layout: the run  directory (`.claude` here) diffed against a
 # directory outside $MAIN, behind a leading flag git skips when it counts the
 # paths. $TMP/wtC is unmarked and holds no worktree, so only wtQ is touched.
 run "$(mk_start "$AUD" t39)"
 run "$(mk_bash "$AUD" t39 "git diff --stat .claude $TMP/wtC")"
-if touched_is t39 "$WTQ"; then pass "the run directory diffed against a directory outside the repo touches its nested task worktree"; else fail "run-directory operand under implied --no-index not walked: |$(cat "$FP_ROOT/t39/touched" 2>/dev/null)|"; fi
+if touched_is t39 "$WTQ"; then pass "the run  directory diffed against a directory outside the repo touches its nested task worktree"; else fail "run-directory operand under implied --no-index not walked: |$(cat "$FP_ROOT/t39/touched" 2>/dev/null)|"; fi
 # A `--` ends the leading options and is not counted as a path.
 run "$(mk_start "$AUD" t40)"
 run "$(mk_bash "$AUD" t40 "git diff -- . /dev/null")"
@@ -788,7 +812,7 @@ git -C "$MAIN" branch -q -D q
 # `check-ignore --no-index` per folder. The Glob arm stays walk-up only (D5).
 # Fixture: `.claude/` appended to $MAIN's info/exclude (as
 # provision-worktrees.sh ensure-exclude writes), a marked worktree wtR
-# registered under the run dir `.claude/war-worktrees/r`, and a marked
+# registered under the run  dir `.claude/war-worktrees/r`, and a marked
 # worktree wtP under the plain non-repo folders `$TMP/plain/mid`. Both are
 # added here and removed at the end of this window, so the start-record line
 # counts and skip lists of the other rows keep their exact content. Each
@@ -805,14 +829,13 @@ WTP="$(cd "$TMP/plain/mid/wtP" && pwd -P)"
 mk_grep() { mk_tool "$1" "$2" Grep "$(jq -nc --arg p "$3" '{pattern:"base",path:$p}')"; }
 # in_start <agent_id> <worktree>: the seat's start record carries the worktree.
 in_start() { grep -Fq " $2" "$FP_ROOT/$1/start" 2>/dev/null; }
-# touched_has <agent_id> <line>: the seat's touched set carries the line.
-# Oracle, independent of the hook: git calls the run dir ignored by pattern.
+# Oracle, independent of the hook: git calls the run  dir ignored by pattern.
 if git -C "$MAIN" check-ignore -q --no-index -- .claude/war-worktrees/r/; then
-  pass "oracle: the run dir under the excluded .claude/ is ignored by pattern"
+  pass "oracle: the run  dir under the excluded .claude/ is ignored by pattern"
 else
-  fail "oracle vacuous: check-ignore --no-index does not ignore the run dir"
+  fail "oracle vacuous: check-ignore --no-index does not ignore the run  dir"
 fi
-# End state 6: R is the run dir, at or under the ignored `.claude`, so ripgrep
+# End state 6: R is the run  dir, at or under the ignored `.claude`, so ripgrep
 # enters every folder below it and the hook marks every worktree below R. A
 # second seat searches one level up (`.claude/war-worktrees`), so the folder
 # `r` lies between R and wtR: git calls `r` ignored (its leading dir
@@ -821,7 +844,7 @@ run "$(mk_start "$AUD" gw1)"
 run "$(mk_grep "$AUD" gw1 "$MAIN/.claude/war-worktrees/r")"
 run "$(mk_start "$AUD" gw1b)"
 run "$(mk_grep "$AUD" gw1b "$MAIN/.claude/war-worktrees")"
-if touched_is gw1 "$WTR" && touched_is gw1b "$WTR"; then pass "Grep path under the excluded dir walks down into the task worktree below it (the run dir and its parent)"; else fail "Grep under the excluded dir did not walk down: run dir |$(cat "$FP_ROOT/gw1/touched" 2>/dev/null)| parent |$(cat "$FP_ROOT/gw1b/touched" 2>/dev/null)|"; fi
+if touched_is gw1 "$WTR" && touched_is gw1b "$WTR"; then pass "Grep path under the excluded dir walks down into the task worktree below it (the run  dir and its parent)"; else fail "Grep under the excluded dir did not walk down: run  dir |$(cat "$FP_ROOT/gw1/touched" 2>/dev/null)| parent |$(cat "$FP_ROOT/gw1b/touched" 2>/dev/null)|"; fi
 # End state 7: R is a plain dir; `mid` is a folder no work tree holds (git's
 # "not a git repository" exit there is no error) and wtP is a repo root, so
 # neither is ignored and wtP is marked.
@@ -836,12 +859,12 @@ _gw3s=0; in_start gw3 "$WTR" && _gw3s=1
 run "$(mk_tool "$AUD" gw3 Grep '{"pattern":"base"}')"
 run "$(mk_grep "$AUD" gw3 "$MAIN")"
 if [ "$_gw3s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/gw3/touched" ]; then pass "Grep from the main checkout walks no excluded worktree (no path, and path = the main checkout)"; else fail "Grep from the main checkout walked an excluded worktree (in-start=$_gw3s rc=$RC touched=|$(cat "$FP_ROOT/gw3/touched" 2>/dev/null)|)"; fi
-# End state 9: the Glob arm never walks down, even at the run dir, where the
+# End state 9: the Glob arm never walks down, even at the run  dir, where the
 # Grep arm does (D5).
 run "$(mk_start "$AUD" gw4)"
 _gw4s=0; in_start gw4 "$WTR" && _gw4s=1
 run "$(mk_glob "$AUD" gw4 "$MAIN/.claude/war-worktrees/r")"
-if [ "$_gw4s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/gw4/touched" ]; then pass "Glob path walks no nested worktree (the run dir: walk-up only)"; else fail "Glob path walked down (in-start=$_gw4s rc=$RC touched=|$(cat "$FP_ROOT/gw4/touched" 2>/dev/null)|)"; fi
+if [ "$_gw4s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/gw4/touched" ]; then pass "Glob path walks no nested worktree (the run  dir: walk-up only)"; else fail "Glob path walked down (in-start=$_gw4s rc=$RC touched=|$(cat "$FP_ROOT/gw4/touched" 2>/dev/null)|)"; fi
 # End state 19: from the main checkout's parent ($TMP), ripgrep enters the
 # repo root $MAIN and then applies $MAIN's exclude to `.claude`, so wtR is not
 # marked; the sibling worktrees beside $MAIN are repo roots and are marked,

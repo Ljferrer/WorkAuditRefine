@@ -217,16 +217,18 @@ word before every other rule runs, so a value can only sit where a plain word co
 when its opening quote starts the token or follows `-S`, `-G`, `-L`, `--grep=`, `--format=`, `--pretty=`
 or those last two with `format:` or `tformat:`, its closing quote ends the token, its body is not empty,
 a bare body does not start with `-`, a double-quoted body holds none of `$`, a backtick, `\` or `!`, and
-the command holds at most eight values. Anything else stays denied by the residue rule. The `git grep`
+the command holds at most eight values, and the body holds neither control byte the fingerprint hook
+uses as a stand-in. Anything else stays denied by the residue rule. The `git grep`
 grammar of the 2026-10-22 amendment stands, except that its `<token>` and its pathspecs may be one quoted
 value: `-F`, exactly one `-e`, and the deny set are unchanged. `-E` stays denied, since the Grep tool
 carries regex search at one checkout. Pipes, chains, redirects, `-c`, `--exec-path`, `--output` and
 `fetch` stay denied, and the verb set does not grow.
 
 The guard now also denies `--ext-diff`, `--textconv` and `--filters`, which it admitted before this
-amendment: each runs a command named in git config. A plain `git diff` still honors a configured
-`diff.external`, and diff, log, show and blame still honor a configured textconv driver. A seat cannot
-write that config.
+amendment: each runs a command named in git config. `cat-file` reads any unique flag prefix, so the guard
+denies every `--t` and `--fi` spelling on that verb. A plain `git diff` still honors a configured
+`diff.external`, diff, log, show and blame still honor a configured textconv driver, and a signature read
+still honors `gpg.program`. A seat cannot write that config.
 
 **Compensating control.** The audit tree fingerprint hook splits a Bash command by the same quote rule
 (`quote_words`), so a quoted operand with a space still names the worktree it reads.

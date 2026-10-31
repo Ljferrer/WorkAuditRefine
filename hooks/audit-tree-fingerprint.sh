@@ -751,7 +751,13 @@ word_of() { _w="${1//$QSP/ }"; _w="${_w//$QTB/$TB}"; }
 
 # unquote <token>: sets _t to the token with one pair of outer quotes
 # (double or single) stripped.
-unquote() { _t="$1"; _t="${_t#\"}"; _t="${_t%\"}"; _t="${_t#\'}"; _t="${_t%\'}"; }
+unquote() {
+  case "$1" in
+    \"*) _t="${1#\"}"; _t="${_t%\"}" ;;
+    \'*) _t="${1#\'}"; _t="${_t%\'}" ;;
+    *) _t="$1" ;;
+  esac
+}
 
 # tilde <token>: sets _t to the token with an unquoted word-initial `~`
 # expanded as the seat's shell expands it before git runs: `~` and `~/x`
