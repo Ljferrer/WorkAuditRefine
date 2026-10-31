@@ -2890,7 +2890,7 @@ const PARTIAL_LOG_RULE = pt`Only an explicitly marked SEGMENTED continuation may
 const GATE_LOG_UNTHREADED = pt`(gate_log_path unthreaded — no captured artifact)`
 const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRST line is \`tip_sha:\` of the gated sha and its LAST line is \`exit_code:\` (the refiner's stamp); a partial, unstamped or tip-mismatched log ⇒ SOFT cannot-confirm, never a HARD finding. An unthreaded gate_log_path means no captured artifact: SOFT cannot-confirm, never guess a conventional path.`
 // backgroundGateRule(shape): the run_in_background instruction, parameterized by the in-band return
-// shape (merge-task: gate_segment; land: land_segment — A4, no status enum change), and closed by
+// shape (merge-task and ace gate: gate_segment; land: land_segment — A4, no status enum change), and closed by
 // PARTIAL_LOG_RULE so every carrier of the background instruction also carries the read rule.
 const backgroundGateRule = shape =>
   pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. ${PARTIAL_LOG_RULE}`
@@ -4124,7 +4124,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // not a regression to bisect further: the subset is forward-reverted and its findings demote.
       const { red: subRed, died: subDied, seats: subSeats, expected: subExpected } = await aceReaudit(r, subSha, sub.findings, aceEvidence(subProbe, sw))   // re-pin + re-audit (unmetered)
       if (subDied) {
-        // Dead gate check or re-audit seat (D21, PIN-25): nothing judged the subset tip, so the ladder
+        // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the subset tip, so the ladder
         // abandons here with the existing abandon reason naming the site — this subset and every
         // queued one route to the sweep; the subset commit is forward-reverted. Never a regression.
         pendingRevert = subSha
@@ -4266,7 +4266,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const reSha = reProbe.tip_sha                      // the probed tip, never the worker's head_sha (PIN-2)
       const { red: reRed, died: reDied, seats: reS, expected: reE } = await aceReaudit(r, reSha, batch, aceEvidence(reProbe, rw))
       if (reDied) {
-        // Dead gate check or re-audit seat (D21, PIN-25): nothing judged the re-entry tip — abandon
+        // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the re-entry tip — abandon
         // with the existing abandon reason naming the site; the batch and the queue route to the
         // sweep and the re-entry commit is forward-reverted. Never a regression, never a hold.
         pendingRevert = reSha
@@ -4456,7 +4456,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // range forces the full panel (aceScope).
           const { red: batchRed, died: batchDied, seats: reSeats, expected: reExpected } = await aceReaudit(r, aceSha, aceable, aceEv)
           if (batchDied) {
-            // Dead gate check or re-audit seat (D21, PIN-25): nothing judged the ace tip, so no
+            // Dead gate check, unfinished gate or re-audit seat (D21, PIN-25, #2326): nothing judged the ace tip, so no
             // approval can be accounted there — forward-revert the range and route the rows to the
             // sweep with the existing failed-attempt reason naming the site (D13). Never a regression
             // to bisect, never a hold: the approved pre-ace tip merges.

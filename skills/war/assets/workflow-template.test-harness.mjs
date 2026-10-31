@@ -2324,8 +2324,8 @@ const BARE_INTERPOLATION_CENSUS = [
   // Gate-log stamp + segmented gate (engine-and-audit-verdict-integrity Task 5.1, #2086/#2094): the four
   // pt-built module consts (GATE_LOG_STAMP / PARTIAL_LOG_RULE / GATE_LOG_READ_RULE / GATE_LOG_UNTHREADED)
   // are construction-guaranteed strings; `shape` is backgroundGateRule's param, a pt-built literal at
-  // both call sites; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
-  // `opts.label` is the segmentedMerge continuation header's site label — every call site passes one.
+  // every call site; `e.gateLogPath` carries an explicit || conventional-path fallback at evItems;
+  // `opts.label` is a segment continuation header's site label — every call site passes one.
   'GATE_LOG_READ_RULE', 'GATE_LOG_STAMP', 'GATE_LOG_UNTHREADED', 'PARTIAL_LOG_RULE', 'e.gateLogPath', 'opts.label', 'shape',
   // gateArtifactLine: kind is a literal at both callers; path is guarded by gateLogPathOf.
   'kind', 'path',
