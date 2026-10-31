@@ -1,6 +1,6 @@
 ---
 name: war-help
-description: Print the WAR orientation card — what WAR is, the command set (/war-strategy → /war-room → /red-team → /war → /war-campaign, the /survey-corps → /war-machine → /war-campaign → /aftermath pipeline, plus /lessons-learned), the five roles, how a run flows, and prerequisites — with links into the full docs. Use when the user is new to WAR, seems confused about it, or asks "what is WAR" / "how do I run WAR" / "how does this work".
+description: Print the WAR orientation card — what WAR is, the command set (/war-strategy → /war-room → /red-team → /war → /war-campaign, the /survey-corps → /war-machine → /war-campaign → /aftermath pipeline, plus /lessons-learned, /snipe and /zero-in), the five roles, how a run flows, and prerequisites — with links into the full docs. Use when the user is new to WAR, seems confused about it, or asks "what is WAR" / "how do I run WAR" / "how does this work".
 ---
 
 # /war-help — the orientation card
@@ -21,6 +21,8 @@ You print a short orientation card, then stop. You never decompose a plan, spawn
 | `/war` | execute a plan ([`../../README.md`](../../README.md#go-to-war-war)) |
 | `/survey-corps` | sweep open issues into war-shaped specs ([`../../README.md`](../../README.md#turn-issues-into-specs-survey-corps)) |
 | `/war-machine` | convert specs into merged plans + a roadmap, hand off to the campaign ([`../../README.md`](../../README.md#turn-specs-into-plans-war-machine)) |
+| `/snipe` | quick read-only audit of the current changes ([`../../README.md`](../../README.md#quick-audit-snipe)) |
+| `/zero-in` | fix one issue or bug, then audit until only Nits remain — **never auto-invokes** ([`../../README.md`](../../README.md#fix-one-thing-zero-in)) |
 | `/war-campaign` | run a queue of plans unattended — **never auto-invokes** ([`../../README.md`](../../README.md#run-a-campaign-war-campaign)) |
 | `/aftermath` | evidence-gated post-campaign cleanup — **never auto-invokes** ([`../../README.md`](../../README.md#clean-up-aftermath)) |
 | `/lessons-learned` | tidy, tighten, and warm-seed captured memory — `/lessons-learned seed` imports the portable corpus ([`../../README.md`](../../README.md#tidy-the-memory-lessons-learned)) |

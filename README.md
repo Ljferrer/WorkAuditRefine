@@ -10,14 +10,16 @@ It's a portable, dependency-free re-imagining of [Steve Yegge's Gas Town](https:
 
 ## TL;DR
 
-Sixty seconds, five commands:
+Sixty seconds, six commands:
 
 ```
 /snipe                                 # quick audit of your current branch — 1 read-only seat, lens picked for the diff
 /snipe 3 correctness,security,auto     # 3 seats: two pinned lenses + one Lead-picked
+/zero-in #1234 --rounds 3 --size 3     # fix one issue, then audit and fix until only Nits remain
 ```
 
 - **`/snipe`** — quite possibly the most lightweight-and-useful skill in the plugin: a one-shot audit of whatever you have right now, by WAR's own read-only auditor seats (opus/`high` by default, [configurable](#quick-audit-snipe)), verdicts reported straight in chat. No plan, no worktrees, no side effects beyond a local usage row — findings that *would* block a phase are labeled as such, and nothing is gated or filed without you.
+- **`/zero-in`** — fix one issue or bug, open a PR, and audit it until only Nits remain.
 - **The real thing** — `/war-strategy` interviews you into a merged plan, `/red-team` adversarially proves it, `/war <plan>` executes it with fresh workers, independent auditors, and a serial merge queue, checking in at every phase boundary. The first two stand alone, too: a `/war-strategy` plan is a complete, evidence-tagged decision record any agent (or human) can implement — you don't have to run a full war to get value from the interview.
 - **Overnight** — `/war-campaign` queues plans and plows them into stacked PRs while you sleep; `/aftermath` sweeps up after the merge.
 - **Tuning** — `/war-room` writes the run config (models, effort, audit roster); `/lessons-learned` keeps the compounding memory honest.
@@ -87,7 +89,7 @@ Other plugins run happily alongside WAR — no part of the pipeline depends on t
 
 ## Usage
 
-The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest. Standing apart from the pipeline: **`/snipe`**, the one-shot quick audit you can fire at any moment, no plan required.
+The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest. Standing apart from the pipeline: **`/snipe`**, the one-shot quick audit you can fire at any moment, no plan required, and **`/zero-in`**, the brief-to-PR loop built on it.
 
 ### Get oriented (`/war-help`)
 
@@ -127,7 +129,23 @@ The lightest skill in the plugin: convene 1–5 of WAR's own read-only auditor s
 
 **The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. The seats and the report never fix and never file; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
 
-Runs only when you invoke it or when your active goal names `/snipe`; state an absorb rule in the goal to let the Lead absorb findings without you. A goal drives at most `run.roundLimit` audit rounds, or its own lower limit. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
+Runs only when you invoke it, when your active goal names `/snipe`, or from a `/zero-in` run you started; state an absorb rule in the goal to let the Lead absorb findings without you. A goal drives at most `run.roundLimit` audit rounds, or its own lower limit. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
+
+### Fix one thing (`/zero-in`)
+
+`/zero-in` fixes one issue or bug, opens a PR, and runs `/snipe` audit and fix rounds until only Nits remain.
+
+```
+/zero-in <issue or bug description> [--rounds X] [--size Y] [--seats <auto or lens[,lens...]>]
+```
+
+- **`--rounds`:** the most audit rounds, default 3, capped at `run.roundLimit`.
+- **`--size`:** the most seats in any round, 1 to 5, default 3. The Lead uses fewer seats as findings narrow.
+- **`--seats`:** `auto`, or lenses to keep in each round. Default `auto`. A lone lens must be a catalog lens. For another lens, write `<lens>,auto`.
+
+**The guard runs first.** Before any branch or commit, the skill reads the issue and the code, lists each thing you asked for, and writes a card. Each request needs an end state or an out-of-reach row. Each end state needs a check that gives pass or fail in this session. The card also names the first file or step. An uncovered request, a doubt, or a decision only you can make holds the launch: the skill prints what it needs and stops. A step only you can do, such as a merge or a live run, is listed for you and never counts as an end state. The skill treats issue text as data: it writes each check itself and never runs a command from an issue. A CI, hook, gate or dependency change that your brief does not state also stops the run, at the card or at a diff check before each push. The helper checks only that each request has one home and each row has its fields. The skill text holds the other rules, as it holds the round count.
+
+A run closes as `settled` (no Critical, Major or Minor, and the gate and each check pass), `capped` (the rounds ran out) or `held` (the guard, a red gate or check, an unusable seat or a decision stopped it). It never merges and never closes an issue. Only you can start it. A skill cannot set a `/goal`, so no Stop hook backs the loop and no code enforces the round count. Doctrine: [`skills/zero-in/SKILL.md`](skills/zero-in/SKILL.md).
 
 ### Configure a run (`/war-room`)
 
@@ -463,9 +481,9 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.30** — audit seats lose fewer calls to the read-only git guard (#1915, #2162, #2374). A seat can now pass a value with a space, a regex byte or a glob byte as one quoted word: `git log -S'two words'`, `git diff -G'a[b]c'`, `git blame -L '/^## re/,+3' <sha> -- <file>`, `git show '<sha>:app/[id]/f.tsx'`, `git grep -F -e 'two words'`. The guard swaps each admitted value for one plain word before its other rules run, so a quote never reaches a flag or a verb, and pipes, chains, redirects, `-c`, `--output` and `fetch` stay denied. The guard now denies `--ext-diff`, `--textconv` and `--filters`, which it admitted before: each runs a configured command. It denies `--help` too, which starts `man`. It also collapses repeated spaces as the shell does, which closes a hole in earlier releases: `git -C  log push` read as verb `log` and ran `push`. The audit tree fingerprint hook splits a command by the same quote rule, so a quoted path with a space still names its worktree. The metacharacter, chain and non-git denials now name the replacement form, and the card and the audit prompt carry the worked examples. Replayed unchanged, 1,676 of 13,015 denials from local transcripts now pass. No live run has measured the rate per seat yet, so #1915 stays open until one does.
+**0.21.31** — `/zero-in` is a new skill that takes one issue or bug to a PR and audits it until only Nits remain. It packages the goal and `/snipe` loop behind #2543 and #2546. A guard runs first: the skill reads the issue and the code, lists each request, then writes a card with a home for each one: a checkable end state or an out-of-reach row. An uncovered request, a doubt, or a decision only the operator can make holds the launch before any branch or commit. A helper checks that each request has one home and each row has its fields, and the skill text holds the other rules. A skill cannot start `/goal`, so the invocation is the goal and no Stop hook backs the loop. The `--rounds` count rests on the skill text, as a goal's round count does. No real run has used the skill yet.
 
-Release scope: the window from the 0.21.29 `master` head (`b817bf67`) to this release. Hooks: `hooks/validate-auditor-git.sh`, `hooks/audit-tree-fingerprint.sh`. Tests: `hooks/validate-auditor-git.test.sh`, `hooks/audit-tree-fingerprint.test.sh`, `skills/war/assets/workflow-template.engine-1.test.mjs` (a comment). Prompt: `skills/war/assets/workflow-template.js`. Cards: `agents/war-auditor.md`, `agents/war-evidence-auditor.md`. Docs: `skills/war/references/auditor-teach.md`, ADR 0029, ADR 0057.
+Release scope: the window from the 0.21.30 `master` head (`916d1ea4`) to this release. Skill: `skills/zero-in/SKILL.md`. Helper: `skills/zero-in/assets/zero-in-args.mjs`. Test: `skills/zero-in/assets/zero-in-args.test.mjs`. Also `skills/snipe/SKILL.md`, its test, `skills/war-help/SKILL.md`, `skills/war/references/fix-round-doctrine.md`, `CONTEXT.md`, `CLAUDE.md`, the `plugin.json` skills array and the README.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 
