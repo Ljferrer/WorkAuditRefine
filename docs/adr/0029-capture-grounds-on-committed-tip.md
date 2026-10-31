@@ -204,6 +204,40 @@ its group P pins the grammar's deny set; the Decision's item 3 ("`git grep` stay
 for this one form. Decision items 1–2, the 2026-07-22 amendment and every other line of this ADR's
 pre-existing body stand as ratified and are left byte-unchanged.
 
+## Amendment 2026-10-30: quoted values
+
+Local transcripts held 13,015 guard denials across plugin versions. Single-token quoting was the
+largest class the guard could admit safely: seats wrote `-S"token"`, `-G'a[b]'`, `git grep -F -e "two
+words"` and `'sha:app/[id]/f'`, and the card told them `-e <token>` takes one bare word, so seats also
+split text (`-e Task 2.7`) or wrote `&#32;` for a space. The Grep tool searches one checkout, so it does
+not replace `-S` or `-G` over a range (#2374).
+
+**Decision, amended.** `hooks/validate-auditor-git.sh` swaps each admitted quoted value for one plain
+word before every other rule runs, so a value can only sit where a plain word could. A value is admitted
+when its opening quote starts the token or follows `-S`, `-G`, `-L`, `--grep=`, `--format=`, `--pretty=`
+or those last two with `format:` or `tformat:`, its closing quote ends the token, its body is not empty,
+a bare body does not start with `-`, a double-quoted body holds none of `$`, a backtick, `\` or `!`, and
+the command holds at most eight values, and the body holds neither control byte the fingerprint hook
+uses as a stand-in. Anything else stays denied by the residue rule. The `git grep`
+grammar of the 2026-10-22 amendment stands, except that its `<token>` and its pathspecs may be one quoted
+value: `-F`, exactly one `-e`, and the deny set are unchanged. `-E` stays denied, since the Grep tool
+carries regex search at one checkout. Pipes, chains, redirects, `-c`, `--exec-path`, `--output` and
+`fetch` stay denied, and the verb set does not grow.
+
+The guard now also denies `--ext-diff`, `--textconv` and `--filters`, which it admitted before this
+amendment: each runs a command named in git config. `cat-file` reads any unique flag prefix, so the guard
+denies every `--t` and `--fi` spelling on that verb. It also denies `--help`, which starts `man`. A plain `git diff` still honors a configured
+`diff.external`, diff, log, show and blame still honor a configured textconv driver, and a signature read
+still honors `gpg.program`. A seat cannot write that config.
+
+The guard also collapses repeated spaces before its rules run, as the shell does. Its `-C` peel and flag
+scans matched single spaces, so `git -C  log push` read as verb `log` and ran `push`. That hole predates
+this amendment, and a quoted value would have raised it to an arbitrary alias command.
+
+**Compensating control.** The audit tree fingerprint hook splits a Bash command by the same quote rule
+(`quote_words`), so a quoted operand with a space still names the worktree it reads.
+
 ## Decision log
 
+- 2026-10-30 · the auditor git guard admits one quoted value at a listed token position, widens the `git grep -F -e` token and pathspecs to one quoted value, denies `--ext-diff`, `--textconv` and `--filters`, and collapses repeated spaces; the fingerprint hook splits commands by the same quote rule · #1915, #2162, #2374
 - 2026-10-22 · the auditor git guard admits `git grep -F -e <token>` (fixed-string, one `-e`, optional `-n -i -l -w -c`, one revision, `-- <pathspec>`) and denies every other grep form, `-O` in any spelling or cluster by name; reverses the 2026-07-26 "still no" because no seat had the Grep tool on Claude Code 2.1.304; the audit tree fingerprint hook is the compensating control · plan 2026-10-20-rea-artifact-evidence D21/D22, Task 6.1

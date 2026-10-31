@@ -351,6 +351,8 @@ fi
 # worktree uncompared (the fail-open direction), so each arm has its own seat.
 # touched_is <agent_id> <expected touched-file content>
 touched_is() { [ "$(cat "$FP_ROOT/$1/touched" 2>/dev/null)" = "$2" ]; }
+# touched_has <agent_id> <line>: the seat's touched set carries the line.
+touched_has() { grep -Fxq -- "$2" "$FP_ROOT/$1/touched" 2>/dev/null; }
 run "$(mk_start "$AUD" t1)"
 run "$(mk_tool "$AUD" t1 Grep "$(jq -nc --arg p "$TMP/wtA" '{pattern:"base",path:$p}')")"
 if touched_is t1 "$WTA"; then pass "Grep path adds that worktree to the touched set"; else fail "Grep touch not recorded: |$(cat "$FP_ROOT/t1/touched" 2>/dev/null)|"; fi
@@ -370,6 +372,60 @@ if touched_is t4 "$WTB"; then pass "Bash attached -C<path> adds that worktree to
 run "$(mk_start "$AUD" t5)"
 run "$(mk_bash "$AUD" t5 "git -C '$TMP/wtB' log")"
 if touched_is t5 "$WTB"; then pass "Bash quoted -C '<path>' adds that worktree to the touched set"; else fail "quoted -C touch not recorded: |$(cat "$FP_ROOT/t5/touched" 2>/dev/null)|"; fi
+# validate-auditor-git.sh admits one quoted value as one shell word, so a value
+# with a space is one operand here too. Fixture: a task worktree with a space in
+# its path and a tab in its name, under a directory with a space. Each row needs
+# a quote-aware split: a whitespace split reads `'$TMP/run` and `dir/wt...` and
+# touches nothing.
+_tb="$(printf '\t')"
+git -C "$MAIN" worktree add -q "$TMP/run  dir/wt${_tb}S" -b wtq
+printf 'marker\n' > "$TMP/run  dir/wt${_tb}S/.war-task"
+WTQ="$(cd "$TMP/run  dir/wt${_tb}S" && pwd -P)"
+run "$(mk_start "$AUD" ts1)"
+run "$(mk_bash "$AUD" ts1 "git diff --no-index '$TMP/run  dir/wt${_tb}S/f' /dev/null")"
+if touched_has ts1 "$WTQ"; then pass "a quoted operand with a space touches its worktree"; else fail "quoted spaced operand not touched: |$(cat "$FP_ROOT/ts1/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" ts2)"
+run "$(mk_bash "$AUD" ts2 "git -C '$TMP/run  dir/wt${_tb}S' log")"
+if touched_is ts2 "$WTQ"; then pass "a quoted -C path with a space touches that worktree"; else fail "quoted spaced -C not touched: |$(cat "$FP_ROOT/ts2/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" ts3)"
+run "$(mk_bash "$AUD" ts3 "git blame -S'$TMP/run  dir/wt${_tb}S/revs' f")"
+if touched_has ts3 "$WTQ"; then pass "an attached quoted value with a space touches its worktree"; else fail "attached quoted value not touched: |$(cat "$FP_ROOT/ts3/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" ts4)"
+run "$(mk_bash "$AUD" ts4 "git diff '$TMP/run  dir' /dev/null")"
+if touched_has ts4 "$WTQ"; then pass "a quoted directory operand with a space walks to its worktree"; else fail "quoted dir operand not walked: |$(cat "$FP_ROOT/ts4/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" ts5)"
+run "$(mk_bash "$AUD" ts5 "git diff --no-index -S'a b' '$TMP/run  dir/wt${_tb}S/f' /dev/null")"
+if touched_has ts5 "$WTQ"; then pass "the second quoted value in a command stays one token"; else fail "second quoted value not touched: |$(cat "$FP_ROOT/ts5/touched" 2>/dev/null)|"; fi
+run "$(mk_start "$AUD" ts6)"
+run "$(mk_bash "$AUD" ts6 "git -C \"$TMP/run  dir/wt${_tb}S\" log")"
+if touched_is ts6 "$WTQ"; then pass "a double-quoted -C path with a space touches that worktree"; else fail "double-quoted -C not touched: |$(cat "$FP_ROOT/ts6/touched" 2>/dev/null)|"; fi
+# The eighth value, the last the guard admits, still reads as one token.
+run "$(mk_start "$AUD" ts9)"
+run "$(mk_bash "$AUD" ts9 "git diff --no-index -- 'a' 'a' 'a' 'a' 'a' 'a' 'a' '$TMP/run  dir/wt${_tb}S/f'")"
+if touched_has ts9 "$WTQ"; then pass "the eighth quoted value stays one token"; else fail "eighth quoted value not touched: |$(cat "$FP_ROOT/ts9/touched" 2>/dev/null)|"; fi
+# Only the spaced operand implies --no-index here: the link leaves the work tree
+# and `runs` stays inside it, so only that implied flag walks `runs` to wtR.
+git -C "$MAIN" worktree add -q "$MAIN/runs/wtR" -b wtr
+printf 'marker\n' > "$MAIN/runs/wtR/.war-task"
+WTR="$(cd "$MAIN/runs/wtR" && pwd -P)"
+ln -s "$TMP/run  dir" "$MAIN/lnk dir"
+run "$(mk_start "$AUD" ts7)"
+run "$(mk_bash "$AUD" ts7 "git diff runs 'lnk dir'")"
+if touched_has ts7 "$WTR"; then pass "a quoted in-repo link with a space implies --no-index by itself"; else fail "implied --no-index missed: |$(cat "$FP_ROOT/ts7/touched" 2>/dev/null)|"; fi
+rm -f "$MAIN/lnk dir"
+git -C "$MAIN" worktree remove --force "$MAIN/runs/wtR"
+git -C "$MAIN" branch -q -D wtr
+rm -rf "$MAIN/runs"
+# A value with both quote kinds keeps the inner pair: the shell passes 'lnk'/f.
+mkdir -p "$MAIN/nest"
+ln -s "$TMP/wtB" "$MAIN/nest/'lnk'"
+run "$(mk_start "$AUD" ts8)"
+run "$(mk_bash "$AUD" ts8 "git -C '$MAIN/nest' diff --no-index \"'lnk'/f\" /dev/null")"
+if touched_has ts8 "$WTB"; then pass "unquote strips one quote kind only"; else fail "nested quotes stripped twice: |$(cat "$FP_ROOT/ts8/touched" 2>/dev/null)|"; fi
+rm -rf "$MAIN/nest"
+git -C "$MAIN" worktree remove --force "$TMP/run  dir/wt${_tb}S"
+git -C "$MAIN" branch -q -D wtq
+rm -rf "$TMP/run  dir"
 run "$(mk_start "$AUD" t6)"
 run "$(mk_read "$AUD" t6 "$TMP/wtC/../wtA/f")"
 if touched_is t6 "$WTA"; then pass "Read through a ..-segment path touches the worktree it reaches, not the one it names"; else fail "..-segment touch wrong: |$(cat "$FP_ROOT/t6/touched" 2>/dev/null)|"; fi
@@ -777,8 +833,6 @@ WTP="$(cd "$TMP/plain/mid/wtP" && pwd -P)"
 mk_grep() { mk_tool "$1" "$2" Grep "$(jq -nc --arg p "$3" '{pattern:"base",path:$p}')"; }
 # in_start <agent_id> <worktree>: the seat's start record carries the worktree.
 in_start() { grep -Fq " $2" "$FP_ROOT/$1/start" 2>/dev/null; }
-# touched_has <agent_id> <line>: the seat's touched set carries the line.
-touched_has() { grep -Fxq -- "$2" "$FP_ROOT/$1/touched" 2>/dev/null; }
 # Oracle, independent of the hook: git calls the run dir ignored by pattern.
 if git -C "$MAIN" check-ignore -q --no-index -- .claude/war-worktrees/r/; then
   pass "oracle: the run dir under the excluded .claude/ is ignored by pattern"

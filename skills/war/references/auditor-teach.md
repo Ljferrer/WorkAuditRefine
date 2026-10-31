@@ -17,6 +17,12 @@ sentence "Work within its grammar so you never pay the discovery tax — ":
 
 this contract is carried on both surfaces (this standing card and your dispatched audit prompt, edited together in one commit); the both-surfaces registry row in `skills/war/assets/workflow-template.engine-1.test.mjs` anchors the shared tokens, and the extraction-equality test beside it reads the hook's own `branch` deny string and is the arbiter for the branch flag enumeration below (the hook string is canonical; both prompt surfaces are followers)
 
+Note (2026-10-30, #1915, #2374, ADR 0029 Amendment 2026-10-30): the contract admits one quoted
+value per token position. Group Q of `hooks/validate-auditor-git.test.sh` runs each worked example
+through the guard and checks that the card and the dispatched literal both carry it.
+`hooks/audit-tree-fingerprint.sh` splits a Bash command with the same quote rule (`quote_words`):
+a change to the admitted quote shapes changes both hooks.
+
 Note (2026-10-22, plan 2026-10-20-rea-artifact-evidence D21): the contract's search rule is now
 "the Grep tool first; with no Grep tool, `git grep -F -e <token>`". The both-surfaces row anchors
 that fallback token on the card and the dispatched literal, a sibling scan in the same test asserts

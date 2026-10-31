@@ -1713,9 +1713,9 @@ test('F03 — auditPrompt: does NOT contain "main repo checkout" prose (baseline
 
 test('F03 — auditPrompt: teaches the read-only git guard contract (one bare git per Bash call, no composition, Grep-tool sweep channel), keeps @{} in avoidance context', async () => {
   // The prompt teaches the D5 read-only git guard contract (Task 1.2, spec §5): one bare git command per
-  // Bash call from the read-verb allowlist, no pipes/chaining/redirects/quotes/globs/braces/substitution,
-  // the Grep tool as the repo-wide sweep channel, and @{} reflog kept in avoidance context (braces are
-  // denied). The guard's grammar is widened (~/%, ls-tree, read-form branch) — no longer the narrow
+  // Bash call from the read-verb allowlist, no pipes/chaining/redirects/unquoted globs/braces/substitution,
+  // the Grep tool as the repo-wide sweep channel, and @{} reflog kept in avoidance context (unquoted braces
+  // are denied). The guard's grammar is widened (~/%, ls-tree, read-form branch) — no longer the narrow
   // "%-format denied" teach, so the anchors moved to the contract's distinctive fragments.
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   // Filter to regular audit calls only (not gate-audit execution-evidence seats)
@@ -8877,7 +8877,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // contract test above), the by-construction discriminator (a blocking finding with a concrete
     // in-file suggested_fix needing no new plan decision is request_changes, however severe), and the
     // search-tooling rule (Grep/Glob tools first, with no Grep tool the narrow git grep -F -e <token>
-    // form, shell grep always denied — the guard refuses glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
+    // form, shell grep always denied — the guard refuses unquoted glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
     // base): `required when`, `however severe`, and `metacharacter` each count 0 on BOTH surfaces, so
     // a per-surface revert of any of the three sentences reds this row; `by construction`
     // (pre-existing in an unrelated workflow-template.js comment) and bare `escalate_reason` (1 hit
