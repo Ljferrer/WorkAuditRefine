@@ -43,7 +43,10 @@ const FILE_BUDGETS = {
   // pin-transfer probe's legs (pre-rebase patch-id, git cherry, the already_upstream arm), which is
   // tier-1 operative merge doctrine, and the card had 14 B of headroom at the task base fb18598 after
   // eviction. Trailer: Budget-Raise: ADR-0042 agents/war-refiner.md +2048
-  'agents/war-refiner.md': { hard: 36864, advisory: 30720 },
+  // RAISED +1,024 B (36,864 → 37,888) at the operator's direction (#2126, 2026-10-31): the ruling keeps
+  // "Delete or weaken a test." inline in the card's Never section, tier-1 merge doctrine, and the card
+  // had 3 B of headroom. Trailer: Budget-Raise: ADR-0042 agents/war-refiner.md +1024
+  'agents/war-refiner.md': { hard: 37888, advisory: 30720 },
   // post-shrink 15,531 B @ c6a05fb → hard ×1.25 ceil-KB = 19,456; advisory ×1.10 ceil-KB = 17,408
   'agents/war-servitor.md': { hard: 19456, advisory: 17408 },
   // No shrink task targeted this surface (adjudication M: unchanged is not failed) —
