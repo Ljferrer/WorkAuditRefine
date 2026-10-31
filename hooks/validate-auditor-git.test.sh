@@ -1161,6 +1161,8 @@ for _flagcase in 'git show --filters HEAD' 'git diff --ext-diff HEAD' 'git log -
   'git cat-file --filters HEAD:x' 'git -C /x cat-file --filters HEAD:x'; do
   expect_deny_teach "Q80: $_flagcase → denied" "$(q_cmd "$_flagcase")" "runs a configured command"
 done
+expect_deny_teach "Q81a: --help starts man" "$(q_cmd "git log --help")" "--help is not permitted"
+expect_deny_teach "Q81b: --help after -C starts man" "$(q_cmd "git -C /x show --help")" "--help is not permitted"
 expect_allow "Q81: --no-ext-diff stays a read flag" "$(q_cmd "git diff --no-ext-diff HEAD")"
 expect_allow "Q82: --no-textconv stays a read flag" "$(q_cmd "git log --no-textconv -p")"
 expect_allow "Q83: --text stays a read flag on diff (-a, not a textconv prefix)" "$(q_cmd "git diff --text HEAD")"

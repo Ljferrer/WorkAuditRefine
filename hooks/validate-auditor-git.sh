@@ -447,6 +447,10 @@ esac
 # blame` still honors a configured diff.external and textconv driver, and a
 # signature read still honors gpg.program: a seat cannot write that config.
 # ---------------------------------------------------------------------------
+case "$padded" in
+  *' --help '*)
+    deny "--help is not permitted: it starts man; read the docs with the Read tool" ;;
+esac
 exec_deny() {
   deny "--ext-diff, --textconv and --filters are not permitted: each runs a configured command; drop the flag, and on cat-file use git show <rev>:<path>"
 }
