@@ -97,7 +97,7 @@ esac
 
 # deny <reason>: emit WAR: marker on stderr and exit 2.
 deny() {
-  echo "WAR: auditor git guard DENIED: $1" >&2
+  echo "WAR: auditor git guard DENIED: ${1//QUOTEDVALUE/<quoted value>}" >&2
   exit 2
 }
 
@@ -223,6 +223,17 @@ fi
 
 # ---------------------------------------------------------------------------
 # At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%+-].
+# Collapse repeated spaces the way the shell does, so each rule below reads the
+# words git receives. The -C peel and the flag scans match single spaces: with
+# a double space `git -C  log push` reads as verb log and runs push.
+# The unquoted split is safe: no glob byte passes the check above.
+# ---------------------------------------------------------------------------
+set -f
+# shellcheck disable=SC2086
+set -- $cmd
+cmd="$*"
+
+# ---------------------------------------------------------------------------
 # Parse it: must start with 'git ' (or be exactly 'git').
 # ---------------------------------------------------------------------------
 case "$cmd" in
@@ -266,11 +277,11 @@ esac
 # ponytail: one -C peeled. `git -C -C rev-parse HEAD` peels the first -C then leaves
 # `rev-parse HEAD` → ALLOW (harmless read in ambient cwd) — NOT a default-deny.
 case "$rest" in
-  -C\ *)
+  -C\ *\ *)
     rest="${rest#-C }"     # drop "-C "
     rest="${rest#* }"      # drop the <path> token
     ;;
-  -C)
+  -C\ *|-C)
     deny "global -C with no path/subcommand" ;;
 esac
 
@@ -431,7 +442,7 @@ esac
 # Flags that run a command named in git config or .gitattributes. Same scan as
 # above, on the masked $rest. --no-ext-diff and --no-textconv do not match. On
 # diff, log, show and blame, --text is -a, not a --textconv abbreviation, and
-# those verbs refuse an abbreviated flag. cat-file reads any unique prefix, so
+# those verbs refuse an abbreviated --textconv or --ext-diff. cat-file reads any unique prefix, so
 # its own arm denies every --t and --fi spelling. A plain `git diff` or `git
 # blame` still honors a configured diff.external and textconv driver, and a
 # signature read still honors gpg.program: a seat cannot write that config.

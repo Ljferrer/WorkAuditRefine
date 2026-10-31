@@ -971,7 +971,7 @@ case "$event" in
         # --no-index .claude/war-worktrees/R/T/f /dev/null` and `git -C <run
         # dir> diff --no-index T1 T2` alike (`.`, `/` and `=` are in its
         # character allowlist, it peels one `-C <path>`, and it polices no
-        # diff or blame flag), and git implies --no-index for a two-path
+        # file-valued diff or blame flag), and git implies --no-index for a two-path
         # `diff` with either path outside the base's work tree (the payload
         # cwd, moved by each global -C), so the command reads a worktree the
         # `-C` scan and the cwd fallback never name. A slashless operand is

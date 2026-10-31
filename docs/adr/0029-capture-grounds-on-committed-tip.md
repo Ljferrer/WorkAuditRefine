@@ -230,10 +230,14 @@ denies every `--t` and `--fi` spelling on that verb. A plain `git diff` still ho
 `diff.external`, diff, log, show and blame still honor a configured textconv driver, and a signature read
 still honors `gpg.program`. A seat cannot write that config.
 
+The guard also collapses repeated spaces before its rules run, as the shell does. Its `-C` peel and flag
+scans matched single spaces, so `git -C  log push` read as verb `log` and ran `push`. That hole predates
+this amendment, and a quoted value would have raised it to an arbitrary alias command.
+
 **Compensating control.** The audit tree fingerprint hook splits a Bash command by the same quote rule
 (`quote_words`), so a quoted operand with a space still names the worktree it reads.
 
 ## Decision log
 
-- 2026-10-30 · the auditor git guard admits one quoted value at a listed token position, widens the `git grep -F -e` token and pathspecs to one quoted value, and denies `--ext-diff`, `--textconv` and `--filters`; the fingerprint hook splits commands by the same quote rule · #1915, #2162, #2374
+- 2026-10-30 · the auditor git guard admits one quoted value at a listed token position, widens the `git grep -F -e` token and pathspecs to one quoted value, denies `--ext-diff`, `--textconv` and `--filters`, and collapses repeated spaces; the fingerprint hook splits commands by the same quote rule · #1915, #2162, #2374
 - 2026-10-22 · the auditor git guard admits `git grep -F -e <token>` (fixed-string, one `-e`, optional `-n -i -l -w -c`, one revision, `-- <pathspec>`) and denies every other grep form, `-O` in any spelling or cluster by name; reverses the 2026-07-26 "still no" because no seat had the Grep tool on Claude Code 2.1.304; the audit tree fingerprint hook is the compensating control · plan 2026-10-20-rea-artifact-evidence D21/D22, Task 6.1

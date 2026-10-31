@@ -302,7 +302,7 @@ expect_deny "C9: git ls-files *.mjs → denied (glob)" \
 # C10: braces via the HEAD@{1} reflog form — the exact shape BOTH teach surfaces
 # name as denied (`agents/war-auditor.md`'s guard-contract bullet and the
 # dispatched `auditPrompt()` contract string in workflow-template.js: "Avoid @{}
-# reflog (braces are denied) — use git log -g instead"). @ IS in the char set;
+# reflog (unquoted braces are denied) — use git log -g instead"). @ IS in the char set;
 # { and } are not, and log is an allowlisted verb — so again the residue check
 # is the whole gate.
 expect_deny "C10: git log HEAD@{1} → denied (braces / reflog form)" \
@@ -1133,7 +1133,7 @@ expect_deny "Q64: unterminated double quote" "$(q_cmd 'git log -S"a b')"
 expect_deny "Q65: empty quoted value" "$(q_cmd "git log -S''")"
 expect_deny "Q66: bare empty quoted value" "$(q_cmd "git show ''")"
 expect_deny "Q67: backslash-escaped quote opens no value" "$(q_cmd "git log \\'a ; rm x\\'")"
-expect_deny "Q67b: paired backslashes open no value" "$(q_cmd 'git log \a$(id)\ ')"
+expect_deny "Q67b: paired backslashes open no value" "$(q_cmd "git log \\'a\$(id)\\'")"
 expect_deny "Q67c: a value with the fingerprint hook's space stand-in" "$(q_cmd "$(printf "git log -S'a\037b'")")"
 expect_deny "Q67d: a value with the fingerprint hook's tab stand-in" "$(q_cmd "$(printf "git log -S'a\036b'")")"
 expect_deny "Q68: newline inside a quoted value" "$(q_cmd "$(printf "git log -S'a\nb'")")"
@@ -1153,7 +1153,7 @@ expect_deny_teach "Q78: a second quoted bare grep token is a second revision" \
   "$(q_cmd "git grep -F -e t 'a b' 'c d'")" "git grep admits one form only"
 
 # Flags that run a configured command (security rule of #1915's admission).
-for _flagcase in 'git diff --ext-diff HEAD' 'git log --ext-diff -p' 'git show --ext-diff HEAD' \
+for _flagcase in 'git show --filters HEAD' 'git diff --ext-diff HEAD' 'git log --ext-diff -p' 'git show --ext-diff HEAD' \
   'git diff --ext-d' 'git show --textconv HEAD' 'git diff --textconv' 'git log --textconv -p' \
   'git blame --textconv f' 'git cat-file --textconv HEAD:x' 'git cat-file --textcon HEAD:x' \
   'git cat-file --text HEAD:x' 'git cat-file --tex HEAD:x' 'git cat-file --te HEAD:x' 'git cat-file --t HEAD:x' \
@@ -1176,6 +1176,30 @@ for _flagcase in 'git --exec-path' 'git --exec-path=/tmp log' 'git -C /x --exec-
   expect_deny "Q84: $_flagcase → denied" "$(q_cmd "$_flagcase")"
 done
 
+# Repeated spaces (found in audit round 2). The shell collapses them, so a guard
+# that reads a literal `-C <path>` takes the word after a double space for the
+# path and the next word for the verb: `git -C  log push` runs push with -C log.
+expect_deny "Q85: double space after -C keeps the write verb denied" "$(q_cmd "git -C  log push")"
+expect_deny "Q85b: double space after -C keeps fetch denied" "$(q_cmd "git -C  log fetch")"
+expect_deny "Q85c: double space after -C keeps global -c denied" "$(q_cmd "git -C  log -c alias.x=x x")"
+expect_deny "Q85d: double space after -C with a quoted alias value" "$(q_cmd "git -C  log -c 'alias.x=!id' x")"
+expect_deny "Q85e: three spaces after -C" "$(q_cmd "git -C   log push")"
+expect_deny "Q85f: double space before the -C path and after it" "$(q_cmd "git -C  /x  push")"
+expect_deny "Q85g: double space after a quoted -C path" "$(q_cmd "git -C '/a b'  push")"
+expect_deny "Q85h: double space before --output" "$(q_cmd "git log  --output=/tmp/x")"
+expect_deny "Q85i: double space around -o" "$(q_cmd "git log  -o  /tmp/x")"
+expect_deny "Q85j: double space in a branch write" "$(q_cmd "git branch  -d  x")"
+expect_deny_teach "Q85k: -C takes a verb word as its path, so no verb runs" "$(q_cmd "git -C log")" "global -C with no path/subcommand"
+expect_deny_teach "Q85l: the same shape with a double space" "$(q_cmd "git -C  cat-file")" "global -C with no path/subcommand"
+expect_allow "Q86: a read with a double space stays admitted" "$(q_cmd "git log  --oneline  -1")"
+expect_allow "Q86b: a double space inside a quoted value stays data" "$(q_cmd "git log -S'a  b' HEAD")"
+
+# The mask word stays internal: each site that echoes a token prints a placeholder.
+expect_deny_lacks "Q87: unlisted-verb deny hides the mask word" "$(q_cmd "git 'push'")" "QUOTEDVALUE"
+expect_deny_lacks "Q87b: branch deny hides the mask word" "$(q_cmd "git branch 'a b'")" "QUOTEDVALUE"
+expect_deny_lacks "Q87c: grep deny hides the mask word" "$(q_cmd "git grep -F -e t 'a' 'b'")" "QUOTEDVALUE"
+expect_deny_teach "Q87d: the placeholder names the quoted value" "$(q_cmd "git 'push'")" "<quoted value>"
+
 # Self-correcting deny text (#1915 direction 1, #2162 option b).
 expect_deny_teach "Q89: quoted bare git grep denies at the grep grammar (the #1412 shape)" \
   "$(q_cmd "git grep 'a\\|b'")" "-F (or --fixed-strings) is missing"
@@ -1189,6 +1213,8 @@ expect_deny_teach "Q94: non-git grep deny names the Grep tool" "$(q_cmd 'grep -n
 expect_deny_teach "Q95: non-git cat deny names Read" "$(q_cmd "cat f")" "cat/sed/head: Read"
 expect_deny_teach "Q96: non-git ls deny names Glob" "$(q_cmd "ls /x")" "ls/find: Glob"
 expect_deny_teach "Q96b: non-git deny names a tool-result file" "$(q_cmd "wc -l f")" "a tool-result file: Read or Grep"
+expect_deny_teach "Q96d: metacharacter deny names the bare dash limit" "$(q_cmd "git log '-p x'")" "a bare value must not start with -"
+expect_deny_teach "Q96e: newline deny carries the -n remedy" "$(q_cmd "$(printf 'git log\ngit status')")" "-n <count> on log or show"
 expect_deny_teach "Q96c: newline deny carries the same git -C remedy as the chain deny" "$(q_cmd "$(printf 'cd /x\ngit status')")" "git -C <path>"
 expect_deny_lacks "Q97: non-git quoted grep is not a metacharacter denial" "$(q_cmd 'grep -n "a b" f')" "the metacharacter rule fired"
 
