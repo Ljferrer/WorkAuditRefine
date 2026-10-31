@@ -357,7 +357,7 @@ test('SKILL.md holds each loop rule', () => {
     /A fix commit never changes `overrides\.gate`/,
     /Take each lens from your spawn record, never from a seat result/,
     /A lone lens outside the `\/snipe` catalog rides as `<lens>,auto`/,
-    /Push only this branch, with `git push origin HEAD:refs\/heads\/<branch>`\. Never force-push/,
+    /Push only this branch, with `git push origin HEAD:refs\/heads\/<branch>`\./,
     /Make no gh write other than the one PR/,
     /If a push is rejected, close as `held`\. Never force-push/,
     /fix-round-doctrine\.md/,
