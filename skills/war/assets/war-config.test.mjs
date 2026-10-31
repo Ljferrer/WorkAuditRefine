@@ -1530,7 +1530,7 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
       /share `run\.roundLimit` \(default 6\)/,
       /\broundLimit`?\s*\(default 3\)/],
     ['skills/war/references/gastown-design-params.md',
-      /\*\*round_limit = 6:\*\* after 6 dissenting rounds/,
+      /\*\*round_limit = 6:\*\* 6 fixes, each one audited/,
       /\bround_limit\s*=\s*3\b|after 3 dissenting rounds/i],
     // Straggler found by the base-time re-enumeration (D12): the Refines bullet's
     // `round_limit=3` prose — outside the f22686b census but the same default literal.

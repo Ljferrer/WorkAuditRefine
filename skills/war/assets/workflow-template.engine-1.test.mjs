@@ -11911,13 +11911,23 @@ test('#2326 — the ace gate prompt carries the capture, the background rule and
   assert.ok(two.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)'), 'the continuation leads with its header')
   assert.ok(two.prompt.includes('Prior gate_log_path: ' + path + '.'), 'the continuation carries the admitted log path')
   assert.ok(two.prompt.includes(one.prompt), 'the FULL check prompt rides the continuation')
+  assert.ok(two.prompt.includes('its exit_code is the gate result: do not rerun the gate'), 'the continuation reads the finished log, so a long gate finishes inside the bound')
 })
 
-test('#2326 — a log path outside the dispatch prefix never reaches the continuation', async () => {
-  const { calls } = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq({ ...ACE_INCOMPLETE, gate_log_path: '/tmp/other/gate.log' }, greenAtTip) })
-  const two = aceGateCalls(calls)[1]
-  assert.ok(two.prompt.includes('Prior gate_log_path: ' + evalPt('GATE_LOG_UNTHREADED')), 'the foreign path renders unthreaded')
-  assert.ok(!two.prompt.includes('/tmp/other/gate.log'), 'the foreign path is dropped')
+test('#2326 — a log path outside the dispatch prefix never reaches a continuation, from the first reply or a later one', async () => {
+  const foreign = { ...ACE_INCOMPLETE, gate_log_path: '/tmp/other/gate.log' }
+  const { calls } = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq(foreign, foreign, greenAtTip) })
+  const [, two, three] = aceGateCalls(calls)
+  for (const c of [two, three]) {
+    assert.ok(c.prompt.includes('Prior gate_log_path: ' + evalPt('GATE_LOG_UNTHREADED')), c.opts.label + ': the foreign path renders unthreaded')
+    assert.ok(!c.prompt.includes('/tmp/other/gate.log'), c.opts.label + ': the foreign path is dropped')
+  }
+})
+
+test('#2326 — each gate key counts its own attempts, so concurrent ace gates never move a merge prefix', async () => {
+  const { calls } = await runPhase(PT_ARGS(), acePtImpl())
+  assert.match(aceLogPrefix(aceGateCalls(calls)[0].prompt), /\/\.war\/gate-ace-t1\.[^/]*-1\.$/, 'the ace gate takes its own first attempt')
+  assert.match(aceLogPrefix(calls.find(isMergeTask).prompt), /\/\.war\/gate-t1\.[^/]*-1\.$/, 'and the merge keeps its own first attempt')
 })
 
 test('#2326 — a spent segment budget is bounded, forward-reverts, reaches the sweep and names an unfinished gate, never a pass and never RED', async () => {
@@ -11927,7 +11937,7 @@ test('#2326 — a spent segment budget is bounded, forward-reverts, reaches the 
   assert.ok(!(out.aced || []).length, 'nothing is aced at a sha the gate never passed')
   assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'the ace tip forward-reverts')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented-gate budget exhausted')), 'exhaustion is logged')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('failed absorb') && l.includes('never finished within roundLimit 2')), 'the sweep reason names the unfinished gate')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('failed absorb') && l.includes('never finished within roundLimit 2') && l.includes('phaseClose sweep')), 'the row reaches the sweep, never a demotion, and the reason names the unfinished gate')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED')), 'a spent budget never logs RED')
   assert.ok(out.landed.includes('t1'), 'the approved pre-ace tip still merges (PIN-2)')
 })
@@ -11989,6 +11999,14 @@ test('#2330 — the last fix round gets its audit: fixes stay bounded by roundLi
   assert.deepEqual(auditedShas(calls), ['deadbeef', 'f1ced001', 'f1ced002'], 'the audit reaches the last fix commit')
   assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'audit-blocked'), 'the task stays audit-blocked')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('no fix round remains')), 'the stop is logged')
+})
+
+test('#2330 — a floor trip after an approve at the fix cap spends no floor retry and escalates under its own status', async () => {
+  const impl = lastFixImpl({ approveAt: 'f1ced002' })
+  const { out, calls } = await runPhase(LAST_FIX_ARGS(2), (prompt, opts) => isMergeTask({ opts }) ? { mode: 'merge-task', status: 'no-test' } : impl(prompt, opts))
+  assert.deepEqual(fixLabels(calls), ['fix:t1:r1', 'fix:t1:r2'], 'the cap was spent in the audit loop')
+  assert.ok(!calls.some(c => /^add-test:/.test(c.opts.label || '')), 'no floor retry remains')
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'no-test'), 'the floor escalates under its own reason')
 })
 
 test('#2330 — a clean audit of the last fix lands the task, and a blocker that survives the last fix holds under PIN-29', async () => {
@@ -12653,26 +12671,27 @@ test('#1956 — AUDIT_VERDICT items-level conditional: an ask-disposition findin
 })
 
 test('absorb-budget (End state 4, fixRounds at the audit-loop ceiling): a task whose fixRounds sits at the loop ceiling with absorbRounds free still runs an ace batch AND a re-entry batch — fixRounds gates neither', async () => {
-  // roundLimit 2: a Major costs one fix round (fixRounds 1 — the highest value the audit loop can
-  // exit `approve` with; the retired `roundLimit − 2` reserve arithmetic read 0 here and blocked
-  // every subset and re-entry). The batch ace still dispatches, and the re-audit-born absorb still
+  // roundLimit 2: two Majors cost both fix rounds (fixRounds 2 — the highest value the audit loop can
+  // exit `approve` with since #2330; the retired `roundLimit − 2` reserve arithmetic blocked every
+  // subset and re-entry here). The batch ace still dispatches, and the re-audit-born absorb still
   // re-enters: absorbRounds (0 → 1 → 2 under the default 6) is the only gate.
   const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
     findings: [{ severity: 'Major', title: 'fix me', suggested_fix: 'guard the missing value before reading it', file: 'a.js', rationale: 'because' }] }
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [blockingMajor,
+                               { ...blockingMajor, findings: [{ ...blockingMajor.findings[0], title: 'fix me too' }] },
                                approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
                                approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
                                approveWith('audit:t1:correctness', [])] },
     aceBase([]))
   const { out, calls } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 2 } }), impl)
-  assert.ok(calls.some(c => (c.opts.label || '') === 'fix:t1:r1'), 'presence guard: the fix round really ran (fixRounds 1 = roundLimit − 1)')
+  assert.ok(calls.some(c => (c.opts.label || '') === 'fix:t1:r2'), 'presence guard: both fix rounds really ran (fixRounds = roundLimit)')
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 2, 'batch ace + ONE re-entry batch dispatched — fixRounds at the loop ceiling gates neither')
   assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH') && aces[1].prompt.includes('second'), 'the second dispatch is the re-entry vehicle')
   assert.ok(['first', 'second'].every(t => (out.aced || []).some(a => a && a.finding && a.finding.title === t)), 'both absorbs aced')
   const row = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'approve')
-  assert.equal(row && row.fixRounds, 1, 'the audit round provenance records the one blocking fix round')
+  assert.equal(row && row.fixRounds, 2, 'the audit round provenance records both blocking fix rounds')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 

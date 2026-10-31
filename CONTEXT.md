@@ -535,9 +535,11 @@ baseline-proceed); the ace gate check loops on `gate_green: false` + `gate_segme
 `segmented-land: re-land sites` and `segmented-gate: re-merge sites` fixtures in
 `workflow-template.engine-1.test.mjs` are the arbiters of those two site lists) — each helper appends
 the clause, dispatches, and re-dispatches while the marker rides its contracted status pair, bounded
-by `run.roundLimit`; exhaustion routes by the ridden status. The pair is the read (PIN-9): a landed
+by `run.roundLimit`; exhaustion routes by the ridden status, except the ace gate check, whose spent
+bound takes the dispatch-death route. The pair is the read (PIN-9): a landed
 or merged result carrying a stray marker stands, and a marker-absent error is one dispatch that
-routes by its status (`held:land-failed` for a land). Both prompt layers instruct backgrounding the
+routes by its status (`held:land-failed` for a land). The ace gate's background rule rides its
+dispatched prompt alone. For merge and land, both prompt layers instruct backgrounding the
 gate (`run_in_background`) and applying the **Gate-log stamp** read on re-dispatch.
 _Avoid_: classifying an interrupted gate `gate_failed` (interrupted is incomplete); a marker read
 without its status pair; a new status enum member for the marker.

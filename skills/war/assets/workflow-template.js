@@ -2895,6 +2895,12 @@ const GATE_LOG_READ_RULE = pt`A gate log is complete evidence only when its FIRS
 const backgroundGateRule = shape =>
   pt`BACKGROUNDED GATE (tool-timeout survival): if the gate cannot finish inside this turn, start it with run_in_background (teed to the stamped gate log) and return ${shape} — never classify the unfinished run; the Workflow re-dispatches this step, bounded by roundLimit. ${PARTIAL_LOG_RULE}`
 const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task', status: 'error', gate_segment: 'incomplete', segment_note: '<the step you reached>' }`)
+// segmentLoop(result, isSegment, redispatch): the roundLimit bound every segmented gate shares.
+// redispatch takes the incomplete result and the next segment ordinal, and returns the admitted reply.
+const segmentLoop = async (result, isSegment, redispatch) => {
+  for (let segments = 0; isSegment(result) && segments < roundLimit; segments++) result = await redispatch(result, segments + 2)
+  return result
+}
 // segmentedMerge(prompt, opts): one helper on every task merge-task dispatch site (initial merge,
 // floor-retry re-merge, environment-proceed and baseline-proceed re-merges). Appends
 // segmentedGateClause, dispatches, and re-dispatches while the result carries the marker WITH its
@@ -2907,16 +2913,12 @@ const segmentedGateClause = pt`\n` + backgroundGateRule(pt`{ mode: 'merge-task',
 const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
   return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
-    let result = admitGateResult(await dispatchSite(body, opts), capture)
-    let segments = 0
-    while (isSegment(result) && segments < roundLimit) {
-      segments++
-      log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-      result = await dispatchSite(
+    const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
+      log('Phase ' + ph.id + ': segmented gate — the merge dispatch ' + opts.label + ' returned the in-band gate_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the merge-task to run to completion (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
+      return admitGateResult(await dispatchSite(
         pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior merge-task dispatch returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST; every step is idempotent (a done rebase re-resolves clean, a green gate re-runs green), so run the FULL sequence to completion.\n` + body,
-        { ...opts, label: opts.label + ':segment-' + (segments + 1) })
-      result = admitGateResult(result, capture)
-    }
+        { ...opts, label: opts.label + ':segment-' + segment }), capture)
+    })
     if (isSegment(result)) {
       log('Phase ' + ph.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status (error).')
     }
@@ -2933,9 +2935,13 @@ const gateCaptureClause = (refineryP, prefix) =>
 // Workflow replay forbids clock/random reads. The run and phase identify this journal;
 // fresh Recovery launches use a new runId. mktemp still allocates the physical directory.
 const gateEpoch = encodeURIComponent(JSON.stringify([runId, ph.id]))
-let gateAttempt = 0
+// The ordinal counts per key: ace gates run concurrently across a wave, so a shared count would follow
+// task order and move every later prefix on a replay.
+const gateAttempts = new Map()
 const newGateCapture = (repo, task) => {
-  const prefix = repo.replace(/\/$/, '') + '/.war/gate-' + task + '.' + gateEpoch + '-' + (++gateAttempt) + '.'
+  const attempt = (gateAttempts.get(task) || 0) + 1
+  gateAttempts.set(task, attempt)
+  const prefix = repo.replace(/\/$/, '') + '/.war/gate-' + task + '.' + gateEpoch + '-' + attempt + '.'
   return { prefix, clause: gateCaptureClause(repo, prefix) }
 }
 const admitGateResult = (result, capture) => {
@@ -3864,15 +3870,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
     const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
       label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') }
-    let g = admitGateResult(await dispatchSite(body, opts), capture)
-    let segments = 0
-    while (isSegment(g) && segments < roundLimit) {
-      segments++
-      log('ace-gate ' + r.task.id + ': segmented gate at ace tip ' + aceTipSha + ' (' + (typeof g.segment_note === 'string' && g.segment_note ? g.segment_note : 'no segment note') + '); re-dispatching the check (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-      g = admitGateResult(await dispatchSite(
-        pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(g.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return.\n` + body,
-        { ...opts, label: opts.label + ':segment-' + (segments + 1) }), capture)
-    }
+    const g = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (prior, segment) => {
+      log('ace-gate ' + r.task.id + ': segmented gate at ace tip ' + aceTipSha + ' (' + (typeof prior.segment_note === 'string' && prior.segment_note ? prior.segment_note : 'no segment note') + '); re-dispatching the check (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
+      return admitGateResult(await dispatchSite(
+        pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(prior.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return.\n` + body,
+        { ...opts, label: opts.label + ':segment-' + segment }), capture)
+    })
     const gateDied = deathOf(g)
     if (gateDied) return { green: false, died: gateDied }
     if (isSegment(g)) {
@@ -6626,16 +6629,12 @@ if (landDecision === 'landed') {
     const isSegment = res => !!res && res.status === 'error' && res.land_segment === 'incomplete'
     const body = prompt + segmentedLandClause
     return reconciledMerge(body, opts, { task: 'phase-' + ph.id, repo: submodLandTask && submodLandTask.targetRepo || refineryLandPath, source: ph.integrationBranch, target: workingBranchFor(submodLandTask), land: true }, async (body, opts, capture) => {
-      let result = admitGateResult(await dispatchSite(body, opts), capture)
-      let segments = 0
-      while (isSegment(result) && segments < roundLimit) {
-        segments++
-        log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
-        result = await dispatchSite(
+      const result = await segmentLoop(admitGateResult(await dispatchSite(body, opts), capture), isSegment, async (result, segment) => {
+        log('Phase ' + ph.id + ': segmented land — the land dispatch ' + opts.label + ' returned the in-band land_segment:\'incomplete\' marker on status:\'error\' (' + (typeof result.segment_note === 'string' && result.segment_note ? result.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + segment + ', bounded by roundLimit ' + roundLimit + ').')
+        return admitGateResult(await dispatchSite(
           pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Prior gate_log_path: ${gateLogPathOf(result.gate_log_path) || GATE_LOG_UNTHREADED}. Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + body,
-          { ...opts, label: opts.label + ':segment-' + (segments + 1) })
-        result = admitGateResult(result, capture)
-      }
+          { ...opts, label: opts.label + ':segment-' + segment }), capture)
+      })
       if (isSegment(result)) {
         log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) of ' + opts.label + ' — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')
       }
