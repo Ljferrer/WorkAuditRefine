@@ -313,8 +313,13 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
 // (if/then): a terse green reply is re-asked at the tool layer, never reverted. The red arm stays
 // sha-free. Fail-CLOSED on the evidence (absent/malformed ⇒ not green) and fail-OPEN on the task
 // (a red gate forward-reverts the ace tip and the approved pre-ace tip still merges, PIN-2).
+// gate_segment (#2326): the MERGE_RESULT marker's ace twin. The literal 'incomplete' rides
+// gate_green:false when the gate outran the turn, so an unfinished gate never reads as a failed one.
+// aceGateGreen re-dispatches on that pair, bounded by roundLimit. A gate_green:true reply with a
+// stray marker is a green reply.
 const GATE_CHECK = { type: 'object', required: ['gate_green'], properties: {
-  gate_green: { type: 'boolean' }, head_sha: { type: 'string' }, gate_output: { type: 'string' } },
+  gate_green: { type: 'boolean' }, head_sha: { type: 'string' }, gate_output: { type: 'string' },
+  gate_segment: { enum: ['incomplete'] }, segment_note: { type: 'string' }, gate_log_path: { type: 'string' } },
   if: { properties: { gate_green: { const: true } } },
   then: { required: ['gate_green', 'head_sha'] } }
 
@@ -3841,17 +3846,39 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // approved pre-ace tip merges; it is never a fix loop and never a hold. Returns { green, died }:
   // a dispatch death (D21) is neither green nor red — `died` names the site and the caller abandons
   // the current subset with the existing abandon reason (the gate never judged the tip).
+  // A gate that outruns the turn (#2326, #2329) is also neither: the refiner backgrounds it and returns
+  // the gate_segment pair, and the loop below re-dispatches, bounded by roundLimit. A spent bound takes
+  // the `died` route, because nothing judged the tip: the ace tip forward-reverts and the rows reach the
+  // sweep with a reason that names the unfinished gate, never a red one. This rule rides the dispatched
+  // prompt alone: the refiner card has no ace-gate section.
   const aceGateGreen = async (r, aceTipSha) => {
-    const g = await dispatchSite(
-      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing beyond the provision re-run and its restore — never commit, revert, push or rebase.\n`
+    const capture = newGateCapture(r.task.worktree, 'ace-' + r.task.id)
+    const isSegment = res => !!res && res.gate_green === false && res.gate_segment === 'incomplete'
+    const body =
+      pt`ACE GATE CHECK for WAR task ${r.task.id} at the ace tip ${aceTipSha}. READ-ONLY: run the gate, change nothing beyond the provision re-run, its restore and the git-excluded gate log — never commit, revert, push or rebase.\n`
       + pt`In the ALREADY-PROVISIONED task worktree ${r.task.worktree} (branch ${r.task.branch}), first confirm \`git -C ${r.task.worktree} rev-parse HEAD\` is ${aceTipSha}; a moved HEAD is NOT green.\n`
       + PROVISION_RERUN_CLAUSE + (provisionList.length ? pt`At this ace gate a failing provision step is NOT green: return { gate_green: false } with that step in gate_output.\n` : '')
       + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-      + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; otherwise { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.`,
-      { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
-        label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') })
+      + pt`Run it from inside that worktree with TMPDIR set to a freshly-created, .war-task-free directory (e.g. TMPDIR=$(cd / && mktemp -d)). Return { gate_green: true, head_sha: ${aceTipSha} } ONLY when the gate and any Done when: command are FULLY green; on a real failure return { gate_green: false } with the failing tail in gate_output. This gate licenses the pin transfer at this sha — no approval is ever accounted at a sha the gate never passed.\n`
+      + capture.clause + pt`\n`
+      + backgroundGateRule(pt`{ gate_green: false, gate_segment: 'incomplete', gate_log_path: '<the path>', segment_note: '<the step you reached>' }`)
+    const opts = { agentType: NS + 'war-refiner', phase: 'Audit', dispatchKind: 'ace-gate',
+      label: 'ace-gate:' + r.task.id + ':a' + r.task.absorbRounds, schema: GATE_CHECK, ...spawn('refiner') }
+    let g = admitGateResult(await dispatchSite(body, opts), capture)
+    let segments = 0
+    while (isSegment(g) && segments < roundLimit) {
+      segments++
+      log('ace-gate ' + r.task.id + ': segmented gate at ace tip ' + aceTipSha + ' (' + (typeof g.segment_note === 'string' && g.segment_note ? g.segment_note : 'no segment note') + '); re-dispatching the check (segment ' + (segments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
+      g = admitGateResult(await dispatchSite(
+        pt`SEGMENTED-GATE CONTINUATION (${opts.label}): a prior ace gate check returned mid-gate with gate_segment: 'incomplete'. Prior gate_log_path: ${gateLogPathOf(g.gate_log_path) || GATE_LOG_UNTHREADED}. Apply the gate-log read rule below FIRST. If that log is complete, its exit_code is the gate result: do not rerun the gate, finish any Done when: command and return.\n` + body,
+        { ...opts, label: opts.label + ':segment-' + (segments + 1) }), capture)
+    }
     const gateDied = deathOf(g)
     if (gateDied) return { green: false, died: gateDied }
+    if (isSegment(g)) {
+      log('ace-gate ' + r.task.id + ': segmented-gate budget exhausted after ' + roundLimit + ' re-dispatch(es) at ace tip ' + aceTipSha + ' — the gate never finished, so nothing judged this tip.')
+      return { green: false, died: 'the ace gate at ' + aceTipSha + ' never finished within roundLimit ' + roundLimit }
+    }
     // #1935: the echoed head_sha is EVIDENCE, not decoration — compare it. The prompt above asks the
     // refiner to confirm HEAD and echo the sha it gated, so an echo naming a DIFFERENT commit means the
     // gate ran somewhere else and licenses nothing. Reuses pinMismatch, so abbreviated-vs-full names
@@ -3952,9 +3979,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // aceReaudit: the ONE re-audit seam every ace-family round (batch, bisection subset, re-entry batch)
   // goes through — gate first (PIN-12), then the delta-scaled panel with per-seat transfer provenance.
   // Returns { red: true } when the gate was not green: the caller forward-reverts and demotes.
-  // Returns { died } when the gate check or a re-audit seat died post-spawn (D21, PIN-25): nothing
-  // judged the tip, so the caller forward-reverts and abandons the current subset with the existing
-  // abandon reason naming the site — never a regression, never a hold.
+  // Returns { died } when the gate check or a re-audit seat died post-spawn (D21, PIN-25), or when the
+  // gate never finished inside its segment bound (#2326): nothing judged the tip, so the caller
+  // forward-reverts and abandons the current subset with the existing abandon reason naming the site
+  // — never a regression, never a hold.
   const aceReaudit = async (r, sha, findings, ev) => {
     const gate = await aceGateGreen(r, sha)
     if (gate.died) return { red: false, died: gate.died, seats: [], expected: 0 }
@@ -4631,7 +4659,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // survived that fix round unchanged — hold in split and agreed-block panels alike.
       const blockerKey = f => taskBlockerKey(task.id, f)
       let lastFixKeys = new Set()
-      while (round < roundLimit) {
+      // The cap counts fixes, never audits (#2330): the audit after the last fix ends the loop, so no
+      // fix commit reaches a verdict unjudged. Fix dispatches stay bounded by roundLimit.
+      while (round <= roundLimit) {
         // Corrective round (D4, PIN-5): the roster-seat audit reads the in-loop 0-based `round` — round 1 at
         // the first audit (no backward-chain clause, PIN-10), round 2 at the first post-fix re-audit.
         ;({ seats, expected, died, pin } = await auditRound(task, null, workerTests, pin, null, null, { repairWorkerPin: true }, correctiveRoundOf('audit', task, round)))      // independent — no cross-talk
@@ -4681,6 +4711,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           }
           log('Task ' + task.id + ': ' + blocked + ' — escalating.')
           verdict = 'escalate'; break
+        }
+        if (round >= roundLimit) {
+          log('Task ' + task.id + ': the audit of the last fix (round ' + round + ' of ' + roundLimit + ') still blocks — no fix round remains.')
+          break
         }
         log('Task ' + task.id + ': all surviving blockers have a suggested_fix — dispatching a fix round and a full-roster re-audit.')
 

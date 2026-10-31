@@ -11874,6 +11874,133 @@ test('#1913 PIN-12/PIN-2 — a RED gate at the ace tip blocks the re-audit and t
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED')), 'the red gate is logged, never silent')
 })
 
+// #2326, #2329: an unfinished ace gate is neither green nor red. It re-dispatches on the
+// gate_green:false + gate_segment:'incomplete' pair, and a spent bound never reads as a failed change.
+const acePtImpl = () => ptImpl([nit({ file: ACE_FILE })], aceOk())
+const ACE_INCOMPLETE = { gate_green: false, gate_segment: 'incomplete', segment_note: 'pytest at 13%' }
+const aceGateCalls = (calls) => calls.filter(isAceGate)
+const aceGateSeq = (...replies) => { let n = 0; return (prompt) => {
+  const reply = replies[Math.min(n++, replies.length - 1)]
+  return typeof reply === 'function' ? reply(prompt) : reply
+} }
+const greenAtTip = (prompt) => ({ gate_green: true, head_sha: prompt.match(/at the ace tip ([0-9a-f]{7,40})/)[1] })
+const aceLogPrefix = (prompt) => prompt.match(/mktemp -d "([^"]+)XXXXXX"/)[1]
+
+test('#2326 — an incomplete ace gate re-dispatches and a green continuation keeps the ace: no forward-revert, the re-audit runs, nothing demotes', async () => {
+  const { out, calls, logs } = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq(ACE_INCOMPLETE, greenAtTip) })
+  const gates = aceGateCalls(calls)
+  assert.deepEqual(gates.map(c => c.opts.label), ['ace-gate:t1:a1', 'ace-gate:t1:a1:segment-2'], 'one bounded re-dispatch, labelled with its segment')
+  assert.ok(calls.some(c => isAuditor(c) && c.prompt.includes('ace00001')), 'the re-audit runs at the finished ace tip')
+  assert.ok((out.aced || []).some(a => a && a.sha === 'ace00001'), 'the ace commit stays aced')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'tidy import'), 'the absorb never demotes')
+  assert.doesNotMatch(calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'the merge forward-reverts nothing')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented gate') && l.includes('pytest at 13%')), 'the segment_note is logged')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED')), 'an unfinished gate never logs RED')
+})
+
+test('#2326 — the ace gate prompt carries the capture, the background rule and the marker, and the continuation carries the returned log with the full prompt', async () => {
+  let path = ''
+  const first = (prompt) => { path = aceLogPrefix(prompt) + 'Ab12Cd/gate.log'; return { ...ACE_INCOMPLETE, gate_log_path: path } }
+  const { calls } = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq(first, greenAtTip) })
+  const [one, two] = aceGateCalls(calls)
+  assert.ok(one.prompt.includes(evalPt('PARTIAL_LOG_RULE')), 'the first dispatch carries PARTIAL_LOG_RULE byte-equal')
+  assert.ok(one.prompt.includes(evalPt('GATE_LOG_STAMP')), 'the first dispatch stamps its log')
+  assert.ok(one.prompt.includes("gate_green: false, gate_segment: 'incomplete'"), 'the first dispatch names the return pair')
+  assert.match(one.prompt, /run_in_background/, 'the first dispatch names the background rule')
+  assert.match(one.prompt, /READ-ONLY[^\n]*git-excluded gate log/, 'the read-only opener admits the gate log, so a literal seat can follow the capture clause')
+  assert.ok(two.prompt.startsWith('SEGMENTED-GATE CONTINUATION (ace-gate:t1:a1)'), 'the continuation leads with its header')
+  assert.ok(two.prompt.includes('Prior gate_log_path: ' + path + '.'), 'the continuation carries the admitted log path')
+  assert.ok(two.prompt.includes(one.prompt), 'the FULL check prompt rides the continuation')
+})
+
+test('#2326 — a log path outside the dispatch prefix never reaches the continuation', async () => {
+  const { calls } = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq({ ...ACE_INCOMPLETE, gate_log_path: '/tmp/other/gate.log' }, greenAtTip) })
+  const two = aceGateCalls(calls)[1]
+  assert.ok(two.prompt.includes('Prior gate_log_path: ' + evalPt('GATE_LOG_UNTHREADED')), 'the foreign path renders unthreaded')
+  assert.ok(!two.prompt.includes('/tmp/other/gate.log'), 'the foreign path is dropped')
+})
+
+test('#2326 — a spent segment budget is bounded, forward-reverts, reaches the sweep and names an unfinished gate, never a pass and never RED', async () => {
+  const { out, calls, logs } = await runPhase(PT_ARGS({ run: { ...PT_ARGS().run, roundLimit: 2 } }), acePtImpl(), { 'ace-gate': ACE_INCOMPLETE })
+  assert.equal(aceGateCalls(calls).length, 3, 'the initial check + exactly roundLimit (2) re-dispatches')
+  assert.ok(!calls.some(c => isAuditor(c) && c.prompt.includes('ace00001')), 'no re-audit at a tip no gate finished at')
+  assert.ok(!(out.aced || []).length, 'nothing is aced at a sha the gate never passed')
+  assert.match(calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'the ace tip forward-reverts')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented-gate budget exhausted')), 'exhaustion is logged')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('failed absorb') && l.includes('never finished within roundLimit 2')), 'the sweep reason names the unfinished gate')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED')), 'a spent budget never logs RED')
+  assert.ok(out.landed.includes('t1'), 'the approved pre-ace tip still merges (PIN-2)')
+})
+
+test('#2326 — the pair is the read: a marker-less false stays RED on one dispatch, a stray marker on green stays green, and a failure or a moved echo after a segment keeps its route', async () => {
+  const bare = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': { gate_green: false, gate_output: 'FAIL', segment_note: 'stray note' } })
+  assert.equal(aceGateCalls(bare.calls).length, 1, 'a marker-absent false dispatches once')
+  assert.ok(bare.logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED')), 'and logs RED')
+  const stray = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': (p) => ({ ...greenAtTip(p), gate_segment: 'incomplete' }) })
+  assert.equal(aceGateCalls(stray.calls).length, 1, 'a green reply with a stray marker dispatches once')
+  assert.ok((stray.out.aced || []).some(a => a && a.sha === 'ace00001'), 'and stands green')
+  const failed = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq(ACE_INCOMPLETE, { gate_green: false, gate_output: 'FAIL: 1 test failed' }) })
+  assert.equal(aceGateCalls(failed.calls).length, 2, 'a finished failure ends the loop')
+  assert.ok(failed.logs.some(l => typeof l === 'string' && l.includes('ace-gate') && l.includes('RED') && l.includes('FAIL: 1 test failed')), 'and takes the RED route')
+  assert.match(failed.calls.find(isMergeTask).prompt, /FORWARD-REVERT/, 'and forward-reverts')
+  const moved = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq(ACE_INCOMPLETE, { gate_green: true, head_sha: 'deadbeef' }) })
+  assert.ok(!(moved.out.aced || []).length, 'a continuation that echoes another commit licenses nothing')
+  assert.ok(moved.logs.some(l => typeof l === 'string' && l.includes('names a different commit')), 'and names the moved head')
+})
+
+test('#2326 — a real dispatch death on a continuation takes the died route and names the segment site', async () => {
+  const { out, logs } = await runPhase(PT_ARGS(), acePtImpl(), { 'ace-gate': aceGateSeq(ACE_INCOMPLETE, () => { throw new Error('socket hang up') }) })
+  assert.ok(!(out.aced || []).length, 'a dead continuation licenses nothing')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('failed absorb — ace-gate:t1:a1:segment-2 dispatch died post-spawn (env-died)')), 'the routing names the segment site')
+  assert.ok(out.landed.includes('t1'), 'the approved pre-ace tip still merges (PIN-2)')
+})
+
+test('GATE_CHECK: gate_segment pinned, optional, evaluated', () => {
+  const G = grabSchema('GATE_CHECK')
+  assert.ok(EVALUATED_SCHEMAS.includes('GATE_CHECK'), 'GATE_CHECK is in the evaluated-schema census')
+  assert.equal(evalSchema(G, { gate_green: false, gate_segment: 'incomplete', gate_log_path: '/x/gate.log', segment_note: 'step' }), true, 'the wire shape of the incomplete gate is schema-legal')
+  assert.equal(evalSchema(G, { gate_green: false }), true, 'a marker-less false is schema-legal')
+  assert.equal(evalSchema(G, { gate_green: false, gate_segment: 'partial' }), false, 'gate_segment rejects any value outside its enum')
+  assert.equal(evalSchema(G, { gate_green: true }), false, 'the green arm still requires head_sha')
+})
+
+// #2330: the cap counts fixes, so every fix commit gets an audit before the task reaches a verdict.
+const lastFixImpl = ({ title = sha => 'blocker at ' + sha, approveAt = null } = {}) => {
+  let fixes = 0
+  return (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-worker' && /^fix:/.test(label)) return { task_id: 't1', status: 'implemented', head_sha: 'f1ced00' + (++fixes), tests: { unit: 1 } }
+    if (seat === 'war-auditor') {
+      const sha = (prompt.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1] || 'deadbeef'
+      if (sha === approveAt) return { seat: label, lens: 'correctness', audit_sha: sha, verdict: 'approve', findings: [], confidence: 'high' }
+      return { seat: label, lens: 'correctness', audit_sha: sha, verdict: 'request_changes', confidence: 'high',
+        findings: [{ severity: 'Major', title: title(sha), file: 'skills/x.js', rationale: 'r', suggested_fix: 'fix it' }] }
+    }
+    return defaultImpl(prompt, opts)
+  }
+}
+const LAST_FIX_ARGS = (roundLimit) => PROVISION_ARGS({ tasks: [{ ...SINGLE_TASK[0], roster: [{ lens: 'correctness' }] }], run: { roundLimit, ace: false } })
+const fixLabels = (calls) => calls.filter(c => /^fix:t1:/.test(c.opts.label || '')).map(c => c.opts.label)
+const auditedShas = (calls) => calls.filter(isAuditor).map(c => (c.prompt.match(/AUDIT PIN: the worker reports commit ([0-9a-f]+)/) || [])[1])
+
+test('#2330 — the last fix round gets its audit: fixes stay bounded by roundLimit and a still-blocked task reads audit-blocked', async () => {
+  const { out, calls, logs } = await runPhase(LAST_FIX_ARGS(2), lastFixImpl())
+  assert.deepEqual(fixLabels(calls), ['fix:t1:r1', 'fix:t1:r2'], 'exactly roundLimit fixes, never one more')
+  assert.deepEqual(auditedShas(calls), ['deadbeef', 'f1ced001', 'f1ced002'], 'the audit reaches the last fix commit')
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'audit-blocked'), 'the task stays audit-blocked')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('no fix round remains')), 'the stop is logged')
+})
+
+test('#2330 — a clean audit of the last fix lands the task, and a blocker that survives the last fix holds under PIN-29', async () => {
+  const clean = await runPhase(LAST_FIX_ARGS(2), lastFixImpl({ approveAt: 'f1ced002' }))
+  assert.deepEqual(fixLabels(clean.calls), ['fix:t1:r1', 'fix:t1:r2'], 'both fixes ran')
+  assert.ok((clean.out.landed || []).includes('t1'), 'the last fix lands')
+  assert.ok(!(clean.out.escalated || []).some(e => e && e.task === 't1'), 'with no escalation')
+  const stuck = await runPhase(LAST_FIX_ARGS(1), lastFixImpl({ title: () => 'same blocker' }))
+  assert.deepEqual(fixLabels(stuck.calls), ['fix:t1:r1'], 'the one fix ran')
+  assert.ok((stuck.out.escalated || []).some(e => e && e.task === 't1' && e.reason === 'escalate'), 'the survivor escalates on the last audit')
+})
+
 test('#1913 End states 4 + 6 — a footprint-SUBSET ace diff re-runs only the originating seat and TRANSFERS the other seat, with per-seat provenance', async () => {
   const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], aceOk()))
   assert.deepEqual(lensesOf(calls, 'ace00001'), ['correctness'],

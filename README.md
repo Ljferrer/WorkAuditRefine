@@ -463,9 +463,9 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.26** — a helper card for tiny Git reads ([ADR 0057](docs/adr/0057-tiny-read-only-git-dispatches-run-on-a-helper-card.md), #2497): `audit-pin` and `diff-probe` ran on the refiner card, which loads the full tool list for a two-call read. Both now run on `agents/war-helper.md`, which has Bash only and defaults to haiku at low effort. `agents.helper` sets the tier, and the auditor git guard confines the helper. A worktree path that needs quotes routes that dispatch to the refiner. The repeat `audit-pin` lookup stays on the recovery refiner tier.
+**0.21.27** — the ace gate survives a long gate (#2326, #2329 item 1, #2330): an ace gate check that outran its turn used to read as RED, so a correct ace commit was forward-reverted and its absorbs left the task. `GATE_CHECK` now carries the `gate_segment` marker, the check backgrounds its gate to a stamped log, and the engine re-dispatches on `gate_green: false` + `gate_segment: 'incomplete'`, bounded by `run.roundLimit`. A spent bound still forward-reverts, because nothing judged the tip, and its sweep reason names the unfinished gate. A real failure, a moved head and a dead dispatch keep their routes. The fix loop now audits its last fix: `run.roundLimit` still caps fix dispatches, and one more audit judges the last fix commit before a task reads `audit-blocked`.
 
-Release scope: the window from the 0.21.25 `master` head (`abb8ed2e`, PR #2539 merged) to this release. Config: `war-config.mjs` (`agents.helper`). Engine: `workflow-template.js` (`helperOpts`, the `audit-pin` and `diff-probe` prompts). Card and guard: `agents/war-helper.md`, `validate-auditor-git.sh`. Docs: ADR 0057, `CONTEXT.md`, `schemas.md`, `refiner-recovery.md`, `/war-room`.
+Release scope: the window from the 0.21.26 `master` head (`f7ccac33`) to this release. Engine: `workflow-template.js` (`GATE_CHECK`, `aceGateGreen`, the fix loop). Docs: ADR 0051 section 3, `CONTEXT.md`, `resume-and-recovery.md`, `design.md`.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 
