@@ -9,6 +9,11 @@ deictics reworded to read true from this file, and dated scope corrections appen
 whose shipped text stays as it was. The recovered window is bounded at 0.15.0 by design; earlier
 history (back to 0.5.0) is unrecovered. Relative links resolve from the repo root.
 
+## 0.21.28 — 2026-10-30
+**0.21.28** — `/snipe` can run inside a goal: the skill drops `disable-model-invocation`, so the Lead can call it when the operator invokes it or an active operator goal names `/snipe`. Only the skill's description and doctrine hold that limit, and a test pins both the missing flag and the wording. A goal that states an absorb rule is the prompt for the findings it covers; every other finding stays the operator's call. `/war-campaign` and `/aftermath` keep the flag.
+
+Release scope: the window from the 0.21.27 `master` head (`0a2522e7`) to this release. Skill: `skills/snipe/SKILL.md`. Test: `skills/snipe/assets/snipe-args.test.mjs`. Docs: the README quick-audit section.
+
 ## 0.21.27 — 2026-10-30
 **0.21.27** — the ace gate survives a long gate (#2326, #2329 item 1, #2330): an ace gate check that outran its turn used to read as RED, so a correct ace commit was forward-reverted and its absorbs left the task. `GATE_CHECK` now carries the `gate_segment` marker, the check backgrounds its gate to a stamped log, and the engine re-dispatches on `gate_green: false` + `gate_segment: 'incomplete'`, bounded by `run.roundLimit`. A spent bound still forward-reverts, because nothing judged the tip, and its sweep reason names the unfinished gate. A real failure, a moved head and a dead dispatch keep their routes. The fix loop now audits its last fix: `run.roundLimit` still caps fix dispatches, and one more audit judges the last fix commit before a task reads `audit-blocked`.
 

@@ -1,7 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { parseSnipeArgs, snipeTier, SNIPE_LENS_CATALOG } from './snipe-args.mjs'
 import { DEFAULTS, RESERVED_LENSES } from '../../war/assets/war-config.mjs'
+
+// --- invocation limit -------------------------------------------------------
+
+test('SKILL.md lets a goal call /snipe, and the description holds the limit', () => {
+  const skill = readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8')
+  const fm = skill.split('---\n')[1]
+  assert.doesNotMatch(fm, /disable-model-invocation/)
+  assert.match(fm, /Run only when the operator invokes \/snipe or an active operator goal names \/snipe/)
+})
 
 // --- parsing + reconciliation (#1920 grammar) -----------------------------
 

@@ -1,7 +1,6 @@
 ---
 name: snipe
-description: Launch a quick one-shot audit — 1-5 read-only WAR auditor seats against the current changes, verdicts reported in chat. Trailing integer sets the seat count (default 1); trailing comma-separated lenses pin lenses, with `auto` meaning the Lead picks the rest (default auto). No plan, no refinery, no filing — just the audit machinery, on demand. Explicitly-invoked-only; never auto-triggers.
-disable-model-invocation: true
+description: Launch a quick one-shot audit — 1-5 read-only WAR auditor seats against the current changes, verdicts reported in chat. Trailing integer sets the seat count (default 1); trailing comma-separated lenses pin lenses, with `auto` meaning the Lead picks the rest (default auto). No plan, no refinery, no filing — just the audit machinery, on demand. Run only when the operator invokes /snipe or an active operator goal names /snipe; never start it because the work looks audit-shaped.
 ---
 
 # /snipe — one-shot quick audit
@@ -44,8 +43,8 @@ Synthesize one chat report, informational — nothing is gated:
 - Surface every `ask`-disposition finding to the operator for a ruling; an unruled ask is never filed (standing doctrine).
 - If the tree was dirty: lead the report with the advisory caveat.
 - If a seat returned `lessonsUsed`, record it once per seat. No hook sees a snipe seat's plain-text result (ADR 0055): `node ${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs record-use <slug>... --local "$MEM" --seat war-auditor --agent <agent id>`. `<agent id>` is the id the spawn returned, so this row and the seat's hook rows count once. `$MEM` is the auto-memory directory. A failure here changes nothing in the report.
-- Close with the operator's options (absorb by hand — per `${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md`; file follow-ups on request; drop) — and take **no** action on them unprompted. Loop bound: across repeated /snipe invocations on the same branch, after two consecutive all-approve rounds with only Nits, stop unless a new commit lands.
+- Close with the operator's options (absorb by hand — per `${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md`; file follow-ups on request; drop) — and take **no** action on them unprompted. An active operator goal that states an absorb rule is the prompt for the findings that rule covers; everything else stays the operator's call. Loop bound: across repeated /snipe invocations on the same branch, after two consecutive all-approve rounds with only Nits, stop unless a new commit lands.
 
 ## Non-goals
 
-Not `/code-review` (this runs WAR's auditor card, lens doctrine, severity/disposition vocabulary, and config tiers — output comparable to in-run verdicts). Not a phase. Never auto-invoked.
+Not `/code-review` (this runs WAR's auditor card, lens doctrine, severity/disposition vocabulary, and config tiers — output comparable to in-run verdicts). Not a phase. Runs only on the operator's `/snipe` or an operator goal that names it.

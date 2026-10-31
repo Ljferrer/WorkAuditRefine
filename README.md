@@ -127,7 +127,7 @@ The lightest skill in the plugin: convene 1–5 of WAR's own read-only auditor s
 
 **The report** is informational — nothing is gated: per-seat verdicts, findings ranked by severity with Critical/Major labeled *would block in a phase*, and every `ask`-disposition finding surfaced for your ruling. `/snipe` never fixes, never files; you decide what to absorb, file, or drop. Output is directly comparable to in-run audit verdicts — same card, same lenses, same vocabulary — which is what separates it from a generic code review.
 
-Never auto-invoked. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
+Runs only when you invoke it or when your active goal names `/snipe`; add an absorb rule to the goal if its fix rounds should proceed without you. Doctrine: [`skills/snipe/SKILL.md`](skills/snipe/SKILL.md); argument grammar owned by [`skills/snipe/assets/snipe-args.mjs`](skills/snipe/assets/snipe-args.mjs).
 
 ### Configure a run (`/war-room`)
 
@@ -463,9 +463,9 @@ so the checklist is the guard:
 
 ## Status
 
-**0.21.27** — the ace gate survives a long gate (#2326, #2329 item 1, #2330): an ace gate check that outran its turn used to read as RED, so a correct ace commit was forward-reverted and its absorbs left the task. `GATE_CHECK` now carries the `gate_segment` marker, the check backgrounds its gate to a stamped log, and the engine re-dispatches on `gate_green: false` + `gate_segment: 'incomplete'`, bounded by `run.roundLimit`. A spent bound still forward-reverts, because nothing judged the tip, and its sweep reason names the unfinished gate. A real failure, a moved head and a dead dispatch keep their routes. The fix loop now audits its last fix: `run.roundLimit` still caps fix dispatches, and one more audit judges the last fix commit before a task reads `audit-blocked`.
+**0.21.28** — `/snipe` can run inside a goal: the skill drops `disable-model-invocation`, so the Lead can call it when the operator invokes it or an active operator goal names `/snipe`. Only the skill's description and doctrine hold that limit, and a test pins both the missing flag and the wording. A goal that states an absorb rule is the prompt for the findings it covers; every other finding stays the operator's call. `/war-campaign` and `/aftermath` keep the flag.
 
-Release scope: the window from the 0.21.26 `master` head (`f7ccac33`) to this release. Engine: `workflow-template.js` (`GATE_CHECK`, `aceGateGreen`, `segmentLoop`, `newGateCapture`, the fix loop). Docs: ADR 0051 section 3, `CONTEXT.md`, `resume-and-recovery.md`, `design.md`, `gastown-design-params.md`.
+Release scope: the window from the 0.21.27 `master` head (`0a2522e7`) to this release. Skill: `skills/snipe/SKILL.md`. Test: `skills/snipe/assets/snipe-args.test.mjs`. Docs: the README quick-audit section.
 
 Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 
