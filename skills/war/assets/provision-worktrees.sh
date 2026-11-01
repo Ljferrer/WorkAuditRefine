@@ -45,8 +45,8 @@
 #   corrupted checkout may be restored at its unchanged recorded SHA (#1381,
 #   reuse_hygiene); prune + recreate only when the registry is stale (dir gone)
 #   — recreation re-checks-out the existing branch, so its commits, which live
-#   in the ref, are never lost, and catches it up to the integration tip only
-#   when every commit on it is already upstream (#2493); and FAIL LOUD (never delete) on an unregistered
+#   in the ref, are never lost, and fast-forwards it to the integration tip only
+#   when the tip already contains it (#2493); and FAIL LOUD (never delete) on an unregistered
 #   dir that already holds files.
 # - teardown is STRICTLY RUN-SCOPED (D9): the refiner supplies the current run's
 #   ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and teardown
@@ -573,13 +573,13 @@ dir_is_empty() {
 #   * Not registered, empty dir         -> rmdir + create fresh (no data at risk).
 #   * Stale registry or not registered, and <branch> exists -> check it out,
 #     then catch it up (#2493, see catch_up_reused_branch below). The branch
-#     rebases onto <integration-tip> only if every commit on it is upstream by
-#     patch id, which includes a branch with no commits above the tip. Any other
-#     branch stays as it is, and the engine's tree-keyed re-provision covers the
-#     gate. A Git error or a failed rebase warns and keeps the branch. This path
-#     never resets and never dies. A registered, present worktree never gets here.
-#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
-#     (D7).
+#     fast-forwards to <integration-tip> only if the tip already contains its
+#     tip. Any other branch stays as it is, and the engine's tree-keyed
+#     re-provision covers the gate. So does a merged task's branch, because the
+#     merge proof and the Ace-Charge read match on its tip. A Git error or a failed
+#     rebase warns and keeps the branch. This path never resets and never dies.
+#     A move or a failure emits a WORKTREE_HYGIENE marker for the barrier. A
+#     registered, present worktree never gets here.
 cmd_ensure_worktree() {
   reclaim_stale_remote=0
   path=""; branch=""; tip=""
@@ -650,7 +650,7 @@ cmd_ensure_worktree() {
   fi
 
   # Create (or re-create after prune). If the branch already exists, check it out
-  # as-is (preserves its commits); otherwise cut it at the integration tip.
+  # (preserves its commits) and catch it up; otherwise cut it at the integration tip.
   if branch_exists "$branch"; then
     if ! git worktree add "$path" "$branch" >/dev/null 2>&1; then
       # #1712 fix 1: name the holder so the operator/Lead does not discover
@@ -680,38 +680,58 @@ cmd_ensure_worktree() {
 
 # catch_up_reused_branch <path> <branch> <integration-tip> : on the existing-branch
 # path, after the add (#2493). A recovery relaunch reaches this path with a branch
-# at its old tip, and a gate there reads a stale tree. Rebase only if the branch is
-# not the tip, tip..branch holds no merge commit, and git cherry lists no + line.
-# git cherry skips merges, so the merge check is required: a merge commit can hold
-# content that no patch id covers. core.hooksPath=/dev/null keeps a repository hook
-# out of this move. Always returns 0, and writes nothing to stdout.
+# at its old tip, and a gate there reads a stale tree. Fast-forward only if the tip
+# contains the branch, so no commit leaves the branch and a pushed branch still
+# takes a plain push. Keep a branch whose tip is the second parent of its own
+# first-parent WAR-Task merge. task-integrated.sh and the barrier's Ace-Charge read
+# both match that tip, and a move would reset the charge to 0.
+# core.hooksPath=/dev/null keeps a repository hook out of this move. Always returns
+# 0, and writes nothing to stdout.
 catch_up_reused_branch() {
   cu_path="$1"; cu_branch="$2"; cu_tip="$3"
   cu_ref="refs/heads/$cu_branch"
   if ! cu_tip_sha="$(git rev-parse --verify --quiet "$cu_tip^{commit}" 2>/dev/null)" \
     || ! cu_old_sha="$(git rev-parse --verify --quiet "$cu_ref^{commit}" 2>/dev/null)"; then
-    warn "ensure-worktree: could not read '$cu_tip' or '$cu_branch'; reusing '$cu_branch' as is."
+    catch_up_kept "could not read '$cu_tip' or '$cu_branch'" unreadable-ref
     return 0
   fi
   [ "$cu_tip_sha" != "$cu_old_sha" ] || return 0
-  if ! cu_merges="$(git rev-list --merges "$cu_tip_sha..$cu_ref" 2>/dev/null)" \
-    || ! cu_cherry="$(git cherry "$cu_tip_sha" "$cu_ref" 2>/dev/null)"; then
-    warn "ensure-worktree: could not compare '$cu_branch' with $cu_tip_sha; reusing '$cu_branch' as is."
+  if git merge-base --is-ancestor "$cu_old_sha" "$cu_tip_sha" 2>/dev/null; then
+    :
+  else
+    cu_rc=$?
+    [ "$cu_rc" -eq 1 ] || catch_up_kept "could not compare '$cu_branch' with $cu_tip_sha" compare-failed
     return 0
   fi
-  [ -z "$cu_merges" ] || return 0
-  case "
-$cu_cherry" in
-    *"
-+ "*) return 0 ;;
-  esac
+  if ! cu_merges="$(git rev-list --first-parent --merges "$cu_old_sha..$cu_tip_sha" 2>/dev/null)"; then
+    catch_up_kept "could not read the merges above '$cu_branch'" merge-read-failed
+    return 0
+  fi
+  for cu_merge in $cu_merges; do
+    if ! cu_second="$(git rev-parse --verify --quiet "$cu_merge^2" 2>/dev/null)" \
+      || ! cu_owner="$(git show -s --format='%(trailers:key=WAR-Task,valueonly)' "$cu_merge" 2>/dev/null)"; then
+      catch_up_kept "could not read merge $cu_merge" merge-read-failed
+      return 0
+    fi
+    if [ "$cu_second" = "$cu_old_sha" ] && [ "$cu_owner" = "$cu_branch" ]; then
+      return 0
+    fi
+  done
   if git -C "$cu_path" -c core.hooksPath=/dev/null rebase "$cu_tip_sha" >/dev/null 2>&1; then
-    warn "ensure-worktree: moved '$cu_branch' from $cu_old_sha to $cu_tip_sha (every commit was already upstream)."
+    warn "ensure-worktree: moved '$cu_branch' from $cu_old_sha to $cu_tip_sha, which contains it."
+    hygiene_marker "$cu_path" moved "from-$cu_old_sha-to-$cu_tip_sha"
     return 0
   fi
   git -C "$cu_path" -c core.hooksPath=/dev/null rebase --abort >/dev/null 2>&1 || true
-  warn "ensure-worktree: rebase of '$cu_branch' onto $cu_tip_sha failed; reusing '$cu_branch' at $cu_old_sha."
+  catch_up_kept "rebase of '$cu_branch' onto $cu_tip_sha failed" rebase-failed
   return 0
+}
+
+# catch_up_kept <reason> <marker detail> : warn and mark a kept branch. It reads
+# cu_path and cu_branch from catch_up_reused_branch.
+catch_up_kept() {
+  warn "ensure-worktree: $1; reusing '$cu_branch' as is."
+  hygiene_marker "$cu_path" detected "catch-up-$2"
 }
 
 # stale_remote_probe <branch> <frozen-tip> <reclaim-flag> : on the fresh-cut path,
@@ -779,7 +799,7 @@ stale_remote_probe() {
 # hygiene_marker <sub-path> <action> <detail> : the machine-readable reuse-path
 # hygiene marker (#1381, the STALE_REMOTE precedent in this file: the provision
 # barrier keys on the token and the key=value payload, never an exit code).
-# action is "repaired" or "detected"; values stay space-free so the payload
+# action is "repaired", "detected" or "moved"; values stay space-free so the payload
 # splits cleanly on key=value boundaries.
 hygiene_marker() {
   printf 'WORKTREE_HYGIENE path=%s action=%s detail=%s\n' "$1" "$2" "$3" >&2
