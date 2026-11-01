@@ -196,14 +196,16 @@ results are filled from Git proof, never left as null provenance.
 A real target move at `pin-confirm` is not a workflow error. The engine dispatches
 `target-reconcile`, then repeats the snapshot, the probe and the proof against the new tip, for
 at most `roundLimit` passes. A repeat proof keeps the first snapshot's `source_sha`, `patch_id` and
-`content_id`, because an earlier pass may have rebased the task. The task continues only when the
+`content_id`, because an earlier pass may have rebased the task. It also names `cherry_sha`, the
+branch the repeat probe's `git cherry` read, so the matched commits compare like with like. The task continues only when the
 approved tree check passes and patch and exact content identities match on the new tip. A patch
 mismatch after a move gets no re-audit panel. The task holds, as it does when the bound runs out or
 no usable snapshot returns. A hold uses reason `escalate`, a note that starts `target moved:` and
 the audit verdict `pin-transfer:target-moved`. Siblings still merge while the target reconciles.
 A task snapshot that stays out of sync, or that fails after this run read a move, holds its task the
-same way at the pin slot and at every task merge dispatch, and the phase keeps its handoff. A fresh
-relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw. A move read
+same way at the pin slot and at every task merge dispatch, even if its last attempt died, and the
+phase keeps its handoff. A dead snapshot with neither condition, and a dead probe or proof, keep the
+site-named `env-died` route. A fresh relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw. A move read
 after an upstream content re-audit holds the same way, because it voids the destination the panel
 approved. After a move, an `already_upstream` claim completes only on its full proof with exact tree
 equality. A repeat pass that hits a rebase conflict, an empty-unmatched diff, a refused destination

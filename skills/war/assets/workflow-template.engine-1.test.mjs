@@ -16382,7 +16382,7 @@ const heldOnMove = (out, calls, cause, lastProof = NEW_TIP) => {
   assert.match(row.detail.note, /^target moved: /)
   assert.match(row.detail.note, cause)
   if (lastProof) assert.equal(row.detail.after?.local_sha, lastProof, 'the hold carries the last proof')
-  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved' && e.before?.base_sha))
+  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved' && (e.before === null || e.before?.base_sha)))
   assert.ok(!calls.some(isMergeTask))
   assert.ok(!calls.some(c => c.prompt.includes('PIN CONTENT RE-AUDIT')), 'a held move never takes the re-audit panel')
 }
@@ -16501,7 +16501,7 @@ for (const [name, probe, proofAfter, cause] of [
   ['a transferred claim off the new tip', REBASED_PROBE, p => ({ ...pinProofOf(p), target_ancestor: false }), /approved content/],
   ['an error probe with no content proof', { status: 'error' }, p => ({ ...pinProofOf(p), target_ancestor: false }), /approved content/],
   ['an error probe with a moved head', { status: 'error', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001' }, p => ({ ...pinProofOf(p), post_content_id: '6'.repeat(40) }), /approved content/],
-  ['an already_upstream claim on a different tree', { status: 'already_upstream', rebased_tip: NEW_TIP, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }, p => ({ ...pinProofOf(p), head_tree: '6'.repeat(40) }), /patch/],
+  ['an already_upstream claim on a different tree', { status: 'already_upstream', rebased_tip: NEW_TIP, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }, p => ({ ...pinProofOf(p), head_tree: '6'.repeat(40) }), /final tree differs/],
   ['a contradicted already_upstream claim', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] }, p => ({ ...pinProofOf(p), post_patch_id: 'p1' }), /patch/],
   ['a tree mismatch', REBASED_PROBE, p => ({ ...pinProofOf(p), content_tree: '6'.repeat(40) }), /tree/],
   ['a head that is not the reported tip', REBASED_PROBE, p => ({ ...pinProofOf(p), head_sha: '9'.repeat(40) }), /usable proof/],
@@ -16521,15 +16521,32 @@ test('#2309: after a move, an already_upstream claim with exact tree equality co
   assert.ok(!calls.some(c => c.prompt.includes('PIN CONTENT RE-AUDIT')))
 })
 
-for (const [name, proofAfter, verdict] of [
-  ['an unpublished head', p => ({ ...pinProofOf(p), remote_sha: '6'.repeat(40) }), null],
-  ['a non-empty post diff', p => ({ ...pinProofOf(p), post_empty: false }), 'pin-transfer:unverified-upstream'],
+test('#2309: after a move, already_upstream reads cherry on the rebased commits and completes', async () => {
+  const replayed = { ...MOVED_SNAPSHOT, source_sha: REPLAYED_SOURCE }
+  const rebased = 'c0ffee2'.padEnd(40, '0'), original = 'c0ffee1'.padEnd(40, '0')
+  let probes = 0
+  const proofAfter = p => {
+    const before = JSON.parse(p.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1])
+    return { ...pinProofOf(p), cherry: [{ sha: before.cherry_sha === REPLAYED_SOURCE ? rebased : original, sign: '-' }] }
+  }
+  const { out, calls } = await runRemote({ 'pin-transfer': () => probes++ ? { status: 'already_upstream', rebased_tip: NEW_TIP, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee2'] } : REBASED_PROBE, ...moveOnce(replayed, proofAfter) })
+  assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+  assert.ok(out.pinTransfers.some(r => r.mode === 'already_upstream'))
+  assert.ok(!calls.some(isMergeTask))
+  const proofs = calls.filter(c => c.opts.label === 'git-pin:t1')
+  assert.ok(proofs[1].prompt.includes('where C is BEFORE.cherry_sha when BEFORE names it, else content_sha'))
+  assert.ok(!proofs[0].prompt.match(/Immutable BEFORE: (.+?)\. REPORTED PINS:/)[1].includes('cherry_sha'), 'a first pass names no cherry_sha')
+})
+
+for (const [name, after, proofAfter, verdict] of [
+  ['an unpublished head', { ...MOVED_SNAPSHOT, remote_sha: null, seed_sha: NEW_TIP }, pinProofOf, 'pin-transfer:unverified-upstream'],
+  ['a non-empty post diff', MOVED_SNAPSHOT, p => ({ ...pinProofOf(p), post_empty: false }), 'pin-transfer:unverified-upstream'],
 ]) test('#2309: after a move, an already_upstream claim with ' + name + ' never completes', async () => {
   let probes = 0
-  const { out, calls } = await runRemote({ 'pin-transfer': () => probes++ ? { status: 'already_upstream', rebased_tip: NEW_TIP, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } : REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT, proofAfter) }, { roundLimit: 2 })
+  const { out, calls } = await runRemote({ 'pin-transfer': () => probes++ ? { status: 'already_upstream', rebased_tip: NEW_TIP, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] } : REBASED_PROBE, ...moveOnce(after, proofAfter) }, { roundLimit: 2 })
   assert.ok(!out.landed.includes('t1'))
   assert.ok(!calls.some(isMergeTask))
-  if (verdict) assert.ok(out.auditLog.some(e => e.verdict === verdict))
+  assert.ok(out.auditLog.some(e => e.verdict === verdict))
 })
 
 test('#2309: after a move, an error probe with full content proof takes the ordinary merge', async () => {
@@ -16572,8 +16589,24 @@ test('#2309: a first snapshot failure stays a workflow error, because no move wa
   assert.match(out.workflowError?.message ?? '', /Git merge snapshot unavailable/)
 })
 
+test('#2309: a dead repeat snapshot holds as a lost target, never soft env-died', async () => {
+  const { out, calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(() => { throw new Error('529 snapshot died') }) }, { roundLimit: 2 })
+  heldOnMove(out, calls, /no usable snapshot of the target/, null)
+})
+
+test('#2309: an out-of-sync read keeps its hold when the last attempt dies', async () => {
+  let snapshots = 0
+  const { out, calls } = await runRemote({ 'pin-snapshot': () => { if (snapshots++) throw new Error('529 snapshot died'); return { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: '6'.repeat(40) } } }, { roundLimit: 2 })
+  heldOnMove(out, calls, /no usable snapshot of the target/, null)
+})
+
+test('#2309: an out-of-sync read keeps its hold when the last attempt is unusable', async () => {
+  let snapshots = 0
+  const { out, calls } = await runRemote({ 'pin-snapshot': () => snapshots++ ? {} : { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: '6'.repeat(40) } }, { roundLimit: 2 })
+  heldOnMove(out, calls, /no usable snapshot of the target/, null)
+})
+
 for (const [name, seats, why] of [
-  ['snapshot', { ...moveOnce(() => { throw new Error('529 snapshot died') }) }, /git-pin-snapshot:t1/],
   ['probe', { ...moveOnce(MOVED_SNAPSHOT), 'pin-transfer': (() => { let n = 0; return () => { if (n++) throw new Error('529 probe died'); return REBASED_PROBE } })() }, /pin-transfer:t1/],
   ['proof', { ...moveOnce(MOVED_SNAPSHOT, () => { throw new Error('529 proof died') }), 'pin-transfer': REBASED_PROBE }, /git-pin:t1/],
 ]) test('#2309: a dead repeat ' + name + ' is the soft env-died route', async () => {
@@ -16647,7 +16680,7 @@ const siblingHeld = (out, calls) => {
 test('#2309: a sibling holds too when the read move leaves the target unreconciled', async () => {
   let snapshots = 0
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
-    'pin-snapshot': () => snapshots++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['pin-snapshot'],
+    'pin-snapshot': (p, o) => o.label.endsWith(':t2') ? {} : snapshots++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['pin-snapshot'],
     'pin-confirm': p => movedLocal(pinProofOf(p)),
   })
   assert.match(out.escalated.find(e => e.task === 't1').detail.note, /^target moved: /)
@@ -16658,7 +16691,7 @@ test('#2309: a sibling holds too after the upstream re-audit arm read the move',
   const tip = 'facade01'.padEnd(40, '0')
   let proofs = 0
   const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
-    'pin-snapshot': (p, o) => o.label.endsWith(':t1') ? { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: tip, remote_sha: tip } : LOST_TARGET,
+    'pin-snapshot': (p, o) => o.label.endsWith(':t1') ? { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: tip, remote_sha: tip } : {},
     'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] },
     'pin-confirm': p => { const proof = { ...pinProofOf(p), head_tree: '6'.repeat(40) }; return proofs++ ? movedLocal(proof) : proof },
   })
@@ -16705,9 +16738,7 @@ for (const [name, site, args, impl] of [
     'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' && merges++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['merge-snapshot'],
   })
   assert.ok(merges > 1, 'the proceed re-merge reached its snapshot')
-  assert.equal(calls.filter(c => c.opts.label === site).length, 0, 'no re-merge without a snapshot')
-  assert.equal(out.escalated.find(e => e.task === 't1')?.detail?.note, 'target moved: no usable snapshot of the target')
-  assert.ok(!out.workflowError, JSON.stringify(out.workflowError))
+  heldAtMerge(out, calls, site)
 })
 
 test('#2309: a first pin snapshot that stays out of sync holds the task, and siblings hold too', async () => {
@@ -16722,6 +16753,22 @@ test('#2309: an out-of-sync snapshot counts as a read move for a later unusable 
     'pin-snapshot': (p, o) => o.label.endsWith(':t1') ? LOST_TARGET : {},
   })
   siblingHeld(out, calls)
+})
+
+for (const [name, label, site] of [
+  ['polish', 'git-snapshot:p3-polish', 'merge:p3-polish'],
+  ['land', 'git-snapshot:phase-3', 'land:phase-3'],
+]) test('#2309: after a read move, an unusable ' + name + ' snapshot keeps its throw', async () => {
+  const base = SWEEP_ARGS()
+  let proofs = 0
+  const { out } = await runPhase({ ...base, run: { ...base.run, roundLimit: 2 } }, sweepBase([queuedAbsorb()]), {
+    'pin-transfer': REBASED_PROBE,
+    'pin-confirm': p => proofs++ ? pinProofOf(p) : movedLocal(pinProofOf(p)),
+    'merge-snapshot': (p, o) => o.label === label ? {} : NEW_SEAT_DEFAULTS['merge-snapshot'],
+  })
+  assert.equal(proofs > 1, true, 'the run read a move')
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.ok((out.workflowError?.message ?? '').includes('Git merge snapshot unavailable before ' + site), out.workflowError?.message)
 })
 
 test('#2309: a polish snapshot that stays out of sync keeps its throw', async () => {
@@ -16741,6 +16788,7 @@ test('#2309: a dead first pin snapshot stays env-died, with no read move', async
 const heldAtMerge = (out, calls, site) => {
   assert.equal(out.landDecision, 'held:escalation', JSON.stringify(out.workflowError))
   assert.ok(out.handoff, 'the phase keeps its handoff')
+  assert.equal(out.escalated.filter(e => e.task === 't1').length, 1, 'one hold, no second escalation')
   const row = out.escalated.find(e => e.task === 't1')
   assert.equal(row?.reason, 'escalate')
   assert.equal(row.detail.note, 'target moved: no usable snapshot of the target')
@@ -16767,8 +16815,7 @@ test('#2309: a floor-retry merge snapshot that stays out of sync holds the task'
     'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' && merges++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['merge-snapshot'],
   })
   assert.ok(merges > 1, 'the retry reached its snapshot')
-  assert.equal(out.landDecision, 'held:escalation', JSON.stringify(out.workflowError))
-  assert.equal(out.escalated.find(e => e.task === 't1')?.detail?.note, 'target moved: no usable snapshot of the target')
+  heldAtMerge(out, calls, 'merge:t1:floor-retry:r1')
   assert.ok(!out.landed.includes('t1'))
 })
 
