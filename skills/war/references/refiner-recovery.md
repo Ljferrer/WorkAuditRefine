@@ -188,7 +188,8 @@ changes since approval against the acceptance criteria; the ordinary integration
 omit dropped content. A complete fresh approving panel plus an independent re-read proving the
 same published destination permits completion with a `mismatch`/`re-ran` receipt and no empty
 content merge. Rejected, incomplete, dead or pin-invalid panels emit no approval receipt. Unknown
-or moved shared Git refs cannot complete; read-only deaths retain their existing classifications.
+or moved shared Git refs cannot complete; read-only deaths retain their existing classifications,
+except the dead task snapshot that holds as a lost target below.
 Fabricated identities or unproved content hold. A proof reports stable refs that differ from the
 snapshot as they are, and the engine reads that as a target move. Missing reported dispatch bases on transferred/mismatch
 results are filled from Git proof, never left as null provenance.

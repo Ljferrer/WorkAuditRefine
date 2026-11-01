@@ -16430,7 +16430,7 @@ test('#2309: a move onto the task tip goes to reconcile, never the misread retry
   const { out, calls } = await runRemote({ 'pin-transfer': { ...REBASED_PROBE, rebased_tip: NEW_TIP },
     'pin-snapshot': () => snapshots++ ? MOVED_SNAPSHOT : NEW_SEAT_DEFAULTS['pin-snapshot'],
     'pin-confirm': p => { const proof = pinProofOf(p); return proofs++ ? proof : { ...proof, local_sha: NEW_TIP, remote_sha: NEW_TIP } } })
-  assert.equal(proofs, 2, 'one move, one repeat, no retry of the first read')
+  assert.equal(proofs, 2, 'two proofs: the move and its repeat')
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
   landedClean(out, calls, 2)
 })
@@ -16441,10 +16441,24 @@ test('#2309: a misread that names a task tip equal to the base still retries', a
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 0, 'local stayed at the base, so nothing moved')
 })
 
+test('#2309: a misread remote beside a moved local still retries', async () => {
+  const { out, calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, 'pin-confirm': firstReply(proof => ({ ...movedLocal(proof), remote_sha: proof.head_sha })) })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 0, 'a misread remote never reaches the reconcile prompt')
+  landedClean(out, calls, 2)
+})
+
+test('#2309: a transferred refusal logs the hold after a move, and the re-audit before one', async () => {
+  const moved = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT, p => ({ ...pinProofOf(p), pre_patch_id: 'p9', post_patch_id: 'p9' })) })
+  const line = run => run.logs.find(l => l.includes('transferred REFUSED'))
+  assert.ok(line(moved).endsWith('holding the task.'), line(moved))
+  const clean = await runRemote({ 'pin-transfer': REBASED_PROBE, 'pin-confirm': p => ({ ...pinProofOf(p), pre_patch_id: 'p9', post_patch_id: 'p9' }) })
+  assert.ok(line(clean).endsWith('re-auditing the destination.'), line(clean))
+})
+
 test('#2309: the proof prompt asks for moved refs as they are', async () => {
   const { calls } = await runRemote({})
   const prompt = calls.find(c => c.opts.label === 'git-pin:t1').prompt
-  assert.ok(prompt.includes('If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha: the engine reads that as a target move.'))
+  assert.ok(prompt.includes('If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha and still return every other field: the engine reads that as a target move.'))
   assert.ok(prompt.includes('Movement here means a change between your two reads, never a stable difference from BEFORE.'))
   assert.ok(!prompt.includes('The integration refs must be unchanged'))
 })
