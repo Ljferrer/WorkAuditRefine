@@ -167,7 +167,8 @@ not the seed/base branch. Polish and terminal merges use the same phase seed; su
 targets `targetBase`. Never query a superproject branch as a submodule seed.
 On disagreement, `target-reconcile` may safely fast-forward a clean local follower to origin
 target, or to the published seed when origin target is absent,
-then an independent snapshot decides readiness even if maintenance lost its reply. Never publish
+then an independent snapshot decides readiness even if maintenance lost its reply. At a task merge
+snapshot, that base must also be the one the pin proof read. Never publish
 unaccounted local-only history or change the current task during this maintenance. Unresolved
 history holds after the bounded attempts; Git remains available for the next agent to reconcile.
 
@@ -188,10 +189,32 @@ changes since approval against the acceptance criteria; the ordinary integration
 omit dropped content. A complete fresh approving panel plus an independent re-read proving the
 same published destination permits completion with a `mismatch`/`re-ran` receipt and no empty
 content merge. Rejected, incomplete, dead or pin-invalid panels emit no approval receipt. Unknown
-or moved shared Git refs cannot complete; read-only deaths retain their existing classifications.
-Fabricated identities or unproved content hold. Integration refs must not change
-during this rebase-only operation. Missing reported dispatch bases on transferred/mismatch
+or moved shared Git refs cannot complete; read-only deaths retain their existing classifications,
+except the dead task snapshot that holds as a lost target below.
+Fabricated identities or unproved content hold. A proof reports stable refs that differ from the
+snapshot as they are, and the engine reads that as a target move. Missing reported dispatch bases on transferred/mismatch
 results are filled from Git proof, never left as null provenance.
+
+A real target move at `pin-confirm` is not a workflow error. The engine dispatches
+`target-reconcile`, then repeats the snapshot, the probe and the proof against the new tip, for
+at most `roundLimit` passes. A repeat proof keeps the first snapshot's `source_sha`, `patch_id` and
+`content_id`, because an earlier pass may have rebased the task. It also names `cherry_sha`, the
+branch the repeat probe's `git cherry` read, so the matched commits compare like with like. The task continues only when the
+approved tree check passes and patch and exact content identities match on the new tip. A patch
+mismatch after a move gets no re-audit panel. The task holds, as it does when the bound runs out or
+no usable snapshot returns. A hold uses reason `escalate`, a note that starts `target moved:` and
+the audit verdict `pin-transfer:target-moved`. Siblings still merge while the target reconciles.
+A task snapshot that stays out of sync, or that fails after this run read a move, holds its task the
+same way at the pin slot and at every task merge dispatch, even if its last attempt died, and the
+phase keeps its handoff. A dead snapshot with neither condition, and a dead probe or proof, keep the
+site-named `env-died` route. A task merge snapshot that reads the target out of sync and then
+reconciles to a new base holds too, because the pin proof never read that base. A bad read that
+returns to the proof's base merges. A move that lands on local and origin before a merge snapshot
+reads in sync, so the post-merge identity check owns it. A fresh relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw on an unusable read. A move read
+after an upstream content re-audit holds the same way, because it voids the destination the panel
+approved. After a move, an `already_upstream` claim completes only on its full proof with exact tree
+equality. A repeat pass that hits a rebase conflict, an empty-unmatched diff, a refused destination
+or an `already_upstream` refusal keeps that arm's own hold.
 
 Check both local and remote state before and after maintenance. Respect a live or unknown writer;
 if its mutation cannot be ruled out or safely completed, return uncertain. Never overwrite
@@ -259,7 +282,8 @@ requires matching source identity and both target refs unchanged after the retry
 means “no response.” The workflow validates these fields before accounting success or safe
 absence. Exhausted uncertainty holds before land (`held:workflow-error`), preserving all branches
 and the evidence ledger for the next agent. A proved-unmerged infrastructure death retains its
-existing soft classification; a read-only audit/probe death keeps its existing site classification.
+existing soft classification; a read-only audit/probe death keeps its existing site classification, except
+the dead task snapshot that holds as a lost target above.
 
 Across machines, fetch the named source/target refs and reconstruct from commit history and
 remote refs, using the recovery provenance helper for task skips. Missing evidence means rerun

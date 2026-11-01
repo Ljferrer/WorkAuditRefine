@@ -475,6 +475,12 @@ const notes = []
 // naming the mode, the SHAs, and EVERY seat as transferred or re-ran with its own sha, so unanimity
 // survives in transferred form and a later audit can re-verify without replaying the rebase.
 const pinTransfers = []
+// pinTargetMoved (#2309): this run read a real target move, at a proof, at an out-of-sync snapshot that
+// never reconciled, or at a merge snapshot that reconciled to a new base. A later task snapshot that finds
+// no usable target then holds that task, in place of the workflow-error throw. A fresh relaunch starts false.
+let pinTargetMoved = false
+// pinProofBase: the base the current task's pin proof read. A merge snapshot compares it after an out-of-sync read.
+let pinProofBase = null
 // asks (#1550, ADR 0013 amendment 2026-08-25): parked disposition:'ask' records — decision-shaped
 // Minor/Nit questions awaiting the operator's ruling at the Checkpoint strike-list gate. Rides the
 // top-level return beside minorsFiled and the handoff's ninth (lossy) `asks` key; NEVER consumed by
@@ -2393,21 +2399,48 @@ const NEVER_MOVE_MERGED = 'A task branch whose tip is already an ancestor of the
 // neverMoveStep: the merge-task step (a) form of NEVER_MOVE_MERGED, with its Git test.
 const neverMoveStep = (nmWorktree, nmBranch, nmTarget) => pt`${NEVER_MOVE_MERGED} Its test: \`git -C ${nmWorktree} merge-base --is-ancestor ${nmBranch} ${nmTarget}\` exits 0 — then skip this rebase and the merge, and never make a second merge commit. `
 
+// targetMaintenance: the bounded target-reconcile dispatch. Its reply decides nothing, because the next
+// snapshot re-reads Git, so a reply lost to an infrastructure death reads the same as a returned one.
+const targetMaintenance = (opts, context, observed) => {
+  const seed = context.seed ?? context.target
+  return dispatchSite(
+    pt`GIT TARGET MAINTENANCE before ${opts.label}. Context: ${JSON.stringify(context)}. Observed snapshot: ${JSON.stringify(observed)}. Inspect current local and origin target refs. If origin target is absent, use the published seed as the upstream; otherwise use origin target. If local is strictly behind that upstream, fast-forward the local target to its published tip using the existing clean-worktree/compare-and-swap rules. Otherwise preserve all refs and report the unaccounted history. Never publish local-only integration commits, reset or rewind a shared ref, change/rebase the current task, force push, or invent approval for an earlier task. An absent remote is safe only for a fresh cut exactly at origin/${seed ?? '<target>'}; do not publish an unproved seed. The engine re-reads Git independently after this bounded maintenance; your response alone cannot establish readiness.`,
+    { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'target-reconcile', label: 'git-target:' + opts.label, schema: { type: 'object', properties: { detail: { type: 'string' } } }, ...spawnRefinerRecovery() })
+}
+// TARGET_LOST rides the death channel, so every task merge site that reads deathOf reaches mergeDied,
+// and mergeDied holds the task with a 'target moved:' note, never as env-died (#2309, operator rulings).
+const TARGET_LOST = 'no usable snapshot of the target'
+// TARGET_LATE: a task merge snapshot read the target out of sync, and maintenance reconciled it to a base
+// the pin proof never read (operator rulings 2026-11-01). The task holds before its merge. A bad read that
+// returns to the proof's base merges.
+const TARGET_LATE = 'the target moved after the pin proof'
+// mergeSnapshot throws on a live unusable read, and a dead last attempt returns its death. A task snapshot
+// returns TARGET_LOST in place of both if it read the target out of sync, or if this run already read a
+// move: a soft env-died would let a sibling land over an out-of-sync target. The task holds and the phase
+// keeps its handoff. A polish, terminal or land snapshot never returns TARGET_LOST: it keeps the throw and
+// the death.
 const mergeSnapshot = async (opts, context) => {
-  let before
+  let before, outOfSync = false
   const seed = context.seed ?? context.target
   for (let attempt = 0; attempt < roundLimit; attempt++) {
   before = await dispatchSite(
     pt`GIT MERGE SNAPSHOT (read-only) for ${opts.label}. Context: ${JSON.stringify(context)}. Before any merge mutation, read the local target and source refs as full commit SHAs (git rev-parse --verify <ref>^{commit}); query origin's exact refs/heads/<target> with git ls-remote. remote_sha is null ONLY on a successful query proving that ref absent, never on a transport/auth error. When the target remote is absent, also query origin's exact refs/heads/${seed ?? '<target>'} and return seed_sha (its full published tip or null); a fresh integration branch is safe only at that published seed, never at local-only history. Return base_sha (local target), source_sha (local source), remote_sha and patch_id (git diff <merge-base target source>..<source> | git patch-id --stable, first field). If the context names revert_range and its approved commit is an ancestor of source HEAD, the expected patch is instead the approved commit's patch (git diff <merge-base target approved>..<approved>): the merge forward-reverts that range to the approved tree. Also return content_id for that same expected diff using the Exact Git diff identity procedure in refiner-recovery.md. No writes, no checkout, no rebase, no merge, no push. Any unresolved Git error: return no usable snapshot, never invented values.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label: (context.pin ? 'git-pin-snapshot:' : 'git-snapshot:') + context.task, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
   if (before && fullSha(before.base_sha) && fullSha(before.source_sha) && (before.remote_sha === null || fullSha(before.remote_sha)) && typeof before.patch_id === 'string' && fullSha(before.content_id)) {
-    if (context.land || (before.remote_sha === null ? before.seed_sha === before.base_sha : before.remote_sha === before.base_sha)) return before
+    if (context.land || (before.remote_sha === null ? before.seed_sha === before.base_sha : before.remote_sha === before.base_sha)) {
+      if (!outOfSync || context.kind !== 'task' || context.pin || before.base_sha === pinProofBase) return before
+      pinTargetMoved = true
+      return { [DISPATCH_DEATH]: TARGET_LATE }
+    }
+    outOfSync = true
     auditLog.push({ task: context.task, verdict: 'git-target:unreconciled', findings: [], site: opts.label, before })
-    if (attempt + 1 < roundLimit) await dispatchSite(
-      pt`GIT TARGET MAINTENANCE before ${opts.label}. Context: ${JSON.stringify(context)}. Observed snapshot: ${JSON.stringify(before)}. Inspect current local and origin target refs. If origin target is absent, use the published seed as the upstream; otherwise use origin target. If local is strictly behind that upstream, fast-forward the local target to its published tip using the existing clean-worktree/compare-and-swap rules. Otherwise preserve all refs and report the unaccounted history. Never publish local-only integration commits, reset or rewind a shared ref, change/rebase the current task, force push, or invent approval for an earlier task. An absent remote is safe only for a fresh cut exactly at origin/${seed ?? '<target>'}; do not publish an unproved seed. The engine re-reads Git independently after this bounded maintenance; your response alone cannot establish readiness.`,
-      { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'target-reconcile', label: 'git-target:' + opts.label, schema: { type: 'object', properties: { detail: { type: 'string' } } }, ...spawnRefinerRecovery() })
+    if (attempt + 1 < roundLimit) await targetMaintenance(opts, context, before)
   }
   log(opts.label + ': Git snapshot unavailable; retrying read-only on the recovery tier within roundLimit')
+  }
+  if (context.kind === 'task' && (outOfSync || pinTargetMoved)) {
+    pinTargetMoved = true
+    return { [DISPATCH_DEATH]: TARGET_LOST }
   }
   if (deathOf(before)) return before // no mutating dispatch has started
   throw new Error('Git merge snapshot unavailable before ' + opts.label + '; no merge dispatched')
@@ -2498,6 +2531,7 @@ const multiRegressWhy = (site, n) => 'failed absorb — the ' + site + ' range o
 const ACE_REVERT = { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean' }, tip_sha: { type: 'string' }, detail: { type: 'string' } } }
 // PIN_REASON: verifyPinTransfer's typed non-success (#2485 D6). A well-formed proof that fails ONLY the
 // tree clause is a deterministic fact, so the verifier stops at one attempt and returns it with this key.
+// 'target-moved' (#2309) is the same shape: the proof read a moved integration target.
 const PIN_REASON = Symbol('war-pin-reason')
 const pinReasonOf = p => (p && typeof p === 'object' && typeof p[PIN_REASON] === 'string') ? p[PIN_REASON] : null
 const PIN_GIT_PROOF = { type: 'object', required: ['remote_sha'], properties: {
@@ -2510,8 +2544,10 @@ const PIN_GIT_PROOF = { type: 'object', required: ['remote_sha'], properties: {
 // remoteMisread (#2309): a remote_sha the proof cannot mean as the integration ref. The snapshot match
 // reads first, so a target already at the task tip is never malformed. A value that is not null or a
 // full SHA, or that names the task branch (head, content, or the snapshot source, which differs from
-// content on a registered range) retries. Any other difference is a real move and keeps the throw.
+// content on a registered range) retries. A local read that moved to the same value is a real move, even
+// at the task tip: a misread keeps local at the snapshot base. Any other difference is a real move too.
 const remoteMisread = (proof, before) => !sameRemote(proof.remote_sha, before.remote_sha) &&
+  !(proof.local_sha === proof.remote_sha && proof.local_sha !== before.base_sha) &&
   ((proof.remote_sha !== null && !fullSha(proof.remote_sha)) || [proof.head_sha, proof.content_sha, before.source_sha].includes(proof.remote_sha))
 const verifyPinTransfer = async (r, before, probe, context) => {
   const approved = approvedShaOf(r)
@@ -2525,20 +2561,21 @@ const verifyPinTransfer = async (r, before, probe, context) => {
     proof = await dispatchSite(
       pt`PIN TRANSFER GIT VERIFICATION (read-only). Context: ${JSON.stringify(context)}. Immutable BEFORE: ${JSON.stringify(before)}. REPORTED PINS: ${JSON.stringify(reported)}
 CLAIMED RESULT: ${JSON.stringify(probe ?? null)}
-Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and the exact origin refs/heads/<integration branch> remote_sha (the integration branch's own origin ref, NEVER the task branch's pushed tip; null ONLY after a successful query proving absence). The integration refs must be unchanged by this rebase-only probe. content_sha is BEFORE.source_sha, except when the context names revert_range: then return approved_ancestor (true ONLY when git merge-base --is-ancestor pin[0] BEFORE.source_sha exits 0), and when it is true content_sha is pin[0] (the registered range revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha content_sha as [{sign, sha}] with full TASK commit SHAs. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Compute pre_content_id for dispatch_base..content_sha and post_content_id for integration..task head using Exact Git diff identity in refiner-recovery.md. Re-read all refs after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof. No writes, checkout, rebase, merge, push or gate.`,
+Resolve every reported pin separately with git rev-parse --verify --end-of-options <pin>^{commit} only for 7–40 lowercase hex, returning pins in exactly that order (null for missing, malformed, nonexistent or ambiguous values). Never infer identity from reported strings. Read actual task head_sha, integration local_sha and the exact origin refs/heads/<integration branch> remote_sha (the integration branch's own origin ref, NEVER the task branch's pushed tip; null ONLY after a successful query proving absence). If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha and still return every other field: the engine reads that as a target move. content_sha is BEFORE.source_sha, except when the context names revert_range: then return approved_ancestor (true ONLY when git merge-base --is-ancestor pin[0] BEFORE.source_sha exits 0), and when it is true content_sha is pin[0] (the registered range revert restores the approved content). Read approved_tree from pin[0]^{tree}, content_tree from content_sha^{tree}, and head_tree from head_sha^{tree}; these must be actual Git objects, not echoed identities. Compute dispatch_base = git merge-base BEFORE.base_sha content_sha; pre_patch_id = git diff dispatch_base..content_sha | git patch-id --stable (first field); task_count = git rev-list --count dispatch_base..content_sha; cherry = git cherry BEFORE.base_sha C as [{sign, sha}] with full TASK commit SHAs, where C is BEFORE.cherry_sha when BEFORE names it, else content_sha. Compute post_patch_id from git diff <integration>..<task head> | git patch-id --stable, post_empty from git diff --quiet <integration> <task head> (true ONLY on exit 0), and target_ancestor from git merge-base --is-ancestor <integration> <task head>. Compute pre_content_id for dispatch_base..content_sha and post_content_id for integration..task head using Exact Git diff identity in refiner-recovery.md. Re-read all refs after computing evidence; any movement or Git error returns {"remote_sha":""}, which the engine reads as no proof. Movement here means a change between your two reads, never a stable difference from BEFORE. No writes, checkout, rebase, merge, push or gate.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-confirm', label: 'git-pin:' + r.task.id, schema: PIN_GIT_PROOF, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
     if (deathOf(proof)) continue
     // Well-formedness first (#2485 D6): every field but the tree clause. A malformed proof retries and,
-    // exhausted, still reads pin-transfer:unverified at the merge slot.
-    if (!proof || ![proof.head_sha, proof.content_sha, proof.dispatch_base, proof.approved_tree, proof.content_tree, proof.pre_content_id, proof.post_content_id].every(fullSha) ||
+    // exhausted, still reads pin-transfer:unverified at the merge slot, or the target-moved hold after a
+    // move (#2309).
+    if (!proof || ![proof.head_sha, proof.local_sha, proof.content_sha, proof.dispatch_base, proof.approved_tree, proof.content_tree, proof.pre_content_id, proof.post_content_id].every(fullSha) ||
         !Array.isArray(proof.pins) || proof.pins.length !== reported.length ||
         proof.pins.some((sha, i) => sha !== null && (!isSha(reported[i]) || !fullSha(sha) || !sha.startsWith(reported[i]))) ||
         !fullSha(proof.pins[0]) ||
         proof.content_sha !== (range && proof.approved_ancestor === true ? proof.pins[0] : before.source_sha) ||
         typeof proof.pre_patch_id !== 'string' || typeof proof.post_patch_id !== 'string' || remoteMisread(proof, before)) continue
-    // A moved integration target is the Git-reconciliation stop, read before the tree clause so the D6
-    // reason names a tree-only fact on an unchanged target.
-    if (proof.local_sha !== before.base_sha || !sameRemote(proof.remote_sha, before.remote_sha)) throw new Error('Pin transfer changed the integration target; Git reconciliation required before land for ' + r.task.id)
+    // A moved integration target is the Git-reconciliation stop (#2309), read before the tree clause so
+    // the D6 reason names a tree-only fact on an unchanged target. One attempt: Git repeats the move.
+    if (proof.local_sha !== before.base_sha || !sameRemote(proof.remote_sha, before.remote_sha)) return { [PIN_REASON]: 'target-moved', proof }
     // The tree clause, never relaxed (PIN-25). A well-formed proof that fails only here is a fact Git
     // will repeat on every retry: one attempt, a typed reason, never roundLimit retries.
     if (proof.approved_tree !== proof.content_tree) {
@@ -2920,7 +2957,8 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
 // its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
-// A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot.
+// A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
+// snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
 const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
   return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
@@ -4888,10 +4926,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       }
       // Merge-slot death arm (D21, PIN-25): snapshot/pin-probe, floor-fix and floor re-audit deaths
-      // stay site-named SOFT env-died. A merge death reaches this arm only after Git reconciliation
+      // stay site-named SOFT env-died. TARGET_LOST and TARGET_LATE are the exceptions: they hold the task (#2309). A merge death reaches this arm only after Git reconciliation
       // proves its target unchanged; uncertainty holds earlier. Unmerged tasks do not block healthy
       // siblings through a fabricated content verdict.
-      const mergeDied = why => envDied(r.task.id, why, { verdict: 'env-died', fixRounds: r.task.fixRounds })
+      let pinBefore = null
+      const targetMovedHold = (cause, facts) => {
+        escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'target moved: ' + cause, ...facts } })
+        auditLog.push({ task: r.task.id, verdict: 'pin-transfer:target-moved', findings: [], fixRounds: r.task.fixRounds, before: pinBefore, ...facts })
+      }
+      const mergeDied = why => [TARGET_LOST, TARGET_LATE].includes(why) ? targetMovedHold(why, {}) : envDied(r.task.id, why, { verdict: 'env-died', fixRounds: r.task.fixRounds })
       // Merge-time provision failure (#2485 D19, PIN-19): a failed tree-keyed re-run step
       // (PROVISION_RERUN_CLAUSE) rides MergeResult.provision on an unmerged result. provisionEvidence —
       // provisionStep's own evidence gate — admits it as the soft env-blocked escalation with the
@@ -4947,7 +4990,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // diff — dispatchBase→tip before the rebase, integration-tip→tip after. Stable patch IDs erase
       // whitespace; independent exact changed-path/blob/mode identities must also match before the
       // audit pin transfers without a panel. A mismatch in either measure means that ONE task
-      // falls back to the in-lock full-panel re-audit — today's behaviour, byte for byte (PIN-1).
+      // falls back to the in-lock full-panel re-audit — today's behaviour, byte for byte (PIN-1). After a
+      // target move the mismatch holds instead (#2309).
       // The PIN-16 already_upstream arm runs FIRST, on PRE-rebase legs, and an empty pre-rebase patch-id
       // fails closed to a hard escalation: `git patch-id --stable` prints nothing on an empty diff, so
       // empty-equals-empty must never read as a transfer. Its own schema, never a MERGE_RESULT status
@@ -4967,9 +5011,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         target: ph.integrationBranch, seed: workingBranchFor(r.task) }
       const revertMergeContext = revertRange ? { ...taskMergeContext, revert_range: revertRange } : taskMergeContext
       const pinContext = { ...revertMergeContext, pin: true }
-      const pinBefore = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
-      if (deathOf(pinBefore)) { mergeDied(deathOf(pinBefore)); continue }
-      let pinProbe = await dispatchSite(
+      const firstSnapshot = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
+      if (deathOf(firstSnapshot)) { mergeDied(deathOf(firstSnapshot)); continue }
+      pinBefore = firstSnapshot
+      const runPinProbe = () => dispatchSite(
         pt`PIN TRANSFER probe for WAR task ${r.task.id} (branch ${r.task.branch}) against ${ph.integrationBranch}. Rebase and measure only — do NOT merge, do NOT push the integration branch, do NOT run the gate or any floor.\n`
         + aceRevertClause
         + pt`  (1) BEFORE the rebase, all in the TASK worktree ${r.task.worktree} (git -C ${r.task.worktree}): BASE=merge-base ${ph.integrationBranch} ${r.task.branch}; N=rev-list --count $BASE..${r.task.branch} (the task's own commit count); PRE=diff $BASE..${r.task.branch} piped to git patch-id --stable, first field (an EMPTY diff prints NOTHING, so PRE is then empty); CHERRY=cherry ${ph.integrationBranch} ${r.task.branch} (leading - = a task commit already upstream by patch, + = unmatched; git cherry names TASK commits, never upstream equivalents). Return BASE as dispatch_base on every result that carries rebased_tip.\n`
@@ -4982,34 +5027,66 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`  (7) Any git/env error you cannot classify → { status: 'error', detail: '<the error>' }; the engine independently checks actual Git content before fallback or full re-audit.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: 'pin-transfer',
           label: 'pin-transfer:' + r.task.id, schema: PIN_TRANSFER, ...spawn('refiner') })   // concatenation-built (census-safe)
-      const probeDeath = deathOf(pinProbe)
-      if (probeDeath) { mergeDied(probeDeath); continue }   // D21: a dead probe never reads as a merge result
-      let probeStatus = pinProbe && PIN_TRANSFER.properties.status.enum.includes(pinProbe.status) ? pinProbe.status : 'error'
-      // A success-bearing probe must name the destination BEFORE any transfer receipt,
-      // contradiction routing, re-audit or already-upstream completion (#2154).
-      if (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) && !isSha(pinProbe.rebased_tip)) {
-        escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer refused: missing or malformed destination SHA', probe: pinProbe } })
-        auditLog.push({ task: r.task.id, verdict: 'pin-transfer:invalid-destination', findings: [], fixRounds: r.task.fixRounds })
-        continue
+      // One pin pass: the probe, its destination check and the proof. It returns a named stop, or the
+      // read facts; the merge slot owns the snapshot, because a repeat pass reads a new one.
+      const pinPass = async before => {
+        const probe = await runPinProbe()
+        const probeDeath = deathOf(probe)
+        if (probeDeath) return { died: probeDeath }   // D21: a dead probe never reads as a merge result
+        const status = probe && PIN_TRANSFER.properties.status.enum.includes(probe.status) ? probe.status : 'error'
+        // A success-bearing probe must name the destination BEFORE any transfer receipt,
+        // contradiction routing, re-audit or already-upstream completion (#2154).
+        if (['transferred', 'mismatch', 'already_upstream'].includes(status) && !isSha(probe.rebased_tip)) {
+          escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer refused: missing or malformed destination SHA', probe } })
+          auditLog.push({ task: r.task.id, verdict: 'pin-transfer:invalid-destination', findings: [], fixRounds: r.task.fixRounds })
+          return { refused: true }
+        }
+        const proof = await verifyPinTransfer(r, before, probe, pinContext)
+        return { died: deathOf(proof), probe, status, proof }
       }
-      const pinProof = await verifyPinTransfer(r, pinBefore, pinProbe, pinContext)
-      if (deathOf(pinProof)) { mergeDied(deathOf(pinProof)); continue }
+      // A real target move (#2309, operator ruling): target-reconcile, then a fresh snapshot, probe and
+      // proof, for at most roundLimit passes. A repeat proof keeps the first snapshot's source identity:
+      // the first pass can rebase the task, so a later snapshot's source no longer carries the approved
+      // tree, and the proof must compare the approved content, not an earlier rebase of it.
+      let pass = await pinPass(pinBefore), pinMoves = 0
+      const firstSource = { source_sha: pinBefore.source_sha, patch_id: pinBefore.patch_id, content_id: pinBefore.content_id }
+      while (pinReasonOf(pass.proof) === 'target-moved' && pinMoves < roundLimit) {
+        pinMoves++
+        pinTargetMoved = true
+        const moved = pass.proof.proof
+        log('pin-transfer ' + r.task.id + ': target moved; reconcile pass ' + pinMoves + ' of ' + roundLimit)
+        await targetMaintenance({ label: 'pin-transfer:' + r.task.id }, pinContext, { ...pinBefore, base_sha: moved.local_sha, remote_sha: moved.remote_sha ?? null })
+        const next = await mergeSnapshot({ label: 'pin-transfer:' + r.task.id }, pinContext)
+        if (deathOf(next)) { pass = { died: deathOf(next) }; break }
+        // cherry_sha: the branch the repeat probe's CHERRY reads, which an earlier pass may have rebased.
+        pinBefore = { ...next, ...firstSource, cherry_sha: next.source_sha }
+        pass = await pinPass(pinBefore)
+      }
+      if (pass.died) { mergeDied(pass.died); continue }
+      if (pass.refused) continue
+      if (pinReasonOf(pass.proof) === 'target-moved') { targetMovedHold('the target still moves after ' + pinMoves + ' reconcile passes', { after: pass.proof.proof }); continue }
+      let { probe: pinProbe, status: probeStatus, proof: pinProof } = pass
       // #2485 D6: a well-formed proof that failed ONLY the tree clause — the branch carries content no
       // panel approved. One attempt (the verifier stopped), reason escalate (PIN-27), a named note, and
       // the tip-probe result beside the pin-transfer probe so the Lead reads both Git observations.
       if (pinReasonOf(pinProof) === 'tree-mismatch') {
-        escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'branch tip carries content committed after approval', probe: pinProbe, tipProbe: r.tipProbe ?? null } })
+        if (pinMoves) targetMovedHold('the approved tree check failed', { probe: pinProbe, tipProbe: r.tipProbe ?? null, after: pinProof.proof })
+        else escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'branch tip carries content committed after approval', probe: pinProbe, tipProbe: r.tipProbe ?? null } })
         continue
       }
+      // After a move the probe's base can name an earlier rebase of the task, while the proof's base names
+      // the approved content, so only the proof's reading counts.
       if (!pinProof || (['transferred', 'mismatch', 'already_upstream'].includes(probeStatus) &&
-          (pinProof.pins[1] !== pinProof.head_sha || (pinProbe.dispatch_base != null && pinProof.pins[2] !== pinProof.dispatch_base)))) {
+          (pinProof.pins[1] !== pinProof.head_sha || (!pinMoves && pinProbe.dispatch_base != null && pinProof.pins[2] !== pinProof.dispatch_base)))) {
+        if (pinMoves) { targetMovedHold('no usable proof of the destination', { probe: pinProbe, after: pinProof }); continue }
         escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'pin transfer has no independent Git proof of the approved content and reported destination', probe: pinProbe } })
         auditLog.push({ task: r.task.id, verdict: 'pin-transfer:unverified', findings: [], fixRounds: r.task.fixRounds })
         continue
       }
-      if (['transferred', 'mismatch'].includes(probeStatus) && pinProbe.dispatch_base == null) pinProbe = { ...pinProbe, dispatch_base: pinProof.dispatch_base }
+      if (pinMoves || (['transferred', 'mismatch'].includes(probeStatus) && pinProbe.dispatch_base == null)) pinProbe = { ...pinProbe, dispatch_base: pinProof.dispatch_base }
       // An error can leave a completed or partial rebase. Only the unchanged approved source or
-      // equal patch and exact content identities may retain the ordinary fallback; changed content gets a full panel.
+      // equal patch and exact content identities may retain the ordinary fallback; changed content gets a
+      // full panel, unless the target moved.
       if (probeStatus === 'error' && pinProof.head_sha !== pinBefore.source_sha &&
           !pinContentMatches(pinProof)) {
         probeStatus = 'mismatch'
@@ -5045,6 +5122,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         auditLog.push({ task: r.task.id, verdict: 'pin-transfer:empty-unmatched', findings: [], fixRounds: r.task.fixRounds })
         continue
       }
+      // After a move only Git proof carries the task forward (#2309): no panel and no fallback path stands
+      // in for equal content on the new tip. The already_upstream arm keeps its own proof: exact tree equality
+      // on published refs (operator ruling). A contradicted shape routes by patch IDs below, and an unproved
+      // shape keeps its own refusal.
+      if (pinMoves && probeStatus !== 'already_upstream' && !pinContentMatches(pinProof)) { targetMovedHold('no Git proof of the approved content on the new tip', { probe: pinProbe, after: pinProof }); continue }
       let upstreamReaudit = false
       if (probeStatus === 'already_upstream') {
         // Fail-closed already_upstream (D4, PIN-8, #1973): the enum alone never skips a merge. The
@@ -5101,11 +5183,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (probeStatus === 'transferred' && (!pinContentMatches(pinProof) || blankText(pinProbe.pre_rebase_patch_id) ||
           pinProbe.pre_rebase_patch_id !== pinProbe.post_rebase_patch_id || pinProbe.pre_rebase_patch_id !== pinProof.pre_patch_id ||
           pinProbe.post_rebase_patch_id !== pinProof.post_patch_id)) {
-        log('pin-transfer ' + r.task.id + ': transferred REFUSED — independently computed equal exact content identities and non-empty patch IDs are required; re-auditing the destination.')
+        log('pin-transfer ' + r.task.id + ': transferred REFUSED — independently computed equal exact content identities and non-empty patch IDs are required; ' + (pinMoves ? 'holding the task.' : 're-auditing the destination.'))
         probeStatus = 'mismatch'
         pinProbe = { ...pinProbe, dispatch_base: pinProof.dispatch_base, pre_rebase_patch_id: pinProof.pre_patch_id, post_rebase_patch_id: pinProof.post_patch_id }
       }
       if (probeStatus === 'mismatch') {
+        if (pinMoves) { targetMovedHold(upstreamReaudit ? 'the final tree differs from the approved tree' : 'the task patch changed on the new tip', { probe: pinProbe, after: pinProof }); continue }
         // PIN-1 degrade-to-today: the rebase changed this task's own diff, so the pin cannot transfer.
         // The FULL panel re-audits the rebased tip IN the lock, exactly as the pre-#1913 engine did.
         log('pin-transfer ' + r.task.id + ': patch-id MISMATCH (' + (pinProbe.pre_rebase_patch_id || '(empty)') + ' → ' + (pinProbe.post_rebase_patch_id || '(empty)') + ') — the full panel re-audits the rebased tip ' + (pinProbe.rebased_tip || '(unrecorded)') + ' in the lock before the merge (PIN-1).')
@@ -5125,6 +5208,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           if (upstreamReaudit) {
             const afterAudit = await verifyPinTransfer(r, pinBefore, pinProbe, pinContext)
             if (deathOf(afterAudit)) { mergeDied(deathOf(afterAudit)); continue }
+            // No repeat here: the panel approved this tip, and a move voids that destination.
+            if (pinReasonOf(afterAudit) === 'target-moved') { pinTargetMoved = true; targetMovedHold('the target moved during the upstream content re-audit', { probe: pinProbe, after: afterAudit.proof }); continue }
             if (!afterAudit || afterAudit.head_sha !== pinProof.head_sha) {
               escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'upstream content re-audit has no unchanged Git destination proof' } })
               continue
@@ -5147,6 +5232,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       } else {
         log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).')
       }
+      pinProofBase = pinProof.local_sha
       const mr = routedMr(await segmentedMerge(
         pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + aceRevertClause
@@ -5174,7 +5260,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, revertMergeContext))
 
-      // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
+      // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status. Here and
+      // at each re-merge site, TARGET_LOST and TARGET_LATE hold the task through mergeDied instead (#2309).
       const mrDeath = deathOf(mr)
       if (mrDeath) { mergeDied(mrDeath); continue }
       if (provisionRed(mr)) continue
