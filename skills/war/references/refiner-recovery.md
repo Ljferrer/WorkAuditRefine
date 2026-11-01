@@ -200,11 +200,14 @@ at most `roundLimit` passes. A repeat proof keeps the first snapshot's `source_s
 approved tree check passes and patch and exact content identities match on the new tip. A patch
 mismatch after a move gets no re-audit panel. The task holds, as it does when the bound runs out or
 no usable snapshot returns. A hold uses reason `escalate`, a note that starts `target moved:` and
-the audit verdict `pin-transfer:target-moved`. Siblings still merge while the target reconciles. If a
-sibling's first snapshot fails after a read move, that sibling holds the same way, and the phase keeps
-its handoff. A move read after an upstream content re-audit holds the same way, because it voids the
-destination the panel approved. A repeat pass that hits a rebase conflict, an empty-unmatched diff or
-a refused destination keeps that arm's own hold.
+the audit verdict `pin-transfer:target-moved`. Siblings still merge while the target reconciles.
+A task snapshot that stays out of sync, or that fails after this run read a move, holds its task the
+same way at the pin slot and at every task merge dispatch, and the phase keeps its handoff. A fresh
+relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw. A move read
+after an upstream content re-audit holds the same way, because it voids the destination the panel
+approved. After a move, an `already_upstream` claim completes only on its full proof with exact tree
+equality. A repeat pass that hits a rebase conflict, an empty-unmatched diff, a refused destination
+or an `already_upstream` refusal keeps that arm's own hold.
 
 Check both local and remote state before and after maintenance. Respect a live or unknown writer;
 if its mutation cannot be ruled out or safely completed, return uncertain. Never overwrite
