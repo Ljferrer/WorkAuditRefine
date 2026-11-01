@@ -16260,6 +16260,157 @@ test('pin-confirm prompt names the integration branch origin ref for remote_sha,
   assert.ok(!src.includes('and exact origin remote_sha (null ONLY'), 'the ref-ambiguous phrase must not return')
 })
 
+// #2325, #2309: a pin proof that omits remote_sha or names the task branch's tip was read as a moved
+// integration target, which held an approved merge as held:workflow-error. Absent reads as null at each
+// compare with the snapshot, a misread proof retries, and only a real move keeps the throw.
+const REMOTE_SEED = '1'.repeat(40)
+const NULL_REMOTE_SNAPSHOT = { ...NEW_SEAT_DEFAULTS['pin-snapshot'], remote_sha: null, seed_sha: REMOTE_SEED }
+const pinProofOf = p => NEW_SEAT_DEFAULTS['pin-confirm'](p)
+const dropRemote = ({ remote_sha, ...rest }) => rest
+// A rebased head, so head_sha, content_sha and the snapshot remote are three different values.
+const REBASED_PROBE = { status: 'transferred', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1' }
+const countOf = (calls, label) => calls.filter(c => c.opts.label === label).length
+const firstReply = reply => { let seen = 0; return p => seen++ ? pinProofOf(p) : reply(pinProofOf(p)) }
+const runRemote = (seats, run = {}) => runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run }), defaultImpl, seats)
+const landedClean = (out, calls, pinCount) => {
+  assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+  assert.equal(out.landDecision, 'landed')
+  assert.equal(countOf(calls, 'git-pin:t1'), pinCount, 'git-pin dispatch count')
+}
+
+test('#2325: a proof with no remote_sha key matches a null snapshot and the merge lands', async () => {
+  const { out, calls } = await runRemote({ 'pin-snapshot': NULL_REMOTE_SNAPSHOT, 'pin-confirm': p => dropRemote(pinProofOf(p)) })
+  landedClean(out, calls, 1)
+})
+
+test('#2325: a proof that names null against a null snapshot lands on one dispatch', async () => {
+  const { out, calls } = await runRemote({ 'pin-snapshot': NULL_REMOTE_SNAPSHOT })
+  landedClean(out, calls, 1)
+})
+
+test('#2325: a proof with no remote_sha key against a published snapshot retries as malformed', async () => {
+  const { out, calls } = await runRemote({ 'pin-confirm': firstReply(dropRemote) })
+  landedClean(out, calls, 2)
+})
+
+test('#2325: PIN_GIT_PROOF requires remote_sha and its no-proof reply fits that schema', async () => {
+  const { calls } = await runRemote({})
+  const dispatch = calls.find(c => c.opts.label === 'git-pin:t1')
+  assert.ok(dispatch.opts.schema.required.includes('remote_sha'), 'a missing key is a schema retry')
+  assert.ok(dispatch.prompt.includes('any movement or Git error returns {"remote_sha":""}'), 'the no-proof reply carries the required key')
+  assert.ok(!dispatch.prompt.includes('any movement or Git error returns {}'), 'an empty reply cannot pass the required list')
+})
+
+test('#2325: the no-proof reply retries, never reads as a moved target', async () => {
+  const { out, calls } = await runRemote({ 'pin-confirm': firstReply(() => ({ remote_sha: '' })) })
+  landedClean(out, calls, 2)
+})
+
+test('#2325: the snapshot gate stays strict, so a snapshot with no remote_sha key retries', async () => {
+  let seen = 0
+  const { out, calls } = await runRemote({ 'pin-snapshot': () => seen++ ? NEW_SEAT_DEFAULTS['pin-snapshot'] : dropRemote(NEW_SEAT_DEFAULTS['pin-snapshot']) })
+  assert.equal(countOf(calls, 'git-pin-snapshot:t1'), 2)
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'target-reconcile'), 'an unusable read retries, never target maintenance')
+  assert.ok(out.landed.includes('t1'))
+})
+
+for (const [name, snapshot] of [
+  ['a null snapshot', NULL_REMOTE_SNAPSHOT],
+  ['a published snapshot', NEW_SEAT_DEFAULTS['pin-snapshot']],
+]) for (const [arm, misread] of [
+  ['head_sha', proof => proof.head_sha],
+  ['content_sha', proof => proof.content_sha],
+  ['a short SHA', () => 'abc1234'],
+  ['an empty string', () => ''],
+]) test('#2309: against ' + name + ', a proof whose remote_sha is ' + arm + ' retries and then lands', async () => {
+  const { out, calls } = await runRemote({ 'pin-snapshot': snapshot, 'pin-transfer': REBASED_PROBE, 'pin-confirm': firstReply(proof => ({ ...proof, remote_sha: misread(proof) })) })
+  landedClean(out, calls, 2)
+})
+
+for (const [name, misread] of [
+  ['the snapshot source', () => RANGE_TIP],
+  ['content_sha', proof => proof.content_sha],
+]) test('#2309: on a registered range, a proof that names ' + name + ' retries and then lands', async () => {
+  let seen = 0
+  const REBASED_HEAD = '9'.repeat(40)
+  const seats = revertAwarePinSeats(RANGE_TIP, { 'tip-probe': movedProbe(RANGE_TIP, { count: 2 }), 'ace-gate': { gate_green: false, gate_output: 'red' } })
+  const confirm = seats['pin-confirm']
+  const { out, calls } = await runPhase(PT_ARGS(), ptImpl([nit({ file: ACE_FILE })], blockedWith(RANGE_TIP)),
+    { ...seats, 'pin-confirm': p => { const proof = { ...confirm(p), head_sha: REBASED_HEAD }; return seen++ ? proof : { ...proof, remote_sha: misread(proof) } } })
+  assert.equal(countOf(calls, 'git-pin:t1'), 2, 'the misread proof retries')
+  const approved = JSON.parse(calls.find(c => c.opts.label === 'git-pin:t1').prompt.match(/REPORTED PINS: ([^\n]+)/)[1])[0]
+  assert.notEqual(approved.padEnd(40, '0'), RANGE_TIP, 'on a range, content_sha and the snapshot source are different values')
+  assertLandedReverted(out, 'range misread')
+})
+
+test('#2309: a misread proof that never clears escalates, never held:workflow-error', async () => {
+  const { out, calls } = await runRemote({ 'pin-snapshot': NULL_REMOTE_SNAPSHOT, 'pin-transfer': REBASED_PROBE, 'pin-confirm': p => { const proof = pinProofOf(p); return { ...proof, remote_sha: proof.head_sha } } }, { roundLimit: 2 })
+  assert.equal(countOf(calls, 'git-pin:t1'), 2)
+  assert.equal(out.landDecision, 'held:escalation')
+  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:unverified'))
+  assert.ok(!calls.some(isMergeTask))
+})
+
+for (const [name, snapshot, probe] of [
+  ['head_sha', NEW_SEAT_DEFAULTS['pin-snapshot'], { ...REBASED_PROBE, rebased_tip: REMOTE_SEED }],
+  ['content_sha', { ...NEW_SEAT_DEFAULTS['pin-snapshot'], source_sha: REMOTE_SEED }, REBASED_PROBE],
+]) test('#2309: a proof whose remote_sha equals the snapshot and ' + name + ' is never malformed', async () => {
+  const { out, calls } = await runRemote({ 'pin-snapshot': snapshot, 'pin-transfer': probe })
+  landedClean(out, calls, 1)
+})
+
+for (const [name, snapshot, moved] of [
+  ['a moved remote', NEW_SEAT_DEFAULTS['pin-snapshot'], proof => ({ ...proof, remote_sha: '7'.repeat(40) })],
+  ['a moved local', NEW_SEAT_DEFAULTS['pin-snapshot'], proof => ({ ...proof, local_sha: '7'.repeat(40) })],
+  ['a deleted remote', NEW_SEAT_DEFAULTS['pin-snapshot'], proof => ({ ...proof, remote_sha: null })],
+  ['a remote published after a null snapshot', NULL_REMOTE_SNAPSHOT, proof => ({ ...proof, remote_sha: '7'.repeat(40) })],
+]) test('#2309: ' + name + ' keeps the throw', async () => {
+  const { out, calls } = await runRemote({ 'pin-snapshot': snapshot, 'pin-confirm': p => moved(pinProofOf(p)) })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.match(out.workflowError?.message ?? '', /Pin transfer changed the integration target/)
+  assert.equal(countOf(calls, 'git-pin:t1'), 1, 'a real move never retries')
+  assert.ok(!calls.some(isMergeTask))
+})
+
+test('#2325: confirmMerge reads absent as null, so a reported non-success needs no reconcile', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }),
+    (p, o) => o.label === 'merge:t1' ? { mode: 'merge-task', status: 'conflict' } : defaultImpl(p, o),
+    { 'merge-snapshot': NULL_REMOTE_SNAPSHOT, 'merge-confirm': (p, o, w) => dropRemote(NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w)) })
+  assert.ok(out.auditLog.some(e => e.verdict === 'git-confirmed:conflict' && e.site === 'merge:t1'))
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+})
+
+test('#2325: MERGE_CONFIRMATION requires remote_sha and its no-proof reply fits that schema', async () => {
+  const { calls } = await runRemote({})
+  const dispatch = calls.find(c => c.opts.dispatchKind === 'merge-confirm')
+  assert.ok(dispatch.opts.schema.required.includes('remote_sha'), 'an omitted key is a schema retry, never proven absence')
+  assert.ok(dispatch.prompt.includes('any movement or Git error returns {"remote_sha":""}'), 'the no-proof reply carries the required key')
+  assert.ok(!dispatch.prompt.includes('any movement or Git error returns {}'), 'an empty reply cannot pass the required list')
+  const recovery = readFileSync(new URL('../references/refiner-recovery.md', import.meta.url), 'utf8').replace(/\s+/g, ' ')
+  assert.ok(recovery.includes('movement or a Git error returns `{"remote_sha":""}`'), 'refiner-recovery.md restates the same reply')
+  assert.ok(!recovery.includes('movement or a Git error returns `{}`'), 'the empty reply must not return')
+})
+
+for (const [name, reply] of [
+  ['the no-proof reply', () => ({ remote_sha: '' })],
+  ['a blank remote_sha beside good facts', proof => ({ ...proof, remote_sha: '' })],
+  ['an advanced remote', proof => ({ ...proof, remote_sha: '7'.repeat(40) })],
+  ['an advanced local', proof => ({ ...proof, local_sha: '7'.repeat(40) })],
+]) test('#2325: on a null snapshot, merge-confirm with ' + name + ' confirms nothing and enters reconcile', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }),
+    (p, o) => o.label === 'merge:t1' ? { mode: 'merge-task', status: 'conflict' } : defaultImpl(p, o),
+    { 'merge-snapshot': NULL_REMOTE_SNAPSHOT, 'merge-confirm': (p, o, w) => reply(NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w)) })
+  assert.ok(out.auditLog.some(e => e.verdict === 'git-confirmation:unresolved' && e.site === 'merge:t1'))
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+})
+
+test('#2325: reconcileMerge reads absent as null in its unmerged arm', async () => {
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }),
+    (p, o) => { if (o.label === 'merge:t1') throw new Error('read ECONNRESET after push'); return defaultImpl(p, o) },
+    { 'merge-snapshot': NULL_REMOTE_SNAPSHOT, 'merge-reconcile': dropRemote(NEW_SEAT_DEFAULTS['merge-reconcile']) })
+  assert.ok(out.auditLog.some(e => e.verdict === 'git-reconciled:unmerged' && e.site === 'merge:t1'))
+})
+
 test('#2300: deterministic Workflow reaches land; captures separate attempts, phases and fresh runs', async () => {
   const execute = async (over = {}) => {
     const { out, calls } = await runPhase(PROVISION_ARGS(over), defaultImpl, {}, deterministicWorkflow)
