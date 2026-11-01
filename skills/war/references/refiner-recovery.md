@@ -209,7 +209,8 @@ same way at the pin slot and at every task merge dispatch, even if its last atte
 phase keeps its handoff. A dead snapshot with neither condition, and a dead probe or proof, keep the
 site-named `env-died` route. A task merge snapshot that reads the target out of sync and then
 reconciles to a new base holds too, because the pin proof never read that base. A bad read that
-returns to the proof's base merges. A fresh relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw on an unusable read. A move read
+returns to the proof's base merges. A move that lands on local and origin before a merge snapshot
+reads in sync, so the post-merge identity check owns it. A fresh relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw on an unusable read. A move read
 after an upstream content re-audit holds the same way, because it voids the destination the panel
 approved. After a move, an `already_upstream` claim completes only on its full proof with exact tree
 equality. A repeat pass that hits a rebase conflict, an empty-unmatched diff, a refused destination

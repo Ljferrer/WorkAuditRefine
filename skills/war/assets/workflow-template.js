@@ -2957,7 +2957,8 @@ const segmentLoop = async (result, isSegment, redispatch) => {
 // marker-absent error is one dispatch that routes by its status). The continuation carries the FULL
 // merge prompt, PARTIAL_LOG_RULE included. Exhaustion returns the final still-incomplete result and
 // its ridden status ('error') routes at the call site. Labels and log lines are concatenation-built.
-// A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot.
+// A dispatch death enters Git reconciliation; only a proved-unmerged death reaches the merge slot. A
+// snapshot death, or TARGET_LOST or TARGET_LATE, returns before any merge dispatch.
 const segmentedMerge = async (prompt, opts, context) => {
   const isSegment = res => !!res && res.status === 'error' && res.gate_segment === 'incomplete'
   return reconciledMerge(prompt + segmentedGateClause, opts, context, async (body, opts, capture) => {
@@ -5259,7 +5260,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }, revertMergeContext))
 
-      // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status.
+      // Dead merge dispatch (D21, PIN-25): env-died SOFT naming the site — read before any status. Here and
+      // at each re-merge site, TARGET_LOST and TARGET_LATE hold the task through mergeDied instead (#2309).
       const mrDeath = deathOf(mr)
       if (mrDeath) { mergeDied(mrDeath); continue }
       if (provisionRed(mr)) continue
