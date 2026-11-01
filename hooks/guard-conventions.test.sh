@@ -168,10 +168,15 @@ memglob_scan() {
 #   (D9, plan 2026-09-06-shell-floors-guards-and-provisioning; #2007).
 #
 # A hit is a non-comment line in a script that names pipefail on a non-comment
-# line, where a pipe feeds a grep that holds a quiet flag: `-q` in any short
-# cluster, `--quiet` or `--silent`, before or after other arguments, quoted
-# patterns included. `||` is not a pipe. A line that ends in `|` feeds the next non-comment line. A line
-# carrying `# guard-conventions: allow` is suppressed (printed to stderr).
+# line, where a pipe feeds a grep, egrep or fgrep that holds a quiet flag: `-q`
+# in any short cluster, `--quiet` or `--silent`, before or after other arguments
+# and quoted patterns. `||` is not a pipe. A line that ends in `|` feeds the next
+# code line. A line carrying `# guard-conventions: allow` is suppressed (printed
+# to stderr).
+#
+# This is a text scan, not a shell parser. A flag alone on a line after a `\`
+# escapes it. A `-q` in a trailing comment or a `--` pattern false-fires, and the
+# allow tag covers that.
 # ---------------------------------------------------------------------------
 pipefail_grep_scan() {
   PG_FILE="$1" awk '
@@ -186,10 +191,10 @@ pipefail_grep_scan() {
     }
     !armed { exit }
     {
-      if (!code_line()) next
+      if (!code_line() || t == "") next
       s = (fed ? "| " : "") $0
-      fed = ($0 ~ /(^|[^|])\|&?[[:space:]]*\\?[[:space:]]*$/)
-      if (s !~ /(^|[^|])\|&?[[:space:]]*(command[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*grep[[:space:]](([^|;&\047"]|\047[^\047]*\047|"[^"]*")*[[:space:]])?(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)([[:space:];&|)]|$)/) next
+      fed = ($0 ~ /(^|[^|])\|&?[[:space:]]*(\\|#.*)?[[:space:]]*$/)
+      if (s !~ /(^|[^|])\|&?[[:space:]]*(command[[:space:]]+|env[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*\\?([^[:space:]|;&]*\/)?[ef]?grep[[:space:]](([^|;&)\047"]|\047[^\047]*\047|"([^"\\]|\\.)*")*[[:space:]])?(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)([[:space:];&|)<>\140]|$)/) next
       if (index($0, "guard-conventions: allow") > 0) {
         printf "SUPPRESSED %s:%d: %s\n", ENVIRON["PG_FILE"], FNR, t > "/dev/stderr"
         next
@@ -466,6 +471,15 @@ expect_pg 1 "FIRES on a flag before a closing paren" afterparen "$PG_SET" 'y=$(x
 expect_pg 1 "FIRES on a flag tight against &&" afterand "$PG_SET" 'x | grep y -q&& z'
 expect_pg 1 "FIRES on a flag tight against a pipe" afterpipe "$PG_SET" 'x | grep y -q|z'
 expect_pg 1 "FIRES on a flag cluster with a digit" digit "$PG_SET" 'x | grep -m1q y'
+expect_pg 1 "FIRES on a flag tight against a redirect" afterout "$PG_SET" 'x | grep y -q>/dev/null'
+expect_pg 1 "FIRES on a flag tight against an input redirect" afterin "$PG_SET" 'x | grep y -q</dev/null'
+expect_pg 1 "FIRES on a flag tight against a backtick" aftertick "$PG_SET" 'y=`x | grep z -q`'
+expect_pg 1 "FIRES past an escaped quote in a pattern" escq "$PG_SET" 'x | grep "a\"b" -q'
+expect_pg 1 "FIRES past env" envcmd "$PG_SET" 'x | env LC_ALL=C grep -q y'
+expect_pg 1 "FIRES on egrep" egrep "$PG_SET" 'x | egrep -q y'
+expect_pg 1 "FIRES on fgrep" fgrep "$PG_SET" 'x | fgrep -q y'
+expect_pg 1 "FIRES on a path to grep" pathgrep "$PG_SET" 'x | /usr/bin/grep -q y'
+expect_pg 1 "FIRES on a backslashed grep" bsgrep "$PG_SET" 'x | \grep -q y'
 expect_pg 1 "FIRES past a single-quoted pattern with a pipe" singleq "$PG_SET" "x | grep -E 'a|b' -q"
 expect_pg 1 "FIRES past a double-quoted pattern with a semicolon" doubleq "$PG_SET" 'x | grep -E "a;b" -q'
 expect_pg 1 "FIRES on --quiet" quiet "$PG_SET" 'x | grep --quiet y'
@@ -483,11 +497,18 @@ expect_pg 0 "PASSES a file-argument grep" filearg "$PG_SET" 'grep -Fxq -- y "$f"
 expect_pg 0 "PASSES a grep with no quiet flag" noisy "$PG_SET" 'x | grep -c y'
 expect_pg 0 "PASSES a quiet flag past the pipeline" nextcmd "$PG_SET" 'x | grep y; z -q'
 expect_pg 0 "PASSES a quiet flag inside a quoted pattern" inquote "$PG_SET" "x | grep 'y -q z'"
+expect_pg 0 "PASSES a quiet flag inside a double-quoted pattern" indouble "$PG_SET" 'x | grep "y -q z"'
+expect_pg 0 "PASSES a quiet flag past a second pipe" nextpipe "$PG_SET" 'x | grep y | z -q'
+expect_pg 0 "PASSES a quiet flag past &&" nextand "$PG_SET" 'x | grep y && z -q'
+expect_pg 0 "PASSES a flag past a closing paren" pastparen "$PG_SET" 'foo $(x | grep y) -q'
+expect_pg 0 "PASSES an unquoted -eq after a substitution" eqbare "$PG_SET" '[ $(x | grep -c y) -eq 0 ]'
+expect_pg 0 "PASSES a quoted -eq after a substitution" eqquoted "$PG_SET" '[ "$(x | grep -c y)" -eq 0 ]'
+expect_pg 0 "PASSES another command that ends in grep" otherend "$PG_SET" 'x | pgrep -q y'
 
-# A pipe at the end of a line feeds the next code line, past a comment.
-for _pg_end in 'x |' 'x |&' 'x | \'; do
+# A pipe at the end of a line feeds the next code line, past a comment or a blank.
+for _pg_end in 'x |' 'x |&' 'x | \' 'x | # why'; do
   _pg_cont="$(pg_script cont "$PG_SET" "$_pg_end")"
-  printf '  # a comment line\n  grep -q y\n' >> "$_pg_cont"
+  printf '  # a comment line\n\n  grep -q y\n' >> "$_pg_cont"
   if [ "$(pipefail_grep_scan "$_pg_cont" 2>/dev/null | grep -c .)" = "1" ]; then
     pass "pipefail lint: FIRES across a line that ends in [$_pg_end]"
   else
