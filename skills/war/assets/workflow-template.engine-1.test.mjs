@@ -16380,6 +16380,30 @@ test('#2325: confirmMerge reads absent as null, so a reported non-success needs 
   assert.ok(!calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
 })
 
+test('#2325: MERGE_CONFIRMATION requires remote_sha and its no-proof reply fits that schema', async () => {
+  const { calls } = await runRemote({})
+  const dispatch = calls.find(c => c.opts.dispatchKind === 'merge-confirm')
+  assert.ok(dispatch.opts.schema.required.includes('remote_sha'), 'an omitted key is a schema retry, never proven absence')
+  assert.ok(dispatch.prompt.includes('any movement or Git error returns {"remote_sha":""}'), 'the no-proof reply carries the required key')
+  assert.ok(!dispatch.prompt.includes('any movement or Git error returns {}'), 'an empty reply cannot pass the required list')
+  const recovery = readFileSync(new URL('../references/refiner-recovery.md', import.meta.url), 'utf8').replace(/\s+/g, ' ')
+  assert.ok(recovery.includes('movement or a Git error returns `{"remote_sha":""}`'), 'refiner-recovery.md restates the same reply')
+  assert.ok(!recovery.includes('movement or a Git error returns `{}`'), 'the empty reply must not return')
+})
+
+for (const [name, reply] of [
+  ['the no-proof reply', () => ({ remote_sha: '' })],
+  ['a blank remote_sha beside good facts', proof => ({ ...proof, remote_sha: '' })],
+  ['an advanced remote', proof => ({ ...proof, remote_sha: '7'.repeat(40) })],
+  ['an advanced local', proof => ({ ...proof, local_sha: '7'.repeat(40) })],
+]) test('#2325: on a null snapshot, merge-confirm with ' + name + ' confirms nothing and enters reconcile', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }),
+    (p, o) => o.label === 'merge:t1' ? { mode: 'merge-task', status: 'conflict' } : defaultImpl(p, o),
+    { 'merge-snapshot': NULL_REMOTE_SNAPSHOT, 'merge-confirm': (p, o, w) => reply(NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w)) })
+  assert.ok(out.auditLog.some(e => e.verdict === 'git-confirmation:unresolved' && e.site === 'merge:t1'))
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'merge-reconcile'))
+})
+
 test('#2325: reconcileMerge reads absent as null in its unmerged arm', async () => {
   const { out } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK }),
     (p, o) => { if (o.label === 'merge:t1') throw new Error('read ECONNRESET after push'); return defaultImpl(p, o) },

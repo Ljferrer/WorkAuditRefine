@@ -218,7 +218,7 @@ first parent and exact captured integration second parent. In both cases the cap
 base must be an ancestor of the current target, so a foreign local branch cannot be overwritten.
 The captured remote base must be a full commit SHA; an absent branch cannot be a commit parent.
 A normal non-success reply is confirmed only when both target refs equal their respective
-snapshots and the source identity still matches. Re-read refs after computing evidence; movement or a Git error returns `{}`. A failed
+snapshots and the source identity still matches. Re-read refs after computing evidence; movement or a Git error returns `{"remote_sha":""}`, which the engine reads as no proof. A failed
 read after mutation cannot prove absence, even when the mutator reported a known floor failure.
 The engine records confirmation evidence, or invokes recovery before any completion accounting.
 
