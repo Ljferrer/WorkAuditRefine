@@ -16818,18 +16818,68 @@ test('#2309: a polish snapshot that stays out of sync keeps its throw', async ()
   assert.match(out.workflowError?.message ?? '', /Git merge snapshot unavailable before merge:p3-polish/)
 })
 
+const LATE_NOTE = 'target moved: the target moved after the pin proof'
+const lateMerge = () => { let reads = 0; return (p, o) => o.label === 'git-snapshot:t1' && !reads++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['merge-snapshot'] }
+
+test('#2309: a primary merge snapshot that reconciles after the pin proof holds the task', async () => {
+  const { out, calls } = await runRemote({ 'merge-snapshot': lateMerge() }, { roundLimit: 2 })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
+  assert.equal(countOf(calls, 'git-snapshot:t1'), 2, 'the second read came back in sync')
+  heldAtMerge(out, calls, 'merge:t1', LATE_NOTE)
+})
+
+test('#2309: a late hold marks the run, so a later unusable snapshot holds too', async () => {
+  const late = lateMerge()
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'merge-snapshot': late,
+    'pin-snapshot': (p, o) => o.label.endsWith(':t2') ? {} : NEW_SEAT_DEFAULTS['pin-snapshot'],
+  })
+  assert.equal(out.escalated.find(e => e.task === 't1')?.detail?.note, LATE_NOTE)
+  assert.equal(out.escalated.find(e => e.task === 't2')?.detail?.note, 'target moved: no usable snapshot of the target')
+  assert.ok(!out.workflowError)
+})
+
+test('#2309: a floor-retry snapshot that reconciles still merges, because the first merge read that base', async () => {
+  let reads = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), floorRetryImpl(), {
+    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' && ++reads === 2 ? LOST_TARGET : NEW_SEAT_DEFAULTS['merge-snapshot'],
+  })
+  assert.ok(reads >= 3, 'the retry read out of sync and then reconciled')
+  assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'))
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'target-reconcile'))
+})
+
+test('#2309: an in-sync primary merge snapshot takes no late hold', async () => {
+  const { out, calls } = await runRemote({})
+  assert.ok(out.landed.includes('t1'))
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 0)
+})
+
+test('#2309: after a read move, an unusable terminal snapshot keeps its throw', async () => {
+  let proofs = 0
+  const { out, calls } = await runPhase(SWEEP_ARGS({ run: { ...SWEEP_ARGS().run, roundLimit: 2 } }), terminalImpl(), {
+    'pin-transfer': REBASED_PROBE,
+    'pin-confirm': p => proofs++ ? pinProofOf(p) : movedLocal(pinProofOf(p)),
+    'merge-snapshot': p => p.includes('for merge:p3-terminal') ? {} : NEW_SEAT_DEFAULTS['merge-snapshot'],
+  })
+  assert.ok(proofs > 1, 'the run read a move')
+  assert.ok(calls.some(c => c.prompt.includes('for merge:p3-terminal')), 'the fixture reached the terminal snapshot')
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.ok((out.workflowError?.message ?? '').includes('Git merge snapshot unavailable before merge:p3-terminal'), out.workflowError?.message)
+})
+
 test('#2309: a dead first pin snapshot stays env-died, with no read move', async () => {
   const { out } = await runRemote({ 'pin-snapshot': () => { throw new Error('529 snapshot died') } })
   assert.equal(out.escalated.find(e => e.task === 't1')?.reason, 'env-died')
 })
 
-const heldAtMerge = (out, calls, site) => {
+const heldAtMerge = (out, calls, site, note = 'target moved: no usable snapshot of the target') => {
   assert.equal(out.landDecision, 'held:escalation', JSON.stringify(out.workflowError))
   assert.ok(out.handoff, 'the phase keeps its handoff')
   assert.equal(out.escalated.filter(e => e.task === 't1').length, 1, 'one hold, no second escalation')
   const row = out.escalated.find(e => e.task === 't1')
   assert.equal(row?.reason, 'escalate')
-  assert.equal(row.detail.note, 'target moved: no usable snapshot of the target')
+  assert.equal(row.detail.note, note)
   assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved'))
   assert.equal(calls.filter(c => c.opts.label === site).length, 0, 'no dispatch without a snapshot')
 }
@@ -16866,7 +16916,7 @@ test('#2309: no throw names the moved target, and the enums stay closed', () => 
 
 test('#2309: refiner-recovery.md states the reconcile route and the holds', () => {
   const recovery = readFileSync(new URL('../references/refiner-recovery.md', import.meta.url), 'utf8').replace(/\s+/g, ' ')
-  for (const phrase of ['A real target move at `pin-confirm` is not a workflow error', 'at most `roundLimit` passes', 'keeps the first snapshot\'s `source_sha`', 'gets no re-audit panel', 'a note that starts `target moved:`', 'Siblings still merge while the target reconciles', 'keeps that arm\'s own hold', 'at every task merge dispatch', 'A polish, terminal or land snapshot keeps its throw', 'A fresh relaunch starts with no read move']) {
+  for (const phrase of ['A real target move at `pin-confirm` is not a workflow error', 'at most `roundLimit` passes', 'keeps the first snapshot\'s `source_sha`', 'gets no re-audit panel', 'a note that starts `target moved:`', 'Siblings still merge while the target reconciles', 'keeps that arm\'s own hold', 'at every task merge dispatch', 'A polish, terminal or land snapshot keeps its throw', 'A fresh relaunch starts with no read move', 'because the pin proof never read that base']) {
     assert.ok(recovery.includes(phrase), phrase)
   }
 })
