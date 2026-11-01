@@ -23,7 +23,7 @@ instance; the class kept recurring. Full mechanics:
 ## Decision
 
 **A guard covers a full equivalence class, not the one instance that bit us, and a standing meta-guard
-enforces the authoring convention rather than trusting review.** Five conventions are ratified, each the
+enforces the authoring convention rather than trusting review.** Six conventions are ratified, each the
 class-level form of a recorded per-instance fix:
 
 1. **Traversal equivalence class.** A path-scope guard that rejects `..` traversal rejects the full
@@ -49,10 +49,16 @@ class-level form of a recorded per-instance fix:
    (`:: <skill-id>`) or strips the README `## Status` / changelog prose region before grepping, so a
    release blurb *describing* a renamed-away token can never re-trip it while a real structural
    reintroduction still fails.
+6. **Pipefail early-exit pipelines.** A script that sets `pipefail` never pipes into a quiet `grep`, in
+   any flag spelling. The `grep` exits at its first match, the writer dies of SIGPIPE, the pipeline
+   returns 141, and an `if` caller reads a found value as not found. The script drains the input with
+   `awk` (a flag plus an `END` block, as `branch_holder_path` does) or matches a string with `case`. A
+   `grep` over a file argument is not a pipeline and stays legal.
 
-**The meta-guards are the deliberate ceiling.** Two of the five conventions — negation-block extraction
-and subtree-anchored search roots — are enforced by a new `hooks/guard-conventions.test.sh` that scans
-`hooks/` and `skills/` guard scripts and fails on the antipattern, proven with synthetic RED fixtures
+**The meta-guards are the deliberate ceiling.** Three of the six conventions — negation-block extraction,
+subtree-anchored search roots and pipefail early-exit pipelines — are enforced by
+`hooks/guard-conventions.test.sh`, which scans `hooks/` and `skills/` scripts and fails on the
+antipattern, proven with synthetic RED fixtures
 and PASS references. A deliberate exception carries an inline `# guard-conventions: allow <reason>` tag,
 and the lint prints suppressed hits for the record (a tag could be abused — that residual is a declared
 **backstop** reviewed by `/red-team`, not a silent hole). The other three conventions are enforced by
@@ -77,12 +83,12 @@ fails.
 
 ## Considered options
 
-- **One ADR versus five per-convention records (chosen: one).** The five conventions are one policy —
-  cover the class, enforce the convention with a meta-guard — seen through five surfaces; recording it
+- **One ADR versus per-convention records (chosen: one).** The conventions are one policy —
+  cover the class, enforce the convention with a meta-guard — seen through several surfaces; recording it
   once keeps the "why the class, why a meta-guard, why per-incident fixing fails" rationale in one place.
 - **A generic guard-linter that infers every equivalence class (rejected).** Auto-discovering the class
-  of every guard is a research project whose failure mode is a false sense of coverage. The two textual
-  meta-guards plus three class-covering tests plus this doctrine are the ceiling; widen only on
+  of every guard is a research project whose failure mode is a false sense of coverage. The textual
+  meta-guards plus the class-covering tests plus this doctrine are the ceiling; widen only on
   recurrence.
 - **A shared verb-list / helper library (rejected — one consumer).** One live negation site and two
   absence-guard consumers do not justify a shared module; the convention plus the enumerating comment is
@@ -96,8 +102,8 @@ fails.
 - `validate-worktree-scope.sh`'s `..`-reject covers the four-shape class pre-`case`; the guard test adds
   leading-relative and bare cases for a confined role and the all-agents path, RED against the old
   pattern.
-- A new `hooks/guard-conventions.test.sh` enforces the negation-block and search-root conventions with
-  synthetic RED fixtures and an allowlist-tag escape hatch that prints suppressed hits.
+- A new `hooks/guard-conventions.test.sh` enforces the negation-block, search-root and pipefail
+  early-exit conventions with synthetic RED fixtures and an allowlist-tag escape hatch that prints suppressed hits.
 - `refinery-surface.test.sh` carries the enumerating verb-class maintenance comment atop its git-surface
   absence block; the two scans are byte-unchanged.
 - `war-pipeline-structure.test.sh`'s rename absence guard excludes the README-Status/changelog prose
@@ -128,3 +134,7 @@ fails.
   [[frontmatter-tools-negation-check-single-line-only]], [[absence-guard-search-root-must-anchor-to-subtree]],
   [[release-blurb-describing-a-rename-trips-the-renames-own-absence-guard]],
   [[floor-script-discovery-set-must-mirror-gate-exclusions]].
+
+## Decision log
+
+- 2026-10-31 · Convention 6 added in place under the 2026-09-06 living-ADR ruling (no dated amendment): pipefail early-exit pipelines, enforced by Lint 5 in `hooks/guard-conventions.test.sh` (#1840, #2007).

@@ -1,6 +1,6 @@
 ---
 name: sigpipe-safe-drain-awk-idiom-fix-does-not-propagate-to-sibling-helpers-sharing-the-same-early-exit-pipeline
-description: "Fixing one SIGPIPE-fragile `cmd | grep -Fxq` pipeline under `set -o pipefail` (converting it to a draining awk idiom — a flag var + END-block exit, no early return) does not fix a sibling helper built on the identical `git ... | grep -Fxq` shape reading the same corpus; under pipefail a large-enough output makes grep's early exit SIGPIPE the upstream git, the pipeline returns 141, and an `if helper; then` caller reads that as a false negative rather than a git error — multiple auditor seats independently re-flagged the same untouched sibling across a phase without it being fixed, since it sits outside the plan's swept scope."
+description: "RESOLVED (2026-09-06-shell-floors-guards-and-provisioning, #1840/#2007): Fixing one SIGPIPE-fragile `cmd | grep -Fxq` pipeline under `set -o pipefail` (converting it to a draining awk idiom — a flag var + END-block exit, no early return) does not fix a sibling helper built on the identical `git ... | grep -Fxq` shape reading the same corpus; under pipefail a large-enough output makes grep's early exit SIGPIPE the upstream git, the pipeline returns 141, and an `if helper; then` caller reads that as a false negative rather than a git error — multiple auditor seats independently re-flagged the same untouched sibling across a phase without it being fixed, since it sits outside the plan's swept scope."
 metadata: 
   node_type: memory
   type: project
@@ -61,3 +61,8 @@ considering a SIGPIPE-classification fix complete — a fix's justifying comment
 general hazard does not mean every instance of it in the file was swept.
 
 > archived 2026-10-27: resolved — moved to archive
+
+> resolved 2026-10-31: `branch_checked_out_anywhere` now drains the list with the `branch_holder_path`
+> awk idiom, and the `owned_has`, `not fully merged` and `[rejected]` sites use a `case` match. Lint 5 in
+> `hooks/guard-conventions.test.sh` fails any quiet grep pipeline in a pipefail script. The "practically
+> unreachable" call above was wrong: #1840 records the false negative at 44 KB with the match on line 3.

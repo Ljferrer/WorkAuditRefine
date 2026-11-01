@@ -2,9 +2,11 @@
 # Guard-authoring meta-guards (Task 1.2, plan
 # 2026-07-08-guard-floor-and-scope-hook-coverage-completeness; ADR 0031).
 #
-# Two standing lints over this repo's guard scripts/tests. Each enforces an
-# authoring CONVENTION whose per-incident violation is already recorded in
-# docs/learnings/ — the class, not the instance, is what's guarded.
+# Standing lints over this repo's guard scripts/tests: negation-block,
+# search-root, suffix-anchored arm, unanchored memory glob and pipefail
+# early-exit grep. Each enforces an authoring CONVENTION whose per-incident
+# violation is already recorded in docs/learnings/ — the class, not the
+# instance, is what's guarded.
 #
 #   (1) negation-block lint — a frontmatter *negation* check (e.g. "tools must
 #       NOT grant Bash") must extract the whole YAML block, never a bare
@@ -26,11 +28,21 @@
 #       an inline `# guard-conventions: allow <reason>` tag; the lint prints
 #       suppressed hits to stderr for the record.
 #
+#   (3) suffix-anchored arm lint and (4) unanchored memory-glob lint — see
+#       their scan headers below.
+#
+#   (5) pipefail early-exit grep lint — a script that sets pipefail must not
+#       pipe into a quiet grep. The grep exits at its first match, the writer
+#       dies of SIGPIPE, the pipeline returns 141, and a found value reads as
+#       not found (#1840, #2007). Drain with awk or match with case. PASS
+#       reference: branch_holder_path in provision-worktrees.sh.
+#
 # Constraints: macOS bash 3.2.57-compatible (no globstar, no associative
 # arrays, no ${,,}), cwd-independent (all paths resolved from $0). The
 # synthetic RED fixtures are assembled with printf — never a heredoc — so the
 # offending lines exist only in the generated temp files, never as scannable
-# lines in THIS file (which the full-tree passes below re-scan).
+# lines in THIS file (which the full-tree passes below re-scan). Lint 5 exempts
+# test files, so its fixture bodies may sit here as literals.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -152,6 +164,47 @@ memglob_scan() {
 }
 
 # ---------------------------------------------------------------------------
+# Lint 5: pipefail early-exit grep
+#   (D9, plan 2026-09-06-shell-floors-guards-and-provisioning; #2007).
+#
+# A hit is a non-comment line in a script that names pipefail on a non-comment
+# line, where a pipe feeds a grep, egrep or fgrep that holds a quiet flag: `-q`
+# in any short cluster, `--quiet` or `--silent`, before or after other arguments
+# and quoted patterns. `||` is not a pipe. A line that ends in `|` feeds the next
+# code line. A line carrying `# guard-conventions: allow` is suppressed (printed
+# to stderr).
+#
+# This is a text scan, not a shell parser. A flag alone on a line after a `\`
+# escapes it. A `-q` in a trailing comment or a `--` pattern false-fires, and the
+# allow tag covers that.
+# ---------------------------------------------------------------------------
+pipefail_grep_scan() {
+  PG_FILE="$1" awk '
+    function code_line() {
+      t = $0
+      sub(/^[[:space:]]+/, "", t)
+      return substr(t, 1, 1) != "#"
+    }
+    FNR == NR {
+      if (code_line() && index($0, "pipefail") > 0) armed = 1
+      next
+    }
+    !armed { exit }
+    {
+      if (!code_line() || t == "") next
+      s = (fed ? "| " : "") $0
+      fed = ($0 ~ /(^|[^|])\|&?[[:space:]]*(\\|#.*)?[[:space:]]*$/)
+      if (s !~ /(^|[^|])\|&?[[:space:]]*(command[[:space:]]+|env[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*\\?([^[:space:]|;&]*\/)?[ef]?grep[[:space:]](([^|;&)\047"]|\047[^\047]*\047|"([^"\\]|\\.)*")*[[:space:]])?(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)([[:space:];&|)<>\140]|$)/) next
+      if (index($0, "guard-conventions: allow") > 0) {
+        printf "SUPPRESSED %s:%d: %s\n", ENVIRON["PG_FILE"], FNR, t > "/dev/stderr"
+        next
+      }
+      printf "%s:%d: early-exit grep pipeline under pipefail (drain with awk or match with case)\n", ENVIRON["PG_FILE"], FNR
+    }
+  ' "$1" "$1"
+}
+
+# ---------------------------------------------------------------------------
 # Fixtures (mktemp — never heredoc; see file header).
 # ---------------------------------------------------------------------------
 TMP="$(mktemp -d 2>/dev/null || mktemp -d -t guardconv)"
@@ -200,6 +253,18 @@ printf 'esac\n' >> "$ARM_RED"
 MEM_RED="$TMP/mem-red.sh"
 printf '#!/usr/bin/env bash\n' > "$MEM_RED"
 printf '  %s/.claude/projects/%s/memory/%s) exit 0 ;;\n' '*' '*' '*' >> "$MEM_RED"
+
+# RED pipefail fixtures: one script per pipeline spelling, assembled with
+# printf. Lint 5 exempts test files, so the body literals below never hit here.
+PG_DIR="$TMP/pg"
+mkdir -p "$PG_DIR"
+pg_script() { # pg_script <name> <set-line> <body-line> -> path of a new script
+  _p="$PG_DIR/$1.sh"
+  printf '#!/usr/bin/env bash\n%s\n%s\n' "$2" "$3" > "$_p"
+  printf '%s' "$_p"
+}
+PG_SET='set -euo pipefail'
+PG_LIVE='x | grep -Fxq -- y'
 
 # ---------------------------------------------------------------------------
 # Assertions — negation-block lint
@@ -382,6 +447,129 @@ if [ -z "$mem_hits" ]; then
   pass "memglob lint clean: unanchored glob only in the two sanctioned survivors"
 else
   fail "memglob lint found the unanchored glob outside the survivors:"$'\n'"$mem_hits"
+fi
+
+# ---------------------------------------------------------------------------
+# Assertions — pipefail early-exit grep lint (Lint 5)
+# ---------------------------------------------------------------------------
+expect_pg() { # expect_pg <want> <title> <name> <set-line> <body-line>
+  _got="$(pipefail_grep_scan "$(pg_script "$3" "$4" "$5")" 2>/dev/null | grep -c .)"
+  if [ "$_got" = "$1" ]; then
+    pass "pipefail lint: $2"
+  else
+    fail "pipefail lint: $2 (expected $1 hit(s), got $_got)"
+  fi
+}
+
+expect_pg 1 "FIRES on one live pipeline (RED fixture)" red "$PG_SET" "$PG_LIVE"
+expect_pg 1 "FIRES on a bare -q" bare "$PG_SET" 'x | grep -q y'
+expect_pg 1 "FIRES on a leading q cluster" cluster "$PG_SET" 'x | grep -qi y'
+expect_pg 1 "FIRES on a split flag" split "$PG_SET" 'x | grep -E -q y'
+expect_pg 1 "FIRES on a flag after the pattern" after "$PG_SET" 'x | grep y -q'
+expect_pg 1 "FIRES on a flag before a semicolon" aftersemi "$PG_SET" 'if x | grep y -q; then z; fi'
+expect_pg 1 "FIRES on a flag before a closing paren" afterparen "$PG_SET" 'y=$(x | grep z -q)'
+expect_pg 1 "FIRES on a flag tight against &&" afterand "$PG_SET" 'x | grep y -q&& z'
+expect_pg 1 "FIRES on a flag tight against a pipe" afterpipe "$PG_SET" 'x | grep y -q|z'
+expect_pg 1 "FIRES on a flag cluster with a digit" digit "$PG_SET" 'x | grep -m1q y'
+expect_pg 1 "FIRES on a flag tight against a redirect" afterout "$PG_SET" 'x | grep y -q>/dev/null'
+expect_pg 1 "FIRES on a flag tight against an input redirect" afterin "$PG_SET" 'x | grep y -q</dev/null'
+expect_pg 1 "FIRES on a flag tight against a backtick" aftertick "$PG_SET" 'y=`x | grep z -q`'
+expect_pg 1 "FIRES past an escaped quote in a pattern" escq "$PG_SET" 'x | grep "a\"b" -q'
+expect_pg 1 "FIRES past env" envcmd "$PG_SET" 'x | env LC_ALL=C grep -q y'
+expect_pg 1 "FIRES on egrep" egrep "$PG_SET" 'x | egrep -q y'
+expect_pg 1 "FIRES on fgrep" fgrep "$PG_SET" 'x | fgrep -q y'
+expect_pg 1 "FIRES on a path to grep" pathgrep "$PG_SET" 'x | /usr/bin/grep -q y'
+expect_pg 1 "FIRES on a backslashed grep" bsgrep "$PG_SET" 'x | \grep -q y'
+expect_pg 1 "FIRES past a single-quoted pattern with a pipe" singleq "$PG_SET" "x | grep -E 'a|b' -q"
+expect_pg 1 "FIRES past a double-quoted pattern with a semicolon" doubleq "$PG_SET" 'x | grep -E "a;b" -q'
+expect_pg 1 "FIRES on --quiet" quiet "$PG_SET" 'x | grep --quiet y'
+expect_pg 1 "FIRES on --silent" silent "$PG_SET" 'x | grep --silent y'
+expect_pg 1 "FIRES with no space after the pipe" tight "$PG_SET" 'x |grep -q y'
+expect_pg 1 "FIRES on a stderr pipe" amp "$PG_SET" 'x |& grep -q y'
+expect_pg 1 "FIRES past an env prefix" env "$PG_SET" 'x | LC_ALL=C grep -q y'
+expect_pg 1 "FIRES past command" cmd "$PG_SET" 'x | command grep -q y'
+expect_pg 1 "FIRES under set -o pipefail" seto 'set -o pipefail' "$PG_LIVE"
+expect_pg 0 "PASSES a comment-line pipeline (grill negative)" comment "$PG_SET" "# $PG_LIVE"
+expect_pg 0 "PASSES a set -u script (A3)" setu 'set -u' "$PG_LIVE"
+expect_pg 0 "PASSES a script that names pipefail only in a comment" namecomment '# not pipefail' "$PG_LIVE"
+expect_pg 0 "PASSES || grep, which is not a pipe" oror "$PG_SET" 'x || grep -q y'
+expect_pg 0 "PASSES a file-argument grep" filearg "$PG_SET" 'grep -Fxq -- y "$f"'
+expect_pg 0 "PASSES a grep with no quiet flag" noisy "$PG_SET" 'x | grep -c y'
+expect_pg 0 "PASSES a quiet flag past the pipeline" nextcmd "$PG_SET" 'x | grep y; z -q'
+expect_pg 0 "PASSES a quiet flag inside a quoted pattern" inquote "$PG_SET" "x | grep 'y -q z'"
+expect_pg 0 "PASSES a quiet flag inside a double-quoted pattern" indouble "$PG_SET" 'x | grep "y -q z"'
+expect_pg 0 "PASSES a quiet flag past a second pipe" nextpipe "$PG_SET" 'x | grep y | z -q'
+expect_pg 0 "PASSES a quiet flag past &&" nextand "$PG_SET" 'x | grep y && z -q'
+expect_pg 0 "PASSES a flag past a closing paren" pastparen "$PG_SET" 'foo $(x | grep y) -q'
+expect_pg 0 "PASSES an unquoted -eq after a substitution" eqbare "$PG_SET" '[ $(x | grep -c y) -eq 0 ]'
+expect_pg 0 "PASSES a quoted -eq after a substitution" eqquoted "$PG_SET" '[ "$(x | grep -c y)" -eq 0 ]'
+expect_pg 0 "PASSES another command that ends in grep" otherend "$PG_SET" 'x | pgrep -q y'
+
+# A pipe at the end of a line feeds the next code line, past a comment or a blank.
+for _pg_end in 'x |' 'x |&' 'x | \' 'x | # why'; do
+  _pg_cont="$(pg_script cont "$PG_SET" "$_pg_end")"
+  printf '  # a comment line\n\n  grep -q y\n' >> "$_pg_cont"
+  if [ "$(pipefail_grep_scan "$_pg_cont" 2>/dev/null | grep -c .)" = "1" ]; then
+    pass "pipefail lint: FIRES across a line that ends in [$_pg_end]"
+  else
+    fail "pipefail lint: missed a pipeline across a line that ends in [$_pg_end]"
+  fi
+done
+_pg_cont_or="$(pg_script contor "$PG_SET" 'x ||')"
+printf '  grep -q y\n' >> "$_pg_cont_or"
+if [ -z "$(pipefail_grep_scan "$_pg_cont_or" 2>/dev/null)" ]; then
+  pass "pipefail lint: PASSES a trailing || before a grep"
+else
+  fail "pipefail lint: false-fired on a trailing ||"
+fi
+
+# Arming reads the whole file: a late pipefail line still covers an earlier pipeline.
+expect_pg 1 "FIRES when pipefail follows the pipeline" latearm "$PG_LIVE" "$PG_SET"
+
+# Allow-tag suppresses the hit (stdout empty; the suppressed line goes to stderr).
+_pg_allow="$(pg_script allow "$PG_SET" "$PG_LIVE # guard-conventions: allow demo")"
+_allow_out="$(pipefail_grep_scan "$_pg_allow" 2>/dev/null)"
+_allow_err="$(pipefail_grep_scan "$_pg_allow" 2>&1 >/dev/null)"
+if [ -z "$_allow_out" ]; then
+  pass "pipefail lint: SUPPRESSES an allow-tagged pipeline"
+else
+  fail "pipefail lint: hit an allow-tagged pipeline on stdout"
+fi
+case "$_allow_err" in
+  *SUPPRESSED*) pass "pipefail lint: records the suppressed hit on stderr" ;;
+  *) fail "pipefail lint: did not record the suppressed hit on stderr" ;;
+esac
+
+# A hit names the file and the line.
+case "$(pipefail_grep_scan "$PG_DIR/red.sh" 2>/dev/null)" in
+  "$PG_DIR/red.sh:3: early-exit grep pipeline under pipefail"*) pass "pipefail lint: a hit names the file and line" ;;
+  *) fail "pipefail lint: a hit lost its file or line" ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Full-tree enforcement — Lint 5: no early-exit grep pipeline in any non-test
+# hooks/*.sh or skills/**/*.sh. A find that returns nothing, or that loses the
+# script this lint exists for, must not read as a clean tree. The two roots are
+# anchored subtrees, and a path filter on .claude would drop them in a worktree.
+# ---------------------------------------------------------------------------
+pg_files="$(find "$REPO/hooks" "$REPO/skills" -type f -name '*.sh' -not -name '*.test.sh')" \
+  || fail "pipefail lint: find failed"
+pg_hits=""
+while IFS= read -r _s; do
+  [ -z "$_s" ] && continue
+  _h="$(pipefail_grep_scan "$_s")"
+  [ -n "$_h" ] && pg_hits="$pg_hits$_h"$'\n'
+done <<EOF
+$pg_files
+EOF
+case "$pg_files" in
+  *"/skills/war/assets/provision-worktrees.sh"*) pass "pipefail lint scan set holds provision-worktrees.sh" ;;
+  *) fail "pipefail lint scan set lost provision-worktrees.sh" ;;
+esac
+if [ -z "$pg_hits" ]; then
+  pass "pipefail lint clean: no early-exit grep pipeline in any non-test script"
+else
+  fail "pipefail lint found early-exit grep pipelines:"$'\n'"$pg_hits"
 fi
 
 # ---------------------------------------------------------------------------
