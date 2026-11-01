@@ -193,6 +193,16 @@ Fabricated identities or unproved content hold. Integration refs must not change
 during this rebase-only operation. Missing reported dispatch bases on transferred/mismatch
 results are filled from Git proof, never left as null provenance.
 
+A real target move at `pin-confirm` is not a workflow error. The engine dispatches
+`target-reconcile`, then repeats the snapshot, the probe and the proof against the new tip, for
+at most `roundLimit` passes. A repeat proof keeps the first snapshot's `source_sha`, `patch_id` and
+`content_id`, because an earlier pass may have rebased the task. The task continues only when the
+approved tree check passes and patch and exact content identities match on the new tip. A patch
+mismatch after a move gets no re-audit panel. The task holds, as it does when the bound runs out or
+no usable snapshot returns. A hold uses reason `escalate`, a note that starts `target moved:` and
+the audit verdict `pin-transfer:target-moved`. Siblings still merge. A move read after an upstream
+content re-audit holds the same way, because it voids the destination the panel approved.
+
 Check both local and remote state before and after maintenance. Respect a live or unknown writer;
 if its mutation cannot be ruled out or safely completed, return uncertain. Never overwrite
 foreign content, reset a shared ref, force-push, or ask the human to run Git commands.
