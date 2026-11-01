@@ -154,8 +154,14 @@ worktree_registered() {
 # when on a branch; detached entries emit no `branch` line). This is exactly the
 # "launch-worktree collision" condition: a ref checked out somewhere cannot be
 # advanced by a push, so WAR must resolve a dedicated working branch instead.
+# The awk drains its whole input (flag + END exit, no early exit), as in
+# branch_holder_path: an early-exit grep SIGPIPEs git under pipefail, and a live
+# branch then reads as free (#1840).
 branch_checked_out_anywhere() {
-  git worktree list --porcelain 2>/dev/null | grep -Fxq -- "branch refs/heads/$1"
+  git worktree list --porcelain 2>/dev/null | awk -v want="branch refs/heads/$1" '
+    $0 == want { found = 1 }
+    END { exit !found }
+  '
 }
 
 # branch_holder_path <ref> -> echo the (physical) path of the worktree that has
@@ -203,8 +209,8 @@ write_marker() {
 }
 
 # --- ownership --------------------------------------------------------------
-# We accumulate owned refs (one per line) in a single string. A trailing
-# newline keeps grep -Fx happy on the empty case.
+# We accumulate owned refs (one per line) in a single string. The trailing
+# newline closes each row, so owned_has matches a whole row.
 OWNED_REFS=""
 
 owned_add() {
@@ -216,7 +222,13 @@ owned_add() {
 
 # owned_has <ref> -> 0 if <ref> is in the owned set.
 owned_has() {
-  printf '%s' "$OWNED_REFS" | grep -Fxq -- "$1"
+  case "
+$OWNED_REFS" in
+    *"
+$1
+"*) return 0 ;;
+  esac
+  return 1
 }
 
 # load_owned_file <path> : append each non-blank line of <path> to the owned set.
@@ -964,17 +976,21 @@ delete_branch() {
   # Branch not deleted. If the error is "not fully merged" and force is set,
   # escalate to -D (force-delete, knowingly discards un-merged work on caller's
   # behalf). Otherwise warn and leave it — no data loss.
-  if printf '%s' "$_del_err" | grep -qi 'not fully merged\|is not fully merged'; then
-    if [ "${force:-0}" -eq 1 ]; then
-      git branch -D "$ref" >/dev/null 2>&1 \
-        || warn "could not force-delete branch '$ref' (still checked out?); leaving it in place."
-    else
-      warn "branch '$ref' is not fully merged; leaving it in place (pass --force to delete anyway)."
-    fi
-  else
-    # Other error (e.g. still checked out).
-    warn "could not delete branch '$ref' (still checked out?); leaving it in place."
-  fi
+  # The letter classes match git's text in any case.
+  case "$_del_err" in
+    *[Nn][Oo][Tt]' '[Ff][Uu][Ll][Ll][Yy]' '[Mm][Ee][Rr][Gg][Ee][Dd]*)
+      if [ "${force:-0}" -eq 1 ]; then
+        git branch -D "$ref" >/dev/null 2>&1 \
+          || warn "could not force-delete branch '$ref' (still checked out?); leaving it in place."
+      else
+        warn "branch '$ref' is not fully merged; leaving it in place (pass --force to delete anyway)."
+      fi
+      ;;
+    *)
+      # Other error (e.g. still checked out).
+      warn "could not delete branch '$ref' (still checked out?); leaving it in place."
+      ;;
+  esac
 }
 
 # --- subcommand: teardown-task ---------------------------------------------
@@ -1390,11 +1406,13 @@ cmd_land_advance() {
 
   # Non-zero exit from push. Classify by the [rejected] token.
   # git always emits "! [rejected] ..." on a non-ff rejection.
-  if printf '%s' "$push_output" | grep -q '\[rejected\]'; then
-    # Reland: the loser re-fetches origin/<working>, re-merges, re-gates, retries.
-    # Local ref is unchanged — nothing to rewind.
-    exit 2
-  fi
+  case "$push_output" in
+    *'[rejected]'*)
+      # Reland: the loser re-fetches origin/<working>, re-merges, re-gates, retries.
+      # Local ref is unchanged — nothing to rewind.
+      exit 2
+      ;;
+  esac
 
   # Any other non-zero (network failure, bad URL, permission error, etc.)
   # → escalate. The Lead must intervene.

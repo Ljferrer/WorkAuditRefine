@@ -24,6 +24,8 @@
 # at <path>` in the two worktree-add failure dies fix 1 covered: ensure-worktree
 # and ensure-refinery-worktree). Row RG.7 (#2087, plan 2026-09-06 Task 6.2)
 # pins the same holder clause on ensure-publication-worktree's add-die.
+# Subcommands exercised (#1840, #2007): large-registry and PIPE rows pin the
+# SIGPIPE-safe branch, owned-set, delete and push classifiers.
 # Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
@@ -3448,6 +3450,132 @@ expect "§4.7 origin-fallback: integration cut at the ORIGIN tip (no local ref)"
   "$ORI_OF" "$(git -C "$Lof" rev-parse integration/myplan/phase-1 2>/dev/null)"
 expect "§4.7 origin-fallback: warn names the origin fallback" \
   "match" "$(printf '%s' "$CAP_OUT" | grep -qi 'origin fallback\|has no ref' && echo match || echo nomatch)"
+
+# ---------------------------------------------------------------------------
+# Case (large-registry) SIGPIPE false negative (#1840, #2007): the porcelain
+# list exceeds 64 KiB and the main checkout, always its first entry, holds the
+# branch. An early-exit grep then kills git, pipefail returns 141, and a live
+# branch reads as free. Long paths keep the entry count, and the runtime, low.
+# ---------------------------------------------------------------------------
+LR="$(new_repo)"
+LR_BRANCH="$(git -C "$LR" symbolic-ref --short HEAD)"
+LR_SEG="$(printf '%0180d' 0)"
+LR_DEEP="$(dirname "$(new_wt_path)")/$LR_SEG/$LR_SEG/$LR_SEG"
+mkdir -p "$LR_DEEP"
+lr_i=0
+while [ "$lr_i" -lt 120 ]; do
+  git -C "$LR" worktree add -q --detach --no-checkout "$LR_DEEP/wt$lr_i"
+  lr_i=$((lr_i + 1))
+done
+expect "large-registry: the porcelain output exceeds 64 KiB" \
+  "yes" "$([ "$(git -C "$LR" worktree list --porcelain | wc -c)" -gt 65536 ] && echo yes || echo no)"
+expect "large-registry: the branch under test sits in the first entry" \
+  "branch refs/heads/$LR_BRANCH" "$(git -C "$LR" worktree list --porcelain | sed -n 3p)"
+
+# The landing-branch harm: a checked-out desired branch must never echo back.
+expect "large-registry: resolve-working-branch cuts a dedicated branch for a first-entry match" \
+  "dev/2026-10-31-lrplan" \
+  "$( ( cd "$LR" && bash "$SCRIPT" resolve-working-branch "$LR_BRANCH" lrplan 2026-10-31 ) 2>/dev/null )"
+expect "large-registry: an absent branch still reads as free" \
+  "lr-absent" \
+  "$( ( cd "$LR" && bash "$SCRIPT" resolve-working-branch lr-absent lrplan2 2026-10-31 ) 2>/dev/null )"
+
+# A match outside the first entry: the drain must read the whole list.
+git -C "$LR" worktree add -q -b lr-late "$LR_DEEP/wt-late"
+expect "large-registry: a linked-worktree match also reads as checked out" \
+  "dev/2026-10-31-lrplan3" \
+  "$( ( cd "$LR" && bash "$SCRIPT" resolve-working-branch lr-late lrplan3 2026-10-31 ) 2>/dev/null )"
+expect "large-registry: a branch name that only prefixes a live branch reads as free" \
+  "lr-la" \
+  "$( ( cd "$LR" && bash "$SCRIPT" resolve-working-branch lr-la lrplan4 2026-10-31 ) 2>/dev/null )"
+
+# The phantom-dirty harm: sync-follower must not move a live branch.
+LR_ORIG="$(dirname "$(new_wt_path)")/origin.git"
+git init --bare -q "$LR_ORIG"
+git -C "$LR" remote add origin "$LR_ORIG"
+LR_TIP="$(git -C "$LR" rev-parse HEAD)"
+LR_AHEAD="$(git -C "$LR" commit-tree "$LR_TIP^{tree}" -p "$LR_TIP" -m ahead)"
+git -C "$LR" push -q origin "$LR_AHEAD:refs/heads/$LR_BRANCH"
+run_in "$LR" sync-follower "$LR_BRANCH" >/dev/null
+expect "large-registry: sync-follower leaves a checked-out branch in place" \
+  "$LR_TIP" "$(git -C "$LR" rev-parse "refs/heads/$LR_BRANCH")"
+
+# ---------------------------------------------------------------------------
+# Case (PIPE) one row per site converted from `printf | grep` to a case match.
+# Each hit sits in the first line of an output over 64 KiB, so the old pipeline
+# went red here too. A shim stands in for the two git calls that produce the
+# output. Rows MG.2-MG.3 and T2.1/T2.9 pin the same sites with real git output.
+# ---------------------------------------------------------------------------
+PIPE_FILLER="$(dirname "$(new_wt_path)")/filler.txt"
+awk 'BEGIN { for (i = 0; i < 2000; i++) printf "filler line %060d\n", i }' > "$PIPE_FILLER"
+PIPE_SHIM="$(dirname "$(new_wt_path)")"
+printf '#!/usr/bin/env bash\n' > "$PIPE_SHIM/git"
+printf 'case "$1 ${2:-}" in\n' >> "$PIPE_SHIM/git"
+printf '  "push "*|"branch -d") { printf "%%s\\n" "$PIPE_FIRST_LINE"; cat "$PIPE_FILLER"; } >&2; exit 1 ;;\n' >> "$PIPE_SHIM/git"
+printf 'esac\n' >> "$PIPE_SHIM/git"
+printf 'exec "%s" "$@"\n' "$(command -v git)" >> "$PIPE_SHIM/git"
+chmod +x "$PIPE_SHIM/git"
+
+# run_shimmed <first-output-line> <repo> <args...> -> run_in behind the git shim.
+run_shimmed() {
+  ( PIPE_FIRST_LINE="$1" PIPE_FILLER="$PIPE_FILLER" PATH="$PIPE_SHIM:$PATH"
+    export PIPE_FIRST_LINE PIPE_FILLER PATH
+    shift
+    run_in "$@" )
+}
+
+# owned_has: a ledger over 64 KiB whose first line is the candidate.
+RPO="$(new_repo)"
+RPO_BRANCH="$(git -C "$RPO" symbolic-ref --short HEAD)"
+git -C "$RPO" branch dev/2026-10-31-poplan
+OWN_PO="$(dirname "$(new_wt_path)")/owned.txt"
+printf 'dev/2026-10-31-poplan\n' > "$OWN_PO"
+sed 's/ /-/g' "$PIPE_FILLER" >> "$OWN_PO"
+expect "PIPE owned_has: a first-line member of a large ledger reads as owned" \
+  "dev/2026-10-31-poplan" \
+  "$( ( cd "$RPO" && bash "$SCRIPT" resolve-working-branch "$RPO_BRANCH" poplan 2026-10-31 --owned-file "$OWN_PO" ) 2>/dev/null )"
+# A ledger row must match whole: a longer ref and a prefixed ref own nothing.
+printf 'dev/2026-10-31-poplan-more\nxdev/2026-10-31-poplan\n' > "$OWN_PO"
+expect "PIPE owned_has: a partial ledger row is foreign (exit 3)" \
+  "3" "$(run_in "$RPO" resolve-working-branch "$RPO_BRANCH" poplan 2026-10-31 --owned-file "$OWN_PO")"
+
+# delete_branch: the classifier keeps grep -i's case folding.
+pipe_unmerged() {
+  PIPE_R="$(new_repo)"
+  git -C "$PIPE_R" checkout -q -b war/myplan/pipe-t1
+  printf 'unmerged\n' > "$PIPE_R/unmerged.txt"
+  git -C "$PIPE_R" add -A
+  git -C "$PIPE_R" commit -qm "un-merged commit"
+  git -C "$PIPE_R" checkout -q --detach HEAD~1
+  PIPE_RD="$(mk_run_dir "$PIPE_R" run-pipe)"
+  printf 'war/myplan/pipe-t1\n' > "$PIPE_RD/owned.txt"
+  mkdir -p "$PIPE_RD/worktrees/task-pipe"
+}
+pipe_unmerged
+run_shimmed "ERROR: the branch IS NOT FULLY MERGED." "$PIPE_R" teardown-task --force \
+  --owned-file "$PIPE_RD/owned.txt" --run-dir "$PIPE_RD" "$PIPE_RD/worktrees/task-pipe" war/myplan/pipe-t1 >/dev/null
+expect "PIPE not fully merged: an upper-case hit with --force escalates to -D" \
+  "no" "$(branch_exists_in "$PIPE_R" war/myplan/pipe-t1)"
+pipe_unmerged
+run_shimmed "error: some other refusal" "$PIPE_R" teardown-task --force \
+  --owned-file "$PIPE_RD/owned.txt" --run-dir "$PIPE_RD" "$PIPE_RD/worktrees/task-pipe" war/myplan/pipe-t1 >/dev/null
+expect "PIPE not fully merged: any other error leaves the branch even with --force" \
+  "yes" "$(branch_exists_in "$PIPE_R" war/myplan/pipe-t1)"
+
+# land-advance: the token is a literal, so a miss stays a plain push error.
+PIPE_PAIR="$(setup_origin_pair)"
+PIPE_C1="$(printf '%s' "$PIPE_PAIR" | cut -d' ' -f1)"
+PIPE_C2="$(printf '%s' "$PIPE_PAIR" | cut -d' ' -f2)"
+seed_working_branch "$PIPE_C1" "$PIPE_C2" working/pipe >/dev/null
+printf 'pipe\n' > "$PIPE_C1/pipe.txt"
+git -C "$PIPE_C1" add -A
+git -C "$PIPE_C1" commit -qm "new sha for PIPE"
+PIPE_NEW="$(git -C "$PIPE_C1" rev-parse HEAD)"
+git -C "$PIPE_C1" checkout -q --detach "$PIPE_NEW"
+expect "PIPE [rejected]: a first-line token reads as a reland (exit 2)" \
+  "2" "$(run_shimmed " ! [rejected] HEAD -> working/pipe (fetch first)" "$PIPE_C1" land-advance working/pipe "$PIPE_NEW")"
+expect "PIPE [rejected]: bare letters of the token stay a plain push error (exit 3)" \
+  "3" "$(run_shimmed "rejected by the remote" "$PIPE_C1" land-advance working/pipe "$PIPE_NEW")"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
