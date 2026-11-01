@@ -16872,6 +16872,14 @@ for (const [name, site, args, impl] of [
   })
 }
 
+test('#2309: on an unpublished target, a bad read that returns to the proof base merges', async () => {
+  const unpublished = { ...NEW_SEAT_DEFAULTS['merge-snapshot'], remote_sha: null, seed_sha: REMOTE_SEED }
+  const { out, calls } = await runRemote({ 'pin-snapshot': NULL_REMOTE_SNAPSHOT, 'merge-snapshot': lateMerge(unpublished), 'merge-confirm': (p, o, w) => NEW_SEAT_DEFAULTS['merge-confirm'](p, o, w) }, { roundLimit: 2 })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
+  assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'), JSON.stringify(out.escalated))
+  assert.equal(countOf(calls, 'merge:t1'), 1)
+})
+
 test('#2309: after a pin move, a merge bad read compares the proof base, not the first snapshot', async () => {
   const { out, calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT), 'merge-snapshot': lateMerge(MOVED_MERGE) }, { roundLimit: 2 })
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 2, 'one pin reconcile and one merge reconcile')
