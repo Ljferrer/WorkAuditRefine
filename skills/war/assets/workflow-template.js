@@ -7127,8 +7127,10 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
   // drifts only in whitespace/case must still bind its condition — never a silent 'met'. A trailing
   // End-state tag (` · check: …`, `gate:`, `backstop:`, `HARD at audit_sha`) is dropped on both sides:
-  // a condition staged with its tag tail must bind a seat row that echoes the text without it.
-  const normRef = s => String(s || '').replace(/\s*·\s*(check:|gate:|backstop:|HARD at audit_sha)[\s\S]*$/i, '').trim().replace(/\s+/g, ' ').toLowerCase()
+  // a condition staged with its tag tail must bind a seat row that echoes the text without it. So is
+  // the exact trailing marker the gate-audit prompt renders (` [check:]`, #2329): a seat copies it
+  // into condition and plan_ref. Any other bracketed text stays part of the compared text.
+  const normRef = s => String(s || '').replace(/\s*·\s*(check:|gate:|backstop:|HARD at audit_sha)[\s\S]*$/i, '').replace(/\s*\[(check:|gate:|backstop:|HARD at audit_sha)\]\s*$/i, '').trim().replace(/\s+/g, ' ').toLowerCase()
   handoff = {
     tipSha,
     polish: polishStatus,

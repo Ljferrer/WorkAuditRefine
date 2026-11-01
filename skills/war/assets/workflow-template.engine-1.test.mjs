@@ -5250,6 +5250,42 @@ test("handoff attestation binding ignores a trailing End-state tag: a condition 
   assert.equal(out3.handoff.endState.find(e => e.condition === tagged)?.status, 'unverified', 'only the tag tail is ignored, never the condition text')
 })
 
+test("handoff attestation binding ignores a trailing rendered tag marker: a seat row or plan_ref ending in ' [check:]', ' [gate:]', ' [backstop:]' or ' [HARD at audit_sha]' binds its condition, and other bracketed text does not", async () => {
+  // Field case (run 4062bd0d, phase 2): the gate-audit prompt renders `<condition> [<tag>]`, then an
+  // artifact tail on a check: row. Every seat copied the marker, without the tail, into its rows, and
+  // all 20 conditions fell to 'unverified' (#2329 item 3). A row that keeps the tail stays unbound.
+  const bare = 'condition A: the wibble suite is green'
+  const seat = (rows, findings = []) => (prompt, opts) => {
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && (opts.label || '').startsWith('merge:'))
+      return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'c0ffee1234' }
+    if ((opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings, endStateAttestations: rows }
+    return gateAuditImpl(prompt, opts)
+  }
+  const argsWith = (cond, tag = 'check:') => ES_ROW_ARGS({ phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+    endState: [{ condition: cond, tag, check: tag === 'check:' ? ES_CHECK_CMD : null }] } })
+  const statusOf = (out, cond) => out.handoff.endState.find(e => e.condition === cond)?.status
+  for (const tag of ['check:', 'gate:', 'backstop:', 'HARD at audit_sha']) {
+    const marked = `${bare} [${tag}]`
+    const { out } = await runPhase(argsWith(bare, tag), seat([{ condition: marked, status: 'met', evidence: 'artifact read at tip' }]))
+    assert.equal(statusOf(out, bare), 'met', `a seat row ending in [${tag}] binds the bare condition`)
+    const { out: reverse } = await runPhase(argsWith(marked, tag), seat([{ condition: bare, status: 'met', evidence: 'artifact read at tip' }]))
+    assert.equal(statusOf(reverse, marked), 'met', `a staged condition ending in [${tag}] binds a bare seat row`)
+    const { out: viaPlanRef } = await runPhase(argsWith(bare, tag), seat([], [{ severity: 'Nit', disposition: 'note', title: 'out-of-scope: a later phase owns this', plan_ref: marked }]))
+    assert.equal(statusOf(viaPlanRef, bare), 'out-of-scope', `a plan_ref ending in [${tag}] binds the bare condition`)
+  }
+  // Trailing space, marker case, and either order of the marker and the ` · check:` tail.
+  for (const variant of [`${bare} [check:]  `, `${bare} [HARD AT AUDIT_SHA]`, `${bare} [check:] · check: \`x\``, `${bare} · check: \`x\` [check:]`]) {
+    const { out } = await runPhase(argsWith(bare), seat([{ condition: variant, status: 'met', evidence: 'artifact read at tip' }]))
+    assert.equal(statusOf(out, bare), 'met', `'${variant}' binds the bare condition`)
+  }
+  // Anti-vacuous: only an exact marker at the very end is dropped, so each of these keeps its text.
+  for (const other of [`${bare} [see check:]`, `${bare} [check: wibble]`, `${bare} [gate]`, `${bare} [HARD]`, 'condition A: [check:] the wibble suite is green', `[check:] ${bare}`]) {
+    const { out } = await runPhase(argsWith(bare), seat([{ condition: other, status: 'met', evidence: 'x' }]))
+    assert.equal(statusOf(out, bare), 'unverified', `'${other}' never binds the bare condition`)
+  }
+})
+
 test("handoff endState assembly (Task 3.2): the derivation + assembly comment carry the five-status set, and the ternary chain's terminal arm is 'unverified', never 'met'", () => {
   const s = src.indexOf('// endState (D8, Task 3.2')
   const e = src.indexOf('backstops:', s)
