@@ -16262,7 +16262,7 @@ test('pin-confirm prompt names the integration branch origin ref for remote_sha,
 
 // #2325, #2309: a pin proof that omits remote_sha or names the task branch's tip was read as a moved
 // integration target, which held an approved merge as held:workflow-error. Absent reads as null at each
-// compare with the snapshot, a misread proof retries, and only a real move keeps the throw.
+// compare with the snapshot, a misread proof retries, and a real move goes to target-reconcile.
 const REMOTE_SEED = '1'.repeat(40)
 const NULL_REMOTE_SNAPSHOT = { ...NEW_SEAT_DEFAULTS['pin-snapshot'], remote_sha: null, seed_sha: REMOTE_SEED }
 const pinProofOf = p => NEW_SEAT_DEFAULTS['pin-confirm'](p)
@@ -16381,7 +16381,8 @@ const heldOnMove = (out, calls, cause) => {
   assert.equal(row?.reason, 'escalate')
   assert.match(row.detail.note, /^target moved: /)
   assert.match(row.detail.note, cause)
-  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved'))
+  assert.ok('after' in row.detail, 'the hold carries the last proof')
+  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved' && e.before?.base_sha))
   assert.ok(!calls.some(isMergeTask))
   assert.ok(!calls.some(c => c.prompt.includes('PIN CONTENT RE-AUDIT')), 'a held move never takes the re-audit panel')
 }
@@ -16401,14 +16402,21 @@ for (const [name, moved, first, after] of [
   assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'), 'a move that reconciles is no hold')
 })
 
-test('#2309: the reconcile dispatch runs on the recovery tier and reads the moved refs', async () => {
-  const { calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT) })
+for (const [name, moved, base, remote] of [
+  ['local', movedLocal, NEW_TIP, NEW_SEAT_DEFAULTS['pin-snapshot'].remote_sha],
+  ['remote', proof => ({ ...proof, remote_sha: NEW_TIP }), NEW_SEAT_DEFAULTS['pin-snapshot'].base_sha, NEW_TIP],
+  ['deleted remote', proof => ({ ...proof, remote_sha: null }), NEW_SEAT_DEFAULTS['pin-snapshot'].base_sha, null],
+  ['omitted remote', dropRemote, NEW_SEAT_DEFAULTS['pin-snapshot'].base_sha, null],
+]) test('#2309: the reconcile dispatch runs on the recovery tier and reads the moved ' + name, async () => {
+  const { calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT, pinProofOf, moved) })
   const dispatch = calls.find(c => c.opts.dispatchKind === 'target-reconcile')
+  if (name === 'omitted remote') return assert.equal(dispatch, undefined, 'an omitted key retries as malformed against a published snapshot')
   assert.equal(dispatch.opts.model, 'opus')
   assert.equal(dispatch.opts.label, 'git-target:pin-transfer:t1')
   assert.ok(dispatch.prompt.includes('Never publish local-only integration commits'))
   const observed = JSON.parse(dispatch.prompt.match(/Observed snapshot: (.+?)\. Inspect current/)[1])
-  assert.equal(observed.base_sha, NEW_TIP, 'the prompt names the tip the proof read, not the stale snapshot')
+  assert.equal(observed.base_sha, base, 'the prompt names the local tip the proof read')
+  assert.equal(observed.remote_sha, remote, 'the prompt names the remote the proof read')
   assert.equal(calls.indexOf(dispatch), calls.findIndex(c => c.opts.label === 'git-pin:t1') + 1, 'maintenance runs before the repeat')
 })
 
@@ -16446,6 +16454,35 @@ test('#2309: on a registered range, a repeat proof still reads the approved comm
   assertLandedReverted(out, 'range after a move')
 })
 
+test('#2309: a repeat proof that never clears holds as a move', async () => {
+  const { out, calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT, () => ({ remote_sha: '' })) }, { roundLimit: 2 })
+  assert.equal(countOf(calls, 'git-pin:t1'), 3, 'the first pass plus the retries of one repeat')
+  heldOnMove(out, calls, /usable proof/)
+})
+
+test('#2309: a move read before the tree check goes to reconcile, never the tree hold', async () => {
+  const { out, calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT, pinProofOf, proof => ({ ...movedLocal(proof), content_tree: '6'.repeat(40) })) })
+  assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:tree-mismatch'))
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
+  landedClean(out, calls, 2)
+})
+
+for (const [name, local] of [['absent', undefined], ['abbreviated', '1234567'], ['null', null]]) test('#2309: a proof whose local_sha is ' + name + ' retries, never reads as a move', async () => {
+  const { out, calls } = await runRemote({ 'pin-transfer': REBASED_PROBE, 'pin-confirm': firstReply(proof => ({ ...proof, local_sha: local })) })
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'target-reconcile'))
+  landedClean(out, calls, 2)
+})
+
+test('#2309: a contradicted already_upstream after a move records the proof base', async () => {
+  let probes = 0
+  const { out, calls } = await runRemote({ 'pin-transfer': () => probes++ ? { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0002', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p1', already_upstream_commits: ['c0ffee1'] } : REBASED_PROBE,
+    ...moveOnce(MOVED_SNAPSHOT, p => ({ ...pinProofOf(p), dispatch_base: '4'.repeat(40) })) })
+  landedClean(out, calls, 2)
+  const receipt = out.pinTransfers.find(r => r.kind === 'merge')
+  assert.equal(receipt.mode, 'transferred')
+  assert.equal(receipt.dispatchBase, '4'.repeat(40))
+})
+
 test('#2309: a first pass keeps its dispatch_base check', async () => {
   const { out } = await runRemote({ 'pin-transfer': REBASED_PROBE, 'pin-confirm': p => ({ ...pinProofOf(p), dispatch_base: '4'.repeat(40) }) })
   assert.ok(out.auditLog.some(e => e.verdict === 'pin-transfer:unverified'))
@@ -16462,6 +16499,7 @@ for (const [name, probe, proofAfter, cause] of [
   ['an already_upstream claim', { status: 'already_upstream', rebased_tip: NEW_TIP, dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] }, pinProofOf, /approved content/],
   ['a contradicted already_upstream claim', { status: 'already_upstream', rebased_tip: 'beef0001', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: 'p2', already_upstream_commits: ['c0ffee1'] }, p => ({ ...pinProofOf(p), post_patch_id: 'p1' }), /patch/],
   ['a tree mismatch', REBASED_PROBE, p => ({ ...pinProofOf(p), content_tree: '6'.repeat(40) }), /tree/],
+  ['a head that is not the reported tip', REBASED_PROBE, p => ({ ...pinProofOf(p), head_sha: '9'.repeat(40) }), /usable proof/],
 ]) test('#2309: after a move, ' + name + ' holds', async () => {
   let probes = 0
   const { out, calls } = await runRemote({ 'pin-transfer': () => probes++ ? probe : REBASED_PROBE, ...moveOnce(MOVED_SNAPSHOT, proofAfter) })
@@ -16559,22 +16597,77 @@ test('#2309: a held move leaves a healthy sibling free to merge', async () => {
     'pin-confirm': (p, o) => o.label === 'git-pin:t1' ? movedLocal(pinProofOf(p)) : pinProofOf(p),
   })
   assert.equal(out.escalated.find(e => e.task === 't1')?.reason, 'escalate')
+  assert.match(out.escalated.find(e => e.task === 't1').detail.note, /^target moved: /)
   assert.ok(!out.workflowError)
   assert.ok(!calls.some(c => isMergeTask(c) && c.opts.label === 'merge:t1'))
   assert.ok(calls.some(c => isMergeTask(c) && c.opts.label === 'merge:t2'), 'the sibling reaches its merge')
+  assert.ok(out.landed.includes('t2'))
   assert.ok(!out.escalated.some(e => e.task === 't2'))
+})
+
+const TWO_TASKS = [SINGLE_TASK[0], { ...SINGLE_TASK[0], id: 't2' }]
+const LOST_TARGET = { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: '6'.repeat(40) }
+const siblingHeld = (out, calls) => {
+  assert.equal(out.landDecision, 'held:escalation')
+  assert.ok(!out.workflowError, JSON.stringify(out.workflowError))
+  assert.ok(out.handoff, 'the phase keeps its handoff')
+  const row = out.escalated.find(e => e.task === 't2')
+  assert.equal(row?.reason, 'escalate')
+  assert.match(row.detail.note, /^target moved: no usable snapshot/)
+  assert.ok(out.auditLog.some(e => e.task === 't2' && e.verdict === 'pin-transfer:target-moved'))
+  assert.ok(!calls.some(isMergeTask))
+  assert.equal(countOf(calls, 'pin-transfer:t2'), 0, 'no rebase without a snapshot')
+}
+
+test('#2309: a sibling holds too when the read move leaves the target unreconciled', async () => {
+  let snapshots = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-snapshot': () => snapshots++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['pin-snapshot'],
+    'pin-confirm': p => movedLocal(pinProofOf(p)),
+  })
+  assert.match(out.escalated.find(e => e.task === 't1').detail.note, /^target moved: /)
+  siblingHeld(out, calls)
+})
+
+test('#2309: a sibling holds too after the upstream re-audit arm read the move', async () => {
+  const tip = 'facade01'.padEnd(40, '0')
+  let proofs = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-snapshot': (p, o) => o.label.endsWith(':t1') ? { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: tip, remote_sha: tip } : LOST_TARGET,
+    'pin-transfer': { status: 'already_upstream', rebased_tip: 'facade01', dispatch_base: 'ba5e0001', pre_rebase_patch_id: 'p1', post_rebase_patch_id: '', already_upstream_commits: ['c0ffee1'] },
+    'pin-confirm': p => { const proof = { ...pinProofOf(p), head_tree: '6'.repeat(40) }; return proofs++ ? movedLocal(proof) : proof },
+  })
+  siblingHeld(out, calls)
+})
+
+test('#2309: after a move reconciles, a healthy sibling takes its normal pass', async () => {
+  let proofs = 0
+  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-transfer': REBASED_PROBE,
+    'pin-confirm': p => proofs++ ? pinProofOf(p) : movedLocal(pinProofOf(p)),
+  })
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), JSON.stringify(out.escalated))
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
+})
+
+test('#2309: with no read move, a sibling snapshot failure stays a workflow error', async () => {
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: TWO_TASKS, run: { roundLimit: 2 } }), defaultImpl, {
+    'pin-snapshot': (p, o) => o.label.endsWith(':t1') ? NEW_SEAT_DEFAULTS['pin-snapshot'] : LOST_TARGET,
+  })
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.match(out.workflowError?.message ?? '', /Git merge snapshot unavailable before pin-transfer:t2/)
 })
 
 test('#2309: no throw names the moved target, and the enums stay closed', () => {
   const src = readFileSync(new URL('./workflow-template.js', import.meta.url), 'utf8')
   assert.ok(!src.includes('Pin transfer changed the integration target'))
-  const canon = readFileSync(new URL('./land-decision.mjs', import.meta.url), 'utf8')
-  for (const text of [src, canon]) assert.ok(!/held:target|target-moved'\s*[,\]]\s*$/m.test(text.split('\n').filter(l => /HARD_ESCALATION_REASONS|KNOWN_LAND_DECISIONS/.test(l)).join('\n')))
+  for (const set of [HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS]) for (const value of ['target-moved', 'pin-transfer:target-moved']) assert.ok(![...set].includes(value), value)
+  assert.ok(![...HARD_ESCALATION_REASONS].includes('held:workflow-error'))
 })
 
 test('#2309: refiner-recovery.md states the reconcile route and the holds', () => {
   const recovery = readFileSync(new URL('../references/refiner-recovery.md', import.meta.url), 'utf8').replace(/\s+/g, ' ')
-  for (const phrase of ['A real target move at `pin-confirm` is not a workflow error', 'at most `roundLimit` passes', 'keeps the first snapshot\'s `source_sha`', 'gets no re-audit panel', 'a note that starts `target moved:`']) {
+  for (const phrase of ['A real target move at `pin-confirm` is not a workflow error', 'at most `roundLimit` passes', 'keeps the first snapshot\'s `source_sha`', 'gets no re-audit panel', 'a note that starts `target moved:`', 'Siblings still merge while the target reconciles', 'keeps that arm\'s own hold']) {
     assert.ok(recovery.includes(phrase), phrase)
   }
 })

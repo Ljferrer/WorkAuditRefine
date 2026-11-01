@@ -964,7 +964,8 @@ ace whose git-derived file set (the tip probe's read) is a subset of the finding
 the originating seats; the rest transfer to the ace sha. *Rebase pin transfer*: at the merge slot, a
 conflict-free rebase plus `git patch-id --stable` equality of the task's own diff, before and after,
 carries the panel pin to the rebased tip. Neither accounts an approval at a SHA the gate never
-passed; a mismatch degrades to the in-lock full panel for that task alone.
+passed; a mismatch degrades to the in-lock full panel for that task alone. After a target move, a
+mismatch holds the task instead (#2309).
 Arms and shape: `skills/war/references/schemas.md`.
 
 **Tip probe**:
