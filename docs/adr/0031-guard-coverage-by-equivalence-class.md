@@ -83,8 +83,8 @@ fails.
 
 ## Considered options
 
-- **One ADR versus five per-convention records (chosen: one).** The five conventions are one policy —
-  cover the class, enforce the convention with a meta-guard — seen through five surfaces; recording it
+- **One ADR versus per-convention records (chosen: one).** The conventions are one policy —
+  cover the class, enforce the convention with a meta-guard — seen through several surfaces; recording it
   once keeps the "why the class, why a meta-guard, why per-incident fixing fails" rationale in one place.
 - **A generic guard-linter that infers every equivalence class (rejected).** Auto-discovering the class
   of every guard is a research project whose failure mode is a false sense of coverage. The textual

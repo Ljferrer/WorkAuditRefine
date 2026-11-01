@@ -1643,7 +1643,7 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 # Case (T2.9) PUSH ERROR (pre-receive rejection) -> the [rejected]-token
 # classifier does NOT match git's "! [remote rejected] ... (pre-receive hook
 # declined)" line (the space in "[remote rejected]" is distinct from the
-# contiguous [rejected] non-ff token cmd_land_advance greps for), so
+# contiguous [rejected] non-ff token cmd_land_advance matches), so
 # classification falls through to the bare `exit 3` push-error branch (the 0/2/3
 # contract in cmd_land_advance's CLASSIFY header). This is the exit-3 route T2.3
 # STOPPED exercising when it was reframed to prove the ls-remote rc-guard
@@ -1706,7 +1706,7 @@ expect "T2.9: fixture sanity — ls-remote origin succeeds pre-call (rc-guard ro
 
 # (c) Direct-push probe: the SAME push land-advance will issue, run here in the
 # test so the token-distinctness fact is asserted BY NAME. 'remote rejected' is
-# present; the contiguous [rejected] token (what cmd_land_advance greps) is NOT.
+# present; the contiguous [rejected] token (what cmd_land_advance matches) is NOT.
 PROBE9="$( ( cd "$C1_9" && git checkout --detach "$NEW_SHA9" >/dev/null 2>&1 && git push origin "HEAD:refs/heads/working/myplan9" ) 2>&1 )"
 expect "T2.9: direct-push probe output contains 'remote rejected' (pre-receive declined)" \
   "1" "$(printf '%s' "$PROBE9" | grep -c 'remote rejected')"
@@ -2288,8 +2288,9 @@ git -C "$RMG3" checkout -b war/myplan/p22-t1 >/dev/null 2>&1
 printf 'unmerged3\n' > "$RMG3/unmerged3.txt"
 git -C "$RMG3" add -A
 git -C "$RMG3" commit -qm "un-merged commit for MG.3"
-# Switch back to detached HEAD so the branch is not checked out.
-git -C "$RMG3" checkout --detach HEAD >/dev/null 2>&1
+# Detach at the parent: the branch is then not checked out and is un-merged
+# from HEAD, so real `git branch -d` refuses it and the classifier runs.
+git -C "$RMG3" checkout --detach HEAD~1 >/dev/null 2>&1
 expect "MG.3 setup: un-merged branch exists" \
   "yes" "$(branch_exists_in "$RMG3" war/myplan/p22-t1)"
 RD_MG3="$(mk_run_dir "$RMG3" run-mg3)"
@@ -3496,7 +3497,12 @@ git -C "$LR" remote add origin "$LR_ORIG"
 LR_TIP="$(git -C "$LR" rev-parse HEAD)"
 LR_AHEAD="$(git -C "$LR" commit-tree "$LR_TIP^{tree}" -p "$LR_TIP" -m ahead)"
 git -C "$LR" push -q origin "$LR_AHEAD:refs/heads/$LR_BRANCH"
-run_in "$LR" sync-follower "$LR_BRANCH" >/dev/null
+expect "large-registry: setup leaves origin strictly ahead of the local branch" \
+  "$LR_AHEAD" "$(git -C "$LR_ORIG" rev-parse "refs/heads/$LR_BRANCH")"
+run_capture "$LR" sync-follower "$LR_BRANCH"
+expect "large-registry: sync-follower exits 0" 0 "$CAP_CODE"
+expect "large-registry: sync-follower takes the checked-out skip arm" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -q 'skipping the follower fast-forward' && echo match || echo nomatch)"
 expect "large-registry: sync-follower leaves a checked-out branch in place" \
   "$LR_TIP" "$(git -C "$LR" rev-parse "refs/heads/$LR_BRANCH")"
 
@@ -3552,13 +3558,15 @@ pipe_unmerged() {
   mkdir -p "$PIPE_RD/worktrees/task-pipe"
 }
 pipe_unmerged
-run_shimmed "ERROR: the branch IS NOT FULLY MERGED." "$PIPE_R" teardown-task --force \
-  --owned-file "$PIPE_RD/owned.txt" --run-dir "$PIPE_RD" "$PIPE_RD/worktrees/task-pipe" war/myplan/pipe-t1 >/dev/null
+expect "PIPE not fully merged: an upper-case hit exits 0" \
+  "0" "$(run_shimmed "ERROR: the branch IS NOT FULLY MERGED." "$PIPE_R" teardown-task --force \
+    --owned-file "$PIPE_RD/owned.txt" --run-dir "$PIPE_RD" "$PIPE_RD/worktrees/task-pipe" war/myplan/pipe-t1)"
 expect "PIPE not fully merged: an upper-case hit with --force escalates to -D" \
   "no" "$(branch_exists_in "$PIPE_R" war/myplan/pipe-t1)"
 pipe_unmerged
-run_shimmed "error: some other refusal" "$PIPE_R" teardown-task --force \
-  --owned-file "$PIPE_RD/owned.txt" --run-dir "$PIPE_RD" "$PIPE_RD/worktrees/task-pipe" war/myplan/pipe-t1 >/dev/null
+expect "PIPE not fully merged: any other error exits 0" \
+  "0" "$(run_shimmed "error: some other refusal" "$PIPE_R" teardown-task --force \
+    --owned-file "$PIPE_RD/owned.txt" --run-dir "$PIPE_RD" "$PIPE_RD/worktrees/task-pipe" war/myplan/pipe-t1)"
 expect "PIPE not fully merged: any other error leaves the branch even with --force" \
   "yes" "$(branch_exists_in "$PIPE_R" war/myplan/pipe-t1)"
 

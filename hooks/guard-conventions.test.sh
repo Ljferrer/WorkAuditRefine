@@ -28,6 +28,9 @@
 #       an inline `# guard-conventions: allow <reason>` tag; the lint prints
 #       suppressed hits to stderr for the record.
 #
+#   (3) suffix-anchored arm lint and (4) unanchored memory-glob lint — see
+#       their scan headers below.
+#
 #   (5) pipefail early-exit grep lint — a script that sets pipefail must not
 #       pipe into a quiet grep. The grep exits at its first match, the writer
 #       dies of SIGPIPE, the pipeline returns 141, and a found value reads as
@@ -38,7 +41,8 @@
 # arrays, no ${,,}), cwd-independent (all paths resolved from $0). The
 # synthetic RED fixtures are assembled with printf — never a heredoc — so the
 # offending lines exist only in the generated temp files, never as scannable
-# lines in THIS file (which the full-tree passes below re-scan).
+# lines in THIS file (which the full-tree passes below re-scan). Lint 5 exempts
+# test files, so its fixture bodies may sit here as literals.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -165,8 +169,8 @@ memglob_scan() {
 #
 # A hit is a non-comment line in a script that names pipefail on a non-comment
 # line, where a pipe feeds a grep that holds a quiet flag: `-q` in any short
-# cluster, `--quiet` or `--silent`, before or after other arguments. `||` is
-# not a pipe. A line that ends in `|` feeds the next non-comment line. A line
+# cluster, `--quiet` or `--silent`, before or after other arguments, quoted
+# patterns included. `||` is not a pipe. A line that ends in `|` feeds the next non-comment line. A line
 # carrying `# guard-conventions: allow` is suppressed (printed to stderr).
 # ---------------------------------------------------------------------------
 pipefail_grep_scan() {
@@ -185,7 +189,7 @@ pipefail_grep_scan() {
       if (!code_line()) next
       s = (fed ? "| " : "") $0
       fed = ($0 ~ /(^|[^|])\|&?[[:space:]]*\\?[[:space:]]*$/)
-      if (s !~ /(^|[^|])\|&?[[:space:]]*(command[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*grep[[:space:]]([^|;&]*[[:space:]])?(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)([[:space:]]|$)/) next
+      if (s !~ /(^|[^|])\|&?[[:space:]]*(command[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*grep[[:space:]](([^|;&\047"]|\047[^\047]*\047|"[^"]*")*[[:space:]])?(-[A-Za-z0-9]*q[A-Za-z0-9]*|--quiet|--silent)([[:space:];&|)]|$)/) next
       if (index($0, "guard-conventions: allow") > 0) {
         printf "SUPPRESSED %s:%d: %s\n", ENVIRON["PG_FILE"], FNR, t > "/dev/stderr"
         next
@@ -457,6 +461,13 @@ expect_pg 1 "FIRES on a bare -q" bare "$PG_SET" 'x | grep -q y'
 expect_pg 1 "FIRES on a leading q cluster" cluster "$PG_SET" 'x | grep -qi y'
 expect_pg 1 "FIRES on a split flag" split "$PG_SET" 'x | grep -E -q y'
 expect_pg 1 "FIRES on a flag after the pattern" after "$PG_SET" 'x | grep y -q'
+expect_pg 1 "FIRES on a flag before a semicolon" aftersemi "$PG_SET" 'if x | grep y -q; then z; fi'
+expect_pg 1 "FIRES on a flag before a closing paren" afterparen "$PG_SET" 'y=$(x | grep z -q)'
+expect_pg 1 "FIRES on a flag tight against &&" afterand "$PG_SET" 'x | grep y -q&& z'
+expect_pg 1 "FIRES on a flag tight against a pipe" afterpipe "$PG_SET" 'x | grep y -q|z'
+expect_pg 1 "FIRES on a flag cluster with a digit" digit "$PG_SET" 'x | grep -m1q y'
+expect_pg 1 "FIRES past a single-quoted pattern with a pipe" singleq "$PG_SET" "x | grep -E 'a|b' -q"
+expect_pg 1 "FIRES past a double-quoted pattern with a semicolon" doubleq "$PG_SET" 'x | grep -E "a;b" -q'
 expect_pg 1 "FIRES on --quiet" quiet "$PG_SET" 'x | grep --quiet y'
 expect_pg 1 "FIRES on --silent" silent "$PG_SET" 'x | grep --silent y'
 expect_pg 1 "FIRES with no space after the pipe" tight "$PG_SET" 'x |grep -q y'
@@ -471,15 +482,18 @@ expect_pg 0 "PASSES || grep, which is not a pipe" oror "$PG_SET" 'x || grep -q y
 expect_pg 0 "PASSES a file-argument grep" filearg "$PG_SET" 'grep -Fxq -- y "$f"'
 expect_pg 0 "PASSES a grep with no quiet flag" noisy "$PG_SET" 'x | grep -c y'
 expect_pg 0 "PASSES a quiet flag past the pipeline" nextcmd "$PG_SET" 'x | grep y; z -q'
+expect_pg 0 "PASSES a quiet flag inside a quoted pattern" inquote "$PG_SET" "x | grep 'y -q z'"
 
 # A pipe at the end of a line feeds the next code line, past a comment.
-_pg_cont="$(pg_script cont "$PG_SET" 'x |')"
-printf '  # a comment line\n  grep -q y\n' >> "$_pg_cont"
-if [ "$(pipefail_grep_scan "$_pg_cont" 2>/dev/null | grep -c .)" = "1" ]; then
-  pass "pipefail lint: FIRES across a trailing pipe"
-else
-  fail "pipefail lint: missed a pipeline across a trailing pipe"
-fi
+for _pg_end in 'x |' 'x |&' 'x | \'; do
+  _pg_cont="$(pg_script cont "$PG_SET" "$_pg_end")"
+  printf '  # a comment line\n  grep -q y\n' >> "$_pg_cont"
+  if [ "$(pipefail_grep_scan "$_pg_cont" 2>/dev/null | grep -c .)" = "1" ]; then
+    pass "pipefail lint: FIRES across a line that ends in [$_pg_end]"
+  else
+    fail "pipefail lint: missed a pipeline across a line that ends in [$_pg_end]"
+  fi
+done
 _pg_cont_or="$(pg_script contor "$PG_SET" 'x ||')"
 printf '  grep -q y\n' >> "$_pg_cont_or"
 if [ -z "$(pipefail_grep_scan "$_pg_cont_or" 2>/dev/null)" ]; then
@@ -487,6 +501,9 @@ if [ -z "$(pipefail_grep_scan "$_pg_cont_or" 2>/dev/null)" ]; then
 else
   fail "pipefail lint: false-fired on a trailing ||"
 fi
+
+# Arming reads the whole file: a late pipefail line still covers an earlier pipeline.
+expect_pg 1 "FIRES when pipefail follows the pipeline" latearm "$PG_LIVE" "$PG_SET"
 
 # Allow-tag suppresses the hit (stdout empty; the suppressed line goes to stderr).
 _pg_allow="$(pg_script allow "$PG_SET" "$PG_LIVE # guard-conventions: allow demo")"
@@ -514,7 +531,7 @@ esac
 # script this lint exists for, must not read as a clean tree. The two roots are
 # anchored subtrees, and a path filter on .claude would drop them in a worktree.
 # ---------------------------------------------------------------------------
-pg_files="$(find "$REPO/hooks" "$REPO/skills" -type f -name '*.sh' -not -name '*.test.sh' | sort)" \
+pg_files="$(find "$REPO/hooks" "$REPO/skills" -type f -name '*.sh' -not -name '*.test.sh')" \
   || fail "pipefail lint: find failed"
 pg_hits=""
 while IFS= read -r _s; do
