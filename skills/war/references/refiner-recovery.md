@@ -167,7 +167,8 @@ not the seed/base branch. Polish and terminal merges use the same phase seed; su
 targets `targetBase`. Never query a superproject branch as a submodule seed.
 On disagreement, `target-reconcile` may safely fast-forward a clean local follower to origin
 target, or to the published seed when origin target is absent,
-then an independent snapshot decides readiness even if maintenance lost its reply. Never publish
+then an independent snapshot decides readiness even if maintenance lost its reply. At a task merge
+snapshot, that base must also be the one the pin proof read. Never publish
 unaccounted local-only history or change the current task during this maintenance. Unresolved
 history holds after the bounded attempts; Git remains available for the next agent to reconcile.
 
@@ -206,8 +207,9 @@ the audit verdict `pin-transfer:target-moved`. Siblings still merge while the ta
 A task snapshot that stays out of sync, or that fails after this run read a move, holds its task the
 same way at the pin slot and at every task merge dispatch, even if its last attempt died, and the
 phase keeps its handoff. A dead snapshot with neither condition, and a dead probe or proof, keep the
-site-named `env-died` route. A primary merge snapshot that reads the target out of sync and then
-reconciles holds too, because the pin proof never read that base. A fresh relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw on an unusable read. A move read
+site-named `env-died` route. A task merge snapshot that reads the target out of sync and then
+reconciles to a new base holds too, because the pin proof never read that base. A bad read that
+returns to the proof's base merges. A fresh relaunch starts with no read move. A polish, terminal or land snapshot keeps its throw on an unusable read. A move read
 after an upstream content re-audit holds the same way, because it voids the destination the panel
 approved. After a move, an `already_upstream` claim completes only on its full proof with exact tree
 equality. A repeat pass that hits a rebase conflict, an empty-unmatched diff, a refused destination

@@ -475,10 +475,12 @@ const notes = []
 // naming the mode, the SHAs, and EVERY seat as transferred or re-ran with its own sha, so unanimity
 // survives in transferred form and a later audit can re-verify without replaying the rebase.
 const pinTransfers = []
-// pinTargetMoved (#2309): this run read a real target move, at a proof or at an out-of-sync snapshot that
-// never reconciled. A later task snapshot that finds no usable target then holds that task, in place of
-// the workflow-error throw. A fresh relaunch starts false.
+// pinTargetMoved (#2309): this run read a real target move, at a proof, at an out-of-sync snapshot that
+// never reconciled, or at a merge snapshot that reconciled to a new base. A later task snapshot that finds
+// no usable target then holds that task, in place of the workflow-error throw. A fresh relaunch starts false.
 let pinTargetMoved = false
+// pinProofBase: the base the current task's pin proof read. A merge snapshot compares it after an out-of-sync read.
+let pinProofBase = null
 // asks (#1550, ADR 0013 amendment 2026-08-25): parked disposition:'ask' records — decision-shaped
 // Minor/Nit questions awaiting the operator's ruling at the Checkpoint strike-list gate. Rides the
 // top-level return beside minorsFiled and the handoff's ninth (lossy) `asks` key; NEVER consumed by
@@ -2408,12 +2410,10 @@ const targetMaintenance = (opts, context, observed) => {
 // TARGET_LOST rides the death channel, so every task merge site that reads deathOf reaches mergeDied,
 // and mergeDied holds the task with a 'target moved:' note, never as env-died (#2309, operator rulings).
 const TARGET_LOST = 'no usable snapshot of the target'
-// TARGET_LATE: the primary merge snapshot read the target out of sync and maintenance then reconciled it
-// (operator ruling 2026-11-01). The pin proof never read that base, so the task holds before its merge.
+// TARGET_LATE: a task merge snapshot read the target out of sync, and maintenance reconciled it to a base
+// the pin proof never read (operator rulings 2026-11-01). The task holds before its merge. A bad read that
+// returns to the proof's base merges.
 const TARGET_LATE = 'the target moved after the pin proof'
-// The bare merge label names the primary merge: each re-merge label carries a suffix, and it ran after
-// the primary merge read its base.
-const isPrimaryMerge = (opts, context) => context.kind === 'task' && opts.label === 'merge:' + context.task
 // mergeSnapshot throws on a live unusable read, and a dead last attempt returns its death. A task snapshot
 // returns TARGET_LOST in place of both if it read the target out of sync, or if this run already read a
 // move: a soft env-died would let a sibling land over an out-of-sync target. The task holds and the phase
@@ -2428,7 +2428,7 @@ const mergeSnapshot = async (opts, context) => {
     { agentType: NS + 'war-refiner', phase: 'Refine', dispatchKind: context.pin ? 'pin-snapshot' : 'merge-snapshot', label: (context.pin ? 'git-pin-snapshot:' : 'git-snapshot:') + context.task, schema: MERGE_SNAPSHOT, ...(attempt ? spawnRefinerRecovery() : spawn('refiner')) })
   if (before && fullSha(before.base_sha) && fullSha(before.source_sha) && (before.remote_sha === null || fullSha(before.remote_sha)) && typeof before.patch_id === 'string' && fullSha(before.content_id)) {
     if (context.land || (before.remote_sha === null ? before.seed_sha === before.base_sha : before.remote_sha === before.base_sha)) {
-      if (!outOfSync || !isPrimaryMerge(opts, context)) return before
+      if (!outOfSync || context.kind !== 'task' || context.pin || before.base_sha === pinProofBase) return before
       pinTargetMoved = true
       return { [DISPATCH_DEATH]: TARGET_LATE }
     }
@@ -4925,7 +4925,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       }
       // Merge-slot death arm (D21, PIN-25): snapshot/pin-probe, floor-fix and floor re-audit deaths
-      // stay site-named SOFT env-died. TARGET_LOST is the exception: it holds the task (#2309). A merge death reaches this arm only after Git reconciliation
+      // stay site-named SOFT env-died. TARGET_LOST and TARGET_LATE are the exceptions: they hold the task (#2309). A merge death reaches this arm only after Git reconciliation
       // proves its target unchanged; uncertainty holds earlier. Unmerged tasks do not block healthy
       // siblings through a fabricated content verdict.
       let pinBefore = null
@@ -5231,6 +5231,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       } else {
         log('pin-transfer ' + r.task.id + ': probe returned no usable status — the ordinary merge dispatch runs unchanged (fail-open).')
       }
+      pinProofBase = pinProof.local_sha
       const mr = routedMr(await segmentedMerge(
         pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + aceRevertClause

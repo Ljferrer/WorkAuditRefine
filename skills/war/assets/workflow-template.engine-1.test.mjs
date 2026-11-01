@@ -16819,12 +16819,19 @@ test('#2309: a polish snapshot that stays out of sync keeps its throw', async ()
 })
 
 const LATE_NOTE = 'target moved: the target moved after the pin proof'
-const lateMerge = () => { let reads = 0; return (p, o) => o.label === 'git-snapshot:t1' && !reads++ ? LOST_TARGET : NEW_SEAT_DEFAULTS['merge-snapshot'] }
+const MOVED_MERGE = { ...NEW_SEAT_DEFAULTS['merge-snapshot'], base_sha: NEW_TIP, remote_sha: NEW_TIP }
+// nth: the out-of-sync read. Later reads return `after`, earlier reads the default.
+const lateMerge = (after = MOVED_MERGE, nth = 1, label = 'git-snapshot:t1') => { let reads = 0; return (p, o) => {
+  if (o.label !== label) return NEW_SEAT_DEFAULTS['merge-snapshot']
+  reads++
+  return reads < nth ? NEW_SEAT_DEFAULTS['merge-snapshot'] : reads === nth ? LOST_TARGET : after
+} }
+const BAD_READ = NEW_SEAT_DEFAULTS['merge-snapshot']
 
-test('#2309: a primary merge snapshot that reconciles after the pin proof holds the task', async () => {
+test('#2309: a primary merge snapshot that reconciles to a new base holds the task', async () => {
   const { out, calls } = await runRemote({ 'merge-snapshot': lateMerge() }, { roundLimit: 2 })
   assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
-  assert.equal(countOf(calls, 'git-snapshot:t1'), 2, 'the second read came back in sync')
+  assert.equal(countOf(calls, 'git-snapshot:t1'), 2, 'the second read came back in sync on the new base')
   heldAtMerge(out, calls, 'merge:t1', LATE_NOTE)
 })
 
@@ -16839,14 +16846,49 @@ test('#2309: a late hold marks the run, so a later unusable snapshot holds too',
   assert.ok(!out.workflowError)
 })
 
-test('#2309: a floor-retry snapshot that reconciles still merges, because the first merge read that base', async () => {
-  let reads = 0
-  const { out, calls } = await runPhase(PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), floorRetryImpl(), {
-    'merge-snapshot': (p, o) => o.label === 'git-snapshot:t1' && ++reads === 2 ? LOST_TARGET : NEW_SEAT_DEFAULTS['merge-snapshot'],
-  })
-  assert.ok(reads >= 3, 'the retry read out of sync and then reconciled')
+test('#2309: a bad read that returns to the proof base merges at the primary merge', async () => {
+  const { out, calls } = await runRemote({ 'merge-snapshot': lateMerge(BAD_READ) }, { roundLimit: 2 })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
   assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'))
-  assert.ok(calls.some(c => c.opts.dispatchKind === 'target-reconcile'))
+  assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+  assert.equal(countOf(calls, 'merge:t1'), 1)
+})
+
+for (const [name, site, args, impl] of [
+  ['floor-retry', 'merge:t1:floor-retry:r1', () => PROVISION_ARGS({ tasks: SINGLE_TASK, run: { roundLimit: 3 } }), floorRetryImpl],
+  ['environment-proceed', 'merge:t1:environment-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: envMergeResult })],
+  ['baseline-proceed', 'merge:t1:baseline-proceed', () => CLS_ARGS(), () => clsImpl({ mergeResult: baselineMergeResult })],
+]) {
+  test('#2309: a ' + name + ' snapshot that reconciles to a new base holds the task', async () => {
+    const { out, calls } = await runPhase(args(), impl(), { 'merge-snapshot': lateMerge(MOVED_MERGE, 2) })
+    heldAtMerge(out, calls, site, LATE_NOTE)
+  })
+  test('#2309: a ' + name + ' snapshot that returns to the proof base still merges', async () => {
+    const { out, calls } = await runPhase(args(), impl(), { 'merge-snapshot': lateMerge(BAD_READ, 2) })
+    assert.ok(calls.some(c => c.opts.dispatchKind === 'target-reconcile'))
+    assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'))
+    assert.ok(countOf(calls, site) >= 1, 'the re-merge dispatched')
+    assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+  })
+}
+
+test('#2309: a pin snapshot that reconciles takes no late hold, because its proof reads that base', async () => {
+  let reads = 0
+  const { out, calls } = await runRemote({ 'pin-snapshot': () => reads++ ? MOVED_SNAPSHOT : LOST_TARGET })
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
+  assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'))
+  assert.equal(countOf(calls, 'pin-transfer:t1'), 1)
+  assert.ok(out.landed.includes('t1'), JSON.stringify(out.escalated))
+})
+
+test('#2309: a polish snapshot that reconciles proceeds, because only a task takes the late hold', async () => {
+  const base = SWEEP_ARGS()
+  const { out, calls } = await runPhase({ ...base, run: { ...base.run, roundLimit: 2 } }, sweepBase([queuedAbsorb()]), {
+    'merge-snapshot': lateMerge(MOVED_MERGE, 1, 'git-snapshot:p3-polish'),
+  })
+  assert.equal(countOf(calls, 'git-target:merge:p3-polish'), 1)
+  assert.ok(!out.auditLog.some(e => e.verdict === 'pin-transfer:target-moved'))
+  assert.equal(countOf(calls, 'merge:p3-polish'), 1)
 })
 
 test('#2309: an in-sync primary merge snapshot takes no late hold', async () => {
@@ -16916,7 +16958,7 @@ test('#2309: no throw names the moved target, and the enums stay closed', () => 
 
 test('#2309: refiner-recovery.md states the reconcile route and the holds', () => {
   const recovery = readFileSync(new URL('../references/refiner-recovery.md', import.meta.url), 'utf8').replace(/\s+/g, ' ')
-  for (const phrase of ['A real target move at `pin-confirm` is not a workflow error', 'at most `roundLimit` passes', 'keeps the first snapshot\'s `source_sha`', 'gets no re-audit panel', 'a note that starts `target moved:`', 'Siblings still merge while the target reconciles', 'keeps that arm\'s own hold', 'at every task merge dispatch', 'A polish, terminal or land snapshot keeps its throw', 'A fresh relaunch starts with no read move', 'because the pin proof never read that base']) {
+  for (const phrase of ['A real target move at `pin-confirm` is not a workflow error', 'at most `roundLimit` passes', 'keeps the first snapshot\'s `source_sha`', 'gets no re-audit panel', 'a note that starts `target moved:`', 'Siblings still merge while the target reconciles', 'keeps that arm\'s own hold', 'at every task merge dispatch', 'A polish, terminal or land snapshot keeps its throw', 'A fresh relaunch starts with no read move', 'because the pin proof never read that base', 'A bad read that returns to the proof\'s base merges']) {
     assert.ok(recovery.includes(phrase), phrase)
   }
 })
