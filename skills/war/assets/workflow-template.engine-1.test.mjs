@@ -16374,7 +16374,7 @@ const moveOnce = (after, proofAfter = pinProofOf, moved = movedLocal, first = NE
     'pin-confirm': p => proofs++ ? proofAfter(p) : moved(pinProofOf(p)),
   }
 }
-const heldOnMove = (out, calls, cause, lastProof = NEW_TIP) => {
+const heldOnMove = (out, calls, cause, lastProof = NEW_TIP, firstRead = true) => {
   assert.equal(out.landDecision, 'held:escalation')
   assert.ok(!out.workflowError, JSON.stringify(out.workflowError))
   const row = out.escalated.find(e => e.task === 't1')
@@ -16382,7 +16382,7 @@ const heldOnMove = (out, calls, cause, lastProof = NEW_TIP) => {
   assert.match(row.detail.note, /^target moved: /)
   assert.match(row.detail.note, cause)
   if (lastProof) assert.equal(row.detail.after?.local_sha, lastProof, 'the hold carries the last proof')
-  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved' && (e.before === null || e.before?.base_sha)))
+  assert.ok(out.auditLog.some(e => e.task === 't1' && e.verdict === 'pin-transfer:target-moved' && (firstRead ? e.before?.base_sha : e.before === null)))
   assert.ok(!calls.some(isMergeTask))
   assert.ok(!calls.some(c => c.prompt.includes('PIN CONTENT RE-AUDIT')), 'a held move never takes the re-audit panel')
 }
@@ -16423,6 +16423,30 @@ test('#2309: an omitted remote on an unpublished target reads as null in the rec
   const observed = JSON.parse(calls.find(c => c.opts.dispatchKind === 'target-reconcile').prompt.match(/Observed snapshot: (.+?)\. Inspect current/)[1])
   assert.ok('remote_sha' in observed)
   assert.equal(observed.remote_sha, null)
+})
+
+test('#2309: a move onto the task tip goes to reconcile, never the misread retry', async () => {
+  let snapshots = 0, proofs = 0
+  const { out, calls } = await runRemote({ 'pin-transfer': { ...REBASED_PROBE, rebased_tip: NEW_TIP },
+    'pin-snapshot': () => snapshots++ ? MOVED_SNAPSHOT : NEW_SEAT_DEFAULTS['pin-snapshot'],
+    'pin-confirm': p => { const proof = pinProofOf(p); return proofs++ ? proof : { ...proof, local_sha: NEW_TIP, remote_sha: NEW_TIP } } })
+  assert.equal(proofs, 2, 'one move, one repeat, no retry of the first read')
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 1)
+  landedClean(out, calls, 2)
+})
+
+test('#2309: a misread that names a task tip equal to the base still retries', async () => {
+  const { calls } = await runRemote({ 'pin-snapshot': NULL_REMOTE_SNAPSHOT, 'pin-transfer': { ...REBASED_PROBE, rebased_tip: REMOTE_SEED }, 'pin-confirm': firstReply(proof => ({ ...proof, remote_sha: proof.head_sha })) })
+  assert.equal(countOf(calls, 'git-pin:t1'), 2)
+  assert.equal(calls.filter(c => c.opts.dispatchKind === 'target-reconcile').length, 0, 'local stayed at the base, so nothing moved')
+})
+
+test('#2309: the proof prompt asks for moved refs as they are', async () => {
+  const { calls } = await runRemote({})
+  const prompt = calls.find(c => c.opts.label === 'git-pin:t1').prompt
+  assert.ok(prompt.includes('If the integration refs stay stable but differ from BEFORE, report the actual local_sha and remote_sha: the engine reads that as a target move.'))
+  assert.ok(prompt.includes('Movement here means a change between your two reads, never a stable difference from BEFORE.'))
+  assert.ok(!prompt.includes('The integration refs must be unchanged'))
 })
 
 test('#2309: a lost reconcile reply changes nothing, because the fresh snapshot decides', async () => {
@@ -16597,13 +16621,13 @@ test('#2309: a dead repeat snapshot holds as a lost target, never soft env-died'
 test('#2309: an out-of-sync read keeps its hold when the last attempt dies', async () => {
   let snapshots = 0
   const { out, calls } = await runRemote({ 'pin-snapshot': () => { if (snapshots++) throw new Error('529 snapshot died'); return { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: '6'.repeat(40) } } }, { roundLimit: 2 })
-  heldOnMove(out, calls, /no usable snapshot of the target/, null)
+  heldOnMove(out, calls, /no usable snapshot of the target/, null, false)
 })
 
 test('#2309: an out-of-sync read keeps its hold when the last attempt is unusable', async () => {
   let snapshots = 0
   const { out, calls } = await runRemote({ 'pin-snapshot': () => snapshots++ ? {} : { ...NEW_SEAT_DEFAULTS['pin-snapshot'], base_sha: '6'.repeat(40) } }, { roundLimit: 2 })
-  heldOnMove(out, calls, /no usable snapshot of the target/, null)
+  heldOnMove(out, calls, /no usable snapshot of the target/, null, false)
 })
 
 for (const [name, seats, why] of [
