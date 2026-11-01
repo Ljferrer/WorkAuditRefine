@@ -45,7 +45,8 @@
 #   corrupted checkout may be restored at its unchanged recorded SHA (#1381,
 #   reuse_hygiene); prune + recreate only when the registry is stale (dir gone)
 #   — recreation re-checks-out the existing branch, so its commits, which live
-#   in the ref, are never lost; and FAIL LOUD (never delete) on an unregistered
+#   in the ref, are never lost, and catches it up to the integration tip only
+#   when every commit on it is already upstream (#2493); and FAIL LOUD (never delete) on an unregistered
 #   dir that already holds files.
 # - teardown is STRICTLY RUN-SCOPED (D9): the refiner supplies the current run's
 #   ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and teardown
@@ -570,6 +571,13 @@ dir_is_empty() {
 #     nothing to destroy.
 #   * Not registered, no dir            -> create fresh on the integration tip.
 #   * Not registered, empty dir         -> rmdir + create fresh (no data at risk).
+#   * Stale registry or not registered, and <branch> exists -> check it out,
+#     then catch it up (#2493, see catch_up_reused_branch below). The branch
+#     rebases onto <integration-tip> only if every commit on it is upstream by
+#     patch id, which includes a branch with no commits above the tip. Any other
+#     branch stays as it is, and the engine's tree-keyed re-provision covers the
+#     gate. A Git error or a failed rebase warns and keeps the branch. This path
+#     never resets and never dies. A registered, present worktree never gets here.
 #   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
 #     (D7).
 cmd_ensure_worktree() {
@@ -652,6 +660,7 @@ cmd_ensure_worktree() {
       [ -z "$wa_holder" ] || wa_msg="failed to add worktree at '$path' on existing branch '$branch' — the branch is checked out at $wa_holder; tear down or remove that worktree first."
       die "$wa_msg"
     fi
+    catch_up_reused_branch "$path" "$branch" "$tip"
   else
     # FRESH CUT (local <branch> absent — the exact torn-down-locally-but-not-
     # remotely restart shape). Before cutting, probe origin for a STALE PRIOR
@@ -667,6 +676,42 @@ cmd_ensure_worktree() {
 
   write_marker "$path" "$branch"
   printf '%s\n' "$path"
+}
+
+# catch_up_reused_branch <path> <branch> <integration-tip> : on the existing-branch
+# path, after the add (#2493). A recovery relaunch reaches this path with a branch
+# at its old tip, and a gate there reads a stale tree. Rebase only if the branch is
+# not the tip, tip..branch holds no merge commit, and git cherry lists no + line.
+# git cherry skips merges, so the merge check is required: a merge commit can hold
+# content that no patch id covers. core.hooksPath=/dev/null keeps a repository hook
+# out of this move. Always returns 0, and writes nothing to stdout.
+catch_up_reused_branch() {
+  cu_path="$1"; cu_branch="$2"; cu_tip="$3"
+  cu_ref="refs/heads/$cu_branch"
+  if ! cu_tip_sha="$(git rev-parse --verify --quiet "$cu_tip^{commit}" 2>/dev/null)" \
+    || ! cu_old_sha="$(git rev-parse --verify --quiet "$cu_ref^{commit}" 2>/dev/null)"; then
+    warn "ensure-worktree: could not read '$cu_tip' or '$cu_branch'; reusing '$cu_branch' as is."
+    return 0
+  fi
+  [ "$cu_tip_sha" != "$cu_old_sha" ] || return 0
+  if ! cu_merges="$(git rev-list --merges "$cu_tip_sha..$cu_ref" 2>/dev/null)" \
+    || ! cu_cherry="$(git cherry "$cu_tip_sha" "$cu_ref" 2>/dev/null)"; then
+    warn "ensure-worktree: could not compare '$cu_branch' with $cu_tip_sha; reusing '$cu_branch' as is."
+    return 0
+  fi
+  [ -z "$cu_merges" ] || return 0
+  case "
+$cu_cherry" in
+    *"
++ "*) return 0 ;;
+  esac
+  if git -C "$cu_path" -c core.hooksPath=/dev/null rebase "$cu_tip_sha" >/dev/null 2>&1; then
+    warn "ensure-worktree: moved '$cu_branch' from $cu_old_sha to $cu_tip_sha (every commit was already upstream)."
+    return 0
+  fi
+  git -C "$cu_path" -c core.hooksPath=/dev/null rebase --abort >/dev/null 2>&1 || true
+  warn "ensure-worktree: rebase of '$cu_branch' onto $cu_tip_sha failed; reusing '$cu_branch' at $cu_old_sha."
+  return 0
 }
 
 # stale_remote_probe <branch> <frozen-tip> <reclaim-flag> : on the fresh-cut path,

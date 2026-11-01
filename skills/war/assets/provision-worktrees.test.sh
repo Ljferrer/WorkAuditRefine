@@ -3586,6 +3586,260 @@ expect "PIPE [rejected]: bare letters of the token stay a plain push error (exit
   "3" "$(run_shimmed "rejected by the remote" "$PIPE_C1" land-advance working/pipe "$PIPE_NEW")"
 
 # ---------------------------------------------------------------------------
+# #2493: ensure-worktree's existing-branch path. After the add, a branch whose
+# commits are all upstream by patch id moves to <integration-tip>. Anything else
+# stays where it is. Rows EB.1 to EB.7, EB.9 and EB.10 reach the path with no worktree
+# registered, or with a stale registry entry. Row EB.8 pins the REUSE arm.
+# ---------------------------------------------------------------------------
+EB_INT=integration/eb/phase-1
+EB_TASK=war/eb/p1-t1
+EB_REAL_GIT="$(command -v git)"
+EB_SHIM_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t warebshim)"
+REPOS="$REPOS $EB_SHIM_DIR"
+# The shim answers one Git verb the way EB_SHIM asks, and runs all else for real.
+{
+  printf '#!/bin/bash\n'
+  printf 'case "${EB_SHIM:-} $*" in\n'
+  printf '  "cherry-fails cherry "*) exit 1 ;;\n'
+  printf '  "merges-fail rev-list --merges "*) exit 1 ;;\n'
+  printf '  "cherry-all-minus cherry "*)\n'
+  printf '    printf -- "- %%s\\n" "$EB_CHERRY_SHA"; exit 0 ;;\n'
+  printf '  "rebase-fails "*" rebase "*) exit 1 ;;\n'
+  printf 'esac\n'
+  printf 'exec "%s" "$@"\n' "$EB_REAL_GIT"
+} > "$EB_SHIM_DIR/git"
+chmod +x "$EB_SHIM_DIR/git"
+
+# eb_repo -> a fresh repo with the integration and task branches at the seed.
+eb_repo() {
+  ebr="$(new_repo)"
+  git -C "$ebr" branch "$EB_INT" HEAD
+  git -C "$ebr" branch "$EB_TASK" HEAD
+  echo "$ebr"
+}
+# eb_commit <repo> <branch> <file> <text> -> commit on <branch>, echo its SHA.
+eb_commit() {
+  git -C "$1" checkout -q "$2"
+  printf '%s\n' "$4" > "$1/$3"
+  git -C "$1" add -A
+  git -C "$1" commit -qm "$3 on $2"
+  git -C "$1" rev-parse HEAD
+  git -C "$1" checkout -q -
+}
+# eb_pick <repo> <sha> -> cherry-pick <sha> onto the integration branch. The empty
+# commit first gives the pick a new parent. Without it, a pick in the same second
+# rebuilds the identical commit, so the branch would already sit at the tip.
+eb_pick() {
+  git -C "$1" checkout -q "$EB_INT"
+  git -C "$1" commit -q --allow-empty -m "integration moves on"
+  git -C "$1" cherry-pick "$2" >/dev/null 2>&1
+  git -C "$1" checkout -q -
+}
+# eb_run <repo> <wt> <tip>: run ensure-worktree. It sets EB_OUT, EB_ERR and EB_RC.
+# EB_SHIM picks the shim. With EB_SHIM empty, no shim sits on PATH.
+eb_run() {
+  ebe="$(mktemp 2>/dev/null || mktemp -t warebe)"
+  if [ -n "${EB_SHIM:-}" ]; then
+    EB_OUT="$(cd "$1" && PATH="$EB_SHIM_DIR:$PATH" bash "$SCRIPT" ensure-worktree "$2" "$EB_TASK" "$3" 2>"$ebe")"
+  else
+    EB_OUT="$(cd "$1" && bash "$SCRIPT" ensure-worktree "$2" "$EB_TASK" "$3" 2>"$ebe")"
+  fi
+  EB_RC=$?
+  EB_ERR="$(cat "$ebe")"
+  rm -f "$ebe"
+}
+# eb_has <text> <fixed string> -> yes or no.
+eb_has() {
+  case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac
+}
+# eb_clean <wt> -> clean, or the first line of a dirty state. A rebase left open
+# counts as dirty, because porcelain alone can read clean in that state.
+eb_clean() {
+  ebs="$(git -C "$1" status --porcelain --ignore-submodules=none)"
+  ebg="$(git -C "$1" rev-parse --git-path rebase-merge)"
+  case "$ebg" in /*) ;; *) ebg="$1/$ebg" ;; esac
+  if [ -e "$ebg" ]; then echo rebase-open
+  elif [ -n "$ebs" ]; then echo dirty
+  else echo clean; fi
+}
+
+# EB.1: every commit upstream moves the branch to the tip.
+RE1="$(eb_repo)"
+SHA_E1="$(eb_commit "$RE1" "$EB_TASK" one.txt one)"
+eb_pick "$RE1" "$SHA_E1"
+TIP_E1="$(eb_commit "$RE1" "$EB_INT" sibling.txt sibling)"
+WT_E1="$(new_wt_path)"
+eb_run "$RE1" "$WT_E1" "$TIP_E1"
+expect "EB.1: all upstream exits 0" 0 "$EB_RC"
+expect "EB.1: all upstream moves the branch to the tip" "$TIP_E1" "$(git -C "$RE1" rev-parse "$EB_TASK")"
+expect "EB.1: the worktree sits on the branch at the tip" "$TIP_E1" "$(git -C "$WT_E1" rev-parse HEAD)"
+expect "EB.1: the tree carries the sibling's file" "sibling" "$(cat "$WT_E1/sibling.txt" 2>/dev/null)"
+expect "EB.1: stdout is exactly the worktree path" "$WT_E1" "$EB_OUT"
+expect "EB.1: the marker is present" "yes" "$([ -f "$WT_E1/.war-task" ] && echo yes || echo no)"
+expect "EB.1: stderr names the old tip, for recovery" "yes" "$(eb_has "$EB_ERR" "$SHA_E1")"
+
+# EB.1b: the stale-registry route reaches the same path.
+RE1B="$(eb_repo)"
+SHA_E1B="$(eb_commit "$RE1B" "$EB_TASK" one.txt one)"
+WT_E1B="$(new_wt_path)"
+run_in "$RE1B" ensure-worktree "$WT_E1B" "$EB_TASK" "$(git -C "$RE1B" rev-parse "$EB_INT")" >/dev/null
+rm -rf "$WT_E1B"
+eb_pick "$RE1B" "$SHA_E1B"
+TIP_E1B="$(git -C "$RE1B" rev-parse "$EB_INT")"
+eb_run "$RE1B" "$WT_E1B" "$TIP_E1B"
+expect "EB.1b: a stale registry exits 0" 0 "$EB_RC"
+expect "EB.1b: a stale registry also moves an all-upstream branch" "$TIP_E1B" "$(git -C "$WT_E1B" rev-parse HEAD)"
+
+# EB.2: no commits above the tip moves the branch to the tip.
+RE2="$(eb_repo)"
+TIP_E2="$(eb_commit "$RE2" "$EB_INT" sibling.txt sibling)"
+WT_E2="$(new_wt_path)"
+eb_run "$RE2" "$WT_E2" "$TIP_E2"
+expect "EB.2: a branch behind the tip exits 0" 0 "$EB_RC"
+expect "EB.2: a branch behind the tip moves to the tip" "$TIP_E2" "$(git -C "$WT_E2" rev-parse HEAD)"
+expect "EB.2: stdout is exactly the worktree path" "$WT_E2" "$EB_OUT"
+
+# EB.2b: a branch already at the tip stays, and says nothing.
+RE2B="$(eb_repo)"
+TIP_E2B="$(git -C "$RE2B" rev-parse "$EB_INT")"
+WT_E2B="$(new_wt_path)"
+eb_run "$RE2B" "$WT_E2B" "$TIP_E2B"
+expect "EB.2b: a branch at the tip exits 0" 0 "$EB_RC"
+expect "EB.2b: a branch at the tip stays there" "$TIP_E2B" "$(git -C "$WT_E2B" rev-parse HEAD)"
+expect "EB.2b: a branch at the tip writes no warning" "" "$EB_ERR"
+
+# EB.3: one unmerged commit keeps the branch at its old tip.
+RE3="$(eb_repo)"
+SHA_E3A="$(eb_commit "$RE3" "$EB_TASK" one.txt one)"
+SHA_E3B="$(eb_commit "$RE3" "$EB_TASK" two.txt two)"
+eb_pick "$RE3" "$SHA_E3A"
+TIP_E3="$(eb_commit "$RE3" "$EB_INT" sibling.txt sibling)"
+WT_E3="$(new_wt_path)"
+eb_run "$RE3" "$WT_E3" "$TIP_E3"
+expect "EB.3: an unmerged commit exits 0" 0 "$EB_RC"
+expect "EB.3: an unmerged commit keeps the old tip" "$SHA_E3B" "$(git -C "$WT_E3" rev-parse HEAD)"
+expect "EB.3: stdout is exactly the worktree path" "$WT_E3" "$EB_OUT"
+
+# EB.4: a merge commit in the range stays. git cherry skips merges, so it lists
+# only a - line here. The merge check alone keeps this branch.
+RE4="$(eb_repo)"
+git -C "$RE4" branch eb-side "$EB_TASK"
+SHA_E4S="$(eb_commit "$RE4" eb-side side.txt side)"
+SHA_E4T="$(eb_commit "$RE4" "$EB_TASK" one.txt one)"
+git -C "$RE4" checkout -q "$EB_TASK"
+git -C "$RE4" merge -q --no-ff -m "merge side" eb-side
+MERGE_E4="$(git -C "$RE4" rev-parse HEAD)"
+git -C "$RE4" checkout -q -
+eb_pick "$RE4" "$SHA_E4S"
+eb_pick "$RE4" "$SHA_E4T"
+TIP_E4="$(git -C "$RE4" rev-parse "$EB_INT")"
+expect "EB.4 setup: git cherry lists no + line" "no" \
+  "$(eb_has "
+$(git -C "$RE4" cherry "$TIP_E4" "$EB_TASK")" "
++ ")"
+WT_E4="$(new_wt_path)"
+eb_run "$RE4" "$WT_E4" "$TIP_E4"
+expect "EB.4: a merge commit exits 0" 0 "$EB_RC"
+expect "EB.4: a merge commit in the range keeps the old tip" "$MERGE_E4" "$(git -C "$WT_E4" rev-parse HEAD)"
+
+# EB.5: a Git error in the check reuses the branch and warns.
+eb_error_row() { # <label> <shim mode, or none> <tip override, or empty>
+  ebrp="$(eb_repo)"
+  ebsha="$(eb_commit "$ebrp" "$EB_TASK" one.txt one)"
+  eb_pick "$ebrp" "$ebsha"
+  ebtip="${3:-$(git -C "$ebrp" rev-parse "$EB_INT")}"
+  ebwt="$(new_wt_path)"
+  if [ "$2" = none ]; then EB_SHIM=""; else EB_SHIM="$2"; fi
+  eb_run "$ebrp" "$ebwt" "$ebtip"
+  EB_SHIM=""
+  expect "EB.5 $1: exits 0" 0 "$EB_RC"
+  expect "EB.5 $1: keeps the old tip" "$ebsha" "$(git -C "$ebwt" rev-parse HEAD)"
+  expect "EB.5 $1: stdout is exactly the worktree path" "$ebwt" "$EB_OUT"
+  expect "EB.5 $1: warns on stderr" "yes" "$(eb_has "$EB_ERR" "$EB_TASK")"
+  expect "EB.5 $1: the marker is present" "yes" "$([ -f "$ebwt/.war-task" ] && echo yes || echo no)"
+}
+export EB_SHIM=""
+eb_error_row "cherry fails" cherry-fails ""
+eb_error_row "merge scan fails" merges-fail ""
+eb_error_row "tip unreadable" none "0000000000000000000000000000000000000abc"
+
+# EB.6: a failed rebase aborts and stays. A real conflict stops the rebase, and
+# the shim makes the check pass so the run reaches it.
+RE6="$(eb_repo)"
+SHA_E6="$(eb_commit "$RE6" "$EB_TASK" seed.txt task-side)"
+TIP_E6="$(eb_commit "$RE6" "$EB_INT" seed.txt int-side)"
+WT_E6="$(new_wt_path)"
+export EB_CHERRY_SHA="$SHA_E6"
+EB_SHIM=cherry-all-minus
+eb_run "$RE6" "$WT_E6" "$TIP_E6"
+EB_SHIM=""
+expect "EB.6: a failed rebase exits 0" 0 "$EB_RC"
+expect "EB.6: a failed rebase keeps the old tip" "$SHA_E6" "$(git -C "$WT_E6" rev-parse HEAD)"
+expect "EB.6: the branch ref keeps the old tip" "$SHA_E6" "$(git -C "$RE6" rev-parse "$EB_TASK")"
+expect "EB.6: the worktree stays on the branch" "$EB_TASK" "$(git -C "$WT_E6" symbolic-ref --short HEAD 2>/dev/null)"
+expect "EB.6: the worktree stays clean" "clean" "$(eb_clean "$WT_E6")"
+expect "EB.6: stdout is exactly the worktree path" "$WT_E6" "$EB_OUT"
+expect "EB.6: warns on stderr" "yes" "$(eb_has "$EB_ERR" "rebase")"
+
+# EB.6b: a rebase that fails before it starts leaves nothing to abort.
+RE6B="$(eb_repo)"
+SHA_E6B="$(eb_commit "$RE6B" "$EB_TASK" one.txt one)"
+eb_pick "$RE6B" "$SHA_E6B"
+TIP_E6B="$(git -C "$RE6B" rev-parse "$EB_INT")"
+WT_E6B="$(new_wt_path)"
+EB_SHIM=rebase-fails
+eb_run "$RE6B" "$WT_E6B" "$TIP_E6B"
+EB_SHIM=""
+expect "EB.6b: exits 0 with nothing to abort" 0 "$EB_RC"
+expect "EB.6b: keeps the old tip" "$SHA_E6B" "$(git -C "$WT_E6B" rev-parse HEAD)"
+expect "EB.6b: stdout is exactly the worktree path" "$WT_E6B" "$EB_OUT"
+expect "EB.6b: warns on stderr" "yes" "$(eb_has "$EB_ERR" "rebase")"
+
+# EB.7: the rebase runs no repository hook.
+RE7="$(eb_repo)"
+SHA_E7="$(eb_commit "$RE7" "$EB_TASK" one.txt one)"
+eb_pick "$RE7" "$SHA_E7"
+TIP_E7="$(git -C "$RE7" rev-parse "$EB_INT")"
+HOOK_E7="$(git -C "$RE7" rev-parse --absolute-git-dir)/hooks/pre-rebase"
+mkdir -p "$(dirname "$HOOK_E7")"
+printf '#!/bin/sh\nexit 1\n' > "$HOOK_E7"
+chmod +x "$HOOK_E7"
+WT_E7="$(new_wt_path)"
+eb_run "$RE7" "$WT_E7" "$TIP_E7"
+expect "EB.7: a failing pre-rebase hook does not stop the move" "$TIP_E7" "$(git -C "$WT_E7" rev-parse HEAD)"
+
+# EB.8: a registered present worktree stays untouched, even when it could move.
+RE8="$(eb_repo)"
+TIP_E8A="$(git -C "$RE8" rev-parse "$EB_INT")"
+WT_E8="$(new_wt_path)"
+eb_run "$RE8" "$WT_E8" "$TIP_E8A"
+TIP_E8B="$(eb_commit "$RE8" "$EB_INT" sibling.txt sibling)"
+eb_run "$RE8" "$WT_E8" "$TIP_E8B"
+expect "EB.8: the REUSE arm exits 0" 0 "$EB_RC"
+expect "EB.8: a registered present worktree keeps its tip" "$TIP_E8A" "$(git -C "$WT_E8" rev-parse HEAD)"
+expect "EB.8: the REUSE arm writes no warning" "" "$EB_ERR"
+
+# EB.9: a tip behind a branch that holds only its own unmerged work stays.
+RE10="$(eb_repo)"
+SHA_E10="$(eb_commit "$RE10" "$EB_TASK" one.txt one)"
+TIP_E10="$(git -C "$RE10" rev-parse "$EB_INT")"
+WT_E10="$(new_wt_path)"
+eb_run "$RE10" "$WT_E10" "$TIP_E10"
+expect "EB.9: a branch ahead of the tip keeps its tip" "$SHA_E10" "$(git -C "$WT_E10" rev-parse HEAD)"
+expect "EB.9: a branch ahead of the tip writes no warning" "" "$EB_ERR"
+
+# EB.10: an empty commit counts as unmerged, so it survives.
+RE11="$(eb_repo)"
+git -C "$RE11" checkout -q "$EB_TASK"
+git -C "$RE11" commit -q --allow-empty -m "empty marker commit"
+SHA_E11="$(git -C "$RE11" rev-parse HEAD)"
+git -C "$RE11" checkout -q -
+TIP_E11="$(eb_commit "$RE11" "$EB_INT" sibling.txt sibling)"
+WT_E11="$(new_wt_path)"
+eb_run "$RE11" "$WT_E11" "$TIP_E11"
+expect "EB.10: an empty commit keeps the old tip" "$SHA_E11" "$(git -C "$WT_E11" rev-parse HEAD)"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "provision-worktrees.test.sh: PASS"
