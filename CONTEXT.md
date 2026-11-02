@@ -1088,7 +1088,7 @@ _Avoid_: tip-only preflight; pinning the value shape (latitude — the key is th
 
 **Phase-close coherence sweep**:
 The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
-fixes ONLY the queued `phaseClose` absorb findings, a full default-roster panel re-audits the polish SHA,
+fixes ONLY the queued `phaseClose` absorb findings and each sibling site of their defect class, a full default-roster panel re-audits the polish SHA,
 and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
 place; queue carries on `carriedPhaseClose` (non-final phase) or demotes to follow-up (final))
 and the pre-polish tip lands exactly as it would have. It may only improve the tip; a discarded

@@ -231,3 +231,8 @@ a signal to evict, never to reword. Read "ten rules" above as the count when thi
 batch ace ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS builds. The FIX_NEEDED, ACE
 BISECTION SUBSET and ACE RE-ENTRY BATCH builds keep them. The floor family stays out of that block,
 and it keeps the backward chain.
+
+The operator ruled the limit on those three added builds in PR #2577. A worker fixes each sibling
+site of a listed finding's defect class, and lists any other defect under `Ignore for now:`.
+`FIX_ROUND_SCOPE_CLAUSE` carries that sentence. A sweep worker cannot stop and ask, so the list is
+how it asks. The sweep stays one commit that one panel judges, so ADR 0012's discard guard holds.

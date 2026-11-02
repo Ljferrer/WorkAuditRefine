@@ -1819,7 +1819,8 @@ const demote = (f, to, why, opts) => {
       if (hit && f.drainCause && !hit.drainCause) hit.drainCause = f.drainCause
       return
     }
-    filedKeys.add(k)   // the filed funnel (End state 6) — a demoted follow-up is a filed record
+    // the filed funnel (End state 6) — a demoted follow-up is a filed record
+    filedKeys.add(k)
   }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   f.engineFiled = true
@@ -2507,14 +2508,6 @@ const rangeRevertScript = (revertWorktree, revertApproved, revertBranch) =>
 // Git either way.
 const registerRangeRevert = (r, tip) => { r.aceReverted = { approved: approvedShaOf(r), tip: isSha(tip) ? tip : null } }
 const rangeRevertOf = r => r && r.aceReverted && typeof r.aceReverted === 'object' && isSha(r.aceReverted.approved) ? r.aceReverted : null
-// ---- TIP PROBE (#2485 D2, PIN-2) ----
-// After EVERY ace dispatch, dead or not, one read-only refiner reads the branch the ace wrote to (the
-// task branch, or the polish branch at the terminal site) from Git. `blocked` never means no commit,
-// and a dead dispatch reports nothing, so the worker result is never the source. "Tip probe" is this
-// ace-arm dispatch; the "pin-transfer probe" is the merge-slot rebase dispatch. Its own dispatchKind,
-// and its label never starts with `ace:`, so the ace label readers never count it. A dead or unusable
-// probe returns null and the caller forward-reverts the range (PIN-5), never a hold. pre_tree (PRE^{tree})
-// lets aceScope confirm the pre-dispatch tip carries the approved tree before it narrows the panel.
 // Fix-round doctrine (#2097, D24/PIN-27; #2127 ruling): ONE shared block, interpolated into the
 // enumerated fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt, the
 // ACE RE-ENTRY BATCH prompt, the batch ace ADVISORY POLISH (--ace) build, the PHASE-CLOSE COHERENCE
@@ -2543,6 +2536,18 @@ const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched fo
   + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
   + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (the cause-then-class-then-fix rule). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (the note-absorb rule).\n`
   + FIX_ROUND_RULES + '\n'
+// Operator ruling on PR #2577: the bug class limit. ADVISORY POLISH, the PHASE-CLOSE COHERENCE SWEEP and
+// the TERMINAL PASS work from a listed set. Rule 1 still reaches each sibling of a listed finding's class,
+// and any other defect waits for a ruling. The sweep's discard guard depends on this limit (ADR 0012).
+const FIX_ROUND_SCOPE_CLAUSE = pt`FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under \`Ignore for now:\`, and never fix it in this commit.\n`
+// ---- TIP PROBE (#2485 D2, PIN-2) ----
+// After EVERY ace dispatch, dead or not, one read-only refiner reads the branch the ace wrote to (the
+// task branch, or the polish branch at the terminal site) from Git. `blocked` never means no commit,
+// and a dead dispatch reports nothing, so the worker result is never the source. "Tip probe" is this
+// ace-arm dispatch; the "pin-transfer probe" is the merge-slot rebase dispatch. Its own dispatchKind,
+// and its label never starts with `ace:`, so the ace label readers never count it. A dead or unusable
+// probe returns null and the caller forward-reverts the range (PIN-5), never a hold. pre_tree (PRE^{tree})
+// lets aceScope confirm the pre-dispatch tip carries the approved tree before it narrows the panel.
 const TIP_PROBE = { type: 'object', properties: {
   tip_sha: { type: 'string' }, tip_tree: { type: 'string' }, pre_sha: { type: 'string' }, pre_tree: { type: 'string' }, approved_tree: { type: 'string' },
   count: { type: 'integer' }, pre_is_ancestor: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } } } }
@@ -3319,7 +3324,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
     // Byte-cap seat sentence (#2167): byte-equal to the Byte-cap rule on agents/war-auditor.md (same commit); the D3 byte-cap registry row binds both.
-    + pt`\nBYTE-CAP RULE: a seat that finds a prompt surface over its byte cap names eviction to a \`references/\` file as the fix, and approves a byte-identical move whose pointer carries a trigger.`
+    + pt`\nBYTE-CAP RULE: a seat that finds a prompt surface over its byte cap names eviction to a \`references/\` file as the fix, and approves a byte-identical move of conditionally needed prose whose pointer carries a trigger.`
     // The barrier list renders from the inline BARRIER_TOKENS mirror (in-band-absorb-default D1);
     // the card sentence spells the same four by hand — the `barrier-list` registry rows bind them.
     // Shared with the three gate-audit-family seats (D15, PIN-17) — see DISPOSITION_RULE_CLAUSE.
@@ -4521,6 +4526,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
           + FIX_ROUND_DOCTRINE_CLAUSE
+          + FIX_ROUND_SCOPE_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
         // an ace worker death (D21) takes the existing failed-attempt arm, site-named
@@ -4807,7 +4813,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
                 parkAsk({ task: task.id, seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, sha: auditShaOrSentinel(p.peerSeat.audit_sha), ...p.peer })
                 log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — the peer row already carried its own ask; parked it before the conflict ask replaced the field (never a silent drop, #1790).')
               }
-              p.peer.disposition = 'ask'; p.peer.ask = ask; stamped.add(p.peer)   // the peer row corroborates the parked record (parkAsk's collision merge)
+              // the peer row corroborates the parked record (parkAsk's collision merge)
+              p.peer.disposition = 'ask'; p.peer.ask = ask; stamped.add(p.peer)
               log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — ' + ask.question + ' Task held; a ruling and re-audit are required before approval.')
             }
           }
@@ -5241,7 +5248,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // Corrective round 1 by definition (PIN-5): the pin-content re-audit threads no findings and no relation
         // tag, so no round is passed and auditPrompt emits no backward-chain clause.
         const { seats: rbSeats, expected: rbExpected, died: rbDied } = await auditRound(r.task, null, null, pinProbe.rebased_tip, contentCharge)
-        if (rbDied) { mergeDied(rbDied); continue }   // D21: a dead in-lock re-audit seat is env-died, never a failed re-audit
+        // D21: a dead in-lock re-audit seat is env-died, never a failed re-audit
+        if (rbDied) { mergeDied(rbDied); continue }
         // Route this re-audit's OWN Minor/Nits by disposition, on BOTH exit paths (#1931), exactly
         // as the six wave-side ace re-audit sites do — an ask parks, a follow-up files, a note
         // records, an absorb routes. Placed before the approve/escalate branch so no exit path
@@ -5957,7 +5965,8 @@ if (mergedTasksForGateAudit.length > 0) {
       envDied('phase-' + ph.id + '-gate-audit-' + taskId, gateAuditDeath, { task: taskId, verdict: 'gate-audit:env-died', gateEvidence: true, hard: false })
     }
     if (gateAuditVerdict) {
-      gateAuditVerdict = normalizeSeat(gateAuditVerdict, taskId)   // intake normalization (D2, PIN-6) — this seat sits outside auditRound
+      // intake normalization (D2, PIN-6) — this seat sits outside auditRound
+      gateAuditVerdict = normalizeSeat(gateAuditVerdict, taskId)
       const rawFindings = gateAuditVerdict.findings || []
       // D2 pin-equality: the gate-audit seat's expected tip is observedHead (the tree it judged, stamped by
       // the evidence dispatch above); fall back to gateHeadSha when absent (fail-open — the evidence dispatch
@@ -6394,6 +6403,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // non-tiered) — and carries the fixer block at corrective round 1 by definition.
       + chainFixClause(polishTask, correctiveRoundOf('sweep', polishTask), 'phase-close sweep', [])
       + FIX_ROUND_DOCTRINE_CLAUSE
+      + FIX_ROUND_SCOPE_CLAUSE
       + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
@@ -6558,6 +6568,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // Backward chain (PIN-6): the terminal pass carries the fixer block at corrective round 1 by definition.
           + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
           + FIX_ROUND_DOCTRINE_CLAUSE
+          + FIX_ROUND_SCOPE_CLAUSE
           + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
           { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('ace') })
         } catch (err) {

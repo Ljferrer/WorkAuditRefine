@@ -8926,7 +8926,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // rendered audit prompt. The literal below is the oracle, so a reword on either surface reds this row.
     { name: 'byte-cap seat sentence (#2167): a seat names eviction as the fix and approves a byte-identical move — standing card + auditPrompt()',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
-      anchors: [new RegExp('a seat that finds a prompt surface over its byte cap names eviction to a `references/` file as the fix, and approves a byte-identical move whose pointer carries a trigger\\.'.replace(/\//g, '\\/'))] },
+      anchors: [new RegExp('a seat that finds a prompt surface over its byte cap names eviction to a `references/` file as the fix, and approves a byte-identical move of conditionally needed prose whose pointer carries a trigger\\.'.replace(/\//g, '\\/'))] },
     // Task 2.2 (#1431, ADR 0013 Amendment 2026-08-17): the latitude-clause reading on both runtime
     // seats — worker card + workerIntentClause (intent-gated: the dispatched surface is the
     // latitude-bearing fixture prompt above, never the intent-less workerP where the clause is ''),
@@ -14369,6 +14369,7 @@ test('held-carry — a held:nothing-merged phase emits carriedPhaseClose on the 
 test('fix-round doctrine: every fix-applying build mirrors the reference', async () => {
   const rules = fixRoundRulesSection()
   assert.ok(/sibling sweep/i.test(rules) && /`note`-rated finding on a surface the same commit edits/.test(rules), 'the section carries the sibling-sweep rule and the note-absorb rule (non-vacuity)')
+  assert.ok(rules.includes('A byte-cap breach on a prompt surface is a signal to evict, never to reword: move conditionally needed prose byte-identical to its `references/` file, leave a `when <trigger>, read references/<file>` pointer (ADR 0042), and never delete an operative rule.'), 'the section carries the byte-cap rule (#2167): the equality rows below cannot see a rule dropped from both copies')
   const pointer = '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
   // carry none (the constant is interpolated at exactly the enumerated sites).
@@ -14394,6 +14395,9 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
     assert.ok(live.prompt.includes(pointer), `${b.site}: names the reference by its plugin-root-anchored path`)
     assert.match(live.prompt, /cause line before the fix: cause, then class, then fix \(the cause-then-class-then-fix rule\)/, `${b.site}: asks for the cause line before the fix`)
     assert.match(live.prompt, /note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round \(the note-absorb rule\)/, `${b.site}: names the note-absorb rule`)
+    // The bug class limit (PR #2577 ruling) rides only the listed-set builds. The literal here is the oracle.
+    const scoped = /ADVISORY POLISH|SWEEP|TERMINAL PASS/.test(b.site)
+    assert.equal(live.prompt.includes("FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under `Ignore for now:`, and never fix it in this commit.\n"), scoped, `${b.site}: the bug class limit rides exactly the listed-set builds`)
     assert.ok(!live.prompt.includes(reworded), `${b.site}: a reworded rule never appears (no-false-positive; byte-sensitivity is pinned by the includes(rules) assert above)`)
     // Delete-and-trace: drop this build's interpolation ⇒ this prompt loses the section; each sibling keeps it.
     const mutated = dropDoctrineAt(b.head)
@@ -14409,7 +14413,7 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
   const floorBuild = CHAIN_FIX_BUILDS.find(b => b.site === 'floor family')
   const floorP = (floorBuild.find((await floorBuild.run(src)).calls) || {}).prompt
   assert.ok(floorP, 'floor family: dispatched (presence guard)')
-  assert.ok(!floorP.includes(rules) && !floorP.includes('FIX-ROUND DOCTRINE:'), 'floor family: carries no fix-round block')
+  assert.ok(!floorP.includes(rules) && !floorP.includes('FIX-ROUND DOCTRINE:') && !floorP.includes('FIX-ROUND SCOPE:'), 'floor family: carries no fix-round block')
   // The first-pass worker prompt and the auditor prompt carry nothing of the block.
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const workerP = (calls.find(isWorker) || {}).prompt
