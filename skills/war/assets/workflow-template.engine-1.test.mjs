@@ -10102,14 +10102,14 @@ test('auditRound census: every `await auditRound(` site reads the `died` member 
 })
 
 // (d) #1413 — args provenance floor: refuse at entry, fail-closed, zero agent spawns.
-test('Task 2.1(d) #1413 — a foreign-plan intent is refused at entry (foreign docs/plans identifier), zero agent spawns; a token-less intent fails the own-token floor', async () => {
+test('Task 2.1(d) #1413 — a foreign-plan intent is refused at entry (own-token floor, #2375), zero agent spawns; a token-less intent fails the own-token floor', async () => {
   // The plan-3 leak shape: a plan-A launch (slug wtprov-a) carrying plan-B's intent (13 × escape, 0 × done-when).
   const leakIntent = 'Purpose: the escape-guard exit contract holds.\nEnd state: 1. docs/plans/2026-08-06-escape-guard-exit-contract.md fully landed.'
   const { out, agentCalls } = await runCounting(PROVISION_ARGS({ intent: leakIntent }))
   assert.equal(out.landDecision, 'held:workflow-error', 'the leak is refused at entry')
-  assert.match(out.workflowError.message, /foreign docs\/plans/, 'the refusal names the foreign docs/plans identifier class')
-  assert.match(out.workflowError.message, /escape-guard-exit-contract\.md/, 'the refusal cites the foreign identifier itself')
-  assert.equal(agentCalls, 0, 'zero agents dispatched — the floor is at entry (#1413: refuse, never warn)')
+  assert.match(out.workflowError.message, /args\.intent contains none of the run's own plan-slug tokens/, 'the own-token floor refuses the leak, because a foreign path in intent only warns (#2375)')
+  assert.doesNotMatch(out.workflowError.message, /foreign docs\/plans/, 'the foreign path itself is never the refusal')
+  assert.equal(agentCalls, 0, 'zero agents dispatched — the floor is at entry')
   const { out: o2, agentCalls: a2 } = await runCounting(PROVISION_ARGS({ intent: 'Purpose: ship the completely unrelated gizmo.' }))
   assert.equal(o2.landDecision, 'held:workflow-error', 'a token-less intent is refused')
   assert.match(o2.workflowError.message, /plan-slug tokens/, 'the refusal names the own-token floor')
@@ -10393,8 +10393,8 @@ test('provenance floor: an intent naming a foreign docs/plans identifier is refu
   const args = PROVISION_ARGS({ intent: 'Deliver the throttle per docs/plans/other-plan.md end state 3.' })
   const { out, calls } = await runPhase(args, defaultImpl)
   assert.equal(out.landDecision, 'held:workflow-error', 'foreign plan id in intent refuses at entry')
-  assert.match(out.workflowError.message, /args\.intent names a foreign docs\/plans identifier \(docs\/plans\/other-plan\.md\)/,
-    'the refusal names the arg and the foreign identifier')
+  assert.match(out.workflowError.message, /args\.intent contains none of the run's own plan-slug tokens \[wtprov\]/,
+    'the fixture carries no own token, so the own-token floor refuses it (#2375)')
   assert.equal(calls.length, 0, 'zero agents spawned')
 })
 
@@ -10578,6 +10578,91 @@ test('provenance floor: a foreign docs/plans id inside a NON-exempt backstop row
   assert.match(out.workflowError.message, /args\.backstops names a foreign docs\/plans identifier/,
     'the refusal names args.backstops')
 })
+
+// #2375: a foreign plan path in intent warns and launches. The own-token floor still runs.
+test('provenance floor: an own-token intent naming a foreign plan path launches and logs the path', async () => {
+  const intent = 'Deliver the wtprov throttle. Spare docs/plans/other-plan.md and docs/plans/sub/second-plan.md, then recheck docs/plans/other-plan.md.'
+  const { out, logs } = await runPhase(PROVISION_ARGS({ intent }), defaultImpl)
+  assert.equal(out.landDecision, 'landed', `a foreign path in intent never refuses — got ${out.landDecision}`)
+  const warned = logs.filter(l => typeof l === 'string' && /args\.intent names a foreign docs\/plans identifier/.test(l))
+  assert.equal(warned.length, 1, 'one warning line per launch')
+  assert.ok(warned[0].includes('docs/plans/other-plan.md, docs/plans/sub/second-plan.md)'), `the warning names each distinct path once: ${warned[0]}`)
+  // Control: this plan's own path is not foreign, so no warning fires.
+  const own = await runPhase(PROVISION_ARGS({ intent: 'Deliver the wtprov throttle per docs/plans/wtprov-A.md.' }), defaultImpl)
+  assert.equal(own.out.landDecision, 'landed')
+  assert.ok(!own.logs.some(l => typeof l === 'string' && /names a foreign docs\/plans identifier/.test(l)), 'an own plan path logs no warning')
+})
+
+test('provenance floor: an own token inside a foreign plan path proves nothing', async () => {
+  // The path 'wtprov-sibling' holds the word 'wtprov', and it names another plan. Before #2375 the
+  // foreign refusal covered this intent, so the own-token floor must now read past the path.
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ intent: 'Deliver the throttle per docs/plans/wtprov-sibling.md.' }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'the only token sits in the foreign path')
+  assert.match(out.workflowError.message, /args\.intent contains none of the run's own plan-slug tokens \[wtprov\]/)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('(docs/plans/wtprov-sibling.md)')), 'the warning still names the path')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+  const row = { severity: 'Minor', title: 'carried nit', file: 'docs/c.md', rationale: 'see docs/plans/wtprov-sibling.md' }
+  const seeded = await runPhase(SWEEP_ARGS({ seededPhaseClose: [row] }), sweepBase([]))
+  assert.equal(seeded.out.landDecision, 'held:workflow-error', 'the same holds on a carried row')
+  assert.match(seeded.out.workflowError.message, /args\.seededPhaseClose contains none of the run's own plan-slug tokens/)
+})
+
+// #2208, #2197: the foreign-id scan stops at the Lead-assembled surfaces.
+test('provenance floor: a ruledAsks row naming a foreign plan path launches', async () => {
+  const base = { findingTitle: 'carried ruling', ruling: 'edit docs/plans/2026-08-25-older-plan.md', suggested_fix: 'one line in docs/plans/2026-08-25-older-plan.md', phase: 3 }
+  for (const row of [{ ...base, planSlug: 'wtprov-a' }, { ...base, ruling: 'wtprov: edit docs/plans/2026-08-25-older-plan.md' }]) {
+    const { out } = await runPhase(PROVISION_ARGS({ ruledAsks: [row] }), defaultImpl)
+    assert.equal(out.landDecision, 'landed', `a foreign path in a ruledAsks row launches: ${JSON.stringify(row)} — got ${out.landDecision}`)
+  }
+  // Controls: the stamp check and the own-token check stay on the surface.
+  const stamp = await runPhase(PROVISION_ARGS({ ruledAsks: [{ ...base, planSlug: 'other-plan' }] }), defaultImpl)
+  assert.equal(stamp.out.landDecision, 'held:workflow-error', 'a foreign planSlug stamp still refuses')
+  assert.match(stamp.out.workflowError.message, /args\.ruledAsks carries a planSlug provenance stamp naming a foreign plan \(other-plan\)/)
+  const bare = await runPhase(PROVISION_ARGS({ ruledAsks: [base] }), defaultImpl)
+  assert.equal(bare.out.landDecision, 'held:workflow-error', 'a token-less unstamped row still refuses')
+  assert.match(bare.out.workflowError.message, /args\.ruledAsks record "carried ruling" is missing required planSlug coordinate/)
+})
+
+test('provenance floor: a seededPhaseClose row naming a foreign plan path launches', async () => {
+  const base = { severity: 'Minor', title: 'carried nit', file: 'docs/plans/2026-08-25-older-plan.md', rationale: 'stale row in docs/plans/2026-08-25-older-plan.md', disposition: 'absorb', carriedFrom: { phase: 2, reason: 'held phase' } }
+  for (const row of [{ ...base, planSlug: 'wtprov-a' }, { ...base, title: 'carried wtprov nit' }]) {
+    const { out } = await runPhase(SWEEP_ARGS({ seededPhaseClose: [row] }), sweepBase([]))
+    assert.equal(out.landDecision, 'landed', `a foreign path in a seededPhaseClose row launches: ${JSON.stringify(row)} — got ${out.landDecision}`)
+  }
+  // Controls: the stamp check and the own-token check stay on the surface.
+  const stamp = await runPhase(SWEEP_ARGS({ seededPhaseClose: [{ ...base, planSlug: 'other-plan' }] }), sweepBase([]))
+  assert.equal(stamp.out.landDecision, 'held:workflow-error', 'a foreign planSlug stamp still refuses')
+  assert.match(stamp.out.workflowError.message, /args\.seededPhaseClose carries a planSlug provenance stamp naming a foreign plan \(other-plan\)/)
+  const bare = await runPhase(SWEEP_ARGS({ seededPhaseClose: [base] }), sweepBase([]))
+  assert.equal(bare.out.landDecision, 'held:workflow-error', 'a token-less unstamped row still refuses')
+  assert.match(bare.out.workflowError.message, /args\.seededPhaseClose contains none of the run's own plan-slug tokens/)
+})
+
+test('provenance floor: a foreign plan path in adjudications still refuses', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ adjudications: ['wtprov keeps the call from docs/plans/foreign-thing.md'] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'the warning is scoped to intent')
+  assert.match(out.workflowError.message, /args\.adjudications names a foreign docs\/plans identifier \(docs\/plans\/foreign-thing\.md\)/)
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+// #2207: each citation spelling stripSupersedes accepts earns the value-row skip on a value segment only.
+for (const spelling of ['supersedes', 'supersedes:']) {
+  test(`provenance floor: a value row spelled "<value> ${spelling} docs/plans/<x>.md" launches with no own token`, async () => {
+    const cite = spelling + ' docs/plans/2026-08-06-older-foreign-plan.md'
+    const { out } = await runPhase(PROVISION_ARGS({ adjudications: ['0.9.1 ' + cite] }), defaultImpl)
+    assert.equal(out.landDecision, 'landed', `an un-doped value row launches — got ${out.landDecision}`)
+    // Controls: prose before or after the citation keeps the row own-token-scanned.
+    for (const row of ['ruled: keep the legacy arm ' + cite, '0.9.1 ' + cite + ' because the old call lapsed']) {
+      const prose = await runPhase(PROVISION_ARGS({ adjudications: [row] }), defaultImpl)
+      assert.equal(prose.out.landDecision, 'held:workflow-error', `a prose row still needs an own token: ${row}`)
+      assert.match(prose.out.workflowError.message, /args\.adjudications contains none of the run's own plan-slug tokens/)
+    }
+    // Control: a value segment that is itself a foreign path is still read by the foreign-id match.
+    const leak = await runPhase(PROVISION_ARGS({ adjudications: ['docs/plans/foreign-thing.md ' + cite] }), defaultImpl)
+    assert.equal(leak.out.landDecision, 'held:workflow-error', 'the value-row skip never covers the foreign-id match')
+    assert.match(leak.out.workflowError.message, /\(docs\/plans\/foreign-thing\.md\)/)
+  })
+}
 
 // ---- vacuous-endstate fixture (D5, End state 10) ------------------------------------------
 
