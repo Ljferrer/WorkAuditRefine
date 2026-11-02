@@ -45,7 +45,8 @@
 #   corrupted checkout may be restored at its unchanged recorded SHA (#1381,
 #   reuse_hygiene); prune + recreate only when the registry is stale (dir gone)
 #   — recreation re-checks-out the existing branch, so its commits, which live
-#   in the ref, are never lost; and FAIL LOUD (never delete) on an unregistered
+#   in the ref, are never lost, and fast-forwards it to the integration tip only
+#   when the tip already contains it (#2493); and FAIL LOUD (never delete) on an unregistered
 #   dir that already holds files.
 # - teardown is STRICTLY RUN-SCOPED (D9): the refiner supplies the current run's
 #   ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and teardown
@@ -572,6 +573,16 @@ dir_is_empty() {
 #   * Not registered, empty dir         -> rmdir + create fresh (no data at risk).
 #   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
 #     (D7).
+#   * Stale registry or not registered, and <branch> exists -> check it out,
+#     then catch it up (#2493, see catch_up_reused_branch below). The branch
+#     fast-forwards to <integration-tip> only if the tip already contains its
+#     tip. Any other branch stays as it is, and the engine's tree-keyed
+#     re-provision covers the gate. A merged task's branch stays too, because the
+#     merge proof and the Ace-Charge read match on its tip. A Git error or a failed
+#     rebase warns and keeps the branch. This path never resets and never dies.
+#     A move or a failure emits a WORKTREE_HYGIENE marker. The barrier captures
+#     it, and the polish dispatch leaves it on stderr. A registered, present
+#     worktree never gets here.
 cmd_ensure_worktree() {
   reclaim_stale_remote=0
   path=""; branch=""; tip=""
@@ -642,7 +653,7 @@ cmd_ensure_worktree() {
   fi
 
   # Create (or re-create after prune). If the branch already exists, check it out
-  # as-is (preserves its commits); otherwise cut it at the integration tip.
+  # (preserves its commits) and catch it up; otherwise cut it at the integration tip.
   if branch_exists "$branch"; then
     if ! git worktree add "$path" "$branch" >/dev/null 2>&1; then
       # #1712 fix 1: name the holder so the operator/Lead does not discover
@@ -652,6 +663,7 @@ cmd_ensure_worktree() {
       [ -z "$wa_holder" ] || wa_msg="failed to add worktree at '$path' on existing branch '$branch' — the branch is checked out at $wa_holder; tear down or remove that worktree first."
       die "$wa_msg"
     fi
+    catch_up_reused_branch "$path" "$branch" "$tip"
   else
     # FRESH CUT (local <branch> absent — the exact torn-down-locally-but-not-
     # remotely restart shape). Before cutting, probe origin for a STALE PRIOR
@@ -667,6 +679,62 @@ cmd_ensure_worktree() {
 
   write_marker "$path" "$branch"
   printf '%s\n' "$path"
+}
+
+# catch_up_reused_branch <path> <branch> <integration-tip> : on the existing-branch
+# path, after the add (#2493). A recovery relaunch reaches this path with a branch
+# at its old tip, and a gate there reads a stale tree. Fast-forward only if the tip
+# contains the branch, so no commit leaves the branch and a pushed branch still
+# takes a plain push. Keep a branch whose tip is the second parent of its own
+# first-parent WAR-Task merge. task-integrated.sh and the barrier's Ace-Charge read
+# both match that tip, and a move would reset the charge to 0.
+# core.hooksPath=/dev/null keeps a repository hook out of this move. Always returns
+# 0, and writes nothing to stdout.
+catch_up_reused_branch() {
+  cu_path="$1"; cu_branch="$2"; cu_tip="$3"
+  cu_ref="refs/heads/$cu_branch"
+  if ! cu_tip_sha="$(git rev-parse --verify --quiet "$cu_tip^{commit}" 2>/dev/null)" \
+    || ! cu_old_sha="$(git rev-parse --verify --quiet "$cu_ref^{commit}" 2>/dev/null)"; then
+    catch_up_kept "could not read '$cu_tip' or '$cu_branch'" unreadable-ref
+    return 0
+  fi
+  [ "$cu_tip_sha" != "$cu_old_sha" ] || return 0
+  if git merge-base --is-ancestor "$cu_old_sha" "$cu_tip_sha" 2>/dev/null; then
+    :
+  else
+    cu_rc=$?
+    [ "$cu_rc" -eq 1 ] || catch_up_kept "could not compare '$cu_branch' with $cu_tip_sha" compare-failed
+    return 0
+  fi
+  if ! cu_merges="$(git rev-list --first-parent --merges "$cu_old_sha..$cu_tip_sha" 2>/dev/null)"; then
+    catch_up_kept "could not read the merges above '$cu_branch'" merge-read-failed
+    return 0
+  fi
+  for cu_merge in $cu_merges; do
+    if ! cu_second="$(git rev-parse --verify --quiet "$cu_merge^2" 2>/dev/null)" \
+      || ! cu_owner="$(git show -s --format='%(trailers:key=WAR-Task,valueonly)' "$cu_merge" 2>/dev/null)"; then
+      catch_up_kept "could not read merge $cu_merge" merge-read-failed
+      return 0
+    fi
+    if [ "$cu_second" = "$cu_old_sha" ] && [ "$cu_owner" = "$cu_branch" ]; then
+      return 0
+    fi
+  done
+  if git -C "$cu_path" -c core.hooksPath=/dev/null rebase "$cu_tip_sha" >/dev/null 2>&1; then
+    warn "ensure-worktree: moved '$cu_branch' from $cu_old_sha to $cu_tip_sha, which contains it."
+    hygiene_marker "$cu_path" moved "from-$cu_old_sha-to-$cu_tip_sha"
+    return 0
+  fi
+  git -C "$cu_path" -c core.hooksPath=/dev/null rebase --abort >/dev/null 2>&1 || true
+  catch_up_kept "rebase of '$cu_branch' onto $cu_tip_sha failed" rebase-failed
+  return 0
+}
+
+# catch_up_kept <reason> <marker detail> : warn and mark a kept branch. It reads
+# cu_path and cu_branch from catch_up_reused_branch.
+catch_up_kept() {
+  warn "ensure-worktree: $1; reusing '$cu_branch' as is."
+  hygiene_marker "$cu_path" detected "catch-up-$2"
 }
 
 # stale_remote_probe <branch> <frozen-tip> <reclaim-flag> : on the fresh-cut path,
@@ -731,11 +799,12 @@ stale_remote_probe() {
   die "ensure-worktree: origin has '$sr_branch' at $sr_remote_sha, which is NOT an ancestor of the frozen integration tip $sr_tip — a STALE PRIOR ATTEMPT (an unmerged remote task branch left by a prior run whose local state was torn down). No ref or worktree was created. Reconcile one of two ways: (a) ADOPT the remote as the real work — 'git branch $sr_branch $sr_remote_sha' then relaunch (the existing-branch reuse path checks it out as-is); or (b) on a SANCTIONED recovery relaunch where the remote is a superseded attempt, pass --reclaim-stale-remote to delete it. Reversible until remote GC: git push origin $sr_remote_sha:refs/heads/$sr_branch" "$EX_STALE_REMOTE"
 }
 
-# hygiene_marker <sub-path> <action> <detail> : the machine-readable reuse-path
+# hygiene_marker <path> <action> <detail> : the machine-readable reuse-path
 # hygiene marker (#1381, the STALE_REMOTE precedent in this file: the provision
 # barrier keys on the token and the key=value payload, never an exit code).
-# action is "repaired" or "detected"; values stay space-free so the payload
-# splits cleanly on key=value boundaries.
+# action is "repaired", "detected" or "moved"; action and detail stay space-free so
+# the payload splits cleanly on key=value boundaries. <path> is a submodule path on
+# the reuse arm and a worktree path on the catch-up arm.
 hygiene_marker() {
   printf 'WORKTREE_HYGIENE path=%s action=%s detail=%s\n' "$1" "$2" "$3" >&2
 }

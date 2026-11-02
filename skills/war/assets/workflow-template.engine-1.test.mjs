@@ -9539,13 +9539,13 @@ test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-cont
 
 // D20 (#1381), modelled on the STALE_REMOTE row above: the WORKTREE_HYGIENE capture is a deliberate
 // cross-task literal coupling (the plan's D20 row is the canonical source of the marker token and the
-// "repaired"|"detected" value set) — a presence grep is not a drift guard (ADR 0025), so both surfaces
+// "repaired"|"detected"|"moved" (#2493) value set) — a presence grep is not a drift guard (ADR 0025), so both surfaces
 // pin the token skeleton and a delete-the-feature per surface proves the anchors non-vacuous.
 test('both-surfaces (D20, #1381): the WORKTREE_HYGIENE capture is on agents/war-refiner.md AND the dispatched barrier prompt; delete-the-feature per surface', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const barrier = calls.find(isProvision)
   assert.ok(barrier, 'the barrier was dispatched (presence guard)')
-  const ANCHORS = [/WORKTREE_HYGIENE/, /worktreeHygiene/, /"repaired"\|"detected"/, /markers ride a zero exit/i]
+  const ANCHORS = [/WORKTREE_HYGIENE/, /worktreeHygiene/, /"repaired"\|"detected"\|"moved"/, /markers ride a zero exit/i]
   const surfaces = [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]
   for (const [name, text] of surfaces) {
     for (const re of ANCHORS) assert.match(text, re, `${name} carries the WORKTREE_HYGIENE capture anchor ${re}`)
