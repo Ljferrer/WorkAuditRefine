@@ -222,3 +222,12 @@ is a separate `war-followup` issue filed at the plan's land Checkpoint.
   disclosure by corrective round, the auditor as classifier, PIN-2 and PIN-3, the no-schema
   transport and the #2302 study trigger · plan 2026-09-11-backward-chain-doctrine, issues #2097,
   #2302
+
+## Amendment (2026-11-02, #2167, #2127): eleven rules on six builds
+
+`fix-round-doctrine.md` now holds eleven rules. Rule 11 says a byte-cap breach on a prompt surface is
+a signal to evict, never to reword. Read "ten rules" above as the count when this ADR landed, and
+"untouched" as true of that landing only. The operator's #2127 ruling also puts the rules on the
+batch ace ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS builds. The FIX_NEEDED, ACE
+BISECTION SUBSET and ACE RE-ENTRY BATCH builds keep them. The floor family stays out of that block,
+and it keeps the backward chain.

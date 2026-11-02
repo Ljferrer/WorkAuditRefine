@@ -1086,7 +1086,8 @@ for (const [ti, t] of (Array.isArray(A.tasks) ? A.tasks : []).entries()) {
   if (!t || t.pendingAbsorbs === undefined || t.pendingAbsorbs === null) continue
   const at = 'args.tasks[' + ti + '].pendingAbsorbs'
   if (!Array.isArray(t.pendingAbsorbs)) { problems.push('workflow-template: ' + at + ' must be an array of held finding rows or absent (got ' + typeof t.pendingAbsorbs + ') (D5)'); continue }
-  pushFindingRowProblems(at, t.pendingAbsorbs, 'D5', ['Minor', 'Nit'])   // a seeded Critical/Major refuses at entry — notes never file (snipe: cascading-impact)
+  // a seeded Critical/Major refuses at entry — notes never file (snipe: cascading-impact)
+  pushFindingRowProblems(at, t.pendingAbsorbs, 'D5', ['Minor', 'Nit'])
 }
 //   (9) EVIDENCE class (REA artifact evidence D8/D10, PIN-1) — args.evidence is the Lead-resolved presence
 //       half of the evidence gate (run.evidence on AND REA present, resolved before launch; the engine
@@ -2041,7 +2042,8 @@ const auditVerdictOf = id => {
 // `planSlug` so the carried row clears the #1413 own-token floor on the relaunch by construction.
 // Logged, never silent.
 const carryPhaseClose = (f, why) => {
-  queuedKeys.add(remintKey(f))   // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
+  // stamps queuedKeys (mirrors routeToSweep) — a later seat re-mint never carries a second copy
+  queuedKeys.add(remintKey(f))
   log('held-carry: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → carriedPhaseClose — ' + why + '.')
   carriedPhaseClose.push({ ...f, phaseClose: true, planSlug: planSlug ?? null, carriedFrom: { phase: phaseId, reason: why } })
 }
@@ -2333,7 +2335,8 @@ const dispatchAgent = async (prompt, opts) => {
   try { return await dispatch(prompt, opts) }
   catch (err) {
     const e = err instanceof Error ? err : new Error(String(err))
-    e.warDispatchDeath = true   // structural provenance: the throw originated at the agent() dispatch layer
+    // structural provenance: the throw originated at the agent() dispatch layer
+    e.warDispatchDeath = true
     throw e
   }
 }
@@ -2512,6 +2515,34 @@ const rangeRevertOf = r => r && r.aceReverted && typeof r.aceReverted === 'objec
 // and its label never starts with `ace:`, so the ace label readers never count it. A dead or unusable
 // probe returns null and the caller forward-reverts the range (PIN-5), never a hold. pre_tree (PRE^{tree})
 // lets aceScope confirm the pre-dispatch tip carries the approved tree before it narrows the panel.
+// Fix-round doctrine (#2097, D24/PIN-27; #2127 ruling): ONE shared block, interpolated into the
+// enumerated fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt, the
+// ACE RE-ENTRY BATCH prompt, the batch ace ADVISORY POLISH (--ace) build, the PHASE-CLOSE COHERENCE
+// SWEEP build and the TERMINAL PASS build (the extract-on-the-second-copy rule of the block, applied
+// to the block itself). The floor family stays out, because the ruling names only these builds. It
+// sits at the top level because the sweep and terminal builds sit outside the task loop.
+// FIX_ROUND_RULES is byte-equal to the `## The rules` section of
+// skills/war/references/fix-round-doctrine.md (the canonical home); the
+// workflow-template.engine-1.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
+// reference` pins the equality, so an edit lands in the reference first and here second. The
+// first-pass worker prompt and the auditor prompts carry nothing of it. The pointer path is the
+// agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the SCRIPT const precedent): a plain
+// single-quoted string, never a pt interpolation.
+const FIX_ROUND_RULES = pt`1. Sibling sweep before commit: grep every sibling site of the fixed construct (same registry, push, judgment, restated value, doc or comment claim) and apply the rule there, or state in the commit why that site differs.
+2. The seat's \`fix:\` is a floor: ask what the seat did not check (the other arm, the other order, the empty input, the boundary value, the flag the example did not pass) and add the mirror fixture.
+3. Every new guard gets an oracle that does not share the code under test.
+4. Prove each guard red by mutation, enumerating the arms from the code's own branches, never from the seat's list, and name the proof in the commit body.
+5. Bind or de-mirror every restated value: pin it with an extraction-and-equality row and a bare-rendering ban, or replace it with a pointer to its source.
+6. Extract the helper on the second hand copy, not the fourth.
+7. No count words or ordinals in comments a diff can invalidate: name the members.
+8. One consequence sentence per fix commit.
+9. Per finding, state the cause, then the class, then the fix: a finding is a rule missed at one site.
+10. A \`note\`-rated finding on a surface the same commit edits is an absorb, never left for the next round.
+11. A byte-cap breach on a prompt surface is a signal to evict, never to reword: move conditionally needed prose byte-identical to its \`references/\` file, leave a \`when <trigger>, read references/<file>\` pointer (ADR 0042), and never delete an operative rule.`
+const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched for a fix round or an ace commit, so the rules below scope your diff (canonical home: `
+  + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
+  + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (the cause-then-class-then-fix rule). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (the note-absorb rule).\n`
+  + FIX_ROUND_RULES + '\n'
 const TIP_PROBE = { type: 'object', properties: {
   tip_sha: { type: 'string' }, tip_tree: { type: 'string' }, pre_sha: { type: 'string' }, pre_tree: { type: 'string' }, approved_tree: { type: 'string' },
   count: { type: 'integer' }, pre_is_ancestor: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } } } }
@@ -2635,7 +2666,8 @@ Read local target and source branch tips with git rev-parse --verify <ref>^{comm
     ? mergeGitMatches(proof, before, context) && isSha(claimed) && proof.reported_sha === proof.local_sha && proof.local_sha.startsWith(claimed)
     : !['merged', 'landed'].includes(result.status) && proof.local_sha === before.base_sha && sameRemote(proof.remote_sha, before.remote_sha) && sourceGitMatches(proof, before, context.land))
   auditLog.push({ task: context.task, verdict: confirmed ? 'git-confirmed:' + result.status : 'git-confirmation:unresolved', findings: [], site: opts.label, reported: result, before, after: proof })
-  return confirmed && proof // the Git proof (truthy) on confirmation, so the caller can bind the gated tip to its parents
+  // the Git proof (truthy) on confirmation, so the caller can bind the gated tip to its parents
+  return confirmed && proof
 }
 // gitBoundGateSha (#2485 D12, PIN-12): gate_sha is a refiner report, so a confirmed task merge keeps it
 // only when Git's second merge parent (the gated task tip taskMergeMatches pins to source_tip) starts
@@ -3162,7 +3194,8 @@ const fixLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Fix:[^\n]*)/)
 const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[^\n]*)/)
 const criticalPathOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Critical path:[\s\S]*?(?:\n[ \t]*Ignore for now:[^\n]*|$))/)
 const indentLines = s => String(s).split('\n').join('\n      ')   // continuation lines of a multi-line rationale keep the row's indent
-const taskBlockerKey = (taskId, f) => remintKey({ task: taskId, ...f })   // one derivation for the digest rows and the audit loop's survival registry
+// one derivation for the digest rows and the audit loop's survival registry
+const taskBlockerKey = (taskId, f) => remintKey({ task: taskId, ...f })
 const chainBlockerRow = task => f => ({ key: taskBlockerKey(task.id, f), title: f.title ?? null, file: f.file ?? null, severity: f.severity ?? null,
   tag: relationTagOf(f), upstream: upstreamLinkOf(f), rationale: f.rationale ?? null, suggested_fix: f.suggested_fix ?? null })
 const chainRecordAudit = (task, round, seats) => chainOf(task.id).entries.push({ kind: 'audit', round, blockers: blockingOf(seats || []).map(chainBlockerRow(task)) })
@@ -3285,6 +3318,8 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin, correctiveRound
     // always-rendered prose whose BEHAVIOR fires only when the threaded intent carries an explicit
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
+    // Byte-cap seat sentence (#2167): byte-equal to the Byte-cap rule on agents/war-auditor.md (same commit); the D3 byte-cap registry row binds both.
+    + pt`\nBYTE-CAP RULE: a seat that finds a prompt surface over its byte cap names eviction to a \`references/\` file as the fix, and approves a byte-identical move whose pointer carries a trigger.`
     // The barrier list renders from the inline BARRIER_TOKENS mirror (in-band-absorb-default D1);
     // the card sentence spells the same four by hand — the `barrier-list` registry rows bind them.
     // Shared with the three gate-audit-family seats (D15, PIN-17) — see DISPOSITION_RULE_CLAUSE.
@@ -3662,7 +3697,8 @@ if (tasks.length) {
   // shape and fall through to the barrier read (a Lead override typo must not read as "none threaded").
   if (A.absorbCharges && !chargesOf(A.absorbCharges)) log('absorb-budget: args.absorbCharges is not an object map (' + (Array.isArray(A.absorbCharges) ? 'array' : typeof A.absorbCharges) + ') — ignored; the barrier absorbCharges read is used instead.')
   for (const t of tasks) {
-    if (done.has(t.id)) continue   // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
+    // pre-merged / stale-remote tasks never run the ace ladder — no 0-seed warning for them
+    if (done.has(t.id)) continue
     let seeded = false
     // per-source cause for the 0-seed log: a map present but lacking the task, or a matched entry that failed the integer check
     const causes = []
@@ -3892,32 +3928,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // git-derived changed-file list of its single commit. Since #2485 D7 it is a cross-check against the
   // tip probe's own Git read, never the delta-scale source.
   const ACE_DIFF_FILES_CLAUSE = pt`\nAlso return \`ace_diff_files\`: the exact output of \`git diff --no-renames --name-only HEAD^ HEAD\` run after your ONE commit — the git-derived changed-file list of that commit, one repo-relative path per array entry. It cross-checks the engine's own Git read of your commit (that read scales the re-audit: a diff confined to the findings' own files re-runs only the seats that raised them), so report it from git, never from memory. A list that disagrees with that read re-runs the full panel.`
-  // Fix-round doctrine (#2097, D24/PIN-27): ONE shared block, interpolated into the enumerated
-  // fix-applying builds — the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE
-  // RE-ENTRY BATCH prompt (the extract-on-the-second-copy rule of the block, applied to the block itself). The batch ace
-  // ADVISORY POLISH (--ace) build, the phase-close sweep polish build and the TERMINAL PASS build
-  // also apply findings and are deliberately outside this set under the plan scope
-  // (agents/war-worker.md's trigger pointer still reaches those workers). FIX_ROUND_RULES is byte-equal to the
-  // `## The rules` section of skills/war/references/fix-round-doctrine.md (the canonical home);
-  // the workflow-template.engine-1.test.mjs fixture `fix-round doctrine: every fix-applying build mirrors the
-  // reference` pins the equality, so an edit lands in the reference first and here second. The
-  // first-pass worker prompt and the auditor prompts carry nothing of it. The pointer path is the
-  // agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the SCRIPT const precedent): a plain
-  // single-quoted string, never a pt interpolation.
-  const FIX_ROUND_RULES = pt`1. Sibling sweep before commit: grep every sibling site of the fixed construct (same registry, push, judgment, restated value, doc or comment claim) and apply the rule there, or state in the commit why that site differs.
-2. The seat's \`fix:\` is a floor: ask what the seat did not check (the other arm, the other order, the empty input, the boundary value, the flag the example did not pass) and add the mirror fixture.
-3. Every new guard gets an oracle that does not share the code under test.
-4. Prove each guard red by mutation, enumerating the arms from the code's own branches, never from the seat's list, and name the proof in the commit body.
-5. Bind or de-mirror every restated value: pin it with an extraction-and-equality row and a bare-rendering ban, or replace it with a pointer to its source.
-6. Extract the helper on the second hand copy, not the fourth.
-7. No count words or ordinals in comments a diff can invalidate: name the members.
-8. One consequence sentence per fix commit.
-9. Per finding, state the cause, then the class, then the fix: a finding is a rule missed at one site.
-10. A \`note\`-rated finding on a surface the same commit edits is an absorb, never left for the next round.`
-  const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched for a fix round or an ace commit, so the rules below scope your diff (canonical home: `
-    + '${CLAUDE_PLUGIN_ROOT}/skills/war/references/fix-round-doctrine.md'
-    + pt`). Per finding, write the cause line before the fix: cause, then class, then fix (the cause-then-class-then-fix rule). A note-rated finding on a surface this commit edits is an absorb — apply it in this commit, never leave it for the next round (the note-absorb rule).\n`
-    + FIX_ROUND_RULES + '\n'
   // ---- PIN-12: THE GATE RUNS AT THE ACE TIP BEFORE ANY RE-AUDIT OR TRANSFER ----
   // A read-only refiner runs the task gate (and the task's Done when: command) at the ace tip. Only a
   // green gate lets the round proceed to its re-audit, so no approval — re-run or transferred — is ever
@@ -4142,7 +4152,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // concatenation-built (census-safe), stable across resume replays. Files are aceRelPath-
       // normalized (#1813) so a `./`-form report never mints a trailer diverging from its bare twin.
       const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => aceRelPath(f.file)))].sort().join(',')
-      const aceCharge = aceChargeOf(r)                   // `Ace-Charge: <task>:<n>` — n = absorbRounds after this commit's charge
+      // `Ace-Charge: <task>:<n>` — n = absorbRounds after this commit's charge
+      const aceCharge = aceChargeOf(r)
       // The pre-dispatch tip: the refiner revert's post-revert tip when a failed range is pending,
       // else the last approved tip (the branch sits there after an approved subset).
       let preSub = approvedShaOf(r)
@@ -4318,7 +4329,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
         + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
         { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'reentry'), schema: WORKER_RESULT, ...spawnWorker('ace') })
-      const rwWhy = deathOf(rw) || blockedReason(rw)   // a re-entry worker death (D21) takes the existing abandon arm, site-named
+      // a re-entry worker death (D21) takes the existing abandon arm, site-named
+      const rwWhy = deathOf(rw) || blockedReason(rw)
       const reProbe = await aceTipProbe(r, 'reentry', preRe)   // dead or not, blocked or not (#2485 D2)
       const reClass = tipClass(reProbe)
       if (reClass !== 'moved') {
@@ -4471,7 +4483,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // AuditVerdict finding) carries no task key, a carried row may carry a foreign one, and
       // remintKey / the corroboration search / the aced and demote records all read the folding
       // task's id (snipe: correctness, cascading-impact).
-      const heldRows = (Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []).map(raw => ({ ...raw, task: r.task.id }))   // the folding task's id WINS over a seed's own task key (snipe: cascading-impact)
+      // the folding task's id WINS over a seed's own task key (snipe: cascading-impact)
+      const heldRows = (Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs.splice(0) : []).map(raw => ({ ...raw, task: r.task.id }))
       for (const f of heldRows) {
         // #2036: a seeded row is judged like a fresh one BEFORE the absorb chain (judgeHeldRow — the
         // head shared with the never-ran drain): ask parks, registry hit corroborates, follow-up
@@ -4507,9 +4520,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + aceable.map(aceFindingRow).join('\n') + '\n'
           + pt`Make ONE commit only, its message ENDING with the trailer line \`Ace-Charge: ${aceCharge}\` in one final trailer block. ${TRAILER_BLOCK_RULE} (The panel re-audits it at the new sha; on regression it is forward-reverted.) Rule: ${NEVER_MOVE_LITERAL}. Commit and push ${r.task.branch}.`
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
+          + FIX_ROUND_DOCTRINE_CLAUSE
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
-        const aceWhy = deathOf(ace) || blockedReason(ace)   // an ace worker death (D21) takes the existing failed-attempt arm, site-named
+        // an ace worker death (D21) takes the existing failed-attempt arm, site-named
+        const aceWhy = deathOf(ace) || blockedReason(ace)
         // The tip probe (#2485 D2, PIN-2): dead or not, blocked or not, the branch is read from Git
         // before anything is charged or judged — `blocked` never means no commit, and the worker's
         // head_sha is never the source. The batch's pre-dispatch tip is the approved tip.
@@ -4520,7 +4535,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // A descendant tip with a net change is an implemented ace (#2485 D3), whatever the worker
           // reported: charge it, record its fix lines, and re-audit at the probed tip.
           if (aceWhy) log('ace ' + r.task.id + ': the ace worker reported "' + aceWhy + '", but the tip probe found ' + aceProbe.count + ' commit(s) above ' + preAce + ' at ' + aceProbe.tip_sha + ' — re-audited as an implemented ace (PIN-3), never left unjudged.')
-          r.task.absorbRounds++                          // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
+          // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
+          r.task.absorbRounds++
           chainRecordFix(r.task, chainRound, ace, 'ace')      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
           aceSha = aceProbe.tip_sha /* the batch ace commit */
           r.reentryBase = aceSha                       // re-entry preflight range anchor (PIN-15)
@@ -4610,7 +4626,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // aceable is content-key unique by construction (routeAbsorbTail dedups fresh and held rows
         // alike), and pendingAbsorbs was spliced empty at the fold above — no hold-time dedup is needed.
         for (const f of aceable) {
-          queuedKeys.add(remintKey(f))   // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
+          // stamps queuedKeys — a merge-slot re-mint never queues a second copy beside the held one
+          queuedKeys.add(remintKey(f))
           // every held row IS an absorb (aceable = absorb-routed rows, an ask never reaches it): a floor-rerouted note or follow-up must not replay its seat-set token at the relaunch judgment (snipe: test-fidelity Major)
           f.disposition = 'absorb'
           r.task.pendingAbsorbs.push(f)
@@ -4687,7 +4704,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // Backward chain (D2/D11): the worker's Critical path: block rides its result notes; the history
       // digest threads it to the fixer and the auditor from corrective round 2.
       chainOf(task.id).criticalPath = criticalPathOf(impl.notes)
-      impl.files_changed = normalizeReportedPaths(impl.files_changed, task.worktree, task.id)   // path contract (this spec): normalize main-rooted, escalate any other absolute
+      // path contract (this spec): normalize main-rooted, escalate any other absolute
+      impl.files_changed = normalizeReportedPaths(impl.files_changed, task.worktree, task.id)
       // A1 (Task 3.2): stamp the worker's claimed End-state ids (acceptance_criteria_covered — the
       // A1 redefinition) on the task; landMerged threads them into the gate-audit entry, where the
       // per-task seat cross-checks them against its endStateAttestations rows. Absent/malformed ⇒ null.
@@ -4730,7 +4748,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
       let round = 0, verdict = null, seats = [], expected = 0, blocked = null, escalateReason = null, died = null
       const workerTests = impl && impl.tests ? impl.tests : null
-      let pin = impl && impl.head_sha   // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
+      // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
+      let pin = impl && impl.head_sha
       // PIN-29 survival registry: the remintKey of every blocking finding the LAST fix round was
       // dispatched on. A blocker still standing after a fix round + full-roster re-audit + rebuttal
       // survived that fix round unchanged — hold in split and agreed-block panels alike.
@@ -4778,7 +4797,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (blocked) {
           const conflicts = seatConflictsOf(seats)
           if (conflicts) {
-            const stamped = new Set()                                  // peers already overwritten by an earlier pair: their ask field is the conflict ask, not their own
+            // peers already overwritten by an earlier pair: their ask field is the conflict ask, not their own
+            const stamped = new Set()
             for (const p of conflicts) {
               const ask = conflictAsk(p)
               parkAsk({ task: task.id, seat: p.seat.seat ?? null, lens: p.seat.lens, sha: auditShaOrSentinel(p.seat.audit_sha), ...p.finding, disposition: 'ask', ask,
@@ -5827,7 +5847,8 @@ if (mergedTasksForGateAudit.length > 0) {
   // seats keep today's fail-open SOFT cannot-confirm path (no token stamped, nothing HARD).
   if (evidence && evidence.integratedTipGate) evidence.integratedTipGate = admitGateResult(evidence.integratedTipGate, evidenceCapture)
   const evidenceDeath = deathOf(evidence)
-  if (evidenceDeath) { envDied('phase-' + ph.id + '-evidence', evidenceDeath); evidence = null }   // null, like every sibling death arm — no later read sees the DEAD record
+  // null, like every sibling death arm — no later read sees the DEAD record
+  if (evidenceDeath) { envDied('phase-' + ph.id + '-evidence', evidenceDeath); evidence = null }
   // phase_diff_files (D15): stamped when the dispatch returned an array; otherwise null + one log line.
   if (evidence && Array.isArray(evidence.phase_diff_files)) phaseDiffFiles = new Set(evidence.phase_diff_files.filter(p => typeof p === 'string' && p.length > 0).map(aceRelPath))
   else log('evidence:phase-' + ph.id + ' returned no phase_diff_files — the gate-audit floor pass\'s note arm matches nothing (the follow-up arm still reroutes; fail-open, D15).')
@@ -6372,6 +6393,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // Backward chain (PIN-6): the sweep is a fix-applying build — it spawns a worker agent (spawn('worker'),
       // non-tiered) — and carries the fixer block at corrective round 1 by definition.
       + chainFixClause(polishTask, correctiveRoundOf('sweep', polishTask), 'phase-close sweep', [])
+      + FIX_ROUND_DOCTRINE_CLAUSE
       + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
@@ -6535,6 +6557,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           // is the only landed-row check) — a prompt never asks for a field nothing reads.
           // Backward chain (PIN-6): the terminal pass carries the fixer block at corrective round 1 by definition.
           + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
+          + FIX_ROUND_DOCTRINE_CLAUSE
           + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
           { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('ace') })
         } catch (err) {
@@ -6572,7 +6595,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
         } else {
           const terminalSha = tProbe.tip_sha   // the probed tip, never the worker's head_sha (PIN-2)
           if (twWhy) log('terminal pass: phase ' + ph.id + ' — the terminal worker reported "' + twWhy + '", but the tip probe found ' + tProbe.count + ' commit(s) at ' + terminalSha + ' — judged by the one terminal seat (PIN-3), never orphaned.')
-          polishTask.absorbRounds++   // the terminal COMMIT charges the polish pseudo-task's counter — telemetry only (D3a)
+          // the terminal COMMIT charges the polish pseudo-task's counter — telemetry only (D3a)
+          polishTask.absorbRounds++
           log('terminal pass: phase ' + ph.id + ' committed at ' + terminalSha + ' (Ace-Charge ' + terminalCharge + '; polish task absorbRounds now ' + polishTask.absorbRounds + ', telemetry only).')
           // ONE seat re-audits the terminal sha (rosterOverride — the roster's correctness seat or its
           // first seat). The pass is bound at one hop: no fix round, no bisection, no re-entry.
@@ -6649,7 +6673,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       // unnamed. A panel-reject, blocked or dead sweep keeps the finality split (D3a/D3b).
       polishStatus = 'discarded'
       // sweepApproved here sits inside the else of the merged arm, so "approved" already means "its merge never landed"
-      const pmrDeath = deathOf(pmr)   // a dead polish merge (D21) is a dispatch death: it stamps the drain cause below
+      // a dead polish merge (D21) is a dispatch death: it stamps the drain cause below
+      const pmrDeath = deathOf(pmr)
       const pmrStatus = pmrDeath || (pmr && pmr.status) || 'no result'   // a dead polish merge (D21) names its site here
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepPanelDeath || (sweepApproved ? `polish merge returned ${pmrStatus}` : 'the panel did not re-approve'))}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue ${(finalPhase || sweepApproved) ? 'demotes to follow-up' : 'carries on carriedPhaseClose'}${sweepApproved ? ' (the panel approved the branch — its audited findings file as follow-ups naming it, never a silent carry)' : ''}.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
@@ -6662,7 +6687,8 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       const discardWhy = sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands'
         : sweepApproved ? 'the polish panel approved branch ' + polishBranch + ' and its merge never landed (' + pmrStatus + ') — the audited fix lives on that unmerged branch, left in place with worktree ' + polishWorktree + ' for a human to reap; the pre-polish tip lands'
         : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands'
-      const stampWhy = sweepDrainCause || pmrDeath   // loop-invariant; sweepDrainCause alone drives discardWhy and the carry reason
+      // loop-invariant; sweepDrainCause alone drives discardWhy and the carry reason
+      const stampWhy = sweepDrainCause || pmrDeath
       for (const f of phaseCloseQueue.splice(0)) {
         if (stampWhy) stampDrainCause(f, 'polish:phase-' + ph.id, stampWhy)
         if (!finalPhase && !sweepApproved) carryPhaseClose(f, 'phase-close sweep discarded (' + (sweepDrainCause || 'the polish branch never merged') + ') on a non-final phase; carried for the relaunch')
@@ -7081,7 +7107,8 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
     if (hit) {
-      mergeSeat(hit, f)   // the shared seats-list merge (snipe: simplicity) — never a hand copy here
+      // the shared seats-list merge (snipe: simplicity) — never a hand copy here
+      mergeSeat(hit, f)
       // merged[] (D8): the merged-away row's title and rationale survive on the representative —
       // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
       // the container AND drops malformed non-object elements at the single write point.

@@ -5928,6 +5928,7 @@ test('intake normalization: FINDING-PATH FORM is ONE shared const consumed by au
     'READ-ONLY GIT GUARD CONTRACT': 'the gate-audit family prompts name their read-only git verbs inline (rev-parse / Read in the _refinery worktree)',
     'SEARCH-TOOLING RULE': 'a diff-search duty for the per-task lens review',
     'LATITUDE RULE': 'plan-faithfulness judgment is a per-task lens duty; the family judges End states via endStateBlock',
+    'BYTE-CAP RULE': 'an eviction verdict judges a worker diff, so it stays on the per-task lens review',
     'ESCALATE-BOUNDARY CONTRACT': 'the family prompts carry their own NEVER-escalate-for-unconfirmable-tip rule inline',
     'CALIBRATION RULE': 'peer-pressure calibration exists only where a rebuttal round exists (auditRound)',
     'COST-CLAIM RULE': 'a lens-review finding rule; the family records gate-evidence findings only',
@@ -8921,6 +8922,11 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'escalate-boundary contract (Task 2.1): required-when-escalate reason + by-construction discriminator + Grep-tool search rule — standing card + auditPrompt()',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/required when/i, /however severe/i, /metacharacter/i] },
+    // Byte-cap seat sentence (#2167, PIN-1): one sentence, byte-equal, on the auditor card and the
+    // rendered audit prompt. The literal below is the oracle, so a reword on either surface reds this row.
+    { name: 'byte-cap seat sentence (#2167): a seat names eviction as the fix and approves a byte-identical move — standing card + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [new RegExp('a seat that finds a prompt surface over its byte cap names eviction to a `references/` file as the fix, and approves a byte-identical move whose pointer carries a trigger\\.'.replace(/\//g, '\\/'))] },
     // Task 2.2 (#1431, ADR 0013 Amendment 2026-08-17): the latitude-clause reading on both runtime
     // seats — worker card + workerIntentClause (intent-gated: the dispatched surface is the
     // latitude-bearing fixture prompt above, never the intent-less workerP where the clause is ''),
@@ -14367,9 +14373,9 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
   // Interpolation census: one line per fix-applying build, and the worker/auditor prompt builders
   // carry none (the constant is interpolated at exactly the enumerated sites).
   const sites = (src.match(/\n[ ]*\+ FIX_ROUND_DOCTRINE_CLAUSE(?=\n)/g) || []).length
-  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the batch ace ADVISORY POLISH build, the phase-close sweep polish build and the TERMINAL PASS build are deliberately outside this set under the plan scope)')
+  assert.equal(sites, FIX_APPLYING_BUILDS.length, 'the shared block is interpolated at each enumerated fix-applying build and nowhere else (the #2127 ruling names these builds, and the floor family stays out)')
   // Extraction-and-equality (rule 5 of the block): the FIX_ROUND_RULES literal itself equals the
-  // reference section, so an engine-side superset (an eleventh rule) is red — containment alone
+  // reference section, so an engine-side superset (one extra rule) is red — containment alone
   // would pass it.
   const rulesHead = 'const FIX_ROUND_RULES = pt`'
   const rulesAt = src.indexOf(rulesHead)
@@ -14399,6 +14405,11 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
       assert.ok(kept && kept.prompt.includes(rules), `${other.site}: keeps the section when only ${b.site} drops its interpolation`)
     }
   }
+  // The floor family stays out (#2127 ruling): its prompt carries neither the rules nor the block's pointer.
+  const floorBuild = CHAIN_FIX_BUILDS.find(b => b.site === 'floor family')
+  const floorP = (floorBuild.find((await floorBuild.run(src)).calls) || {}).prompt
+  assert.ok(floorP, 'floor family: dispatched (presence guard)')
+  assert.ok(!floorP.includes(rules) && !floorP.includes('FIX-ROUND DOCTRINE:'), 'floor family: carries no fix-round block')
   // The first-pass worker prompt and the auditor prompt carry nothing of the block.
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const workerP = (calls.find(isWorker) || {}).prompt

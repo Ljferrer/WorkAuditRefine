@@ -2738,11 +2738,11 @@ const carriedOf = (out, title) => (out.carriedPhaseClose || []).find(f => f && f
 // ===========================================================================
 // FIX-ROUND DOCTRINE (#2097, engine-and-audit-verdict-integrity Task 1.4, D24/PIN-27) — the
 // `## The rules` section of skills/war/references/fix-round-doctrine.md is the canonical body; the
-// enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH) interpolate ONE
-// shared constant carrying it byte-equal. The batch ace ADVISORY POLISH (--ace) build, the
-// phase-close sweep polish build and the TERMINAL PASS build are deliberately excluded under the
-// plan scope (agents/war-worker.md's trigger pointer still reaches those workers). The first-pass worker prompt
-// and the auditor prompts carry nothing.
+// enumerated fix-applying builds (FIX_NEEDED, ACE BISECTION SUBSET, ACE RE-ENTRY BATCH, the batch ace
+// ADVISORY POLISH (--ace) build, the PHASE-CLOSE COHERENCE SWEEP build and the TERMINAL PASS build,
+// per the #2127 ruling) interpolate ONE shared constant carrying it byte-equal. The floor family
+// stays out, because the ruling names only these builds. The first-pass worker prompt and the
+// auditor prompts carry nothing.
 // Controls: a delete-and-trace per build (drop that build's interpolation ⇒ its prompt loses the
 // section while its siblings keep it) and a no-false-positive control (a reworded rule never
 // appears in any prompt; the byte-sensitive pin is the includes(rules) equality itself).
@@ -2765,6 +2765,15 @@ const FIX_APPLYING_BUILDS = [
   { site: 'ACE RE-ENTRY BATCH prompt', head: 'pt`ACE RE-ENTRY BATCH for WAR task',
     run: (source) => runPhase(ACE_ARGS(), reentryImpl(), {}, source),
     find: (c) => c.find(x => /^ace:reentry:t1:a2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')) },
+  { site: 'ADVISORY POLISH prompt', head: 'pt`ADVISORY POLISH (--ace) for WAR task',
+    run: (source) => runPhase(ACE_ARGS(), polishAceImpl(), {}, source),
+    find: (c) => c.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) },
+  { site: 'PHASE-CLOSE COHERENCE SWEEP prompt', head: 'pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase',
+    run: (source) => runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]), {}, source),
+    find: (c) => c.find(x => (x.opts.label || '') === 'polish:phase-3') },
+  { site: 'TERMINAL PASS prompt', head: 'pt`TERMINAL PASS for WAR phase',
+    run: (source) => runPhase(SWEEP_ARGS(), terminalImpl(), {}, source),
+    find: (c) => c.find(x => (x.opts.label || '') === 'terminal:phase-3') },
 ]
 // Drop the interpolation line at ONE build only: the first `+ FIX_ROUND_DOCTRINE_CLAUSE` after that
 // build's head string. The census below proves the mutation targets exactly one site.

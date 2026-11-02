@@ -1,6 +1,6 @@
 # Fix-round doctrine
 
-The fixer's rules for a fix round or an ace commit. A seat's finding names one site. The defect is a rule missed at that site. The rules below scope the diff, not the site. Operator ruling 2026-09-07 (#2097): this file is the canonical home of the rules; the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt and the ACE RE-ENTRY BATCH prompt in `skills/war/assets/workflow-template.js` carry the `## The rules` section byte-equal, pinned by the `workflow-template.engine-1.test.mjs` fixture `fix-round doctrine: every fix-applying build mirrors the reference`. The worker card, `/snipe` and `/zero-in` carry the trigger pointer only. The lesson `docs/learnings/fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit.md` is the instance record, never the home.
+The fixer's rules for a fix round or an ace commit. A seat's finding names one site. The defect is a rule missed at that site. The rules below scope the diff, not the site. Operator ruling 2026-09-07 (#2097): this file is the canonical home of the rules; the FIX_NEEDED fix prompt, the ACE BISECTION SUBSET prompt, the ACE RE-ENTRY BATCH prompt, the ADVISORY POLISH (--ace) prompt, the PHASE-CLOSE COHERENCE SWEEP prompt and the TERMINAL PASS prompt in `skills/war/assets/workflow-template.js` carry the `## The rules` section byte-equal, pinned by the `workflow-template.engine-1.test.mjs` fixture `fix-round doctrine: every fix-applying build mirrors the reference`. The worker card, `/snipe` and `/zero-in` carry the trigger pointer only. The lesson `docs/learnings/fix-the-finding-class-not-the-site-and-prove-every-new-guard-red-before-commit.md` is the instance record, never the home.
 
 ## The rules
 
@@ -14,6 +14,7 @@ The fixer's rules for a fix round or an ace commit. A seat's finding names one s
 8. One consequence sentence per fix commit.
 9. Per finding, state the cause, then the class, then the fix: a finding is a rule missed at one site.
 10. A `note`-rated finding on a surface the same commit edits is an absorb, never left for the next round.
+11. A byte-cap breach on a prompt surface is a signal to evict, never to reword: move conditionally needed prose byte-identical to its `references/` file, leave a `when <trigger>, read references/<file>` pointer (ADR 0042), and never delete an operative rule.
 
 ## Editing the rules
 
