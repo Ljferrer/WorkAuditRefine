@@ -64,7 +64,7 @@
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
 #         or an unsafe agent_id, no git common dir, a missing start record, a
-#         git error, an unresolved Bash `~-` or `~<name>` token, a Bash-arm
+#         git error, an unresolved Bash `~-` or `~<name>` token, a seat_mark
 #         mark),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
@@ -240,12 +240,15 @@ main_find() {
   return 0
 }
 
-# seat_mark <cause>: the Bash arm cannot stop the call, so a recording failure
+# seat_mark <cause>: the Bash arm cannot stop the call, and a Read, Glob or Grep
+# arm that cannot record has no touched set to fill, so a recording failure
 # becomes a `!<cause>` line in the seat's touched set, which the verdict arm
 # escalates as unverifiable. With no usable agent_id no state dir has a key, so
 # the cause goes to `$MAIN/.claude/war/audit-no-agent-id`, and the verdict arm
 # of each seat that did not start after that file escalates. <cause> is a fixed
-# string, never payload text. A failed write stays fail-open (residual item 8).
+# string, never payload text, and a worker can write both files, so the verdict
+# arm prints a cause only if it is one of these (mark_cause). A failed write
+# stays fail-open (residual item 8).
 seat_mark() {
   [ -n "$MAIN" ] || main_find
   if [ -z "$MAIN" ]; then
@@ -260,6 +263,24 @@ seat_mark() {
       && printf '%s\n' "$1" > "$MAIN/.claude/war/audit-no-agent-id"
   fi
   echo "WAR: audit tree fingerprint: $1" >&2
+}
+
+# mark_cause <text>: sets _mc to <text> if seat_mark can write it, else to a
+# fixed cause, so a worker-written mark never prints its own words in the
+# reason that rides the audit log.
+mark_cause() {
+  _mc="$1"
+  case "$1" in
+    'jq is not installed on a Bash call'|'payload is not JSON on a Bash call') return 0 ;;
+    'jq failed on a Bash call'|'deadline passed on a Bash call') return 0 ;;
+  esac
+  for _mt in Bash Read Glob Grep; do
+    case "$1" in
+      "no git common dir on a $_mt call"|"git worktree list failed on a $_mt call") return 0 ;;
+      "no agent_id in the $_mt payload"|"unsafe agent_id in the $_mt payload") return 0 ;;
+    esac
+  done
+  _mc="unrecognized mark"
 }
 
 # mark_no_aid <tool>: seat_mark for a seat payload with no usable agent_id.
@@ -312,10 +333,10 @@ esac
 
 event="$(get '.hook_event_name')"
 tool="$(get '.tool_name')"
-# get drops jq's exit status, so an empty event or tool is a failed read, and a
-# later arm would pass it. raw_mark acts only on a seat's Bash post event.
-[ -n "$event" ] && [ -n "$tool" ] || raw_mark "jq failed on a Bash call"
 cwd="$(get '.cwd')"
+# get drops jq's exit status, so an empty event, tool or cwd is a failed read,
+# and a later arm would pass it. raw_mark acts only on a seat's Bash post event.
+[ -n "$event" ] && [ -n "$tool" ] && [ -n "$cwd" ] || raw_mark "jq failed on a Bash call"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$PWD"
 
 aid_raw="$(get '.agent_id')"
@@ -571,11 +592,11 @@ fingerprint() {
 
 # marked_worktrees_of <repo-dir> -> every worktree of that repository that
 # carries a .war-task marker, one canonical path per line.
-# A failed list on the Bash arm leaves a mark (see seat_mark).
-BASH_ARM=0
+# On a recording arm (LIST_TOOL set) a failed list leaves a mark (see seat_mark).
+LIST_TOOL=""
 marked_worktrees_of() {
   _wl="$(git -C "$1" worktree list --porcelain 2>/dev/null)" || {
-    [ "$BASH_ARM" = 0 ] || seat_mark "git worktree list failed on a Bash call"
+    [ -z "$LIST_TOOL" ] || seat_mark "git worktree list failed on a $LIST_TOOL call"
     return 0
   }
   printf '%s\n' "$_wl" | while IFS= read -r _line; do
@@ -635,10 +656,22 @@ marker_root_of() {
 # parent, and `nosuch/../../x` is `x` although nosuch is missing), as the
 # Read tool and git's in-repo rule read it. The reader the hook stands in
 # for may follow either rule, so both roots are printed, physical first
-# (deduped when the two ancestors agree; touch_line dedupes a shared root).
+# (deduped when the two ancestors agree; touch_line dedupes a shared root). A
+# link to a file fails the directory walk at the link's parent, and the reader
+# follows it, so the file link's last target adds its own root. The hop limit
+# is the kernel's.
 task_worktree_of() {
   _p="$1"
   case "$_p" in /*) ;; *) _p="$cwd/$_p" ;; esac
+  _lh="$_p"; _ln=0
+  while [ -L "$_lh" ] && [ "$_ln" -lt 32 ]; do
+    _lt="$(readlink "$_lh")" || break
+    case "$_lt" in /*) _lh="$_lt" ;; *) _lh="${_lh%/*}/$_lt" ;; esac
+    _ln=$((_ln + 1))
+  done
+  if [ "$_lh" != "$_p" ] && [ -f "$_lh" ]; then
+    _lc="$(canon "${_lh%/*}")" && [ -n "$_lc" ] && marker_root_of "$_lc"
+  fi
   _d="$_p"
   while [ ! -d "$_d" ]; do
     _nd="${_d%/*}"; [ -n "$_nd" ] || _nd=/
@@ -942,11 +975,12 @@ compare() {
   # seat_mark). A tie escalates: `-nt` reads whole seconds on bash 3.2.
   _na="$MAIN/.claude/war/audit-no-agent-id"
   if [ -f "$_na" ] && [ ! "$STATE/start" -nt "$_na" ]; then
-    REASON="AUDIT-TAMPER: unverifiable fingerprint ($(head -n 1 "$_na" 2>/dev/null))"; return 0
+    mark_cause "$(head -n 1 "$_na" 2>/dev/null)"
+    REASON="AUDIT-TAMPER: unverifiable fingerprint ($_mc)"; return 0
   fi
   # Each post hook ends before the next call starts, so an open marker is a
-  # killed hook. If the host ever ran a Bash call beside the verdict, the marker
-  # escalates, which fails closed.
+  # killed hook. The marker escalates only once the post hook has started, and a
+  # verdict sent beside a Bash call cannot rest on that call's result.
   set +f; _bo="$(ls -d "$STATE"/bash-open.* 2>/dev/null)"; set -f
   if [ -n "$_bo" ]; then
     REASON="AUDIT-TAMPER: unverifiable fingerprint (a Bash recording did not finish)"; return 0
@@ -956,7 +990,8 @@ compare() {
   # offer the fail-open question for a touched set known to be short.
   _bm="$(grep -m 1 '^!' "$STATE/touched" 2>/dev/null)"
   if [ -n "$_bm" ]; then
-    T_WT="$_bm"; REASON="AUDIT-TAMPER: unverifiable fingerprint (${_bm#!})"; return 0
+    mark_cause "${_bm#!}"
+    T_WT="!$_mc"; REASON="AUDIT-TAMPER: unverifiable fingerprint ($_mc)"; return 0
   fi
   while IFS= read -r _wt || [ -n "$_wt" ]; do
     [ -n "$_wt" ] || continue
@@ -1053,11 +1088,14 @@ case "$event" in
     case "$tool" in
       Read)
         [ -n "$aid" ] || { mark_no_aid Read; exit 0; }
+        [ -n "$MAIN" ] || { seat_mark "no git common dir on a Read call"; exit 0; }
         _p="$(get '.tool_input.file_path')"
         [ -n "$_p" ] && touch_path "$_p"
         exit 0 ;;
       Glob|Grep)
         [ -n "$aid" ] || { mark_no_aid "$tool"; exit 0; }
+        [ -n "$MAIN" ] || { seat_mark "no git common dir on a $tool call"; exit 0; }
+        LIST_TOOL="$tool"
         _p="$(get '.tool_input.path')"
         [ -n "$_p" ] || _p="$cwd"
         touch_path "$_p"
@@ -1102,7 +1140,7 @@ case "$event" in
     [ "$tool" = Bash ] || exit 0
     [ -n "$aid" ] || { mark_no_aid Bash; exit 0; }
     if [ -z "$MAIN" ]; then seat_mark "no git common dir on a Bash call"; exit 0; fi
-    BASH_ARM=1
+    LIST_TOOL=Bash
     mkdir -p "$STATE" 2>/dev/null
     _open="$STATE/bash-open.$$"
     : > "$_open" 2>/dev/null

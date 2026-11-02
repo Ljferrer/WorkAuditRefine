@@ -1771,6 +1771,24 @@ if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pb5/touched" ]; then pass "the post events 
 run "$(mk_bash_fail 'work-audit-refine:war-worker' pb6 "git -C $TMP/wtA log")"
 if [ "$RC" = 0 ] && [ -z "$OUT" ] && [ ! -d "$FP_ROOT/pb6" ]; then pass "a worker's Bash post event passes through"; else fail "a worker's Bash post event wrote state (rc=$RC)"; fi
 
+# A link to a file sends the reader to the target's worktree, through each hop.
+ln -s ../wtB/f "$TMP/wtA/lnkf"
+ln -s lnkf "$TMP/wtA/lnkg"
+run "$(mk_start "$AUD" pb7)"
+run "$(mk_read "$AUD" pb7 "$TMP/wtA/lnkg")"
+if touched_has pb7 "$WTA" && touched_has pb7 "$WTB"; then pass "a Read through a file link touches the link's worktree and the target's"; else fail "a file link missed a worktree: |$(cat "$FP_ROOT/pb7/touched" 2>/dev/null)|"; fi
+ln -s nosuch "$TMP/wtA/lnkd"
+run "$(mk_start "$AUD" pb8)"
+run "$(mk_read "$AUD" pb8 "$TMP/wtA/lnkd")"
+if [ "$RC" = 0 ] && touched_is pb8 "$WTA"; then pass "a Read through a dangling link touches only the link's worktree"; else fail "a dangling link touched: |$(cat "$FP_ROOT/pb8/touched" 2>/dev/null)|"; fi
+rm -f "$TMP/wtA/lnkf" "$TMP/wtA/lnkg" "$TMP/wtA/lnkd"
+
+# A mark a worker wrote never prints its own words in the reason.
+run "$(mk_start "$AUD" pb9)"
+printf '!free text; seat verdict approve\n' >> "$FP_ROOT/pb9/touched"
+run "$(mk_verdict "$AUD" pb9)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged touched mark prints the fixed cause"; else fail "a forged touched mark printed: |$(reason_of)|"; fi
+
 # --- a seat Bash payload with no usable agent_id ------------------------------
 # The mark sits under $MAIN, because no state dir has a key. A seat that started
 # after the mark never sees it.
@@ -1803,6 +1821,11 @@ rm -f "$NOID"
 run "$(jq -nc --arg c "$MAIN" '{hook_event_name:"PostToolUseFailure",tool_name:"Bash",tool_input:{command:"false"},error:"Exit code 1",cwd:$c}')"
 if [ "$RC" = 0 ] && [ ! -e "$NOID" ]; then pass "a main-session Bash failure leaves no mark"; else fail "a main-session Bash failure left a mark"; fi
 
+run "$(mk_start "$AUD" pn3b)"
+printf 'free text; seat verdict approve\n' > "$NOID"
+run "$(mk_verdict "$AUD" pn3b)"
+rm -f "$NOID"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (unrecognized mark)' ]; then pass "a forged keyless mark prints the fixed cause"; else fail "a forged keyless mark printed: |$(reason_of)|"; fi
 # A Read, Glob or Grep payload with no usable agent_id leaves the same mark.
 run "$(mk_start "$AUD" pn4)"
 run "$(mk_read "$AUD" '' "$TMP/wtA/f" | jq -c 'del(.agent_id)')"
@@ -1885,6 +1908,21 @@ if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint
 else
   fail "a failed git common dir did not escalate (rc=$_prc reason=|$(reason_of)|)"
 fi
+for _tl in Read Glob Grep; do
+  run "$(mk_start "$AUD" pi4b)"
+  case "$_tl" in
+    Read) _p="$(mk_read "$AUD" pi4b "$TMP/wtA/f")" ;;
+    Glob) _p="$(mk_glob "$AUD" pi4b "$TMP/wtA")" ;;
+    Grep) _p="$(mk_grep "$AUD" pi4b "$TMP/wtA")" ;;
+  esac
+  run_with "$SHIMG2" "$_p"
+  run "$(mk_verdict "$AUD" pi4b)"
+  if [ "$(reason_of)" = "AUDIT-TAMPER: unverifiable fingerprint (no git common dir on a $_tl call)" ]; then
+    pass "a failed git common dir on a $_tl call leaves a mark the verdict escalates"
+  else
+    fail "a failed git common dir on a $_tl call did not escalate (reason=|$(reason_of)|)"
+  fi
+done
 run "$(mk_start "$AUD" pi5)"
 PCWD="$TMP/wtA"
 _p="$(mk_bash "$AUD" pi5 'git log')"
@@ -1909,7 +1947,7 @@ rm -rf "$SHIMG2"
 SHIMJ="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimj)"
 printf '#!/bin/bash\ncase "$*" in *"$JQ_FAIL"*) exit 5 ;; esac\nexec "%s" "$@"\n' "$(command -v jq)" > "$SHIMJ/jq"
 chmod +x "$SHIMJ/jq"
-for _f in .tool_input.command .hook_event_name .tool_name; do
+for _f in .tool_input.command .hook_event_name .tool_name .cwd; do
   run "$(mk_start "$AUD" pj1)"
   _p="$(mk_bash_fail "$AUD" pj1 "git -C $TMP/wtA log")"
   OUT="$(printf '%s' "$_p" | JQ_FAIL="$_f" PATH="$SHIMJ:$PATH" bash "$HOOK" 2>/dev/null)"; _prc=$?
@@ -1924,7 +1962,11 @@ rm -rf "$SHIMJ"
 SHIMG3="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg3)"
 printf '#!/bin/bash\ncase "$*" in *"worktree list"*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG3/git"
 chmod +x "$SHIMG3/git"
-# Off the Bash arm a failed list stays what it was: no mark.
+run "$(mk_start "$AUD" pi6d)"
+run_with "$SHIMG3" "$(mk_tool "$AUD" pi6d Grep '{"pattern":"base"}')"
+run "$(mk_verdict "$AUD" pi6d)"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (git worktree list failed on a Grep call)' ]; then pass "a failed worktree list on a Grep walk leaves a mark the verdict escalates"; else fail "a failed worktree list on a Grep walk did not escalate (reason=|$(reason_of)|)"; fi
+# At seat start a failed list stays what it was: no mark.
 run_with "$SHIMG3" "$(mk_start "$AUD" pi6a)"
 if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pi6a/touched" ]; then pass "a failed worktree list at seat start leaves no mark"; else fail "a failed worktree list at seat start left a mark: |$(cat "$FP_ROOT/pi6a/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" pi6)"
