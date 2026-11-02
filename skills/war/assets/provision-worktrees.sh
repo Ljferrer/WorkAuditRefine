@@ -1279,6 +1279,9 @@ cmd_teardown_phase() {
 # subcommand, not a new CLI arg — captured at the last moment before the push so
 # it cannot go stale in caller prose (smallest race window).
 #
+# <new-sha> resolves to its full SHA first (#1837), so each compare below reads two
+# full SHAs. A value that does not resolve stays as given for step 0b's die.
+#
 # 0. LAND-TRUTH GUARD (anchor = the pre-push ORIGIN tip, NOT the local follower
 #    refs/heads/<working>, which lags). Read `git ls-remote origin
 #    refs/heads/<working>` before the push and branch on it:
@@ -1428,7 +1431,7 @@ cmd_land_advance() {
     return 0
   fi
   # else: pre_push_origin is non-empty and != new_sha -> normal path below (push,
-  # [rejected] classification, post-push readback, follower CAS), byte-unchanged.
+  # [rejected] classification, post-push readback, follower CAS).
 
   # --- Wrong-HEAD precheck (§4.4, spec decision 8) --------------------------
   # The push below uses the NAMED source `HEAD:` (never a bare-SHA refspec —
@@ -1475,7 +1478,7 @@ cmd_land_advance() {
       actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || actual=""
     fi
     [ "$actual" = "$new_sha" ] \
-      || die "land-advance: the push exited 0, but origin's '$working' reads '${actual:-no tip}' after 2 reads, not <new-sha> $new_sha; the local follower did not move. Check origin. If the land is real, run 'provision-worktrees.sh sync-follower $working' to reconcile the follower. Escalate." "$EX_FOREIGN"
+      || die "land-advance: the push exited 0, but origin's '$working' reads '${actual:-no tip, or the read failed}' after 2 reads, not <new-sha> $new_sha; the local follower did not move. Check origin. If the land is real, run 'provision-worktrees.sh sync-follower $working' to reconcile the follower. Escalate." "$EX_FOREIGN"
     # Success: advance the local follower ref with a CAS update-ref.
     # If there was no pre-push local tip, create the ref unconditionally.
     if [ -n "$pre_push_local" ]; then

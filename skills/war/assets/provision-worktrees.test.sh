@@ -1324,8 +1324,8 @@ expect "T2.4: origin/branch-b == new_sha_B (no cross-bleed)" \
 # -> exit 3" case: same fixture, and its expected exit necessarily changes 3 -> 6
 # because the precheck now intercepts pre-push (plan Notes / adjudication 10).
 # The step-3 post-push origin readback (`ls-remote origin == new_sha`) and its
-# comment STAY as defense in depth for a mid-push origin race — that residual is
-# a declared backstop, not a deterministically fixture-able branch.
+# comment STAY as defense in depth for a mid-push origin race. The lagging-ls-remote
+# rows LA.1 to LA.4 at the end of this file fixture that branch.
 #
 # CRUCIAL: this case does NOT use run_in_detached — that helper detaches HEAD to
 # <new-sha>, making HEAD == new_sha so the precheck passes and the push is a real
@@ -1649,11 +1649,10 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 # STOPPED exercising when it was reframed to prove the ls-remote rc-guard
 # short-circuit (test-reframe-can-strand-adjacent-branch-coverage).
 #
-# Exit 3 is reached by several routes; the push-path silent ones (the
-# push-error branch and the post-push origin-readback mismatch) print nothing,
-# while the rest die LOUDLY with route-naming text. Route identity is therefore
-# proved in TWO steps — (b)+(d) exclude the LOUD routes; (c)+(e) then
-# discriminate BETWEEN the two silent ones:
+# Exit 3 is reached by several routes. The push-error branch alone prints nothing,
+# and the rest die LOUDLY with route-naming text, the post-push readback miss
+# included. Route identity is therefore proved in TWO steps — (b)+(d) exclude the
+# LOUD routes; (c)+(e) then confirm the push was declined:
 #   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by
 #       construction (pre-receive is push-side; ls-remote is fetch-side);
 #   (c) the token-distinctness fact asserted BY NAME (remote rejected present,
@@ -1667,7 +1666,8 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 #   (d) the land-advance invocation emits NEITHER the rc-guard die text ("could
 #       not read the origin tip") NOR the phantom die text ("refusing to report a
 #       land that did not advance") — a regression rerouting the fixture through
-#       either route would surface that die text and fail (d). The remaining loud
+#       either route would surface that die text and fail (d), and a third row
+#       excludes the post-push readback die. The remaining loud
 #       exit-3 dies (unresolvable HEAD / unresolvable <new-sha>) are closed by
 #       construction: the call detaches at $NEW_SHA9, so both resolve;
 #   (e) origin tip byte-unchanged (still the seed) corroborates (c): with the
@@ -1729,6 +1729,8 @@ expect "T2.9: push-error exit 3 does NOT emit the rc-guard die text (route disti
   "0" "$(printf '%s' "$OUT9" | grep -c 'could not read the origin tip')"
 expect "T2.9: push-error exit 3 does NOT emit the phantom die text (route distinct from T2.6)" \
   "0" "$(printf '%s' "$OUT9" | grep -c 'refusing to report a land that did not advance')"
+expect "T2.9: push-error exit 3 does NOT emit the readback die text (a declined push never reads back)" \
+  "0" "$(printf '%s' "$OUT9" | grep -c 'the push exited 0')"
 
 # (e) A push-error escalation rewinds nothing: local follower byte-identical,
 # origin tip unchanged (still the seed — the rejected push never advanced it).
@@ -3982,7 +3984,8 @@ case "${1:-}" in
 esac
 exec "$LA_REAL_GIT" "$@"
 LASHIM
-printf '#!/bin/bash\nprintf "%%s\\n" "$1" >> "$LA_DIR/sleeps"\n' > "$LA_DIR/sleep"
+# The stub also records the reads so far, so a row sees the wait fall between two reads.
+printf '#!/bin/bash\nprintf "%%s after %%s\\n" "$1" "$(wc -c < "$LA_DIR/reads" | tr -d " ")" >> "$LA_DIR/sleeps"\n' > "$LA_DIR/sleep"
 chmod +x "$LA_DIR/git" "$LA_DIR/sleep"
 
 la_has() {
@@ -4024,7 +4027,7 @@ la_run lag-once working/la1 "$LA_NEW"
 expect "LA.1 lagging-ls-remote: a lag that clears exits 0" 0 "$LA_RC"
 expect "LA.1 lagging-ls-remote: the follower advances" "$LA_NEW" "$(la_follower working/la1)"
 expect "LA.1 lagging-ls-remote: the readback runs twice" 2 "$LA_READS"
-expect "LA.1 lagging-ls-remote: the wait is 2 seconds" 2 "$LA_SLEEPS"
+expect "LA.1 lagging-ls-remote: the wait is 2 seconds, after the first read" "2 after 1" "$LA_SLEEPS"
 expect "LA.1 lagging-ls-remote: a land that clears says nothing" "" "$LA_ERR"
 
 # LA.2: a lag that stays dies loud, and the follower stays.
@@ -4037,7 +4040,7 @@ expect "LA.2 lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has 
 expect "LA.2 lagging-ls-remote: the die says the push exited 0" yes "$(la_has "$LA_ERR" "push exited 0")"
 expect "LA.2 lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la2)"
 expect "LA.2 lagging-ls-remote: the readback stops after two reads" 2 "$LA_READS"
-expect "LA.2 lagging-ls-remote: the wait is 2 seconds" 2 "$LA_SLEEPS"
+expect "LA.2 lagging-ls-remote: the wait is 2 seconds, after the first read" "2 after 1" "$LA_SLEEPS"
 
 # LA.3: a failed ls-remote is a mismatch, on either read.
 la_fixture working/la3
@@ -4057,6 +4060,7 @@ la_fixture working/la3c
 la_run empty working/la3c "$LA_NEW"
 expect "LA.3c lagging-ls-remote: an empty read on both tries exits 3" 3 "$LA_RC"
 expect "LA.3c lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has "$LA_ERR" "sync-follower working/la3c")"
+expect "LA.3c lagging-ls-remote: the die says no tip was read" yes "$(la_has "$LA_ERR" "no tip, or the read failed")"
 expect "LA.3c lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la3c)"
 
 # LA.4: the control. A clean land reads once and never waits.
