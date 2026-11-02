@@ -1120,10 +1120,12 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 // A dispatched seat can recover from a wrong plan slice by reading the plan file; the assembled
 // intent/backstops/adjudications have NO seat-side recovery path — a cross-plan leak (the plan-3
 // incident: a plan-A launch carrying plan-B's intent, 13 × escape / 0 × done-when) starts clean and
-// stays green. So refuse at entry (held:workflow-error via the catch): (1) an arg naming a
-// docs/plans/<slug>.md identifier differing from plan.file is foreign; (2) an arg containing NONE of
-// the run's own plan-slug tokens (the slug's non-date words, from planSlug + the plan.file basename)
-// fails the own-token floor. D6 recalibration (the #1666 both-directions miscalibration):
+// stays green. So refuse at entry (held:workflow-error via the catch): (1) a backstops or
+// adjudications arg naming a docs/plans/<slug>.md identifier differing from plan.file is foreign
+// (the same identifier in intent logs a warning for the Lead and launches, #2375, because a plan
+// may name a sibling plan path as content); (2) an arg containing NONE of the run's own plan-slug
+// tokens (the slug's non-date words, from planSlug + the plan.file basename) fails the own-token
+// floor. D6 recalibration (the #1666 both-directions miscalibration):
 //   - the scan is scoped to INTENT-BEARING text only — the intent string, and per-row check/why
 //     (backstops) / adjudicated/value (adjudications) / ruling+suggested_fix+findingTitle
 //     (ruledAsks, #1879 RULING 2) fields — never a whole-surface JSON.stringify,
@@ -1135,17 +1137,22 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
 //     surface), predecessor citations (the `supersedes` field is the citation channel — excluded
 //     from the scan), and Lead-stamped `planFile` provenance rows naming THIS plan (a planFile
 //     stamp naming a FOREIGN plan is the leak itself and refuses directly). Exemption is from the
-//     OWN-TOKEN floor only (D10, #1749): the foreign-plan-id scan runs over EVERY row's text, exempt
-//     rows included — a source:'auto' row is set by the same Lead-assembled channel a foreign args
-//     blob rides, so a flag that channel sets cannot buy a bypass of the foreign-id refusal.
+//     OWN-TOKEN floor only (D10, #1749): the foreign-plan-id scan runs over EVERY backstops and
+//     adjudications row's text, exempt rows included — a source:'auto' row is set by the same
+//     Lead-assembled channel a foreign args blob rides, so a flag that channel sets cannot buy a
+//     bypass of the foreign-id refusal. The scan's refusal and warning cover only intent, backstops
+//     and adjudications (#2208, #2197): a ruledAsks or seededPhaseClose row describes finding work
+//     that may name any plan path, and its planSlug field is the provenance coordinate, so a foreign
+//     path in one never halts a launch.
 //   - VALUE rows (D10, #1480): an adjudications row in the canonical version-adjudication shape —
-//     the `{ adjudicated|value, supersedes }` object, or the preformatted string adjRow renders
-//     (`<value> (supersedes plan literal: <x>)`) — carries a VALUE, not intent-bearing prose, so it
-//     never has to carry an own token; a surface whose every row is a value row passes the
-//     own-token floor un-doped. A string row's `supersedes … docs/plans/<x>.md` segment is the
+//     the `{ adjudicated|value, supersedes }` object, the preformatted string adjRow renders
+//     (`<value> (supersedes plan literal: <x>)`), or a one-token value before a bare citation
+//     (`<value> supersedes docs/plans/<x>.md` or `<value> supersedes: docs/plans/<x>.md`, #2207)
+//     — carries a VALUE, not intent-bearing prose, so it never has to carry an own token; a surface
+//     whose every row is a value row passes the own-token floor un-doped. A string row's `supersedes … docs/plans/<x>.md` segment is the
 //     predecessor citation itself and is stripped before the foreign-id match (#1751).
-// Each floor applies ONLY when its arg has scannable text: the foreign-id scan when ANY row carries
-// text (and plan.file is present), the own-token floor when a NON-exempt, non-value row carries
+// Each floor applies ONLY when its arg has scannable text: the foreign-id scan when ANY row of a
+// scanned surface carries text (and plan.file is present), the own-token floor when a NON-exempt, non-value row carries
 // text (an intent-less launch — and a surface whose rows are all exempt or all value rows — stays
 // legal; the ratified absent-⇒-byte-identical contract). When the stoplist empties ownTokens but
 // plan.file is present, the plan basename becomes the single anchor token (logged, #1767) — the
@@ -1180,18 +1187,20 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // or the adjRow render `(supersedes plan literal: docs/plans/<x>.md)`) — the object form's
   // `supersedes` field, never a leak — drop it before the foreign-id match. The strip is anchored to
   // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
-  // for the scan. The own-token search reads the unstripped text.
+  // for the scan. The own-token search keeps the citation, because the foreign-id match never sees it.
   const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
   const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
   // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
   // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
-  // supersedes; a Lead-stamped planFile may ride beside them) or the string adjRow renders —
-  // `<value> (supersedes plan literal: <x>)`. The shape test alone would let a prose ruling with a
+  // supersedes; a Lead-stamped planFile may ride beside them), the string adjRow renders —
+  // `<value> (supersedes plan literal: <x>)` — or a one-token value before a bare citation in the
+  // two bare spellings (`supersedes`, `supersedes:`) stripSupersedes accepts (#2207; only those two,
+  // and that strip is wider, so a value row's citation always strips). The shape test alone would let a prose ruling with a
   // prose `supersedes` bypass the own-token floor, so the value field must look like a value — in
-  // BOTH arms: the string arm anchors the same one-token value segment before the render suffix, so
+  // BOTH arms: the string arm anchors the same one-token value segment before the citation, so
   // a preformatted prose ruling never launches un-doped where its object form refuses.
   const isValueRow = row => typeof row === 'string'
-    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row)
+    ? /^\S{1,64} \(supersedes plan literal: [^\n]+\)\s*$/.test(row) || /^\S{1,64} supersedes:? docs\/plans\/[A-Za-z0-9._/-]+\.md\s*$/.test(row)
     : !!row && typeof row === 'object' && typeof (row.adjudicated ?? row.value) === 'string' && typeof row.supersedes === 'string'
       && /^\S{1,64}$/.test(row.adjudicated ?? row.value)
       && Object.keys(row).every(k => ['adjudicated', 'value', 'supersedes', 'planFile', 'source'].includes(k))
@@ -1241,8 +1250,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   const hasOwnSlug = row => typeof row.planSlug === 'string' && !!row.planSlug
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   // The #1751 predecessor-citation strip (stripSupersedes / idText) is deliberately adjudications-only:
-  // the `supersedes` citation idiom is an adjudication-row shape, so these rows expose their full text
-  // to the widened foreign-id scan (the surface loop falls back to `text` when idText is absent).
+  // the `supersedes` citation idiom is an adjudication-row shape. A foreign path here never refuses
+  // or warns (#2208), so its only effect is the own-token read-past, which also covers a citation
+  // because these rows carry no idText. The planSlug stamp and the own-token check below still apply.
   const ruledAskRowText = row => {
     if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
@@ -1260,7 +1270,7 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // intent-bearing text is title + rationale + suggested_fix, and the carried row's `planSlug`
   // FIELD (stamped by the emitting engine's carryPhaseClose) is the provenance coordinate — a
   // foreign slug refuses directly; the run's own slug exempts the row. As at ruledAskRowText, the
-  // #1751 predecessor-citation strip is adjudications-only: no idText here, the full text is scanned.
+  // foreign path here never refuses or warns (#2197), and the same no-idText read-past applies.
   const seededPhaseCloseRowText = row => {
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['title', 'rationale', 'suggested_fix']
@@ -1286,22 +1296,30 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     }
     // scanText: non-exempt, non-value rows only (the own-token refusal surface — a surface whose rows
     // are all exempt or all value rows never has to carry a token). evidenceText: EVERY row's text —
-    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed), and the
-    // foreign-plan-id scan reads every row's (citation-stripped) text, exempt rows included (#1749).
+    // own-token satisfaction may come from an exempt row (#1666 stands, never narrowed). The
+    // foreign-plan-id scan reads every row's text, exempt rows included (#1749), with citations
+    // stripped only where a row sets idText. Intent warns and launches (#2375), backstops and
+    // adjudications refuse, and ruledAsks and seededPhaseClose rows neither refuse nor warn (#2208,
+    // #2197). A foreign path outside a stripped citation never vouches for the plan, so the own-token
+    // search reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an
+    // intent the foreign arm no longer refuses. A stripped citation stays evidence, because stacked
+    // plans share slug words.
     const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
     if (!evidenceText) continue
     const planIds = idText.match(PLAN_ID_RE) || []
-    const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
-    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(evidenceText))
+    const foreignIds = [...new Set(ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : [])]
+    const tokenText = foreignIds.reduce((t, id) => t.split(id).join(' '), evidenceText)
+    const ownTokenMiss = scanText && ownTokens.length && !ownTokens.some(t => tokenRe(t).test(tokenText))
     // Coordinate-less pre-check (#1882): a ruled-ask record without its REQUIRED planSlug coordinate
     // is the shape a legacy `{ title, suggested_fix, ruling }` record arrives in. When such a record
     // is what fails the own-token floor, the refusal names the missing coordinate — the actual
     // cause — before the generic own-token message could misname it. A coordinate-less record whose
     // surface still carries an own token clears the floor and is dropped LOUDLY at the intake below.
     const coordinateLess = rows.find(r => r.coordinateLessName)
-    if (foreignIds.length) {
+    if (argName === 'intent' && foreignIds.length) log('workflow-template: args.intent names a foreign docs/plans identifier (' + foreignIds.join(', ') + ') differing from plan.file — a warning for the Lead, not a refusal; check that it is content and not a cross-plan args leak (#2375)')
+    if (foreignIds.length && (argName === 'backstops' || argName === 'adjudications')) {
       provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
     } else if (ownTokenMiss) {
       provenanceProblems.push(coordinateLess
