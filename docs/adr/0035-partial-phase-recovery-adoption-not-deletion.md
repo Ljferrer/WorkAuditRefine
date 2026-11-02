@@ -40,7 +40,8 @@ becomes a land or escalation enum member.**
    and the first-parent history above the phase integration base — the integration branch's fork point off
    the working branch, `git merge-base <adopted tip> <working branch>`, not the adopted tip of item 1 —
    holds a merge commit whose parsed `WAR-Task` trailer names the task branch and whose second parent equals
-   the task tip, with the task's content across that merge's changed paths intact at the tip. Worker
+   the task tip, with the task's content across that merge's changed paths intact at that merge and changed
+   later only by other tasks' merge commits (#2571). Worker
    commits need no trailer, so untrailered floor-fix, ace and revert commits prove through the merge commit.
    A zero-commit branch, a fast-forward-only branch and a sibling's merge commit never prove the task: a
    zero-commit branch is vacuously an ancestor but has no merge commit naming it, so it takes the ordinary

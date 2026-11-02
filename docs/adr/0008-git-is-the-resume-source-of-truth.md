@@ -18,8 +18,9 @@ Recovery auto-skips additionally require `task-integrated.sh` proof: integrated 
 first-parent merge commit in the phase history whose parsed `WAR-Task: <task branch>` trailer names the
 task and whose second parent equals the task tip (merge-commit provenance, ADR 0054). The engine writes
 that commit, so worker commits need no trailer, and the committed provenance survives cloning and
-rebasing. Unchanged task content across the paths that merge commit changed (`M^1..M^2`) at integration is
-also required, with stable input refs. A fast-forward-only, zero-commit or sibling-only branch has no such
+rebasing. Unchanged task content at that merge commit across the paths it changed (`M^1..M^2`) is also
+required, and each later first-parent change to those paths must be another task's merge commit (#2571),
+with stable input refs. A fast-forward-only, zero-commit or sibling-only branch has no such
 merge commit and cannot establish that attribution. Later reverts or removals cannot count as completed
 work merely because ancestry remains. Each probe uses its own repository and base (submodule
 targetRepo/targetBase). Untagged legacy, cancelled-owned and changed-content branches take ordinary
