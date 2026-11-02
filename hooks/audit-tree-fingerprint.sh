@@ -646,20 +646,20 @@ marker_root_of() {
   done
 }
 
-# link_roots <path>: when <path> is a link chain that ends at a file, the
-# .war-task root of each hop's folder, one per line. The reader passes through
-# each hop, so a link retargeted in a middle worktree changes what it reads. A
-# dangling chain or a cycle reads nothing and adds nothing. The hop limit is the
-# kernel's.
+# link_roots <path>: when <path> is a link chain that ends at something that
+# exists, the .war-task root of each hop's folder, the first link's included,
+# one per line. The reader passes through each hop, so a link retargeted in any
+# of them changes what it reads. A dangling chain or a cycle reads nothing and
+# adds nothing. The hop limit is the kernel's.
 link_roots() {
-  _lh="$1"; _ln=0; _lhs=""
+  _lh="$1"; _ln=0; _lhs="$1$NL"
   while [ -L "$_lh" ] && [ "$_ln" -lt 32 ]; do
     _lt="$(readlink "$_lh")" || return 0
     case "$_lt" in /*) _lh="$_lt" ;; *) _lh="${_lh%/*}/$_lt" ;; esac
     _lhs="$_lhs$_lh$NL"
     _ln=$((_ln + 1))
   done
-  [ "$_ln" -gt 0 ] && [ -f "$_lh" ] || return 0
+  [ "$_ln" -gt 0 ] && [ -e "$_lh" ] || return 0
   printf '%s' "$_lhs" | while IFS= read -r _lx; do
     _lc="$(canon "${_lx%/*}")" && [ -n "$_lc" ] && marker_root_of "$_lc"
   done
@@ -677,8 +677,9 @@ link_roots() {
 # Read tool and git's in-repo rule read it. The reader the hook stands in
 # for may follow either rule, so both roots are printed, physical first
 # (deduped when the two ancestors agree; touch_line dedupes a shared root). A
-# link to a file fails the directory walk at the link's parent, and the reader
-# follows it, so link_roots adds the roots along the chain, on both readings.
+# link to a file fails the directory walk at the link's parent, and a link to a
+# directory jumps past its own folder, so link_roots adds the roots along the
+# chain, on both readings.
 task_worktree_of() {
   _p="$1"
   case "$_p" in /*) ;; *) _p="$cwd/$_p" ;; esac

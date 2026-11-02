@@ -933,8 +933,9 @@ PCWD="$MAIN"
 run "$_p"
 if [ "$RC" = 0 ] && touched_is pg2 "$WTR"; then pass "a relative Grep root folds against the payload cwd"; else fail "the relative lexical Grep root did not walk: |$(cat "$FP_ROOT/pg2/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" pg3)"
+_pg3s=0; in_start pg3 "$WTR" && _pg3s=1
 run "$(mk_grep "$AUD" pg3 "$MAIN/.claude/war-worktrees/r/nosuch")"
-if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg3/touched" ]; then pass "a missing Grep root walks no worktree (the exact folded dir, not its nearest ancestor)"; else fail "a missing Grep root walked: |$(cat "$FP_ROOT/pg3/touched" 2>/dev/null)|"; fi
+if [ "$_pg3s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg3/touched" ]; then pass "a missing Grep root walks no worktree (the exact folded dir, not its nearest ancestor)"; else fail "a missing Grep root walked: |$(cat "$FP_ROOT/pg3/touched" 2>/dev/null)|"; fi
 # The two readings disagree across a planted link: the kernel reads lnk/.. as
 # the run dir, and the fold reads it as the plain dir. Each holds a worktree.
 mkdir -p "$MAIN/.claude/war-worktrees/r/inner"
@@ -946,8 +947,9 @@ rm -f "$TMP/plain/lnk"
 # #2476 ruling: the glob override stays a recorded residual, so a glob-bearing
 # Grep from the main checkout still follows the git-pattern rule.
 run "$(mk_start "$AUD" pg5)"
+_pg5s=0; in_start pg5 "$WTR" && _pg5s=1
 run "$(mk_tool "$AUD" pg5 Grep '{"pattern":"base","glob":".claude/**"}')"
-if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg5/touched" ]; then pass "a glob-bearing Grep keeps the git-pattern rule (recorded residual)"; else fail "a glob-bearing Grep walked an excluded worktree: |$(cat "$FP_ROOT/pg5/touched" 2>/dev/null)|"; fi
+if [ "$_pg5s" = 1 ] && [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pg5/touched" ]; then pass "a glob-bearing Grep keeps the git-pattern rule (recorded residual)"; else fail "a glob-bearing Grep walked an excluded worktree: |$(cat "$FP_ROOT/pg5/touched" 2>/dev/null)|"; fi
 git -C "$MAIN" worktree remove --force "$MAIN/.claude/war-worktrees/r/wtR"
 git -C "$MAIN" branch -q -D rwalk
 git -C "$MAIN" worktree remove --force "$TMP/plain/mid/wtP"
@@ -1790,10 +1792,29 @@ seat_read_touches pb7b "$TMP/wtA/nosuch/../lnkf"
 if touched_has pb7b "$WTA" && touched_has pb7b "$WTB"; then pass "a folded path through a file link touches the target's worktree"; else fail "a folded file link missed a worktree: |$(cat "$FP_ROOT/pb7b/touched" 2>/dev/null)|"; fi
 seat_read_touches pb7c "$TMP/wtA/lnkh"
 if touched_has pb7c "$WTA" && touched_has pb7c "$WTB" && touched_has pb7c "$WTD"; then pass "a link chain touches the worktree of each hop"; else fail "a link chain missed a hop: |$(cat "$FP_ROOT/pb7c/touched" 2>/dev/null)|"; fi
+# A chain that ends at a directory: each hop's worktree, the first link's too.
+ln -s ../wtD/ddir "$TMP/wtB/lnkn"
+ln -s ../wtB/lnkn "$TMP/wtA/lnki"
+mkdir -p "$TMP/wtD/ddir"
+seat_read_touches pb7d "$TMP/wtA/lnki"
+if touched_has pb7d "$WTA" && touched_has pb7d "$WTB" && touched_has pb7d "$WTD"; then pass "a link chain that ends at a directory touches the worktree of each hop"; else fail "a directory link chain missed a hop: |$(cat "$FP_ROOT/pb7d/touched" 2>/dev/null)|"; fi
+rm -f "$TMP/wtA/lnki" "$TMP/wtB/lnkn"
+rmdir "$TMP/wtD/ddir"
 seat_read_touches pb8 "$TMP/wtA/lnkd"
 if [ "$RC" = 0 ] && touched_is pb8 "$WTA"; then pass "a Read through a dangling link touches only the link's worktree"; else fail "a dangling link touched: |$(cat "$FP_ROOT/pb8/touched" 2>/dev/null)|"; fi
-seat_read_touches pb8a "$TMP/wtA/lnkc"
-if [ "$RC" = 0 ] && touched_is pb8a "$WTA"; then pass "a Read through a link cycle ends and touches only the link's worktree"; else fail "a link cycle touched: |$(cat "$FP_ROOT/pb8a/touched" 2>/dev/null)|"; fi
+# The hop limit is the only stop on a cycle, so this call runs under a kill: a
+# regression fails this row and never stalls the suite.
+run "$(mk_start "$AUD" pb8a)"
+_p="$(mk_read "$AUD" pb8a "$TMP/wtA/lnkc")"
+printf '%s' "$_p" > "$TMP/pb8a.json"
+bash "$HOOK" < "$TMP/pb8a.json" >/dev/null 2>&1 &
+_hp=$!
+_hw=0
+while kill -0 "$_hp" 2>/dev/null && [ "$_hw" -lt 30 ]; do sleep 1; _hw=$((_hw + 1)); done
+_hung=0
+if kill -0 "$_hp" 2>/dev/null; then _hung=1; kill -9 "$_hp" 2>/dev/null; fi
+wait "$_hp" 2>/dev/null
+if [ "$_hung" = 0 ] && touched_is pb8a "$WTA"; then pass "a Read through a link cycle ends and touches only the link's worktree"; else fail "a link cycle hung=$_hung touched: |$(cat "$FP_ROOT/pb8a/touched" 2>/dev/null)|"; fi
 rm -f "$TMP/wtA/lnkf" "$TMP/wtA/lnkg" "$TMP/wtA/lnka" "$TMP/wtA/lnkd" "$TMP/wtA/lnkc" "$TMP/wtA/lnkh" "$TMP/wtB/lnkm"
 
 # A mark a worker wrote never prints its own words in the reason.
