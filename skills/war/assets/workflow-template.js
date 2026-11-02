@@ -294,7 +294,9 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // Workflow re-dispatches the land while the marker rides its contracted status:'error' pair (a landed
   // result carrying a stray marker stands) at the initial land and both *-proceed re-lands (FLOOR_STATUSES
   // retry-loop idiom, bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
-  // segment_note: free-text progress note — rendered into the continuation log line only, never routed on.
+  // segment_note: free-text note, never routed on. Beside land_segment or gate_segment it is a progress
+  // note for the continuation log line. On a land-advance escalate it carries the command's stderr, so
+  // the die text reaches the Lead through the escalation's detail (#1837).
   land_segment: { enum: ['incomplete'] },
   // gate_segment (D7, PIN-11, A4, #2086): the merge-task twin of land_segment — the literal
   // 'incomplete' riding status:'error' when a merge-task dispatch is FORCED to return before its
@@ -1065,7 +1067,8 @@ const pushFindingRowProblems = (at, rows, tag, severities = null) => rows.forEac
 })
 if (A.seededPhaseClose !== undefined && A.seededPhaseClose !== null) {
   if (!Array.isArray(A.seededPhaseClose)) problems.push('workflow-template: args.seededPhaseClose must be an array of carried finding rows or absent (got ' + typeof A.seededPhaseClose + ') (D3b)')
-  else pushFindingRowProblems('args.seededPhaseClose', A.seededPhaseClose, 'D3b', ['Minor', 'Nit'])   // every carriedPhaseClose producer emits absorbs — a seeded blocker refuses at entry (snipe: cascading-impact)
+  // every carriedPhaseClose producer emits absorbs — a seeded blocker refuses at entry (snipe: cascading-impact)
+  else pushFindingRowProblems('args.seededPhaseClose', A.seededPhaseClose, 'D3b', ['Minor', 'Nit'])
 }
 //   (7) FINAL-PHASE class (in-band-absorb-default D3a) — args.finalPhase is the terminal pass's
 //       finality signal: a boolean, or absent (reads as FINAL, so a missed thread files a visible
@@ -1784,7 +1787,8 @@ const demote = (f, to, why, opts) => {
     why = 'demote:unclassified — ' + why
   }
   const k = remintKey(f)
-  if (opts && opts.reverted) revertedKeys.add(k)   // the oscillation bound stamps on EVERY forward-revert demote, note arm included, before the consult below
+  // the oscillation bound stamps on EVERY forward-revert demote, note arm included, before the consult below
+  if (opts && opts.reverted) revertedKeys.add(k)
   if (to !== 'note') {
     const prior = acedKeys.has(k) ? 'the aced record' : filedKeys.has(k) ? 'the filed follow-up record' : null
     if (prior) {
@@ -2627,7 +2631,9 @@ const gitBoundGateSha = (result, proof, context) => {
   return rest
 }
 const reconcileMerge = async (original, opts, context, before, lost) => {
-  const cause = deathOf(lost) || 'missing or error merge response'
+  // A land-advance escalate keeps its stderr on each route out of here, so the Lead reads it (#1837).
+  const note = lost && typeof lost.segment_note === 'string' ? lost.segment_note : ''
+  const cause = (deathOf(lost) || 'missing or error merge response') + (note ? ': ' + note : '')
   const success = context.land ? 'landed' : 'merged'
   const mode = context.land ? 'land-phase' : 'merge-task'
   log(opts.label + ': uncertain merge response; reconciling Git in-phase before any land (' + cause + ')')
@@ -2661,10 +2667,10 @@ ORIGINAL OPERATION (all requirements still apply):
     if (recovered.outcome === 'unmerged' && recovered.local_sha === before.base_sha && sameRemote(recovered.remote_sha, before.remote_sha) && sourceGitMatches(recovered, before, context.land) &&
         (!recovered.result || (recovered.result.mode === mode && !['merged', 'landed'].includes(recovered.result.status)))) {
       auditLog.push({ task: context.task, verdict: 'git-reconciled:unmerged', findings: [], site: opts.label, before, after: recovered })
-      return recovered.result || lost
+      return recovered.result ? (note && !recovered.result.segment_note ? { ...recovered.result, segment_note: note } : recovered.result) : lost
     }
   }
-  throw new Error('Uncertain Git mutation at ' + opts.label + ': automatic refiner reconciliation could not establish certainty after ' + roundLimit + ' attempts; hold before land')
+  throw new Error('Uncertain Git mutation at ' + opts.label + ': automatic refiner reconciliation could not establish certainty after ' + roundLimit + ' attempts; hold before land' + (note ? ': ' + note : ''))
 }
 const uncertainMerge = result => !!deathOf(result) || !result || result.status === 'error' || !MERGE_RESULT.properties.status.enum.includes(result.status)
 const reconciledMerge = async (prompt, opts, context, invoke = dispatchSite) => {
@@ -6692,6 +6698,7 @@ if (landDecision === 'landed') {
   // KNOWN_LAND_DECISIONS member (land-decision.mjs untouched, ADR 0005). segmentedLand below appends
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
+  const landErrorArm = pt`return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }`
   const segmentedLandClause =
     pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)
@@ -6710,7 +6717,7 @@ if (landDecision === 'landed') {
     + pt`     - On reland exit code (rejected push — origin/${ph.workingBranch} moved): re-fetch origin/${ph.workingBranch}, re-merge, re-run gate, retry land-advance. `
     + pt`Repeat up to roundLimit (${roundLimit}) times total.\n`
     + relandDiscrimination(ph.workingBranch)
-    + pt`     - On escalate exit code from land-advance (any non-rejection push error): return { mode: 'land-phase', status: 'error' }.\n`
+    + pt`     - On any other exit from land-advance: ` + landErrorArm + pt`.\n`
     + pt`Never use --force push. Never merge or push from the Lead's main checkout.`
     + submodLandNote
   // ---- SEGMENTED LAND — one helper on every land dispatch site (D5, PIN-9, #1797/#1805) ----
@@ -6805,7 +6812,7 @@ if (landDecision === 'landed') {
       + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
       + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
       + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
-      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -6855,7 +6862,7 @@ if (landDecision === 'landed') {
       + pt`The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
       + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
       + pt`  2. Merge --no-ff ${ph.integrationBranch}.\n` + PROVISION_RERUN_CLAUSE + pt`     Then run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
-      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); on any exit but 0 or 2, ` + landErrorArm + pt`. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
       + relandDiscrimination(ph.workingBranch)
       + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })

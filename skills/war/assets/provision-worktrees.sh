@@ -1279,6 +1279,9 @@ cmd_teardown_phase() {
 # subcommand, not a new CLI arg — captured at the last moment before the push so
 # it cannot go stale in caller prose (smallest race window).
 #
+# <new-sha> resolves to its full SHA first (#1837), so each compare below reads two
+# full SHAs. A value that does not resolve stays as given for step 0b's die.
+#
 # 0. LAND-TRUTH GUARD (anchor = the pre-push ORIGIN tip, NOT the local follower
 #    refs/heads/<working>, which lags). Read `git ls-remote origin
 #    refs/heads/<working>` before the push and branch on it:
@@ -1321,11 +1324,14 @@ cmd_teardown_phase() {
 #      the caller re-fetches origin/<working>, re-merges, and retries.
 #      Do NOT key on the literal "non-fast-forward" — red-team proved it is NOT
 #      reliably emitted for this push form. [rejected] is the canonical token.
-#    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3).
+#    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3), and the
+#      die carries the push output.
 #      Never infer success from absence of [rejected] alone — require exit 0.
 #
 # 3. ONLY on push success AND ls-remote origin == new_sha: advance the local follower ref:
-#    On readback mismatch (origin not at <new-sha>) → exit 3 (escalate); local ref unchanged.
+#    On a readback that fails or differs, wait 2 s and read origin once more. A second
+#    miss → exit 3 (escalate) with a loud die that names both SHAs and the sync-follower
+#    reconcile hint; local ref unchanged.
 #    git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
 #    A rejected push leaves the local refs/heads/<working> UNCHANGED — nothing
 #    to rewind.
@@ -1350,6 +1356,12 @@ cmd_land_advance() {
   [ -n "$new_sha" ]  || die "land-advance: empty <new-sha>"
 
   git_dir >/dev/null
+
+  # A short <new-sha> reads as a mismatch against each full SHA that ls-remote
+  # returns: the push lands, then the readback exits 3 (#1837), and the phantom and
+  # already-landed arms never match. Use the full SHA from here on. A value that does
+  # not resolve stays as given, so the wrong-HEAD precheck dies on it as before.
+  full_sha="$(git rev-parse --verify --quiet "$new_sha^{commit}" 2>/dev/null)" && new_sha="$full_sha"
 
   # Capture the local tip of refs/heads/<working> before pushing.
   # This is the CAS expected-value for the update-ref AND the phantom-vs-already-
@@ -1420,7 +1432,7 @@ cmd_land_advance() {
     return 0
   fi
   # else: pre_push_origin is non-empty and != new_sha -> normal path below (push,
-  # [rejected] classification, post-push readback, follower CAS), byte-unchanged.
+  # [rejected] classification, post-push readback, follower CAS).
 
   # --- Wrong-HEAD precheck (§4.4, spec decision 8) --------------------------
   # The push below uses the NAMED source `HEAD:` (never a bare-SHA refspec —
@@ -1457,10 +1469,17 @@ cmd_land_advance() {
     # origin actually holds <new-sha>; else escalate.
     # DEFENSE IN DEPTH (§4.4): the wrong-HEAD precheck above now intercepts the
     # deterministic wrong-cwd no-op pre-push, leaving a mid-push origin race as
-    # the reachable route here — the branch stays deliberately (declared
-    # backstop: not deterministically fixture-able).
-    actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)"
-    [ "$actual" = "$new_sha" ] || exit 3
+    # the reachable route here. A lag can clear, so a miss reads once more after
+    # 2 s. A failed ls-remote is a miss too, and never exits with Git's own code.
+    # The lagging-ls-remote git wrapper in provision-worktrees.test.sh fixtures this
+    # branch (rows LA.1 to LA.4).
+    actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || actual=""
+    if [ "$actual" != "$new_sha" ]; then
+      sleep 2
+      actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || actual=""
+    fi
+    [ "$actual" = "$new_sha" ] \
+      || die "land-advance: the push exited 0, but origin's '$working' reads '${actual:-no tip, or the read failed}' after 2 reads, not <new-sha> $new_sha; the local follower did not move. Check origin. If the land is real, run 'provision-worktrees.sh sync-follower $working' in this repo to reconcile the follower. Escalate." "$EX_FOREIGN"
     # Success: advance the local follower ref with a CAS update-ref.
     # If there was no pre-push local tip, create the ref unconditionally.
     if [ -n "$pre_push_local" ]; then
@@ -1484,8 +1503,8 @@ cmd_land_advance() {
   esac
 
   # Any other non-zero (network failure, bad URL, permission error, etc.)
-  # → escalate. The Lead must intervene.
-  exit 3
+  # → escalate. The Lead must intervene, and the push output is the evidence.
+  die "land-advance: git push failed (rc=$push_rc): $push_output Escalate." "$EX_FOREIGN"
 }
 
 # --- subcommand: sync-follower ----------------------------------------------
@@ -1495,7 +1514,8 @@ cmd_land_advance() {
 # needs nothing — cmd_land_advance already does the post-push origin readback +
 # follower CAS + ALREADY-LANDED reconcile, and cmd_ensure_integration's create
 # path reconciles local-vs-origin before cutting (landed in #593). This
-# subcommand CITES that mechanization; it does NOT rebuild it. It exists only to
+# subcommand CITES that mechanization; it does NOT rebuild it. It also reconciles
+# the follower after a land-advance readback die. Otherwise it exists only to
 # ASSERT, after a MANUAL escalation-completion / held:land-failed land, that the
 # local follower ref matches origin — catching a recipe deviation (a raw
 # `git push` instead of land-advance) before the next phase consumes a stale

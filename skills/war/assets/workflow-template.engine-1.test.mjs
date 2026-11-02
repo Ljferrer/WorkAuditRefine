@@ -10877,6 +10877,59 @@ test('segmented-land: marker-absent negative control — a bare status:error lan
   assert.ok((out.escalated || []).some(e => e && e.task === 'phase-3-land' && e.reason === 'error'), 'the escalation record carries the error status')
 })
 
+// #1837: the land-advance die text is the Lead's first look at a readback miss. Each land prompt orders
+// it into segment_note, and the escalation's detail carries it to the Lead. It never routes.
+test('land-advance escalate: each land site orders stderr into segment_note, and the escalation detail carries it', async () => {
+  const die = 'land-advance: the push exited 0, but origin reads abc'
+  const armOf = prompt => prompt.split('\n').filter(l => l.includes('land-advance') && l.includes("status: 'error'")).join('\n')
+  const held = { mode: 'land-phase', status: 'error', segment_note: die }
+
+  const initial = (prompt, opts) => /^land:phase-3(:|$)/.test(opts.label || '') ? held : defaultImpl(prompt, opts)
+  const first = await runPhase(PROVISION_ARGS(), initial)
+  const lands = first.calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
+  assert.equal(lands.length, 1, 'the note alone never re-dispatches the land')
+  assert.match(armOf(lands[0].prompt), /any other exit from land-advance: return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
+  assert.equal(first.out.landDecision, 'held:land-failed', 'the note never changes the route')
+  const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
+  assert.equal(row && row.detail && row.detail.segment_note, die, 'the escalation detail carries the die text')
+
+  for (const [flavor, result] of [
+    ['environment-proceed', envLandResult],
+    ['baseline-proceed', () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' })],
+  ]) {
+    const impl = (prompt, opts) => (opts.label || '') === 'land:phase-3:' + flavor ? held : clsImpl({ landResult: result })(prompt, opts)
+    const { out, calls } = await runPhase(CLS_ARGS(), impl)
+    const reland = calls.find(c => c.opts.label === 'land:phase-3:' + flavor)
+    assert.ok(reland, flavor + ': presence guard, the re-land dispatches')
+    assert.match(armOf(reland.prompt), /on any exit but 0 or 2, return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
+    assert.equal(out.landDecision, 'held:land-failed', flavor + ': a re-land error holds the phase')
+    const held2 = (out.escalated || []).find(e => e && e.task === 'phase-3-land')
+    assert.equal(held2 && held2.detail && held2.detail.segment_note, die, flavor + ': the escalation detail carries the die text')
+  }
+})
+
+// #1837: each land status:'error' enters reconcileMerge first. The die text survives each route out.
+test('land-advance escalate: the die text survives reconciliation', async () => {
+  const die = 'land-advance: the push exited 0, but origin reads abc'
+  const land = (prompt, opts) => /^land:phase-3(:|$)/.test(opts.label || '') ? { mode: 'land-phase', status: 'error', segment_note: die } : defaultImpl(prompt, opts)
+  const unmerged = { ...NEW_SEAT_DEFAULTS['merge-reconcile'], result: { mode: 'land-phase', status: 'error' } }
+  const first = await runPhase(PROVISION_ARGS(), land, { 'merge-reconcile': () => unmerged })
+  const seat = first.calls.find(c => c.opts.dispatchKind === 'merge-reconcile')
+  assert.ok(seat && seat.prompt.includes('Prior response: missing or error merge response: ' + die), 'the recovery refiner reads the die text')
+  assert.equal(first.out.landDecision, 'held:land-failed', 'a recovered error result still holds the phase')
+  const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
+  assert.equal(row && row.detail && row.detail.segment_note, die, 'a result with no note keeps the die text')
+
+  const own = { ...unmerged, result: { mode: 'land-phase', status: 'error', segment_note: 'the second die' } }
+  const second = await runPhase(PROVISION_ARGS(), land, { 'merge-reconcile': () => own })
+  const row2 = (second.out.escalated || []).find(e => e && e.task === 'phase-3-land')
+  assert.equal(row2 && row2.detail && row2.detail.segment_note, 'the second die', 'a recovered note stands')
+
+  const third = await runPhase(PROVISION_ARGS({ run: { roundLimit: 1 } }), land, { 'merge-reconcile': () => ({ ...unmerged, outcome: 'uncertain' }) })
+  assert.equal(third.out.landDecision, 'held:workflow-error', 'an uncertain reconciliation holds before land')
+  assert.ok(JSON.stringify(third.out).includes('hold before land: ' + die), 'the held record carries the die text')
+})
+
 // --- budget-uncited at the re-merge sites (D6, PIN-10, #1736) ------------------------------------
 test('re-merge: budget-uncited escalates as budget-uncited — the environment-proceed and baseline-proceed re-merges route through routedMr and hold HARD under the real name', async () => {
   const uncited = { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }
