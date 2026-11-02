@@ -18,11 +18,13 @@ Recovery auto-skips additionally require `task-integrated.sh` proof: integrated 
 first-parent merge commit in the phase history whose parsed `WAR-Task: <task branch>` trailer names the
 task and whose second parent equals the task tip (merge-commit provenance, ADR 0054). The engine writes
 that commit, so worker commits need no trailer, and the committed provenance survives cloning and
-rebasing. Unchanged task content across the paths that merge commit changed (`M^1..M^2`) at integration is
-also required, with stable input refs. A fast-forward-only, zero-commit or sibling-only branch has no such
-merge commit and cannot establish that attribution. Later reverts or removals cannot count as completed
+rebasing. Unchanged task content at that merge commit across the paths it changed (`M^1..M^2`) is also
+required, and each later first-parent change to those paths must be another task's merge commit (#2571),
+with stable input refs. A fast-forward-only, zero-commit or sibling-only branch has no such
+merge commit and cannot establish that attribution. Later reverts or removals outside another task's
+merge commit cannot count as completed
 work merely because ancestry remains. Each probe uses its own repository and base (submodule
-targetRepo/targetBase). Untagged legacy, cancelled-owned and changed-content branches take ordinary
+targetRepo/targetBase). Untagged legacy, cancelled-owned and unattributed-change branches take ordinary
 work/audit; a shared commit count or local marker cannot establish task ownership (#2196).
 
 ## Considered options
@@ -50,3 +52,4 @@ work/audit; a shared commit count or local marker cannot establish task ownershi
 - 2026-09-09 · Operator authorized Git-resident task provenance before automatic recovery skips;
   sibling-only, empty-tagged and untagged legacy branches cannot be marked complete (#2196).
 - 2026-10-30 · The recovery auto-skip proof moved from a worker-written `WAR-Task` commit trailer to the engine's first-parent task merge commit; git stays the source of truth and the repair direction is unchanged · plan `docs/plans/2026-10-28-blocked-ace-and-merge-provenance.md` D8, D14, Task 5.2 · [ADR 0054](0054-merge-commit-provenance-and-the-blocked-ace-tip-probe.md).
+- 2026-11-02 · The recovery content proof moved from the task tip against the integration tip to the task tip against merge commit `M`, and each later first-parent change to an owned path must be another task's merge commit (#2571).

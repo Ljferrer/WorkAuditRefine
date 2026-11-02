@@ -102,6 +102,7 @@ in [refiner-recovery.md](refiner-recovery.md#recovery-task-provenance). The proo
 first-parent merge commit: a commit on the integration branch's first-parent history whose parsed
 `WAR-Task: <task branch>` trailer names the task and whose second parent is the task tip. A
 positive shared-phase commit count cannot prove ownership, and a fast-forward-only branch has no
-merge commit, so it never proves. The merge commit's own change set must remain unchanged at
-integration, even when a change restores the phase-base state. Cancelled owned work, fast-forward-only
+merge commit, so it never proves. Task content must match at the merge commit across its own change
+set, and each later first-parent change to those paths must be another task's merge commit (#2571).
+Any other later change refuses, even when it restores the bytes. Cancelled owned work, fast-forward-only
 and untagged legacy branches run through work/audit again (#2196, #2485).

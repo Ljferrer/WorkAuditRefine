@@ -135,12 +135,15 @@ commit, not any worker commit, carries ownership, so untrailered floor-fix, ace 
 on the task branch prove through it. A fast-forward-only branch, a zero-commit branch and another
 task's merge commit never prove this task. The owned paths are the merge's own change set,
 `<merge>^1..<merge>^2`, preserving rename sides, Gitlinks, modes and deletions, so a task whose
-commits net back to the phase base still proves. Final task/integration content must match on
-every owned path.
+commits net back to the phase base still proves. Task content must match at the merge commit on
+every owned path. Every later first-parent commit that changes an owned path must be a two-parent
+merge commit whose parsed `WAR-Task` trailer names one other task branch. Any other later change,
+including a direct commit, a polish commit, a revert or a merge naming this task, is no proof.
+A sibling's merge can rewrite an owned path and still pass, because that merge passed its own audit.
 NUL-delimited literal paths preserve filename syntax; input refs are re-read before success.
 Only the complete result permits `preMerged`. Exit 1 (`NO_TASK_PROOF`) takes ordinary ensure-worktree
 and work/audit, including sibling-only, zero-commit, empty-tagged, untagged legacy, fast-forward-only,
-cancelled-owned or changed-content branches. No new phase hold is introduced for absent proof.
+cancelled-owned or unattributed-change branches. No new phase hold is introduced for absent proof.
 Exit 2 or any unrecognized failure stops the barrier with the command and stderr recorded.
 Never replace the helper with ancestor plus a shared commit count. Trailers are committed Git
 provenance, available after cloning on another machine; no local marker, reflog, label or journal

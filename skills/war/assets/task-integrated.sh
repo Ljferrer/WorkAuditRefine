@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prove task-specific work already reached integration before a recovery skip.
 # Usage (from the repository): task-integrated.sh <task-branch> <integration> <working>
-# Exit 0: integrated task provenance and preserved final content; 1: no proof, run work/audit;
+# Exit 0: integrated task provenance, with task content intact at its merge commit and changed
+# later only by other tasks' merge commits; 1: no proof, run work/audit;
 # 2: Git/usage error, stop recovery. Branches are local names, never revision expressions.
 # Ownership comes from the engine's task merge commit (#2485 D14): a first-parent commit of the
 # phase whose parsed WAR-Task trailer names the task branch and whose second parent is the task tip.
@@ -44,18 +45,28 @@ done
 [ -n "$merge_commit" ] || no_proof "$task_branch has no WAR-Task merge commit"
 # The merge commit is the ownership proof, so a task whose commits net to zero still proves.
 # Its owned paths are the merge's own change set, M^1..M^2: keep rename sides, Gitlinks, modes
-# and deletions, and require each path's task content to survive at integration.
+# and deletions. A later sibling may build on an owned path (#2571), so each path's task content
+# must match at M, and each later first-parent change to it must be another task's merge commit.
+# The walk stops at M..<integration tip>, the same bound as the absorb-charge read.
 proof_paths=$(mktemp "${TMPDIR:-/tmp}/war-task-integrated.XXXXXX") || die 'cannot allocate proof paths'
 trap 'rm -f "$proof_paths"' EXIT
 proof_diff --no-renames --name-only -z "$merge_commit^1" "$merge_commit^2" -- > "$proof_paths" || die 'cannot read owned task paths'
 while IFS= read -r -d '' proof_path; do
-  if proof_diff --quiet "$task_tip" "$integration_tip" -- "$proof_path"; then
+  if proof_diff --quiet "$task_tip" "$merge_commit" -- "$proof_path"; then
     :
   else
     result=$?
     [ "$result" -eq 1 ] || die 'cannot compare current task content'
-    no_proof "$task_branch changed-file content differs at integration"
+    no_proof "$task_branch changed-file content differs at its merge commit"
   fi
+  later_commits=$(git --literal-pathspecs rev-list --first-parent "$merge_commit..$integration_tip" -- "$proof_path") || die 'cannot read later integration history'
+  for commit in $later_commits; do
+    owner=$(git show -s --format='%(trailers:key=WAR-Task,valueonly)' "$commit") || die 'cannot read later task trailer'
+    parents=$(git show -s --format='%P' "$commit") || die 'cannot read later merge parents'
+    set -- $parents
+    [ "$#" -eq 2 ] && [ "$owner" != "$task_branch" ] && git check-ref-format "refs/heads/$owner" >/dev/null 2>&1 \
+      || no_proof "$task_branch owned path changed outside a sibling task merge"
+  done
 done < "$proof_paths"
 # The proof used immutable objects; refuse a stale result if any named input moved meanwhile.
 proof_refs=$(git rev-parse "refs/heads/$task_branch^{commit}" "refs/heads/$integration_branch^{commit}" "refs/heads/$working_branch^{commit}") || die 'cannot re-read proof refs'
