@@ -935,7 +935,8 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 // validateRoster). The rows are entry-validated below (class 10) before anything reads them.
 const reaOn = A.evidence === true
 const targetArtifacts = Array.isArray(A.targetArtifacts) ? A.targetArtifacts : []
-const droppedEvidenceRows = []   // '<task-id|audit.roster>:<lens>' per dropped row, for the loud line
+// '<task-id|audit.roster>:<lens>' per dropped row, for the loud line
+const droppedEvidenceRows = []
 const dropEvidenceRows = (roster, owner) => reaOn ? roster : roster.filter(s => {
   if (!isEvidenceRow(s)) return true
   droppedEvidenceRows.push(owner + ':' + String(s.lens))
@@ -1255,7 +1256,8 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // or warns (#2208), so its only effect is the own-token read-past, which also covers a citation
   // because these rows carry no idText. The planSlug stamp and the own-token check below still apply.
   const ruledAskRowText = row => {
-    if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
+    // a string row is its own scannable text (the sibling rowText discipline)
+    if (typeof row === 'string') return { text: row, exempt: false }
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
@@ -2210,11 +2212,13 @@ const corroborateSurvivor = f => {
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
     || phaseCloseQueue.find(q => remintKey(q) === k)
     || carriedPhaseClose.find(q => remintKey(q) === k)
-    || terminalQueue.find(q => remintKey(q) === k)   // last: a resolved terminal row lives on aced/carried by then (#2069)
+    // last: a resolved terminal row lives on aced/carried by then (#2069)
+    || terminalQueue.find(q => remintKey(q) === k)
     || [...liveTaskRecords].flatMap(r => [...(Array.isArray(r.reentryQueue) ? r.reentryQueue : []), ...(r.task && Array.isArray(r.task.pendingAbsorbs) ? r.task.pendingAbsorbs : [])]).find(q => remintKey(q) === k)
   if (!hit) { log('corroboration: no surviving record found for re-mint "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') — the re-raiser\'s attribution is not merged (logged, never silent).'); return null }
   mergeSeat(hit, f)
-  return hit   // demote()'s corroborating arm stamps its demoteReason onto the survivor
+  // demote()'s corroborating arm stamps its demoteReason onto the survivor
+  return hit
 }
 const routeReauditMinors = (r, seats, opts) => {
   liveTaskRecords.add(r)
@@ -2274,7 +2278,8 @@ const seatConflictsOf = seats => {
         const g = (a.findings || []).find(g => (g.severity === 'Minor' || g.severity === 'Nit') && sameLocus(f, g) && (scopeSided(f) || scopeSided(g)))
         if (g) { pair = { seat: s, finding: f, peerSeat: a, peer: g }; break }
       }
-      if (pair) pairs.push(pair)   // preserve paired questions even when another blocker is unrelated
+      // preserve paired questions even when another blocker is unrelated
+      if (pair) pairs.push(pair)
     }
   }
   return pairs.length ? pairs : null
@@ -2540,6 +2545,12 @@ const FIX_ROUND_DOCTRINE_CLAUSE = pt`\nFIX-ROUND DOCTRINE: you are dispatched fo
 // the TERMINAL PASS work from a listed set. Rule 1 still reaches each sibling of a listed finding's class,
 // and any other defect waits for a ruling. The sweep's discard guard depends on this limit (ADR 0012).
 const FIX_ROUND_SCOPE_CLAUSE = pt`FIX-ROUND SCOPE: a sibling site of a listed finding's defect class is in scope under rule 1. List any other defect you find under \`Ignore for now:\`, and never fix it in this commit.\n`
+// The fence for the bug class limit: a sibling site in a file another task, plan or the release slot
+// owns stays unedited, or that owner rebase-conflicts at its serial merge (sweep-exclusion.md). No floor
+// reads this set, so the prompt is the guard.
+const fixRoundFenceClause = paths => paths.length
+  ? pt`FIX-ROUND FENCE: another task, plan or the release slot owns these files, so never edit them, and list a sibling site in one under \`Ignore for now:\`: ` + [...paths].sort().join(', ') + '\n'
+  : ''
 // ---- TIP PROBE (#2485 D2, PIN-2) ----
 // After EVERY ace dispatch, dead or not, one read-only refiner reads the branch the ace wrote to (the
 // task branch, or the polish branch at the terminal site) from Git. `blocked` never means no commit,
@@ -3197,8 +3208,18 @@ const chainByTask = new Map()
 const chainOf = id => { if (!chainByTask.has(id)) chainByTask.set(id, { criticalPath: null, entries: [], survivors: new Set() }); return chainByTask.get(id) }
 const fixLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Fix:[^\n]*)/)
 const ignoreLineOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Ignore for now:[^\n]*)/)
+// The sweep and terminal workers cannot stop and ask, so their `Ignore for now:` line reaches the
+// operator as a phase-report note. It records dead and blocked results too, because a discarded
+// sweep's commit body never merges. A line that names nothing writes no row.
+const recordIgnoreList = (site, taskId, w) => {
+  const line = ignoreLineOf(w && w.notes)
+  if (!line || /^Ignore for now:\s*(none\b.*)?$/i.test(line)) return
+  log(site + ': the worker left defects for a ruling — ' + line)
+  notes.push({ task: taskId, title: site + ' left for a ruling: ' + line, severity: 'Nit', disposition: 'note' })
+}
 const criticalPathOf = notes => noteLineOf(notes, /(?:^|\n)[ \t]*(Critical path:[\s\S]*?(?:\n[ \t]*Ignore for now:[^\n]*|$))/)
-const indentLines = s => String(s).split('\n').join('\n      ')   // continuation lines of a multi-line rationale keep the row's indent
+// continuation lines of a multi-line rationale keep the row's indent
+const indentLines = s => String(s).split('\n').join('\n      ')
 // one derivation for the digest rows and the audit loop's survival registry
 const taskBlockerKey = (taskId, f) => remintKey({ task: taskId, ...f })
 const chainBlockerRow = task => f => ({ key: taskBlockerKey(task.id, f), title: f.title ?? null, file: f.file ?? null, severity: f.severity ?? null,
@@ -4174,7 +4195,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pendingRevert = null
         preSub = rv.tip
       }
-      const chainRound = correctiveRoundOf('ace', r.task)   // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
+      // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
+      const chainRound = correctiveRoundOf('ace', r.task)
       const sw = await dispatchSite(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
@@ -4207,8 +4229,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           for (const f of q.findings) routeToSweep(f, 'failed absorb — ' + why + '; bisection abandoned, remaining subsets route to the sweep')
         break
       }
-      r.task.absorbRounds++                              // each subset COMMIT charges one absorb slot (D4/D5) — never fixRounds
-      chainRecordFix(r.task, chainRound, sw, 'ace')   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+      // each subset COMMIT charges one absorb slot (D4/D5) — never fixRounds
+      r.task.absorbRounds++
+      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+      chainRecordFix(r.task, chainRound, sw, 'ace')
       const subSha = subProbe.tip_sha                    // the probed tip, never the worker's head_sha (PIN-2)
       // Gate at the subset tip FIRST (PIN-12), then the delta-scaled panel (D3/PIN-10). A red gate is
       // not a regression to bisect further: the subset is forward-reverted and its findings demote.
@@ -4279,7 +4303,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     while ((r.reentryQueue || []).length) {
       if (r.task.absorbRounds >= absorbRounds) {
         log('ace-reentry ' + r.task.id + ': budget-blocked — absorbRounds ' + r.task.absorbRounds + ' reached run.absorbRounds (' + absorbRounds + '); the fresh absorb(s) route phaseClose:true (the sweep is the fallback rung).')
-        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'budget-blocked re-entry (absorbRounds reached run.absorbRounds)')   // still queued (sweep queue now) — routeToSweep re-stamps queuedKeys
+        // still queued (sweep queue now) — routeToSweep re-stamps queuedKeys
+        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'budget-blocked re-entry (absorbRounds reached run.absorbRounds)')
         break
       }
       // Drain-time registry re-check (the oscillation bound, A1 + End state 6): the registries
@@ -4322,7 +4347,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         pendingRevert = null
         preRe = rv.tip
       }
-      const chainRound = correctiveRoundOf('ace', r.task)   // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
+      // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
+      const chainRound = correctiveRoundOf('ace', r.task)
       const rw = await dispatchSite(
         pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
@@ -4352,8 +4378,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
         break
       }
-      r.task.absorbRounds++                              // each re-entry COMMIT charges one absorb slot (D5) — never fixRounds
-      chainRecordFix(r.task, chainRound, rw, 'ace')   // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+      // each re-entry COMMIT charges one absorb slot (D5) — never fixRounds
+      r.task.absorbRounds++
+      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+      chainRecordFix(r.task, chainRound, rw, 'ace')
       const reSha = reProbe.tip_sha                      // the probed tip, never the worker's head_sha (PIN-2)
       const { red: reRed, died: reDied, seats: reS, expected: reE } = await aceReaudit(r, reSha, batch, aceEvidence(reProbe, rw))
       if (reDied) {
@@ -4512,7 +4540,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const openBlockers = blockingOf(r.seats).length
       if (openBlockers === 0 && aceable.length && r.task.absorbRounds < absorbRounds) {
         const aceCharge = aceChargeOf(r)
-        const chainRound = correctiveRoundOf('ace', r.task)   // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
+        // corrective round (D4, PIN-5): fixRounds + absorbRounds, never r.round
+        const chainRound = correctiveRoundOf('ace', r.task)
+        // The bug class fence for this task (fixRoundFenceClause): campaign files, each unmerged peer's
+        // Files: and the release slot, less the files this task owns.
+        const polishOwn = new Set((Array.isArray(r.task.files) ? r.task.files : []).map(aceRelPath))
+        const polishFence = [...new Set([
+          ...(Array.isArray(A.sweepExclude) ? A.sweepExclude.flatMap(e => e.files) : []),
+          ...tasks.filter(t => !done.has(t.id)).flatMap(t => Array.isArray(t.files) ? t.files : []),
+          ...RELEASE_SLOT_FILES,
+        ].map(aceRelPath))].filter(p => typeof p === 'string' && p && !polishOwn.has(p))
         const ace = await dispatchSite(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
@@ -4527,6 +4564,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + chainFixClause(r.task, chainRound, 'ace advisory polish', aceable.map(relationTagOf))
           + FIX_ROUND_DOCTRINE_CLAUSE
           + FIX_ROUND_SCOPE_CLAUSE
+          + fixRoundFenceClause(polishFence)
           + releaseSlotAceClause(r.task) + ACE_DIFF_FILES_CLAUSE + intentClause + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClauseOf(r.task),
           { agentType: NS + 'war-worker', phase: 'Audit', label: aceLabel(r, 'polish'), schema: WORKER_RESULT, ...spawnWorker('ace') })
         // an ace worker death (D21) takes the existing failed-attempt arm, site-named
@@ -4543,7 +4581,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           if (aceWhy) log('ace ' + r.task.id + ': the ace worker reported "' + aceWhy + '", but the tip probe found ' + aceProbe.count + ' commit(s) above ' + preAce + ' at ' + aceProbe.tip_sha + ' — re-audited as an implemented ace (PIN-3), never left unjudged.')
           // the batch ace COMMIT charges one absorb slot (D5) — fixRounds untouched (PIN-7)
           r.task.absorbRounds++
-          chainRecordFix(r.task, chainRound, ace, 'ace')      // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+          // the ace fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+          chainRecordFix(r.task, chainRound, ace, 'ace')
           aceSha = aceProbe.tip_sha /* the batch ace commit */
           r.reentryBase = aceSha                       // re-entry preflight range anchor (PIN-15)
           const aceEv = aceEvidence(aceProbe, ace)
@@ -4809,7 +4848,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               const ask = conflictAsk(p)
               parkAsk({ task: task.id, seat: p.seat.seat ?? null, lens: p.seat.lens, sha: auditShaOrSentinel(p.seat.audit_sha), ...p.finding, disposition: 'ask', ask,
                 seatConflict: { blocking: { seat: p.seat.seat ?? null, lens: p.seat.lens, severity: p.finding.severity }, peer: { seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, severity: p.peer.severity } } })
-              if (!stamped.has(p.peer) && p.peer.disposition === 'ask' && p.peer.ask && p.peer.ask.question) {   // the peer already carried its own ask: park it before the overwrite
+              // the peer already carried its own ask: park it before the overwrite
+              if (!stamped.has(p.peer) && p.peer.disposition === 'ask' && p.peer.ask && p.peer.ask.question) {
                 parkAsk({ task: task.id, seat: p.peerSeat.seat ?? null, lens: p.peerSeat.lens, sha: auditShaOrSentinel(p.peerSeat.audit_sha), ...p.peer })
                 log('seat-conflict → ask (D19, PIN-23): task ' + task.id + ' — the peer row already carried its own ask; parked it before the conflict ask replaced the field (never a silent drop, #1790).')
               }
@@ -4856,9 +4896,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
         lastFixKeys = new Set(b.map(blockerKey))   // PIN-29: what this fix round was dispatched on
-        chainRecordFix(task, chainRound, fix)      // the fixer's Fix: / Ignore for now: lines, read from its notes (D2)
-        chainOf(task.id).survivors = lastFixKeys   // the digest carries full text for the survival registry only (D11)
-        pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
+        // the fixer's Fix: / Ignore for now: lines, read from its notes (D2)
+        chainRecordFix(task, chainRound, fix)
+        // the digest carries full text for the survival registry only (D11)
+        chainOf(task.id).survivors = lastFixKeys
+        // D2: re-pin to the fix-worker's new tip for the next round's audit
+        pin = fix && fix.head_sha
         round++
       }
       if (verdict === null) verdict = 'audit-blocked'
@@ -5426,7 +5469,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           let reSeats, reExpected, reDied
           // Corrective round 1 by definition (PIN-5): no round is threaded, so auditPrompt emits no backward-chain clause.
           ;({ seats: reSeats, expected: reExpected, died: reDied } = await auditRound(r.task, null, null, floorFix && floorFix.head_sha))
-          if (reDied) { mergeDied(reDied); floorMr = null; reAuditFailed = true; break }   // D21: a dead floor re-audit seat is env-died, never audit-blocked
+          // D21: a dead floor re-audit seat is env-died, never audit-blocked
+          if (reDied) { mergeDied(reDied); floorMr = null; reAuditFailed = true; break }
           const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
             : reSeats.some(s => s.verdict === 'escalate') ? 'escalate'
             : allApprove(reSeats, reExpected) ? 'approve' : 'request_changes'
@@ -5469,7 +5513,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const floorMrDeath = deathOf(floorMr)
           if (floorMrDeath) { mergeDied(floorMrDeath); floorMr = null; reAuditFailed = true; break }   // D21: a dead re-merge is env-died, never a floor status
-          if (provisionRed(floorMr)) { floorMr = null; reAuditFailed = true; break }   // D19: a failed provision re-run is env-blocked, never a floor status
+          // D19: a failed provision re-run is env-blocked, never a floor status
+          if (provisionRed(floorMr)) { floorMr = null; reAuditFailed = true; break }
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
@@ -5564,7 +5609,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') }, taskMergeContext))
           const epDeath = deathOf(ep)
-          if (epDeath) mergeDied(epDeath)   // D21: a dead environment-proceed re-merge is env-died, site-named
+          // D21: a dead environment-proceed re-merge is env-died, site-named
+          if (epDeath) mergeDied(epDeath)
           else if (provisionRed(ep)) {
             // D19: env-blocked, escalated inside provisionRed
           }
@@ -5628,7 +5674,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // ask still parks (#1550): the question survives the escalation for the Checkpoint gate,
       // never filed unruled with it.
       for (const f of taskMinors) {
-        const d = dispositionOf(f, null)   // no floor on the escalation arm: nothing lands this phase for the task
+        // no floor on the escalation arm: nothing lands this phase for the task
+        const d = dispositionOf(f, null)
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
         else if (d === 'follow-up') { f.floorSkipped = true; filedKeys.add(remintKey(f)); minorsFiled.push(f); log('escalation arm: seat-raised follow-up "' + (f.title ?? '') + '" (task ' + r.task.id + ') files with floorSkipped — no intake floor ran on a task that never reached the approve branch (the filed row carries demote:floor-skipped).') }   // #2050: the stamp site is never silent
         else demote(f, 'follow-up', 'demote:task-unapproved — task never reached the approve branch (verdict: ' + r.verdict + ') — filed with the escalation')
@@ -6331,7 +6378,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
       roster: defaultRoster,
       absorbRounds: 0,   // the terminal pass's telemetry counter (D3a) — seeded here, charged by its one commit, never a gate
-      planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
+      planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) and each sibling site of their defect class + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
     // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree,
     //    then run.provision and the provision_tree marker (#2485 D15).
     // provision mode (agents/war-refiner.md ## provision): phase-close polish worktree — env-outcome return.
@@ -6391,7 +6438,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
     sweep = await dispatchAgent(
       pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
       + intentClause
-      + pt`Fix ONLY the queued findings below — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), ${NEVER_MOVE_LITERAL}, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
+      + pt`Fix ONLY the queued findings below and each sibling site of their defect class — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), ${NEVER_MOVE_LITERAL}, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
       + pt`Queued findings (verbatim):\n`
       // Interpolation-guard rationale for these rows lives on queuedFindingRow's header comment.
       // citationStamp (D6, #1873): a citation-carrying absorb that aces through the sweep renders its
@@ -6404,6 +6451,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       + chainFixClause(polishTask, correctiveRoundOf('sweep', polishTask), 'phase-close sweep', [])
       + FIX_ROUND_DOCTRINE_CLAUSE
       + FIX_ROUND_SCOPE_CLAUSE
+      + fixRoundFenceClause([...sweepExcl.keys()])
       + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
       // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
@@ -6417,6 +6465,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
       sweepDeath = 'polish:phase-' + ph.id + ' sweep dispatch died post-spawn (env-died): ' + c
       log('phase-close sweep: ' + sweepDeath + ' — an environment event; fail-open, the DISCARD arm below handles it.')
     }
+    recordIgnoreList('phase-close sweep', polishTask.id, sweep)
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
     const sweepWhy = sweepDeath || blockedReason(sweep)
     let sweepApproved = false
@@ -6569,6 +6618,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           + chainFixClause(polishTask, correctiveRoundOf('terminal', polishTask), 'terminal pass', [])
           + FIX_ROUND_DOCTRINE_CLAUSE
           + FIX_ROUND_SCOPE_CLAUSE
+          + fixRoundFenceClause([...sweepExcl.keys()])
           + MEMORY_QUERY_TOOL_LINE + provisionClause + reaClause,
           { agentType: NS + 'war-worker', phase: 'Work', label: `terminal:phase-${ph.id}`, dispatchKind: 'terminal-pass', schema: WORKER_RESULT, ...spawnWorker('ace') })
         } catch (err) {
@@ -6577,6 +6627,7 @@ if (phaseCloseQueue.length > 0 && landDecision === 'landed') {
           twDeath = 'terminal:phase-' + ph.id + ' dispatch died post-spawn (env-died): ' + c
           log('terminal pass: ' + twDeath + ' — an environment event; fail-open, the rows carry or demote below.')
         }
+        recordIgnoreList('terminal pass', polishTask.id, tw)
         const twWhy = twDeath || blockedReason(tw)
         // The tip probe (#2485 D2): dead or not, blocked or not, the polish branch is read from Git.
         // Its pre-dispatch tip — and its approved tip — is the post-polish integrated tip, the

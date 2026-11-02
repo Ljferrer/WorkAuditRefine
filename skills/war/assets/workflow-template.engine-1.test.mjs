@@ -14409,7 +14409,8 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
       assert.ok(kept && kept.prompt.includes(rules), `${other.site}: keeps the section when only ${b.site} drops its interpolation`)
     }
   }
-  // The floor family stays out (#2127 ruling): its prompt carries neither the rules nor the block's pointer.
+  // The floor family stays out (#2127 ruling): its prompt carries neither the rules nor the two heads. Its
+  // fixer block still names the reference file.
   const floorBuild = CHAIN_FIX_BUILDS.find(b => b.site === 'floor family')
   const floorP = (floorBuild.find((await floorBuild.run(src)).calls) || {}).prompt
   assert.ok(floorP, 'floor family: dispatched (presence guard)')
@@ -14429,6 +14430,50 @@ test('fix-round doctrine: every fix-applying build mirrors the reference', async
   // The worker card: the trigger pointer, never a rule body.
   assert.ok(workerMd.includes(pointer), 'the worker card carries the plugin-root-anchored pointer')
   assert.ok(!workerMd.includes(rules), 'the worker card carries no rule body (it is not a fix-round surface until dispatch)')
+})
+
+// The fence for the bug class limit (PR #2577 ruling). The owned path must render on each listed-set
+// build, because no floor reads the exclusion set.
+test('fix-round fence: each listed-set build names the files another owner holds', async () => {
+  const head = 'FIX-ROUND FENCE: another task, plan or the release slot owns these files, so never edit them, and list a sibling site in one under `Ignore for now:`: '
+  const fenceOf = p => (p.split(head)[1] || '').split('\n')[0].split(', ')
+  const sweepExclude = [{ slug: 'other-plan', files: ['docs/owned-by-plan.md'] }]
+  for (const site of ['phase-close sweep', 'terminal pass']) {
+    const b = CHAIN_FIX_BUILDS.find(x => x.site === site)
+    const args = SWEEP_ARGS({ sweepExclude })
+    const impl = site === 'terminal pass' ? terminalImpl() : sweepBase([queuedAbsorb()])
+    const p = (b.find((await runPhase(args, impl, {}, src)).calls) || {}).prompt
+    assert.ok(p, `${site}: dispatched (presence guard)`)
+    assert.deepEqual(fenceOf(p), ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'docs/owned-by-plan.md'], `${site}: the fence lists the campaign file and the release slot, sorted`)
+  }
+  const peerArgs = ACE_ARGS({ sweepExclude, tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', files: ['docs/own.md'], roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', files: ['docs/peer.md', 'docs/own.md'], roster: [{ lens: 'correctness' }] }] })
+  const polish = ((await runPhase(peerArgs, polishAceImpl(), {}, src)).calls.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) || {}).prompt
+  assert.ok(polish, 'ADVISORY POLISH: dispatched (presence guard)')
+  assert.deepEqual(fenceOf(polish), ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'docs/owned-by-plan.md', 'docs/peer.md'], 'ADVISORY POLISH: the fence lists campaign, peer and release-slot files, less the files this task owns')
+  // A peer that merged in an earlier wave no longer holds its files.
+  const waveArgs = ACE_ARGS({ tasks: [
+    { id: 't0', issue: 100, title: 'Task zero', planSlice: 'slice 0', files: ['docs/merged-peer.md'], roster: [{ lens: 'correctness' }] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', files: ['docs/own.md'], deps: ['t0'], roster: [{ lens: 'correctness' }] }] })
+  const wavePolish = ((await runPhase(waveArgs, polishAceImpl(), {}, src)).calls.find(x => /^ace:polish:t1:/.test(x.opts.label || '')) || {}).prompt
+  assert.ok(wavePolish, 'ADVISORY POLISH in the later wave: dispatched (presence guard)')
+  assert.ok(!fenceOf(wavePolish).includes('docs/merged-peer.md'), 'a merged peer leaves the fence')
+  // The sweep's own charter and the slice its panel judges state the limit.
+  const { calls: sweepCalls } = await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]), {}, src)
+  const sweepP = (sweepCalls.find(x => (x.opts.label || '') === 'polish:phase-3') || {}).prompt
+  assert.match(sweepP, /Fix ONLY the queued findings below and each sibling site of their defect class — NO ad-hoc seam hunting/, 'the sweep charter states the limit')
+  const panelP = (sweepCalls.find(x => /^audit:p3-polish:/.test(x.opts.label || '')) || {}).prompt
+  assert.match(panelP, /drain the phase-close queue \(1 finding\(s\)\) and each sibling site of their defect class/, 'the polish panel judges the same limit')
+  // The worker's list reaches the phase report, at both sites, and a line that names nothing writes no row.
+  const listed = 'Ignore for now: docs/z.md - a different defect'
+  const worker = extra => ({ task_id: 'p3-polish', status: 'implemented', head_sha: 'b01a5a00', tests: { unit: 1 }, notes: extra })
+  const { out } = await runPhase(SWEEP_ARGS(), terminalImpl({ sweepWorker: worker(listed), terminalWorker: { ...worker(listed.replace('z.md', 'y.md')), head_sha: '7e4a1a10' } }), {}, src)
+  const titles = (out.notes || []).map(n => n.title)
+  assert.ok(titles.includes('phase-close sweep left for a ruling: ' + listed), 'the sweep list reaches the phase report')
+  assert.ok(titles.includes('terminal pass left for a ruling: ' + listed.replace('z.md', 'y.md')), 'the terminal list reaches the phase report')
+  const { out: quiet } = await runPhase(SWEEP_ARGS(), terminalImpl({ sweepWorker: worker('Ignore for now: none') }), {}, src)
+  assert.ok(!(quiet.notes || []).some(n => /left for a ruling/.test(n.title)), 'a line that names nothing writes no row')
 })
 
 test('backward-chain: fixer rules byte-equal on all seven builds', async () => {

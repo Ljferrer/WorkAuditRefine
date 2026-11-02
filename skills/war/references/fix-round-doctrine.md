@@ -18,7 +18,7 @@ The fixer's rules for a fix round or an ace commit. A seat's finding names one s
 
 ## The bug class limit
 
-Operator ruling on PR #2577: the ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS prompts also carry `FIX_ROUND_SCOPE_CLAUSE`. Those workers fix each sibling site of a listed finding's defect class, and list any other defect under `Ignore for now:`.
+Operator ruling on PR #2577: the ADVISORY POLISH, PHASE-CLOSE COHERENCE SWEEP and TERMINAL PASS prompts also carry `FIX_ROUND_SCOPE_CLAUSE`. Those workers fix each sibling site of a listed finding's defect class, and list any other defect under `Ignore for now:`. `fixRoundFenceClause` names the files another task, plan or the release slot owns, and a sibling site there goes on that list. The sweep and terminal lists reach the phase report's `notes`.
 
 ## Editing the rules
 
