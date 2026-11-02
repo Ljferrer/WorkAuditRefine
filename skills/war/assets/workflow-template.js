@@ -1186,14 +1186,14 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
   // or the adjRow render `(supersedes plan literal: docs/plans/<x>.md)`) — the object form's
   // `supersedes` field, never a leak — drop it before the foreign-id match. The strip is anchored to
   // that shape: a plan id at any distance after a bare `supersedes` word is NOT a citation and stays
-  // for the scan. The own-token search reads the unstripped text.
+  // for the scan. The own-token search keeps the citation, because the foreign-id match never sees it.
   const PLAN_ID_RE = /docs\/plans\/[A-Za-z0-9._/-]+\.md/g
   const stripSupersedes = text => String(text).replace(/supersedes[\s:]*(?:plan literal:\s*)?docs\/plans\/[A-Za-z0-9._/-]+\.md/gi, 'supersedes <predecessor citation>')
   // Canonical value-row detection (D10, #1480): the schemas.md `{ adjudicated|value, supersedes }` object
   // (a VALUE-SHAPED string — one whitespace-free token of at most 64 chars, never prose — plus a string
   // supersedes; a Lead-stamped planFile may ride beside them), the string adjRow renders —
   // `<value> (supersedes plan literal: <x>)` — or a one-token value before a bare citation in the
-  // two other spellings stripSupersedes accepts (#2207; same separator and case rule as that strip,
+  // two bare spellings (`supersedes`, `supersedes:`) stripSupersedes accepts (#2207; same separator and case rule as that strip,
   // so a value row's citation always strips). The shape test alone would let a prose ruling with a
   // prose `supersedes` bypass the own-token floor, so the value field must look like a value — in
   // BOTH arms: the string arm anchors the same one-token value segment before the citation, so
@@ -1299,8 +1299,9 @@ log('terminal pass: phase ' + ph.id + ' finality — args.finalPhase ' + (A.fina
     // foreign-plan-id scan reads every row's (citation-stripped) text, exempt rows included (#1749),
     // on the Lead-assembled surfaces only: intent warns and launches (#2375), backstops and
     // adjudications refuse. ruledAsks and seededPhaseClose rows go unscanned (#2208, #2197). A
-    // foreign path never vouches for the plan, so the own-token search reads past each one: else a
-    // path like docs/plans/<own-word>-sibling.md would pass an intent the foreign arm no longer refuses.
+    // foreign path outside a stripped citation never vouches for the plan, so the own-token search
+    // reads past each one: else a path like docs/plans/<own-word>-sibling.md would pass an intent the
+    // foreign arm no longer refuses. A stripped citation stays evidence, because stacked plans share slug words.
     const scanText = rows.filter(r => !r.exempt && !r.value && r.text).map(r => r.text).join('\n')
     const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
     const idText = rows.filter(r => r.text).map(r => r.idText ?? r.text).join('\n')
