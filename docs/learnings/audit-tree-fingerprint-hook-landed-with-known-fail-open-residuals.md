@@ -24,6 +24,9 @@ metadata:
     - tilde-minus
     - OLDPWD
     - ripgrep
+    - PostToolUse
+    - seat_mark
+    - audit-no-agent-id
   provenance: code-verified
   slug: audit-tree-fingerprint-hook-landed-with-known-fail-open-residuals
   phase: 2026-10-20-rea-artifact-evidence/phase-6 task 6.2, updated at phase-7 task 7.2, p7-polish, phase-8 (tasks 8.1, 8.2, p8-polish) and 2026-10-26-fingerprint-hook-followups/phase-1 task 1.1, phase-2 task 2.1 (read at the phase-3 release)
@@ -32,7 +35,6 @@ metadata:
     - hooks
     - audit
     - residuals
-    - ask-unruled
   created: 2026-10-23
   originSessionId: 18c261f6-f7c5-4bb3-8473-a40e81fb5346
   modified: 2026-10-27T09:56:08.116Z
@@ -40,7 +42,7 @@ metadata:
 
 # Read this list before you touch `hooks/audit-tree-fingerprint.sh` or call it fail-closed
 
-The hook is the D22 compensating control for the D21 `git grep -F -e <token>` admission. It landed with gaps. Phase 8 of 2026-10-20-rea-artifact-evidence and plan 2026-10-26-fingerprint-hook-followups closed most of them. Items 1 to 13 and the pinned rows below were re-read at master 6a5586ea (0.21.21). The hook's last change is 072e05b1 (#2463), so verify each item before acting if the hook has moved since.
+The hook is the D22 compensating control for the D21 `git grep -F -e <token>` admission. It landed with gaps. Phase 8 of 2026-10-20-rea-artifact-evidence and plan 2026-10-26-fingerprint-hook-followups closed most of them. Items 1 to 13 and the pinned rows below were re-read at master 6a5586ea (0.21.21). The hook moved after that read (#2477, #2475), so verify each item before acting.
 
 The phase-8 slice and rulings A and B are not in `docs/plans/2026-10-20-rea-artifact-evidence.md`, which ends at Phase 7. The hook's header comments are the surviving record.
 
@@ -55,21 +57,22 @@ Item numbers stay stable, so older notes that cite an item still resolve.
 5. **Closed for Grep, pinned open for Glob.** A Grep `path` that names a directory touches the task worktrees below it that ripgrep enters. A Glob `path` walks up only, by ruling (D5). Item 15 keeps the Grep walk open at one edge.
 6. **Closed** (see below).
 7. **The timeout marker and the tamper record are forgeable.** `$STATE/timeout` and `$MAIN/.claude/war/audit-tamper/<agent_id>.json` sit where a worker's Bash can write. For the record, `skills/war/references/resume-and-recovery.md` now tells the Lead to cross-check `seat_verdict` against the `; seat verdict <v>` suffix on the escalated reason, which rides the engine's audit log, and to fail closed on a mismatch. That check is Lead prose, not code, and `$STATE/timeout` has no such cross-check. Narrow: a worker who can write there can already rewrite `$STATE/start`.
-8. **Touched-set writes fail open.** `touch_line` returns 0 when `mkdir -p` fails and does not check the append, and a `bash_mark` write fails the same way. `compare` returns clean when `$STATE/touched` is missing.
+8. **Touched-set writes fail open.** `touch_line` returns 0 when `mkdir -p` fails and does not check the append, and a `seat_mark` write fails the same way. `compare` returns clean when `$STATE/touched` is missing.
 9. **State dirs are never pruned.** No `rm -rf` of `$MAIN/.claude/war/audit-fingerprints/<agent_id>/` appears in the file. About 8 KB per seat run.
-10. **Cost grows with marked worktrees and tracked files.** SubagentStart runs `git status -uall`, one `ls-files -v -z` and one `hash-object` batch in every marked worktree for every seat. `fingerprint` runs `expired` and a case test on every `ls-files` record, so the added cost scales with tracked-file count, not flagged-path count. A Grep with a directory root adds one `check-ignore` spawn per folder on the path down to each marked worktree, cached for the call.
+10. **Cost grows with marked worktrees and tracked files.** SubagentStart runs `git status -uall`, one `ls-files -v -z` and one `hash-object` batch in every marked worktree for every seat. `fingerprint` runs `expired` and a case test on every `ls-files` record, so the added cost scales with tracked-file count, not flagged-path count. A Grep with a directory root adds one `check-ignore` spawn per folder on the path down to each marked worktree, cached per walk.
 11. **`assert-no-submodule-mutation.sh` splits `.gitmodules` paths on whitespace.** Its path collection uses `awk '{print $2}'`, so a submodule path with a space breaks. `reuse_hygiene` in `provision-worktrees.sh` no longer has this bug for a single space, because it blanks `$1` and keeps the rest, but a run of spaces still collapses to one. The hook itself reads with `git config -z`.
 12. **Hypothesis, not executed: `status` still trusts stat data under `core.checkStat` and `core.trustctime`.** The status call pins only `core.fsmonitor=false` and `core.untrackedCache=false`. With `core.checkStat=minimal` and `core.trustctime=false`, git would compare only whole-second mtime and size, so a same-size edit with a restored mtime would stay out of the status list, and the hook would never hash it. Pinning both keys trades coverage against extra content reads on stat-noisy filesystems, so the operator decides. Nit, disposition `note`, agent-unverified.
 13. **Hypothesis, not executed: `ignored_dir`'s `check-ignore` runs outside `bounded`.** If it hung (a FIFO planted as an ignore file in a folder on the walk), the PreToolUse arm would run to the hook timeout and the walk-down touches not yet recorded would be lost. D3 (PIN-3) names only the `ls-files` call. Fix shape if it matters: route the call through `bounded`, and treat a deadline hit as not ignored, which marks.
 15. **A glob-bearing Grep can read a worktree the walk leaves untouched.** The Grep tool's `glob` becomes a ripgrep `--glob`, and a glob override wins over ignore rules. `grep_walk` models ignore rules only, so a glob that matches an ignored folder's name reads sibling worktrees with no fingerprint compare. The operator ruled to keep the git-pattern rule (#2476, fork 2), because touching every worktree on a glob would let sibling churn raise a false AUDIT-TAMPER. Row "a glob-bearing Grep keeps the git-pattern rule" pins it, and backstop B1 rechecks it.
-16. **A post payload with neither `agent_id` nor `agent_type` passes through.** It reads as the main session, so a seat's touch would be lost. The 2.1.316 bundle builds both post events through the PreToolUse field builder, so a local subagent call carries both keys. Only a live seat run proves it.
-17. **A Bash-arm failure with no repository leaves no mark.** With no git answer and no `.git` entry above the payload cwd, `bash_mark` only prints to stderr. A submodule worktree's gitfile names no main checkout, so that walk ends the same way. The verdict arm still escalates `no git common dir` if its own cwd fails too.
+16. **A post payload with neither `agent_id` nor `agent_type` passes through.** It reads as the main session, so a seat's touch would be lost. The 2.1.316 bundle builds both post events through the PreToolUse field builder, so a local subagent call carries both keys. Backstop B3 proves it in a live seat run.
+17. **A Bash-arm failure with no repository leaves no mark.** With no git answer and no `.git` entry above the payload cwd, `seat_mark` only prints to stderr. A submodule worktree's gitfile names no main checkout, so that walk ends the same way. The verdict arm still escalates `no git common dir` if its own cwd fails too.
+19. **A task worktree or marker removed before the touch records nothing.** `touch_path` finds a root by its `.war-task` marker, so a worker's Bash can delete the marker and the worktree stays readable and uncompared. Read, Glob and Grep share this hole. The move adds one narrow case: a worktree removed during a Bash call now records nothing at the post event. Fix shape if it matters: match the path against the worktrees in `$STATE/start` too.
 18. **The keyless mark binds sibling seats.** `$MAIN/.claude/war/audit-no-agent-id` carries no seat key, so each seat that started at or before it escalates, not only the seat that raised it. A fresh round's seats start after it and pass.
 14. **Two backstops have no recorded discharge.** Both are in `docs/plans/2026-10-26-fingerprint-hook-followups.md`. B1 re-reads the Grep and Glob ripgrep flags from the installed Claude Code binary, because the walk rule was read from 2.1.311. B2 is a live `/war` run showing no AUDIT-TAMPER caused by a sibling worktree. I found no commit that discharges either, but a backstop run may leave no commit, so that is unproven. Run them before you call the walk rule current.
 
 ## Open issues filed from phase 2 of the 2026-10-26 plan
 
-All OPEN in gh at 0.21.21. The hook has not changed since, so none is fixed.
+All OPEN in gh at 0.21.21. The change that closed #2475 and #2477 fixes none of these.
 
 - #2470: the `grep_walk` header says ripgrep never applies an ignore rule below an explicit root, which contradicts its own next sentences and rows gw3 and gw5.
 - #2474: the `outside_top` header still lists only a planted link or a missing component.

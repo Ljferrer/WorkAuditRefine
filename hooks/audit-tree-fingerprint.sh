@@ -36,9 +36,13 @@
 #     (2) PreToolUse on Read, Glob, Grep: resolve every `.war-task`
 #         worktree the call reaches (a `..` after a symlink read both
 #         physically and lexically, see task_worktree_of) through its path
-#         (a Read file_path, a Glob or Grep path, an
-#         absolute Glob pattern, a Bash `git -C <path>` before the subcommand
-#         word, an absolute Bash operand, any relative Bash operand (`../x`,
+#         (a Read file_path, a Glob or Grep path, or an
+#         absolute Glob pattern) and add each to the seat's touched set. A Grep
+#         whose search root is a directory adds each task worktree below it that
+#         ripgrep enters (see grep_walk); Glob stays walk-up only.
+#     (3) PostToolUse and PostToolUseFailure on Bash: the same resolve, after
+#         the call ran (#2477), through a Bash `git -C <path>` before the
+#         subcommand word, an absolute Bash operand, any relative Bash operand (`../x`,
 #         `./x`, `a/../x`, a bare `x`), an unquoted `~`, `~/x` or `~+/x`
 #         operand, the value after `=` of a Bash `--<opt>=<path>` token,
 #         the text after the option letter of an attached short-option value
@@ -50,16 +54,12 @@
 #         OLDPWD, and a `~<name>` needs getpwnam, so the token goes into the
 #         touched set literal (see tilde). A directory
 #         operand that holds task worktrees adds each of them when the
-#         command reads them (see touch_operand). A Grep whose search root
-#         is a directory adds each task worktree below it that ripgrep
-#         enters (see grep_walk); Glob stays walk-up only.
-#     (3) PostToolUse and PostToolUseFailure on Bash: the same resolve, after
-#         the call ran (#2477). The host fires neither event for a call a hook
+#         command reads them (see touch_operand). The host fires neither event for a call a hook
 #         denied, so a denied call's tokens never reach the touched set, and a
 #         PreToolUse recorder could not see a sibling guard's deny. PostToolUse
 #         fires only on success, so a call that ran and failed records on
 #         PostToolUseFailure. A post event cannot stop the call, so a recording
-#         failure leaves a mark for the verdict arm (see bash_mark).
+#         failure leaves a mark for the verdict arm (see seat_mark).
 #     (4) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
@@ -89,7 +89,9 @@
 #   under the hooks.json timeout, so the deadline itself always falls before
 #   Claude Code's kill. The deadline is measured on bash's SECONDS from the
 #   hook's start and checked per worktree in the start and compare loops, per
-#   ls-files record in fingerprint and per path in blob_lines. Each `git
+#   ls-files record in fingerprint, per path in blob_lines and per token on the
+#   Bash arm, where a hit leaves a mark (see seat_mark) and offers no fail-open
+#   question. Each `git
 #   status`, `git ls-files` and `git hash-object` call runs under a watchdog
 #   (see bounded) that kills it when the remaining deadline runs out, so one
 #   slow call cannot carry the hook past the deadline (Task 8.1, ruling A); a
@@ -145,7 +147,7 @@
 #   `start` lines are `<head> <status-sha256> <worktree>`; `touched` holds one
 #   canonical worktree path per line, a literal `~-` or `~<name>` Bash token
 #   (a `-C` value or an operand) the hook cannot expand (the verdict arm
-#   reports it as unresolved), or a `!<cause>` mark (see bash_mark). `!` is
+#   reports it as unresolved), or a `!<cause>` mark (see seat_mark). `!` is
 #   never the first byte of a path line or of a `~` token. Worktree
 #   paths are canonical (`pwd -P`) on both sides, so a symlinked temp dir
 #   compares equal to its real path. `bash-open.<pid>` exists while a Bash
@@ -161,8 +163,9 @@
 #   unverifiable: fail-closed, never a silent pass. Both post events build
 #   their common fields through the PreToolUse builder (read from the Claude
 #   Code 2.1.316 bundle), so they carry both keys too. A post payload with the
-#   seat's agent_type and no usable agent_id leaves the keyless mark. A payload
-#   with neither key reads as the main session and passes through.
+#   seat's agent_type and no usable agent_id leaves the keyless mark, as a Read,
+#   Glob or Grep payload does. A payload with neither key reads as the main
+#   session and passes through.
 #
 # EXIT CONTRACT
 #   0 = pass-through, recorded, allowed (with or without updatedInput).
@@ -237,13 +240,13 @@ main_find() {
   return 0
 }
 
-# bash_mark <cause>: the Bash arm cannot stop the call, so a recording failure
+# seat_mark <cause>: the Bash arm cannot stop the call, so a recording failure
 # becomes a `!<cause>` line in the seat's touched set, which the verdict arm
 # escalates as unverifiable. With no usable agent_id no state dir has a key, so
 # the cause goes to `$MAIN/.claude/war/audit-no-agent-id`, and the verdict arm
 # of each seat that did not start after that file escalates. <cause> is a fixed
 # string, never payload text. A failed write stays fail-open (residual item 8).
-bash_mark() {
+seat_mark() {
   [ -n "$MAIN" ] || main_find
   if [ -z "$MAIN" ]; then
     echo "WAR: audit tree fingerprint: $1 (no place for the mark)" >&2
@@ -259,12 +262,19 @@ bash_mark() {
   echo "WAR: audit tree fingerprint: $1" >&2
 }
 
+# mark_no_aid <tool>: seat_mark for a seat payload with no usable agent_id.
+# <tool> is a literal of the calling arm.
+mark_no_aid() {
+  if [ -n "$aid_raw" ]; then seat_mark "unsafe agent_id in the $1 payload"
+  else seat_mark "no agent_id in the $1 payload"; fi
+}
+
 # raw <key>: the string value of a payload key, for the two arms where jq cannot
 # read the payload. A quote inside a JSON string is escaped, so a command that
 # holds the key text never matches.
 raw() { printf '%s' "$input" | sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"\\]*\)".*/\1/p' | head -n 1; }
 
-# raw_mark <cause>: bash_mark for a seat's Bash post event that jq cannot read.
+# raw_mark <cause>: seat_mark for a seat's Bash post event that jq cannot read.
 # Any other payload keeps the plain exit 2.
 raw_mark() {
   printf '%s' "$input" | grep -q '"agent_type"[[:space:]]*:[[:space:]]*"[^"]*war-\(evidence-\)\{0,1\}auditor"' || return 0
@@ -272,7 +282,7 @@ raw_mark() {
   case "$(raw hook_event_name)" in PostToolUse|PostToolUseFailure) ;; *) return 0 ;; esac
   aid_raw="$(raw agent_id)"; safe_aid
   _rc="$(raw cwd)"; [ -n "$_rc" ] && [ -d "$_rc" ] && cwd="$_rc"
-  bash_mark "$1"
+  seat_mark "$1"
 }
 
 # Without jq the agent type is read by a key-anchored grep on the raw payload
@@ -302,6 +312,9 @@ esac
 
 event="$(get '.hook_event_name')"
 tool="$(get '.tool_name')"
+# get drops jq's exit status, so an empty event or tool is a failed read, and a
+# later arm would pass it. raw_mark acts only on a seat's Bash post event.
+[ -n "$event" ] && [ -n "$tool" ] || raw_mark "jq failed on a Bash call"
 cwd="$(get '.cwd')"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$PWD"
 
@@ -558,8 +571,14 @@ fingerprint() {
 
 # marked_worktrees_of <repo-dir> -> every worktree of that repository that
 # carries a .war-task marker, one canonical path per line.
+# A failed list on the Bash arm leaves a mark (see seat_mark).
+BASH_ARM=0
 marked_worktrees_of() {
-  git -C "$1" worktree list --porcelain 2>/dev/null | while IFS= read -r _line; do
+  _wl="$(git -C "$1" worktree list --porcelain 2>/dev/null)" || {
+    [ "$BASH_ARM" = 0 ] || seat_mark "git worktree list failed on a Bash call"
+    return 0
+  }
+  printf '%s\n' "$_wl" | while IFS= read -r _line; do
     case "$_line" in
       "worktree "*)
         _wt="${_line#worktree }"
@@ -742,8 +761,6 @@ touch_operand() {
     base_top
     case "$_cd/" in "$_top/"*) [ -n "$_top" ] && return 0 ;; esac
   fi
-  git -C "$cwd" worktree list --porcelain >/dev/null 2>&1 \
-    || bash_mark "git worktree list failed on a Bash call"
   task_worktrees | while IFS= read -r _w; do
     case "$_w/" in "$_cd/"*) touch_line "$_w" ;; esac
   done
@@ -922,24 +939,30 @@ compare() {
   if [ -z "$MAIN" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no git common dir from cwd '$cwd')"; return 0; fi
   if [ ! -f "$STATE/start" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no start record for agent $aid)"; return 0; fi
   # The keyless mark binds every seat that did not start after it (see
-  # bash_mark). A tie escalates: `-nt` reads whole seconds on bash 3.2.
+  # seat_mark). A tie escalates: `-nt` reads whole seconds on bash 3.2.
   _na="$MAIN/.claude/war/audit-no-agent-id"
   if [ -f "$_na" ] && [ ! "$STATE/start" -nt "$_na" ]; then
     REASON="AUDIT-TAMPER: unverifiable fingerprint ($(head -n 1 "$_na" 2>/dev/null))"; return 0
   fi
-  # No Bash call runs beside the verdict, so an open marker is a killed hook.
+  # Each post hook ends before the next call starts, so an open marker is a
+  # killed hook. If the host ever ran a Bash call beside the verdict, the marker
+  # escalates, which fails closed.
   set +f; _bo="$(ls -d "$STATE"/bash-open.* 2>/dev/null)"; set -f
   if [ -n "$_bo" ]; then
     REASON="AUDIT-TAMPER: unverifiable fingerprint (a Bash recording did not finish)"; return 0
   fi
   [ -f "$STATE/touched" ] || return 0
+  # A mark comes before the loop: a timeout on an earlier line would hide it and
+  # offer the fail-open question for a touched set known to be short.
+  _bm="$(grep -m 1 '^!' "$STATE/touched" 2>/dev/null)"
+  if [ -n "$_bm" ]; then
+    T_WT="$_bm"; REASON="AUDIT-TAMPER: unverifiable fingerprint (${_bm#!})"; return 0
+  fi
   while IFS= read -r _wt || [ -n "$_wt" ]; do
     [ -n "$_wt" ] || continue
     T_START=""; T_NOW=""
-    case "$_wt" in
-      /*) ;;
-      '!'*) T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (${_wt#!})"; return 0 ;;
-      *) T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
+    case "$_wt" in /*) ;; *)
+      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
     esac
     _rec="$(while IFS= read -r _l; do
               _p="${_l#* }"; _p="${_p#* }"
@@ -1029,10 +1052,12 @@ case "$event" in
   PreToolUse)
     case "$tool" in
       Read)
+        [ -n "$aid" ] || { mark_no_aid Read; exit 0; }
         _p="$(get '.tool_input.file_path')"
         [ -n "$_p" ] && touch_path "$_p"
         exit 0 ;;
       Glob|Grep)
+        [ -n "$aid" ] || { mark_no_aid "$tool"; exit 0; }
         _p="$(get '.tool_input.path')"
         [ -n "$_p" ] || _p="$cwd"
         touch_path "$_p"
@@ -1075,12 +1100,9 @@ case "$event" in
 
   PostToolUse|PostToolUseFailure)
     [ "$tool" = Bash ] || exit 0
-    if [ -z "$aid" ]; then
-      if [ -n "$aid_raw" ]; then bash_mark "unsafe agent_id in the Bash payload"
-      else bash_mark "no agent_id in the Bash payload"; fi
-      exit 0
-    fi
-    if [ -z "$MAIN" ]; then bash_mark "no git common dir on a Bash call"; exit 0; fi
+    [ -n "$aid" ] || { mark_no_aid Bash; exit 0; }
+    if [ -z "$MAIN" ]; then seat_mark "no git common dir on a Bash call"; exit 0; fi
+    BASH_ARM=1
     mkdir -p "$STATE" 2>/dev/null
     _open="$STATE/bash-open.$$"
     : > "$_open" 2>/dev/null
@@ -1149,7 +1171,12 @@ case "$event" in
     # lost. The cwd fallback is unchanged by an operand token: the
     # command still runs in the payload cwd, and the fallback never walks
     # down into nested worktrees (touch_path, not touch_operand).
-    quote_words "$(get '.tool_input.command')"
+    _bc="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)" || {
+      seat_mark "jq failed on a Bash call"
+      rm -f "$_open"
+      exit 0
+    }
+    quote_words "$_bc"
     _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0
     for _tok in $_cmd; do
       [ "$_tok" = --no-index ] && _noindex=1
@@ -1157,7 +1184,7 @@ case "$event" in
     for _tok in $_cmd; do
       word_of "$_tok"; _tok="$_w"
       if expired; then
-        bash_mark "deadline passed on a Bash call"
+        seat_mark "deadline passed on a Bash call"
         rm -f "$_open"
         exit 0
       fi

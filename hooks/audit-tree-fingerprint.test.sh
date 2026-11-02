@@ -1803,6 +1803,27 @@ rm -f "$NOID"
 run "$(jq -nc --arg c "$MAIN" '{hook_event_name:"PostToolUseFailure",tool_name:"Bash",tool_input:{command:"false"},error:"Exit code 1",cwd:$c}')"
 if [ "$RC" = 0 ] && [ ! -e "$NOID" ]; then pass "a main-session Bash failure leaves no mark"; else fail "a main-session Bash failure left a mark"; fi
 
+# A Read, Glob or Grep payload with no usable agent_id leaves the same mark.
+run "$(mk_start "$AUD" pn4)"
+run "$(mk_read "$AUD" '' "$TMP/wtA/f" | jq -c 'del(.agent_id)')"
+run "$(mk_verdict "$AUD" pn4)"
+_r1="$(reason_of)"; rm -f "$NOID"
+run "$(mk_start "$AUD" pn5)"
+run "$(mk_glob "$AUD" '../x' "$TMP/wtA")"
+run "$(mk_verdict "$AUD" pn5)"
+_r2="$(reason_of)"; rm -f "$NOID"
+run "$(mk_start "$AUD" pn6)"
+run "$(mk_grep "$AUD" '../x' "$TMP/wtA")"
+run "$(mk_verdict "$AUD" pn6)"
+_r3="$(reason_of)"; rm -f "$NOID"
+if [ "$_r1" = 'AUDIT-TAMPER: unverifiable fingerprint (no agent_id in the Read payload)' ] \
+   && [ "$_r2" = 'AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the Glob payload)' ] \
+   && [ "$_r3" = 'AUDIT-TAMPER: unverifiable fingerprint (unsafe agent_id in the Grep payload)' ]; then
+  pass "a Read, Glob or Grep payload with no usable agent_id escalates at the verdict"
+else
+  fail "a Read, Glob or Grep payload with no usable agent_id did not escalate (|$_r1| |$_r2| |$_r3|)"
+fi
+
 # --- a Bash-arm infra failure leaves a mark -----------------------------------
 # A post event cannot stop the call, so the verdict arm escalates on the mark.
 # run_with <path-prefix> <payload>: run with a shim dir first on PATH.
@@ -1884,9 +1905,28 @@ run "$_p"
 case "$ERR" in *"no place for the mark"*) m=1 ;; *) m=0 ;; esac
 if [ "$RC" = 0 ] && [ "$m" = 1 ]; then pass "a Bash call outside any repository names the lost mark on stderr"; else fail "a lost mark stayed silent (rc=$RC err=|$ERR|)"; fi
 rm -rf "$SHIMG2"
+# A later jq read fails after the first pass parsed the payload.
+SHIMJ="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimj)"
+printf '#!/bin/bash\ncase "$*" in *"$JQ_FAIL"*) exit 5 ;; esac\nexec "%s" "$@"\n' "$(command -v jq)" > "$SHIMJ/jq"
+chmod +x "$SHIMJ/jq"
+for _f in .tool_input.command .hook_event_name .tool_name; do
+  run "$(mk_start "$AUD" pj1)"
+  _p="$(mk_bash_fail "$AUD" pj1 "git -C $TMP/wtA log")"
+  OUT="$(printf '%s' "$_p" | JQ_FAIL="$_f" PATH="$SHIMJ:$PATH" bash "$HOOK" 2>/dev/null)"; _prc=$?
+  run "$(mk_verdict "$AUD" pj1)"
+  if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (jq failed on a Bash call)' ]; then
+    pass "a failed jq read of $_f on the Bash arm escalates at the verdict"
+  else
+    fail "a failed jq read of $_f did not escalate (rc=$_prc reason=|$(reason_of)|)"
+  fi
+done
+rm -rf "$SHIMJ"
 SHIMG3="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg3)"
 printf '#!/bin/bash\ncase "$*" in *"worktree list"*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG3/git"
 chmod +x "$SHIMG3/git"
+# Off the Bash arm a failed list stays what it was: no mark.
+run_with "$SHIMG3" "$(mk_start "$AUD" pi6a)"
+if [ "$RC" = 0 ] && [ ! -s "$FP_ROOT/pi6a/touched" ]; then pass "a failed worktree list at seat start leaves no mark"; else fail "a failed worktree list at seat start left a mark: |$(cat "$FP_ROOT/pi6a/touched" 2>/dev/null)|"; fi
 run "$(mk_start "$AUD" pi6)"
 run_with "$SHIMG3" "$(mk_bash "$AUD" pi6 "git diff --no-index $TMP/plain /dev/null")"
 _prc="$RC"
@@ -1896,6 +1936,32 @@ if [ "$_prc" = 0 ] && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint
   pass "a failed worktree list on a Bash walk leaves a mark the verdict escalates"
 else
   fail "a failed worktree list did not escalate (rc=$_prc reason=|$(reason_of)|)"
+fi
+# A failed list in a submodule repository names no failure in the cwd list.
+SHIMG5="$(mktemp -d 2>/dev/null || mktemp -d -t atfpshimg5)"
+printf '#!/bin/bash\ncase "$*" in *"sub dir"*"worktree list"*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$SHIMG5/git"
+chmod +x "$SHIMG5/git"
+run "$(mk_start "$AUD" pi6b)"
+run_with "$SHIMG5" "$(mk_bash "$AUD" pi6b "git diff --no-index $TMP/plain /dev/null")"
+run "$(mk_verdict "$AUD" pi6b)"
+rm -rf "$SHIMG5"
+if [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (git worktree list failed on a Bash call)' ]; then
+  pass "a failed submodule worktree list on a Bash walk leaves a mark the verdict escalates"
+else
+  fail "a failed submodule worktree list did not escalate (reason=|$(reason_of)|)"
+fi
+# A timeout on an earlier touched line never hides a mark: the verdict must
+# offer no fail-open question for a touched set known to be short.
+run "$(mk_start "$AUD" pi6c)"
+run "$(mk_bash "$AUD" pi6c "git -C $TMP/wtA log")"
+_p="$(mk_bash "$AUD" pi6c "git -C $TMP/wtB log")"
+printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" >/dev/null 2>&1
+_p="$(mk_verdict "$AUD" pi6c)"
+OUT="$(printf '%s' "$_p" | WAR_FINGERPRINT_DEADLINE_SECONDS=0 bash "$HOOK" 2>/dev/null)"; RC=$?
+if touched_has pi6c "$WTA" && [ "$(reason_of)" = 'AUDIT-TAMPER: unverifiable fingerprint (deadline passed on a Bash call)' ]; then
+  pass "a verdict-arm timeout on an earlier line does not hide a Bash mark"
+else
+  fail "a timeout hid a Bash mark (reason=|$(reason_of)|)"
 fi
 # A hook killed mid-recording leaves its open marker. The shim kills the hook
 # and its command substitution on the first show-toplevel call.
