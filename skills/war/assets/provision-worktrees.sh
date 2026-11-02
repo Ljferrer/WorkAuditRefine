@@ -1324,7 +1324,8 @@ cmd_teardown_phase() {
 #      the caller re-fetches origin/<working>, re-merges, and retries.
 #      Do NOT key on the literal "non-fast-forward" — red-team proved it is NOT
 #      reliably emitted for this push form. [rejected] is the canonical token.
-#    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3).
+#    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3), and the
+#      die carries the push output.
 #      Never infer success from absence of [rejected] alone — require exit 0.
 #
 # 3. ONLY on push success AND ls-remote origin == new_sha: advance the local follower ref:
@@ -1478,7 +1479,7 @@ cmd_land_advance() {
       actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || actual=""
     fi
     [ "$actual" = "$new_sha" ] \
-      || die "land-advance: the push exited 0, but origin's '$working' reads '${actual:-no tip, or the read failed}' after 2 reads, not <new-sha> $new_sha; the local follower did not move. Check origin. If the land is real, run 'provision-worktrees.sh sync-follower $working' to reconcile the follower. Escalate." "$EX_FOREIGN"
+      || die "land-advance: the push exited 0, but origin's '$working' reads '${actual:-no tip, or the read failed}' after 2 reads, not <new-sha> $new_sha; the local follower did not move. Check origin. If the land is real, run 'provision-worktrees.sh sync-follower $working' in this repo to reconcile the follower. Escalate." "$EX_FOREIGN"
     # Success: advance the local follower ref with a CAS update-ref.
     # If there was no pre-push local tip, create the ref unconditionally.
     if [ -n "$pre_push_local" ]; then
@@ -1502,8 +1503,8 @@ cmd_land_advance() {
   esac
 
   # Any other non-zero (network failure, bad URL, permission error, etc.)
-  # → escalate. The Lead must intervene.
-  exit 3
+  # → escalate. The Lead must intervene, and the push output is the evidence.
+  die "land-advance: git push failed (rc=$push_rc): $push_output Escalate." "$EX_FOREIGN"
 }
 
 # --- subcommand: sync-follower ----------------------------------------------
@@ -1513,7 +1514,8 @@ cmd_land_advance() {
 # needs nothing — cmd_land_advance already does the post-push origin readback +
 # follower CAS + ALREADY-LANDED reconcile, and cmd_ensure_integration's create
 # path reconciles local-vs-origin before cutting (landed in #593). This
-# subcommand CITES that mechanization; it does NOT rebuild it. It exists only to
+# subcommand CITES that mechanization; it does NOT rebuild it. It also reconciles
+# the follower after a land-advance readback die. Otherwise it exists only to
 # ASSERT, after a MANUAL escalation-completion / held:land-failed land, that the
 # local follower ref matches origin — catching a recipe deviation (a raw
 # `git push` instead of land-advance) before the next phase consumes a stale

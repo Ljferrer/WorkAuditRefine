@@ -1644,25 +1644,22 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 # classifier does NOT match git's "! [remote rejected] ... (pre-receive hook
 # declined)" line (the space in "[remote rejected]" is distinct from the
 # contiguous [rejected] non-ff token cmd_land_advance matches), so
-# classification falls through to the bare `exit 3` push-error branch (the 0/2/3
+# classification falls through to the loud push-error die (the 0/2/3
 # contract in cmd_land_advance's CLASSIFY header). This is the exit-3 route T2.3
 # STOPPED exercising when it was reframed to prove the ls-remote rc-guard
 # short-circuit (test-reframe-can-strand-adjacent-branch-coverage).
 #
-# Exit 3 is reached by several routes. The push-error branch alone prints nothing,
-# and the rest die LOUDLY with route-naming text, the post-push readback miss
-# included. Route identity is therefore proved in TWO steps — (b)+(d) exclude the
-# LOUD routes; (c)+(e) then confirm the push was declined:
+# Exit 3 is reached by several routes, and each dies LOUDLY with route-naming text.
+# Route identity is therefore proved in TWO steps — (b)+(d) exclude the other
+# routes; (c)+(e) then confirm the push was declined:
 #   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by
 #       construction (pre-receive is push-side; ls-remote is fetch-side);
 #   (c) the token-distinctness fact asserted BY NAME (remote rejected present,
 #       contiguous [rejected] absent) — a future git wording change fails HERE,
 #       loud, not as an unexplained exit-code mismatch (never widen to bare
-#       `rejected`; extend/adjudicate instead). (c) is ALSO the primary
-#       silent-route discriminator: it proves the push is pre-receive-DECLINED
-#       (exits non-zero), and the post-push origin readback lives inside the
-#       `push_rc -eq 0` arm — a declined push never runs that readback, so the
-#       only silent exit-3 route left is the bare push-error branch;
+#       `rejected`; extend/adjudicate instead). (c) also proves the push is
+#       pre-receive-DECLINED (exits non-zero), and the post-push origin readback
+#       lives inside the `push_rc -eq 0` arm — a declined push never runs it;
 #   (d) the land-advance invocation emits NEITHER the rc-guard die text ("could
 #       not read the origin tip") NOR the phantom die text ("refusing to report a
 #       land that did not advance") — a regression rerouting the fixture through
@@ -1670,10 +1667,8 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 #       excludes the post-push readback die. The remaining loud
 #       exit-3 dies (unresolvable HEAD / unresolvable <new-sha>) are closed by
 #       construction: the call detaches at $NEW_SHA9, so both resolve;
-#   (e) origin tip byte-unchanged (still the seed) corroborates (c): with the
-#       wrong-HEAD precheck passed, a push that exits 0 has already put <new-sha>
-#       on origin, so a readback mismatch means an origin someone else ADVANCED —
-#       never one still sitting at the seed.
+#   (e) origin tip byte-unchanged (still the seed) corroborates the declined push
+#       in this fixture.
 # ---------------------------------------------------------------------------
 PAIR9="$(setup_origin_pair)"
 C1_9="$(printf '%s' "$PAIR9" | cut -d' ' -f1)"
@@ -1723,12 +1718,16 @@ ORIGIN_BEFORE9="$(git -C "$C1_9" ls-remote origin refs/heads/working/myplan9 | c
 # phantom (T2.6) exit-3 routes.
 OUT9="$( ( cd "$C1_9" && git checkout --detach "$NEW_SHA9" >/dev/null 2>&1 && bash "$SCRIPT" land-advance working/myplan9 "$NEW_SHA9" ) 2>&1 )"
 CODE9=$?
-expect "T2.9: pre-receive push rejection -> bare push-error branch (exit 3)" \
+expect "T2.9: pre-receive push rejection -> push-error die (exit 3)" \
   "3" "$CODE9"
 expect "T2.9: push-error exit 3 does NOT emit the rc-guard die text (route distinct from T2.3)" \
   "0" "$(printf '%s' "$OUT9" | grep -c 'could not read the origin tip')"
 expect "T2.9: push-error exit 3 does NOT emit the phantom die text (route distinct from T2.6)" \
   "0" "$(printf '%s' "$OUT9" | grep -c 'refusing to report a land that did not advance')"
+expect "T2.9: the push-error die names the failed push" \
+  "1" "$(printf '%s' "$OUT9" | grep -c 'git push failed (rc=1):')"
+expect "T2.9: the push-error die carries the push output" \
+  "yes" "$(printf '%s' "$OUT9" | grep -q 'pre-receive hook declined' && echo yes || echo no)"
 expect "T2.9: push-error exit 3 does NOT emit the readback die text (a declined push never reads back)" \
   "0" "$(printf '%s' "$OUT9" | grep -c 'the push exited 0')"
 
@@ -4050,6 +4049,7 @@ expect "LA.3 lagging-ls-remote: the die names new_sha" yes "$(la_has "$LA_ERR" "
 expect "LA.3 lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has "$LA_ERR" "sync-follower working/la3")"
 expect "LA.3 lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la3)"
 expect "LA.3 lagging-ls-remote: both reads ran" 2 "$LA_READS"
+expect "LA.3 lagging-ls-remote: the wait is 2 seconds, after the first read" "2 after 1" "$LA_SLEEPS"
 
 la_fixture working/la3b
 la_run fail-once working/la3b "$LA_NEW"
@@ -4060,6 +4060,7 @@ la_fixture working/la3c
 la_run empty working/la3c "$LA_NEW"
 expect "LA.3c lagging-ls-remote: an empty read on both tries exits 3" 3 "$LA_RC"
 expect "LA.3c lagging-ls-remote: the die gives the reconcile hint" yes "$(la_has "$LA_ERR" "sync-follower working/la3c")"
+expect "LA.3c lagging-ls-remote: the wait is 2 seconds, after the first read" "2 after 1" "$LA_SLEEPS"
 expect "LA.3c lagging-ls-remote: the die says no tip was read" yes "$(la_has "$LA_ERR" "no tip, or the read failed")"
 expect "LA.3c lagging-ls-remote: the follower stays" "$LA_SEED" "$(la_follower working/la3c)"
 

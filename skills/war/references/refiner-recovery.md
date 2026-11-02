@@ -61,7 +61,7 @@ When `target repo` is a submodule **and** the run config declares the submodule 
    - Same push-first CAS semantics as above. `land-advance` runs with cwd = submodule checkout, pushing to the submodule remote only.
    - On push success → record the landed SHA; proceed to step 3.
    - On push rejection → re-fetch, re-detach, re-merge, re-gate (same reland loop).
-   - On any other exit (a push error or a readback miss) → return `status: "error"`, with the command's stderr in `segment_note`.
+   - On any other exit → return `status: "error"`, with the command's stderr in `segment_note`.
 3. **Same transient-vs-divergence discrimination before surrendering** (D4), scoped to the submodule checkout/remote: on the final failed CAS attempt run `git fetch origin <submodule-working>` then `git rev-list --left-right --count <merge-sha>...origin/<submodule-working>` — the merge sha the loop just tried to push vs. the freshly-fetched submodule origin tip, NEVER the local follower. Right count 0 (contender-less transient) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside `roundLimit`): re-fetch, re-detach, re-merge `--no-ff`, re-gate, `land-advance`; if that extra attempt also fails, return `status: "land_stale"`. Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return `status: "land_stale"` immediately, with no extra attempt.
 4. On push success → return `status: "landed"` with the **submodule's** new working SHA. The Workflow threads this SHA to the dependent gitlink-bump task via the ledger — no hold, no resume required.
 

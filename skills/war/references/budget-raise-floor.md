@@ -31,7 +31,7 @@ Card step 3 (the final-failed-CAS-attempt reland discrimination) stays on the ca
    - `land-advance` does a **no-force** `git push origin HEAD:refs/heads/<working>`. The remote's non-ff rejection IS the atomic compare-and-swap against shared truth (another run advanced the working branch). The local `refs/heads/<working>` advances **only after** a successful push (as a follower). A rejected push leaves the local ref unchanged — nothing to rewind.
    - On push success → exit the loop, proceed to step 3.
    - On push rejection (reland code) → go back to the top of the loop (re-fetch, re-detach at new `origin/<working>`, re-merge, re-gate). Never `--force`.
-   - On any other exit (a push error or a readback miss) → return `status: "error"` (escalate), with the command's stderr in `segment_note`.
+   - On any other exit → return `status: "error"` (escalate), with the command's stderr in `segment_note`.
 
 4. On push success → return `status: "landed"` with the new working SHA. The Lead then runs an **opportunistic resync** of its cwd: `git -C <cwd> merge --ff-only <new-working-tip>` iff the cwd is on the working branch and the tree is clean; otherwise skip. The Lead never forces or blocks on this.
 

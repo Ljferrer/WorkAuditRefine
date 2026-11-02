@@ -10888,7 +10888,7 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
   const first = await runPhase(PROVISION_ARGS(), initial)
   const lands = first.calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
   assert.equal(lands.length, 1, 'the note alone never re-dispatches the land')
-  assert.match(armOf(lands[0].prompt), /readback miss\): return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
+  assert.match(armOf(lands[0].prompt), /any other exit from land-advance: return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
   assert.equal(first.out.landDecision, 'held:land-failed', 'the note never changes the route')
   const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
   assert.equal(row && row.detail && row.detail.segment_note, die, 'the escalation detail carries the die text')
@@ -10901,11 +10901,33 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
     const { out, calls } = await runPhase(CLS_ARGS(), impl)
     const reland = calls.find(c => c.opts.label === 'land:phase-3:' + flavor)
     assert.ok(reland, flavor + ': presence guard, the re-land dispatches')
-    assert.match(armOf(reland.prompt), /on an escalate exit code, return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
+    assert.match(armOf(reland.prompt), /on any exit but 0 or 2, return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
     assert.equal(out.landDecision, 'held:land-failed', flavor + ': a re-land error holds the phase')
     const held2 = (out.escalated || []).find(e => e && e.task === 'phase-3-land')
     assert.equal(held2 && held2.detail && held2.detail.segment_note, die, flavor + ': the escalation detail carries the die text')
   }
+})
+
+// #1837: each land status:'error' enters reconcileMerge first. The die text survives each route out.
+test('land-advance escalate: the die text survives reconciliation', async () => {
+  const die = 'land-advance: the push exited 0, but origin reads abc'
+  const land = (prompt, opts) => /^land:phase-3(:|$)/.test(opts.label || '') ? { mode: 'land-phase', status: 'error', segment_note: die } : defaultImpl(prompt, opts)
+  const unmerged = { ...NEW_SEAT_DEFAULTS['merge-reconcile'], result: { mode: 'land-phase', status: 'error' } }
+  const first = await runPhase(PROVISION_ARGS(), land, { 'merge-reconcile': () => unmerged })
+  const seat = first.calls.find(c => c.opts.dispatchKind === 'merge-reconcile')
+  assert.ok(seat && seat.prompt.includes('Prior response: missing or error merge response: ' + die), 'the recovery refiner reads the die text')
+  assert.equal(first.out.landDecision, 'held:land-failed', 'a recovered error result still holds the phase')
+  const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
+  assert.equal(row && row.detail && row.detail.segment_note, die, 'a result with no note keeps the die text')
+
+  const own = { ...unmerged, result: { mode: 'land-phase', status: 'error', segment_note: 'the second die' } }
+  const second = await runPhase(PROVISION_ARGS(), land, { 'merge-reconcile': () => own })
+  const row2 = (second.out.escalated || []).find(e => e && e.task === 'phase-3-land')
+  assert.equal(row2 && row2.detail && row2.detail.segment_note, 'the second die', 'a recovered note stands')
+
+  const third = await runPhase(PROVISION_ARGS({ run: { roundLimit: 1 } }), land, { 'merge-reconcile': () => ({ ...unmerged, outcome: 'uncertain' }) })
+  assert.equal(third.out.landDecision, 'held:workflow-error', 'an uncertain reconciliation holds before land')
+  assert.ok(JSON.stringify(third.out).includes('hold before land: ' + die), 'the held record carries the die text')
 })
 
 // --- budget-uncited at the re-merge sites (D6, PIN-10, #1736) ------------------------------------
