@@ -163,7 +163,7 @@ Phase 1 (the fingerprint side) → Phase 2 (the touch side) → Phase 3 (release
 
 ## Deferred validations (backstops)
 
-- B1: re-read the Grep and Glob tool ripgrep flags from the installed Claude Code binary and replay the Context probe recipe · why deferred: the flags are bound to the Claude Code version (2.1.311 at this interview), which no CI job installs · runner: the operator, at the first Claude Code upgrade after this release, before the next `/war` run.
+- B1: re-read the Grep and Glob tool ripgrep flags from the installed Claude Code binary and replay the Context probe recipe, and check that the `glob` residual ruled on #2476 still holds: the Grep tool's `glob` is a ripgrep `--glob`, which wins over ignore rules, so a glob that matches an ignored folder's name reads sibling worktrees that `grep_walk` leaves untouched · why deferred: the flags are bound to the Claude Code version (2.1.311 at this interview), which no CI job installs · runner: the operator, at the first Claude Code upgrade after this release, before the next `/war` run.
 - B2: a live `/war` run on this release, whose seats use the Grep tool from the main checkout while sibling workers commit, shows no AUDIT-TAMPER record caused by a sibling worktree · why deferred: needs a real multi-task run with the Grep tool present (seats on 2.1.304 had none) · runner: the Lead, at that run's first Checkpoint, reading `$MAIN/.claude/war/audit-tamper/`.
 
 ## Notes / conscious deviations

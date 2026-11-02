@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# WAR audit tree fingerprint (SubagentStart, PreToolUse, SubagentStop).
+# WAR audit tree fingerprint (SubagentStart, PreToolUse, PostToolUse,
+# PostToolUseFailure, SubagentStop).
 # Plan 2026-10-20-rea-artifact-evidence Task 6.2 (D22; the compensating
 # control for the D21 `git grep -F -e <token>` admission, ADR 0029 amendment).
 #
 # PURPOSE
 #   A hook, never the seat, proves that no `.war-task` worktree an audit seat
-#   read changed while the seat judged it. One script, three entry arms, all
+#   read changed while the seat judged it. One script, five entry arms, all
 #   keyed on the payload's `hook_event_name` and `tool_name`:
 #     (1) SubagentStart: record the fingerprint of every `.war-task` worktree
 #         (`git worktree list --porcelain`, marker present) of the payload
@@ -32,7 +33,7 @@
 #         under core.quotePath=false), and such a path could not be hashed.
 #         The hash-object batch reader has line rules of its own (see
 #         blob_lines): a path that reader would rewrite gets its own call.
-#     (2) PreToolUse on Read, Bash, Glob, Grep: resolve every `.war-task`
+#     (2) PreToolUse on Read, Glob, Grep: resolve every `.war-task`
 #         worktree the call reaches (a `..` after a symlink read both
 #         physically and lexically, see task_worktree_of) through its path
 #         (a Read file_path, a Glob or Grep path, an
@@ -52,11 +53,19 @@
 #         command reads them (see touch_operand). A Grep whose search root
 #         is a directory adds each task worktree below it that ripgrep
 #         enters (see grep_walk); Glob stays walk-up only.
-#     (3) PreToolUse on StructuredOutput: recompute every touched worktree's
+#     (3) PostToolUse and PostToolUseFailure on Bash: the same resolve, after
+#         the call ran (#2477). The host fires neither event for a call a hook
+#         denied, so a denied call's tokens never reach the touched set, and a
+#         PreToolUse recorder could not see a sibling guard's deny. PostToolUse
+#         fires only on success, so a call that ran and failed records on
+#         PostToolUseFailure. A post event cannot stop the call, so a recording
+#         failure leaves a mark for the verdict arm (see bash_mark).
+#     (4) PreToolUse on StructuredOutput: recompute every touched worktree's
 #         fingerprint and compare it with the start record. A match exits 0
 #         with no output. A mismatch, or a fingerprint it cannot compute (no
 #         or an unsafe agent_id, no git common dir, a missing start record, a
-#         git error, an unresolved Bash `~-` or `~<name>` token),
+#         git error, an unresolved Bash `~-` or `~<name>` token, a Bash-arm
+#         mark),
 #         ALLOWS the call with an `updatedInput` that keeps the seat's verdict
 #         JSON but sets `verdict` to `escalate` and `escalate_reason` to
 #         `AUDIT-TAMPER: <worktree> changed during the audit round (<start> -> <now>)`
@@ -66,7 +75,7 @@
 #         `seat_verdict` and `seat_escalate_reason` (null on the Subagent
 #         arms, which carry no tool input): the rewrite replaces both in the
 #         tool input, and a fail-open ruling on a timeout accepts them.
-#     (4) SubagentStop: the same comparison, record only, never a block, and
+#     (5) SubagentStop: the same comparison, record only, never a block, and
 #         never over a record the StructuredOutput arm wrote for the seat.
 #   A worktree the seat never touched is never compared, so concurrent workers
 #   in sibling worktrees cannot trip it.
@@ -134,11 +143,14 @@
 #   composed `dirname "$(git ...)"` yields "." on a failed probe). `.claude/`
 #   is already excluded from status by provision-worktrees.sh ensure-exclude.
 #   `start` lines are `<head> <status-sha256> <worktree>`; `touched` holds one
-#   canonical worktree path per line, or a literal `~-` or `~<name>` Bash token
+#   canonical worktree path per line, a literal `~-` or `~<name>` Bash token
 #   (a `-C` value or an operand) the hook cannot expand (the verdict arm
-#   reports it as unresolved). Worktree
+#   reports it as unresolved), or a `!<cause>` mark (see bash_mark). `!` is
+#   never the first byte of a path line or of a `~` token. Worktree
 #   paths are canonical (`pwd -P`) on both sides, so a symlinked temp dir
-#   compares equal to its real path.
+#   compares equal to its real path. `bash-open.<pid>` exists while a Bash
+#   recording runs, so a hook the host killed leaves it for the verdict arm.
+#   `$MAIN/.claude/war/audit-no-agent-id` is the one mark with no agent key.
 #
 # PAYLOAD CONTRACT
 #   `agent_id` and `agent_type` ride SubagentStart and SubagentStop (confirmed
@@ -146,14 +158,19 @@
 #   assumes PreToolUse inside a subagent carries them too and honors
 #   `updatedInput` on StructuredOutput; backstop B5 probes it live. If a
 #   PreToolUse payload carries no agent_id, the verdict arm escalates as
-#   unverifiable: fail-closed, never a silent pass.
+#   unverifiable: fail-closed, never a silent pass. Both post events build
+#   their common fields through the PreToolUse builder (read from the Claude
+#   Code 2.1.316 bundle), so they carry both keys too. A post payload with the
+#   seat's agent_type and no usable agent_id leaves the keyless mark. A payload
+#   with neither key reads as the main session and passes through.
 #
 # EXIT CONTRACT
 #   0 = pass-through, recorded, allowed (with or without updatedInput).
 #   2 = a parse or infra error: payload not JSON, or jq missing on an auditor
 #   payload (without jq the agent type is read by a key-anchored grep, so a
 #   jq-less host blocks only the two seat types, never the main session's
-#   every Read).
+#   every Read). On a post event exit 2 cannot stop the call and only shows
+#   stderr to the seat, so the Bash arm leaves a mark first (raw_mark).
 #   Never any other code.
 #
 # CONSTRAINTS
@@ -188,6 +205,76 @@ infra() { echo "WAR: audit tree fingerprint: $1" >&2; exit 2; }
 
 input="$(cat)"
 
+MAIN=""; aid=""; aid_raw=""; cwd="$PWD"
+
+# safe_aid: agent_id keys the state dir: one path segment, no separators or
+# traversal. aid_raw keeps the payload value so the verdict arm can tell a
+# rejected id from an absent one.
+safe_aid() {
+  aid="$aid_raw"
+  case "$aid" in
+    ''|*[!A-Za-z0-9._-]*|.|..) aid="" ;;
+  esac
+}
+
+# main_find: sets MAIN from git, else from the payload cwd's own `.git` entry,
+# so a git failure on the Bash arm can still reach the seat's state dir. A
+# linked worktree's gitfile names the main checkout. A submodule's gitfile does
+# not, so that walk leaves MAIN empty.
+main_find() {
+  _mc="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+    && [ -n "$_mc" ] && { MAIN="$(dirname "$_mc")"; return 0; }
+  _md="$(cd -P -- "$cwd" 2>/dev/null && pwd -P)"
+  while [ -n "$_md" ]; do
+    if [ -d "$_md/.git" ]; then MAIN="$_md"; return 0; fi
+    if [ -f "$_md/.git" ]; then
+      _mg="$(cat "$_md/.git" 2>/dev/null)"; _mg="${_mg#gitdir: }"
+      case "$_mg" in /*/.git/worktrees/*) MAIN="${_mg%%/.git/worktrees/*}" ;; esac
+      return 0
+    fi
+    _md="${_md%/*}"
+  done
+  return 0
+}
+
+# bash_mark <cause>: the Bash arm cannot stop the call, so a recording failure
+# becomes a `!<cause>` line in the seat's touched set, which the verdict arm
+# escalates as unverifiable. With no usable agent_id no state dir has a key, so
+# the cause goes to `$MAIN/.claude/war/audit-no-agent-id`, and the verdict arm
+# of each seat that did not start after that file escalates. <cause> is a fixed
+# string, never payload text. A failed write stays fail-open (residual item 8).
+bash_mark() {
+  [ -n "$MAIN" ] || main_find
+  if [ -z "$MAIN" ]; then
+    echo "WAR: audit tree fingerprint: $1 (no place for the mark)" >&2
+    return 0
+  fi
+  if [ -n "$aid" ]; then
+    mkdir -p "$MAIN/.claude/war/audit-fingerprints/$aid" 2>/dev/null \
+      && printf '!%s\n' "$1" >> "$MAIN/.claude/war/audit-fingerprints/$aid/touched"
+  else
+    mkdir -p "$MAIN/.claude/war" 2>/dev/null \
+      && printf '%s\n' "$1" > "$MAIN/.claude/war/audit-no-agent-id"
+  fi
+  echo "WAR: audit tree fingerprint: $1" >&2
+}
+
+# raw <key>: the string value of a payload key, for the two arms where jq cannot
+# read the payload. A quote inside a JSON string is escaped, so a command that
+# holds the key text never matches.
+raw() { printf '%s' "$input" | sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"\\]*\)".*/\1/p' | head -n 1; }
+
+# raw_mark <cause>: bash_mark for a seat's Bash post event that jq cannot read.
+# Any other payload keeps the plain exit 2.
+raw_mark() {
+  printf '%s' "$input" | grep -q '"agent_type"[[:space:]]*:[[:space:]]*"[^"]*war-\(evidence-\)\{0,1\}auditor"' || return 0
+  [ "$(raw tool_name)" = Bash ] || return 0
+  case "$(raw hook_event_name)" in PostToolUse|PostToolUseFailure) ;; *) return 0 ;; esac
+  aid_raw="$(raw agent_id)"; safe_aid
+  _rc="$(raw cwd)"; [ -n "$_rc" ] && [ -d "$_rc" ] && cwd="$_rc"
+  bash_mark "$1"
+}
+
 # Without jq the agent type is read by a key-anchored grep on the raw payload
 # (an `agent_type` key whose string value ends war-auditor or
 # war-evidence-auditor), so the two seat types fail closed and every other
@@ -195,6 +282,7 @@ input="$(cat)"
 # included.
 if ! command -v jq >/dev/null 2>&1; then
   if printf '%s' "$input" | grep -q '"agent_type"[[:space:]]*:[[:space:]]*"[^"]*war-\(evidence-\)\{0,1\}auditor"'; then
+    raw_mark "jq is not installed on a Bash call"
     infra "jq is not installed; an audit seat cannot be fingerprinted (fail-closed)"
   fi
   exit 0
@@ -203,7 +291,10 @@ get() { printf '%s' "$input" | jq -r "$1 // empty" 2>/dev/null; }
 
 # One jq pass both validates the payload (a parse error is the exit-2 arm) and
 # reads the agent type, so a pass-through call costs one spawn, not two.
-atype="$(printf '%s' "$input" | jq -r '.agent_type? // empty' 2>/dev/null)" || infra "payload is not JSON"
+atype="$(printf '%s' "$input" | jq -r '.agent_type? // empty' 2>/dev/null)" || {
+  raw_mark "payload is not JSON on a Bash call"
+  infra "payload is not JSON"
+}
 case "$atype" in
   *war-auditor|*war-evidence-auditor) ;;
   *) exit 0 ;;
@@ -214,17 +305,10 @@ tool="$(get '.tool_name')"
 cwd="$(get '.cwd')"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$PWD"
 
-# agent_id keys the state dir: one path segment, no separators or traversal.
-# aid_raw keeps the payload value so the verdict arm can tell a rejected id
-# from an absent one.
 aid_raw="$(get '.agent_id')"
-aid="$aid_raw"
-case "$aid" in
-  ''|*[!A-Za-z0-9._-]*|.|..) aid="" ;;
-esac
+safe_aid
 
 # $MAIN: two-step form (see STATE above). Empty when the cwd is not a git tree.
-MAIN=""
 common="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
   && [ -n "$common" ] && MAIN="$(dirname "$common")"
 STATE=""
@@ -259,10 +343,13 @@ sha256_of_stdin() {
 # stands in for a reader takes BOTH (task_worktree_of, outside_top), so
 # neither shape can point the touch away from the worktree either reader
 # reaches. The walk-down of touch_operand reads only canon: it runs for the
-# `--no-index` forms, which git opens physically. grep_walk reads only canon
-# too: ripgrep opens its search root through the kernel.
+# `--no-index` forms, which git opens physically. grep_walk takes both (#2475):
+# ripgrep opens its search root through the kernel, but the Grep tool may fold
+# the path first, and no record says which it does.
 canon() { (cd -P -- "$1" 2>/dev/null && pwd -P); }
-lexical_dir() {
+# fold_path <absolute path>: sets _lo to the path with `.` and `..` folded as
+# text.
+fold_path() {
   _lr="$1"; _lo=""
   while [ -n "$_lr" ]; do
     _lr="${_lr#/}"
@@ -275,6 +362,9 @@ lexical_dir() {
     esac
   done
   [ -n "$_lo" ] || _lo=/
+}
+lexical_dir() {
+  fold_path "$1"
   while [ ! -d "$_lo" ]; do
     _ln="${_lo%/*}"; [ -n "$_ln" ] || _ln=/
     [ "$_ln" = "$_lo" ] && return 0
@@ -652,6 +742,8 @@ touch_operand() {
     base_top
     case "$_cd/" in "$_top/"*) [ -n "$_top" ] && return 0 ;; esac
   fi
+  git -C "$cwd" worktree list --porcelain >/dev/null 2>&1 \
+    || bash_mark "git worktree list failed on a Bash call"
   task_worktrees | while IFS= read -r _w; do
     case "$_w/" in "$_cd/"*) touch_line "$_w" ;; esac
   done
@@ -692,14 +784,29 @@ ignored_dir() {
 # excludes, so busy sibling worktrees under the run dir are never touched
 # (no false AUDIT-TAMPER). ripgrep honors more ignore files than git
 # (`.ignore`, `.rgignore`, global excludes); the gap errs toward over-touch.
-# The walk primitive is task_worktrees, as in touch_operand. R is read
-# physically (canon). Each folder's answer is cached for the call, so the
-# worktrees under one ignored dir cost one check-ignore spawn.
+# The walk primitive is task_worktrees, as in touch_operand. R is read both
+# ways (#2475): the raw path through canon, and the folded path (fold_path).
+# Each reading that names a directory is walked once. A reading that names no
+# directory is not walked, and its nearest ancestor never stands in: a missing
+# root reads nothing, and walking its parent would touch sibling worktrees.
+# Each folder's answer is cached for the walk, so the worktrees under one
+# ignored dir cost one check-ignore spawn. The git-pattern rule stands for a
+# Grep with a `glob` (#2476): a ripgrep `--glob` wins over ignore rules, so a
+# glob that matches an ignored folder's name can read a worktree this walk
+# leaves untouched. That residual is recorded in the fingerprint lesson and in
+# backstop B1.
 grep_walk() {
   [ -n "$STATE" ] || return 0
-  case "$1" in /*) _gr="$1" ;; *) _gr="$cwd/$1" ;; esac
-  [ -d "$_gr" ] || return 0
-  _gr="$(canon "$_gr")" && [ -n "$_gr" ] || return 0
+  case "$1" in /*) _gr0="$1" ;; *) _gr0="$cwd/$1" ;; esac
+  _gp=""; [ -d "$_gr0" ] && { _gp="$(canon "$_gr0")" || _gp=""; }
+  fold_path "$_gr0"
+  _gl=""; [ -d "$_lo" ] && { _gl="$(canon "$_lo")" || _gl=""; }
+  [ -n "$_gp" ] && grep_walk_root "$_gp"
+  [ -n "$_gl" ] && [ "$_gl" != "$_gp" ] && grep_walk_root "$_gl"
+  return 0
+}
+grep_walk_root() {
+  _gr="$1"
   _gall=0; ignored_dir "$_gr" && _gall=1
   _gpre="${_gr%/}"
   task_worktrees | {
@@ -814,12 +921,25 @@ compare() {
   fi
   if [ -z "$MAIN" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no git common dir from cwd '$cwd')"; return 0; fi
   if [ ! -f "$STATE/start" ]; then REASON="AUDIT-TAMPER: unverifiable fingerprint (no start record for agent $aid)"; return 0; fi
+  # The keyless mark binds every seat that did not start after it (see
+  # bash_mark). A tie escalates: `-nt` reads whole seconds on bash 3.2.
+  _na="$MAIN/.claude/war/audit-no-agent-id"
+  if [ -f "$_na" ] && [ ! "$STATE/start" -nt "$_na" ]; then
+    REASON="AUDIT-TAMPER: unverifiable fingerprint ($(head -n 1 "$_na" 2>/dev/null))"; return 0
+  fi
+  # No Bash call runs beside the verdict, so an open marker is a killed hook.
+  set +f; _bo="$(ls -d "$STATE"/bash-open.* 2>/dev/null)"; set -f
+  if [ -n "$_bo" ]; then
+    REASON="AUDIT-TAMPER: unverifiable fingerprint (a Bash recording did not finish)"; return 0
+  fi
   [ -f "$STATE/touched" ] || return 0
   while IFS= read -r _wt || [ -n "$_wt" ]; do
     [ -n "$_wt" ] || continue
     T_START=""; T_NOW=""
-    case "$_wt" in /*) ;; *)
-      T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
+    case "$_wt" in
+      /*) ;;
+      '!'*) T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (${_wt#!})"; return 0 ;;
+      *) T_WT="$_wt"; REASON="AUDIT-TAMPER: unverifiable fingerprint (unresolved Bash path $_wt)"; return 0 ;;
     esac
     _rec="$(while IFS= read -r _l; do
               _p="${_l#* }"; _p="${_p#* }"
@@ -931,120 +1051,6 @@ case "$event" in
           case "$_pat" in /*) touch_path "${_pat%%[*?\[{]*}" ;; esac
         fi
         exit 0 ;;
-      Bash)
-        # Every global `-C <path>` (or `-C<path>`) token names a worktree the
-        # command reaches; with none, the command runs in the payload cwd.
-        # Global means BEFORE the subcommand word: `_sub` is set on the first
-        # token that is not `-C`, a `-C` value or an attached `-C<path>` (the
-        # guard admits no other global option), and after it a `-C` or `-C<n>`
-        # token is git's copy-detection flag (diff, log, blame), classified as
-        # a flag like any `-*` token, so `git diff -C ../wtB/f ../wtD/f` keeps
-        # its operand base. Tokens are whitespace-split (set -f above: a glob
-        # token stays literal), with one quoted value one token (quote_words),
-        # and a quoted path has its quotes stripped.
-        # An unquoted word-initial `~` (admitted by validate-auditor-git.sh
-        # for HEAD~1) is expanded by the seat's shell before git sees it, so
-        # the hook expands that form too (see tilde above), on a `-C` value
-        # and on an operand alike; a `~-` or `~<name>` form goes into the
-        # touched set literal. A quoted `'~/x'` or an attached `-C~/x` reaches git literal
-        # and stays literal here. Every other token, quotes stripped, is
-        # classified as a path: an absolute one (`/...`) is touched as is, a
-        # `--<opt>=<value>` token is classified by the value after its first
-        # `=` (`--contents=/abs/f`, `--contents=../wtB/f`, `--contents=a/f`),
-        # an attached short-option value (`-O<orderfile>`, `-X<exclude-file>`:
-        # git reads those files) is classified by the text after its option
-        # letter (a non-path value such as `-n5` or `-M50%` resolves to the
-        # base, already touched), and when that token is a short-option
-        # cluster (git's parse_options reads a cluster letter by letter, so
-        # `-pO<orderfile>` and `-tX<exclude-file>` read the file too) the
-        # text after the first file-valued letter in the cluster (`O`
-        # orderfile, `X` exclude file, `S` blame revs file) is classified as
-        # a path as well; the cluster arm is skipped when the first letter is
-        # itself file-valued, since the plain arm has that token (a non-path
-        # tail resolves to the base), any other token that starts with `-` is
-        # a flag and costs no spawn, and EVERY other token (`../wtB/f`,
-        # `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
-        # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
-        # against the running base: the payload cwd, moved by each resolved
-        # global `-C` in order. validate-auditor-git.sh admits `git diff
-        # /abs/wtB/f /abs/wtB/g`, `git diff ../wtB/f ../wtB/g`, `git diff
-        # --no-index .claude/war-worktrees/R/T/f /dev/null` and `git -C <run
-        # dir> diff --no-index T1 T2` alike (`.`, `/` and `=` are in its
-        # character allowlist, it peels one `-C <path>`, and it polices no
-        # file-valued diff or blame flag), and git implies --no-index for a two-path
-        # `diff` with either path outside the base's work tree (the payload
-        # cwd, moved by each global -C), so the command reads a worktree the
-        # `-C` scan and the cwd fallback never name. A slashless operand is
-        # NOT skipped: after a `-C` into a run directory
-        # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
-        # task worktree. A token that names no directory (`diff`, `HEAD~1`)
-        # resolves to the base, which the `-C` arm or the cwd fallback
-        # touched already (touch_line dedupes), so over-touch costs
-        # task_worktree_of's canon and lexical_dir subshells and under-touch
-        # would leave a read worktree uncompared.
-        # Every operand goes through touch_operand: a directory operand that
-        # holds task worktrees (the run directory, `$TMP`, `.` under
-        # --no-index) adds each of them when the command recurses into them.
-        # `_noindex` is pre-scanned over the whole command, since git reads
-        # the flag wherever it stands, and set again at the subcommand word
-        # when git implies the flag (implied_noindex: a two-path `diff` with
-        # either path outside the base's work tree). The first token is the program name
-        # (`git`, the only one the guard admits) and names no path, so it is
-        # skipped: resolved against the payload cwd it would touch a worktree
-        # a `-C` command never reads. After an unresolved `~-` or `~<name>` -C the
-        # base is unknown, so a later relative operand is not resolved; the
-        # literal line already makes the verdict arm escalate, so nothing is
-        # lost. The cwd fallback is unchanged by an operand token: the
-        # command still runs in the payload cwd, and the fallback never walks
-        # down into nested worktrees (touch_path, not touch_operand).
-        quote_words "$(get '.tool_input.command')"
-        _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0
-        for _tok in $_cmd; do
-          [ "$_tok" = --no-index ] && _noindex=1
-        done
-        for _tok in $_cmd; do
-          word_of "$_tok"; _tok="$_w"
-          if [ "$_first" = 1 ]; then _first=0; continue; fi
-          if [ "$_want" = 1 ]; then
-            _want=0; _found=1
-            case "$_tok" in
-              \"*|\'*) unquote "$_tok"; _tok="$_t" ;;
-              *) if tilde "$_tok"; then _tok="$_t"; else touch_line "$_tok"; _base=""; continue; fi ;;
-            esac
-            [ -n "$_tok" ] && touch_c "$_tok"
-            continue
-          fi
-          if [ "$_sub" = 0 ]; then
-            case "$_tok" in
-              -C) _want=1; continue ;;
-              -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t"; continue ;;
-            esac
-            _sub=1
-            # The subcommand word is known and every global `-C` has moved
-            # `_base`, so git's implied --no-index is decided here.
-            if [ "$_noindex" != 1 ]; then
-              unquote "$_tok"
-              [ "$_t" = diff ] && implied_noindex && _noindex=1
-            fi
-          fi
-          case "$_tok" in
-            \"*|\'*) unquote "$_tok" ;;
-            *) if tilde "$_tok"; then :; else touch_line "$_tok"; continue; fi ;;
-          esac
-          case "$_t" in --*=*) _t="${_t#*=}" ;; esac
-          case "$_t" in
-            /*) touch_operand "$_t" ;;
-            -[!-]?*) _tq="$_t"; unquote "${_t#-?}"; _v="$_t"; _t="$_tq"
-               case "$_v" in /*) touch_path "$_v" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v" ;; esac
-               case "$_t" in -[!OXS]*[OXS]?*) _v2="${_t#-*[OXS]}"
-                 case "$_v2" in /*) touch_path "$_v2" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v2" ;; esac ;;
-               esac ;;
-            -*) ;;
-            *) [ -n "$_base" ] && touch_operand "$_base/$_t" ;;
-          esac
-        done
-        [ "$_found" = 0 ] && touch_path "$cwd"
-        exit 0 ;;
       StructuredOutput)
         compare
         [ -n "$REASON" ] || exit 0
@@ -1066,6 +1072,137 @@ case "$event" in
         exit 0 ;;
       *) exit 0 ;;
     esac ;;
+
+  PostToolUse|PostToolUseFailure)
+    [ "$tool" = Bash ] || exit 0
+    if [ -z "$aid" ]; then
+      if [ -n "$aid_raw" ]; then bash_mark "unsafe agent_id in the Bash payload"
+      else bash_mark "no agent_id in the Bash payload"; fi
+      exit 0
+    fi
+    if [ -z "$MAIN" ]; then bash_mark "no git common dir on a Bash call"; exit 0; fi
+    mkdir -p "$STATE" 2>/dev/null
+    _open="$STATE/bash-open.$$"
+    : > "$_open" 2>/dev/null
+    # Every global `-C <path>` (or `-C<path>`) token names a worktree the
+    # command reaches; with none, the command runs in the payload cwd.
+    # Global means BEFORE the subcommand word: `_sub` is set on the first
+    # token that is not `-C`, a `-C` value or an attached `-C<path>` (the
+    # guard admits no other global option), and after it a `-C` or `-C<n>`
+    # token is git's copy-detection flag (diff, log, blame), classified as
+    # a flag like any `-*` token, so `git diff -C ../wtB/f ../wtD/f` keeps
+    # its operand base. Tokens are whitespace-split (set -f above: a glob
+    # token stays literal), with one quoted value one token (quote_words),
+    # and a quoted path has its quotes stripped.
+    # An unquoted word-initial `~` (admitted by validate-auditor-git.sh
+    # for HEAD~1) is expanded by the seat's shell before git sees it, so
+    # the hook expands that form too (see tilde above), on a `-C` value
+    # and on an operand alike; a `~-` or `~<name>` form goes into the
+    # touched set literal. A quoted `'~/x'` or an attached `-C~/x` reaches git literal
+    # and stays literal here. Every other token, quotes stripped, is
+    # classified as a path: an absolute one (`/...`) is touched as is, a
+    # `--<opt>=<value>` token is classified by the value after its first
+    # `=` (`--contents=/abs/f`, `--contents=../wtB/f`, `--contents=a/f`),
+    # an attached short-option value (`-O<orderfile>`, `-X<exclude-file>`:
+    # git reads those files) is classified by the text after its option
+    # letter (a non-path value such as `-n5` or `-M50%` resolves to the
+    # base, already touched), and when that token is a short-option
+    # cluster (git's parse_options reads a cluster letter by letter, so
+    # `-pO<orderfile>` and `-tX<exclude-file>` read the file too) the
+    # text after the first file-valued letter in the cluster (`O`
+    # orderfile, `X` exclude file, `S` blame revs file) is classified as
+    # a path as well; the cluster arm is skipped when the first letter is
+    # itself file-valued, since the plain arm has that token (a non-path
+    # tail resolves to the base), any other token that starts with `-` is
+    # a flag and costs no spawn, and EVERY other token (`../wtB/f`,
+    # `./x/f`, `a/../b/f`, `a/b/f`, `wtB`, `diff`,
+    # `HEAD~1`, the value of a space-form `--contents <f>`) resolves
+    # against the running base: the payload cwd, moved by each resolved
+    # global `-C` in order. validate-auditor-git.sh admits `git diff
+    # /abs/wtB/f /abs/wtB/g`, `git diff ../wtB/f ../wtB/g`, `git diff
+    # --no-index .claude/war-worktrees/R/T/f /dev/null` and `git -C <run
+    # dir> diff --no-index T1 T2` alike (`.`, `/` and `=` are in its
+    # character allowlist, it peels one `-C <path>`, and it polices no
+    # file-valued diff or blame flag), and git implies --no-index for a two-path
+    # `diff` with either path outside the base's work tree (the payload
+    # cwd, moved by each global -C), so the command reads a worktree the
+    # `-C` scan and the cwd fallback never name. A slashless operand is
+    # NOT skipped: after a `-C` into a run directory
+    # (`$MAIN/.claude/war-worktrees/<run>`) a bare `<task>` names a whole
+    # task worktree. A token that names no directory (`diff`, `HEAD~1`)
+    # resolves to the base, which the `-C` arm or the cwd fallback
+    # touched already (touch_line dedupes), so over-touch costs
+    # task_worktree_of's canon and lexical_dir subshells and under-touch
+    # would leave a read worktree uncompared.
+    # Every operand goes through touch_operand: a directory operand that
+    # holds task worktrees (the run directory, `$TMP`, `.` under
+    # --no-index) adds each of them when the command recurses into them.
+    # `_noindex` is pre-scanned over the whole command, since git reads
+    # the flag wherever it stands, and set again at the subcommand word
+    # when git implies the flag (implied_noindex: a two-path `diff` with
+    # either path outside the base's work tree). The first token is the program name
+    # (`git`, the only one the guard admits) and names no path, so it is
+    # skipped: resolved against the payload cwd it would touch a worktree
+    # a `-C` command never reads. After an unresolved `~-` or `~<name>` -C the
+    # base is unknown, so a later relative operand is not resolved; the
+    # literal line already makes the verdict arm escalate, so nothing is
+    # lost. The cwd fallback is unchanged by an operand token: the
+    # command still runs in the payload cwd, and the fallback never walks
+    # down into nested worktrees (touch_path, not touch_operand).
+    quote_words "$(get '.tool_input.command')"
+    _found=0; _want=0; _base="$cwd"; _first=1; _sub=0; _noindex=0
+    for _tok in $_cmd; do
+      [ "$_tok" = --no-index ] && _noindex=1
+    done
+    for _tok in $_cmd; do
+      word_of "$_tok"; _tok="$_w"
+      if expired; then
+        bash_mark "deadline passed on a Bash call"
+        rm -f "$_open"
+        exit 0
+      fi
+      if [ "$_first" = 1 ]; then _first=0; continue; fi
+      if [ "$_want" = 1 ]; then
+        _want=0; _found=1
+        case "$_tok" in
+          \"*|\'*) unquote "$_tok"; _tok="$_t" ;;
+          *) if tilde "$_tok"; then _tok="$_t"; else touch_line "$_tok"; _base=""; continue; fi ;;
+        esac
+        [ -n "$_tok" ] && touch_c "$_tok"
+        continue
+      fi
+      if [ "$_sub" = 0 ]; then
+        case "$_tok" in
+          -C) _want=1; continue ;;
+          -C?*) _found=1; unquote "${_tok#-C}"; touch_c "$_t"; continue ;;
+        esac
+        _sub=1
+        # The subcommand word is known and every global `-C` has moved
+        # `_base`, so git's implied --no-index is decided here.
+        if [ "$_noindex" != 1 ]; then
+          unquote "$_tok"
+          [ "$_t" = diff ] && implied_noindex && _noindex=1
+        fi
+      fi
+      case "$_tok" in
+        \"*|\'*) unquote "$_tok" ;;
+        *) if tilde "$_tok"; then :; else touch_line "$_tok"; continue; fi ;;
+      esac
+      case "$_t" in --*=*) _t="${_t#*=}" ;; esac
+      case "$_t" in
+        /*) touch_operand "$_t" ;;
+        -[!-]?*) _tq="$_t"; unquote "${_t#-?}"; _v="$_t"; _t="$_tq"
+           case "$_v" in /*) touch_path "$_v" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v" ;; esac
+           case "$_t" in -[!OXS]*[OXS]?*) _v2="${_t#-*[OXS]}"
+             case "$_v2" in /*) touch_path "$_v2" ;; *) [ -n "$_base" ] && touch_path "$_base/$_v2" ;; esac ;;
+           esac ;;
+        -*) ;;
+        *) [ -n "$_base" ] && touch_operand "$_base/$_t" ;;
+      esac
+    done
+    [ "$_found" = 0 ] && touch_path "$cwd"
+    rm -f "$_open"
+    exit 0 ;;
 
   SubagentStop)
     compare
