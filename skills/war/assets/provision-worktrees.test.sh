@@ -1182,7 +1182,7 @@ expect "T2.2: origin/<working> advanced to <new-sha>" \
 # land-truth guard, an entirely-unreachable origin short-circuits at the
 # ls-remote readback — comment kept honest per
 # decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome. The
-# bare push-error exit-3 classification is now exercised directly by T2.9
+# push-error exit-3 classification is now exercised directly by T2.9
 # below, where a reachable origin's pre-receive hook rejects the push.)
 # ---------------------------------------------------------------------------
 PAIR3="$(setup_origin_pair)"
@@ -1214,13 +1214,13 @@ LOCAL_BEFORE3="$(git -C "$C1_3" rev-parse refs/heads/working/myplan3 2>/dev/null
 # checks alone do not fail if the guard regresses
 # (weak-test-assertion-passes-without-feature-being-exercised); the die-text
 # assertion below does — 'could not read the origin tip' is emitted only by the
-# rc-guard path, never by the bare push-error exit 3.
+# rc-guard path, never by the push-error die.
 OUT3="$( ( cd "$C1_3" && git checkout --detach "$NEW_SHA3" >/dev/null 2>&1 && bash "$SCRIPT" land-advance working/myplan3 "$NEW_SHA3" ) 2>&1 )"
 code=$?
 
 expect "T2.3: origin unreachable -> ls-remote guard escalates (exit 3), not reland (2)" \
   "3" "$code"
-expect "T2.3: failed-readback die uniquely names the rc-guard path (not the bare push-error exit 3)" \
+expect "T2.3: failed-readback die uniquely names the rc-guard path (not the push-error die)" \
   "1" "$(printf '%s' "$OUT3" | grep -c 'could not read the origin tip')"
 expect "T2.3: failed origin readback leaves the local follower unchanged (never read as first-land)" \
   "$LOCAL_BEFORE3" "$(git -C "$C1_3" rev-parse refs/heads/working/myplan3 2>/dev/null)"
@@ -1501,7 +1501,7 @@ CODE5D=$?
 
 expect "T2.5d: unresolvable HEAD (orphan/unborn) → EX_FOREIGN (3), never reland (2) or wrong-HEAD (6)" \
   "3" "$CODE5D"
-expect "T2.5d: unresolvable-HEAD die carries the 'could not resolve HEAD to a commit' substring (discriminates from T2.5c's die and the silent push-error exit 3)" \
+expect "T2.5d: unresolvable-HEAD die carries the 'could not resolve HEAD to a commit' substring (discriminates from T2.5c's die and the push-error die)" \
   "match" "$(printf '%s' "$OUT5D" | grep -q 'could not resolve HEAD to a commit' && echo match || echo nomatch)"
 expect "T2.5d: local refs/heads/<working> byte-unchanged (die happens before any push or update-ref)" \
   "$LOCAL_BEFORE5D" "$(git -C "$C1_5D" rev-parse refs/heads/working/myplan5d)"
@@ -1713,9 +1713,9 @@ FOLLOWER_BEFORE9="$(git -C "$C1_9" rev-parse refs/heads/working/myplan9)"
 ORIGIN_BEFORE9="$(git -C "$C1_9" ls-remote origin refs/heads/working/myplan9 | cut -f1)"
 
 # (d) Run land-advance, capturing BOTH combined output and exit code (T2.3/T2.6
-# idiom; run_in_detached swallows stderr). The push-error branch prints nothing,
-# so the die-text-ABSENCE assertions are what exclude the rc-guard (T2.3) and
-# phantom (T2.6) exit-3 routes.
+# idiom; run_in_detached swallows stderr). The push-error die names its own route,
+# and the die-text-ABSENCE assertions exclude the rc-guard (T2.3), phantom (T2.6)
+# and readback exit-3 routes.
 OUT9="$( ( cd "$C1_9" && git checkout --detach "$NEW_SHA9" >/dev/null 2>&1 && bash "$SCRIPT" land-advance working/myplan9 "$NEW_SHA9" ) 2>&1 )"
 CODE9=$?
 expect "T2.9: pre-receive push rejection -> push-error die (exit 3)" \

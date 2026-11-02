@@ -10889,6 +10889,8 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
   const lands = first.calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
   assert.equal(lands.length, 1, 'the note alone never re-dispatches the land')
   assert.match(armOf(lands[0].prompt), /any other exit from land-advance: return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, 'the initial land orders the stderr into segment_note')
+  const extra = "If that attempt exits anything but 0 or 2, return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }, never land_stale."
+  assert.ok(lands[0].prompt.includes(extra), 'the extra CAS attempt keeps the die out of land_stale')
   assert.equal(first.out.landDecision, 'held:land-failed', 'the note never changes the route')
   const row = (first.out.escalated || []).find(e => e && e.task === 'phase-3-land')
   assert.equal(row && row.detail && row.detail.segment_note, die, 'the escalation detail carries the die text')
@@ -10902,13 +10904,14 @@ test('land-advance escalate: each land site orders stderr into segment_note, and
     const reland = calls.find(c => c.opts.label === 'land:phase-3:' + flavor)
     assert.ok(reland, flavor + ': presence guard, the re-land dispatches')
     assert.match(armOf(reland.prompt), /on any exit but 0 or 2, return \{ mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' \}/, flavor + ': the re-land orders the stderr into segment_note')
+    assert.ok(reland.prompt.includes(extra), flavor + ': the extra CAS attempt keeps the die out of land_stale')
     assert.equal(out.landDecision, 'held:land-failed', flavor + ': a re-land error holds the phase')
     const held2 = (out.escalated || []).find(e => e && e.task === 'phase-3-land')
     assert.equal(held2 && held2.detail && held2.detail.segment_note, die, flavor + ': the escalation detail carries the die text')
   }
 })
 
-// #1837: each land status:'error' enters reconcileMerge first. The die text survives each route out.
+// #1837: each land status:'error' enters reconcileMerge first. The die text survives each failed route out.
 test('land-advance escalate: the die text survives reconciliation', async () => {
   const die = 'land-advance: the push exited 0, but origin reads abc'
   const land = (prompt, opts) => /^land:phase-3(:|$)/.test(opts.label || '') ? { mode: 'land-phase', status: 'error', segment_note: die } : defaultImpl(prompt, opts)

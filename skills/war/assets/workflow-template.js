@@ -2631,7 +2631,7 @@ const gitBoundGateSha = (result, proof, context) => {
   return rest
 }
 const reconcileMerge = async (original, opts, context, before, lost) => {
-  // A land-advance escalate keeps its stderr on each route out of here, so the Lead reads it (#1837).
+  // A land-advance escalate keeps its stderr on each failed route out of here, so the Lead reads it (#1837).
   const note = lost && typeof lost.segment_note === 'string' ? lost.segment_note : ''
   const cause = (deathOf(lost) || 'missing or error merge response') + (note ? ': ' + note : '')
   const success = context.land ? 'landed' : 'merged'
@@ -6681,8 +6681,9 @@ if (polishStatus !== 'merged') log('terminal pass: phase ' + ph.id + ' — no me
 // state the identical discrimination AND the identical +1 budget. Shared here so all three land prompts
 // (in-flow, baseline-proceed re-land, environment-proceed re-land) cannot drift from each other. A resolved
 // transient returns 'landed' — NO new status/enum member — so the existing servitorResult gate fires.
+const landErrorArm = pt`return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }`
 const relandDiscrimination = (working) =>
-  pt`     - On the FINAL failed CAS attempt (after roundLimit rejected pushes), before returning land_stale, discriminate a contender-less transient from a real divergence: run \`git fetch origin ${working} && git rev-list --left-right --count <merge-sha>...origin/${working}\` — the merge sha the loop just tried to push vs. the freshly-fetched origin tip, NEVER the local follower refs/heads/${working} (it lags). Right count 0 (contender-less transient: every commit on the fetched origin tip is already contained in the merge sha, so no competing commit exists and the rejection cannot be a lost CAS) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside roundLimit): re-fetch, re-detach at origin/${working}, re-merge --no-ff, re-gate, land-advance; if that extra attempt also fails, return { mode: 'land-phase', status: 'land_stale' } (topology exhaustion / CAS failure, NOT a content conflict). Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return { mode: 'land-phase', status: 'land_stale' } immediately, with no extra attempt. A transient that resolves returns status: 'landed' — no new status, so the servitor wrap-up fires automatically.\n`
+  pt`     - On the FINAL failed CAS attempt (after roundLimit rejected pushes), before returning land_stale, discriminate a contender-less transient from a real divergence: run \`git fetch origin ${working} && git rev-list --left-right --count <merge-sha>...origin/${working}\` — the merge sha the loop just tried to push vs. the freshly-fetched origin tip, NEVER the local follower refs/heads/${working} (it lags). Right count 0 (contender-less transient: every commit on the fetched origin tip is already contained in the merge sha, so no competing commit exists and the rejection cannot be a lost CAS) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside roundLimit): re-fetch, re-detach at origin/${working}, re-merge --no-ff, re-gate, land-advance; if that extra attempt also fails, return { mode: 'land-phase', status: 'land_stale' } (topology exhaustion / CAS failure, NOT a content conflict). If that attempt exits anything but 0 or 2, ` + landErrorArm + pt`, never land_stale. Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return { mode: 'land-phase', status: 'land_stale' } immediately, with no extra attempt. A transient that resolves returns status: 'landed' — no new status, so the servitor wrap-up fires automatically.\n`
 
 if (landDecision === 'landed') {
   // For a submodule phase: thread targetRepo + targetBase so the refiner knows to perform a
@@ -6698,7 +6699,6 @@ if (landDecision === 'landed') {
   // KNOWN_LAND_DECISIONS member (land-decision.mjs untouched, ADR 0005). segmentedLand below appends
   // it to every land dispatch and owns the bounded re-dispatch loop (the FLOOR_STATUSES retry-loop
   // idiom — the merge-task floor sub-loop's shape).
-  const landErrorArm = pt`return { mode: 'land-phase', status: 'error', segment_note: '<land-advance stderr>' }`
   const segmentedLandClause =
     pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe. `
     + backgroundGateRule(pt`{ mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }`)

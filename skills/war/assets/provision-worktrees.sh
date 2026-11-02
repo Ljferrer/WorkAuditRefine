@@ -1339,6 +1339,8 @@ cmd_teardown_phase() {
 # Exit codes:
 #   0  → push accepted and local follower advanced to <new-sha>; OR already-landed
 #        (origin already at <new-sha>, follower reconciled, push skipped).
+#   1  → usage error, or a failed follower update-ref. After a push, origin may hold
+#        <new-sha>; escalate.
 #   2  → push rejected ([rejected] token seen); local ref unchanged; reland.
 #   3  → phantom land, failed origin readback, unresolvable HEAD/<new-sha>,
 #        unrelated push error, or post-push readback mismatch; escalate. A git
