@@ -577,7 +577,7 @@ dir_is_empty() {
 #     then catch it up (#2493, see catch_up_reused_branch below). The branch
 #     fast-forwards to <integration-tip> only if the tip already contains its
 #     tip. Any other branch stays as it is, and the engine's tree-keyed
-#     re-provision covers the gate. So does a merged task's branch, because the
+#     re-provision covers the gate. A merged task's branch stays too, because the
 #     merge proof and the Ace-Charge read match on its tip. A Git error or a failed
 #     rebase warns and keeps the branch. This path never resets and never dies.
 #     A move or a failure emits a WORKTREE_HYGIENE marker. The barrier captures
