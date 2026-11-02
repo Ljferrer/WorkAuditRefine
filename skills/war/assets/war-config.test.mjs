@@ -2455,11 +2455,13 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
 // (learning `prompt-only-clause-grep-guard-must-tolerate-sentence-case` — rewording tolerance).
 test('doc-contract: SKILL.md Per-phase retired-token sweep clause — trigger family, war-followup routing, record line (#930)', () => {
   // Region extraction: the clause opens with its bold lead-in, so the new file's header text can
-  // never satisfy an anchor below. The clause is the last text in the file.
+  // never satisfy an anchor below. The clause is the file's last paragraph, and the bound assert
+  // keeps a later section from satisfying one.
   const lc = readDoc('skills/war/references/retired-token-sweep.md').toLowerCase()
   const anchor = lc.indexOf('**retired-token sweep (every landed phase; #930).**')
   assert.ok(anchor >= 0, 'references/retired-token-sweep.md must carry the retired-token sweep clause (#930)')
   const region = lc.slice(anchor)
+  assert.ok(!region.trimEnd().includes('\n'), 'the clause must stay the last paragraph of the file')
   // Section containment: the trigger pointer lives under `## Per phase (in DAG order)`, before
   // `## Resume`, and it keeps the record-line words, so the Lead still writes the line at every
   // landed phase. The clause body stays out of SKILL.md.
@@ -2471,14 +2473,17 @@ test('doc-contract: SKILL.md Per-phase retired-token sweep clause — trigger fa
   const section = skill.slice(perPhase, resume)
   assert.match(section, /when a phase lands\b[^.]*, read \[references\/retired-token-sweep\.md\]\(references\/retired-token-sweep\.md\)[^.]*`retired-token sweep:`/,
     'the Per-phase section must hold the trigger pointer with the `retired-token sweep:` record-line words')
+  // The trigger pointer is the only hot copy of these two arms.
+  assert.match(section, /a phase you completed manually counts/, 'the pointer must keep the manual-completion arm')
+  assert.match(section, /a held phase gets no record line/, 'the pointer must keep the held-phase arm')
   assert.ok(!skill.includes('two nets over the hot corpus'), 'the clause body must stay out of SKILL.md')
   // Trigger family — retire / rename / consolidate a land, merge, or escalation mechanism.
   for (const tok of ['retire', 'rename', 'consolidate', 'land', 'merge', 'escalation']) {
     assert.ok(region.includes(tok),
       `retired-token sweep clause must name the trigger-family token \`${tok}\` (retire/rename/consolidate a land/merge/escalation mechanism)`)
   }
-  // Routing — repo-root load-bearing hits file one consolidated `war-followup` issue. Region scope
-  // discriminates this from the 3 pre-existing `war-followup` occurrences elsewhere in SKILL.md.
+  // Routing — repo-root load-bearing hits file one consolidated `war-followup` issue. Only this
+  // file's clause region is read, so SKILL.md's own `war-followup` occurrences cannot satisfy it.
   assert.ok(region.includes('war-followup'),
     'retired-token sweep clause must route repo-root load-bearing hits to a `war-followup` issue')
   // Record line — the literal greppable prefix plus the no-trigger `n/a` arm.

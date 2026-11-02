@@ -4536,10 +4536,12 @@ const decomposeStep2 = () => {
 
 test('#2545: Decompose step 2 carries the seat model duty and points at the boundary rule', () => {
   const step = decomposeStep2()
-  assert.match(step, /classify each seat as routine or boundary-heavy/, 'step 2 must make the Lead classify each seat')
-  assert.match(step, /set `model: "opus"` on each boundary-heavy seat/, 'step 2 must set the model on each boundary-heavy seat')
-  assert.match(step, /state the choice in the rationale line/, 'step 2 must put the choice in the rationale line')
-  assert.match(step, /\[references\/design\.md\]\(references\/design\.md\)/, 'step 2 must point at design.md')
+  assert.match(step, /Seat model, under every policy/, 'the duty must bind every rosterPolicy, not only auto')
+  assert.match(step, /classify each seat as routine or boundary-heavy by the boundary rule in the Audit step of \[references\/design\.md\]\(references\/design\.md\)/,
+    'step 2 must make the Lead classify each seat by the rule at its pointer to design.md')
+  assert.match(step, /set `model: "opus"` on each boundary-heavy seat whose resolved model ranks below opus/,
+    'step 2 must raise a seat below opus and must never lower a stronger tier')
+  assert.match(step, /state the choice in a one-line rationale/, 'step 2 must put the choice in a rationale line under every policy')
 })
 
 test('#2545: the boundary list has one home, design.md, and step 2 does not restate it', () => {
@@ -4548,7 +4550,7 @@ test('#2545: the boundary list has one home, design.md, and step 2 does not rest
   assert.ok(audit, 'could not locate the Audit (per task) step in design.md')
   assert.match(audit[0], /boundary-heavy seat \(security, parsing, Git or filesystem, recovery or state-machine work\) `model: "opus"`/,
     'design.md must keep the boundary list and its opus routing in the Audit step')
-  for (const term of ['parsing', 'filesystem', 'state-machine']) {
+  for (const term of ['security', 'parsing', 'filesystem', 'recovery', 'state-machine']) {
     assert.ok(!decomposeStep2().includes(term), 'step 2 restates the boundary list term: ' + term)
   }
 })
@@ -4560,7 +4562,7 @@ test('#1776: SKILL.md keeps the preflight invocation and a trigger pointer, and 
     'SKILL.md must keep the preflight invocation')
   assert.match(skillMd, /Dispatch only on exit 0; when it exits non-zero or you injected an approved stage into the staged script, read \[references\/staged-script\.md\]\(references\/staged-script\.md\)/,
     'SKILL.md must keep the stop rule and the trigger pointer')
-  for (const moved of ['By default it reads the SHIPPED template', 'Exit 0 ⇒ dispatch', 'This preflight is the belt']) {
+  for (const moved of ['By default it reads the SHIPPED template', 're-run with `--template', 'Exit 0 ⇒ dispatch', 'exit 1 ⇒', 'exit 2 ⇒ a tooling error', 'This preflight is the belt']) {
     assert.ok(!skillMd.includes(moved), 'SKILL.md still carries the moved prose: ' + moved)
     assert.ok(staged.includes(moved), 'staged-script.md must carry the moved prose: ' + moved)
   }
