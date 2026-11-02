@@ -571,6 +571,8 @@ dir_is_empty() {
 #     nothing to destroy.
 #   * Not registered, no dir            -> create fresh on the integration tip.
 #   * Not registered, empty dir         -> rmdir + create fresh (no data at risk).
+#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
+#     (D7).
 #   * Stale registry or not registered, and <branch> exists -> check it out,
 #     then catch it up (#2493, see catch_up_reused_branch below). The branch
 #     fast-forwards to <integration-tip> only if the tip already contains its
@@ -578,8 +580,9 @@ dir_is_empty() {
 #     re-provision covers the gate. So does a merged task's branch, because the
 #     merge proof and the Ace-Charge read match on its tip. A Git error or a failed
 #     rebase warns and keeps the branch. This path never resets and never dies.
-#     A move or a failure emits a WORKTREE_HYGIENE marker for the barrier. A
-#     registered, present worktree never gets here.
+#     A move or a failure emits a WORKTREE_HYGIENE marker. The barrier captures
+#     it, and the polish dispatch leaves it on stderr. A registered, present
+#     worktree never gets here.
 cmd_ensure_worktree() {
   reclaim_stale_remote=0
   path=""; branch=""; tip=""
@@ -796,11 +799,12 @@ stale_remote_probe() {
   die "ensure-worktree: origin has '$sr_branch' at $sr_remote_sha, which is NOT an ancestor of the frozen integration tip $sr_tip — a STALE PRIOR ATTEMPT (an unmerged remote task branch left by a prior run whose local state was torn down). No ref or worktree was created. Reconcile one of two ways: (a) ADOPT the remote as the real work — 'git branch $sr_branch $sr_remote_sha' then relaunch (the existing-branch reuse path checks it out as-is); or (b) on a SANCTIONED recovery relaunch where the remote is a superseded attempt, pass --reclaim-stale-remote to delete it. Reversible until remote GC: git push origin $sr_remote_sha:refs/heads/$sr_branch" "$EX_STALE_REMOTE"
 }
 
-# hygiene_marker <sub-path> <action> <detail> : the machine-readable reuse-path
+# hygiene_marker <path> <action> <detail> : the machine-readable reuse-path
 # hygiene marker (#1381, the STALE_REMOTE precedent in this file: the provision
 # barrier keys on the token and the key=value payload, never an exit code).
-# action is "repaired", "detected" or "moved"; values stay space-free so the payload
-# splits cleanly on key=value boundaries.
+# action is "repaired", "detected" or "moved"; action and detail stay space-free so
+# the payload splits cleanly on key=value boundaries. <path> is a submodule path on
+# the reuse arm and a worktree path on the catch-up arm.
 hygiene_marker() {
   printf 'WORKTREE_HYGIENE path=%s action=%s detail=%s\n' "$1" "$2" "$3" >&2
 }

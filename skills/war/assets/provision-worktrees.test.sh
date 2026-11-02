@@ -3748,7 +3748,8 @@ eb_run "$RE3B" "$WT_E3B" "$TIP_E3B"
 expect "EB.3b: a copied commit keeps the old tip" "$SHA_E3B" "$(git -C "$WT_E3B" rev-parse HEAD)"
 expect "EB.3b: a copied commit writes no warning" "" "$EB_ERR"
 
-# EB.4: a merge commit on the branch stays.
+# EB.4: a branch holding a merge commit the tip does not contain stays. The reason
+# is containment, as in EB.3. The merge commit itself plays no part.
 RE4="$(eb_repo)"
 git -C "$RE4" branch eb-side "$EB_TASK"
 eb_commit "$RE4" eb-side side.txt side >/dev/null
@@ -3761,7 +3762,7 @@ TIP_E4="$(eb_commit "$RE4" "$EB_INT" sibling.txt sibling)"
 WT_E4="$(new_wt_path)"
 eb_run "$RE4" "$WT_E4" "$TIP_E4"
 expect "EB.4: a merge commit exits 0" 0 "$EB_RC"
-expect "EB.4: a merge commit on the branch keeps the old tip" "$MERGE_E4" "$(git -C "$WT_E4" rev-parse HEAD)"
+expect "EB.4: a branch the tip does not contain keeps the old tip" "$MERGE_E4" "$(git -C "$WT_E4" rev-parse HEAD)"
 
 # EB.4b: a sibling's merge on the integration side does not stop the move.
 RE4B="$(eb_repo)"
@@ -3781,7 +3782,6 @@ git -C "$RE4C" add -A
 git -C "$RE4C" commit -qm "$(printf 'ace fix\n\nAce-Charge: t1:3\n')"
 SHA_E4C="$(git -C "$RE4C" rev-parse HEAD)"
 git -C "$RE4C" checkout -q -
-eb_commit "$RE4C" "$EB_INT" sibling.txt sibling >/dev/null
 eb_merge "$RE4C" "$EB_TASK" "$EB_TASK" >/dev/null
 TIP_E4C="$(eb_commit "$RE4C" "$EB_INT" later.txt later)"
 WT_E4C="$(new_wt_path)"
@@ -3789,10 +3789,41 @@ eb_run "$RE4C" "$WT_E4C" "$TIP_E4C"
 expect "EB.4c: a merged branch exits 0" 0 "$EB_RC"
 expect "EB.4c: a merged branch keeps its tip" "$SHA_E4C" "$(git -C "$WT_E4C" rev-parse HEAD)"
 expect "EB.4c: a merged branch writes no warning" "" "$EB_ERR"
-MERGE_E4C="$(git -C "$RE4C" rev-list --first-parent --merges "$SHA_E4C..$TIP_E4C")"
-expect "EB.4c: the barrier's M^2 match still finds the tip" "$SHA_E4C" "$(git -C "$WT_E4C" rev-parse "$MERGE_E4C^2")"
+# Read the branch first, as the barrier does. A moved branch gives an empty list.
+REF_E4C="$(git -C "$RE4C" rev-parse "$EB_TASK")"
+MERGE_E4C="$(git -C "$RE4C" rev-list --first-parent --merges "$REF_E4C..$EB_INT")"
+expect "EB.4c: the barrier's M^2 match still finds the tip" "$REF_E4C" \
+  "$(git -C "$WT_E4C" rev-parse "$MERGE_E4C^2" 2>/dev/null)"
 expect "EB.4c: the charge stays readable" "t1:3" \
-  "$(git -C "$WT_E4C" log --format='%(trailers:key=Ace-Charge,valueonly)' "$MERGE_E4C^1..$MERGE_E4C^2" | tr -d '\n')"
+  "$(git -C "$WT_E4C" log --format='%(trailers:key=Ace-Charge,valueonly)' "$MERGE_E4C^1..$MERGE_E4C^2" 2>/dev/null | tr -d '\n')"
+WORK_E4C="$(git -C "$RE4C" symbolic-ref --short HEAD)"
+( cd "$RE4C" && bash "$HERE/task-integrated.sh" "$EB_TASK" "$EB_INT" "$WORK_E4C" ) >/dev/null 2>&1
+expect "EB.4c: task-integrated.sh still proves the merge" 0 "$?"
+
+# EB.4f: a sibling's merge above the task's own merge does not hide the proof.
+RE4F="$(eb_repo)"
+SHA_E4F="$(eb_commit "$RE4F" "$EB_TASK" one.txt one)"
+git -C "$RE4F" branch eb-sibling "$(git -C "$RE4F" rev-parse "$EB_INT")"
+eb_commit "$RE4F" eb-sibling sibling.txt sibling >/dev/null
+eb_merge "$RE4F" "$EB_TASK" "$EB_TASK" >/dev/null
+TIP_E4F="$(eb_merge "$RE4F" eb-sibling war/eb/p1-t2)"
+WT_E4F="$(new_wt_path)"
+eb_run "$RE4F" "$WT_E4F" "$TIP_E4F"
+expect "EB.4f: the task's merge below a sibling's still keeps the branch" "$SHA_E4F" "$(git -C "$WT_E4F" rev-parse HEAD)"
+
+# EB.4g: a matching merge off the first-parent chain is no proof, so the branch
+# moves. The engine's own task merges sit on the first-parent chain.
+RE4G="$(eb_repo)"
+eb_commit "$RE4G" "$EB_TASK" one.txt one >/dev/null
+git -C "$RE4G" branch eb-side "$EB_INT"
+git -C "$RE4G" checkout -q eb-side
+git -C "$RE4G" merge -q --no-ff -m "$(printf 'side merge\n\nWAR-Task: %s\n' "$EB_TASK")" "$EB_TASK"
+git -C "$RE4G" checkout -q -
+eb_commit "$RE4G" "$EB_INT" sibling.txt sibling >/dev/null
+TIP_E4G="$(eb_merge "$RE4G" eb-side "")"
+WT_E4G="$(new_wt_path)"
+eb_run "$RE4G" "$WT_E4G" "$TIP_E4G"
+expect "EB.4g: a merge off the first-parent chain does not keep the branch" "$TIP_E4G" "$(git -C "$WT_E4G" rev-parse HEAD)"
 
 # EB.4d: a merge that names another branch is no proof, so the branch moves.
 RE4D="$(eb_repo)"
