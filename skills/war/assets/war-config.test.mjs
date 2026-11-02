@@ -2482,6 +2482,9 @@ test('doc-contract: SKILL.md Per-phase retired-token sweep clause — trigger fa
     assert.ok(region.includes(tok),
       `retired-token sweep clause must name the trigger-family token \`${tok}\` (retire/rename/consolidate a land/merge/escalation mechanism)`)
   }
+  // The loop's `retire` and `land` also match the lead-in, so pin the trigger sentence itself.
+  assert.ok(region.includes('consolidate a land, merge, or escalation mechanism'),
+    'retired-token sweep clause must keep the whole trigger family in one sentence')
   // Routing — repo-root load-bearing hits file one consolidated `war-followup` issue. Only this
   // file's clause region is read, so SKILL.md's own `war-followup` occurrences cannot satisfy it.
   assert.ok(region.includes('war-followup'),
