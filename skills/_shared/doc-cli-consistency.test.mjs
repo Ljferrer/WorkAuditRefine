@@ -146,6 +146,9 @@ function claimedVerbs(skillText, moduleName) {
 const EVICTION_DESTINATIONS = [
   // Operative Lead command/persistence guidance; keep future CLI claims under the verb scan.
   'skills/war/references/launch-identity.md',
+  // #2545: the retired-token sweep clause evicted from skills/war/SKILL.md phrases
+  // `war-memory.mjs query`, so its verb claim moves with it and stays scanned.
+  'skills/war/references/retired-token-sweep.md',
   'skills/war/references/setup.md',
   'skills/war/references/docker-gate.md',
   'skills/war/references/submodule-flows.md',

@@ -172,8 +172,8 @@ adjudicating every hit **load-bearing** (a no-longer-sanctioned recipe step) or 
 or still-live-in-context), never via an allowlist. Repo-root load-bearing hits route to one
 dedup-checked consolidated `war-followup` issue per triggering phase; local-root hits are counts only
 on gh-mirrored surfaces, slugs in the uncommitted ledger notes. Every landed phase carries a mandatory
-`retired-token sweep:` record line. The clause lives under `## Per phase (in DAG order)` in
-`skills/war/SKILL.md` (*defined-but-not-yet-emitted; produced in Task 1.1, same phase*).
+`retired-token sweep:` record line. The clause lives in `skills/war/references/retired-token-sweep.md`, and its trigger pointer
+sits under `## Per phase (in DAG order)` in `skills/war/SKILL.md`.
 _Avoid_: conflating with **Phase-close coherence sweep** (findings-queue-driven, engine-dispatched,
 fail-open polish; [ADR 0012](../../../docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md)); treating
 it as a gate (it never blocks or holds a land); an exemption allowlist (adjudication is per-hit);

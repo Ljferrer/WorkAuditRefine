@@ -357,6 +357,8 @@ const QUALIFIED_HEADERS = [
   // 2026-10-27-memory-query-mcp-tool Task 1.3: the agents/war-auditor.md `## Pin transfer (#1913)` body's
   // eviction destination (byte-funding the card's memory_query tools: entry, PIN-5), joined on creation.
   'pin-transfer.md',
+  // #2545: the skills/war/SKILL.md retired-token sweep eviction destination, joined on creation.
+  'retired-token-sweep.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

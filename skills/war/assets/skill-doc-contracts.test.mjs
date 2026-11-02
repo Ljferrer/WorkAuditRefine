@@ -1876,8 +1876,8 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     ['patch-equivalence probe', '## patch-equivalence probe'],
     // Wave 3 — the #1953 eviction pass (2026-08-31) restored CONTEXT.md headroom from 1 B to
     // 2,064 B under the unchanged ceiling. Coldness per the header criterion: each body is fully
-    // narrated in its own operative home — the retired-token sweep in skills/war/SKILL.md's
-    // phase-close paragraph, the done-unmet route on agents/war-refiner.md's floor section plus
+    // narrated in its own operative home — the retired-token sweep in
+    // skills/war/references/retired-token-sweep.md, the done-unmet route on agents/war-refiner.md's floor section plus
     // assert-done-when.sh's own header. The Strategy-verifier seat was CONSIDERED and rejected:
     // D36 guard-binds it inline as one of the eight authoring-side-verification mirror terms.
     // Never a ceiling raise; these rows are the lock-step re-anchor the eviction owes.
@@ -4521,4 +4521,47 @@ test('#2300: review selection treats legacy and UUID run IDs as opaque', () => {
   const review = readFileSync(join(HERE, '../../war-review/SKILL.md'), 'utf8')
   assert.doesNotMatch(review, /`runId` date/)
   assert.match(review, /ties broken by ascending ASCII filename order/)
+})
+
+
+// ---- #2545 parts 1 and 2: the Lead's seat model duty ----
+// ADR 0056 lowered the auditor default on the condition that the Lead keeps opus on boundary-heavy
+// seats. The duty rides Decompose step 2, where the Lead composes rosters. The boundary list keeps
+// one home, the rule in design.md's Audit step, so step 2 points there and must not restate it.
+const decomposeStep2 = () => {
+  const m = skillMd.match(/^2\. Seed each task's \*\*roster\*\*.*$/m)
+  assert.ok(m, 'could not locate Decompose step 2 in SKILL.md')
+  return m[0]
+}
+
+test('#2545: Decompose step 2 carries the seat model duty and points at the boundary rule', () => {
+  const step = decomposeStep2()
+  assert.match(step, /classify each seat as routine or boundary-heavy/, 'step 2 must make the Lead classify each seat')
+  assert.match(step, /set `model: "opus"` on each boundary-heavy seat/, 'step 2 must set the model on each boundary-heavy seat')
+  assert.match(step, /state the choice in the rationale line/, 'step 2 must put the choice in the rationale line')
+  assert.match(step, /\[references\/design\.md\]\(references\/design\.md\)/, 'step 2 must point at design.md')
+})
+
+test('#2545: the boundary list has one home, design.md, and step 2 does not restate it', () => {
+  const design = readFileSync(join(HERE, '../references/design.md'), 'utf8')
+  const audit = design.match(/^3\. \*\*Audit \(per task\):\*\*.*$/m)
+  assert.ok(audit, 'could not locate the Audit (per task) step in design.md')
+  assert.match(audit[0], /boundary-heavy seat \(security, parsing, Git or filesystem, recovery or state-machine work\) `model: "opus"`/,
+    'design.md must keep the boundary list and its opus routing in the Audit step')
+  for (const term of ['parsing', 'filesystem', 'state-machine']) {
+    assert.ok(!decomposeStep2().includes(term), 'step 2 restates the boundary list term: ' + term)
+  }
+})
+
+// ---- #1776: the assert-args-complete cold prose ----
+test('#1776: SKILL.md keeps the preflight invocation and a trigger pointer, and staged-script.md holds the cold prose', () => {
+  const staged = readFileSync(join(HERE, '../references/staged-script.md'), 'utf8')
+  assert.match(skillMd, /Run `node \$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/assets\/assert-args-complete\.mjs <args-file>`/,
+    'SKILL.md must keep the preflight invocation')
+  assert.match(skillMd, /Dispatch only on exit 0; when it exits non-zero or you injected an approved stage into the staged script, read \[references\/staged-script\.md\]\(references\/staged-script\.md\)/,
+    'SKILL.md must keep the stop rule and the trigger pointer')
+  for (const moved of ['By default it reads the SHIPPED template', 'Exit 0 ⇒ dispatch', 'This preflight is the belt']) {
+    assert.ok(!skillMd.includes(moved), 'SKILL.md still carries the moved prose: ' + moved)
+    assert.ok(staged.includes(moved), 'staged-script.md must carry the moved prose: ' + moved)
+  }
 })

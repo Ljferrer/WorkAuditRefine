@@ -2449,32 +2449,29 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
 // land/merge/escalation mechanism. It files debt (a `war-followup` issue) and records a line — it
 // NEVER blocks a land, and it is NOT the ADR 0012 phase-close coherence sweep. Lock the clause's
 // load-bearing elements by anchor, scoped to the clause region so the 3 pre-existing `war-followup`
-// occurrences elsewhere in SKILL.md don't satisfy the routing anchor. Style: #534 prefetch-clause
-// slicing (case-insensitive indexOf + region bound at the next `**Post-servitor publication` bold
-// lead-in, the held:workflow-error bounding move); mid-sentence anchors only, never whole sentences
+// occurrences elsewhere don't satisfy the routing anchor. The clause moved to
+// references/retired-token-sweep.md under ADR 0042 (#2545), so SKILL.md's Per-phase section holds
+// only its trigger pointer. Style: mid-sentence anchors only, never whole sentences
 // (learning `prompt-only-clause-grep-guard-must-tolerate-sentence-case` — rewording tolerance).
 test('doc-contract: SKILL.md Per-phase retired-token sweep clause — trigger family, war-followup routing, record line (#930)', () => {
-  const text = readDoc('skills/war/SKILL.md')
-  const lc = text.toLowerCase()
-  // Region extraction: the clause opens with the `Retired-token sweep` bold lead-in and terminates
-  // at the NAMED `**Post-servitor publication` lead-in — deliberately not "the next bold lead-in":
-  // the region absorbs the intervening `**Lead evidence bindings` paragraph (ADR 0041), whose
-  // 'just-landed-tip' wording also satisfies the `land` trigger token below; the load-bearing
-  // anchors (`retire`/`rename`/`consolidate`/`war-followup`/`retired-token sweep:`/`n/a`) remain
-  // unique to the sweep clause. Pre-fix this anchor has zero occurrences in SKILL.md (provably red
-  // at the dispatch base).
-  const anchor = lc.indexOf('retired-token sweep')
-  assert.ok(anchor >= 0, 'SKILL.md must carry the Per-phase retired-token sweep clause (#930)')
-  // Section containment: the clause lives under `## Per phase (in DAG order)`, before `## Resume`.
-  const perPhase = lc.indexOf('## per phase (in dag order)')
-  const resume = lc.indexOf('## resume')
+  // Region extraction: the clause opens with its bold lead-in, so the new file's header text can
+  // never satisfy an anchor below. The clause is the last text in the file.
+  const lc = readDoc('skills/war/references/retired-token-sweep.md').toLowerCase()
+  const anchor = lc.indexOf('**retired-token sweep (every landed phase; #930).**')
+  assert.ok(anchor >= 0, 'references/retired-token-sweep.md must carry the retired-token sweep clause (#930)')
+  const region = lc.slice(anchor)
+  // Section containment: the trigger pointer lives under `## Per phase (in DAG order)`, before
+  // `## Resume`, and it keeps the record-line words, so the Lead still writes the line at every
+  // landed phase. The clause body stays out of SKILL.md.
+  const skill = readDoc('skills/war/SKILL.md')
+  const perPhase = skill.indexOf('## Per phase (in DAG order)')
+  const resume = skill.indexOf('## Resume')
   assert.ok(perPhase >= 0 && resume > perPhase,
     'SKILL.md must retain `## Per phase (in DAG order)` before `## Resume`')
-  assert.ok(anchor > perPhase && anchor < resume,
-    'the retired-token sweep clause must sit inside `## Per phase (in DAG order)` (after that heading, before `## Resume`)')
-  const end = lc.indexOf('**post-servitor publication', anchor)
-  assert.ok(end > anchor, 'the retired-token sweep clause must precede the `**Post-servitor publication` block')
-  const region = lc.slice(anchor, end)
+  const section = skill.slice(perPhase, resume)
+  assert.match(section, /when a phase lands\b[^.]*, read \[references\/retired-token-sweep\.md\]\(references\/retired-token-sweep\.md\)[^.]*`retired-token sweep:`/,
+    'the Per-phase section must hold the trigger pointer with the `retired-token sweep:` record-line words')
+  assert.ok(!skill.includes('two nets over the hot corpus'), 'the clause body must stay out of SKILL.md')
   // Trigger family — retire / rename / consolidate a land, merge, or escalation mechanism.
   for (const tok of ['retire', 'rename', 'consolidate', 'land', 'merge', 'escalation']) {
     assert.ok(region.includes(tok),
